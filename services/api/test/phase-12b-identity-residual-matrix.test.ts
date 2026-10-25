@@ -69,6 +69,9 @@ import { createHash } from "node:crypto";
 const ACTOR = "11111111-1111-4111-8111-111111111111";
 const TEAM = "22222222-2222-4222-8222-222222222222";
 const OTHER_TEAM = "33333333-3333-4333-8333-333333333333";
+// Members audit DOM-13 — the Organizations owning TEAM and OTHER_TEAM.
+const ORG_A = "12121212-1212-4121-8121-121212121201";
+const ORG_B = "12121212-1212-4121-8121-121212121209";
 
 const SUBJECT_USER = "44444444-4444-4444-8444-444444444401";
 const STALE_USER = "44444444-4444-4444-8444-444444444402";
@@ -164,13 +167,58 @@ const H = vi.hoisted(() => {
   const asArray = (v: unknown): Row[] =>
     (Array.isArray(v) ? v : [v]) as Row[];
 
-  const matchWhere = (row: Row, where: Row | undefined): boolean => {
+  /*
+   * Members audit DOM-13 — the relations the Organization-scoped identity
+   * reads traverse (token → organization/team, member → team, projection →
+   * workspace, group → projections, organization → workspaces). Resolved
+   * against the store so `where` relation filters and `include`/nested
+   * `select` behave as Prisma's do.
+   */
+  type Rel = { t: string; many: boolean; on: (owner: Row, x: Row) => boolean };
+  const REL: Record<string, Record<string, Rel>> = {
+    scimProvisioningToken: {
+      organization: { t: "organization", many: false, on: (o, x) => x["id"] === o["organizationId"] },
+      team: { t: "team", many: false, on: (o, x) => x["id"] === o["teamId"] },
+    },
+    team: { organization: { t: "organization", many: false, on: (o, x) => x["id"] === o["organizationId"] } },
+    teamMember: {
+      team: { t: "team", many: false, on: (o, x) => x["id"] === o["teamId"] },
+      user: { t: "user", many: false, on: (o, x) => x["id"] === o["userId"] },
+    },
+    scimGroupWorkspaceProjection: {
+      workspace: { t: "team", many: false, on: (o, x) => x["id"] === o["workspaceId"] },
+    },
+    scimGroup: {
+      projections: { t: "scimGroupWorkspaceProjection", many: true, on: (o, x) => x["scimGroupId"] === o["id"] },
+    },
+    organization: { workspaces: { t: "team", many: true, on: (o, x) => x["organizationId"] === o["id"] } },
+  };
+  const related = (table: string | undefined, row: Row, k: string): { rel: Rel; rows: Row[] } | null => {
+    const rel = table ? REL[table]?.[k] : undefined;
+    if (!rel) return null;
+    return { rel, rows: (store[rel.t] ?? []).filter((x) => rel.on(row, x)) };
+  };
+
+  const matchWhere = (row: Row, where: Row | undefined, table?: string): boolean => {
     if (!where) return true;
     for (const [k, v] of Object.entries(where)) {
       if (v === undefined) continue;
-      if (k === "AND") { if (!asArray(v).every((w) => matchWhere(row, w))) return false; continue; }
-      if (k === "OR") { if (!asArray(v).some((w) => matchWhere(row, w))) return false; continue; }
-      if (k === "NOT") { if (asArray(v).some((w) => matchWhere(row, w))) return false; continue; }
+      if (k === "AND") { if (!asArray(v).every((w) => matchWhere(row, w, table))) return false; continue; }
+      if (k === "OR") { if (!asArray(v).some((w) => matchWhere(row, w, table))) return false; continue; }
+      if (k === "NOT") { if (asArray(v).some((w) => matchWhere(row, w, table))) return false; continue; }
+      const r = related(table, row, k);
+      if (r) {
+        if (r.rel.many) {
+          const c = v as Row;
+          if (c["some"] !== undefined && !r.rows.some((x) => matchWhere(x, c["some"] as Row, r.rel.t))) return false;
+          if (c["every"] !== undefined && !r.rows.every((x) => matchWhere(x, c["every"] as Row, r.rel.t))) return false;
+          if (c["none"] !== undefined && r.rows.some((x) => matchWhere(x, c["none"] as Row, r.rel.t))) return false;
+        } else {
+          const one = r.rows[0];
+          if (v === null ? one !== undefined : !one || !matchWhere(one, v as Row, r.rel.t)) return false;
+        }
+        continue;
+      }
       // Compound unique (`teamId_userId: { teamId, userId }`) — the key is not a
       // column, so expand its members as ordinary conditions.
       const isPlainObject =
@@ -194,6 +242,8 @@ const H = vi.hoisted(() => {
     "user", "teamMember", "memberCapabilityGrant", "memberDelegatedAdminScope",
     "apiCredential", "fileSecurityScan", "securityEvent", "accessReview",
     "externalIdentityMapping", "scimProvisioningToken", "scimGroup",
+    // Members audit DOM-13 — Organization-owned identity.
+    "team", "organization", "organizationMembership", "scimGroupWorkspaceProjection", "membershipGrant",
   ];
   for (const t of TABLES) store[t] = [];
 
@@ -211,21 +261,35 @@ const H = vi.hoisted(() => {
       revokedAtUtc: null, revokedByUserId: null, revokedReason: null,
     },
     scimGroup: { status: "ACTIVE", externalId: null },
+    scimGroupWorkspaceProjection: { status: "ACTIVE", createdByUserId: null },
     accessReview: { status: "PENDING", completedAtUtc: null, completedByUserId: null, decisionNote: null },
   };
 
-  const project = (table: string, row: Row, select: Row | undefined): Row => {
-    if (!select) return clone(row);
+  // A relation read through `select: { rel: { select } }` or `include`.
+  const projectRelation = (table: string, row: Row, k: string, spec: unknown): unknown => {
+    const r = related(table, row, k);
+    if (!r) return null;
+    const sub = spec && typeof spec === "object" ? (spec as Row) : {};
+    const shape = (x: Row) =>
+      project(r.rel.t, x, sub["select"] as Row | undefined, sub["include"] as Row | undefined);
+    if (r.rel.many) {
+      return sortRows(r.rows.filter((x) => matchWhere(x, sub["where"] as Row | undefined, r.rel.t)), sub["orderBy"]).map(shape);
+    }
+    return r.rows[0] ? shape(r.rows[0]) : null;
+  };
+
+  const project = (table: string, row: Row, select: Row | undefined, include?: Row): Row => {
+    if (!select) {
+      const out = clone(row);
+      for (const [k, v] of Object.entries(include ?? {})) {
+        if (v) out[k] = projectRelation(table, row, k, v);
+      }
+      return out;
+    }
     const out: Row = {};
     for (const [k, v] of Object.entries(select)) {
       if (v === true) { out[k] = row[k]; continue; }
-      if (v && typeof v === "object" && "select" in (v as Row)) {
-        // The only relation any covered code path reads.
-        if (table === "teamMember" && k === "user") {
-          const u = store["user"].find((x) => x["id"] === row["userId"]);
-          out[k] = u ? project("user", u, (v as Row)["select"] as Row) : null;
-        } else out[k] = null;
-      }
+      if (v && typeof v === "object") out[k] = projectRelation(table, row, k, v);
     }
     return out;
   };
@@ -250,27 +314,27 @@ const H = vi.hoisted(() => {
 
   const delegate = (table: string) => ({
     findFirst: async (a: Row = {}) => {
-      const rows = sortRows(store[table].filter((r) => matchWhere(r, a["where"] as Row)), a["orderBy"]);
-      return rows.length > 0 ? project(table, rows[0], a["select"] as Row | undefined) : null;
+      const rows = sortRows(store[table].filter((r) => matchWhere(r, a["where"] as Row, table)), a["orderBy"]);
+      return rows.length > 0 ? project(table, rows[0], a["select"] as Row | undefined, a["include"] as Row | undefined) : null;
     },
     findUnique: async (a: Row = {}) => {
-      const r = store[table].find((x) => matchWhere(x, a["where"] as Row));
-      return r ? project(table, r, a["select"] as Row | undefined) : null;
+      const r = store[table].find((x) => matchWhere(x, a["where"] as Row, table));
+      return r ? project(table, r, a["select"] as Row | undefined, a["include"] as Row | undefined) : null;
     },
     findUniqueOrThrow: async (a: Row = {}) => {
-      const r = store[table].find((x) => matchWhere(x, a["where"] as Row));
+      const r = store[table].find((x) => matchWhere(x, a["where"] as Row, table));
       if (!r) throw new Error(`${table}_not_found`);
-      return project(table, r, a["select"] as Row | undefined);
+      return project(table, r, a["select"] as Row | undefined, a["include"] as Row | undefined);
     },
     findMany: async (a: Row = {}) => {
-      let rows = sortRows(store[table].filter((r) => matchWhere(r, a["where"] as Row)), a["orderBy"]);
+      let rows = sortRows(store[table].filter((r) => matchWhere(r, a["where"] as Row, table)), a["orderBy"]);
       const skip = (a["skip"] as number | undefined) ?? 0;
       const take = (a["take"] as number | undefined) ?? rows.length;
       rows = rows.slice(skip, skip + take);
-      return rows.map((r) => project(table, r, a["select"] as Row | undefined));
+      return rows.map((r) => project(table, r, a["select"] as Row | undefined, a["include"] as Row | undefined));
     },
     count: async (a: Row = {}) =>
-      store[table].filter((r) => matchWhere(r, a["where"] as Row)).length,
+      store[table].filter((r) => matchWhere(r, a["where"] as Row, table)).length,
     create: async (a: Row = {}) => {
       const data = { ...(a["data"] as Row) };
       for (const [k, v] of Object.entries(data)) {
@@ -290,20 +354,20 @@ const H = vi.hoisted(() => {
       return clone(row);
     },
     update: async (a: Row = {}) => {
-      const r = store[table].find((x) => matchWhere(x, a["where"] as Row));
+      const r = store[table].find((x) => matchWhere(x, a["where"] as Row, table));
       if (!r) throw new Error(`${table}_update_not_found`);
       Object.assign(r, a["data"] as Row, { updatedAt: new Date() });
       writes.push(`${table}.update`);
-      return project(table, r, a["select"] as Row | undefined);
+      return project(table, r, a["select"] as Row | undefined, a["include"] as Row | undefined);
     },
     updateMany: async (a: Row = {}) => {
-      const rows = store[table].filter((x) => matchWhere(x, a["where"] as Row));
+      const rows = store[table].filter((x) => matchWhere(x, a["where"] as Row, table));
       for (const r of rows) Object.assign(r, a["data"] as Row, { updatedAt: new Date() });
       if (rows.length > 0) writes.push(`${table}.updateMany`);
       return { count: rows.length };
     },
     deleteMany: async (a: Row = {}) => {
-      const keep = store[table].filter((x) => !matchWhere(x, a["where"] as Row));
+      const keep = store[table].filter((x) => !matchWhere(x, a["where"] as Row, table));
       const n = store[table].length - keep.length;
       store[table] = keep;
       if (n > 0) writes.push(`${table}.deleteMany`);
@@ -731,9 +795,9 @@ function seed(): void {
     { id: "cccccccc-cccc-4ccc-8ccc-cccccccccc0b", teamId: OTHER_TEAM, eventType: "scim_token_created", severity: "HIGH", details: { action: "rotate" }, createdAt: D(8), updatedAt: D(8) },
   ];
   H.store["externalIdentityMapping"] = [
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", teamId: TEAM, userId: SUBJECT_USER, provider: "SCIM", externalSubjectId: "idp-sub-1", externalEmail: "member@acme.test", displayName: "Member", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", teamId: TEAM, userId: STALE_USER, provider: "SCIM", externalSubjectId: "idp-sub-2", externalEmail: "stale@acme.test", displayName: "Stale", unlinkedAtUtc: null, linkedAtUtc: D(3), createdAt: D(3), updatedAt: D(3) },
-    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee09", teamId: OTHER_TEAM, userId: FOREIGN_USER, provider: "SCIM", externalSubjectId: "idp-sub-9", externalEmail: "other@rival.test", displayName: "Other", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01", teamId: TEAM, organizationId: ORG_A, userId: SUBJECT_USER, provider: "SCIM", externalSubjectId: "idp-sub-1", externalEmail: "member@acme.test", displayName: "Member", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02", teamId: TEAM, organizationId: ORG_A, userId: STALE_USER, provider: "SCIM", externalSubjectId: "idp-sub-2", externalEmail: "stale@acme.test", displayName: "Stale", unlinkedAtUtc: null, linkedAtUtc: D(3), createdAt: D(3), updatedAt: D(3) },
+    { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee09", teamId: OTHER_TEAM, organizationId: ORG_B, userId: FOREIGN_USER, provider: "SCIM", externalSubjectId: "idp-sub-9", externalEmail: "other@rival.test", displayName: "Other", unlinkedAtUtc: null, linkedAtUtc: D(2), createdAt: D(2), updatedAt: D(2) },
   ];
   const tokenBase = {
     name: "okta", tokenPrefix: "scim_pat_aa", ipAllowlist: [] as string[],
@@ -742,17 +806,35 @@ function seed(): void {
     createdAt: D(1), updatedAt: D(1),
   };
   H.store["scimProvisioningToken"] = [
-    { ...tokenBase, id: TOKEN_ID, teamId: TEAM, status: "ACTIVE", tokenHash: hashRaw(RAW_ALL), scopes: ["users.read", "users.write", "users.deactivate", "groups.read", "groups.write"] },
-    { ...tokenBase, id: TOKEN_REVOKED_ID, teamId: TEAM, status: "REVOKED", revokedAtUtc: D(4), tokenHash: "unused-revoked-hash", scopes: ["users.read"] },
-    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03", teamId: TEAM, status: "ACTIVE", tokenHash: hashRaw(RAW_GROUPS_WRITE), scopes: ["groups.write"] },
-    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa04", teamId: TEAM, status: "ACTIVE", tokenHash: hashRaw(RAW_USERS_WRITE), scopes: ["users.write"] },
-    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa05", teamId: TEAM, status: "ACTIVE", tokenHash: hashRaw(RAW_GROUPS_READ), scopes: ["groups.read"] },
-    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa06", teamId: TEAM, status: "ACTIVE", tokenHash: hashRaw(RAW_USERS_READ), scopes: ["users.read"] },
-    { ...tokenBase, id: FOREIGN_TOKEN_ID, teamId: OTHER_TEAM, status: "ACTIVE", tokenHash: hashRaw(RAW_FOREIGN), scopes: ["users.read", "users.write", "users.deactivate", "groups.read", "groups.write"] },
+    { ...tokenBase, id: TOKEN_ID, teamId: TEAM, organizationId: ORG_A, status: "ACTIVE", tokenHash: hashRaw(RAW_ALL), scopes: ["users.read", "users.write", "users.deactivate", "groups.read", "groups.write"] },
+    { ...tokenBase, id: TOKEN_REVOKED_ID, teamId: TEAM, organizationId: ORG_A, status: "REVOKED", revokedAtUtc: D(4), tokenHash: "unused-revoked-hash", scopes: ["users.read"] },
+    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03", teamId: TEAM, organizationId: ORG_A, status: "ACTIVE", tokenHash: hashRaw(RAW_GROUPS_WRITE), scopes: ["groups.write"] },
+    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa04", teamId: TEAM, organizationId: ORG_A, status: "ACTIVE", tokenHash: hashRaw(RAW_USERS_WRITE), scopes: ["users.write"] },
+    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa05", teamId: TEAM, organizationId: ORG_A, status: "ACTIVE", tokenHash: hashRaw(RAW_GROUPS_READ), scopes: ["groups.read"] },
+    { ...tokenBase, id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa06", teamId: TEAM, organizationId: ORG_A, status: "ACTIVE", tokenHash: hashRaw(RAW_USERS_READ), scopes: ["users.read"] },
+    { ...tokenBase, id: FOREIGN_TOKEN_ID, teamId: OTHER_TEAM, organizationId: ORG_B, status: "ACTIVE", tokenHash: hashRaw(RAW_FOREIGN), scopes: ["users.read", "users.write", "users.deactivate", "groups.read", "groups.write"] },
   ];
   H.store["scimGroup"] = [
-    { id: GROUP, teamId: TEAM, displayName: "Engineering", externalId: "idp-grp-1", mappedRole: "ADMIN", status: "ACTIVE", createdAt: D(2), updatedAt: D(2) },
-    { id: FOREIGN_GROUP, teamId: OTHER_TEAM, displayName: "Rival", externalId: "idp-grp-9", mappedRole: "ADMIN", status: "ACTIVE", createdAt: D(2), updatedAt: D(2) },
+    { id: GROUP, teamId: TEAM, organizationId: ORG_A, displayName: "Engineering", externalId: "idp-grp-1", mappedRole: "ADMIN", status: "ACTIVE", createdAt: D(2), updatedAt: D(2) },
+    { id: FOREIGN_GROUP, teamId: OTHER_TEAM, organizationId: ORG_B, displayName: "Rival", externalId: "idp-grp-9", mappedRole: "ADMIN", status: "ACTIVE", createdAt: D(2), updatedAt: D(2) },
+  ];
+  // Members audit DOM-13 — a group reaches workspaces through its ACTIVE
+  // projections; each seeded group projects into its default workspace.
+  H.store["scimGroupWorkspaceProjection"] = [
+    { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbc01", scimGroupId: GROUP, organizationId: ORG_A, workspaceId: TEAM, mappedRole: "ADMIN", status: "ACTIVE", createdByUserId: null, createdAt: D(2), updatedAt: D(2) },
+    { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbc09", scimGroupId: FOREIGN_GROUP, organizationId: ORG_B, workspaceId: OTHER_TEAM, mappedRole: "ADMIN", status: "ACTIVE", createdByUserId: null, createdAt: D(2), updatedAt: D(2) },
+  ];
+  H.store["organization"] = [
+    { id: ORG_A, kind: "CUSTOMER", status: "ACTIVE", createdAt: D(1), updatedAt: D(1) },
+    { id: ORG_B, kind: "CUSTOMER", status: "ACTIVE", createdAt: D(1), updatedAt: D(1) },
+  ];
+  H.store["team"] = [
+    { id: TEAM, organizationId: ORG_A, isPersonal: false, closedAtUtc: null, name: "Acme", createdAt: D(1), updatedAt: D(1) },
+    { id: OTHER_TEAM, organizationId: ORG_B, isPersonal: false, closedAtUtc: null, name: "Rival", createdAt: D(1), updatedAt: D(1) },
+  ];
+  // The actor administers identity for Organization A (DOM-13 authority).
+  H.store["organizationMembership"] = [
+    { id: "ffffffff-ffff-4fff-8fff-ffffffffff01", organizationId: ORG_A, userId: ACTOR, role: "ORG_ADMIN", status: "ACTIVE", validUntilUtc: null, createdAt: D(1), updatedAt: D(1) },
   ];
 }
 
@@ -1679,6 +1761,10 @@ describe("SYSTEM 5 — SCIM administration", () => {
       );
       expect(created?.["tokenHash"]).toBe(hashRaw(body.tokenOnce));
       expect(storeDump()).not.toContain(body.tokenOnce);
+      // DOM-13 — rotating never moves a credential: the replacement keeps the
+      // rotated token's Organization and default provisioning workspace.
+      expect(created?.["organizationId"]).toBe(ORG_A);
+      expect(created?.["teamId"]).toBe(TEAM);
 
       // Target-bound step-up under the SCIM administration purpose.
       expect(H.authorizeChecks).toEqual([
@@ -1739,6 +1825,38 @@ describe("SYSTEM 5 — SCIM administration", () => {
       expect(json(res)).toEqual({ error: { code: "scim_token_already_revoked" } });
       expect(H.writes).toEqual([]);
       expect(H.store["scimProvisioningToken"]).toHaveLength(7);
+    });
+
+    it("DOM-13: a workspace admin WITHOUT an Organization identity role → 403, ZERO mutation, ZERO step-up spend", async () => {
+      H.store["organizationMembership"] = [
+        { id: "ffffffff-ffff-4fff-8fff-ffffffffff01", organizationId: ORG_A, userId: ACTOR, role: "ORG_MEMBER", status: "ACTIVE", validUntilUtc: null },
+      ];
+      const res = await send(scimAdminApp, "POST", rotateUrl(TOKEN_ID), { teamId: TEAM });
+      expect(res.statusCode).toBe(403);
+      expect((json(res).error as { code: string }).code).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+      expect(hits("rotateScimToken")).toHaveLength(0);
+      expect(H.stepUps).toHaveLength(0);
+      expect(H.writes).toEqual([]);
+      expect(row("scimProvisioningToken", TOKEN_ID)?.["status"]).toBe("ACTIVE");
+    });
+
+    it("DOM-13: a token minted from a SIBLING workspace of the same Organization is rotatable from this one", async () => {
+      const SIBLING = "22222222-2222-4222-8222-2222222222aa";
+      H.store["team"].push({ id: SIBLING, organizationId: ORG_A, isPersonal: false, closedAtUtc: null, name: "Acme 2" });
+      const sibTok = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa0a";
+      H.store["scimProvisioningToken"].push({
+        id: sibTok, teamId: SIBLING, organizationId: ORG_A, name: "okta-2", tokenPrefix: "scim_pat_s2",
+        tokenHash: "sibling-hash", scopes: ["users.read"], ipAllowlist: [], status: "ACTIVE",
+        createdByUserId: ACTOR, lastUsedAtUtc: null, expiresAtUtc: null,
+        revokedAtUtc: null, revokedByUserId: null, revokedReason: null, createdAt: D(1), updatedAt: D(1),
+      });
+      const res = await send(scimAdminApp, "POST", rotateUrl(sibTok), { teamId: TEAM });
+      expect(res.statusCode).toBe(201);
+      const body = json(res) as { projection: Record<string, unknown> };
+      // The replacement stays where the rotated credential lived.
+      const created = H.store["scimProvisioningToken"].find((t) => t["id"] === body.projection["id"]);
+      expect(created).toMatchObject({ teamId: SIBLING, organizationId: ORG_A, status: "ACTIVE" });
+      expect(row("scimProvisioningToken", sibTok)?.["status"]).toBe("REVOKED");
     });
 
     it("step-up denial → 401 STEP_UP_REQUIRED with ZERO mutation", async () => {
@@ -1930,6 +2048,12 @@ describe("SYSTEM 6 — SCIM v2 Groups", () => {
       const created = H.store["scimGroup"].find((g) => g["id"] === body.id);
       expect(created?.["teamId"]).toBe(TEAM);
       expect(created?.["status"]).toBe("ACTIVE");
+      // DOM-13 — the group is the token's ORGANIZATION's, and its first reach
+      // is ONE projection into the token's default workspace with its role.
+      expect(created?.["organizationId"]).toBe(ORG_A);
+      const projections = H.store["scimGroupWorkspaceProjection"].filter((p) => p["scimGroupId"] === body.id);
+      expect(projections).toHaveLength(1);
+      expect(projections[0]).toMatchObject({ organizationId: ORG_A, workspaceId: TEAM, mappedRole: "VIEWER", status: "ACTIVE" });
     });
 
     it("the legacy users.write scope still works (no IdP integration breaks on deploy)", async () => {

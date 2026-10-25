@@ -187,10 +187,13 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
       await prisma.user.update({ where: { id }, data: { currentWorkspaceId: teamA.teamId } });
     }
 
-    const saml = (teamId: string, name: string) =>
+    const saml = async (teamId: string, name: string) =>
       prisma.ssoConnection.create({
         data: {
           teamId,
+          organizationId: (
+            await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true } })
+          ).organizationId,
           provider: "GENERIC_SAML",
           displayName: name,
           createdByUserId: harness.fixtures.teamA.ownerUserId,

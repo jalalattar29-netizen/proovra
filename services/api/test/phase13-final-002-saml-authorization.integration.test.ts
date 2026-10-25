@@ -84,6 +84,8 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
   let adminUserId: string;
   let adminToken: string;
   let foreignOwnerToken: string;
+  let orgA: string;
+  let priorAdminOrgRole: string | null = null;
 
   const savedAcsUrl = process.env["SAML_ACS_URL"];
   let totp: typeof import("../src/services/security/mfa-totp.js");
@@ -120,6 +122,16 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
     const created = await prisma.ssoConnection.create({
       data: {
         team: { connect: { id: h.fixtures.teamA.teamId } },
+        organization: {
+          connect: {
+            id: (
+              await prisma.team.findUniqueOrThrow({
+                where: { id: h.fixtures.teamA.teamId },
+                select: { organizationId: true },
+              })
+            ).organizationId,
+          },
+        },
         createdBy: { connect: { id: h.fixtures.teamA.ownerUserId } },
         provider: "GENERIC_SAML",
         displayName: "phase13-final-002-conn-a",
@@ -134,6 +146,23 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       select: { id: true },
     });
     connectionA = created.id;
+
+    // Members audit DOM-13 — the connection is the ORGANIZATION's, so an
+    // operator change also requires an Organization identity role. The harness
+    // owner holds ORG_OWNER; the ADMIN actor of cases 3/4 is given
+    // ORG_SECURITY_ADMIN so its positive control is still authorized, and the
+    // role is restored in afterAll.
+    orgA = (
+      await prisma.team.findUniqueOrThrow({ where: { id: h.fixtures.teamA.teamId }, select: { organizationId: true } })
+    ).organizationId;
+    priorAdminOrgRole =
+      (
+        await prisma.organizationMembership.findUnique({
+          where: { organization_memberships_org_user_uniq: { organizationId: orgA, userId: adminUserId } },
+          select: { role: true },
+        })
+      )?.role ?? null;
+    await setOrgRole(adminUserId, "ORG_SECURITY_ADMIN");
 
     // D10 — the certificate routes are stepped up. The owner and admin each
     // hold a verified authenticator, so a positive control can present a
@@ -163,6 +192,14 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
   }, 900_000);
 
   afterAll(async () => {
+    if (prisma && orgA) {
+      if (priorAdminOrgRole) await setOrgRole(adminUserId, priorAdminOrgRole).catch(() => undefined);
+      else {
+        await prisma.organizationMembership
+          .deleteMany({ where: { organizationId: orgA, userId: adminUserId } })
+          .catch(() => undefined);
+      }
+    }
     await prisma?.mfaFactor
       .deleteMany({ where: { label: "phase13-final-002" } })
       .catch(() => undefined);
@@ -194,6 +231,14 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
     expect(checked.statusCode, checked.body).toBe(200);
     return { "x-proovra-step-up-challenge-id": challengeId };
   };
+
+  async function setOrgRole(userId: string, role: string): Promise<void> {
+    await prisma.organizationMembership.upsert({
+      where: { organization_memberships_org_user_uniq: { organizationId: orgA, userId } },
+      create: { organizationId: orgA, userId, role: role as never },
+      update: { role: role as never },
+    });
+  }
 
   const setMembership = async (
     userId: string,
@@ -392,6 +437,45 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       }
     });
   }
+
+  // =========================================================================
+  // CASE 12 — Members audit DOM-13: an ACTIVE workspace ADMIN WITHOUT an
+  // Organization identity role is refused with a readable 403 (it is a member,
+  // so no concealment is owed) and nothing changes.
+  // =========================================================================
+  describe("case 12: an ACTIVE ADMIN without an Organization identity role is refused (DOM-13)", () => {
+    for (const route of OPERATOR_ROUTES("PLACEHOLDER")) {
+      it(`${route.name} refuses an ADMIN who holds no Organization identity role`, async () => {
+        await setMembership(adminUserId, "ACTIVE", "ADMIN");
+        await ensureRotationPending();
+        const before = await prisma.ssoConnection.findUniqueOrThrow({
+          where: { id: connectionA },
+          select: { samlCertificate: true, samlCertificateNext: true, samlIdpEntityId: true, samlLastTestedAt: true },
+        });
+        await setOrgRole(adminUserId, "ORG_MEMBER");
+        try {
+          const res = await h.app.inject({
+            method: route.method,
+            url: route.url.replace("PLACEHOLDER", connectionA),
+            headers: {
+              ...auth(adminToken),
+              ...(route.steppedUp ? await stepUpHeaders(adminToken, adminUserId) : {}),
+            },
+            ...(route.payload !== undefined ? { payload: route.payload } : {}),
+          });
+          expect(res.statusCode, res.body).toBe(403);
+          expect(JSON.parse(res.body)).toEqual({ error: { code: "ORGANIZATION_IDENTITY_ADMIN_REQUIRED" } });
+        } finally {
+          await setOrgRole(adminUserId, "ORG_SECURITY_ADMIN");
+        }
+        const after = await prisma.ssoConnection.findUniqueOrThrow({
+          where: { id: connectionA },
+          select: { samlCertificate: true, samlCertificateNext: true, samlIdpEntityId: true, samlLastTestedAt: true },
+        });
+        expect(after).toEqual(before);
+      });
+    }
+  });
 
   // =========================================================================
   // CASE 5 — cross-tenant, and no existence disclosure.

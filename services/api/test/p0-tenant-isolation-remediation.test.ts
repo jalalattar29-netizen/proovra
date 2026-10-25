@@ -264,9 +264,18 @@ describe("P0 — SAML JIT existing-account link guard", () => {
 describe("Phase 8 §11.1 — repeat-login mapping revalidation", () => {
   const OTHER_TEAM = "99999999-9999-4999-8999-999999999999";
 
-  it("quarantines + denies a mapping whose team does not match the connection", async () => {
+  /*
+   * MEMBERS AUDIT DOM-13 — INTENTIONAL BEHAVIOUR CHANGE. This case used to
+   * quarantine a mapping whose teamId differed from the connection's
+   * workspace. External identities are now ORGANIZATION-owned and unique per
+   * (organizationId, provider, externalSubjectId): the tenant boundary is the
+   * lookup KEY (the connection's Organization), so a mapping from another
+   * Organization can never be found here at all, and a mapping configured from
+   * a SIBLING workspace of the same Organization is the same identity.
+   */
+  it("looks the mapping up by the connection's ORGANIZATION; a sibling-workspace mapping is the same identity", async () => {
     const { client, calls } = fakePrisma({
-      // Existing mapping is bound to a DIFFERENT team than this login.
+      // Existing mapping was configured from a DIFFERENT workspace of the SAME Organization.
       "externalIdentityMapping.findUnique": () => ({
         id: "map-1",
         userId: USER_ID,
@@ -274,6 +283,34 @@ describe("Phase 8 §11.1 — repeat-login mapping revalidation", () => {
         unlinkedAtUtc: null,
       }),
       "team.findUnique": () => ({ organizationId: ORG_ID }),
+    });
+    const result = await handleSamlAssertion(
+      {
+        teamId: TEAM_ID,
+        connectionId: "conn-1",
+        provider: "GENERIC_SAML" as never,
+        assertion: samlAssertionFor("jalal@company.com"),
+        attributeMapping: null,
+        allowedEmailDomains: [],
+        jitDefaultRole: "MEMBER",
+        scimManaged: false,
+      } as never,
+      client,
+    );
+    expect((result as { userId: string }).userId).toBe(USER_ID);
+    const lookup = calls.find((c) => c.op === "externalIdentityMapping.findUnique");
+    expect(
+      (lookup?.args as {
+        where: { organizationId_provider_externalSubjectId: { organizationId: string } };
+      }).where.organizationId_provider_externalSubjectId.organizationId,
+    ).toBe(ORG_ID);
+    // Not quarantined: a sibling workspace's link is not a tenant mismatch.
+    expect(calls.some((c) => c.op === "externalIdentityMapping.update")).toBe(false);
+  });
+
+  it("an assertion for a workspace that no longer exists is refused before any mapping lookup", async () => {
+    const { client, calls } = fakePrisma({
+      "team.findUnique": () => null,
     });
     await expect(
       handleSamlAssertion(
@@ -289,18 +326,8 @@ describe("Phase 8 §11.1 — repeat-login mapping revalidation", () => {
         } as never,
         client,
       ),
-    ).rejects.toMatchObject({ code: "SAML_ACCOUNT_LINK_DENIED" });
-    // The bad mapping is soft-unlinked (quarantined) so it can never
-    // authorize again, and no session/membership is granted.
-    const quarantine = calls.find(
-      (c) => c.op === "externalIdentityMapping.update",
-    );
-    expect(quarantine).toBeDefined();
-    expect(
-      (quarantine?.args as { data: { unlinkedAtUtc: unknown } }).data
-        .unlinkedAtUtc,
-    ).toBeInstanceOf(Date);
-    expect(calls.some((c) => c.op === "teamMember.upsert")).toBe(false);
+    ).rejects.toMatchObject({ code: "SAML_CONNECTION_INACTIVE" });
+    expect(calls.some((c) => c.op.startsWith("externalIdentityMapping."))).toBe(false);
   });
 
   it("denies an already-quarantined mapping without re-authorizing", async () => {
@@ -381,7 +408,7 @@ describe("P0 — SCIM create existing-account link guard", () => {
       "organizationDomain.findMany": () => [],
     });
     const res = await scimCreateUser(
-      { teamId: TEAM_ID, tokenId: "tok-1", baseUrl: "https://x" } as never,
+      { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x" },
       scimUser as never,
       client,
     );
@@ -403,11 +430,15 @@ describe("P0 — SCIM create existing-account link guard", () => {
 
 describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
   it("writes an ALL_FOR_USER deny-list row and clears a stale currentWorkspaceId", async () => {
+    // DOM-13 — the deactivation reads the user's live memberships across the
+    // Organization (findMany) and confirms the user is known there (findFirst).
     const { client, calls } = fakePrisma({
+      "teamMember.findMany": () => [{ id: "member-1", teamId: TEAM_ID }],
+      "teamMember.findFirst": () => ({ id: "member-1" }),
       "teamMember.findUnique": () => ({ id: "member-1", status: "ACTIVE" }),
     });
     const res = await scimDeactivateUser(
-      { teamId: TEAM_ID, tokenId: "tok-1", baseUrl: "https://x" } as never,
+      { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x" },
       USER_ID,
       client,
     );
@@ -429,9 +460,14 @@ describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
     const heal = calls.find((c) => c.op === "user.updateMany");
     expect(
       (heal?.args as {
-        where: { id: string; currentWorkspaceId: string };
+        where: { id: string; currentWorkspaceId: { in: string[] } };
       }).where,
-    ).toEqual({ id: USER_ID, currentWorkspaceId: TEAM_ID });
+    ).toEqual({ id: USER_ID, currentWorkspaceId: { in: [TEAM_ID] } });
+    // The Organization-scoped membership read is the one the suspension used.
+    const read = calls.find((c) => c.op === "teamMember.findMany");
+    expect((read?.args as { where: { team: { organizationId: string } } }).where.team).toEqual({
+      organizationId: ORG_ID,
+    });
   });
 });
 

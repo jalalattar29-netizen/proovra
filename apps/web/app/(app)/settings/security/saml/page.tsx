@@ -6,6 +6,11 @@
  * `canonicalPath` and phase-final-d5-pt2 asserts it "maps to a real route",
  * so it must remain a real route (not merely a next.config rewrite).
  *
+ * Members audit DOM-13 — SSO is ORGANIZATION-scoped: the console this path
+ * lands on configures connections every workspace of the Organization shares,
+ * and says so ("Managed for the whole organization"). This path keeps no copy
+ * of its own, so it cannot describe the setting as per-workspace.
+ *
  * Phase P1.1 — SAML Admin Console (canonical path).
  *
  * The procurement-grade SAML admin console ships at the existing

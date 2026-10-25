@@ -56,6 +56,8 @@ import { resolveTeamEnterpriseFeatureGate } from "../services/enterprise-gate-re
 type ScimContext = {
   tokenId: string;
   teamId: string;
+  /** Members audit DOM-13 — the Organization the token belongs to. */
+  organizationId: string;
   scopes: ReadonlyArray<ScimScope>;
   baseUrl: string;
 };
@@ -111,6 +113,7 @@ async function authenticateScim(
   return {
     tokenId: result.token.id,
     teamId: result.token.teamId,
+    organizationId: result.token.organizationId,
     scopes: result.token.scopes,
     baseUrl: `${proto}://${host}/v2/scim`,
   };

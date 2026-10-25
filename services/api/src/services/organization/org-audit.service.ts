@@ -60,6 +60,8 @@ export const ORG_AUDIT_EVENT_TYPES = [
   "ORG_CLOSURE_BLOCKED",
   "ORG_CLOSURE_CANCELLED",
   "ORG_CLOSURE_COMPLETED",
+  // Members audit DOM-13 — closure/termination ended the Organization's identity access.
+  "ORG_IDENTITY_ENDED",
   // PHASE 4 §7.6 (2026-07-22) — reversible org suspension lifecycle.
   //   ORG_SUSPENDED: platform operator suspended the org (metadata
   //     carries effect counts + pausedApiCredentialIds — the resume

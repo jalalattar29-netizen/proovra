@@ -152,7 +152,7 @@ function SsoHealthContent() {
           <PageHeader
             eyebrow="Security Center · SSO"
             title="SSO Health"
-            subtitle="Diagnostic snapshot of each configured SSO connection."
+            subtitle="Diagnostic snapshot of each SSO connection of your organization, shared by all of its workspaces."
           />
         }
       >
@@ -160,7 +160,7 @@ function SsoHealthContent() {
           kind="WORKSPACE_REQUIRED"
           surface="SSO Health"
           headline="Switch to a workspace to view SSO health"
-          reason="SSO health is per-workspace. Open a workspace you administer to diagnose connection health."
+          reason="SSO connections belong to your organization. Open any workspace of the organization to diagnose their health."
           actions={[
             { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
@@ -212,7 +212,7 @@ function SsoHealthContent() {
         <PageHeader
           eyebrow="Security Center · SSO"
           title="SSO Health"
-          subtitle="Diagnostic snapshot of each configured SSO connection. Bounded failure-reason taxonomy + cert expiry projections + recommended remediation action per connection. Aggregates from the last 24h and 7d of callback attempts."
+          subtitle="Diagnostic snapshot of each SSO connection of your organization, shared by all of its workspaces. Bounded failure-reason taxonomy + cert expiry projections + recommended remediation action per connection. Aggregates from the last 24h and 7d of callback attempts."
           secondaryActions={
             <Button
               variant="secondary"
@@ -271,7 +271,7 @@ function SsoHealthContent() {
             <EmptyState
               framed
               title="No SSO connection configured"
-              purpose="Configure a SAML or OIDC connection to start collecting health telemetry for this workspace."
+              purpose="Configure a SAML or OIDC connection to start collecting health telemetry for your organization."
               action={
                 <a
                   href="/security-center/sso"

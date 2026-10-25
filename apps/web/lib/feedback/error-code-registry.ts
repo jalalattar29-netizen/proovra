@@ -71,6 +71,7 @@ const PUBLIC_INTAKE = "apps/web/app/intake/[token]/page.tsx";
 const REGISTER = "apps/web/app/register/page.tsx";
 const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 const MANAGE_VERIFICATION_PAGE = "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx";
+const SSO_CONNECTIONS = "apps/web/app/(app)/security-center/sso/_sections/IdentityProvidersSection.tsx";
 
 export const ERROR_CODE_DISPOSITIONS: Readonly<
   Record<string, ErrorCodeDisposition>
@@ -476,6 +477,14 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   },
   INVITE_PENDING_WITH_DIFFERENT_ROLE: { disposition: "customer", where: "global" },
   VERIFICATION_LINK_LIFETIME_INVALID: { disposition: "customer", where: "global" },
+  ORGANIZATION_IDENTITY_ADMIN_REQUIRED: { disposition: "customer", where: "global" },
+  // Members audit DOM-13 — one live connection per provider per Organization.
+  // Answered by the SSO connections console, the only surface that creates or
+  // activates a connection.
+  SSO_CONNECTION_EXISTS: { disposition: "customer", where: SSO_CONNECTIONS },
+  SCIM_GROUP_PROJECTION_EXISTS: { disposition: "customer", where: "global" },
+  SCIM_GROUP_PROJECTION_WORKSPACE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
+  SCIM_GROUP_PROJECTION_NO_DIRECTORY: { disposition: "customer", where: "global" },
   DELEGATED_ADMIN_TIERS_RETIRED: { disposition: "customer", where: "global" },
   VERIFICATION_LINK_NOT_RENEWABLE: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_NOT_FOUND: { disposition: "customer", where: "global" },

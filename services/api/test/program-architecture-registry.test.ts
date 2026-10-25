@@ -170,6 +170,11 @@ const CONCERNS: Concern[] = [
       "services/organization/org-invite-acceptance.service.ts": "org-invite acceptance orchestration (guarded claim → grantOrganizationMembership/grantWorkspaceMembership)",
       "services/enterprise-provisioning.service.ts": "enterprise bootstrap provisioning → orchestrator",
       "services/access-control/scim.service.ts": "SCIM provisioning → orchestrator",
+      // Members audit DOM-13 — an Organization SCIM group applies in every
+      // Workspace it projects into; a member missing from a projected
+      // Workspace is provisioned there through the orchestrator (seat-enforced,
+      // IDP_GROUP provenance), never by a direct membership write.
+      "services/access-control/scim-groups.service.ts": "SCIM group projection provisioning → orchestrator (provisionMembership / provisionManagedMembership)",
       "services/access-control/sso.service.ts": "SSO JIT → orchestrator",
       "services/security/saml-user-mapping.service.ts": "SAML mapping provisioning → orchestrator",
       "services/platform-context/workspace-bootstrap.service.ts": "personal-workspace bootstrap → orchestrator",

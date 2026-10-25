@@ -273,8 +273,13 @@ export async function detectScimDrift(
   }
 
   // ---- Category 4: ORPHAN_SCIM_GROUP ----
+  // DOM-13 — groups are the Organization's; this workspace sees the ones that
+  // project into it.
   const groups = await client.scimGroup.findMany({
-    where: { teamId: input.teamId, status: "ACTIVE" },
+    where: {
+      status: "ACTIVE",
+      projections: { some: { workspaceId: input.teamId, status: "ACTIVE" } },
+    },
     select: {
       id: true,
       displayName: true,
@@ -590,10 +595,22 @@ export async function executeScimReconciliation(
       }
 
       if (item.proposedAction === "ARCHIVE_GROUP") {
-        await client.scimGroup.update({
-          where: { id: item.subject.id, teamId: input.teamId },
+        // DOM-13 — a workspace reconciliation ends the group's reach into THIS
+        // workspace; the Organization group itself is archived only when no
+        // workspace is projected any more.
+        await client.scimGroupWorkspaceProjection.updateMany({
+          where: { scimGroupId: item.subject.id, workspaceId: input.teamId, status: "ACTIVE" },
           data: { status: "ARCHIVED" },
         });
+        const stillProjected = await client.scimGroupWorkspaceProjection.count({
+          where: { scimGroupId: item.subject.id, status: "ACTIVE" },
+        });
+        if (stillProjected === 0) {
+          await client.scimGroup.updateMany({
+            where: { id: item.subject.id, status: "ACTIVE" },
+            data: { status: "ARCHIVED" },
+          });
+        }
         bump("scim_reconciliation_applied_total");
         safeEmitSecurityEvent({
           teamId: input.teamId,

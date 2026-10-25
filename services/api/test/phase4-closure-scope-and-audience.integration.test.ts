@@ -349,6 +349,7 @@ describe("PHASE 4 CLOSURE — scope and audience (live PostgreSQL 16)", () => {
       const bToken = await prisma.scimProvisioningToken.create({
         data: {
           teamId: orgB.workspaceId,
+          organizationId: orgB.organizationId,
           name: `p4c-b-${deps.tag}`,
           tokenPrefix: "scim_pat_p4c",
           tokenHash: randomUUID().replace(/-/g, ""),

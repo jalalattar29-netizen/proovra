@@ -275,6 +275,12 @@ test("the registry does not describe codes the API no longer emits", () => {
     ["WEBHOOK_ENDPOINT_EVENTS_INVALID", "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"],
     ["WEBHOOK_ENDPOINT_EVENT_UNKNOWN", "services/api/src/services/packaging/webhooks/webhook-platform.service.ts"],
     ["SCIM_TOKEN_ROTATE_CONFLICT", "services/api/src/services/access-control/scim.service.ts"],
+    // Members audit DOM-13 — thrown as an SsoServiceError and answered 409 by
+    // the admin-identity route's sendError with `code: err.code`.
+    ["SSO_CONNECTION_EXISTS", "services/api/src/services/access-control/sso.service.ts"],
+    // Members audit DOM-13 — the Organization identity refusal is a constant
+    // of its authority module, which every SSO/SCIM write route calls.
+    ["ORGANIZATION_IDENTITY_ADMIN_REQUIRED", "services/api/src/services/identity/organization-identity-authority.ts"],
     // (2026-09-29) The package download's verification-policy refusal is
     // answered by THE shared byte-release gate every download route calls.
     ["VERIFICATION_POLICY_BLOCKED", "services/api/src/services/evidence/artifact-download-gate.service.ts"],

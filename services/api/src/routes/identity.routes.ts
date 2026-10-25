@@ -75,6 +75,7 @@ import { z } from "zod";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 12B — the ONE canonical authorization primitive. It enforces ACTIVE
 // membership, parent-Organization lifecycle, access expiry, capability,
@@ -1322,6 +1323,8 @@ export async function identityRoutes(app: FastifyInstance) {
       );
       if (!resolved) return;
       const { teamId, actor } = resolved;
+      // Members audit DOM-13 — the link is the Organization's identity record.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId, userId: actor.userId }))) return;
       // The subject must be a member of the SERVER-derived workspace. A
       // foreign subject is concealed as 404 by `handleExternalError`.
       if (await denyIfManagedIdentity(reply, body.userId)) return;
@@ -1367,6 +1370,7 @@ export async function identityRoutes(app: FastifyInstance) {
         { kind: "external_identity_mapping", id: target.mappingId },
       );
       if (!actor) return;
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: target.teamId, userId: actor.userId }))) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
         teamId: target.teamId,

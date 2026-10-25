@@ -725,7 +725,17 @@ function seed(): void {
       providerUserId: "other-google-sub", currentWorkspaceId: TEAM,
     },
   ];
-  H.tables.team = [{ id: TEAM, organizationId: ORG }, { id: OTHER_TEAM, organizationId: ORG }];
+  // Members audit DOM-13 — the Organization identity authority reads the
+  // workspace's Organization kind, the Organization, and the actor's
+  // Organization role (ORG_ADMIN may administer identity).
+  H.tables.team = [
+    { id: TEAM, organizationId: ORG, organization: { kind: "CUSTOMER" } },
+    { id: OTHER_TEAM, organizationId: ORG, organization: { kind: "CUSTOMER" } },
+  ];
+  H.tables.organization = [{ id: ORG, status: "ACTIVE", kind: "CUSTOMER" }];
+  H.tables.organizationMembership = [
+    { id: "om-actor", organizationId: ORG, userId: ACTOR, role: "ORG_ADMIN", status: "ACTIVE", validUntilUtc: null },
+  ];
   H.tables.teamMember = [
     { id: "tm-actor", teamId: TEAM, userId: ACTOR, role: "ADMIN", status: "ACTIVE" },
     { id: "tm-other", teamId: TEAM, userId: OTHER, role: "MEMBER", status: "ACTIVE" },
@@ -2189,6 +2199,29 @@ describe("contributor session and external identity authorities", () => {
     expect(callInput("unlinkExternalIdentity")).toMatchObject({
       teamId: TEAM, mappingId: MAPPING, actorUserId: ACTOR,
     });
+  });
+
+  // Members audit DOM-13 — an external identity link is the ORGANIZATION's
+  // record: link and unlink also need an Organization identity role.
+  it("DOM-13: external-mapping link/unlink without an Organization identity role → 403, ZERO write", async () => {
+    H.tables.organizationMembership = [
+      { id: "om-actor", organizationId: ORG, userId: ACTOR, role: "ORG_MEMBER", status: "ACTIVE", validUntilUtc: null },
+    ];
+    const link = await app.inject({
+      method: "POST", url: "/v1/identity/external-mappings", headers: STEP_UP,
+      payload: { userId: OTHER, provider: "GENERIC_SAML", externalSubjectId: "saml-subject-1" },
+    });
+    expect(link.statusCode).toBe(403);
+    expect(JSON.parse(link.body).error.code).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+    expect(called("linkExternalIdentity")).toHaveLength(0);
+
+    const unlink = await app.inject({
+      method: "DELETE", url: `/v1/identity/external-mappings/${MAPPING}`,
+      headers: { ...STEP_UP, "content-type": "application/json" }, payload: { teamId: TEAM },
+    });
+    expect(unlink.statusCode).toBe(403);
+    expect(JSON.parse(unlink.body).error.code).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+    expect(called("unlinkExternalIdentity")).toHaveLength(0);
   });
 
   it("external-mapping unlink with a mismatched declared workspace → concealed 404, ZERO write", async () => {

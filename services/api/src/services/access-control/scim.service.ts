@@ -65,6 +65,9 @@ import {
  * administrator suspended carries a different reason and is never reinstated
  * by a directory push.
  */
+/** DOM-13 — the workspace-membership suspension reason a directory deactivation writes (and only it restores). */
+export const SCIM_DEACTIVATION_WORKSPACE_MARKER = "SCIM deactivation";
+
 export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
   "scim_deactivated:governance_membership_paused";
 // P0 remediation (2026-07-21) — canonical guard for linking a directory-
@@ -160,6 +163,18 @@ export type CreateScimTokenResult = {
   tokenOnce: string;
 };
 
+/**
+ * Members audit DOM-13 — SCIM credentials, users and groups belong to the
+ * Organization. A workspace id addresses its Organization; token reads and
+ * writes are keyed by that Organization. The token's own `teamId` is the
+ * Organization's default provisioning Workspace (where a directory-created
+ * user's first membership lands).
+ */
+async function organizationOf(teamId: string, client: PrismaClient): Promise<string> {
+  const team = await client.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true } });
+  return team.organizationId;
+}
+
 export async function createScimToken(
   input: CreateScimTokenInput,
   client: PrismaClient = defaultPrisma,
@@ -176,6 +191,7 @@ export async function createScimToken(
   const row = await client.scimProvisioningToken.create({
     data: {
       teamId: input.teamId,
+      organizationId: await organizationOf(input.teamId, client),
       name: input.name.slice(0, 180),
       tokenPrefix,
       tokenHash,
@@ -237,7 +253,7 @@ export async function listScimTokens(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReadonlyArray<ScimTokenProjection>> {
   const rows = await client.scimProvisioningToken.findMany({
-    where: { teamId: input.teamId },
+    where: { organizationId: await organizationOf(input.teamId, client) },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100,
   });
@@ -254,7 +270,7 @@ export async function revokeScimToken(
   client: PrismaClient = defaultPrisma,
 ): Promise<ScimTokenProjection | null> {
   const row = await client.scimProvisioningToken.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, organizationId: await organizationOf(input.teamId, client) },
   });
   if (!row) return null;
   // Already revoked: return the same projection, write nothing, and emit
@@ -368,7 +384,7 @@ export async function rotateScimToken(
   client: PrismaClient = defaultPrisma,
 ): Promise<RotateScimTokenResult> {
   const existing = await client.scimProvisioningToken.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, organizationId: await organizationOf(input.teamId, client) },
   });
   if (!existing) return { ok: false, reason: "not_found" };
   if (existing.status !== "ACTIVE") return { ok: false, reason: "already_revoked" };
@@ -381,7 +397,7 @@ export async function rotateScimToken(
     // Read-compare-write: only rotate the row we still observe as ACTIVE, so a
     // concurrent revoke/rotate cannot produce two live credentials.
     const claimed = await tx.scimProvisioningToken.updateMany({
-      where: { id: existing.id, teamId: input.teamId, status: "ACTIVE" },
+      where: { id: existing.id, status: "ACTIVE" },
       data: {
         status: "REVOKED",
         revokedAtUtc: new Date(),
@@ -403,9 +419,12 @@ export async function rotateScimToken(
     const revoked = await tx.scimProvisioningToken.findUniqueOrThrow({
       where: { id: existing.id },
     });
+    // The replacement keeps the rotated token's Organization and default
+    // provisioning Workspace — rotating a credential never moves it.
     const created = await tx.scimProvisioningToken.create({
       data: {
-        teamId: input.teamId,
+        teamId: existing.teamId,
+        organizationId: existing.organizationId,
         name: (input.name?.trim() || existing.name).slice(0, 180),
         tokenPrefix,
         tokenHash,
@@ -627,8 +646,9 @@ export async function projectScimManagedMembership(
     });
   }
 
+  // DOM-13 — the Organization's groups that project into this workspace.
   const groupRows = await client.scimGroup.findMany({
-    where: { teamId: input.teamId },
+    where: { projections: { some: { workspaceId: input.teamId } } },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100,
     select: {
@@ -665,7 +685,10 @@ export async function projectScimManagedMembership(
 
 export type AuthenticatedScimToken = {
   id: string;
+  /** The Organization's default provisioning Workspace. */
   teamId: string;
+  /** The Organization the credential (and every identity it writes) belongs to. */
+  organizationId: string;
   scopes: ReadonlyArray<ScimScope>;
 };
 
@@ -678,7 +701,10 @@ export type AuthenticateScimResult =
         | "invalid_token"
         | "revoked"
         | "expired"
-        | "ip_not_allowed";
+        | "ip_not_allowed"
+        /** DOM-13 — the Organization is suspended or closed, or its default
+         *  provisioning Workspace is closed: the directory provisions nothing. */
+        | "organization_inactive";
     };
 
 export async function authenticateScimRequest(
@@ -702,6 +728,10 @@ export async function authenticateScimRequest(
   const hash = hashToken(raw);
   const row = await client.scimProvisioningToken.findUnique({
     where: { tokenHash: hash },
+    include: {
+      organization: { select: { status: true } },
+      team: { select: { closedAtUtc: true } },
+    },
   });
   if (!row) {
     bump("scim_invalid_token_total");
@@ -717,6 +747,9 @@ export async function authenticateScimRequest(
   }
   if (row.expiresAtUtc && row.expiresAtUtc.getTime() <= Date.now()) {
     return { ok: false, reason: "expired" };
+  }
+  if (row.organization.status !== "ACTIVE" || row.team.closedAtUtc !== null) {
+    return { ok: false, reason: "organization_inactive" };
   }
   if (row.ipAllowlist.length > 0 && input.remoteIp) {
     // Phase 26 keeps this as a simple equality / prefix check. CIDR
@@ -741,6 +774,7 @@ export async function authenticateScimRequest(
     token: {
       id: row.id,
       teamId: row.teamId,
+      organizationId: row.organizationId,
       scopes: row.scopes as ScimScope[],
     },
   };
@@ -779,17 +813,21 @@ function buildUserResource(input: {
 }
 
 async function findUserBySubject(
-  teamId: string,
+  organizationId: string,
   externalSubjectId: string,
   client: PrismaClient,
 ) {
+  // DOM-13 — a directory subject is identified within its Organization.
   return client.externalIdentityMapping.findFirst({
-    where: { teamId, externalSubjectId, unlinkedAtUtc: null },
+    where: { organizationId, provider: "GENERIC_SCIM", externalSubjectId, unlinkedAtUtc: null },
   });
 }
 
 export type ScimCreateUserContext = {
+  /** The Organization's default provisioning Workspace (the token's). */
   teamId: string;
+  /** The Organization the token belongs to (members audit DOM-13). */
+  organizationId: string;
   tokenId: string;
   baseUrl: string;
 };
@@ -820,7 +858,7 @@ export async function scimCreateUser(
   const externalId = parsed.data.externalId ?? parsed.data.userName;
 
   // Idempotent: existing mapping → return current resource.
-  const existing = await findUserBySubject(ctx.teamId, externalId, client);
+  const existing = await findUserBySubject(ctx.organizationId, externalId, client);
   if (existing) {
     const user = await client.user.findUnique({
       where: { id: existing.userId },
@@ -900,7 +938,10 @@ export async function scimCreateUser(
           data: {
             email: email.toLowerCase(),
             provider: "EMAIL",
-            providerUserId: `scim-${externalId}`,
+// Members audit DOM-13 — a subject is unique within its Organization, so the
+            // synthetic provider id carries the Organization (two Organizations may
+            // push the same subject without colliding).
+            providerUserId: `scim-${ctx.organizationId}:${externalId}`,
           },
           select: { id: true, createdAt: true, updatedAt: true },
         });
@@ -910,6 +951,7 @@ export async function scimCreateUser(
       await txc.externalIdentityMapping.create({
         data: {
           teamId: ctx.teamId,
+          organizationId: ctx.organizationId,
           userId: resolved.id,
           provider: "GENERIC_SCIM",
           externalSubjectId: externalId,
@@ -1163,10 +1205,26 @@ export async function scimDeactivateUser(
   userId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<{ ok: boolean }> {
-  const member = await client.teamMember.findUnique({
-    where: { teamId_userId: { teamId: ctx.teamId, userId } },
+  /*
+   * Members audit DOM-13 — a directory identity is the ORGANIZATION's, so a
+   * directory deactivation ends its access in EVERY workspace of the
+   * Organization, not only the token's default one. The OWNER of a workspace
+   * is never suspended by a directory push (ownership is a human decision).
+   */
+  const members = await client.teamMember.findMany({
+    where: {
+      userId,
+      status: "ACTIVE",
+      role: { not: "OWNER" },
+      team: { organizationId: ctx.organizationId },
+    },
+    select: { id: true, teamId: true },
   });
-  if (!member) return { ok: false };
+  const known = await client.teamMember.findFirst({
+    where: { userId, team: { organizationId: ctx.organizationId } },
+    select: { id: true },
+  });
+  if (!known) return { ok: false };
   // PHASE 12B — the membership suspension and the directory-mapping unlink are
   // ONE atomic deprovisioning outcome. Previously they were two top-level
   // writes, so a failure between them left a SUSPENDED member still linked (or
@@ -1178,15 +1236,18 @@ export async function scimDeactivateUser(
   // back to unmanaged by a directory push.
   await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
-    // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION.
-    await suspendWorkspaceMembership(txc, {
-      teamMemberId: member.id,
-      actorUserId: null, // directory-driven
-      reason: "SCIM deactivation",
-    });
-    // Unlink the external mapping (soft).
+    // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION, once
+    // per workspace of the Organization the identity is live in.
+    for (const member of members) {
+      await suspendWorkspaceMembership(txc, {
+        teamMemberId: member.id,
+        actorUserId: null, // directory-driven
+        reason: SCIM_DEACTIVATION_WORKSPACE_MARKER,
+      });
+    }
+    // Unlink the Organization's external mappings for this user (soft).
     await txc.externalIdentityMapping.updateMany({
-      where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
+      where: { organizationId: ctx.organizationId, userId, unlinkedAtUtc: null },
       data: { unlinkedAtUtc: new Date() },
     });
 
@@ -1258,7 +1319,7 @@ export async function scimDeactivateUser(
   }
   try {
     await client.user.updateMany({
-      where: { id: userId, currentWorkspaceId: ctx.teamId },
+      where: { id: userId, currentWorkspaceId: { in: members.map((m) => m.teamId) } },
       data: { currentWorkspaceId: null },
     });
   } catch {
@@ -1308,6 +1369,36 @@ export async function scimReactivateUser(
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });
   if (!member) return { ok: false, notFound: true };
+
+  // DOM-13 — restore exactly the sibling-workspace memberships the directory
+  // itself suspended (marker-matched); a membership an administrator suspended
+  // is never reinstated by a directory push.
+  const siblings = await client.teamMember.findMany({
+    where: {
+      userId,
+      status: "SUSPENDED",
+      suspensionReason: SCIM_DEACTIVATION_WORKSPACE_MARKER,
+      teamId: { not: ctx.teamId },
+      team: { organizationId: ctx.organizationId },
+    },
+    select: { teamId: true, role: true },
+  });
+  for (const sibling of siblings) {
+    await client.$transaction(async (tx) => {
+      await provisionManagedMembership(tx, {
+        userId,
+        managingTeamId: ctx.teamId,
+        evidence: { source: "SCIM", scimTokenId: ctx.tokenId },
+        membershipIntent: "SCIM_PROVISIONING",
+        source: "SCIM",
+        workspace: { teamId: sibling.teamId, role: sibling.role as never },
+        actorUserId: null,
+        accessReason: "SCIM reactivation",
+        seatPolicy: "ENFORCE",
+        seatTeamId: sibling.teamId,
+      });
+    });
+  }
 
   if (member.status !== "ACTIVE") {
     // PATH 5/9 — SCIM REACTIVATE. Directory-driven re-activation is an explicit
@@ -1376,7 +1467,7 @@ export async function scimReactivateUser(
   // Re-link the most recent external mapping so the resource is
   // resolvable again. We only re-link, never create a duplicate.
   const mapping = await client.externalIdentityMapping.findFirst({
-    where: { teamId: ctx.teamId, userId },
+    where: { organizationId: ctx.organizationId, userId, provider: "GENERIC_SCIM" },
     orderBy: { linkedAtUtc: "desc" },
   });
   if (mapping && mapping.unlinkedAtUtc !== null) {

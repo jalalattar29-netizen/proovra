@@ -77,8 +77,13 @@ function jsonRes(body: unknown, status = 200): Response {
 
 // Recording prisma proxy — steers the specific lookups the callback makes.
 const dbState = vi.hoisted(() => ({
-  mapping: { userId: "user-1", teamId: "team-1" } as unknown,
+  mapping: { userId: "user-1", teamId: "team-1", unlinkedAtUtc: null } as unknown,
   orgKind: "CUSTOMER" as string,
+  // Members audit DOM-13 — the owning Organization's lifecycle and the
+  // provisioning workspace's closure gate every SSO login.
+  orgStatus: "ACTIVE" as string,
+  workspaceClosedAtUtc: null as Date | null,
+  lastMappingLookup: null as unknown,
   // PHASE 12 CORRECTIVE PASS §5.2 (ARCH-002, 2026-08-06) — STATED, not inferred.
   //
   // This fixture used to omit the kind and rely on the classifier deriving
@@ -107,13 +112,14 @@ function fakePrisma() {
           {},
           {
             get(_t2, method: string) {
-              return async () => {
+              return async (args?: unknown) => {
                 if (/^(create|update|upsert|delete)/.test(method))
                   writes.push(`${model}.${method}`);
                 if (model === "ssoConnection" && method === "findFirst")
                   return {
                     id: "conn-1",
                     teamId: "team-1",
+                    organizationId: "org-1",
                     provider: "GENERIC_OIDC",
                     status: "ACTIVE",
                     issuerUrl: ISSUER,
@@ -132,14 +138,17 @@ function fakePrisma() {
                     billingPlan: dbState.billingPlan,
                     billingStatus: dbState.billingStatus,
                     organizationId: "org-1",
-                    organization: { status: "ACTIVE", kind: dbState.orgKind },
+                    closedAtUtc: dbState.workspaceClosedAtUtc,
+                    organization: { status: dbState.orgStatus, kind: dbState.orgKind },
                   };
                 if (model === "entitlement" && method === "findFirst")
                   return { plan: dbState.billingPlan, active: true };
                 if (model === "organization" && method === "findUnique")
                   return { id: "org-1", status: "ACTIVE", kind: dbState.orgKind };
-                if (model === "externalIdentityMapping" && method === "findUnique")
+                if (model === "externalIdentityMapping" && method === "findUnique") {
+                  dbState.lastMappingLookup = args;
                   return dbState.mapping;
+                }
                 if (model === "user" && method === "findUnique")
                   return { id: "user-1", email: "user@enterprise.com", displayName: "U" };
                 if (method === "findFirst" || method === "findUnique") return null;
@@ -215,8 +224,11 @@ async function callback(idToken: string, state: string) {
 beforeEach(() => {
   __resetSsoServiceStateForTests();
   writes.length = 0;
-  dbState.mapping = { userId: "user-1", teamId: "team-1" };
+  dbState.mapping = { userId: "user-1", teamId: "team-1", unlinkedAtUtc: null };
   dbState.orgKind = "CUSTOMER";
+  dbState.orgStatus = "ACTIVE";
+  dbState.workspaceClosedAtUtc = null;
+  dbState.lastMappingLookup = null;
   dbState.workspaceKind = "ORGANIZATION";
   dbState.billingPlan = "ENTERPRISE";
   dbState.billingStatus = "ACTIVE";
@@ -236,6 +248,16 @@ describe("Phase 8 §11.3 — OIDC callback POSITIVE (real jwtVerify)", () => {
     expect(res.teamId).toBe("team-1");
     expect(res.connectionId).toBe("conn-1");
     expect(res.user.id).toBe("user-1");
+    // DOM-13 — the subject is resolved WITHIN the connection's Organization.
+    expect(dbState.lastMappingLookup).toMatchObject({
+      where: {
+        organizationId_provider_externalSubjectId: {
+          organizationId: "org-1",
+          provider: "GENERIC_OIDC",
+          externalSubjectId: "idp-sub-1",
+        },
+      },
+    });
   });
 });
 
@@ -305,6 +327,37 @@ describe("Phase 8 §11.3 — OIDC callback NEGATIVES (real verification; no side
     dbState.billingPlan = "FREE";
     dbState.billingStatus = "INACTIVE";
     await expectRejected(() => callback(idToken, state));
+  });
+
+  it("DOM-13: a SUSPENDED Organization admits no SSO login → SSO_ORGANIZATION_INACTIVE, no side effects", async () => {
+    const { state, nonce } = await seedState();
+    const idToken = await signIdToken({ iss: ISSUER, aud: CLIENT_ID, sub: "idp-sub-1", nonce });
+    dbState.orgStatus = "SUSPENDED";
+    await expectRejected(() => callback(idToken, state));
+    const { state: s2, nonce: n2 } = await seedState();
+    const t2 = await signIdToken({ iss: ISSUER, aud: CLIENT_ID, sub: "idp-sub-1", nonce: n2 });
+    await expect(callback(t2, s2)).rejects.toMatchObject({ code: "SSO_ORGANIZATION_INACTIVE" });
+  });
+
+  it("DOM-13: a closed provisioning workspace admits no SSO login → SSO_ORGANIZATION_INACTIVE", async () => {
+    const { state, nonce } = await seedState();
+    const idToken = await signIdToken({ iss: ISSUER, aud: CLIENT_ID, sub: "idp-sub-1", nonce });
+    dbState.workspaceClosedAtUtc = new Date();
+    await expect(callback(idToken, state)).rejects.toMatchObject({ code: "SSO_ORGANIZATION_INACTIVE" });
+  });
+
+  it("DOM-13: a repeat login on an UNLINKED mapping is refused (mapping_unlinked), no side effects", async () => {
+    const { state, nonce } = await seedState();
+    const idToken = await signIdToken({ iss: ISSUER, aud: CLIENT_ID, sub: "idp-sub-1", nonce });
+    dbState.mapping = { userId: "user-1", teamId: "team-1", unlinkedAtUtc: new Date("2026-01-01") };
+    writes.length = 0;
+    await expect(callback(idToken, state)).rejects.toMatchObject({
+      code: "SSO_ACCOUNT_LINK_DENIED",
+      details: { reason: "mapping_unlinked" },
+    });
+    expect(
+      writes.filter((w) => /teamMember|organizationMembership|session|apiCredential|externalIdentityMapping|user[.]create/.test(w)),
+    ).toEqual([]);
   });
 
   it("13. userinfo subject mismatch (token-substitution) → rejected", async () => {

@@ -93,6 +93,10 @@ import { organizationIdForPolicy, resolveOrganizationPolicy } from "../services/
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
 import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
 import { enforceSsoLoginPolicy } from "../services/access-control/sso-login-policy.service.js";
+import {
+  evaluateOrganizationIdentityAuthority,
+  ORGANIZATION_IDENTITY_ADMIN_REQUIRED,
+} from "../services/identity/organization-identity-authority.js";
 import { isEmailDomainVerifiedForOrg } from "../services/organization/organization-domain.service.js";
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
@@ -320,25 +324,45 @@ async function authorizeSamlOperator(
 
   const conn = await prisma.ssoConnection.findUnique({
     where: { id: connectionId },
-    select: { id: true, teamId: true },
+    select: { id: true, teamId: true, organizationId: true },
   });
   if (!conn) return indistinguishable;
 
+  // Members audit DOM-13 — the connection is the ORGANIZATION's: tenancy is an
+  // ACTIVE membership of any workspace of that Organization.
   // ACTIVE membership of ANY role first. This is the tenancy question, and it
   // is what separates "not yours" (indistinguishable from absent) from "yours
   // but insufficient" (a readable 403). SUSPENDED and REVOKED members are not
   // ACTIVE members, so they take the indistinguishable branch.
-  const membership = await prisma.teamMember.findFirst({
-    where: { teamId: conn.teamId, userId: actorUserId, status: "ACTIVE" },
-    select: { role: true },
+  const memberships = await prisma.teamMember.findMany({
+    where: { userId: actorUserId, status: "ACTIVE", team: { organizationId: conn.organizationId } },
+    select: { role: true, teamId: true },
   });
-  if (!membership) return indistinguishable;
+  if (memberships.length === 0) return indistinguishable;
+  const membership =
+    memberships.find((m) => m.role === "OWNER") ??
+    memberships.find((m) => m.role === "ADMIN") ??
+    memberships[0]!;
 
   if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
     return {
       ok: false,
       statusCode: 403,
       body: { error: { code: "forbidden" } },
+    };
+  }
+
+  // An operator changes configuration every workspace of the Organization
+  // shares, so the Organization identity role is required too (DOM-13).
+  const orgAuthority = await evaluateOrganizationIdentityAuthority({
+    teamId: membership.teamId,
+    userId: actorUserId,
+  });
+  if (!orgAuthority.ok) {
+    return {
+      ok: false,
+      statusCode: 403,
+      body: { error: { code: ORGANIZATION_IDENTITY_ADMIN_REQUIRED } },
     };
   }
 

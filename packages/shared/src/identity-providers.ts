@@ -29,6 +29,13 @@ export const SSO_CONNECTION_STATUSES = [
   "ACTIVE",
   "DISABLED",
   "REVOKED",
+  /**
+   * Members audit DOM-13 — written ONLY by Organization suspension, restored
+   * ONLY by Organization resume (marker-matched). No administrator transition
+   * leads here, and the only one out is REVOKED: a suspended connection can be
+   * retired, never re-armed behind the suspension's back.
+   */
+  "SUSPENDED",
 ] as const;
 export const SsoConnectionStatusSchema = z.enum(SSO_CONNECTION_STATUSES);
 export type SsoConnectionStatus = z.infer<typeof SsoConnectionStatusSchema>;
@@ -40,6 +47,7 @@ const SSO_CONNECTION_STATUS_TRANSITIONS: Readonly<
   ACTIVE: ["DISABLED", "REVOKED"],
   DISABLED: ["ACTIVE", "REVOKED"],
   REVOKED: [], // terminal
+  SUSPENDED: ["REVOKED"],
 };
 
 export function isAllowedSsoConnectionTransition(

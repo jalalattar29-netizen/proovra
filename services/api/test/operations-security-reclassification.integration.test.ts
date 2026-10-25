@@ -193,9 +193,11 @@ describe("OPS-13 security reclassification (live PostgreSQL 16)", () => {
   it("5. revoking an SSO connection clears its outage and closes the IdP-outage condition", async () => {
     const owner = await makeUser(c, "sso-owner", { plan: "PRO" });
     const w = await makeWorkspace(c, owner.id, { name: "sso-ws", billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" });
+    const { organizationId: connOrgId } = await c.prisma.team.findUniqueOrThrow({ where: { id: w.teamId }, select: { organizationId: true } });
     const conn = await c.prisma.ssoConnection.create({
       data: {
         teamId: w.teamId,
+        organizationId: connOrgId,
         provider: "GENERIC_OIDC",
         displayName: "IdP",
         status: "ACTIVE",
@@ -260,11 +262,12 @@ describe("OPS-13 security reclassification (live PostgreSQL 16)", () => {
     });
 
     // (2) IdP outages: revoked connection (closed) vs. live outage (left).
+    const { organizationId: wOrgId } = await c.prisma.team.findUniqueOrThrow({ where: { id: w.teamId }, select: { organizationId: true } });
     const revoked = await c.prisma.ssoConnection.create({
-      data: { teamId: w.teamId, provider: "OKTA", displayName: "old", status: "REVOKED", createdByUserId: owner.id, allowedEmailDomains: [], outageDetectedAtUtc: new Date() },
+      data: { teamId: w.teamId, organizationId: wOrgId, provider: "OKTA", displayName: "old", status: "REVOKED", createdByUserId: owner.id, allowedEmailDomains: [], outageDetectedAtUtc: new Date() },
     });
     const live = await c.prisma.ssoConnection.create({
-      data: { teamId: w.teamId, provider: "GENERIC_OIDC", displayName: "live", status: "ACTIVE", createdByUserId: owner.id, allowedEmailDomains: [], outageDetectedAtUtc: new Date() },
+      data: { teamId: w.teamId, organizationId: wOrgId, provider: "GENERIC_OIDC", displayName: "live", status: "ACTIVE", createdByUserId: owner.id, allowedEmailDomains: [], outageDetectedAtUtc: new Date() },
     });
     const staleIdp = await seedIncident(c, w.teamId, { sourceId: "identity.idp_outage", category: "IDENTITY_SECURITY", fingerprint: `idp-outage:${revoked.id}` });
     const liveIdp = await seedIncident(c, w.teamId, { sourceId: "identity.idp_outage", category: "IDENTITY_SECURITY", fingerprint: `idp-outage:${live.id}` });

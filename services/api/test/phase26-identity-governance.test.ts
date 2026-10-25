@@ -317,8 +317,14 @@ describe("Phase 26 — pure helpers", () => {
     expect(SCIM_SCOPES.includes("users.deactivate")).toBe(true);
   });
 
-  it("SCIM connection statuses (PENDING, ACTIVE, DISABLED, REVOKED)", () => {
-    expect(SSO_CONNECTION_STATUSES.length).toBe(4);
+  // Members audit DOM-13 — SUSPENDED joined the set: written only by
+  // Organization suspension, and its only way out is REVOKED.
+  it("SSO connection statuses (PENDING, ACTIVE, DISABLED, REVOKED, SUSPENDED)", () => {
+    expect([...SSO_CONNECTION_STATUSES]).toEqual(["PENDING", "ACTIVE", "DISABLED", "REVOKED", "SUSPENDED"]);
+    expect(isAllowedSsoConnectionTransition("SUSPENDED", "REVOKED")).toBe(true);
+    expect(isAllowedSsoConnectionTransition("SUSPENDED", "ACTIVE")).toBe(false);
+    expect(isAllowedSsoConnectionTransition("ACTIVE", "SUSPENDED")).toBe(false);
+    expect(isAllowedSsoConnectionTransition("DISABLED", "SUSPENDED")).toBe(false);
   });
 
   it("SCIM_TOKEN_PREFIX is the canonical scim_pat_ prefix", () => {

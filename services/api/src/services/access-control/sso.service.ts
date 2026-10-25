@@ -103,7 +103,10 @@ export class SsoServiceError extends Error {
       // restriction when the owning org has zero verified domains.
       | "SSO_NO_VERIFIED_DOMAINS"
       // Phase 3 — a supplied SP private key was not a plausible PEM.
-      | "SSO_INVALID_SP_KEY",
+      | "SSO_INVALID_SP_KEY"
+      // Members audit DOM-13 — the owning Organization is suspended or closed
+      // (or the provisioning Workspace is closed): identity access is off.
+      | "SSO_ORGANIZATION_INACTIVE",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -252,12 +255,27 @@ const PROVIDER_SET = new Set<string>(SSO_PROVIDERS);
 import { SSO_CONNECTION_LIST_CAP } from "./sso-list-bounds.js";
 export { SSO_CONNECTION_LIST_CAP } from "./sso-list-bounds.js";
 
+/**
+ * Members audit DOM-13 — SSO configuration belongs to the Organization. A
+ * workspace id addresses its Organization; every read and write below is keyed
+ * by that Organization, so sibling workspaces see and manage ONE configuration.
+ */
+export async function organizationOfWorkspace(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<string> {
+  const team = await client.team.findUnique({ where: { id: teamId }, select: { organizationId: true } });
+  if (!team) throw new SsoServiceError("SSO_CONNECTION_NOT_FOUND");
+  return team.organizationId;
+}
+
 export async function listSsoConnections(
   input: { teamId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReadonlyArray<SsoConnectionProjection>> {
+  const organizationId = await organizationOfWorkspace(input.teamId, client);
   const rows = await client.ssoConnection.findMany({
-    where: { teamId: input.teamId },
+    where: { organizationId },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: SSO_CONNECTION_LIST_CAP,
   });
@@ -268,8 +286,9 @@ export async function getSsoConnection(
   input: { teamId: string; id: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<SsoConnectionProjection | null> {
+  const organizationId = await organizationOfWorkspace(input.teamId, client);
   const row = await client.ssoConnection.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, organizationId },
   });
   return row ? projectConnection(row) : null;
 }
@@ -313,8 +332,10 @@ export async function createSsoConnection(
   }
 
   const clientSecretRaw = input.clientSecret ?? null;
+  const organizationId = await organizationOfWorkspace(input.teamId, client);
   const data = {
     teamId: input.teamId,
+    organizationId,
     provider: input.provider as ExternalIdentityProvider,
     displayName: input.displayName.slice(0, 180),
     status: "PENDING",
@@ -339,11 +360,12 @@ export async function createSsoConnection(
   };
 
   /*
-   * `@@unique([teamId, provider, status])` means a workspace may hold only one
-   * connection per provider in a given state. That is a normal thing for an
-   * operator to run into — adding Okta twice, or double-submitting the dialog
-   * — and it surfaced as a 500 "Request failed." with a request id, which
-   * reads as an outage rather than "you already have one of these".
+   * Members audit DOM-13 — an Organization holds ONE live (ACTIVE or
+   * SUSPENDED) connection per provider (partial unique index
+   * sso_connections_org_provider_live_uk). A new connection starts PENDING, so
+   * the collision is met on ACTIVATION (transitionSsoConnection) and answered
+   * there with SSO_CONNECTION_EXISTS; this catch stays for any key a create
+   * can still meet.
    */
   let row;
   try {
@@ -398,8 +420,9 @@ export async function transitionSsoConnection(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<SsoConnectionProjection> {
+  const organizationId = await organizationOfWorkspace(input.teamId, client);
   const row = await client.ssoConnection.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, organizationId },
   });
   if (!row) throw new SsoServiceError("SSO_CONNECTION_NOT_FOUND");
   const from = row.status as SsoConnectionStatus;
@@ -410,7 +433,9 @@ export async function transitionSsoConnection(
     });
   }
   const now = new Date();
-  const updated = await client.ssoConnection.update({
+  let updated;
+  try {
+  updated = await client.ssoConnection.update({
     where: { id: row.id },
     data: {
       status: input.nextStatus,
@@ -429,6 +454,14 @@ export async function transitionSsoConnection(
         : {}),
     },
   });
+  } catch (err) {
+    // DOM-13 — the Organization already has a live connection for this
+    // provider: one IdP per provider per Organization.
+    if (err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      throw new SsoServiceError("SSO_CONNECTION_EXISTS", { provider: row.provider });
+    }
+    throw err;
+  }
   if (
     (input.nextStatus === "REVOKED" || input.nextStatus === "DISABLED") &&
     row.outageDetectedAtUtc
@@ -555,8 +588,9 @@ export async function updateSsoConnectionPolicy(
   input: UpdateSsoConnectionPolicyInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<SsoConnectionProjection> {
+  const organizationId = await organizationOfWorkspace(input.teamId, client);
   const row = await client.ssoConnection.findFirst({
-    where: { id: input.id, teamId: input.teamId },
+    where: { id: input.id, organizationId },
   });
   if (!row) throw new SsoServiceError("SSO_CONNECTION_NOT_FOUND");
   if (row.status === "REVOKED") {
@@ -566,14 +600,7 @@ export async function updateSsoConnectionPolicy(
   // Guard: enabling verified-domain restriction requires at least one verified
   // OrganizationDomain on the owning org. Failure-closed.
   if (input.restrictToVerifiedDomains === true) {
-    const team = await client.team.findUnique({
-      where: { id: input.teamId },
-      select: { organizationId: true },
-    });
-    const verifiedCount = await countVerifiedDomainsForOrg(
-      team?.organizationId ?? null,
-      client,
-    );
+    const verifiedCount = await countVerifiedDomainsForOrg(organizationId, client);
     if (verifiedCount === 0) {
       throw new SsoServiceError("SSO_NO_VERIFIED_DOMAINS");
     }
@@ -1054,13 +1081,20 @@ export async function handleOidcCallback(
     if (policy.reason === "sso_workspace_personal") {
       throw new SsoServiceError("SSO_WORKSPACE_PERSONAL");
     }
+    if (policy.reason === "sso_organization_inactive") {
+      throw new SsoServiceError("SSO_ORGANIZATION_INACTIVE");
+    }
     throw new SsoServiceError("SSO_DOMAIN_NOT_VERIFIED");
   }
 
   // ---- Find or JIT-provision the user ----
+  // Members audit DOM-13 — an external subject is identified WITHIN the
+  // connection's Organization: the same subject in another Organization is a
+  // different identity and means nothing here.
   const externalMapping = await client.externalIdentityMapping.findUnique({
     where: {
-      provider_externalSubjectId: {
+      organizationId_provider_externalSubjectId: {
+        organizationId: conn.organizationId,
         provider: conn.provider,
         externalSubjectId: userinfo.sub,
       },
@@ -1072,6 +1106,19 @@ export async function handleOidcCallback(
   let role: "MEMBER" | "VIEWER" = "MEMBER";
 
   if (externalMapping) {
+    // A repeat login does not bypass the link: an UNLINKED (quarantined or
+    // operator-unlinked) mapping authorizes nothing until it is re-linked —
+    // the same rule the SAML ACS applies.
+    if (externalMapping.unlinkedAtUtc !== null) {
+      bump("sso_login_failure_total");
+      safeEmitSecurityEvent({
+        teamId: conn.teamId,
+        eventType: "sso_login_failed",
+        severity: "WARNING",
+        details: { connectionId: conn.id, reason: "mapping_unlinked", provider: conn.provider },
+      });
+      throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "mapping_unlinked" });
+    }
     userId = externalMapping.userId;
   } else {
     // JIT path
@@ -1142,7 +1189,10 @@ export async function handleOidcCallback(
         data: {
           email: userinfo.email.toLowerCase(),
           provider: "EMAIL",
-          providerUserId: `sso-${userinfo.sub}`,
+// Members audit DOM-13 — a subject is unique within its Organization, so the
+          // synthetic provider id carries the Organization (two Organizations may
+          // push the same subject without colliding).
+          providerUserId: `sso-${conn.organizationId}:${userinfo.sub}`,
         },
         select: { id: true },
       });
@@ -1154,6 +1204,7 @@ export async function handleOidcCallback(
     await client.externalIdentityMapping.create({
       data: {
         teamId: conn.teamId,
+        organizationId: conn.organizationId,
         userId,
         provider: conn.provider,
         externalSubjectId: userinfo.sub,

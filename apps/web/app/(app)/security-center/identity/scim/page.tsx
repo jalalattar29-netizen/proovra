@@ -7,6 +7,9 @@
  *
  *   1. Tokens          — manage SCIM provisioning tokens (Phase 26 surface,
  *                        kept verbatim; step-up gated create + revoke).
+ *   1b. Directory groups — members audit DOM-13 — the Organization's SCIM
+ *                        groups and the workspaces each applies to; add or
+ *                        end a projection (step-up gated).
  *   2. Drift detection — Phase P1.1 — scan workspace state for drift
  *                        against the IdP source of truth. Preview-only
  *                        scan; reconciliation is opt-in per row and
@@ -49,6 +52,8 @@ import {
   AdmTabs,
 } from "../../../../../components/admin/AdminSurfaces";
 import { ManagedMembershipSection } from "./_sections/ManagedMembershipSection";
+import { DirectoryGroupsSection } from "./_sections/DirectoryGroupsSection";
+import { OrganizationIdentityScopeNote } from "../../../../../components/identity-security/OrganizationIdentityScopeNote";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { formatCellDateTime } from "../../../../../lib/date";
 import { statusTone } from "../../../../../components/ui/StatusBadge";
@@ -76,6 +81,11 @@ function readScimDenial(err: unknown): ScimDenial | null {
   };
   const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
   const code = typeof e.code === "string" ? e.code.toLowerCase() : "";
+  // Members audit DOM-13 — a WRITE refused for want of an Organization
+  // identity role is not a read denial: the page keeps showing what the
+  // viewer may read, and the refusal reads in its registered copy through
+  // toSafeUserError at the call site.
+  if (code === "organization_identity_admin_required") return null;
   if (status === 402 || code.includes("enterprise_feature_required")) {
     return {
       title: "Not included in this plan",
@@ -87,14 +97,14 @@ function readScimDenial(err: unknown): ScimDenial | null {
     return {
       title: "You don't have access to SCIM provisioning",
       detail:
-        "Your role in this workspace does not allow managing directory provisioning. Nothing was loaded and nothing was changed.",
+        "Your role does not allow managing your organization's directory provisioning. Nothing was loaded and nothing was changed.",
     };
   }
   if (status === 404 || code === "not_found") {
     return {
       title: "Not available to your account",
       detail:
-        "This workspace's directory configuration is not available to you. If you expected access, ask a workspace owner to grant it.",
+        "Your organization's directory configuration is not available to you. If you expected access, ask an organization owner or admin to grant it.",
     };
   }
   return null;
@@ -208,6 +218,7 @@ type ScimSyncFailure = {
 
 const TAB_LABELS = {
   tokens: "Tokens",
+  groups: "Directory groups",
   ownership: "Managed membership",
   drift: "Drift detection",
   replay: "Sync replay",
@@ -316,7 +327,7 @@ export default function ScimPage() {
         <EmptyState variant="inline"
           framed
           title="No SCIM directory connected"
-          purpose="Switch to a workspace to manage its SCIM provisioning tokens, drift reconciliation, and sync replay."
+          purpose="Open a workspace of your organization to manage its SCIM provisioning tokens, directory groups, drift reconciliation, and sync replay."
         />
       </PageShell>
     );
@@ -330,8 +341,9 @@ export default function ScimPage() {
           title="SCIM Operations"
           subtitle={
             <>
-              Provisioning tokens, drift reconciliation against IdP state, and
-              replay of transient sync failures. The endpoint base is{" "}
+              Your organization's directory provisioning: tokens, directory
+              groups, drift reconciliation against IdP state, and replay of
+              transient sync failures. The endpoint base is{" "}
               <code style={{ fontFamily: "monospace", fontSize: 12 }}>
                 /v2/scim
               </code>
@@ -341,6 +353,7 @@ export default function ScimPage() {
         />
       }
       >
+      <OrganizationIdentityScopeNote subject="SCIM tokens, directory groups and linked identities" />
       <AdmTabs
         label="SCIM operations"
         tabs={(Object.keys(TAB_LABELS) as TabKey[]).map((k) => ({
@@ -360,6 +373,9 @@ export default function ScimPage() {
       */}
       <AdmTabPanel id="tokens" active={tab}>
         {tab === "tokens" ? <TokensTab teamId={teamId} /> : null}
+      </AdmTabPanel>
+      <AdmTabPanel id="groups" active={tab}>
+        {tab === "groups" ? <DirectoryGroupsSection teamId={teamId} /> : null}
       </AdmTabPanel>
       <AdmTabPanel id="ownership" active={tab}>
         {tab === "ownership" ? <ManagedMembershipSection teamId={teamId} /> : null}
@@ -655,8 +671,9 @@ function TokensTab({ teamId }: { teamId: string }) {
         }}
       >
         <p className="adm-help">
-          Bearer tokens for SCIM v2 provisioning. Tokens are scope-bounded and
-          hashed at rest; raw values are shown exactly once at creation.
+          Bearer tokens for SCIM v2 provisioning, shared by every workspace of
+          your organization. Tokens are scope-bounded and hashed at rest; raw
+          values are shown exactly once at creation.
         </p>
         <Button
           variant="enterprise"

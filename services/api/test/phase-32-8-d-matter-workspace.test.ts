@@ -448,7 +448,14 @@ describe("Phase 32.8D — case lifecycle service", () => {
   });
 
   it("addCaseAssignment enforces workspace membership for team workspaces", () => {
-    expect(LIFECYCLE).toMatch(/client\.teamMember\.findFirst[\s\S]{0,200}invalid_assignee/);
+    // Membership, capability, case reach and Collaboration Team placement are
+    // decided by the one assignee-eligibility authority (members audit,
+    // unassigned-member rule; behaviour proven in
+    // members-unassigned-rule.integration.test.ts); a refusal maps to
+    // invalid_assignee / assignee_not_placed.
+    expect(LIFECYCLE).toMatch(
+      /assertWorkAssigneeEligible\([\s\S]{0,800}"assignee_not_placed" : "invalid_assignee"/,
+    );
   });
 
   it("addEvidenceLink rejects cross-workspace evidence on team cases", () => {

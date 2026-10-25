@@ -22,6 +22,7 @@ import { Card } from "../../../../../components/ui/Card";
 import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { ssoConnectionStatusLabel } from "../../../../../lib/labels/identityOrgLabels";
 
 export type FederationReadiness = {
   teamId: string;
@@ -101,7 +102,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
         setPhase({
           kind: "denied",
           detail:
-            "Your role in this workspace does not allow reading its federation configuration. Nothing was loaded.",
+            "Your role in this workspace does not allow reading your organization's federation configuration. Nothing was loaded.",
         });
         return;
       }
@@ -276,7 +277,7 @@ export function FederationReadinessSection({ teamId }: { teamId: string }) {
             {notReady.map((c) => (
               <li key={c.id}>
                 <strong style={{ fontSize: 13 }}>{c.displayName}</strong>{" "}
-                <span className="adm-help">({c.status.toLowerCase()})</span>
+                <span className="adm-help">({ssoConnectionStatusLabel(c.status).toLowerCase()})</span>
                 <ul style={{ margin: "4px 0 0", paddingInlineStart: 18 }}>
                   {c.blockers.map((b) => (
                     <li key={b} className="adm-help">

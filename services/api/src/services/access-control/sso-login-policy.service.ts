@@ -33,7 +33,14 @@ import { isEmailDomainVerifiedForOrg } from "../organization/organization-domain
 export type SsoLoginPolicyDenyReason =
   | "sso_not_enterprise"
   | "sso_workspace_personal"
-  | "sso_domain_not_verified";
+  | "sso_domain_not_verified"
+  /**
+   * Members audit DOM-13 — the identity belongs to the Organization: a
+   * SUSPENDED or ARCHIVED (closed / terminated) Organization, or a closed
+   * provisioning Workspace, admits no SSO login — checked here, before any
+   * mapping, membership or session is written.
+   */
+  | "sso_organization_inactive";
 
 export type SsoLoginPolicyResult =
   | { ok: true; organizationId: string; teamId: string }
@@ -57,13 +64,25 @@ export async function enforceSsoLoginPolicy(
 ): Promise<SsoLoginPolicyResult> {
   const team = await client.team.findUnique({
     where: { id: input.teamId },
-    select: { id: true, isPersonal: true, organizationId: true },
+    select: {
+      id: true,
+      isPersonal: true,
+      organizationId: true,
+      closedAtUtc: true,
+      organization: { select: { status: true } },
+    },
   });
 
   // A connection whose team vanished, or that lives on a PERSONAL workspace,
   // must never mint an SSO session. SSO is an organization identity boundary.
   if (!team || team.isPersonal) {
     return { ok: false, reason: "sso_workspace_personal" };
+  }
+
+  // (0) The owning Organization is live, and so is the Workspace a login
+  // provisions into (members audit DOM-13).
+  if (team.organization.status !== "ACTIVE" || team.closedAtUtc !== null) {
+    return { ok: false, reason: "sso_organization_inactive" };
   }
 
   // (1) Enterprise-only.

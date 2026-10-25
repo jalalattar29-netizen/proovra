@@ -254,6 +254,26 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "A reviewer share lasts at most 30 days. Renew it later if it is still needed.",
     severity: "info",
   },
+  ORGANIZATION_IDENTITY_ADMIN_REQUIRED: {
+    title: "Organization identity settings",
+    message: "SSO and directory provisioning belong to the organization. An organization owner, admin or security admin can change them.",
+    severity: "warning",
+  },
+  SCIM_GROUP_PROJECTION_EXISTS: {
+    title: "Already projected",
+    message: "This directory group already applies to that workspace.",
+    severity: "info",
+  },
+  SCIM_GROUP_PROJECTION_WORKSPACE_NOT_ELIGIBLE: {
+    title: "Workspace not available",
+    message: "A directory group can only apply to an open workspace of this organization.",
+    severity: "warning",
+  },
+  SCIM_GROUP_PROJECTION_NO_DIRECTORY: {
+    title: "No active directory connection",
+    message: "Create or restore a SCIM provisioning token for this organization before applying a group to another workspace.",
+    severity: "warning",
+  },
   DELEGATED_ADMIN_TIERS_RETIRED: {
     title: "Delegated administration has moved",
     message: "Delegated administration is now managed per member in Security Center. Past grants are kept in the audit history.",

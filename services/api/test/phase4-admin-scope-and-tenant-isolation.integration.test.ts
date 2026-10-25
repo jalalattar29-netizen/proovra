@@ -316,6 +316,7 @@ describe("PHASE 4 — Admin scope, tenant isolation and audience (live PostgreSQ
       const bToken = await prisma.scimProvisioningToken.create({
         data: {
           teamId: orgB.workspaceId,
+          organizationId: orgB.organizationId,
           name: `p4-b-${deps.tag}`,
           tokenPrefix: "scim_pat_p4b",
           tokenHash: randomUUID().replace(/-/g, ""),

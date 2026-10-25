@@ -491,10 +491,18 @@ describe("enterprise feature route gates", () => {
       text.indexOf("async function authorizeSamlOperator"),
       text.indexOf("Builds the ACS (AssertionConsumerService) URL"),
     );
-    expect(authorityBody.indexOf("teamMember.findFirst")).toBeGreaterThan(0);
-    expect(authorityBody.indexOf("resolveSamlConnectionEnterpriseGate")).toBeGreaterThan(
-      authorityBody.indexOf("teamMember.findFirst"),
+    // Members audit DOM-13 — the connection is the ORGANIZATION's, so tenancy
+    // is an ACTIVE membership of any workspace of that Organization (one
+    // org-scoped findMany), then the Organization identity role; the plan is
+    // read only after both.
+    const membershipAt = authorityBody.indexOf("teamMember.findMany");
+    expect(membershipAt).toBeGreaterThan(0);
+    expect(authorityBody).toMatch(
+      /teamMember\.findMany\(\{\s*where: \{ userId: actorUserId, status: "ACTIVE", team: \{ organizationId: conn\.organizationId \} \}/,
     );
+    const orgAuthorityAt = authorityBody.indexOf("evaluateOrganizationIdentityAuthority(");
+    expect(orgAuthorityAt).toBeGreaterThan(membershipAt);
+    expect(authorityBody.indexOf("resolveSamlConnectionEnterpriseGate")).toBeGreaterThan(orgAuthorityAt);
     // The gate definition lives in the shared service, NOT in saml-auth.routes.ts.
     const sharedResolver = read(
       resolve(API_ROOT, "src/services/enterprise-gate-resolvers.service.ts"),

@@ -197,16 +197,18 @@ export async function projectGovernanceDashboard(input: {
       .catch(() => [] as Array<{ userId: string }>),
     prisma.ssoConnection
       .count({
+        // DOM-13 — the Organization's configuration; only an ACTIVE connection
+        // signs anyone in (a SUSPENDED one is not live).
         where: {
-          teamId: input.teamId,
-          status: { notIn: ["DISABLED", "REVOKED", "PENDING"] },
+          organization: { workspaces: { some: { id: input.teamId } } },
+          status: "ACTIVE",
         },
       })
       .catch(() => 0),
     prisma.scimProvisioningToken
       .count({
         where: {
-          teamId: input.teamId,
+          organization: { workspaces: { some: { id: input.teamId } } },
           status: "ACTIVE",
         },
       })

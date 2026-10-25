@@ -27,6 +27,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const writes: string[] = [];
+const createdData: Array<Record<string, unknown>> = [];
 
 const state = {
   identityMode: "STANDARD" as string,
@@ -67,6 +68,10 @@ const prismaFake = {
   teamMember: {
     findFirst: async () => (state.isMember ? { id: "m-1" } : null),
   },
+  // Members audit DOM-13 — the link is the workspace's ORGANIZATION's record.
+  team: {
+    findUniqueOrThrow: async () => ({ organizationId: "org-of-t1" }),
+  },
   externalIdentityMapping: {
     findFirst: async (args: { where: Record<string, unknown> }) => {
       // Subject-ownership probe (provider + externalSubjectId).
@@ -80,7 +85,8 @@ const prismaFake = {
         ? { ...state.activeMapping, provider: "OIDC", teamId: "t1" }
         : null;
     },
-    create: async () => {
+    create: async (args: { data: Record<string, unknown> }) => {
+      createdData.push(args.data);
       writes.push("mapping.create");
       return { id: "map-new" };
     },
@@ -115,6 +121,7 @@ const unlink = () =>
 
 beforeEach(() => {
   writes.length = 0;
+  createdData.length = 0;
   state.identityMode = "STANDARD";
   state.managingOrganizationId = null;
   state.isMember = true;
@@ -162,6 +169,8 @@ describe("Phase 12 Point 4 — manual external-identity binding vs managed owner
   it("still links a STANDARD identity — a gate, not a freeze", async () => {
     await expect(link()).resolves.toMatchObject({ id: "map-new" });
     expect(writes).toContain("mapping.create");
+    // DOM-13 — the row is stamped with the workspace's Organization.
+    expect(createdData[0]).toMatchObject({ teamId: "t1", organizationId: "org-of-t1" });
   });
 
   it("still unlinks a STANDARD identity", async () => {

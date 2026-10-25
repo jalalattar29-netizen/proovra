@@ -222,9 +222,26 @@ describe("K2 security (A) — identity administration, verification, step-up (li
       where: { id: teamA.adminUserId },
       data: { currentWorkspaceId: teamA.teamId },
     });
+    // Members audit DOM-13 — identity configuration is the ORGANIZATION's, so
+    // the console operator is also Organization A's security administrator.
+    await setAdminOrgRole("ORG_SECURITY_ADMIN");
   }, 180_000);
 
+  async function setAdminOrgRole(role: "ORG_MEMBER" | "ORG_SECURITY_ADMIN"): Promise<void> {
+    const userId = harness.fixtures.teamA.adminUserId;
+    await prisma.organizationMembership.upsert({
+      where: { organization_memberships_org_user_uniq: { organizationId: orgA, userId } },
+      create: { organizationId: orgA, userId, role },
+      update: { role },
+    });
+  }
+
   afterAll(async () => {
+    if (prisma && orgA && harness) {
+      await prisma.organizationMembership
+        .deleteMany({ where: { organizationId: orgA, userId: harness.fixtures.teamA.adminUserId } })
+        .catch(() => undefined);
+    }
     if (prisma && createdUserIds.length) {
       await prisma.mfaFactor.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => undefined);
       await prisma.teamMember.deleteMany({ where: { userId: { in: createdUserIds } } }).catch(() => undefined);
@@ -266,6 +283,18 @@ describe("K2 security (A) — identity administration, verification, step-up (li
       expect(outsider.statusCode).toBe(404);
       expect(json(outsider)).toEqual({ error: { code: "not_found" } });
       expect(await prisma.ssoConnection.count({ where: { teamId, displayName: payload.displayName } })).toBe(0);
+
+      // DOM-13 — a Workspace admin WITHOUT an Organization identity role is
+      // refused before step-up is even asked for, and nothing is written.
+      await setAdminOrgRole("ORG_MEMBER");
+      try {
+        const noOrgRole = await call({ method: "POST", url: "/v1/admin/identity/providers", token: adminToken, payload });
+        expect(noOrgRole.statusCode).toBe(403);
+        expect((json(noOrgRole).error as Json).code).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+        expect(await prisma.ssoConnection.count({ where: { teamId, displayName: payload.displayName } })).toBe(0);
+      } finally {
+        await setAdminOrgRole("ORG_SECURITY_ADMIN");
+      }
 
       // The gate names the purpose the modal then satisfies.
       const gated = await call({ method: "POST", url: "/v1/admin/identity/providers", token: adminToken, payload });

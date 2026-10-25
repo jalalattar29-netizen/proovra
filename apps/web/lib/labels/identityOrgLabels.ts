@@ -211,6 +211,39 @@ export function identityProviderLabel(provider: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// SSO connection lifecycle (packages/shared identity-providers.ts). SUSPENDED
+// is written only by Organization suspension (members audit DOM-13), so its
+// label says why — "Suspended" alone reads like an administrator's choice.
+// ---------------------------------------------------------------------------
+
+const SSO_CONNECTION_STATUS_LABEL: Readonly<Record<string, string>> = {
+  PENDING: "Pending",
+  ACTIVE: "Active",
+  DISABLED: "Disabled",
+  REVOKED: "Revoked",
+  SUSPENDED: "Suspended with the organization",
+};
+
+export function ssoConnectionStatusLabel(status: string): string {
+  return curated(SSO_CONNECTION_STATUS_LABEL, status);
+}
+
+// ---------------------------------------------------------------------------
+// SCIM group → workspace projection roles (SCIM_GROUP_MAPPED_ROLES), in plain
+// words: what the group grants inside the workspace it applies to.
+// ---------------------------------------------------------------------------
+
+const SCIM_GROUP_ROLE_LABEL: Readonly<Record<string, string>> = {
+  ADMIN: "Admin — manages the workspace",
+  MEMBER: "Member — works with evidence",
+  VIEWER: "Viewer — read-only access",
+};
+
+export function scimGroupRoleLabel(role: string): string {
+  return curated(SCIM_GROUP_ROLE_LABEL, role);
+}
+
+// ---------------------------------------------------------------------------
 // Access reviews, risk signals, MFA, session revocation
 // ---------------------------------------------------------------------------
 

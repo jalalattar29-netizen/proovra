@@ -36,6 +36,7 @@ import { Badge } from "../../../../../components/ui/Badge";
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
+import { OrganizationIdentityScopeNote } from "../../../../../components/identity-security/OrganizationIdentityScopeNote";
 import {
   identityProviderLabel,
   samlMappingWarningLabel,
@@ -146,7 +147,7 @@ function SamlMappingContent() {
       );
   }, []);
 
-  // Load workspace providers — filtered to SAML-capable (GENERIC_SAML).
+  // Load the Organization's providers (any of its workspaces addresses them) — filtered to SAML-capable (GENERIC_SAML).
   useEffect(() => {
     if (!teamId) return;
     apiFetch(
@@ -335,7 +336,7 @@ function SamlMappingContent() {
           kind="WORKSPACE_REQUIRED"
           surface="SAML Mapping"
           headline="Switch to a workspace to configure SAML attribute mapping"
-          reason="SAML attribute mappings are per-connection. Open a workspace that owns a SAML SSO connection."
+          reason="SAML attribute mappings belong to your organization's SAML connections. Open any workspace of an organization with a SAML connection."
           actions={[
             { label: "Open workspaces", href: "/workspaces", variant: "primary" },
           ]}
@@ -356,6 +357,7 @@ function SamlMappingContent() {
         />
       }
     >
+      <OrganizationIdentityScopeNote subject="SAML attribute mappings" />
       {error ? (
         <Card variant="status" tone="risk">
           {error}

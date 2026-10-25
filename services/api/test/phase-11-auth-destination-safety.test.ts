@@ -108,6 +108,14 @@ function makeClient() {
       count: async () =>
         [...rowsById.values()].filter((r) => r.status === "PENDING").length,
     },
+    // Members audit DOM-13 — an attempt is stamped with its connection's
+    // Organization, read from the connection row.
+    ssoConnection: {
+      findUniqueOrThrow: async ({ where }: { where: { id: string } }) => {
+        if (where.id !== "conn-1") throw new Error("connection_not_found");
+        return { organizationId: "org-1" };
+      },
+    },
   } as never;
 }
 

@@ -26,6 +26,7 @@
  *   POST /v1/admin/identity/scim/tokens/:id/rotate   — atomic rotation
  */
 
+import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -33,6 +34,15 @@ import {
   projectScimManagedMembership,
   rotateScimToken,
 } from "../services/access-control/scim.service.js";
+import { SCIM_GROUP_MAPPED_ROLES } from "@proovra/shared";
+import { prisma } from "../db.js";
+import {
+  addScimGroupProjection,
+  archiveScimGroupProjection,
+  listOrganizationScimGroups,
+  ScimProjectionError,
+  type ScimProjectionRefusal,
+} from "../services/access-control/scim-groups.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -73,6 +83,12 @@ export async function scimAdminRoutes(app: FastifyInstance) {
       reply
         .code(402)
         .send({ error: { code: "enterprise_feature_required", feature: "ssoScim" } });
+      return null;
+    }
+
+    // Members audit DOM-13 — a write changes the Organization's directory
+    // credentials, so the Organization identity role is required too.
+    if (stepUp && !(await requireOrganizationIdentityAuthority(reply, { teamId: actor.teamId, userId: actor.actorUserId }))) {
       return null;
     }
 
@@ -168,6 +184,102 @@ export async function scimAdminRoutes(app: FastifyInstance) {
         projection: result.projection,
         tokenOnce: result.tokenOnce,
       });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Members audit DOM-13 — Organization SCIM groups and their Workspace
+  // projections. Groups belong to the Organization; a projection is where one
+  // applies, with the role it grants there. Reads on Workspace authority;
+  // writes need the Organization identity role and step-up.
+  // ---------------------------------------------------------------------------
+
+  const PROJECTION_REFUSAL: Record<ScimProjectionRefusal, { status: number; code: string }> = {
+    group_not_found: { status: 404, code: "not_found" },
+    projection_not_found: { status: 404, code: "not_found" },
+    workspace_not_in_organization: { status: 404, code: "not_found" },
+    workspace_not_eligible: { status: 409, code: "SCIM_GROUP_PROJECTION_WORKSPACE_NOT_ELIGIBLE" },
+    projection_exists: { status: 409, code: "SCIM_GROUP_PROJECTION_EXISTS" },
+    no_live_directory_credential: { status: 409, code: "SCIM_GROUP_PROJECTION_NO_DIRECTORY" },
+  };
+
+  app.get(
+    "/v1/admin/identity/scim/groups",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = z.object({ teamId: z.string().uuid() }).safeParse(req.query ?? {});
+      if (!q.success) return reply.code(400).send({ error: { code: "validation_error" } });
+      const actor = await requireScimAdmin(req, reply, q.data.teamId, null, false);
+      if (!actor) return;
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: actor.teamId }, select: { organizationId: true } });
+      const groups = await listOrganizationScimGroups({ organizationId: team.organizationId });
+      return reply.code(200).send({ groups });
+    },
+  );
+
+  app.post(
+    "/v1/admin/identity/scim/groups/:id/projections",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = ParamsTokenId.safeParse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          workspaceId: z.string().uuid(),
+          mappedRole: z.enum(SCIM_GROUP_MAPPED_ROLES),
+        })
+        .safeParse(req.body ?? {});
+      if (!params.success || !body.success) {
+        return reply.code(400).send({ error: { code: "validation_error" } });
+      }
+      const actor = await requireScimAdmin(req, reply, body.data.teamId, params.data.id, true);
+      if (!actor) return;
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: actor.teamId }, select: { organizationId: true } });
+      try {
+        const out = await addScimGroupProjection({
+          organizationId: team.organizationId,
+          groupId: params.data.id,
+          workspaceId: body.data.workspaceId,
+          mappedRole: body.data.mappedRole,
+          actorUserId: actor.actorUserId,
+        });
+        return reply.code(201).send(out);
+      } catch (err) {
+        if (err instanceof ScimProjectionError) {
+          const r = PROJECTION_REFUSAL[err.reason];
+          return reply.code(r.status).send({ error: { code: r.code } });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/v1/admin/identity/scim/groups/projections/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = ParamsTokenId.safeParse(req.params);
+      const body = z.object({ teamId: z.string().uuid() }).safeParse(req.body ?? {});
+      if (!params.success || !body.success) {
+        return reply.code(400).send({ error: { code: "validation_error" } });
+      }
+      const actor = await requireScimAdmin(req, reply, body.data.teamId, params.data.id, true);
+      if (!actor) return;
+      const team = await prisma.team.findUniqueOrThrow({ where: { id: actor.teamId }, select: { organizationId: true } });
+      try {
+        const out = await archiveScimGroupProjection({
+          organizationId: team.organizationId,
+          projectionId: params.data.id,
+          actorUserId: actor.actorUserId,
+        });
+        return reply.code(200).send(out);
+      } catch (err) {
+        if (err instanceof ScimProjectionError) {
+          const r = PROJECTION_REFUSAL[err.reason];
+          return reply.code(r.status).send({ error: { code: r.code } });
+        }
+        throw err;
+      }
     },
   );
 }

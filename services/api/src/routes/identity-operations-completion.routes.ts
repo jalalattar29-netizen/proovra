@@ -35,6 +35,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
+import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
@@ -144,6 +145,8 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireIdentityAdmin(req, reply, body.teamId);
       if (!ctx) return;
+      // Members audit DOM-13 — this changes the Organization's identity configuration.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: ctx.userId }))) return;
 
       /*
        * Reconciliation SYNCHRONISES against the directory, so it is a use of
@@ -241,6 +244,8 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireIdentityAdmin(req, reply, body.teamId);
       if (!ctx) return;
+      // Members audit DOM-13 — this changes the Organization's identity configuration.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: ctx.userId }))) return;
       /*
        * Replaying a failed sync IS a sync, so it stops with the entitlement
        * for the same reason the reconciliation route above does. Reading the
@@ -399,6 +404,8 @@ export async function identityOperationsCompletionRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireIdentityAdmin(req, reply, body.teamId);
       if (!ctx) return;
+      // Members audit DOM-13 — this changes the Organization's identity configuration.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: ctx.userId }))) return;
 
       // Re-run the preview server-side to determine if the new
       // mapping introduces privilege-affecting changes.

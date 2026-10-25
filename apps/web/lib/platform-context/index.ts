@@ -51,6 +51,7 @@ export {
   useWorkspaceId,
   useActiveWorkspaceId,
   useWorkspaceFragment,
+  useActiveCustomerOrganizationId,
   usePersonalSpaceFragment,
   type TeamWorkspaceGateState,
 } from "./useTeamWorkspaceGate";

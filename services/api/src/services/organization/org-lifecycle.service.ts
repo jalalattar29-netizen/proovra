@@ -152,7 +152,8 @@ export async function suspendOrganization(input: {
       // 3. SSO halted, reversibly (only ACTIVE connections initiate logins).
       ssoConnectionsSuspended = (
         await tx.ssoConnection.updateMany({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
+          // DOM-13 — the Organization owns its identity configuration.
+          where: { organizationId, status: "ACTIVE" },
           data: { status: ORG_SUSPENSION_STATUS },
         })
       ).count;
@@ -160,7 +161,7 @@ export async function suspendOrganization(input: {
       // 4. SCIM halted, reversibly (middleware requires status ACTIVE).
       scimTokensSuspended = (
         await tx.scimProvisioningToken.updateMany({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
+          where: { organizationId, status: "ACTIVE" },
           data: { status: ORG_SUSPENSION_STATUS },
         })
       ).count;
@@ -361,13 +362,13 @@ export async function resumeOrganization(input: {
       // Restore EXACTLY what suspension wrote — marker-matched flips.
       ssoConnectionsRestored = (
         await tx.ssoConnection.updateMany({
-          where: { teamId: { in: teamIds }, status: ORG_SUSPENSION_STATUS },
+          where: { organizationId, status: ORG_SUSPENSION_STATUS },
           data: { status: "ACTIVE" },
         })
       ).count;
       scimTokensRestored = (
         await tx.scimProvisioningToken.updateMany({
-          where: { teamId: { in: teamIds }, status: ORG_SUSPENSION_STATUS },
+          where: { organizationId, status: ORG_SUSPENSION_STATUS },
           data: { status: "ACTIVE" },
         })
       ).count;

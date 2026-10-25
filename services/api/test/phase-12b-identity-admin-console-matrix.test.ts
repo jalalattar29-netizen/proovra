@@ -75,6 +75,14 @@ const H = vi.hoisted(() => ({
   runtimeGateDenies: false,
   /** Whether the workspace holds the Enterprise `ssoScim` entitlement. */
   ssoScimEntitled: true,
+  /**
+   * Members audit DOM-13 — the actor's Organization role (null = no
+   * Organization membership) and the Organization's kind. Identity WRITES
+   * additionally require ORG_OWNER | ORG_ADMIN | ORG_SECURITY_ADMIN in a
+   * CUSTOMER Organization; the REAL guard runs against this state.
+   */
+  orgRole: "ORG_ADMIN" as string | null,
+  orgKind: "CUSTOMER" as string,
   /** EVERY canonical-service invocation, in order. */
   calls: [] as Call[],
   /** Only invocations that actually CHANGED state. */
@@ -401,7 +409,21 @@ vi.mock("../src/db.js", () => ({
     team: {
       findUnique: async (a: { where: { id: string } }) =>
         a.where.id === "22222222-2222-4222-8222-222222222222"
-          ? { organizationId: "44444444-4444-4444-8444-444444444444" }
+          ? {
+              organizationId: "44444444-4444-4444-8444-444444444444",
+              organization: { kind: H.orgKind },
+            }
+          : null,
+    },
+    // DOM-13 — the Organization identity authority (checkOrgAccess) reads.
+    organization: {
+      findUnique: async (a: { where: { id: string } }) =>
+        a.where.id === "44444444-4444-4444-8444-444444444444" ? { id: a.where.id, status: "ACTIVE" } : null,
+    },
+    organizationMembership: {
+      findFirst: async (a: { where: { organizationId: string; userId: string } }) =>
+        a.where.userId === H.actorUserId && H.orgRole !== null
+          ? { role: H.orgRole, status: "ACTIVE", validUntilUtc: null }
           : null,
     },
     organizationDomain: { count: async () => 2 },
@@ -453,6 +475,8 @@ beforeEach(async () => {
     stepUpDenies: false,
     runtimeGateDenies: false,
     ssoScimEntitled: true,
+    orgRole: "ORG_ADMIN",
+    orgKind: "CUSTOMER",
   });
   H.calls.length = 0;
   H.writes.length = 0;
@@ -1060,5 +1084,78 @@ describe("STRUCTURAL — catalogue completeness (non-behavioral guard)", () => {
     const outOfScope = new Set(["POST /v1/admin/identity/providers/:id/policy"]);
     expect(registered.filter((r) => !covered.has(r) && !outOfScope.has(r))).toEqual([]);
     await probe.close();
+  });
+});
+
+// =============================================================================
+// PROOF — Members audit DOM-13: identity configuration is the ORGANIZATION's.
+// The five configuration WRITES additionally require an Organization identity
+// role (ORG_OWNER | ORG_ADMIN | ORG_SECURITY_ADMIN) in a CUSTOMER
+// Organization, checked right after the Workspace gate and BEFORE step-up, the
+// runtime gate or any service. Reads stay on Workspace authority. A SYSTEM
+// Organization (one workspace, no Organization roles) passes on the Workspace
+// authority alone. The REAL guard runs against the db fake above.
+// =============================================================================
+
+const ORG_IDENTITY_WRITES = ["POST providers", "POST providers/:id/transition", "POST scim/tokens", "POST scim/tokens/:id/revoke"];
+
+describe("PROOF — Organization identity authority on identity configuration writes (DOM-13)", () => {
+  it.each(ORG_IDENTITY_WRITES.map((n) => [n] as const))(
+    "%s — a Workspace admin WITHOUT an Organization identity role → 403 ORGANIZATION_IDENTITY_ADMIN_REQUIRED, ZERO mutation",
+    async (name) => {
+      H.orgRole = "ORG_MEMBER";
+      const o = op(name);
+      const res = await run(o);
+      expect(res.statusCode).toBe(403);
+      expect((json(res)["error"] as Record<string, unknown>)["code"]).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+      expect(hits(o.service)).toEqual([]);
+      expect(H.writes).toEqual([]);
+      // Refused before step-up is even asked for, and before the runtime gate.
+      expect(H.stepUps).toEqual([]);
+      expect(hits("runtimeAdaptiveGate")).toEqual([]);
+      // The Workspace gate still ran first — this is IN ADDITION to it.
+      expect(H.policyChecks).toEqual([{ teamId: TEAM, permission: o.perm }]);
+    },
+  );
+
+  it.each(ORG_IDENTITY_WRITES.map((n) => [n] as const))(
+    "%s — no Organization membership at all is refused the same way",
+    async (name) => {
+      H.orgRole = null;
+      const o = op(name);
+      const res = await run(o);
+      expect(res.statusCode).toBe(403);
+      expect((json(res)["error"] as Record<string, unknown>)["code"]).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+      expect(hits(o.service)).toEqual([]);
+    },
+  );
+
+  it.each(["ORG_OWNER", "ORG_SECURITY_ADMIN"].map((r) => [r] as const))(
+    "%s holds the Organization identity role → the write proceeds",
+    async (role) => {
+      H.orgRole = role;
+      const o = op("POST scim/tokens");
+      const res = await run(o);
+      expect(res.statusCode).toBe(o.ok);
+      expect(hits(o.service)).toHaveLength(1);
+    },
+  );
+
+  it("a SYSTEM Organization passes on Workspace authority alone (it has no Organization roles)", async () => {
+    H.orgKind = "SYSTEM";
+    H.orgRole = null;
+    const o = op("POST providers");
+    const res = await run(o);
+    expect(res.statusCode).toBe(o.ok);
+    expect(hits(o.service)).toHaveLength(1);
+  });
+
+  it("READS stay on Workspace authority — no Organization role needed", async () => {
+    H.orgRole = null;
+    for (const name of ["GET providers", "GET scim/tokens"]) {
+      const o = op(name);
+      const res = await run(o);
+      expect(res.statusCode, name).toBe(o.ok);
+    }
   });
 });

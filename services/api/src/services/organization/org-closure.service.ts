@@ -107,6 +107,60 @@ export async function executeOrganizationClosure(input: {
       reason: "organization closure",
     });
 
+    // Members audit DOM-13 — identity belongs to the Organization, so its
+    // closure (or contract termination) ends identity access across every
+    // workspace at once, in this transaction: connections and directory
+    // credentials are REVOKED (terminal; an ARCHIVED Organization is never
+    // resumed), groups and their projections ARCHIVED, live external links
+    // unlinked. Rows stay as history.
+    const identityReason = input.terminateContract ? "ORGANIZATION_TERMINATED" : "ORGANIZATION_CLOSED";
+    const identityEndedAt = new Date();
+    const ssoRevoked = await tx.ssoConnection.updateMany({
+      where: { organizationId, status: { not: "REVOKED" } },
+      data: {
+        status: "REVOKED",
+        revokedAtUtc: identityEndedAt,
+        revokedByUserId: requestedByUserId,
+        revokedReason: identityReason,
+        outageDetectedAtUtc: null,
+        consecutiveFailureCount: 0,
+      },
+    });
+    const scimRevoked = await tx.scimProvisioningToken.updateMany({
+      where: { organizationId, status: { not: "REVOKED" } },
+      data: {
+        status: "REVOKED",
+        revokedAtUtc: identityEndedAt,
+        revokedByUserId: requestedByUserId,
+        revokedReason: identityReason,
+      },
+    });
+    await tx.scimGroupWorkspaceProjection.updateMany({
+      where: { organizationId, status: "ACTIVE" },
+      data: { status: "ARCHIVED" },
+    });
+    await tx.scimGroup.updateMany({
+      where: { organizationId, status: "ACTIVE" },
+      data: { status: "ARCHIVED" },
+    });
+    const identitiesUnlinked = await tx.externalIdentityMapping.updateMany({
+      where: { organizationId, unlinkedAtUtc: null },
+      data: { unlinkedAtUtc: identityEndedAt },
+    });
+    await emitOrgAuditEvent(tx, {
+      organizationId,
+      actorUserId: requestedByUserId,
+      eventType: "ORG_IDENTITY_ENDED",
+      targetType: "organization",
+      targetId: organizationId,
+      metadata: {
+        reason: identityReason,
+        ssoConnectionsRevoked: ssoRevoked.count,
+        scimTokensRevoked: scimRevoked.count,
+        externalIdentitiesUnlinked: identitiesUnlinked.count,
+      },
+    });
+
     // TERMINATED — in the same transaction as the closure it completes, so a
     // contract is never TERMINATED while its workspaces still operate.
     if (input.terminateContract) {

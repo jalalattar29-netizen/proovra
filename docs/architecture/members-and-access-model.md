@@ -11,7 +11,8 @@ and `domain-debt-register.md`.
 |---|---|---|
 | Workspace | `teams` (Prisma `Team`; never renamed) | `resolveWorkspaceKind`, `resolveWorkspaceLifecyclePolicy` |
 | Workspace membership | `team_members` (`TeamRole` OWNER > ADMIN > MEMBER > VIEWER) | `identity/rbac.service.ts`, `identity/membership-provisioning.service.ts` |
-| Collaboration Team (UI: "Teams", one "Collaboration Team") | `collaboration_teams`, `collaboration_team_members` (LEAD > CONTRIBUTOR > VIEWER) | `collaboration-team/collaboration-team.service.ts` |
+| Collaboration Team (UI: "Teams", one "Collaboration Team") | `collaboration_teams`, `collaboration_team_members` (LEAD > ADMIN > MEMBER > VIEWER, plus EXTERNAL) | `collaboration-team/collaboration-team.service.ts` |
+| Delegated administration | role + `member_capability_grants` + `member_delegated_admin_scopes`, one permission engine | `middleware/authorize.ts`, `middleware/require-workspace-permission.ts`, `identity/rbac.service.ts` |
 | Capacity | per ACTIVE Collaboration Team: PRO 2 × 5, TEAM 5 × 10 accepted non-owner members; Enterprise contract-defined | `collaboration-team/billing-guards.ts` (one lock per group) |
 | Workspace-wide seat ceiling | only an ACTIVE Enterprise contract's `seat_count` | `billing/workspace-seats.service.ts` |
 | Case reach | `case_access` + `case_collaboration_team_access` (restricted when either has a row) | `cases/record-reach` |
@@ -61,18 +62,125 @@ deletion (DOM-06).
   migration window; the Prisma relation names (`CollaborationTeamMembers`
   etc.) and this record are the disambiguation. Code must never join it to
   `teams.id`.
-* CT status columns are `VARCHAR` with values owned by
-  `TEAM_TASK_TRANSITIONS` / the service's state checks; every writer goes
-  through the service (no other module writes `collaboration_team_members`
-  except the standing-reach leg, which only sets REMOVED).
+* CT role and status columns stay `VARCHAR`, but the database now refuses any
+  value outside the shared vocabulary (`@proovra/shared` collaboration-team.ts):
+  `CHECK … NOT VALID` constraints on every role/status column of
+  `collaboration_teams`, `_members`, `_invites` and `_assignments` (migration
+  `20281026000600_collaboration_vocabulary_checks`). `NOT VALID` binds every new
+  write; validating existing rows is a later operator step once the readiness
+  count reads 0. Proof: `members-collaboration-vocabulary.integration.test.ts`.
+* No composite (workspace, team) foreign key: `collaboration_team_*` rows carry
+  `workspace_id` beside `team_id`, and every writer derives both from the loaded
+  team row, never from the request.
 
-## 5. Open decisions (user approval required)
+## 5. Decisions taken (owner, 2026-10-25)
 
-* **DOM-09** — two delegated-administration models: `MemberDelegatedAdminScope`
-  (written by Security Center, enforced nowhere) and `DelegatedAdminGrant`
-  (enforced by `require-delegated-tier`, no writer). Choosing which survives is
-  a product decision.
-* **DOM-13** — whether SSO/SCIM connections are workspace- or
-  organization-scoped for Enterprise managed identity.
-* **SEC-08** — maximum share-link lifetime, and whether links die with their
-  creator's removal.
+### 5.1 DOM-09 — one delegated-administration authority
+
+Both models were writable and enforced (the earlier note here, "enforced
+nowhere", was wrong): member delegated scopes inside the permission engine, and
+tier grants behind `require-delegated-tier`. The permission engine is kept.
+
+* Every former tier gate asks the engine for its domain's permission through
+  `requireWorkspacePermission` (any-of only for destruction approval, which a
+  retention manager OR a security-policy manager could approve).
+* Two precise permissions were added so no tier spills into a neighbouring
+  domain: `governance.exchange.manage` (exchange packages, chain transfers,
+  cross-org review) and `governance.department.manage` (department
+  memberships).
+* Migration `20281026000500_delegated_admin_convergence` carries each live tier
+  grant of an ACTIVE member as capability grants of exactly the permissions its
+  tier admitted (a scope would have widened it); tier rows end `CONVERGED` /
+  `RETIRED_NO_EFFECT` / `RETIRED_NO_MEMBER` and stay as history.
+* The managed writer: grant `POST /v1/identity/members/:id/delegated-admin`,
+  update `PATCH /v1/identity/delegated-admin/:id` (expiry/reason, step-up,
+  audited previous/resulting), revoke `DELETE /v1/identity/delegated-admin/:id`,
+  inspect in the member roster. Concurrent grants resolve to one winner. Tier
+  routes answer 410 `DELEGATED_ADMIN_TIERS_RETIRED`.
+* Proof: `members-delegated-admin.integration.test.ts` (migration exactness and
+  idempotency, coverage of every former route per tier, no widening, the
+  managed writer, revocation, concurrency),
+  `phase-12-new-005-permission-guard-membership.integration.test.ts`.
+
+### 5.2 Unassigned members — who may be given work
+
+| Plan | Non-owner, not placed in an ACTIVE Collaboration Team | Placed member | OWNER |
+|---|---|---|---|
+| FREE / PAYG | no collaboration | — | capability + reach |
+| PRO, TEAM | refused: reviewer assignment, queue claim, escalation, case assignment (`ASSIGNEE_NOT_PLACED`, 422); not offered as an operator | capability + reach | exempt from placement; still needs capability + reach |
+| ENTERPRISE | contract: direct eligible assignment by default; placement required when `assignment_requires_team_placement` is TRUE on the ACTIVE contract; no ACTIVE contract → placement required | capability + reach | as above |
+
+Placement is necessary, never sufficient. Authority:
+`assignment/assignee-eligibility.ts` (`assertWorkAssigneeEligible`) and
+`assignment/placement-policy.ts`. Proof:
+`members-unassigned-rule.integration.test.ts`.
+
+### 5.3 SEC-08 — share links
+
+* `pvr_` Public Verify references and REPORT / PACKAGE tokens are publication
+  state: no time expiry while published, unaffected by their creator leaving,
+  ended only by unpublish/revoke or the evidence/workspace lifecycle, so an
+  issued report's QR code keeps verifying.
+* Owner share links and external-review grants are creator-scoped: 7-day
+  default, 30-day self-service maximum, renewal an explicit audited action;
+  revoked when the creator is removed, suspended or loses the authority; an
+  OWNER/ADMIN may move eligible grants to Workspace ownership in the removal
+  flow; workspace closure ends them. Migration `20281026000400_share_grant_lifetimes`.
+  Proof: `members-share-lifecycle.integration.test.ts`.
+
+### 5.5 DOM-13 — SSO and SCIM belong to the Organization
+
+| Organization-owned | Workspace-scoped |
+|---|---|
+| IdP connections (`sso_connections`), verified domains, SSO policy, SCIM credentials (`scim_provisioning_tokens`), SCIM users (`external_identity_mappings`), SCIM groups (`scim_groups`) | membership and role (`team_members`), Collaboration Team placement, Case access, operational assignment |
+
+* Every identity row carries `organization_id` (migration
+  `20281026000700_organization_scoped_identity`); `team_id` stays as the
+  Workspace a row was configured from — for a connection or a SCIM token, the
+  Organization's default provisioning Workspace. Any Workspace of the
+  Organization addresses the same configuration.
+* One live (ACTIVE or SUSPENDED) connection per provider per Organization; one
+  live SCIM group per external id per Organization; external identities are
+  unique per Organization, so two Organizations never collide and a subject
+  linked in one means nothing in another. Legacy per-workspace duplicates were
+  reconciled forward (earliest kept; others `DISABLED` /
+  `DUPLICATE_PROVIDER_IN_ORGANIZATION`, or merged as projections).
+* An Organization SCIM group reaches Workspaces through
+  `scim_group_workspace_projections` (workspace + the role granted there). The
+  provisioning authority (`scim-groups.service.ts`) applies membership in every
+  ACTIVE projection — an existing membership changes role, a missing one is
+  provisioned seat-enforced; removing undoes only the ADMIN this group granted
+  (membership-grant provenance), never elevates; a member reference must be an
+  identity of the Organization. Projections are managed by an Organization
+  identity admin (`/v1/admin/identity/scim/groups…`).
+* A directory deactivation suspends the identity in every Workspace of the
+  Organization (never a Workspace OWNER); reactivation restores exactly what
+  the directory suspended.
+* Organization suspension sets connections and tokens `SUSPENDED` (resume
+  restores exactly those); closure or contract termination REVOKES them,
+  archives groups and projections and unlinks external identities, in the
+  closure transaction (`ORG_IDENTITY_ENDED`). The SSO login policy refuses a
+  non-ACTIVE Organization or a closed Workspace before any write.
+* Writes to identity configuration need, besides the Workspace permission, an
+  Organization identity role (ORG_OWNER / ORG_ADMIN / ORG_SECURITY_ADMIN —
+  the set that administers verified domains):
+  `services/identity/organization-identity-authority.ts`
+  (`ORGANIZATION_IDENTITY_ADMIN_REQUIRED`). A SYSTEM Organization (one
+  Workspace's container) needs nothing more than the Workspace authority.
+* Proof: `members-organization-identity.integration.test.ts` (multi-workspace
+  Organization, duplicate-provider prevention, group placement into two
+  Workspaces, Organization-wide deactivation, cross-organization isolation,
+  suspension, termination, Organization authority, migration reconciliation).
+
+### 5.4 ENT-08 — one commercial authority
+
+`billing/commercial-offer.service.ts` resolves each self-service offer
+(product, plan, currency, amount, interval) from the same catalogue functions
+the Pricing page and Billing screen render. Stripe checkout (plans, evidence
+credits, storage add-ons) and plan changes charge only the configured Price,
+read back first: unconfigured, shared between products, or disagreeing on
+active/currency/amount/interval is refused `PAYMENTS_UNAVAILABLE` before
+anything is created. The inline `price_data` fallback is gone. PayPal already
+read its plan back (`assertPayPalPlanIsActive`). Proof:
+`members-commercial-offer.test.ts` (every product × currency × interval).
+The live Stripe configuration itself is an operator check.

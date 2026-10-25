@@ -49,10 +49,16 @@ export type WorkspaceKindInput = "PERSONAL" | "OWNED" | "ORGANIZATION";
 /**
  * THE ONE DERIVATION. Tenancy kind → commercial shape.
  *
- * Total and explicit. A Personal Space has exactly one occupant, so there are
- * no seats to sell and no members to invite; an Owned or Organization
- * workspace can hold more than one, so seat and member limits apply. Nothing
- * else about the plan, the subscription or the role matters to this question.
+ * Total and explicit. The shape says WHO PAYS, not how many people are inside
+ * (members audit DOM-04, ADR in docs/architecture/members-and-access-model.md):
+ * a Personal Workspace is funded by its owner's own plan and wallet
+ * (SINGLE_OCCUPANT — one billing subject), an Owned or Organization workspace
+ * by a workspace subscription or contract (SHARED). A Personal Workspace on
+ * PRO or TEAM DOES hold members; how many, and in how many Collaboration
+ * Teams, comes from the plan catalogue (`resolveWorkspaceMemberCeiling`,
+ * `maxAcceptedMembersPerCollaborationTeam`), never from this shape. The
+ * identifier is kept because it is on the wire (`billingShape`) and old
+ * clients parse it; its meaning is the billing subject.
  */
 export function billingShapeForWorkspaceKind(
   kind: WorkspaceKindInput,
@@ -156,7 +162,8 @@ export function assertPlanPurchasableForWorkspaceShape(scope: {
 /**
  * Structural plan/shape compatibility.
  *
- * SINGLE_OCCUPANT (a Personal Space):
+ * SINGLE_OCCUPANT (a Personal Workspace — one billing subject, any number of
+ * members its plan admits):
  * - structurally always valid. The plan a personal space resolves at is the
  *   account's own entitlement; see
  *   {@link assertPlanPurchasableForWorkspaceShape} for the purchase-target

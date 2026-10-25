@@ -14,10 +14,12 @@
  * ORGANIZATION) in @proovra/shared, and it lives in the database. What THIS
  * type expresses is the only thing billing actually needs to know:
  *
- *   SINGLE_OCCUPANT  one identity occupies it — a Personal Space. No seats to
- *                    sell, no members to invite.
- *   SHARED           more than one identity can occupy it — an Owned or an
- *                    Organization workspace. Seats and member limits apply.
+ *   SINGLE_OCCUPANT  ONE BILLING SUBJECT — a Personal Workspace, funded by its
+ *                    owner's own plan and wallet. It holds members on PRO and
+ *                    TEAM within the plan's collaboration limits (the name is
+ *                    historical and on the wire; members audit DOM-04).
+ *   SHARED           funded by a workspace subscription or contract — an Owned
+ *                    or an Organization workspace.
  *
  * It is DERIVED from the canonical kind by `billingShapeForWorkspaceKind`, in
  * one place, and is never persisted, never authorizes, and never selects a

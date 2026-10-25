@@ -282,6 +282,13 @@ export async function handleSamlAssertion(
   client: PrismaClient = defaultPrisma,
 ): Promise<HandleSamlAssertionResult> {
   const { teamId, connectionId, provider, assertion, attributeMapping } = input;
+  // Members audit DOM-13 — external identities are unique per Organization;
+  // the connection's workspace names its Organization.
+  const team = await client.team.findUnique({ where: { id: teamId }, select: { organizationId: true } });
+  if (!team) {
+    throw new SamlMappingError("SAML_CONNECTION_INACTIVE", { connectionId, reason: "workspace_missing" });
+  }
+  const organizationId = team.organizationId;
 
   // -------------------------------------------------------------------------
   // Resolve email and display name
@@ -344,7 +351,8 @@ export async function handleSamlAssertion(
   // -------------------------------------------------------------------------
   const externalMapping = await client.externalIdentityMapping.findUnique({
     where: {
-      provider_externalSubjectId: {
+      organizationId_provider_externalSubjectId: {
+        organizationId,
         provider: provider as never,
         externalSubjectId: externalSubjectId,
       },
@@ -366,12 +374,11 @@ export async function handleSamlAssertion(
     // (soft-unlink) any mapping that fails so it can never authorize
     // again without an explicit operator re-link. The email-domain gate
     // above already re-ran; here we bind team + quarantine state.
+    // DOM-13 — the mapping is now keyed by Organization, so a sibling
+    // workspace's link is the same identity; only a quarantined (unlinked)
+    // mapping is refused.
     const revalidationFailure =
-      externalMapping.unlinkedAtUtc !== null
-        ? "mapping_quarantined"
-        : externalMapping.teamId !== teamId
-          ? "connection_team_mismatch"
-          : null;
+      externalMapping.unlinkedAtUtc !== null ? "mapping_quarantined" : null;
     if (revalidationFailure) {
       if (externalMapping.unlinkedAtUtc === null) {
         await client.externalIdentityMapping.update({
@@ -507,7 +514,10 @@ export async function handleSamlAssertion(
         data: {
           email,
           provider: "EMAIL",
-          providerUserId: `saml-${externalSubjectId}`,
+// Members audit DOM-13 — a subject is unique within its Organization, so the
+          // synthetic provider id carries the Organization (two Organizations may
+          // push the same subject without colliding).
+          providerUserId: `saml-${organizationId}:${externalSubjectId}`,
         },
         select: { id: true },
       });
@@ -519,6 +529,7 @@ export async function handleSamlAssertion(
     await client.externalIdentityMapping.create({
       data: {
         teamId,
+        organizationId,
         userId,
         provider: provider as never,
         externalSubjectId,

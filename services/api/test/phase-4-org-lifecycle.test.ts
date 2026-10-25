@@ -167,17 +167,19 @@ describe("Phase 4 §7.6 — suspendOrganization", () => {
     const orgUpdate = callsFor("organization", "update")[0];
     expect(orgUpdate.args[0]).toMatchObject({ data: { status: "SUSPENDED" } });
 
-    // 3. SSO reversibly halted.
+    // 3. SSO reversibly halted. Members audit DOM-13 — connections and SCIM
+    // tokens are the ORGANIZATION's, so the flip is keyed by organizationId
+    // (exact where: no workspace-id scoping survives beside it).
     const sso = callsFor("ssoConnection", "updateMany")[0];
-    expect(sso.args[0]).toMatchObject({
-      where: { teamId: { in: ["t1", "t2"] }, status: "ACTIVE" },
+    expect(sso.args[0]).toEqual({
+      where: { organizationId: "o1", status: "ACTIVE" },
       data: { status: ORG_SUSPENSION_STATUS },
     });
 
     // 4. SCIM reversibly halted.
     const scim = callsFor("scimProvisioningToken", "updateMany")[0];
-    expect(scim.args[0]).toMatchObject({
-      where: { teamId: { in: ["t1", "t2"] }, status: "ACTIVE" },
+    expect(scim.args[0]).toEqual({
+      where: { organizationId: "o1", status: "ACTIVE" },
       data: { status: ORG_SUSPENSION_STATUS },
     });
 
@@ -266,14 +268,15 @@ describe("Phase 4 §7.6 — resumeOrganization", () => {
     const orgUpdate = callsFor("organization", "update")[0];
     expect(orgUpdate.args[0]).toMatchObject({ data: { status: "ACTIVE" } });
 
+    // DOM-13 — marker-matched restore, keyed by the owning Organization.
     const sso = callsFor("ssoConnection", "updateMany")[0];
-    expect(sso.args[0]).toMatchObject({
-      where: { status: ORG_SUSPENSION_STATUS },
+    expect(sso.args[0]).toEqual({
+      where: { organizationId: "o1", status: ORG_SUSPENSION_STATUS },
       data: { status: "ACTIVE" },
     });
     const scim = callsFor("scimProvisioningToken", "updateMany")[0];
-    expect(scim.args[0]).toMatchObject({
-      where: { status: ORG_SUSPENSION_STATUS },
+    expect(scim.args[0]).toEqual({
+      where: { organizationId: "o1", status: ORG_SUSPENSION_STATUS },
       data: { status: "ACTIVE" },
     });
 

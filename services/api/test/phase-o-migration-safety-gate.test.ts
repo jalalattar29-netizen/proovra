@@ -375,6 +375,15 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // row is refused by the partial key exactly as the old key refused it. An
     // index is not data; no row is touched.
     "20281026000200_live_status_unique_keys": new Set(["DROP_INDEX"]),
+    // ORGANIZATION-SCOPED IDENTITY (members audit DOM-13, 2026-10-26) — THREE
+    // guarded DROP INDEXes retire the per-workspace live-provider key on
+    // sso_connections, the per-workspace external-id key on scim_groups and the
+    // GLOBAL (provider, subject) key on external_identity_mappings, each only
+    // after its Organization-scoped replacement exists (DO-block RAISE +
+    // EXECUTE). Applied WITH the API image (WAIT_FOR_RUNTIME_CUTOVER): an older
+    // image resolves repeat logins by the global key. An index is not data; no
+    // row is deleted.
+    "20281026000700_organization_scoped_identity": new Set(["DROP_INDEX"]),
     // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification

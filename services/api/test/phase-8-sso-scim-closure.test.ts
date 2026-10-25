@@ -133,6 +133,12 @@ describe("Phase 8 §11.6/§11.16 — SCIM deprovisioning end-to-end (behavioral)
                   calls.push({ op: `${model}.${method}`, args: args as unknown[] });
                   if (model === "teamMember" && method === "findUnique")
                     return { id: "m1", role: "MEMBER", status: "ACTIVE" };
+                  // Members audit DOM-13 — the deactivation reads the user's
+                  // live memberships across the token's ORGANIZATION.
+                  if (model === "teamMember" && method === "findMany")
+                    return [{ id: "m1", teamId: "team-1" }];
+                  if (model === "teamMember" && method === "findFirst")
+                    return { id: "m1" };
                   if (method === "updateMany") return { count: 1 };
                   if (method === "update") return { id: "m1" };
                   if (method === "findFirst" || method === "findUnique")
@@ -148,11 +154,26 @@ describe("Phase 8 §11.6/§11.16 — SCIM deprovisioning end-to-end (behavioral)
     );
 
     const res = await scimDeactivateUser(
-      { teamId: "team-1", tokenId: "tok-1", baseUrl: "https://x" } as never,
+      { teamId: "team-1", organizationId: "org-1", tokenId: "tok-1", baseUrl: "https://x" },
       "user-1",
       client as never,
     );
     expect(res.ok).toBe(true);
+    // DOM-13 — the memberships acted on are the Organization's live,
+    // non-OWNER ones, and the unlink is keyed by the Organization.
+    const memberRead = calls.find((c) => c.op === "teamMember.findMany");
+    expect((memberRead?.args[0] as { where: unknown }).where).toEqual({
+      userId: "user-1",
+      status: "ACTIVE",
+      role: { not: "OWNER" },
+      team: { organizationId: "org-1" },
+    });
+    const unlink = calls.find((c) => c.op === "externalIdentityMapping.updateMany");
+    expect((unlink?.args[0] as { where: unknown }).where).toEqual({
+      organizationId: "org-1",
+      userId: "user-1",
+      unlinkedAtUtc: null,
+    });
 
     // Membership suspended via the orchestrator (→ SUSPENDED, not ACTIVE:
     // §12.7 seat is freed because seats count ACTIVE members only).
@@ -173,7 +194,8 @@ describe("Phase 8 §11.6/§11.16 — SCIM deprovisioning end-to-end (behavioral)
       calls.some(
         (c) =>
           c.op === "user.updateMany" &&
-          (c.args[0] as { where: { currentWorkspaceId?: string } }).where.currentWorkspaceId === "team-1",
+          JSON.stringify((c.args[0] as { where: { currentWorkspaceId?: unknown } }).where.currentWorkspaceId) ===
+            JSON.stringify({ in: ["team-1"] }),
       ),
     ).toBe(true);
     // Sessions revoked with the SCIM_DEACTIVATED reason.

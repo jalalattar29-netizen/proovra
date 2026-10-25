@@ -84,11 +84,17 @@ function makeClient(members: Record<string, { id: string; role: string; status: 
       findUnique: async () => ({ id: "grp-1", teamId: "team-1", status: "ACTIVE", mappedRole: "MEMBER", displayName: "G", externalId: null, createdAt: new Date(0), updatedAt: new Date(0) }),
       update: async () => { writes.push("group.update"); return {}; },
     },
+    // DOM-13 — the group's reach: one ACTIVE projection into the token's
+    // default workspace (membership is applied per projection).
+    scimGroupWorkspaceProjection: {
+      findMany: async () => [{ id: "proj-1", workspaceId: "team-1", mappedRole: "MEMBER" }],
+      updateMany: async () => { writes.push("projection.updateMany"); return { count: 0 }; },
+    },
   };
   return c;
 }
 
-const CTX = { teamId: "team-1", tokenId: "tok-1" } as never;
+const CTX = { teamId: "team-1", organizationId: "org-A", tokenId: "tok-1", baseUrl: "https://x/v2/scim" };
 
 beforeEach(() => {
   S.orgId = "org-A";

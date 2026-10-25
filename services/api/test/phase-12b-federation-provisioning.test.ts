@@ -164,6 +164,9 @@ const { processDueOrgInviteDeliveries } = await import(
 // ---------------------------------------------------------------------------
 
 const TEAM_ID = "00000000-0000-0000-0000-0000000000aa";
+const ORG_ID = "00000000-0000-0000-0000-0000000000a0";
+const OTHER_ORG_ID = "00000000-0000-0000-0000-0000000000b0";
+const GROUP_CTX = { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x/v2/scim" };
 const GROUP_ID = "00000000-0000-0000-0000-000000000001";
 const MEMBER_A = "00000000-0000-0000-0000-00000000000a";
 const UNKNOWN_MEMBER = "00000000-0000-0000-0000-0000000000ff";
@@ -189,6 +192,8 @@ function makeTokenDb(token?: {
   status?: string;
   expiresAtUtc?: Date | null;
   ipAllowlist?: string[];
+  organizationStatus?: string;
+  workspaceClosedAtUtc?: Date | null;
 }) {
   const touched: string[] = [];
   const rows = token
@@ -196,6 +201,10 @@ function makeTokenDb(token?: {
         {
           id: "tok-1",
           teamId: TEAM_ID,
+          organizationId: ORG_ID,
+          // The include the SUT requests (DOM-13 organization_inactive gate).
+          organization: { status: token.organizationStatus ?? "ACTIVE" },
+          team: { closedAtUtc: token.workspaceClosedAtUtc ?? null },
           // The stored value is the HASH the service derives — the plaintext
           // is never persisted, so a plaintext lookup cannot match.
           tokenHash: null as string | null,
@@ -266,7 +275,24 @@ describe("SCIM bearer gate", () => {
     if (!r.ok) return;
     // Organization/workspace scope comes from the TOKEN, never a request body.
     expect(r.token.teamId).toBe(TEAM_ID);
+    expect(r.token.organizationId).toBe(ORG_ID);
     expect(r.token.scopes).toContain("users.write");
+  });
+
+  it("denies a token whose Organization is not ACTIVE, or whose default workspace is closed (DOM-13)", async () => {
+    const raw = `${SCIM_PREFIX}${"d".repeat(64)}`;
+    await expect(
+      authenticateScimRequest(
+        { authorizationHeader: `Bearer ${raw}`, remoteIp: null },
+        makeTokenDb({ raw, organizationStatus: "SUSPENDED" }).prisma,
+      ),
+    ).resolves.toEqual({ ok: false, reason: "organization_inactive" });
+    await expect(
+      authenticateScimRequest(
+        { authorizationHeader: `Bearer ${raw}`, remoteIp: null },
+        makeTokenDb({ raw, workspaceClosedAtUtc: new Date() }).prisma,
+      ),
+    ).resolves.toEqual({ ok: false, reason: "organization_inactive" });
   });
 
   it("denies a revoked token and an expired token", async () => {
@@ -306,6 +332,7 @@ function makeGroupDb(seed: { members: string[] }) {
     group: {
       id: GROUP_ID,
       teamId: TEAM_ID,
+      organizationId: ORG_ID,
       displayName: "Investigators",
       externalId: "grp-ext-1",
       mappedRole: "ADMIN",
@@ -321,8 +348,10 @@ function makeGroupDb(seed: { members: string[] }) {
 
   const tx = {
     scimGroup: {
-      findFirst: async (args: { where: { id: string; teamId: string } }) =>
-        args.where.id === state.group.id && args.where.teamId === state.group.teamId
+      // DOM-13 — a group is addressed within its Organization.
+      findFirst: async (args: { where: { id: string; organizationId: string } }) =>
+        args.where.id === state.group.id &&
+        args.where.organizationId === state.group.organizationId
           ? { ...state.group }
           : null,
       findUnique: async (args: { where: { id: string } }) =>
@@ -336,11 +365,32 @@ function makeGroupDb(seed: { members: string[] }) {
         return { ...state.group };
       },
     },
+    // DOM-13 — the group's reach: one ACTIVE projection into its default
+    // workspace, carrying the group's role.
+    scimGroupWorkspaceProjection: {
+      findMany: async (args: { where: { scimGroupId: string; status: string } }) =>
+        args.where.scimGroupId === state.group.id && args.where.status === "ACTIVE"
+          ? [{ id: "proj-1", workspaceId: TEAM_ID, mappedRole: state.group.mappedRole }]
+          : [],
+      updateMany: async () => ({ count: 0 }),
+    },
+    // No SCIM link: Organization identity is resolved through membership.
+    externalIdentityMapping: {
+      findFirst: async () => null,
+    },
     teamMember: {
-      findFirst: async (args: { where: { teamId: string; userId: string } }) =>
-        args.where.teamId === TEAM_ID && seed.members.includes(args.where.userId)
+      findFirst: async (args: {
+        where: { teamId?: string; userId: string; team?: { organizationId: string } };
+      }) => {
+        if (!seed.members.includes(args.where.userId)) return null;
+        // Organization-identity probe (any workspace of the Organization).
+        if (args.where.team) {
+          return args.where.team.organizationId === ORG_ID ? { id: `tm-${args.where.userId}` } : null;
+        }
+        return args.where.teamId === TEAM_ID
           ? { id: `tm-${args.where.userId}`, role: "MEMBER", status: "ACTIVE" }
-          : null,
+          : null;
+      },
       findMany: async () =>
         seed.members.map((u) => ({ userId: u, user: { email: `${u}@x.test` } })),
     },
@@ -373,7 +423,7 @@ describe("SCIM Group PATCH — atomic, no silent skip", () => {
   it("applies a valid Operation set in ONE transaction", async () => {
     const { prisma, state } = makeGroupDb({ members: [MEMBER_A] });
     const r = await scimPatchGroup(
-      { teamId: TEAM_ID, tokenId: "tok-1", baseUrl: "https://x/v2/scim" },
+      GROUP_CTX,
       GROUP_ID,
       {
         schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -393,16 +443,17 @@ describe("SCIM Group PATCH — atomic, no silent skip", () => {
   it("UNRESOLVED member reference fails EXPLICITLY with ZERO partial mutation", async () => {
     const { prisma, state } = makeGroupDb({ members: [MEMBER_A] });
     const r = await scimPatchGroup(
-      { teamId: TEAM_ID, tokenId: "tok-1", baseUrl: "https://x/v2/scim" },
+      GROUP_CTX,
       GROUP_ID,
       {
         schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         Operations: [
           // A rename that WOULD have committed under the old code path…
           { op: "replace", path: "displayName", value: "Half Applied" },
-          // …followed by a member the workspace cannot resolve. A
-          // cross-Organization `value` behaves identically: the member lookup
-          // is teamId-scoped, so it simply does not resolve.
+          // …followed by a member the Organization cannot resolve. A
+          // cross-Organization `value` behaves identically: the identity probe
+          // is Organization-scoped (live SCIM link or a membership of any
+          // workspace of THIS Organization), so it simply does not resolve.
           {
             op: "add",
             path: "members",
@@ -438,7 +489,7 @@ describe("SCIM Group PATCH — atomic, no silent skip", () => {
     ownershipBehaviour = "cross_org";
     const { prisma, state } = makeGroupDb({ members: [MEMBER_A] });
     const r = await scimPatchGroup(
-      { teamId: TEAM_ID, tokenId: "tok-1", baseUrl: "https://x/v2/scim" },
+      GROUP_CTX,
       GROUP_ID,
       {
         schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -461,7 +512,7 @@ describe("SCIM Group PATCH — atomic, no silent skip", () => {
     ownershipBehaviour = "unresolved";
     const { prisma } = makeGroupDb({ members: [MEMBER_A] });
     const r = await scimPatchGroup(
-      { teamId: TEAM_ID, tokenId: "tok-1", baseUrl: "https://x/v2/scim" },
+      GROUP_CTX,
       GROUP_ID,
       {
         schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -475,11 +526,14 @@ describe("SCIM Group PATCH — atomic, no silent skip", () => {
     expect(roleChanges).toHaveLength(0);
   });
 
-  it("a group in ANOTHER workspace is not found (anti-enumeration)", async () => {
-    const { prisma } = makeGroupDb({ members: [MEMBER_A] });
+  // DOM-13 — groups are the ORGANIZATION's: the anti-enumeration boundary is
+  // the Organization (a sibling workspace's token addresses the same group).
+  it("a group of ANOTHER Organization is not found (anti-enumeration)", async () => {
+    const { prisma, state } = makeGroupDb({ members: [MEMBER_A] });
     const r = await scimPatchGroup(
       {
         teamId: "00000000-0000-0000-0000-0000000000bb",
+        organizationId: OTHER_ORG_ID,
         tokenId: "tok-1",
         baseUrl: "https://x/v2/scim",
       },
@@ -491,6 +545,27 @@ describe("SCIM Group PATCH — atomic, no silent skip", () => {
       prisma,
     );
     expect(r).toMatchObject({ ok: false, status: 404 });
+    expect(state.group.displayName).toBe("Investigators");
+  });
+
+  it("a token of a SIBLING workspace of the same Organization addresses the same group", async () => {
+    const { prisma, state } = makeGroupDb({ members: [MEMBER_A] });
+    const r = await scimPatchGroup(
+      {
+        teamId: "00000000-0000-0000-0000-0000000000cc",
+        organizationId: ORG_ID,
+        tokenId: "tok-2",
+        baseUrl: "https://x/v2/scim",
+      },
+      GROUP_ID,
+      {
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        Operations: [{ op: "replace", path: "displayName", value: "Renamed From Sibling" }],
+      } as never,
+      prisma,
+    );
+    expect(r.ok).toBe(true);
+    expect(state.group.displayName).toBe("Renamed From Sibling");
   });
 });
 
@@ -549,6 +624,13 @@ function makeSsoDb() {
         return { count: 1 };
       },
     },
+    // DOM-13 — an attempt is stamped with its connection's Organization.
+    ssoConnection: {
+      findUniqueOrThrow: async (args: { where: { id: string } }) => {
+        if (args.where.id !== "conn-1") throw new Error("connection missing");
+        return { organizationId: ORG_ID };
+      },
+    },
   };
   return { prisma: prisma as never, state };
 }
@@ -569,6 +651,7 @@ describe("SSO callback state — single-use replay protection", () => {
       prisma,
     );
     expect(persisted.ok).toBe(true);
+    expect(state.rows[0]!.organizationId).toBe(ORG_ID);
 
     const first = await consumeCallbackAttempt({ stateRaw: "state-abc" }, prisma);
     expect(first.ok).toBe(true);

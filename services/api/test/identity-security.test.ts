@@ -521,16 +521,16 @@ describe("RBAC auto-revoke — suspend + revoke trigger session revocation", () 
       "utf8",
     );
     expect(src).toMatch(/autoRevokeAllSessions/);
-    // The hook is called from both suspendMember and revokeMember.
-    // Match the call-site pattern.
-    const suspendBlock = src.match(
-      /export async function suspendMember[\s\S]{0,3000}autoRevokeAllSessions/,
-    );
-    const revokeBlock = src.match(
-      /export async function revokeMember[\s\S]{0,3000}autoRevokeAllSessions/,
-    );
-    expect(suspendBlock).not.toBeNull();
-    expect(revokeBlock).not.toBeNull();
+    // The hook is called from INSIDE both suspendMember and revokeMember:
+    // each function body (up to the next exported function) contains the call.
+    const body = (name: string) => {
+      const start = src.indexOf(`export async function ${name}(`);
+      expect(start, name).toBeGreaterThanOrEqual(0);
+      const end = src.indexOf("\nexport async function ", start + 10);
+      return src.slice(start, end < 0 ? undefined : end);
+    };
+    expect(body("suspendMember")).toMatch(/autoRevokeAllSessions\(/);
+    expect(body("revokeMember")).toMatch(/autoRevokeAllSessions\(/);
   });
 });
 

@@ -398,7 +398,7 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
     });
 
     await scim.scimDeactivateUser(
-      { teamId: workspaceA, tokenId: randomUUID(), baseUrl: "https://local.test" },
+      { teamId: workspaceA, organizationId, tokenId: randomUUID(), baseUrl: "https://local.test" },
       subjectUserId,
       prisma,
     );

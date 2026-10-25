@@ -29,6 +29,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { interpretScimUserPatch } from "@proovra/shared";
 import {
+  SCIM_DEACTIVATION_WORKSPACE_MARKER,
   scimCreateUser,
   scimDeactivateUser,
   scimReactivateUser,
@@ -38,9 +39,17 @@ import {
 
 const TEAM = "11111111-1111-4111-8111-111111111111";
 const TOKEN = "22222222-2222-4222-8222-222222222222";
+// DOM-13 — the Organization the token (and every identity it writes) belongs to.
+const ORG = "33333333-3333-4333-8333-333333333333";
 const BASE_URL = "https://api.example.com/v2/scim";
 
-const CTX = { teamId: TEAM, tokenId: TOKEN, baseUrl: BASE_URL };
+const CTX = { teamId: TEAM, organizationId: ORG, tokenId: TOKEN, baseUrl: BASE_URL };
+// DOM-13 — a sibling workspace of the same Organization, and a workspace of
+// ANOTHER Organization.
+const SIBLING_TEAM = "44444444-4444-4444-8444-444444444444";
+const FOREIGN_TEAM = "55555555-5555-4555-8555-555555555555";
+const FOREIGN_ORG = "66666666-6666-4666-8666-666666666666";
+const TEAM_ORG: Record<string, string> = { [TEAM]: ORG, [SIBLING_TEAM]: ORG, [FOREIGN_TEAM]: FOREIGN_ORG };
 
 // -----------------------------------------------------------------------------
 // In-memory Prisma fake. Only the tables the SCIM User service touches
@@ -60,6 +69,7 @@ type UserRow = {
 type MappingRow = {
   id: string;
   teamId: string;
+  organizationId: string;
   userId: string;
   provider: string;
   externalSubjectId: string;
@@ -99,6 +109,32 @@ function matches(row: Record<string, unknown>, where: Record<string, unknown>): 
     } else if (row[k] !== v) {
       return false;
     }
+  }
+  return true;
+}
+
+/**
+ * DOM-13 — the membership predicates the Organization-wide deactivation and
+ * reactivation issue: `team: { organizationId }`, `role: { not }`,
+ * `teamId: { not }`, plus plain equality.
+ */
+function memberMatches(m: MemberRow, where: Record<string, unknown>): boolean {
+  for (const [k, v] of Object.entries(where)) {
+    if (k === "team") {
+      const orgId = (v as { organizationId?: string }).organizationId;
+      if (orgId !== undefined && TEAM_ORG[m.teamId] !== orgId) return false;
+      continue;
+    }
+    const have = (m as unknown as Record<string, unknown>)[k];
+    if (v && typeof v === "object" && "not" in (v as object)) {
+      if (have === (v as { not: unknown }).not) return false;
+      continue;
+    }
+    if (v && typeof v === "object" && "in" in (v as object)) {
+      if (!(v as { in: unknown[] }).in.includes(have)) return false;
+      continue;
+    }
+    if (v === null ? have !== null && have !== undefined : have !== v) return false;
   }
   return true;
 }
@@ -237,6 +273,7 @@ function makeFake() {
         const row: MappingRow = {
           id: nid(),
           teamId: data.teamId!,
+          organizationId: data.organizationId!,
           userId: data.userId!,
           provider: data.provider ?? "GENERIC_SCIM",
           externalSubjectId: data.externalSubjectId!,
@@ -288,6 +325,12 @@ function makeFake() {
       }) {
         const { teamId, userId } = where.teamId_userId;
         return members.find((m) => m.teamId === teamId && m.userId === userId) ?? null;
+      },
+      async findFirst({ where }: { where: Record<string, unknown> }) {
+        return members.find((m) => memberMatches(m, where)) ?? null;
+      },
+      async findMany({ where }: { where: Record<string, unknown> }) {
+        return members.filter((m) => memberMatches(m, where));
       },
       async upsert({
         where,
@@ -439,6 +482,53 @@ describe("SCIM User lifecycle — deactivate is SOFT + evidence-safe", () => {
   it("deactivate emits SCIM_USER_DEACTIVATED audit event", async () => {
     await scimDeactivateUser(CTX, userId, fake as never);
     expect(fake._audit.map((a) => a.action)).toContain("scim.user.deactivate");
+  });
+
+  /*
+   * DOM-13 — INTENTIONAL BEHAVIOUR CHANGE. A directory identity is the
+   * Organization's, so deactivation suspends the user's ACTIVE non-OWNER
+   * memberships in EVERY workspace of the Organization (with the directory's
+   * marker), never a workspace of another Organization, and never an OWNER.
+   */
+  const extraMember = (teamId: string, role: string): MemberRow => ({
+    id: nid(),
+    teamId,
+    userId,
+    role,
+    status: "ACTIVE",
+    accessReason: null,
+    suspendedAtUtc: null,
+    suspensionReason: null,
+  });
+
+  it("deactivate spans the Organization: sibling suspended with the marker; foreign untouched", async () => {
+    const sibling = extraMember(SIBLING_TEAM, "MEMBER");
+    const foreign = extraMember(FOREIGN_TEAM, "MEMBER");
+    fake._members.push(sibling, foreign);
+    const res = await scimDeactivateUser(CTX, userId, fake as never);
+    expect(res.ok).toBe(true);
+    const home = fake._members.find((m) => m.teamId === TEAM && m.userId === userId)!;
+    expect(home.status).toBe("SUSPENDED");
+    expect(home.suspensionReason).toBe(SCIM_DEACTIVATION_WORKSPACE_MARKER);
+    expect(sibling.status).toBe("SUSPENDED");
+    expect(sibling.suspensionReason).toBe(SCIM_DEACTIVATION_WORKSPACE_MARKER);
+    expect(foreign.status, "another Organization's workspace is not the directory's").toBe("ACTIVE");
+  });
+
+  it("deactivate never suspends a workspace OWNER membership of the Organization", async () => {
+    const owned = extraMember(SIBLING_TEAM, "OWNER");
+    fake._members.push(owned);
+    await scimDeactivateUser(CTX, userId, fake as never);
+    expect(owned.status).toBe("ACTIVE");
+  });
+
+  it("deactivate of a user with no membership anywhere in the Organization is not found", async () => {
+    fake._members.length = 0;
+    const foreign = extraMember(FOREIGN_TEAM, "MEMBER");
+    fake._members.push(foreign);
+    const res = await scimDeactivateUser(CTX, userId, fake as never);
+    expect(res.ok).toBe(false);
+    expect(foreign.status).toBe("ACTIVE");
   });
 });
 

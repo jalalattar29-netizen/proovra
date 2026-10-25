@@ -26,7 +26,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { revokeDelegatedAdminScope } from "../identity/rbac.service.js";
+import { revokeDelegatedAdminScope } from "../identity/membership-provisioning.service.js";
 import { revokeDepartmentMembership } from "./department-membership.service.js";
 import { escalateAccessReviewItem } from "./access-review-escalation.service.js";
 import { revokeInvitation } from "../external-review/portal-invitation.service.js";

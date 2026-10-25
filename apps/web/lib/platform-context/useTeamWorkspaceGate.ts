@@ -168,6 +168,25 @@ export function useWorkspaceFragment():
 }
 
 /**
+ * Members audit DOM-13 — the CUSTOMER Organization the active workspace
+ * belongs to, or `null`.
+ *
+ * Organization-scoped consoles (SSO, SCIM directory groups) address the
+ * Organization through the active workspace, and need its id to read the
+ * Organization's own projections (its workspaces, the caller's org role).
+ * A `SYSTEM` organization is the internal container every personal workspace
+ * has and must never be treated as a customer Organization, so it reads as
+ * `null` here. Non-authoritative: the server decides every refusal.
+ */
+export function useActiveCustomerOrganizationId(): string | null {
+  const { envelope } = usePlatformContext();
+  const ws = envelope?.workspace;
+  if (!ws || ws.status !== "active") return null;
+  if (ws.organizationKind !== "CUSTOMER") return null;
+  return ws.organizationId ?? null;
+}
+
+/**
  * Bounded `{ id, status }` projection of `envelope.personalSpace` for
  * the same rescue-fallback purpose. Returns `null` when no envelope
  * or no personal space is present.

@@ -54,13 +54,14 @@ import { IdentityProvidersSection } from "./_sections/IdentityProvidersSection";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
 import { Badge } from "../../../../components/ui/Badge";
-import { StatusBadge } from "../../../../components/ui/StatusBadge";
+import { statusTone } from "../../../../components/ui/StatusBadge";
+import { ssoConnectionStatusLabel } from "../../../../lib/labels/identityOrgLabels";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 
 type SsoProvider = {
   id: string;
   provider: string;
-  status: "ACTIVE" | "INACTIVE" | "REVOKED";
+  status: "PENDING" | "ACTIVE" | "DISABLED" | "REVOKED" | "SUSPENDED";
   samlSsoUrl?: string | null;
   samlCertFingerprint?: string | null;
   samlCertNextFingerprint?: string | null;
@@ -389,7 +390,7 @@ function SsoAdminContent() {
         <PageHeader
           eyebrow="Security Center · SSO"
           title="Single sign-on"
-          subtitle="Identity providers for this workspace: create and manage connections, then configure SAML — register the SP metadata URL with your IdP, ingest its metadata, test the connection and rotate certificates."
+          subtitle="Identity providers of your organization, shared by every one of its workspaces: create and manage connections, then configure SAML — register the SP metadata URL with your IdP, ingest its metadata, test the connection and rotate certificates."
           contextStrip={
             /* Phase P1.1 — links to the new SSO Health + Visual Mapping pages.
                These are sibling routes; this main page stays the canonical
@@ -426,7 +427,7 @@ function SsoAdminContent() {
           kind="WORKSPACE_REQUIRED"
           surface="SSO"
           headline="Switch to a workspace to manage SSO"
-          reason="SAML connections are per-workspace. Open a workspace you administer to configure or test SSO."
+          reason="SSO connections belong to your organization. Open any workspace of the organization to configure or test them."
           actions={[
             { label: "Open workspaces", href: "/workspaces", variant: "primary" },
             { label: "Review plans", href: "/billing", variant: "secondary" },
@@ -460,7 +461,11 @@ function SsoAdminContent() {
                   <span style={chipStyle}>{p.id.slice(0, 8)}…</span>
                 </h2>
                 <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <StatusBadge status={p.status} />
+                  <span data-connection-status={p.status}>
+                    <Badge tone={p.status === "SUSPENDED" ? "pending" : statusTone(p.status)}>
+                      {ssoConnectionStatusLabel(p.status)}
+                    </Badge>
+                  </span>
                   {isSaml(p) ? (
                     <Badge tone={isConfigured(p) ? "verified" : "pending"}>
                       {isConfigured(p) ? "SAML configured" : "SAML not configured"}

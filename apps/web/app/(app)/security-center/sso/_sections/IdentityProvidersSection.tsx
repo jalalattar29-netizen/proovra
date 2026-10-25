@@ -44,6 +44,8 @@ import { AdmInline } from "../../../../../components/admin/AdminSurfaces";
 import { formatCellDateTime } from "../../../../../lib/date";
 import { Badge } from "../../../../../components/ui/Badge";
 import { statusTone } from "../../../../../components/ui/StatusBadge";
+import { OrganizationIdentityScopeNote } from "../../../../../components/identity-security/OrganizationIdentityScopeNote";
+import { ssoConnectionStatusLabel } from "../../../../../lib/labels/identityOrgLabels";
 
 type SsoProvider =
   | "GENERIC_OIDC"
@@ -57,7 +59,12 @@ type SsoConnection = {
   id: string;
   provider: SsoProvider;
   displayName: string;
-  status: "PENDING" | "ACTIVE" | "DISABLED" | "REVOKED";
+  /**
+   * SUSPENDED (members audit DOM-13) is written only by Organization
+   * suspension and restored only by Organization resume; the one
+   * administrator transition out of it is REVOKED.
+   */
+  status: "PENDING" | "ACTIVE" | "DISABLED" | "REVOKED" | "SUSPENDED";
   issuerUrl: string | null;
   clientId: string | null;
   clientSecretPreview: string | null;
@@ -99,17 +106,46 @@ const OIDC_PROVIDERS: SsoProvider[] = [
 
 const CREATE_FORM_ID = "sso-new-connection-form";
 
+/**
+ * SSO_CONNECTION_EXISTS — one live connection per provider per Organization
+ * (members audit DOM-13). The shared map has no entry for it, and the 409
+ * bucket ("review your input") would send the operator back to a form that
+ * was never wrong, so this surface owns the sentence. Registered in
+ * lib/feedback/error-code-registry.ts against this file.
+ */
+const SSO_CONNECTION_EXISTS_COPY =
+  "Your organization already has a live connection for this provider. Disable or revoke that connection first — an organization signs in through one connection per provider.";
+
+function actionErrorMessage(err: unknown, fallback: string): string {
+  const code = (err as { code?: unknown })?.code;
+  if (typeof code === "string" && code.toUpperCase() === "SSO_CONNECTION_EXISTS") {
+    return SSO_CONNECTION_EXISTS_COPY;
+  }
+  // Everything else — ORGANIZATION_IDENTITY_ADMIN_REQUIRED included — reads
+  // its registered copy through the one sanitizer.
+  return toSafeUserError(err, { message: fallback }).message;
+}
+
+/** The badge tone of a lifecycle status — SUSPENDED is held, not failed. */
+function connectionStatusTone(status: SsoConnection["status"]) {
+  return status === "SUSPENDED" ? "pending" : statusTone(status);
+}
+
 type Denial = { kind: "forbidden" | "not_found" | "entitlement"; detail: string };
 
 function readDenial(err: unknown): Denial | null {
   const e = (err ?? {}) as { status?: unknown; statusCode?: unknown; code?: unknown };
   const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
   const code = typeof e.code === "string" ? e.code.toLowerCase() : "";
+  // The Organization identity refusal answers a WRITE, not a read: its
+  // registered copy (toSafeUserError) names who can act, so it is not
+  // repainted as "you don't have access to identity providers".
+  if (code === "organization_identity_admin_required") return null;
   if (status === 402 || code.includes("enterprise_feature_required")) {
     return {
       kind: "entitlement",
       detail:
-        "Single sign-on is part of the Enterprise plan. Your workspace's plan does not include it, so the server declined to return provider configuration.",
+        "Single sign-on is part of the Enterprise plan. This plan does not include it, so the server declined to return provider configuration.",
     };
   }
   if (status === 403 || code === "forbidden" || code === "permission_denied") {
@@ -123,7 +159,7 @@ function readDenial(err: unknown): Denial | null {
     return {
       kind: "not_found",
       detail:
-        "This workspace's identity configuration is not available to your account. If you expected access, ask a workspace owner to grant it.",
+        "Your organization's identity configuration is not available to your account. If you expected access, ask an organization owner or admin to grant it.",
     };
   }
   return null;
@@ -259,7 +295,7 @@ export function IdentityProvidersSection({
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       // Creating a connection installs a credential that can mint sessions for
-      // the whole workspace — it routes through step-up like every other
+      // every workspace of the Organization — it routes through step-up like every other
       // sensitive identity mutation.
       const res = (await stepUp.runStepUpAction(async (headers) =>
         apiFetch("/v1/admin/identity/providers", {
@@ -291,7 +327,7 @@ export function IdentityProvidersSection({
       if (code === "STEP_UP_CANCEL") {
         setError("Step-up cancelled — no connection was created.");
       } else {
-        setError(toSafeUserError(err, { message: "Could not create connection." }).message);
+        setError(actionErrorMessage(err, "Could not create connection."));
       }
     } finally {
       setBusy(null);
@@ -311,8 +347,8 @@ export function IdentityProvidersSection({
               : "Disable this identity provider?",
           description:
             nextStatus === "REVOKED"
-              ? "Revoking is permanent. Anyone who signs in through this provider will be unable to authenticate, and the connection cannot be re-activated — you would have to configure a new one."
-              : "While disabled, nobody can sign in through this provider. You can re-activate it later.",
+              ? "Revoking is permanent and applies to every workspace of your organization. Anyone who signs in through this provider will be unable to authenticate, and the connection cannot be re-activated — you would have to configure a new one."
+              : "While disabled, nobody in any workspace of your organization can sign in through this provider. You can re-activate it later.",
           confirmLabel: nextStatus === "REVOKED" ? "Revoke provider" : "Disable provider",
           tone: "danger",
           testId: `provider-transition-${nextStatus.toLowerCase()}`,
@@ -338,7 +374,7 @@ export function IdentityProvidersSection({
         if (code === "STEP_UP_CANCEL") {
           setError("Step-up cancelled — the provider was not changed.");
         } else {
-          setError(toSafeUserError(err, { message: "Transition failed." }).message);
+          setError(actionErrorMessage(err, "Transition failed."));
         }
       } finally {
         setBusy(null);
@@ -394,6 +430,7 @@ export function IdentityProvidersSection({
 
   return (
     <>
+      <OrganizationIdentityScopeNote subject="Single sign-on connections, their signing and domain policy" />
       {error ? <AdmInline state="error">{error}</AdmInline> : null}
       {revealedSecret ? (
         <Card variant="status" tone="verified" padding="compact">
@@ -420,7 +457,7 @@ export function IdentityProvidersSection({
 
       <PageSection
         title="Connections"
-        description="Every identity provider for this workspace: create one, move it through its lifecycle, and set its signing and domain policy."
+        description="Every identity provider of your organization, shared by all of its workspaces: create one, move it through its lifecycle, and set its signing and domain policy."
       >
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
           <Button
@@ -556,7 +593,7 @@ export function IdentityProvidersSection({
             variant="inline"
             framed
             title="No SSO provider configured"
-            purpose="Connect an identity provider (Okta, Entra ID, Google Workspace, or generic OIDC/SAML) with New connection above to enable single sign-on and just-in-time provisioning for this workspace."
+            purpose="Connect an identity provider (Okta, Entra ID, Google Workspace, or generic OIDC/SAML) with New connection above to enable single sign-on and just-in-time provisioning across your organization's workspaces."
           />
         ) : (
           <div
@@ -596,7 +633,18 @@ export function IdentityProvidersSection({
                         ) : null}
                       </td>
                       <td>
-                        <Badge tone={statusTone(p.status)}>{p.status}</Badge>
+                        <span data-connection-status={p.status}>
+                          <Badge tone={connectionStatusTone(p.status)}>
+                            {ssoConnectionStatusLabel(p.status)}
+                          </Badge>
+                        </span>
+                        {p.status === "SUSPENDED" ? (
+                          <div className="adm-help" style={{ fontSize: 11, marginTop: 4, maxWidth: 220 }}>
+                            Paused while your organization is suspended.
+                            Resuming the organization restores it; here it can
+                            only be revoked.
+                          </div>
+                        ) : null}
                       </td>
                       <td>
                         <span className="adm-help">{p.jitDefaultRole ?? "disabled"}</span>

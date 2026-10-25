@@ -771,6 +771,23 @@ function matches(row: Row, where: unknown): boolean {
       }
       continue;
     }
+    // Members audit DOM-13 — relation filters the Organization-scoped identity
+    // reads issue: `teamMember.team: { organizationId }` (any workspace of the
+    // Organization) and `<identity row>.organization.workspaces.some` (the
+    // owning Organization has this workspace). Resolved against the team rows.
+    if (k === "team" && row[k] === undefined && typeof row.teamId === "string" && v !== null && typeof v === "object") {
+      const team = rows("team").find((t) => t.id === row.teamId);
+      if (!team || !matches(team, v)) return false;
+      continue;
+    }
+    if (
+      k === "organization" && row[k] === undefined && typeof row.organizationId === "string" &&
+      v !== null && typeof v === "object" && "workspaces" in (v as Row)
+    ) {
+      const some = ((v as Row).workspaces as Row).some;
+      if (!rows("team").some((t) => t.organizationId === row.organizationId && matches(t, some))) return false;
+      continue;
+    }
     const rv = row[k];
     if (v !== null && typeof v === "object" && !(v instanceof Date) && !Array.isArray(v)) {
       const cond = v as Row;
@@ -1022,6 +1039,9 @@ function seed(): void {
     {
       id: TEAM,
       organizationId: ORG,
+      // DOM-13 — the Organization identity authority reads organization.kind.
+      organization: orgRow,
+      closedAtUtc: null,
       name: "Acme Workspace",
       isPersonal: false,
       createdAt: now,
@@ -1035,6 +1055,8 @@ function seed(): void {
     {
       id: OTHER_TEAM,
       organizationId: OTHER_ORG,
+      organization: { ...orgRow, id: OTHER_ORG, name: "Other Org" },
+      closedAtUtc: null,
       name: "Other Workspace",
       isPersonal: false,
       createdAt: now,
@@ -1182,6 +1204,8 @@ function seed(): void {
   rows("ssoConnection").push({
     id: CONN,
     teamId: TEAM,
+    // DOM-13 — the connection is the Organization's.
+    organizationId: ORG,
     status: "ACTIVE",
     provider: "OKTA",
     samlSsoUrl: "https://idp.example.com/sso",
@@ -2303,6 +2327,51 @@ describe("SYSTEMS 3-5 — SCIM ops, SAML mapping, SSO health, session timeline",
     });
     expect(res.statusCode).toBe(401);
     expect(callsTo("updateSamlMapping")).toHaveLength(0);
+  });
+
+  // Members audit DOM-13 — reconciliation execute, sync-failure replay and the
+  // SAML mapping write change the ORGANIZATION's identity configuration, so a
+  // Workspace admin also needs an Organization identity role
+  // (ORG_OWNER | ORG_ADMIN | ORG_SECURITY_ADMIN). Reads stay on Workspace authority.
+  const ORG_CONFIG_WRITES = IDENTITY_OPS.filter((c) =>
+    ["POST /v1/scim/reconciliation/execute", "POST /v1/scim/sync-failures/:id/replay", "PUT /v1/saml/mapping"].includes(c.op),
+  );
+
+  it.each(ORG_CONFIG_WRITES.map((c) => [c.op, c] as const))(
+    "%s — DOM-13: a Workspace admin without an Organization identity role → 403 ORGANIZATION_IDENTITY_ADMIN_REQUIRED, ZERO effect",
+    async (_op, c) => {
+      H.orgAccess = { kind: "ok", role: "ORG_MEMBER" };
+      const res = await call(c, TEAM);
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body).error.code).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+      expect(callsTo(c.svc)).toHaveLength(0);
+      // Refused before step-up is asked for.
+      expect(callsTo("stepUp")).toHaveLength(0);
+      expect(H.writes).toEqual([]);
+      // The Organization authority asked for exactly the identity role set.
+      const asked = callsTo("checkOrgAccess").at(-1)!.args as { orgId: string; roles: string[] };
+      expect(asked.orgId).toBe(ORG);
+      expect([...asked.roles].sort()).toEqual(["ORG_ADMIN", "ORG_OWNER", "ORG_SECURITY_ADMIN"]);
+    },
+  );
+
+  it.each(["ORG_ADMIN", "ORG_SECURITY_ADMIN"].map((r) => [r] as const))(
+    "DOM-13: %s may execute a reconciliation",
+    async (role) => {
+      H.orgAccess = { kind: "ok", role };
+      const c = ORG_CONFIG_WRITES.find((x) => x.op === "POST /v1/scim/reconciliation/execute")!;
+      const res = await call(c, TEAM);
+      expect(res.statusCode).toBe(200);
+      expect(callsTo(c.svc)).toHaveLength(1);
+    },
+  );
+
+  it("DOM-13: identity READS stay on Workspace authority (no Organization role needed)", async () => {
+    H.orgAccess = { kind: "ok", role: "ORG_MEMBER" };
+    for (const c of IDENTITY_OPS.filter((x) => x.method === "GET")) {
+      const res = await call(c, TEAM);
+      expect(res.statusCode, c.op).toBe(200);
+    }
   });
 
   it("secret-free projections: SSO health and session timeline expose posture, never key material", async () => {
@@ -3917,6 +3986,48 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
     expect(unknown.statusCode).toBe(404);
     expect(connRow().samlCertificate).toBe(before);
     expect(connRow().samlCertificateNext).toBeNull();
+  });
+
+  // Members audit DOM-13 — the connection is the ORGANIZATION's. Tenancy is an
+  // ACTIVE membership of ANY workspace of that Organization; an operator change
+  // also needs the Organization identity role.
+  it("DOM-13: a workspace ADMIN without an Organization identity role → 403 ORGANIZATION_IDENTITY_ADMIN_REQUIRED, nothing staged", async () => {
+    H.orgAccess = { kind: "ok", role: "ORG_MEMBER" };
+    const nextCert = "MIIDorgdenied".padEnd(500, "D");
+    const res = await app.inject({
+      method: "PUT",
+      url: "/v1/auth/saml/" + CONN + "/certificate-next",
+      headers: JSON_HEADERS,
+      payload: { certificate: nextCert },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ error: { code: "ORGANIZATION_IDENTITY_ADMIN_REQUIRED" } });
+    expect(connRow().samlCertificateNext).toBeNull();
+  });
+
+  it("DOM-13: an ADMIN of a SIBLING workspace of the same Organization operates the connection", async () => {
+    const SIBLING_TEAM = "33333333-3333-4333-8333-33333333333a";
+    const SIBLING_ADMIN = "11111111-1111-4111-8111-11111111111a";
+    rows("team").push({
+      id: SIBLING_TEAM,
+      organizationId: ORG,
+      organization: rows("organization").find((o) => o.id === ORG),
+      closedAtUtc: null,
+      name: "Acme Sibling",
+      isPersonal: false,
+    });
+    rows("teamMember").push({ id: "tm-sib", teamId: SIBLING_TEAM, userId: SIBLING_ADMIN, role: "ADMIN", status: "ACTIVE" });
+    H.actorUserId = SIBLING_ADMIN;
+    H.orgAccess = { kind: "ok", role: "ORG_SECURITY_ADMIN" };
+    const nextCert = "MIIDsibling".padEnd(500, "E");
+    const res = await app.inject({
+      method: "PUT",
+      url: "/v1/auth/saml/" + CONN + "/certificate-next",
+      headers: JSON_HEADERS,
+      payload: { certificate: nextCert },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(connRow().samlCertificateNext).toBe(nextCert);
   });
 
   it("metadata ingest PINS the IdP issuer + fingerprint and returns no certificate bytes", async () => {

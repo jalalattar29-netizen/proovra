@@ -94,6 +94,8 @@ export async function persistCallbackAttempt(
     const row = await client.ssoCallbackAttempt.create({
       data: {
         teamId: input.teamId,
+        // Members audit DOM-13 — the attempt belongs to its connection's Organization.
+        organizationId: await connectionOrganization(client, input.ssoConnectionId),
         ssoConnectionId: input.ssoConnectionId,
         stateHash: hashStateToken(input.stateRaw),
         nonceHash: hashStateToken(input.nonceRaw),
@@ -475,6 +477,8 @@ export async function persistSamlCallbackAttempt(
     const row = await client.ssoCallbackAttempt.create({
       data: {
         teamId: input.teamId,
+        // Members audit DOM-13 — the attempt belongs to its connection's Organization.
+        organizationId: await connectionOrganization(client, input.ssoConnectionId),
         ssoConnectionId: input.ssoConnectionId,
         stateHash: hashStateToken(input.relayStateRaw),
         // For SAML: reuse nonceHash to store HMAC(samlAuthnRequestId).
@@ -538,4 +542,13 @@ export async function getConnectionForAttempt(
   return client.ssoConnection.findUnique({
     where: { id: attempt.ssoConnectionId },
   });
+}
+
+/** Members audit DOM-13 — the Organization a connection (and its attempts) belongs to. */
+async function connectionOrganization(client: PrismaClient, ssoConnectionId: string): Promise<string> {
+  const conn = await client.ssoConnection.findUniqueOrThrow({
+    where: { id: ssoConnectionId },
+    select: { organizationId: true },
+  });
+  return conn.organizationId;
 }

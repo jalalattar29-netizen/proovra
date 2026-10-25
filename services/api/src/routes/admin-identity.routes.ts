@@ -57,6 +57,7 @@ import {
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
   decodeKeysetCursor,
@@ -373,6 +374,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      // Members audit DOM-13 — this configuration is the Organization's.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: actor.userId }))) return;
       /*
        * D28 — SSO is an Enterprise capability, decided where a connection is
        * created, exactly as SCIM token minting below decides it: after
@@ -432,6 +435,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      // Members audit DOM-13 — this configuration is the Organization's.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: actor.userId }))) return;
       if (body.nextStatus === "REVOKED") {
         const gate = await requireStepUpForSensitiveAction({
           req,
@@ -493,6 +498,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      // Members audit DOM-13 — this configuration is the Organization's.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: actor.userId }))) return;
       // Runtime adaptive gate (quarantine + age + risk), consistent with the
       // other sensitive SSO mutations.
       const runtimeGate = await runtimeAdaptiveGate({
@@ -713,6 +720,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      // Members audit DOM-13 — this configuration is the Organization's.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: actor.userId }))) return;
       /*
        * SCIM PROVISIONING IS AN ENTERPRISE CAPABILITY, AND MINTING IS WHERE
        * THAT IS DECIDED.
@@ -780,6 +789,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         "identity.external_mapping.manage",
       );
       if (!actor) return;
+      // Members audit DOM-13 — this configuration is the Organization's.
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: body.teamId, userId: actor.userId }))) return;
       /*
        * NO ENTITLEMENT GATE HERE, AND THAT IS THE POINT.
        *

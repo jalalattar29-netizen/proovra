@@ -103,12 +103,21 @@ export async function linkExternalIdentity(
   // ambiguity denies rather than permits.
   await assertIdentityIsManuallyBindable(input.userId, client);
 
-  // The external subject may not be taken from another user. The DB unique on
-  // (provider, externalSubjectId) would reject this anyway; refusing here
-  // makes it a bounded denial instead of an opaque constraint failure — and
-  // states the reason plainly: that subject is somebody's login.
+  // Members audit DOM-13 — identities are Organization-owned.
+  const owner = await client.team.findUniqueOrThrow({
+    where: { id: input.teamId },
+    select: { organizationId: true },
+  });
+
+  // The external subject may not be taken from another user OF THIS
+  // ORGANIZATION. The DB unique on (organization, provider, externalSubjectId)
+  // would reject this anyway; refusing here makes it a bounded denial instead
+  // of an opaque constraint failure. Another Organization holding the same
+  // subject is a different identity: it neither blocks this link nor is
+  // revealed by it.
   const subjectOwner = await client.externalIdentityMapping.findFirst({
     where: {
+      organizationId: owner.organizationId,
       provider: input.provider,
       externalSubjectId: input.externalSubjectId.slice(0, 320),
     },
@@ -118,11 +127,12 @@ export async function linkExternalIdentity(
     throw new ExternalIdentityError("external_subject_already_mapped");
   }
 
-  // Re-issue path: if an active mapping already exists for this (team,
-  // user, provider), refuse so operators must explicitly unlink first.
+  // Re-issue path: if an active mapping already exists for this
+  // (organization, user, provider), refuse so operators must explicitly
+  // unlink first.
   const existing = await client.externalIdentityMapping.findFirst({
     where: {
-      teamId: input.teamId,
+      organizationId: owner.organizationId,
       userId: input.userId,
       provider: input.provider,
       unlinkedAtUtc: null,
@@ -134,6 +144,7 @@ export async function linkExternalIdentity(
   const created = await client.externalIdentityMapping.create({
     data: {
       teamId: input.teamId,
+      organizationId: owner.organizationId,
       userId: input.userId,
       provider: input.provider,
       externalSubjectId: input.externalSubjectId.slice(0, 320),

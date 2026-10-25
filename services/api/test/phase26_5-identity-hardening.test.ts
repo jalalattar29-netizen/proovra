@@ -213,8 +213,23 @@ describe("Phase 26.5 — SCIM Groups service", () => {
     expect(src).not.toMatch(/teamMember\.delete\(/);
   });
 
-  it("Never silently revokes OWNER/ADMIN via group remove", () => {
-    expect(src).toMatch(/OWNER" \|\| member\.role === "ADMIN/);
+  /*
+   * Members audit DOM-13 — INTENTIONAL CHANGE. The old rule skipped every
+   * OWNER/ADMIN row on group remove. A group remove now undoes exactly what
+   * THIS group granted: an ADMIN that this group's provenance
+   * (membership grant `scim-group:<id>`, grantedRole ADMIN) put there falls back
+   * to MEMBER; an ADMIN granted by anyone else is untouched, a VIEWER/MEMBER
+   * grant is never ELEVATED by a removal, and an OWNER row is never changed.
+   */
+  it("Group remove demotes only an ADMIN this group granted; never OWNER, never elevates", () => {
+    // Only an ADMIN projection's ADMIN row is a removal candidate…
+    expect(src).toMatch(/if \(pr\.mappedRole !== "ADMIN" \|\| member\.role !== "ADMIN"\) continue;/);
+    // …and only when THIS group's provenance granted that ADMIN.
+    expect(src).toMatch(/membershipGrant\.findFirst\(\{[\s\S]*?externalRef: `scim-group:\$\{group\.id\}`, revokedAtUtc: null/);
+    expect(src).toMatch(/if \(grant\?\.grantedRole !== "ADMIN"\) continue;/);
+    // A remove falls back to MEMBER; an OWNER row is never touched by a group.
+    expect(src).toMatch(/op === "add" \? \(pr\.mappedRole as TeamRole\) : \("MEMBER" as TeamRole\)/);
+    expect(src).toMatch(/if \(member\.role === "OWNER"\) continue;/);
   });
 
   it("Group membership change emits security event", () => {

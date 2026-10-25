@@ -356,22 +356,70 @@ describe("identity administration defects (live PostgreSQL 16)", () => {
     const plan = await prisma.team.findUniqueOrThrow({ where: { id: a.teamId }, select: { billingPlan: true } });
     expect(plan.billingPlan).not.toBe("ENTERPRISE");
     const body = payload(a.teamId);
-    const challengeId = await approvedChallenge({
-      token: a.adminToken,
-      userId: a.adminUserId,
-      teamId: a.teamId,
-      purpose: "EXTERNAL_IDENTITY_LINK",
-      resourceKind: "sso_connection",
+
+    // Members audit DOM-13 — SSO configuration is the ORGANIZATION's. A
+    // Workspace admin with no Organization identity role is refused BEFORE the
+    // entitlement is consulted, and nothing is written.
+    const aOrgId = (
+      await prisma.team.findUniqueOrThrow({ where: { id: a.teamId }, select: { organizationId: true } })
+    ).organizationId;
+    const priorOrgRole = await prisma.organizationMembership.findUnique({
+      where: { organization_memberships_org_user_uniq: { organizationId: aOrgId, userId: a.adminUserId } },
+      select: { role: true },
     });
-    const refused = await call({
+    expect(["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN"]).not.toContain(priorOrgRole?.role);
+    const noOrgRole = await call({
       method: "POST",
       url: "/v1/admin/identity/providers",
       token: a.adminToken,
       payload: body,
-      challengeId,
+      challengeId: await approvedChallenge({
+        token: a.adminToken,
+        userId: a.adminUserId,
+        teamId: a.teamId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+      }),
     });
-    expect(refused.statusCode, refused.body).toBe(402);
-    expect(errorCode(refused)).toBe("ENTERPRISE_FEATURE_REQUIRED");
+    expect(noOrgRole.statusCode, noOrgRole.body).toBe(403);
+    expect(errorCode(noOrgRole)).toBe("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
+    expect(await prisma.ssoConnection.count({ where: { teamId: a.teamId, displayName: body.displayName } })).toBe(0);
+
+    // With the Organization identity role, the ENTITLEMENT is what refuses.
+    await prisma.organizationMembership.upsert({
+      where: { organization_memberships_org_user_uniq: { organizationId: aOrgId, userId: a.adminUserId } },
+      create: { organizationId: aOrgId, userId: a.adminUserId, role: "ORG_SECURITY_ADMIN" },
+      update: { role: "ORG_SECURITY_ADMIN" },
+    });
+    let refused: Awaited<ReturnType<typeof call>> | undefined;
+    try {
+      const challengeId = await approvedChallenge({
+        token: a.adminToken,
+        userId: a.adminUserId,
+        teamId: a.teamId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+      });
+      refused = await call({
+        method: "POST",
+        url: "/v1/admin/identity/providers",
+        token: a.adminToken,
+        payload: body,
+        challengeId,
+      });
+    } finally {
+      // Restore the fixture exactly: the role it had, or no membership.
+      if (priorOrgRole) {
+        await prisma.organizationMembership.update({
+          where: { organization_memberships_org_user_uniq: { organizationId: aOrgId, userId: a.adminUserId } },
+          data: { role: priorOrgRole.role },
+        });
+      } else {
+        await prisma.organizationMembership.deleteMany({ where: { organizationId: aOrgId, userId: a.adminUserId } });
+      }
+    }
+    expect(refused!.statusCode, refused!.body).toBe(402);
+    expect(errorCode(refused!)).toBe("ENTERPRISE_FEATURE_REQUIRED");
     expect(await prisma.ssoConnection.count({ where: { teamId: a.teamId, displayName: body.displayName } })).toBe(0);
 
     // Positive control — an Enterprise workspace creates one.

@@ -1536,6 +1536,7 @@ model Team {
   // Phase 26.5 — Identity hardening back-relations.
   ssoCallbackAttempts SsoCallbackAttempt[]
   scimGroups          ScimGroup[]
+  scimGroupProjections ScimGroupWorkspaceProjection[] @relation("ScimGroupProjectionWorkspace")
 
   // Phase 27 — Governance lifecycle back-relations.
   evidenceRetentionPolicies EvidenceRetentionPolicy[]
@@ -6563,6 +6564,10 @@ model AccessReview {
 model ExternalIdentityMapping {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
+  // Members audit DOM-13 — the owning Organization (team_id is the Workspace
+  // the row was configured from / provisions into by default).
+  organizationId String @map("organization_id") @db.Uuid
+  organization   Organization @relation("ExternalIdentityMappingOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
   userId String @map("user_id") @db.Uuid
 
   provider          ExternalIdentityProvider
@@ -6586,7 +6591,7 @@ model ExternalIdentityMapping {
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User @relation("ExternalIdentityMappingUser", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([provider, externalSubjectId])
+  @@unique([organizationId, provider, externalSubjectId], map: "external_identity_mappings_org_provider_subject_uk")
   @@index([teamId, userId])
   @@index([userId])
   @@index([unlinkedAtUtc])
@@ -9048,6 +9053,10 @@ model ReviewerOpsReminder {
 model SsoConnection {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
+  // Members audit DOM-13 — the owning Organization (team_id is the Workspace
+  // the row was configured from / provisions into by default).
+  organizationId String @map("organization_id") @db.Uuid
+  organization   Organization @relation("SsoConnectionOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
 
   /// Phase 17 ExternalIdentityProvider enum: GENERIC_SAML | GENERIC_OIDC |
   /// GENERIC_SCIM | OKTA | AZURE_AD | GOOGLE_WORKSPACE.
@@ -9215,6 +9224,7 @@ model SsoConnection {
   // Members audit DOM-11 — one ACTIVE connection per provider: a partial unique
   // index (WHERE status = 'ACTIVE') in migration 20281026000200.
   @@index([teamId, status])
+  @@index([organizationId, status])
   @@index([teamId, provider])
   @@index([revokedAtUtc])
   @@index([outageDetectedAtUtc])
@@ -9224,6 +9234,10 @@ model SsoConnection {
 model ScimProvisioningToken {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
+  // Members audit DOM-13 — the owning Organization (team_id is the Workspace
+  // the row was configured from / provisions into by default).
+  organizationId String @map("organization_id") @db.Uuid
+  organization   Organization @relation("ScimProvisioningTokenOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
 
   /// Operator-readable label.
   name String @db.VarChar(180)
@@ -9260,6 +9274,7 @@ model ScimProvisioningToken {
   createdBy User @relation("ScimProvisioningTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([teamId, status])
+  @@index([organizationId, status])
   @@index([teamId, createdAt(sort: Desc)])
   @@index([expiresAtUtc])
   @@map("scim_provisioning_tokens")
@@ -9398,6 +9413,10 @@ model AuthenticatedSession {
 model SsoCallbackAttempt {
   id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId          String @map("team_id") @db.Uuid
+  // Members audit DOM-13 — the owning Organization (team_id is the Workspace
+  // the row was configured from / provisions into by default).
+  organizationId String @map("organization_id") @db.Uuid
+  organization   Organization @relation("SsoCallbackAttemptOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
   ssoConnectionId String @map("sso_connection_id") @db.Uuid
 
   /// HMAC-SHA256 of the OIDC `state` token. Unique per row; the
@@ -9460,6 +9479,10 @@ model SsoCallbackAttempt {
 model ScimGroup {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
+  // Members audit DOM-13 — the owning Organization (team_id is the Workspace
+  // the row was configured from / provisions into by default).
+  organizationId String @map("organization_id") @db.Uuid
+  organization   Organization @relation("ScimGroupOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
 
   /// Operator-readable label.
   displayName String @map("display_name") @db.VarChar(180)
@@ -9483,8 +9506,11 @@ model ScimGroup {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  projections ScimGroupWorkspaceProjection[]
 
-  @@unique([teamId, externalId])
+  // Members audit DOM-13 — one live group per (organization, externalId):
+  // a partial unique index in raw SQL (scim_groups_org_external_id_live_uk).
+  @@index([organizationId, status])
   // Members audit DOM-11 — one ACTIVE row per name: a partial unique index
   // (WHERE status = 'ACTIVE') in migration 20281026000200, not expressible here.
   @@index([teamId, status])
@@ -11598,6 +11624,13 @@ model Organization {
   policies              OrganizationPolicy[]
   // Phase 3 — Enterprise Identity: DNS-verified domain ownership.
   domains               OrganizationDomain[]
+  // Members audit DOM-13 — Organization-owned identity.
+  ssoConnections        SsoConnection[]                  @relation("SsoConnectionOrganization")
+  scimProvisioningTokens ScimProvisioningToken[]         @relation("ScimProvisioningTokenOrganization")
+  scimGroups            ScimGroup[]                      @relation("ScimGroupOrganization")
+  externalIdentityMappings ExternalIdentityMapping[]     @relation("ExternalIdentityMappingOrganization")
+  ssoCallbackAttempts   SsoCallbackAttempt[]             @relation("SsoCallbackAttemptOrganization")
+  scimGroupProjections  ScimGroupWorkspaceProjection[]   @relation("ScimGroupProjectionOrganization")
   // Phase A1 — back-relation for the Evidence organization relation
   // declared above. Cascades are not used (Restrict) so an
   // Organization with active Evidence cannot be deleted by accident.
@@ -15053,4 +15086,30 @@ model EvidenceArchiveRestoreRequest {
   @@index([evidenceId, requestedAtUtc])
   @@index([status, requestedAtUtc])
   @@map("evidence_archive_restore_requests")
+}
+
+/// Members audit DOM-13 — an Organization SCIM group's reach into one of the
+/// Organization's Workspaces, with the workspace role its members hold there.
+/// The provisioning authority (scim-groups.service) applies group membership
+/// into every ACTIVE projection; membership itself stays a Workspace fact.
+model ScimGroupWorkspaceProjection {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scimGroupId     String   @map("scim_group_id") @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  workspaceId     String   @map("workspace_id") @db.Uuid
+  /// ADMIN | MEMBER | VIEWER (CHECK in SQL).
+  mappedRole      String   @map("mapped_role") @db.VarChar(24)
+  /// ACTIVE | ARCHIVED (CHECK in SQL); one ACTIVE row per (group, workspace).
+  status          String   @default("ACTIVE") @db.VarChar(16)
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  group        ScimGroup    @relation(fields: [scimGroupId], references: [id], onDelete: Restrict, map: "scim_group_workspace_projections_group_fkey")
+  workspace    Team         @relation("ScimGroupProjectionWorkspace", fields: [workspaceId], references: [id], onDelete: Restrict, map: "scim_group_workspace_projections_workspace_fkey")
+  organization Organization @relation("ScimGroupProjectionOrganization", fields: [organizationId], references: [id], onDelete: Restrict, map: "scim_group_workspace_projections_organization_fkey")
+
+  @@index([workspaceId, status], map: "scim_group_workspace_projections_workspace_idx")
+  @@index([organizationId, status], map: "scim_group_workspace_projections_organization_idx")
+  @@map("scim_group_workspace_projections")
 }

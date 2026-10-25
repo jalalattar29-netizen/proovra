@@ -171,8 +171,9 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
       fingerprint: `review-escalation:REVIEW_OVERDUE:${wfLive.id}`,
     });
     // Identity provider recovered (the first success clears the stamp).
+    const { organizationId: aOrgId } = await c.prisma.team.findUniqueOrThrow({ where: { id: a.teamId }, select: { organizationId: true } });
     const sso = await c.prisma.ssoConnection.create({
-      data: { teamId: a.teamId, provider: "GENERIC_OIDC", displayName: "ops-truth idp", createdByUserId: owner, outageDetectedAtUtc: null, status: "ACTIVE", allowedEmailDomains: [], updatedAt: new Date() },
+      data: { teamId: a.teamId, organizationId: aOrgId, provider: "GENERIC_OIDC", displayName: "ops-truth idp", createdByUserId: owner, outageDetectedAtUtc: null, status: "ACTIVE", allowedEmailDomains: [], updatedAt: new Date() },
     });
     const idp = await seedIncident(c, a.teamId, {
       sourceId: "identity.idp_outage",

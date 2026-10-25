@@ -47,8 +47,10 @@ import {
 
 const TEAM = "11111111-1111-4111-8111-111111111111";
 const TOKEN = "22222222-2222-4222-8222-222222222222";
+// DOM-13 — the Organization the token (and every identity it writes) belongs to.
+const ORG = "33333333-3333-4333-8333-333333333333";
 const BASE_URL = "https://api.example.com/v2/scim";
-const CTX = { teamId: TEAM, tokenId: TOKEN, baseUrl: BASE_URL };
+const CTX = { teamId: TEAM, organizationId: ORG, tokenId: TOKEN, baseUrl: BASE_URL };
 
 // -----------------------------------------------------------------------------
 // In-memory Prisma fake — mirrors phase-scim-user-lifecycle.test.ts. Only
@@ -68,6 +70,7 @@ type UserRow = {
 type MappingRow = {
   id: string;
   teamId: string;
+  organizationId: string;
   userId: string;
   provider: string;
   externalSubjectId: string;
@@ -119,6 +122,26 @@ function matches(
     } else if (row[k] !== v) {
       return false;
     }
+  }
+  return true;
+}
+
+// DOM-13 — the workspace → Organization relation the Organization-wide
+// deactivation/reactivation predicates (`team: { organizationId }`) resolve.
+const TEAM_ORG: Record<string, string> = { [TEAM]: ORG };
+function memberMatches(m: MemberRow, where: Record<string, unknown>): boolean {
+  for (const [k, v] of Object.entries(where)) {
+    if (k === "team") {
+      const orgId = (v as { organizationId?: string }).organizationId;
+      if (orgId !== undefined && TEAM_ORG[m.teamId] !== orgId) return false;
+      continue;
+    }
+    const have = (m as unknown as Record<string, unknown>)[k];
+    if (v && typeof v === "object" && "not" in (v as object)) {
+      if (have === (v as { not: unknown }).not) return false;
+      continue;
+    }
+    if (v === null ? have !== null && have !== undefined : have !== v) return false;
   }
   return true;
 }
@@ -234,6 +257,7 @@ function makeFake() {
         const row: MappingRow = {
           id: nid(),
           teamId: data.teamId!,
+          organizationId: data.organizationId!,
           userId: data.userId!,
           provider: data.provider ?? "GENERIC_SCIM",
           externalSubjectId: data.externalSubjectId!,
@@ -298,6 +322,12 @@ function makeFake() {
           members.find((m) => m.teamId === teamId && m.userId === userId) ??
           null
         );
+      },
+      async findFirst({ where }: { where: Record<string, unknown> }) {
+        return members.find((m) => memberMatches(m, where)) ?? null;
+      },
+      async findMany({ where }: { where: Record<string, unknown> }) {
+        return members.filter((m) => memberMatches(m, where));
       },
       // PHASE 3: the canonical orchestrator re-grants via upsert.
       async upsert({
@@ -390,6 +420,7 @@ function seedUserRow(fake: ReturnType<typeof makeFake>): string {
   fake._mappings.push({
     id: nid(),
     teamId: TEAM,
+    organizationId: ORG,
     userId: id,
     provider: "GENERIC_SCIM",
     externalSubjectId: "ext-sub-1",

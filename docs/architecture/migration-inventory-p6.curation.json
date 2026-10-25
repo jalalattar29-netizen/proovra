@@ -3622,6 +3622,46 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_indexes WHERE indexname IN ('evidence_retention_policies_team_name_active_uk','scim_groups_team_display_active_uk','sso_connections_team_provider_active_uk')\"",
       "evidence": "LIVE-STATUS UNIQUE KEYS (2026-10-26, members audit DOM-11). Three unique keys carried status as a key column (evidence_retention_policies team+name+status, scim_groups team+name+status, sso_connections team+provider+status), which allowed only ONE retired row per name: retiring a second same-named retention policy, archiving a second same-named SCIM group or disabling a second connection to the same provider collided and failed (members audit DOM-11). Each is replaced by a partial unique index over ACTIVE rows only; creating it cannot fail on existing data because the old key already guaranteed one ACTIVE row per name, and dropping the old key only relaxes a constraint. Nothing reads these keys by name; a duplicate ACTIVE row is still refused. READINESS: 3 after apply. ROLLBACK: recreate the three status-inclusive keys (possible only while no second retired row per name exists) and drop the partial ones. NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000300_enterprise_contract_assignment_placement": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='enterprise_contracts' AND column_name='assignment_requires_team_placement'\"",
+      "evidence": "ENTERPRISE CONTRACT TERM: ASSIGNMENT REQUIRES TEAM PLACEMENT (2026-10-26, members audit, unassigned-member decision). On PRO and TEAM a non-owner workspace member must be placed in an ACTIVE Collaboration Team before receiving team tasks, reviewer assignments, queue work or escalations; Enterprise follows its contract (direct eligible assignment by default). ONE nullable BOOLEAN enterprise_contracts.assignment_requires_team_placement: NULL/FALSE keep the Enterprise default, TRUE adds the placement prerequisite while the contract is ACTIVE. No backfill (no contract has stated it). Safe on either image; idempotent. READINESS: 1 after apply. ROLLBACK: drop the column. NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000400_share_grant_lifetimes": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM verification_share_tokens WHERE purpose = 'OWNER_SHARE' AND revoked_at_utc IS NULL AND (expires_at_utc IS NULL OR expires_at_utc > NOW() + INTERVAL '30 days')) || ':' || (SELECT count(*) FROM external_review_grants WHERE state IN ('INVITED','ACTIVE') AND expires_at_utc > NOW() + INTERVAL '30 days')\"",
+      "evidence": "SHARE-GRANT LIFETIMES (2026-10-26, members audit SEC-08). Owner share links and external-review grants now live at most 30 days per issue or renewal and end when their creator leaves. BACKFILL: live OWNER_SHARE links with no expiry or beyond 30 days and live external-review grants beyond 30 days get NOW()+30 days; live ones whose creator/inviter holds no ACTIVE membership of the workspace are revoked (CREATOR_REMOVED / REVOKED). pvr_ references and REPORT/PACKAGE tokens untouched (issued report QR continuity); revoked/expired rows untouched; nothing deleted. Safe on either image; idempotent. READINESS: 0:0 after apply. ROLLBACK: code-first; expiries and revocations written are kept (they are history). NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000500_delegated_admin_convergence": {
+      "classification": "BACKFILL",
+      "releaseWave": "WAIT_FOR_RUNTIME_CUTOVER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": true,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM delegated_admin_grants WHERE state = 'ACTIVE' AND revoked_at_utc IS NULL AND (expires_at_utc IS NULL OR expires_at_utc > NOW())\"",
+      "evidence": "ONE DELEGATED-ADMINISTRATION AUTHORITY (2026-10-26, members audit DOM-09). Tier grants (delegated_admin_grants) and member delegated scopes were both writable and enforced; the canonical permission engine is kept. BACKFILL: each LIVE tier grant of an ACTIVE member becomes member_capability_grants of exactly the permissions its tier admitted (ORG-chain ladder applied; WORKSPACE_ADMIN admitted nothing), carrying grantor and expiry; existing live capabilities kept (expiry extended if shorter), revoked/expired re-issued. Tier rows end CONVERGED / RETIRED_NO_EFFECT / RETIRED_NO_MEMBER; the table stays as history. Apply WITH the API image (an older image gates on ACTIVE tier rows). Idempotent. READINESS: 0 after apply. ROLLBACK: code-first is NOT available without restoring tier rows to ACTIVE (UPDATE state back from CONVERGED); carried capability grants may stay (they admit only what the tier did). NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000600_collaboration_vocabulary_checks": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM pg_constraint WHERE conname LIKE 'collaboration_team%_vocab') || ':' || ((SELECT count(*) FROM collaboration_teams WHERE status NOT IN ('ACTIVE','ARCHIVED')) + (SELECT count(*) FROM collaboration_team_members WHERE status NOT IN ('ACTIVE','SUSPENDED','REMOVED') OR role NOT IN ('LEAD','ADMIN','MEMBER','VIEWER','EXTERNAL')) + (SELECT count(*) FROM collaboration_team_invites WHERE status NOT IN ('PENDING','ACCEPTED','REVOKED','EXPIRED') OR role NOT IN ('LEAD','ADMIN','MEMBER','VIEWER','EXTERNAL') OR delivery_status NOT IN ('PENDING','SENT','DELIVERED','FAILED','BOUNCED')) + (SELECT count(*) FROM collaboration_team_assignments WHERE status NOT IN ('OPEN','IN_PROGRESS','COMPLETED','REASSIGNED','CANCELLED')))\"",
+      "evidence": "COLLABORATION TEAM VOCABULARY CHECKS (2026-10-26, members audit DOM-08). Seven CHECK … NOT VALID constraints over the shared Collaboration Team role/status vocabularies on collaboration_teams, collaboration_team_members, collaboration_team_invites and collaboration_team_assignments. NOT VALID binds new writes and never scans existing rows (no apply failure, no long lock); validation is a later operator step when the readiness violator count reads 0. No row touched; no backfill. Safe on either image; idempotent. READINESS: 7:0 expected. ROLLBACK: DROP CONSTRAINT (DDL only). NOT APPLIED TO PRODUCTION."
+    },
+    "20281026000700_organization_scoped_identity": {
+      "classification": "BACKFILL",
+      "releaseWave": "WAIT_FOR_RUNTIME_CUTOVER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": true,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM pg_indexes WHERE indexname IN ('sso_connections_org_provider_live_uk','scim_groups_org_external_id_live_uk','external_identity_mappings_org_provider_subject_uk','scim_group_workspace_projections_live_uk')) || ':' || (SELECT count(*) FROM scim_groups g WHERE NOT EXISTS (SELECT 1 FROM scim_group_workspace_projections p WHERE p.scim_group_id = g.id) AND NOT EXISTS (SELECT 1 FROM scim_groups c WHERE c.organization_id = g.organization_id AND c.external_id = g.external_id AND c.id <> g.id AND c.status = 'ACTIVE'))\"",
+      "evidence": "ORGANIZATION-SCOPED IDENTITY (2026-10-26, members audit DOM-13). organization_id (backfilled from teams, NOT NULL, RESTRICT FK, BEFORE INSERT fill trigger) on sso_connections, scim_provisioning_tokens, scim_groups, external_identity_mappings, sso_callback_attempts. One live connection per (organization, provider) — duplicates DISABLED (DUPLICATE_PROVIDER_IN_ORGANIZATION); one live SCIM group per (organization, external id) — duplicates ARCHIVED and carried as projections of the canonical group; new scim_group_workspace_projections seeded from every group; external identities unique per (organization, provider, subject). Three per-workspace/global keys retired in guarded DO blocks after their replacements exist. Nothing deleted. Apply WITH the API image. Idempotent. READINESS: 4:0. ROLLBACK: code-first is not available once applied (the retired keys would have to be recreated, possible only while no cross-organization duplicate exists); the added columns/table are additive. NOT APPLIED TO PRODUCTION."
     }
   }
 }

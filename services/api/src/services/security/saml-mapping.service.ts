@@ -192,7 +192,8 @@ export async function getCurrentSamlMapping(
   client: PrismaClient = defaultPrisma,
 ): Promise<CurrentSamlMapping | null> {
   const conn = await client.ssoConnection.findFirst({
-    where: { id: input.connectionId, teamId: input.teamId },
+    // DOM-13 — the connection is the Organization's; any of its workspaces addresses it.
+    where: { id: input.connectionId, organization: { workspaces: { some: { id: input.teamId } } } },
     select: {
       id: true,
       teamId: true,
@@ -478,7 +479,8 @@ export async function updateSamlMapping(
   client: PrismaClient = defaultPrisma,
 ): Promise<UpdateSamlMappingResult> {
   const conn = await client.ssoConnection.findFirst({
-    where: { id: input.connectionId, teamId: input.teamId },
+    // DOM-13 — the connection is the Organization's; any of its workspaces addresses it.
+    where: { id: input.connectionId, organization: { workspaces: { some: { id: input.teamId } } } },
     select: { id: true },
   });
   if (!conn) {
