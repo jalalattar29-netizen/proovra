@@ -24,6 +24,9 @@
  *   - a response for a workspace the operator has left is discarded.
  */
 
+import { readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -2444,8 +2447,6 @@ describe("Operations — the metric and the resolution note are layout-safe", ()
   });
 
   it("the Operations stylesheet declares no physical left/right properties", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { resolve } = await import("node:path");
     // Resolved from the runner's root rather than from `import.meta.url`: this
     // suite runs under jsdom, where the module URL is not a file: URL.
     const css = readFileSync(
@@ -3089,8 +3090,8 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
       "[data-ops-group-status] escaped the wrapping head line",
     ).toBe(true);
 
-    const { readFileSync: readCss } = await import("node:fs");
-    const { resolve: resolveCss } = await import("node:path");
+    const readCss = readFileSync;
+    const resolveCss = resolve;
     const css = readCss(
       resolveCss(process.cwd(), "app/(app)/operations/operations.css"),
       "utf8",
@@ -3134,8 +3135,6 @@ describe("Operations — the grouped surface is layout- and direction-safe", () 
   });
 
   it("the grouped stylesheet declares no physical left/right properties", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { resolve } = await import("node:path");
     // Resolved from the runner's root: this suite runs under jsdom, where the
     // module URL is not a file: URL.
     const css = readFileSync(
@@ -3467,8 +3466,6 @@ describe("Operations — one tone table, every surface", () => {
   });
 
   it("20. NO COLOUR IS DECIDED IN JSX", async () => {
-    const { readFileSync, readdirSync } = await import("node:fs");
-    const { resolve, join } = await import("node:path");
     const root = resolve(process.cwd(), "app/(app)/operations");
     const files: string[] = [];
     const walk = (dir: string) => {
@@ -3511,8 +3508,6 @@ describe("Operations — the cards' interactive states are real", () => {
     // It hid because it also SUPPRESSED the shared primitive's working ring,
     // which it beat on cascade order at equal specificity. Deleting it is the
     // fix; `.app-metric-card:focus-visible` is the authority.
-    const { readFileSync } = await import("node:fs");
-    const { resolve } = await import("node:path");
     // Comments stripped: the block above the deleted rule QUOTES it, and a
     // prose account of what was removed must not fail the check for it.
     const route = readFileSync(
@@ -3544,8 +3539,6 @@ describe("Operations — the cards' interactive states are real", () => {
     expect(card.getAttribute("aria-pressed")).toBe("true");
     // The pressed border reads the same custom property the rail does, so a
     // selected card cannot be a different colour from the one it just was.
-    const { readFileSync } = await import("node:fs");
-    const { resolve } = await import("node:path");
     const route = readFileSync(
       resolve(process.cwd(), "app/(app)/operations/operations.css"),
       "utf8",
@@ -3558,8 +3551,6 @@ describe("Operations — the cards' interactive states are real", () => {
 
 describe("Operations — the summary grid adapts to its container", () => {
   const css = async () => {
-    const { readFileSync } = await import("node:fs");
-    const { resolve } = await import("node:path");
     return readFileSync(
       resolve(process.cwd(), "app/(app)/operations/operations.css"),
       "utf8",
