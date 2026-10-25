@@ -16,6 +16,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { bulkAssign } from "../src/services/reviewer-workspace/bulk-operations.service.js";
 
+// The placement prerequisite is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts; this suite tests its own module.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: async () => false,
+  meetsPlacementPolicy: async () => true,
+  placedUserIdsForWorkspace: async (_workspaceId: string, ids: readonly string[]) => new Set(ids),
+}));
+
+
 const state = {
   status: "QUEUED" as string,
   updates: [] as Array<Record<string, unknown>>,

@@ -435,7 +435,13 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
       // The archived rows carry an append-only custody event and have LEFT the
       // Trash scan (the archive scan re-reads them only when due), so only the
       // still-TRASHED eligible row could head a later sweep.
-      await prisma.evidence.deleteMany({ where: { id: { in: [...blocked, eligible] }, lifecycleState: "TRASHED" } });
+      // Taken out of the Trash scan rather than deleted: the lifecycle ledger
+      // is append-only (members audit DOM-12), so a record that wrote one
+      // cannot be erased, and should not be.
+      await prisma.evidence.updateMany({
+        where: { id: { in: [...blocked, eligible] }, lifecycleState: "TRASHED" },
+        data: { lifecycleState: "ACTIVE", deletedAt: null, deletedAtUtc: null, deleteScheduledForUtc: null },
+      });
       await prisma.workerSweepCursor.deleteMany({});
     }
   });

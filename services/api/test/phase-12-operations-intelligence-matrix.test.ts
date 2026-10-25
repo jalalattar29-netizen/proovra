@@ -683,6 +683,15 @@ import { intelligenceRoutes } from "../src/routes/intelligence.routes.js";
 import { analyticsOperationsRoutes } from "../src/routes/analytics-operations.routes.js";
 import { aiReviewerRoutes } from "../src/routes/ai-reviewer.routes.js";
 
+// The placement prerequisite is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts; this suite tests its own module.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: async () => false,
+  meetsPlacementPolicy: async () => true,
+  placedUserIdsForWorkspace: async (_workspaceId: string, ids: readonly string[]) => new Set(ids),
+}));
+
+
 let ops: FastifyInstance;
 let siu: FastifyInstance;
 let graph: FastifyInstance;

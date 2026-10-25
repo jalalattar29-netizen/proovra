@@ -50,6 +50,25 @@ import {
 } from "../src/services/cases/case-lifecycle.service.js";
 import { evaluateCaseMutationPermission } from "../src/services/cases/case-permission.service.js";
 
+// The canonical permission engine is proven elsewhere; this suite's fake models
+// membership as an ACTIVE row, so the member check reads that row.
+vi.mock("../src/services/identity/access-policy.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  evaluateMemberAccess: vi.fn(async (input: { teamId: string; userId: string }, client: { teamMember: { findFirst: (a: unknown) => Promise<unknown> } }) => ({
+    allowed: Boolean(await client.teamMember.findFirst({ where: { teamId: input.teamId, userId: input.userId, status: "ACTIVE" } })),
+  })),
+}));
+
+
+// The placement prerequisite is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts; this suite tests its own module.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: async () => false,
+  meetsPlacementPolicy: async () => true,
+  placedUserIdsForWorkspace: async (_workspaceId: string, ids: readonly string[]) => new Set(ids),
+}));
+
+
 type AnyFn = ReturnType<typeof vi.fn>;
 
 function makeClient(overrides?: {

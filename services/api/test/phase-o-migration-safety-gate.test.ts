@@ -367,6 +367,14 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // their per-stage uniqueness exactly as the old one did. An index is not
     // data; no decision row's content is changed.
     "20281023000100_review_decision_rounds": new Set(["DROP_INDEX"]),
+    // LIVE-STATUS UNIQUE KEYS (members audit DOM-11, 2026-10-26) — THREE guarded
+    // DROP INDEXes retire the status-inclusive keys on retention policies, SCIM
+    // groups and SSO connections after the partial (WHERE status = 'ACTIVE')
+    // key of each exists (created first; DO-block RAISE + EXECUTE). Safe BEFORE
+    // the new code: nothing reads the old keys by name, and a duplicate ACTIVE
+    // row is refused by the partial key exactly as the old key refused it. An
+    // index is not data; no row is touched.
+    "20281026000200_live_status_unique_keys": new Set(["DROP_INDEX"]),
     // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification

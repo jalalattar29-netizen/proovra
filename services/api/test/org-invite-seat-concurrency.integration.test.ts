@@ -106,6 +106,8 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
         id: orgId,
         name: "Seat Concurrency Org",
         status: "ACTIVE",
+        // A contract governs only a CUSTOMER organization.
+        kind: "CUSTOMER",
       },
     });
 

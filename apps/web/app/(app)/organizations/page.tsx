@@ -275,7 +275,7 @@ function OrganizationsListPageInner() {
                 people is your Personal Workspace on Pro or Team. */}
             <p style={{ fontSize: 13, opacity: 0.85 }}>
               Want to work with other people? Your <strong>Personal
-              Workspace</strong> on the Pro or Team plan can invite members and
+              Workspace</strong> on a paid plan can invite members and
               organise them into Collaboration Teams — no Enterprise contract
               needed.
             </p>

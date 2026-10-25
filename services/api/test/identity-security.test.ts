@@ -39,6 +39,15 @@ import {
 } from "../src/services/identity-security/risk.service.js";
 import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
+// Creator-scoped share revocation is proven in members-share-lifecycle; this
+// suite is about session revocation.
+vi.mock("../src/services/sharing/creator-share-grants.js", () => ({
+  revokeCreatorShareGrantsTx: async () => ({ ownerShares: 0, externalReview: 0 }),
+  revokeWorkspaceOwnerSharesTx: async () => 0,
+  transferCreatorShareGrantsToOwnerTx: async () => ({ ownerShares: 0, externalReview: 0 }),
+}));
+
+
 // -----------------------------------------------------------------------------
 // Step-up error surface
 // -----------------------------------------------------------------------------

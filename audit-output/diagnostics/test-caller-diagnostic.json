@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "f16da67cd957759dc3ee85bc890b14b11907ef4184d0b911292832328c5cb778",
+  "capabilityRouteInventoryHash": "b6322ff217095744a5973d06292162d23d78e9f28c6e555491dc4d0279e88c3a",
   "totals": {
-    "routes": 1199,
+    "routes": 1201,
     "routesWithAnyTestCaller": 46,
     "testOnlyRoutes": 5,
     "testCallSites": 100,
@@ -4957,6 +4957,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/evidence/:id/verify-links/:linkId/renew",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/evidence/:id/verify-links/:linkId/revoke",
       "testCallerCount": 0,
       "testOnly": false,
@@ -5108,6 +5114,12 @@
     },
     {
       "routeId": "POST /v1/external-review/grants",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/external-review/grants/:id/renew",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7309,5 +7321,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "7be03c0161c2d69539fb11ce7c912e5b4036bf113263a8f4bef062e9d5da7fa0"
+  "contentHash": "fdc4a157261f951c7f771802d2f4fdda0d2b04c451a764e3014dbf8c0effaa7e"
 }

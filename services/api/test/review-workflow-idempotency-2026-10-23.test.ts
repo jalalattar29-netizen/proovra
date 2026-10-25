@@ -42,6 +42,23 @@ import {
   recordLifecycleTransition,
 } from "../src/services/review-operations/review-operations.service.js";
 
+// Who may claim is proven against PostgreSQL (members-unassigned-rule and the
+// review suites); this suite is about the claim's idempotency.
+vi.mock("../src/services/assignment/assignee-eligibility.js", () => ({
+  AssigneeEligibilityError: class AssigneeEligibilityError extends Error {},
+  assertWorkAssigneeEligible: async () => undefined,
+}));
+
+
+// The placement prerequisite is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts; this suite tests its own module.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: async () => false,
+  meetsPlacementPolicy: async () => true,
+  placedUserIdsForWorkspace: async (_workspaceId: string, ids: readonly string[]) => new Set(ids),
+}));
+
+
 const ME = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
 const OTHER = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
 const EVIDENCE = "22222222-2222-4222-8222-222222222222";

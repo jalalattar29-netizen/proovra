@@ -29,6 +29,15 @@ import { roleHasPermission } from "@proovra/shared";
 
 import { routeSource } from "../../../scripts/source-contract/index.mjs";
 
+// The placement prerequisite is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts; this suite tests its own module.
+vi.mock("../src/services/assignment/placement-policy.js", () => ({
+  assignmentRequiresPlacement: async () => false,
+  meetsPlacementPolicy: async () => true,
+  placedUserIdsForWorkspace: async (_workspaceId: string, ids: readonly string[]) => new Set(ids),
+}));
+
+
 function read(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../../../${rel}`, import.meta.url)), "utf8");
 }
