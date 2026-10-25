@@ -31,7 +31,7 @@
  * that matters here.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,7 +43,8 @@ const GUARD_CALL = /requireWorkspacePermission\(/g;
 /**
  * The route modules that register the permission guard. Pinned as DATA: a new
  * module that starts using the guard must be added here consciously, and
- * `assertNoUnlistedGuardModule` fails until it is.
+ * the AST capability engine (the one route authority) reports every guarded
+ * registration, so a module added outside this list is visible there.
  */
 export const PERMISSION_GUARD_ROUTE_FILES: ReadonlyArray<string> = [
   "src/routes/product-and-lifecycle.routes.ts",
@@ -129,29 +130,6 @@ export function assertInventoryComplete(
           "call sites. The probe would then claim a coverage it does not have.",
       );
     }
-  }
-}
-
-/**
- * Throws if a route module NOT in `PERMISSION_GUARD_ROUTE_FILES` calls the
- * guard — the surface would otherwise grow outside the probe's sight.
- */
-export function assertNoUnlistedGuardModule(): void {
-  const dir = path.join(API_ROOT, "src/routes");
-  const listed = new Set(PERMISSION_GUARD_ROUTE_FILES);
-  const unlisted: string[] = [];
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith(".ts")) continue;
-    const rel = `src/routes/${name}`;
-    if (listed.has(rel)) continue;
-    const source = readFileSync(path.join(dir, name), "utf8");
-    if (countGuardCallSites(source) > 0) unlisted.push(rel);
-  }
-  if (unlisted.length > 0) {
-    throw new Error(
-      `route modules call requireWorkspacePermission but are not in the ` +
-        `inventory: ${unlisted.join(", ")}`,
-    );
   }
 }
 

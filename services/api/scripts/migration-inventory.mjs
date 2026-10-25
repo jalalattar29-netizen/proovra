@@ -253,7 +253,8 @@ function analyzeSql(rawSql) {
     const alias = m[1].toLowerCase();
     if (!SQL_KEYWORDS_AFTER_RELATION.has(alias)) localNames.add(alias);
   }
-  for (const m of body.matchAll(new RegExp(String.raw`(?:WITH|,)\s+${ident}\s+AS\s*\(`, "gi"))) {
+  // A CTE may declare its column list: `WITH name (a, b) AS (`.
+  for (const m of body.matchAll(new RegExp(String.raw`(?:WITH|,)\s+${ident}\s*(?:\([^()]*\)\s*)?AS\s*\(`, "gi"))) {
     const v = (m[1] ?? m[2] ?? "").toLowerCase();
     if (v) localNames.add(v);
   }
@@ -270,8 +271,10 @@ function analyzeSql(rawSql) {
       // and `ON DELETE NO ACTION` are not references to relations named
       // "cascade" or "no". BEFORE/AFTER/OR do the same for a trigger's event
       // list (`BEFORE UPDATE ON "evidence"`, `INSERT OR UPDATE OF col`), which
-      // names an event, not a relation called "on" or "of".
-      String.raw`(?:ALTER\s+TABLE(?:\s+ONLY)?(?:\s+IF\s+EXISTS)?|REFERENCES|(?<!(?:ON|BEFORE|AFTER|OR)\s{1,8})UPDATE|INSERT\s+INTO|DELETE\s+FROM|JOIN|FROM)\s+(?:ONLY\s+)?(?:"?public"?\.)?${ident}`,
+      // names an event, not a relation called "on" or "of". DO keeps
+      // `ON CONFLICT … DO UPDATE SET` out: the conflict action updates the
+      // INSERT target, not a relation called "set".
+      String.raw`(?:ALTER\s+TABLE(?:\s+ONLY)?(?:\s+IF\s+EXISTS)?|REFERENCES|(?<!(?:ON|BEFORE|AFTER|OR|DO)\s{1,8})UPDATE|INSERT\s+INTO|DELETE\s+FROM|JOIN|FROM)\s+(?:ONLY\s+)?(?:"?public"?\.)?${ident}`,
       "gi",
     ),
   )) {

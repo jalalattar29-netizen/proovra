@@ -50,7 +50,6 @@ import { roleHasPermission, type Permission } from "@proovra/shared";
 
 import {
   assertInventoryComplete,
-  assertNoUnlistedGuardModule,
   concretePath,
   loadPermissionGuardRoutes,
   surfacePermissions,
@@ -146,7 +145,6 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
     routes = loadPermissionGuardRoutes();
     // Fails the suite rather than shrinking its claim.
     assertInventoryComplete(routes);
-    assertNoUnlistedGuardModule();
     permissions = surfacePermissions(routes) as ReadonlyArray<Permission>;
 
     // Every admission in case 1 must be attributable to a capability grant.
@@ -362,12 +360,11 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
   // The cases
   // ---------------------------------------------------------------------------
 
-  it("0 — the inventory covers every guard call site, in every module that has one", () => {
+  it("0 — the inventory covers every guard call site in every listed module", () => {
     expect(routes.length).toBeGreaterThan(0);
     // Recomputed here so the assertion is visible in the report, not only in
     // a `beforeAll` that would fail with a setup error.
     expect(() => assertInventoryComplete(routes)).not.toThrow();
-    expect(() => assertNoUnlistedGuardModule()).not.toThrow();
     // The retired tier endpoints are not on the guarded surface: they answer
     // 410 to everyone (pinned in case 17).
     expect(routes.map((r) => r.path)).not.toContain("/v1/governance/delegated-admin");

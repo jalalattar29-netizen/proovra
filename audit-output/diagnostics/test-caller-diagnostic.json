@@ -5,15 +5,21 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "b6322ff217095744a5973d06292162d23d78e9f28c6e555491dc4d0279e88c3a",
+  "capabilityRouteInventoryHash": "a704de954aac253992fb40b2e9501594cf8bf739c52f71557e0024944c12b641",
   "totals": {
-    "routes": 1201,
+    "routes": 1205,
     "routesWithAnyTestCaller": 46,
     "testOnlyRoutes": 5,
     "testCallSites": 100,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
+    {
+      "routeId": "DELETE /v1/admin/identity/scim/groups/projections/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
     {
       "routeId": "DELETE /v1/auth/saml/:connectionId/certificate-next",
       "testCallerCount": 0,
@@ -474,6 +480,12 @@
     },
     {
       "routeId": "GET /v1/admin/identity/role-matrix",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/identity/scim/groups",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3640,6 +3652,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "PATCH /v1/identity/delegated-admin/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "PATCH /v1/identity/mfa-admin/digest-preferences",
       "testCallerCount": 0,
       "testOnly": false,
@@ -3848,6 +3866,12 @@
     },
     {
       "routeId": "POST /v1/admin/identity/runtime/reconcile",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/identity/scim/groups/:id/projections",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7321,5 +7345,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "fdc4a157261f951c7f771802d2f4fdda0d2b04c451a764e3014dbf8c0effaa7e"
+  "contentHash": "3e2dd36481b7911b124dd3106cc9abdb182c33c838907b58daa3a6853b08b707"
 }

@@ -26,6 +26,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -235,11 +236,16 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
   }
 
   async function runMigration(): Promise<void> {
+    // The whole file, exactly as `prisma migrate deploy` would run it (simple
+    // query protocol: every statement, in order).
     const sql = readFileSync(MIGRATION, "utf8");
-    const at = sql.indexOf("\nUPDATE \"delegated_admin_grants\"");
-    expect(at).toBeGreaterThan(0);
-    await prisma.$executeRawUnsafe(sql.slice(0, at));
-    await prisma.$executeRawUnsafe(sql.slice(at));
+    const conn = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await conn.connect();
+    try {
+      await conn.query(sql);
+    } finally {
+      await conn.end();
+    }
   }
 
   async function liveCapabilities(memberId: string): Promise<string[]> {

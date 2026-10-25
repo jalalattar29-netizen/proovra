@@ -10,7 +10,7 @@ Every number below is produced by an analyzer executed at generation time and re
 
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
-| AuditEngineIntegrity | FAIL    | instrument counters, conservation identities, single-authority checks |
+| AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
 | ProductClosure       | OPEN    | release-blocking measured facts + undisposed routes                   |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | f6813c6497d1efa0c4c1153b823f9d0033dc167d35ebff025e746e5a2f767ef3 |
+| engineHash    | 8e8695dfe5359cef85e8762ec52df4004eeea8f0f6178ff41ace483ae9120cd5 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1201  |
+| registeredRoutes              | 1205  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 986   |
+| productConsumerRoutes         | 987   |
 | machineOnlyConsumerRoutes     | 7     |
-| noConsumerRoutes              | 208   |
+| noConsumerRoutes              | 211   |
 | dispositionedNonProductRoutes | 203   |
-| undisposedRoutes              | 11    |
+| undisposedRoutes              | 14    |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 33    |
 
@@ -57,7 +57,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | OrganizationRoutesMissingRequiredAuthorization | 0     |
 | TenantUnboundInsertRoutes                      | 0     |
 | UnclassifiedMutationWriters                    | 0     |
-| MutationReachabilityUnresolved                 | 1     |
+| MutationReachabilityUnresolved                 | 0     |
 | QueueRegistryProblems                          | 0     |
 
 ### Conservation
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 399   |
+| AuditFilesInventoried                      | 400   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 306   |
+| ProductBehaviorTestsInventoried            | 307   |
 
 ### Report roles
 
@@ -165,11 +165,9 @@ Referenced, never transcribed. Each is measured by its own producer; this report
 
 ### Engine
 
-- INSTRUMENT: MutationReachabilityUnresolved = 1
-- REACHABILITY VERIFIER RED: 2 problems
+_(none — the instrument is sound)_
 
 ### Product closure
 
-- INSTRUMENT: MutationReachabilityUnresolved = 1
 - UNWIRED EXECUTABLE WRITERS: 1 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- ArchitectureBacklog: UndisposedRoutes = 11 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
+- ArchitectureBacklog: UndisposedRoutes = 14 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
