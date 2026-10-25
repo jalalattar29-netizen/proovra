@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 describe("Phase C — review assignment and queue reach", () => {
   let h: IntegrationHarness;
@@ -54,6 +55,9 @@ describe("Phase C — review assignment and queue reach", () => {
     });
     if (role) {
       await prisma.teamMember.create({ data: { teamId: W().teamId, userId: user.id, role, status: "ACTIVE" } });
+      // Placed, so this suite isolates capability and reach (the placement
+      // rule is members-unassigned-rule.integration.test.ts).
+      await placeInCollaborationTeam(prisma, { workspaceId: W().teamId, createdByUserId: owner(), userIds: [user.id] });
     }
     const token = signJwt(
       { sub: user.id, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },

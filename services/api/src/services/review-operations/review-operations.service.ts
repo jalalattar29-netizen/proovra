@@ -56,6 +56,10 @@ import {
 } from "../reviewer-ops/escalation-engine.service.js";
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 
@@ -73,7 +77,8 @@ export class ReviewOperationError extends Error {
       | "already_assigned_elsewhere"
       | "already_in_stage"
       | "evidence_not_in_workspace"
-      | "assignee_not_eligible",
+      | "assignee_not_eligible"
+      | "assignee_not_placed",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -103,16 +108,26 @@ async function assertReviewAssigneeEligible(
   client: PrismaClient,
 ): Promise<void> {
   if (!workflow.teamId) throw new ReviewOperationError("assignee_not_eligible");
-  const membership = await evaluateMemberAccess(
-    { teamId: workflow.teamId, userId: assigneeUserId, permission: "evidence_request.review" },
-    client,
-  );
-  if (!membership.allowed) throw new ReviewOperationError("assignee_not_eligible");
-  const record = await resolveEvidenceRecordAccess(
-    { userId: assigneeUserId, evidenceId: workflow.evidenceId, permission: "evidence.read" },
-    client,
-  );
-  if (!record.allowed) throw new ReviewOperationError("assignee_not_eligible");
+  // THE ONE assignee authority (capability + reach + Collaboration Team
+  // placement on PRO/TEAM; Enterprise per contract). See assignee-eligibility.
+  try {
+    await assertWorkAssigneeEligible(
+      {
+        workspaceId: workflow.teamId,
+        assigneeUserId,
+        permission: "evidence_request.review",
+        evidenceId: workflow.evidenceId,
+      },
+      client,
+    );
+  } catch (err) {
+    if (err instanceof AssigneeEligibilityError) {
+      throw new ReviewOperationError(
+        err.reason === "NOT_PLACED" ? "assignee_not_placed" : "assignee_not_eligible",
+      );
+    }
+    throw err;
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -540,6 +555,11 @@ export async function claimReviewerWorkflow(
     fromStage !== "QUEUED"
   ) {
     return workflow;
+  }
+  // Claiming queue work is RECEIVING work: the same assignee rule applies to
+  // the claimant (members audit, unassigned-member decision).
+  if (workflow.assignedToUserId !== input.actorUserId) {
+    await assertReviewAssigneeEligible(workflow, input.actorUserId, client);
   }
 
   const now = new Date();

@@ -92,6 +92,7 @@ const ENGINE_CODES_KEPT: ReadonlySet<string> = new Set<ReviewerOpsBulkItemErrorC
   "REVIEW_ACTOR_BLOCKED",
   "REVIEW_CONFLICT",
   "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+  "REVIEW_ASSIGNEE_NOT_PLACED",
 ]);
 
 /**
@@ -139,6 +140,8 @@ export function classifyBulkItemError(err: unknown): {
         return { code: "REVIEW_INVALID_TRANSITION", unexpected: false };
       case "assignee_not_eligible":
         return { code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE", unexpected: false };
+      case "assignee_not_placed":
+        return { code: "REVIEW_ASSIGNEE_NOT_PLACED", unexpected: false };
     }
   }
   return { code: "REVIEW_ITEM_FAILED", unexpected: true };

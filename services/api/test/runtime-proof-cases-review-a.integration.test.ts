@@ -39,6 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { createStepUpCeremony } from "./support/step-up-ceremony.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 
@@ -123,6 +124,9 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
       where: { id: h.fixtures.teamA.teamId },
       data: { billingPlan: "TEAM", billingStatus: "ACTIVE" },
     });
+    // Cases go to members placed in a Collaboration Team (unassigned-member decision).
+    const a = h.fixtures.teamA;
+    await placeInCollaborationTeam(prisma, { workspaceId: a.teamId, createdByUserId: a.ownerUserId, userIds: [a.adminUserId, a.memberUserId, a.viewerUserId] });
   }, 900_000);
 
   afterAll(async () => {

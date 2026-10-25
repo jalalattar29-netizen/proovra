@@ -23,6 +23,10 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { resolveCaseRecordAccess } from "./case-permission.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   attachEvidenceToCase,
@@ -44,7 +48,8 @@ export type CaseErrorCode =
   // when the actor is the comment's author. Backend returns
   // `comment_forbidden` so the route can map it to 403.
   | "comment_forbidden"
-  | "invalid_assignee";
+  | "invalid_assignee"
+  | "assignee_not_placed";
 
 export class CaseError extends Error {
   code: CaseErrorCode;
@@ -311,16 +316,25 @@ export async function addCaseAssignment(
    * assigner learns nothing about a person's access they could not see.
    */
   if (existing.teamId) {
-    const member = await client.teamMember.findFirst({
-      where: { teamId: existing.teamId, userId: input.assignedToUserId, status: "ACTIVE" },
-      select: { id: true },
-    });
-    if (!member) throw new CaseError("invalid_assignee");
-    const reach = await resolveCaseRecordAccess(
-      { userId: input.assignedToUserId, caseId: existing.id },
-      client,
-    );
-    if (!reach.allowed) throw new CaseError("invalid_assignee");
+    // THE ONE assignee authority: an ACTIVE member who can open the case, and
+    // — on PRO/TEAM, or an Enterprise contract that says so — placed in an
+    // ACTIVE Collaboration Team (the owner excepted).
+    try {
+      await assertWorkAssigneeEligible(
+        {
+          workspaceId: existing.teamId,
+          assigneeUserId: input.assignedToUserId,
+          permission: "evidence.read",
+          caseId: existing.id,
+        },
+        client,
+      );
+    } catch (err) {
+      if (err instanceof AssigneeEligibilityError) {
+        throw new CaseError(err.reason === "NOT_PLACED" ? "assignee_not_placed" : "invalid_assignee");
+      }
+      throw err;
+    }
   }
 
   // Idempotent on (caseId, assignedToUserId, role). If a REMOVED row

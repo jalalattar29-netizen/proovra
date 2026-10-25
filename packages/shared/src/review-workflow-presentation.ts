@@ -199,7 +199,8 @@ export type ReviewWorkflowActionBlock =
   | "CLAIM_FIRST"
   | "AWAITING_SECOND_REVIEWER"
   | "ADJUDICATION_REQUIRED"
-  | "NO_WORKFLOW";
+  | "NO_WORKFLOW"
+  | "NOT_PLACED";
 
 export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlock, string>> = {
   NO_WORKSPACE: "Review runs in a team workspace. This record is not in one.",
@@ -216,6 +217,8 @@ export const REVIEW_WORKFLOW_BLOCK_COPY: Readonly<Record<ReviewWorkflowActionBlo
   ADJUDICATION_REQUIRED:
     "The two reviewers disagreed. A workspace owner or admin records the deciding verdict.",
   NO_WORKFLOW: "No review has been opened for this record yet.",
+  NOT_PLACED:
+    "Join a Collaboration Team before claiming reviews. A workspace admin can place you in one.",
 };
 
 /**
@@ -264,6 +267,12 @@ export type ReviewWorkflowActionInput = {
    */
   viewerMayAdjudicate?: boolean;
   /**
+   * The viewer meets the placement prerequisite for receiving work (members
+   * audit, unassigned-member decision) — the same answer the claim writer
+   * enforces. Absent → met, for callers that check it themselves.
+   */
+  viewerMayReceiveWork?: boolean;
+  /**
    * The current decision round's state — `deriveReviewState` over that
    * round's rows with the live second-review requirement — plus who recorded
    * its FIRST decision and whether it was resolved by a request for
@@ -299,7 +308,8 @@ export function projectReviewWorkflowActions(
       if (action === "CLAIM") {
         if (input.assignedToUserId === input.viewerUserId) return "ALREADY_YOURS";
         if (input.assignedToUserId) return "OWNED_BY_SOMEONE_ELSE";
-        return stage === "CLOSED" ? "NOT_FROM_STAGE" : null;
+        if (stage === "CLOSED") return "NOT_FROM_STAGE";
+        return input.viewerMayReceiveWork === false ? "NOT_PLACED" : null;
       }
       if (action === "BEGIN_REVIEW") {
         if (stage === "IN_REVIEW" || !allowed.includes("IN_REVIEW")) return "NOT_FROM_STAGE";

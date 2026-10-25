@@ -122,3 +122,16 @@ export async function placedUserIdsForWorkspace(
   if (!workspace) return new Set();
   return placedUserIds({ workspaceId, ownerUserId: workspace.ownerUserId, userIds }, client);
 }
+
+/**
+ * Does `userId` meet the placement prerequisite in `workspaceId`? For a surface
+ * that offers work (Claim): the same answer the writers enforce, so the page
+ * never offers what the server would refuse.
+ */
+export async function meetsPlacementPolicy(
+  input: { workspaceId: string; userId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  if (!(await assignmentRequiresPlacement(input.workspaceId, client))) return true;
+  return isPlacedWorkspaceMember(input, client);
+}

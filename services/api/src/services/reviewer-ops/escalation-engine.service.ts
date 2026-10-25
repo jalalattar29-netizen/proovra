@@ -45,10 +45,38 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordIncident } from "../observability/incident.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
 
 // -----------------------------------------------------------------------------
 // Error
 // -----------------------------------------------------------------------------
+
+async function assertEscalationAssigneeEligible(
+  client: PrismaClient,
+  input: { teamId: string; assigneeUserId: string; evidenceId: string | null },
+): Promise<void> {
+  try {
+    await assertWorkAssigneeEligible(
+      {
+        workspaceId: input.teamId,
+        assigneeUserId: input.assigneeUserId,
+        permission: "evidence_request.review",
+        evidenceId: input.evidenceId,
+      },
+      client,
+    );
+  } catch (err) {
+    if (err instanceof AssigneeEligibilityError) {
+      throw new EscalationEngineError(
+        err.reason === "NOT_PLACED" ? "REVIEW_ASSIGNEE_NOT_PLACED" : "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+      );
+    }
+    throw err;
+  }
+}
 
 export class EscalationEngineError extends Error {
   constructor(
@@ -58,7 +86,9 @@ export class EscalationEngineError extends Error {
       | "REVIEW_INVALID_TRANSITION"
       | "REVIEW_WORKFLOW_NOT_FOUND"
       | "REVIEW_NOTE_REQUIRED"
-      | "REVIEW_PERMISSION_DENIED",
+      | "REVIEW_PERMISSION_DENIED"
+      | "REVIEW_ASSIGNEE_NOT_ELIGIBLE"
+      | "REVIEW_ASSIGNEE_NOT_PLACED",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -323,6 +353,16 @@ export async function createEscalation(
     }
   }
 
+  // An escalation routed to a named person gives them work: the one assignee
+  // rule applies (members audit, unassigned-member decision). Routing to the
+  // workflow's current assignee was already decided when they were assigned.
+  if (!input.routeToWorkspaceAdmins && input.assignedToUserId) {
+    await assertEscalationAssigneeEligible(client, {
+      teamId: input.teamId,
+      assigneeUserId: input.assignedToUserId,
+      evidenceId: input.evidenceId ?? workflow.evidenceId,
+    });
+  }
   const created = await client.reviewEscalation.create({
     data: {
       teamId: input.teamId,
@@ -543,6 +583,11 @@ export async function reassignEscalation(
 ): Promise<EscalationProjection> {
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "REASSIGNED");
+  await assertEscalationAssigneeEligible(client, {
+    teamId: input.teamId,
+    assigneeUserId: input.newAssigneeUserId,
+    evidenceId: row.evidenceId ?? null,
+  });
   const updated = await client.reviewEscalation.update({
     where: { id: row.id },
     data: {

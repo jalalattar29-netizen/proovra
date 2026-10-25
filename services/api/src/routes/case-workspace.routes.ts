@@ -118,7 +118,9 @@ function handleCaseError(reply: FastifyReply, err: unknown): boolean {
             // returns 403 so the frontend can render a precise toast.
             err.code === "comment_forbidden"
             ? 403
-            : 400;
+            : err.code === "assignee_not_placed"
+              ? 422
+              : 400;
     reply.code(status).send({ error: { code: err.code } });
     return true;
   }

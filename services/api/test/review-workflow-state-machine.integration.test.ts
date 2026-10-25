@@ -27,6 +27,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { bootIntegrationHarness, type IntegrationHarness, type TeamFixture } from "./integration-harness.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 let harness: IntegrationHarness;
 let A: TeamFixture;
@@ -97,6 +98,10 @@ beforeAll(async () => {
   A = harness.fixtures.teamA;
   B = harness.fixtures.teamB;
   ({ prisma } = await import("../src/db.js"));
+  // Reviews and cases go to members placed in a Collaboration Team (members
+  // audit, unassigned-member decision); this suite places its actors once.
+  await placeInCollaborationTeam(prisma, { workspaceId: A.teamId, createdByUserId: A.ownerUserId, userIds: [A.adminUserId, A.memberUserId, A.viewerUserId] });
+  await placeInCollaborationTeam(prisma, { workspaceId: B.teamId, createdByUserId: B.ownerUserId, userIds: [B.adminUserId, B.memberUserId, B.viewerUserId] });
   // The review workflow is a plan entitlement (reviewerOperationsIncluded);
   // the harness workspaces are FREE, so this suite runs on a TEAM plan.
   await prisma.team.update({ where: { id: A.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });

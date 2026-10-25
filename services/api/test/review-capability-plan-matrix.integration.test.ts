@@ -35,6 +35,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { bootIntegrationHarness, type IntegrationHarness, type TeamFixture } from "./integration-harness.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 let harness: IntegrationHarness;
 let A: TeamFixture;
@@ -157,6 +158,9 @@ beforeAll(async () => {
   harness = await bootIntegrationHarness();
   A = harness.fixtures.teamA;
   ({ prisma } = await import("../src/db.js"));
+  // Reviews and cases go to members placed in a Collaboration Team (members
+  // audit, unassigned-member decision); this suite places its actors once.
+  await placeInCollaborationTeam(prisma, { workspaceId: A.teamId, createdByUserId: A.ownerUserId, userIds: [A.adminUserId, A.memberUserId, A.viewerUserId] });
 });
 
 afterAll(async () => {

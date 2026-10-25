@@ -23,6 +23,7 @@ import {
   type IntegrationHarness,
   type TeamFixture,
 } from "./integration-harness.js";
+import { placeInCollaborationTeam } from "./support/place-in-collaboration-team.js";
 
 type JsonRequestInit = Omit<RequestInit, "body"> & {
   body?: unknown;
@@ -45,6 +46,8 @@ describe("Phase 37.98 — reviewer workflow lifecycle proof", () => {
     // enforced on its routes since 2026-10-23); the harness workspace is FREE.
     const { prisma } = await import("../src/db.js");
     await prisma.team.update({ where: { id: teamA.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
+    // Reviews go to members placed in a Collaboration Team (unassigned-member decision).
+    await placeInCollaborationTeam(prisma, { workspaceId: teamA.teamId, createdByUserId: teamA.ownerUserId, userIds: [teamA.adminUserId, teamA.memberUserId, teamA.viewerUserId] });
     api = {
       fetch: async (path, init) => {
         const res = await harness!.app.inject({

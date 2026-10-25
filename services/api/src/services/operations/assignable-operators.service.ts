@@ -38,6 +38,10 @@ import type { PrismaClient } from "@prisma/client";
 import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  assignmentRequiresPlacement,
+  placedUserIdsForWorkspace,
+} from "../assignment/assignee-eligibility.js";
 
 export type AssignableOperator = {
   userId: string;
@@ -83,6 +87,13 @@ export async function listAssignableOperators(
     orderBy: [{ role: "asc" }],
   });
 
+  // Queue work follows the one assignee rule (members audit, unassigned-member
+  // decision): where placement is required, an unplaced non-owner is not an
+  // operator yet — the picker never offers them and the server refuses them.
+  const placementRequired = await assignmentRequiresPlacement(input.teamId, client);
+  const placed = placementRequired
+    ? await placedUserIdsForWorkspace(input.teamId, members.map((m) => m.userId), client)
+    : null;
   return members
     .filter((m) =>
       roleHasPermission(
@@ -90,6 +101,7 @@ export async function listAssignableOperators(
         REQUIRED_ASSIGNEE_PERMISSION,
       ),
     )
+    .filter((m) => placed === null || placed.has(m.userId))
     .map((m) => ({
       userId: m.userId,
       displayName: m.user?.displayName ?? null,

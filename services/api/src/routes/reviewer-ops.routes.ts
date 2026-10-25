@@ -471,7 +471,8 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
           ? 403
           : err.code === "REVIEW_STEP_UP_REQUIRED"
             ? 401
-            : err.code === "REVIEW_ASSIGNEE_NOT_ELIGIBLE"
+            : err.code === "REVIEW_ASSIGNEE_NOT_ELIGIBLE" ||
+                err.code === "REVIEW_ASSIGNEE_NOT_PLACED"
               ? 422
               : 409;
     reply
@@ -486,7 +487,10 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
         ? 404
         : err.code === "REVIEW_PERMISSION_DENIED"
           ? 403
-          : 409;
+          : err.code === "REVIEW_ASSIGNEE_NOT_ELIGIBLE" ||
+              err.code === "REVIEW_ASSIGNEE_NOT_PLACED"
+            ? 422
+            : 409;
     reply
       .code(status)
       .send({ error: { code: err.code, details: err.details ?? null } });

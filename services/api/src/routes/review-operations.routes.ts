@@ -156,7 +156,9 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
         ? 404
         : err.code === "invalid_stage_transition"
           ? 409
-          : err.code === "note_required" || err.code === "assignee_not_eligible"
+          : err.code === "note_required" ||
+              err.code === "assignee_not_eligible" ||
+              err.code === "assignee_not_placed"
             ? 422
             : err.code === "permission_denied"
               ? 403

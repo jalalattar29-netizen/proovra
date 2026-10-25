@@ -2291,6 +2291,10 @@ model EnterpriseContract {
   /// while the shared operations surfaces (queues, escalation lists, the ops
   /// workspace view) need their tier again, like any downgrade.
   reviewerOperationsEnabled    Boolean?            @map("reviewer_operations_enabled")
+  /// Members audit (unassigned-member decision): TRUE requires Collaboration
+  /// Team placement before work is assigned; NULL/FALSE allow direct eligible
+  /// assignment (the Enterprise default).
+  assignmentRequiresTeamPlacement Boolean?         @map("assignment_requires_team_placement")
   region                  String?                  @db.VarChar(40)
   planVersion             String?                  @map("plan_version") @db.VarChar(40)
   billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)

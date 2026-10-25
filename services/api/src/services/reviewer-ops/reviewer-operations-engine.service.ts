@@ -146,7 +146,8 @@ export class ReviewerOpsError extends Error {
       | "REVIEW_NOTE_REQUIRED"
       | "REVIEW_WORKFLOW_NOT_FOUND"
       | "REVIEW_ACTOR_BLOCKED"
-      | "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+      | "REVIEW_ASSIGNEE_NOT_ELIGIBLE"
+      | "REVIEW_ASSIGNEE_NOT_PLACED",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -857,6 +858,7 @@ async function assignReviewerToWorkflowInner(
     if (err instanceof ReviewOperationError) {
       if (err.code === "workflow_not_found") throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
       if (err.code === "assignee_not_eligible") throw new ReviewerOpsError("REVIEW_ASSIGNEE_NOT_ELIGIBLE");
+      if (err.code === "assignee_not_placed") throw new ReviewerOpsError("REVIEW_ASSIGNEE_NOT_PLACED");
       bump("reviewer_invalid_transition_blocked_total");
       throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { fromLc, reason: err.code });
     }
