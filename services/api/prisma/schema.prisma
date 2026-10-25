@@ -1396,7 +1396,8 @@ model Team {
   /// `@proovra/shared-runtime`, never by hand.
   closedAtUtc DateTime? @map("closed_at_utc") @db.Timestamptz(6)
 
-  owner        User  @relation("TeamOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  // DOM-06 — Restrict: users are anonymised, never deleted; a delete must not cascade a workspace away.
+  owner        User  @relation("TeamOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   billingOwner User? @relation("TeamBillingOwner", fields: [billingOwnerUserId], references: [id], onDelete: SetNull)
 
   // Phase 2 Workflow Engine: workspace category drives default template
@@ -3566,6 +3567,8 @@ enum CustodyEventType {
   VERIFICATION_ACCESS_REINSTATED
   // Verification disclosure policy (2026-10-18) — administrative.
   VERIFICATION_DISCLOSURE_CHANGED
+  // Members audit LIFE-17: a removed member's records moved to the member taking them over.
+  EVIDENCE_OWNERSHIP_TRANSFERRED
 }
 
 enum AuthProvider {

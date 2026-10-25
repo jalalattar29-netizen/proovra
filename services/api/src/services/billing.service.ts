@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 // `computeOverSeatLimit` in this file — one quantity, one comparison.
 import * as prismaPkg from "@prisma/client";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
+import { emitPlatformAudit } from "./audit/tenant-audit.service.js";
 import {
   decidePaymentTransition,
   observedStateFromPaymentStatus,
@@ -207,7 +208,19 @@ export async function getActiveEntitlement(userId: string) {
 
 export async function setPersonalPlan(
   userId: string,
-  plan: prismaPkg.PlanType
+  plan: prismaPkg.PlanType,
+  /**
+   * Members audit ENT-12 — who or what changed the plan. This is THE single
+   * writer of `entitlements.plan`, so the from → to audit lives here and every
+   * path (the provider webhook included, which used to record analytics only)
+   * gets it.
+   */
+  origin: {
+    actorUserId?: string | null;
+    serviceActor?: string | null;
+    providerSubId?: string | null;
+    correlationId?: string | null;
+  } = {},
 ) {
   // ===========================================================================
   // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — TEAM IS A PERSONAL PLAN.
@@ -321,16 +334,50 @@ export async function setPersonalPlan(
     }
   }
 
-  await prisma.entitlement.updateMany({
-    where: {
-      userId,
-      active: true,
-    },
-    data: {
-      plan,
-      teamSeats: 0,
-      ...(overrideWrite ?? {}),
-    },
+  // The plan write and its from → to audit row commit together. The lock
+  // serialises two writers of this user's plan, so the "from" each one
+  // records is the plan the other left.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement-plan:${userId}`}))`;
+    const previous = await tx.entitlement.findFirst({
+      where: { userId, active: true },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    await tx.entitlement.updateMany({
+      where: {
+        userId,
+        active: true,
+      },
+      data: {
+        plan,
+        teamSeats: 0,
+        ...(overrideWrite ?? {}),
+      },
+    });
+    if (previous?.plan !== plan) {
+      await emitPlatformAudit(
+        {
+          action: "billing.entitlement_plan_changed",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: origin.actorUserId ?? null,
+          serviceActor: origin.serviceActor ?? null,
+          resourceType: "entitlement",
+          resourceId: userId,
+          correlationId: origin.correlationId ?? null,
+          previousState: previous?.plan ?? null,
+          resultingState: plan,
+          metadata: {
+            subjectUserId: userId,
+            fromPlan: previous?.plan ?? null,
+            toPlan: plan,
+            providerSubId: origin.providerSubId ?? null,
+          },
+        },
+        tx as never,
+      );
+    }
   });
 
   const next = await ensureEntitlement(userId);

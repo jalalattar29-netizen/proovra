@@ -97,6 +97,8 @@ type TeamInvite = {
   acceptedAt?: string | null;
   lastResentAt?: string | null;
   resendCount?: number;
+  /** Server projection: PENDING, or EXPIRED (still open; Resend renews it). */
+  status?: string;
 };
 
 /**
@@ -113,6 +115,8 @@ const RESEND_ERROR_COPY: Record<string, string> = {
     "That invitation no longer exists. The list has been reloaded.",
   INVITE_NOT_PENDING:
     "That invitation was already accepted or revoked, so it cannot be resent. The list has been reloaded.",
+  INVITE_RESEND_LIMIT:
+    "This invitation was already resent several times today. Try again tomorrow, or revoke it and send a new one.",
 };
 
 type TeamActivity = {
@@ -742,9 +746,20 @@ function TeamDetailPageBody() {
         });
       }
 
+      const invitedEmail = inviteEmail.trim();
       setInviteEmail("");
       setInviteRole("MEMBER");
-      addToast("Invitation created successfully", "success");
+      // Members audit INV-03 — say what actually happened: an invitation that
+      // exists but whose email did not go out is not a success the person can
+      // stop thinking about.
+      if (data?.emailSent === false) {
+        addToast(
+          `The invitation for ${invitedEmail} was created, but the email could not be delivered. Use Resend to try again.`,
+          "warning",
+        );
+      } else {
+        addToast(`Invitation sent to ${invitedEmail}.`, "success");
+      }
     } catch (err) {
       const message =
         toSafeUserError(err, { message: "Failed to invite member" }).message;
@@ -1270,7 +1285,7 @@ function TeamDetailPageBody() {
               data-app-metric-tone="warning"
             >
               <span className="app-metric-card__value">
-                {pendingInvites.length}
+                {pendingInvites.filter((i) => i.status !== "EXPIRED").length}
               </span>
               <span className="app-metric-card__label">Pending invitations</span>
               <span className="app-metric-card__meta">
@@ -1326,8 +1341,8 @@ function TeamDetailPageBody() {
             <div className="app-panel__body">
               <strong>Every seat is in use.</strong>{" "}
               <span className="app-table__muted">
-                A new person can be invited once a seat frees up, or when the
-                plan is changed.{" "}
+                You can still send invitations, but an invited person can join
+                only once a seat frees up or the contract adds seats.{" "}
                 <Link href={billingHref} className="app-table__link">
                   Review plan and seats
                 </Link>
@@ -1474,9 +1489,15 @@ function TeamDetailPageBody() {
                               : "—"}
                         </td>
                         <td data-label="Expires" className="app-table__muted">
-                          {invite.expiresAt
-                            ? formatUserDate(invite.expiresAt)
-                            : "—"}
+                          {invite.status === "EXPIRED" ? (
+                            <AppStatusText tone="amber">
+                              Expired{invite.expiresAt ? ` ${formatUserDate(invite.expiresAt)}` : ""} — resend to renew
+                            </AppStatusText>
+                          ) : invite.expiresAt ? (
+                            formatUserDate(invite.expiresAt)
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td data-label="" style={{ textAlign: "right" }}>
                           {canManageTeam ? (

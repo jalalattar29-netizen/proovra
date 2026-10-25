@@ -33,6 +33,11 @@
  *
  * Evidence, custody, anchors, and audit history are NEVER touched by any
  * transition here — retention/legal governance owns evidence destruction.
+ *
+ * Members audit AUD-01 / AUD-03 (2026-10-26): every transition's audit row is
+ * written INSIDE its transaction (it commits with the change or not at all)
+ * and carries the request's correlation id. A transfer tells the new owner
+ * (AUD-04), through the notification outbox.
  */
 
 import { prisma } from "../../db.js";
@@ -47,6 +52,8 @@ import {
   type TxClient,
 } from "../identity/membership-provisioning.service.js";
 import { ACTIVE_WORKSPACE_CLOSURE_STATUSES } from "./workspace-closure.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
+import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 
 export type WorkspaceLifecycleError = Error & {
   statusCode: number;
@@ -89,8 +96,10 @@ export async function transferWorkspaceOwnership(input: {
   teamId: string;
   actorUserId: string;
   newOwnerUserId: string;
+  correlationId?: string | null;
 }): Promise<{ teamId: string; fromUserId: string; toUserId: string }> {
   const { teamId, actorUserId, newOwnerUserId } = input;
+  let noticeId: string | null = null;
 
   const result = await prisma.$transaction(async (tx) => {
     // SERIALISED (members audit SEC-01). Two concurrent transfers by the owner
@@ -183,20 +192,31 @@ export async function transferWorkspaceOwnership(input: {
       },
     });
 
+    await emitTenantAudit(
+      {
+        action: "identity.workspace_ownership_transferred",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId,
+        workspaceId: teamId,
+        resourceType: "team",
+        resourceId: teamId,
+        correlationId: input.correlationId ?? null,
+        metadata: { fromUserId: actorUserId, toUserId: newOwnerUserId },
+      },
+      tx as never,
+    );
+    noticeId = await enqueueMembershipLifecycleNoticeTx(tx, {
+      eventType: "WORKSPACE_OWNERSHIP_RECEIVED",
+      teamId,
+      recipientUserId: newOwnerUserId,
+      actorUserId,
+    });
+
     return { teamId, fromUserId: actorUserId, toUserId: newOwnerUserId };
   });
 
-  await emitTenantAudit({
-    action: "identity.workspace_ownership_transferred",
-    outcome: "success",
-    sourceApp: "API",
-    actorUserId,
-    workspaceId: teamId,
-    resourceType: "team",
-    resourceId: teamId,
-    metadata: { fromUserId: actorUserId, toUserId: newOwnerUserId },
-  }).catch(() => null);
-
+  await dispatchEnqueuedEmailNotifications([noticeId]);
   return result;
 }
 
@@ -207,6 +227,7 @@ export async function transferWorkspaceOwnership(input: {
 export async function reopenClosedWorkspace(input: {
   teamId: string;
   actorUserId: string;
+  correlationId?: string | null;
 }): Promise<{ teamId: string }> {
   const { teamId, actorUserId } = input;
 
@@ -282,18 +303,25 @@ export async function reopenClosedWorkspace(input: {
         metadata: { closureRequestId: completed.id },
       },
     });
-  });
 
-  await emitTenantAudit({
-    action: "identity.workspace_reopened",
-    outcome: "success",
-    sourceApp: "API",
-    actorUserId,
-    workspaceId: teamId,
-    resourceType: "team",
-    resourceId: teamId,
-    metadata: {},
-  }).catch(() => null);
+    await emitTenantAudit(
+      {
+        action: "identity.workspace_reopened",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId,
+        workspaceId: teamId,
+        resourceType: "team",
+        resourceId: teamId,
+        correlationId: input.correlationId ?? null,
+        causationId: completed.id,
+        previousState: "CLOSED",
+        resultingState: "ACTIVE",
+        metadata: { closureRequestId: completed.id },
+      },
+      tx as never,
+    );
+  });
 
   return { teamId };
 }
@@ -312,6 +340,7 @@ export async function suspendOrganizationWorkspace(input: {
   actorUserId: string;
   /** When set, the team MUST belong to this organization (fail-closed). */
   organizationId?: string;
+  correlationId?: string | null;
 }): Promise<{ teamId: string; membersSuspended: number }> {
   const { teamId, actorUserId } = input;
 
@@ -376,20 +405,26 @@ export async function suspendOrganizationWorkspace(input: {
       },
     });
 
+    await emitTenantAudit(
+      {
+        action: "identity.workspace_suspended",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId,
+        organizationId: input.organizationId ?? null,
+        workspaceId: teamId,
+        resourceType: "team",
+        resourceId: teamId,
+        correlationId: input.correlationId ?? null,
+        previousState: "ACTIVE",
+        resultingState: "SUSPENDED",
+        metadata: { membersSuspended: suspended.count },
+      },
+      tx as never,
+    );
+
     return { teamId, membersSuspended: suspended.count };
   });
-
-  await emitTenantAudit({
-    action: "identity.workspace_suspended",
-    outcome: "success",
-    sourceApp: "API",
-    actorUserId,
-    organizationId: input.organizationId ?? null,
-    workspaceId: teamId,
-    resourceType: "team",
-    resourceId: teamId,
-    metadata: { membersSuspended: result.membersSuspended },
-  }).catch(() => null);
 
   return result;
 }
@@ -406,6 +441,7 @@ export async function resumeOrganizationWorkspace(input: {
   actorUserId: string;
   /** When set, the team MUST belong to this organization (fail-closed). */
   organizationId?: string;
+  correlationId?: string | null;
 }): Promise<{ teamId: string; membersReactivated: number }> {
   const { teamId, actorUserId } = input;
 
@@ -444,20 +480,26 @@ export async function resumeOrganizationWorkspace(input: {
       },
     });
 
+    await emitTenantAudit(
+      {
+        action: "identity.workspace_resumed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId,
+        organizationId: input.organizationId ?? null,
+        workspaceId: teamId,
+        resourceType: "team",
+        resourceId: teamId,
+        correlationId: input.correlationId ?? null,
+        previousState: "SUSPENDED",
+        resultingState: "ACTIVE",
+        metadata: { membersReactivated: reactivated.count },
+      },
+      tx as never,
+    );
+
     return { teamId, membersReactivated: reactivated.count };
   });
-
-  await emitTenantAudit({
-    action: "identity.workspace_resumed",
-    outcome: "success",
-    sourceApp: "API",
-    actorUserId,
-    organizationId: input.organizationId ?? null,
-    workspaceId: teamId,
-    resourceType: "team",
-    resourceId: teamId,
-    metadata: { membersReactivated: result.membersReactivated },
-  }).catch(() => null);
 
   return result;
 }

@@ -2569,7 +2569,7 @@ export async function billingRoutes(app: FastifyInstance) {
       // checkout-provider guards above; this route is 403'd in production).
       await assertPersonalCheckoutAllowed(userId, undefined);
 
-      await setPersonalPlan(userId, body.plan);
+      await setPersonalPlan(userId, body.plan, { actorUserId: userId, correlationId: req.id });
 
       const overview = await readBillingOverview(userId);
 

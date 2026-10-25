@@ -24,6 +24,9 @@ import {
   parseTeamDiscussionAccess,
   collaborationRoleLabel,
   parseTeamMemberLimit,
+  parseCollaborationEntitlement,
+  collaborationUnavailableCopy,
+  type CollaborationEntitlement,
   teamAtCapacity,
   COLLABORATION_ENTITLEMENT_PATH,
   type CollaborationTeamDetail,
@@ -62,6 +65,7 @@ export default function CollaborationTeamDetailScreen() {
   // T-12 — the per-group member ceiling, from the entitlement projection. An
   // unknown limit (read failed) never blocks: the server re-checks capacity.
   const [memberLimit, setMemberLimit] = useState<number | null>(null);
+  const [entitlement, setEntitlement] = useState<CollaborationEntitlement | null>(null);
   const [adding, setAdding] = useState(false);
   // The server's comment-moderation authority + whether the viewer is here by workspace governance only.
   const [discussionAccess, setDiscussionAccess] = useState({ canModerate: false, viaWorkspaceGovernance: false });
@@ -101,7 +105,10 @@ export default function CollaborationTeamDetailScreen() {
     let cancelled = false;
     apiFetch(COLLABORATION_ENTITLEMENT_PATH)
       .then((e) => {
-        if (!cancelled) setMemberLimit(parseTeamMemberLimit(e));
+        if (!cancelled) {
+          setMemberLimit(parseTeamMemberLimit(e));
+          setEntitlement(parseCollaborationEntitlement(e));
+        }
       })
       .catch(() => {
         /* additive — capacity is re-checked by the server on every add */
@@ -112,7 +119,7 @@ export default function CollaborationTeamDetailScreen() {
   }, []);
 
   if (phase === "loading") return <ProovraScreen shell scroll={false}><ProovraLoadingState label="Loading group" /></ProovraScreen>;
-  if (phase === "unavailable") return <ProovraScreen shell scroll={false}><ProovraEmptyState title="Not available" message="Collaboration groups are part of Team plans." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} /></ProovraScreen>;
+  if (phase === "unavailable") return <ProovraScreen shell scroll={false}><ProovraEmptyState title={collaborationUnavailableCopy(entitlement).title} message={collaborationUnavailableCopy(entitlement).purpose} action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} /></ProovraScreen>;
   if (phase === "notfound") return <ProovraScreen shell scroll={false}><ProovraEmptyState title="Group not found" message="This collaboration group is no longer available." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} /></ProovraScreen>;
   if (phase === "error" && error) return <ProovraScreen shell scroll={false}><ProovraErrorState message={error.message} requestId={error.requestId ?? null} onRetry={() => void load()} /></ProovraScreen>;
 

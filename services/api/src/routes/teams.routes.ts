@@ -56,6 +56,8 @@ import {
   revokeWorkspaceInvitation,
 } from "../services/identity/workspace-invitation.service.js";
 import { emitTenantAudit, emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { bump } from "../services/ops/metrics.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../services/notifications/index.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
@@ -92,6 +94,7 @@ import {
   transferWorkspaceOwnership,
 } from "../services/workspace/workspace-lifecycle.service.js";
 import {
+  appendCustodyEventTx,
   workspaceCaseWhere,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
@@ -321,18 +324,26 @@ async function createActivity(
   targetType: string,
   actorUserId: string | null,
   targetId?: string | null,
-  metadata?: Prisma.InputJsonValue
+  metadata?: Prisma.InputJsonValue,
+  /**
+   * Members audit AUD-01 — inside a mutation's transaction the activity row
+   * is part of the change: it commits with it, and a failure fails it.
+   */
+  tx?: Prisma.TransactionClient,
 ) {
+  const data: Prisma.TeamActivityUncheckedCreateInput = {
+    teamId,
+    eventType,
+    targetType,
+    actorUserId: actorUserId ?? null,
+    targetId: targetId ?? null,
+    ...(metadata !== undefined ? { metadata } : {}),
+  };
+  if (tx) {
+    await tx.teamActivity.create({ data });
+    return;
+  }
   try {
-    const data: Prisma.TeamActivityUncheckedCreateInput = {
-      teamId,
-      eventType,
-      targetType,
-      actorUserId: actorUserId ?? null,
-      targetId: targetId ?? null,
-      ...(metadata !== undefined ? { metadata } : {}),
-    };
-
     await prisma.teamActivity.create({ data });
   } catch (err) {
     console.error("Failed to log team activity:", err);
@@ -385,7 +396,15 @@ function getRequestPath(req: FastifyRequest): string {
 // all of a user's workspaces, or a "teams.create" failure before any row
 // exists) have no tenant subject yet, so those fall back to the PLATFORM
 // arm of the facade.
-function auditTeamAction(
+//
+// MEMBERS AUDIT AUD-01 / SEC-13 — NOT FIRE-AND-FORGET. Every call is awaited,
+// so a response never leaves before its audit row is durable. With `db` (a
+// mutation's transaction) the row commits or rolls back WITH the change, and
+// a failure to write it fails the change. Without one — a refusal, a read —
+// the action has already been decided; a failed write is then counted
+// (`platform_audit_append_failed_total`) and logged with the request id,
+// never silently dropped.
+async function auditTeamAction(
   req: FastifyRequest,
   params: {
     userId: string | null;
@@ -394,36 +413,53 @@ function auditTeamAction(
     severity?: "info" | "warning" | "critical";
     resourceId?: string | null;
     metadata?: Record<string, unknown>;
+    previousState?: string | null;
+    resultingState?: string | null;
+    db?: unknown;
   }
-) {
+): Promise<void> {
   const outcome =
     params.outcome === "blocked" ? "denied" : params.outcome === "failure" ? "error" : "success";
   const metadata = { ...(params.metadata ?? {}), severity: params.severity ?? "info" };
-  if (params.resourceId) {
-    void emitTenantAudit({
-      action: params.action,
-      outcome,
-      denialReason: outcome === "denied" ? params.action : undefined,
-      sourceApp: "API",
-      actorUserId: params.userId,
-      workspaceId: params.resourceId,
-      resourceType: "team",
-      resourceId: params.resourceId,
-      correlationId: req.id,
-      metadata,
-    }).catch(() => null);
-  } else {
-    void emitPlatformAudit({
-      action: params.action,
-      outcome,
-      denialReason: outcome === "denied" ? params.action : undefined,
-      sourceApp: "API",
-      actorUserId: params.userId,
-      resourceType: "team",
-      resourceId: null,
-      correlationId: req.id,
-      metadata,
-    }).catch(() => null);
+  try {
+    if (params.resourceId) {
+      await emitTenantAudit(
+        {
+          action: params.action,
+          outcome,
+          denialReason: outcome === "denied" ? params.action : undefined,
+          sourceApp: "API",
+          actorUserId: params.userId,
+          workspaceId: params.resourceId,
+          resourceType: "team",
+          resourceId: params.resourceId,
+          correlationId: req.id,
+          previousState: params.previousState ?? null,
+          resultingState: params.resultingState ?? null,
+          metadata,
+        },
+        params.db as never,
+      );
+    } else {
+      await emitPlatformAudit(
+        {
+          action: params.action,
+          outcome,
+          denialReason: outcome === "denied" ? params.action : undefined,
+          sourceApp: "API",
+          actorUserId: params.userId,
+          resourceType: "team",
+          resourceId: null,
+          correlationId: req.id,
+          metadata,
+        },
+        params.db as never,
+      );
+    }
+  } catch (err) {
+    if (params.db) throw err;
+    bump("platform_audit_append_failed_total");
+    req.log.error({ err, action: params.action, requestId: req.id }, "team_audit_append_failed");
   }
 }
 
@@ -526,7 +562,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           : 500;
 
       if (statusCode !== 500) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId: ownerUserId,
           action: "teams.create",
           outcome: "blocked",
@@ -545,7 +581,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       }
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId: ownerUserId,
         action: "teams.create",
         outcome: "failure",
@@ -623,7 +659,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       })
     );
 
-    auditTeamAction(req, {
+    await auditTeamAction(req, {
       userId,
       action: "teams.list",
       outcome: "success",
@@ -676,7 +712,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!team) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.view",
           outcome: "failure",
@@ -699,7 +735,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // as every other route here.
       const actorMembership = await getActorMembership(req, teamId, userId);
       if (!actorMembership) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.view",
           outcome: "blocked",
@@ -774,7 +810,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const workspaceUsage = await getWorkspaceUsage(workspaceScope);
       const effectiveSeatLimit = workspaceUsage.seatLimit;
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.view",
         outcome: "success",
@@ -1146,7 +1182,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.cases_list",
           outcome: "blocked",
@@ -1169,7 +1205,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.cases_list",
         outcome: "success",
@@ -1190,7 +1226,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invites_list",
           outcome: "blocked",
@@ -1217,12 +1253,16 @@ export async function teamsRoutes(app: FastifyInstance) {
        * platform-admin detail) already select explicitly; this one was the
        * outlier.
        */
+      // Members audit INV-05 — an EXPIRED invitation is still open: it was
+      // never accepted or withdrawn, and it still holds its address (a new
+      // invitation to it is the resend path). Hiding it made the panel say
+      // "nothing outstanding" while the address could not be invited. It is
+      // listed with its status (EXPIRED), and Resend renews it.
       const invites = await prisma.teamInvite.findMany({
         where: {
           teamId,
           acceptedAt: null,
           revokedAt: null,
-          expiresAt: { gt: new Date() },
         },
         orderBy: { createdAt: "desc" },
         take: 200,
@@ -1239,7 +1279,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         },
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.invites_list",
         outcome: "success",
@@ -1263,7 +1303,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.update",
           outcome: "blocked",
@@ -1279,7 +1319,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // route, with no step-up and no activity row. Retention is changed only
       // through the governed retention authority.
       if (body.retentionPolicy !== undefined) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.update",
           outcome: "blocked",
@@ -1294,32 +1334,41 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       }
 
-      const updated = await prisma.team.update({
-        where: { id: teamId },
-        data: {
-          name: body.name?.trim() ?? undefined,
-          legalName: body.legalName ?? undefined,
-          address: body.address ?? undefined,
-          logoUrl: body.logoUrl ?? undefined,
-          timezone: body.timezone ?? undefined,
-          legalEmail: body.legalEmail ? normalizeEmail(body.legalEmail) : undefined,
-        },
-      });
-
-      // The workspace trail records WHICH fields changed (members audit
-      // ROLE-05 / MEM-04: the "team_renamed" label in the UI had no writer).
-      await createActivity(teamId, "workspace_updated", "team", userId, teamId, {
-        updatedFields: Object.keys(body),
-      }).catch(() => null);
-
-      auditTeamAction(req, {
-        userId,
-        action: "teams.update",
-        outcome: "success",
-        resourceId: teamId,
-        metadata: {
-          updatedFields: Object.keys(body),
-        },
+      // One transaction (members audit AUD-01): the change, the workspace
+      // trail row recording WHICH fields changed (ROLE-05 / MEM-04) and the
+      // audit row commit together or not at all.
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.team.update({
+          where: { id: teamId },
+          data: {
+            name: body.name?.trim() ?? undefined,
+            legalName: body.legalName ?? undefined,
+            address: body.address ?? undefined,
+            logoUrl: body.logoUrl ?? undefined,
+            timezone: body.timezone ?? undefined,
+            legalEmail: body.legalEmail ? normalizeEmail(body.legalEmail) : undefined,
+          },
+        });
+        await createActivity(
+          teamId,
+          "workspace_updated",
+          "team",
+          userId,
+          teamId,
+          { updatedFields: Object.keys(body) },
+          tx,
+        );
+        await auditTeamAction(req, {
+          userId,
+          action: "teams.update",
+          outcome: "success",
+          resourceId: teamId,
+          metadata: {
+            updatedFields: Object.keys(body),
+          },
+          db: tx,
+        });
+        return row;
       });
 
       fireTeamAnalyticsEvent({
@@ -1363,7 +1412,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       if (!(await isWorkspaceOwnerOfRecord(req, teamId, userId))) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.delete",
           outcome: "blocked",
@@ -1405,7 +1454,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // Each refusal is written out with its literal code, so the code-coverage
       // guard (apps/web error-code-registry) sees exactly what this route emits.
       if (policy.closable) {
-        audit(WORKSPACE_LIFECYCLE_ERROR_CODES.CLOSURE_REQUIRED);
+        await audit(WORKSPACE_LIFECYCLE_ERROR_CODES.CLOSURE_REQUIRED);
         return sendBusinessRefusal(req, reply, 409, {
           code: "WORKSPACE_CLOSURE_REQUIRED",
           message:
@@ -1414,7 +1463,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           nextAction: policy.nextAction,
         });
       }
-      audit(WORKSPACE_LIFECYCLE_ERROR_CODES.KIND_NOT_DELETABLE);
+      await audit(WORKSPACE_LIFECYCLE_ERROR_CODES.KIND_NOT_DELETABLE);
       return sendBusinessRefusal(req, reply, 409, {
         code: "WORKSPACE_KIND_NOT_DELETABLE",
         message:
@@ -1440,7 +1489,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_create",
           outcome: "blocked",
@@ -1467,7 +1516,7 @@ export async function teamsRoutes(app: FastifyInstance) {
        */
       const invitedRole = body.role ?? prismaPkg.TeamRole.MEMBER;
       if (invitedRole === prismaPkg.TeamRole.OWNER) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_create",
           outcome: "blocked",
@@ -1480,7 +1529,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           .send({ error: { code: "role_transition_to_owner_forbidden" } });
       }
       if (!hasRole(actor.role, invitedRole)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_create",
           outcome: "blocked",
@@ -1574,8 +1623,30 @@ export async function teamsRoutes(app: FastifyInstance) {
           revokedAt: null,
         },
         orderBy: { createdAt: "desc" },
-        select: { id: true },
+        select: { id: true, role: true },
       });
+
+      // Members audit INV-03 — a repeat invitation at a DIFFERENT role used to
+      // resend the pending one at its old role and report success, so the
+      // role the operator chose was silently dropped. It is refused, with the
+      // role that is pending, and the operator decides.
+      if (existingPendingInvite && existingPendingInvite.role !== invitedRole) {
+        await auditTeamAction(req, {
+          userId,
+          action: "teams.invite_create",
+          outcome: "blocked",
+          severity: "info",
+          resourceId: teamId,
+          metadata: { reason: "INVITE_PENDING_WITH_DIFFERENT_ROLE", inviteId: existingPendingInvite.id },
+        });
+        return sendBusinessRefusal(req, reply, 409, {
+          code: "INVITE_PENDING_WITH_DIFFERENT_ROLE",
+          message:
+            "An invitation to this address is already pending with a different role. Revoke it and invite again to change the role.",
+          state: existingPendingInvite.role,
+          nextAction: "REVOKE_AND_REINVITE",
+        });
+      }
 
       if (existingPendingInvite) {
         /**
@@ -1587,17 +1658,28 @@ export async function teamsRoutes(app: FastifyInstance) {
          * arrive or went somewhere it should not have, and leaving the old one
          * valid fixes the delivery without fixing the exposure.
          */
-        const resent = await resendWorkspaceInvitation({
-          workspaceId: teamId,
-          inviteId: existingPendingInvite.id,
-        });
+        let resent;
+        try {
+          resent = await resendWorkspaceInvitation({
+            workspaceId: teamId,
+            inviteId: existingPendingInvite.id,
+            actorUserId: userId,
+          });
+        } catch (err) {
+          if (err instanceof WorkspaceInvitationError) {
+            return reply
+              .code(err.httpStatus)
+              .send({ error: { code: err.code }, message: err.message });
+          }
+          throw err;
+        }
         const emailSent = await deliverWorkspaceInvite({
           teamId,
           email,
           rawToken: resent.rawToken,
           log: req.log,
         });
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_resend",
           outcome: "success",
@@ -1639,7 +1721,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         // deliberate re-add. ACTIVE is already a member; SUSPENDED is reinstated
         // through the governed restore, never by a fresh invitation.
         if (existingMember && existingMember.status !== prismaPkg.TeamMemberStatus.REVOKED) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.invite_create",
             outcome: "blocked",
@@ -1719,7 +1801,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof WorkspaceInvitationError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.invite_create",
             outcome: "blocked",
@@ -1746,7 +1828,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         role: invite.role,
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.invite_create",
         outcome: "success",
@@ -1793,7 +1875,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_delete",
           outcome: "blocked",
@@ -1823,7 +1905,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof WorkspaceInvitationError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.invite_revoke",
             outcome: "failure",
@@ -1842,7 +1924,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         email: revoked.email,
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.invite_revoke",
         outcome: "success",
@@ -1866,7 +1948,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.member_update",
           outcome: "blocked",
@@ -1880,7 +1962,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const target = await getTeamMemberByMemberId(teamId, memberId);
 
       if (!target) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.member_update",
           outcome: "failure",
@@ -1900,7 +1982,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         await preflightMemberMutation({ teamId, teamMemberId: target.id, actorUserId: userId, newRole: body.role });
       } catch (err) {
         if (err instanceof RbacError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.member_update",
             outcome: "blocked",
@@ -1951,6 +2033,7 @@ export async function teamsRoutes(app: FastifyInstance) {
             teamMemberId: target.id,
             actorUserId: userId,
             newRole: body.role,
+            correlationId: req.id,
             ipAddress: req.ip ?? null,
             userAgent:
               typeof req.headers["user-agent"] === "string"
@@ -1961,7 +2044,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         );
       } catch (err) {
         if (err instanceof RbacError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.member_update",
             outcome: "blocked",
@@ -1981,12 +2064,14 @@ export async function teamsRoutes(app: FastifyInstance) {
         role: body.role,
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.member_update",
         outcome: "success",
         resourceId: teamId,
-        metadata: { memberId: target.id, userId: target.userId, role: body.role },
+        previousState: target.role,
+        resultingState: body.role,
+        metadata: { memberId: target.id, userId: target.userId, fromRole: target.role, role: body.role },
       });
 
       fireTeamAnalyticsEvent({
@@ -2185,7 +2270,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.member_delete",
           outcome: "blocked",
@@ -2199,7 +2284,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const target = await getTeamMemberByMemberId(teamId, memberId);
 
       if (!target) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.member_delete",
           outcome: "failure",
@@ -2211,7 +2296,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       if (target.role === prismaPkg.TeamRole.OWNER) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.member_delete",
           outcome: "blocked",
@@ -2229,7 +2314,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         await preflightMemberMutation({ teamId, teamMemberId: target.id, actorUserId: userId });
       } catch (err) {
         if (err instanceof RbacError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.member_delete",
             outcome: "blocked",
@@ -2270,7 +2355,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const hasOwnedRecords = ownedEvidenceCount > 0 || ownedCaseCount > 0;
 
       if (hasOwnedRecords && !transferToUserId) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.member_delete",
           outcome: "blocked",
@@ -2311,6 +2396,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // rank, self and last-administrator rules apply. The transfer target is
       // re-validated INSIDE the transaction, so a concurrent removal of the
       // target cannot leave records owned by a non-member.
+      const noticeIds: string[] = [];
       try {
         await prisma.$transaction(async (tx) => {
           if (transferToUserId) {
@@ -2327,14 +2413,32 @@ export async function teamsRoutes(app: FastifyInstance) {
             }
           }
           if (transferToUserId && hasOwnedRecords) {
+            const evidenceWhere = {
+              AND: [await workspaceEvidenceWhere(teamId, prisma)],
+              ownerUserId: target.userId,
+              lifecycleState: { not: "DESTROYED" as const },
+            };
+            const moved = await tx.evidence.findMany({ where: evidenceWhere, select: { id: true } });
             await tx.evidence.updateMany({
-              where: {
-                AND: [await workspaceEvidenceWhere(teamId, prisma)],
-                ownerUserId: target.userId,
-                lifecycleState: { not: "DESTROYED" },
-              },
+              where: { id: { in: moved.map((e) => e.id) } },
               data: { ownerUserId: transferToUserId },
             });
+            // Members audit LIFE-17 — each moved record's chain says why its
+            // owner changed, in the same transaction as the change.
+            for (const e of moved) {
+              await appendCustodyEventTx(tx, {
+                evidenceId: e.id,
+                eventType: prismaPkg.CustodyEventType.EVIDENCE_OWNERSHIP_TRANSFERRED,
+                payload: {
+                  fromUserId: target.userId,
+                  toUserId: transferToUserId,
+                  reason: "member_removed",
+                  byUserId: userId,
+                },
+                ip: req.ip,
+                userAgent: req.headers["user-agent"],
+              });
+            }
             await tx.case.updateMany({
               where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
               data: { ownerUserId: transferToUserId },
@@ -2346,12 +2450,37 @@ export async function teamsRoutes(app: FastifyInstance) {
               teamMemberId: target.id,
               actorUserId: userId,
               reason: "removed_from_workspace",
+              correlationId: req.id,
+              noticeSink: noticeIds,
               ipAddress: req.ip ?? null,
               userAgent:
                 typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
             },
             tx as unknown as typeof prisma,
           );
+          // The trail and the audit commit with the removal (members audit AUD-01).
+          await createActivity(teamId, "member_removed", "member", userId, target.userId, undefined, tx);
+          if (transferToUserId && hasOwnedRecords) {
+            // Record the transfer as its own activity so the team audit
+            // trail explains why ownership rows moved.
+            await createActivity(teamId, "ownership_transferred", "member", userId, target.userId, undefined, tx);
+          }
+          await auditTeamAction(req, {
+            userId,
+            action: "teams.member_delete",
+            outcome: "success",
+            resourceId: teamId,
+            previousState: target.status,
+            resultingState: "REVOKED",
+            metadata: {
+              memberId: target.id,
+              userId: target.userId,
+              transferredToUserId: transferToUserId,
+              ownedEvidenceCount,
+              ownedCaseCount,
+            },
+            db: tx,
+          });
         });
       } catch (err) {
         if (err instanceof InvalidTransferTargetError) {
@@ -2362,7 +2491,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           });
         }
         if (err instanceof RbacError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.member_delete",
             outcome: "blocked",
@@ -2375,34 +2504,8 @@ export async function teamsRoutes(app: FastifyInstance) {
         throw err;
       }
 
+      await dispatchEnqueuedEmailNotifications(noticeIds);
       await refreshTeamSeatState(teamId);
-
-      await createActivity(teamId, "member_removed", "member", userId, target.userId);
-      if (transferToUserId && hasOwnedRecords) {
-        // Record the transfer as its own activity so the team audit
-        // trail explains why ownership rows moved.
-        await createActivity(
-          teamId,
-          "ownership_transferred",
-          "member",
-          userId,
-          target.userId,
-        ).catch(() => null);
-      }
-
-      auditTeamAction(req, {
-        userId,
-        action: "teams.member_delete",
-        outcome: "success",
-        resourceId: teamId,
-        metadata: {
-          memberId: target.id,
-          userId: target.userId,
-          transferredToUserId: transferToUserId,
-          ownedEvidenceCount,
-          ownedCaseCount,
-        },
-      });
 
       fireTeamAnalyticsEvent({
         eventType: "team_member_removed",
@@ -2616,7 +2719,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           });
         }
 
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_accept",
           outcome: "success",
@@ -2634,7 +2737,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof WorkspaceInvitationError) {
-          auditTeamAction(req, {
+          await auditTeamAction(req, {
             userId,
             action: "teams.invite_accept",
             outcome: "blocked",
@@ -2672,7 +2775,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_resend",
           outcome: "blocked",
@@ -2687,6 +2790,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         const resent = await resendWorkspaceInvitation({
           workspaceId: teamId,
           inviteId,
+          actorUserId: userId,
         });
         const emailSent = await deliverWorkspaceInvite({
           teamId,
@@ -2694,7 +2798,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           rawToken: resent.rawToken,
           log: req.log,
         });
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.invite_resend",
           outcome: "success",
@@ -2726,7 +2830,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.activity_list",
           outcome: "blocked",
@@ -2817,7 +2921,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         };
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.activity_list",
         outcome: "success",
@@ -2841,7 +2945,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.MEMBER)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.case_link",
           outcome: "blocked",
@@ -2868,7 +2972,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         candidate && (candidate.teamId === teamId || ownerIsActiveMember) ? candidate : null;
 
       if (!caseItem) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.case_link",
           outcome: "failure",
@@ -2880,7 +2984,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       if (caseItem.teamId) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.case_link",
           outcome: "blocked",
@@ -2892,7 +2996,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       if (caseItem.ownerUserId !== userId && !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.case_link",
           outcome: "blocked",
@@ -2912,7 +3016,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         caseName: updated.name,
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.case_link",
         outcome: "success",
@@ -2943,7 +3047,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.case_unlink",
           outcome: "blocked",
@@ -2959,7 +3063,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       });
 
       if (!caseItem || caseItem.teamId !== teamId) {
-        auditTeamAction(req, {
+        await auditTeamAction(req, {
           userId,
           action: "teams.case_unlink",
           outcome: "failure",
@@ -2979,7 +3083,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         caseName: updated.name,
       });
 
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.case_unlink",
         outcome: "success",
@@ -3394,7 +3498,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       // Audit the per-case revoke action (matches the existing
       // `cases.access_revoke` taxonomy) and a parent team event so
       // the team activity feed surfaces it.
-      auditTeamAction(req, {
+      await auditTeamAction(req, {
         userId,
         action: "teams.external_access_revoked",
         outcome: "success",
@@ -3639,28 +3743,35 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const { blockers } = await evaluateWorkspaceClosurePreflight(teamId);
       if (blockers.length > 0) {
-        const blocked = await prisma.workspaceClosureRequest.create({
-          data: {
-            teamId,
-            requestedByUserId: userId,
-            status: "BLOCKED",
-            reason: body.reason ?? null,
-            blockersJson: JSON.stringify(blockers),
-          },
-          select: { id: true },
+        // The request row and its audit commit together (members audit AUD-01).
+        await prisma.$transaction(async (tx) => {
+          const blocked = await tx.workspaceClosureRequest.create({
+            data: {
+              teamId,
+              requestedByUserId: userId,
+              status: "BLOCKED",
+              reason: body.reason ?? null,
+              blockersJson: JSON.stringify(blockers),
+            },
+            select: { id: true },
+          });
+          await emitTenantAudit(
+            {
+              action: "identity.workspace_closure_blocked",
+              outcome: "denied",
+              denialReason: "closure_blocked",
+              sourceApp: "API",
+              actorUserId: userId,
+              workspaceId: teamId,
+              resourceType: "workspace_closure_request",
+              resourceId: blocked.id,
+              correlationId: req.id,
+              resultingState: "BLOCKED",
+              metadata: { blockers: blockers.map((b) => b.code) },
+            },
+            tx as never,
+          );
         });
-        await emitTenantAudit({
-          action: "identity.workspace_closure_blocked",
-          outcome: "denied",
-          denialReason: "closure_blocked",
-          sourceApp: "API",
-          actorUserId: userId,
-          workspaceId: teamId,
-          resourceType: "workspace_closure_request",
-          resourceId: blocked.id,
-          correlationId: req.id,
-          metadata: { blockers: blockers.map((b) => b.code) },
-        }).catch(() => null);
         return reply
           .code(409)
           .send({ error: { code: "closure_blocked" }, blockers });
@@ -3669,29 +3780,36 @@ export async function teamsRoutes(app: FastifyInstance) {
       const coolingOffEndsAtUtc = new Date(
         Date.now() + WORKSPACE_CLOSURE_COOLING_OFF_MS,
       );
-      const created = await prisma.workspaceClosureRequest.create({
-        data: {
-          teamId,
-          requestedByUserId: userId,
-          status: "COOLING_OFF",
-          reason: body.reason ?? null,
-          coolingOffEndsAtUtc,
-        },
-        select: WORKSPACE_CLOSURE_SELECT,
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await tx.workspaceClosureRequest.create({
+          data: {
+            teamId,
+            requestedByUserId: userId,
+            status: "COOLING_OFF",
+            reason: body.reason ?? null,
+            coolingOffEndsAtUtc,
+          },
+          select: WORKSPACE_CLOSURE_SELECT,
+        });
+        await emitTenantAudit(
+          {
+            action: "identity.workspace_closure_requested",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: userId,
+            workspaceId: teamId,
+            resourceType: "workspace_closure_request",
+            resourceId: row.id,
+            correlationId: req.id,
+            resultingState: "COOLING_OFF",
+            metadata: {
+              coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
+            },
+          },
+          tx as never,
+        );
+        return row;
       });
-      await emitTenantAudit({
-        action: "identity.workspace_closure_requested",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: userId,
-        workspaceId: teamId,
-        resourceType: "workspace_closure_request",
-        resourceId: created.id,
-        correlationId: req.id,
-        metadata: {
-          coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
-        },
-      }).catch(() => null);
       return reply.code(201).send({ request: created });
     },
   );
@@ -3708,13 +3826,33 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 
-      const cancelled = await prisma.workspaceClosureRequest.updateMany({
-        where: {
-          id: params.requestId,
-          teamId: params.id,
-          status: { in: [...CANCELLABLE_WORKSPACE_CLOSURE_STATUSES] },
-        },
-        data: { status: "CANCELLED", cancelledAtUtc: new Date() },
+      const cancelled = await prisma.$transaction(async (tx) => {
+        const moved = await tx.workspaceClosureRequest.updateMany({
+          where: {
+            id: params.requestId,
+            teamId: params.id,
+            status: { in: [...CANCELLABLE_WORKSPACE_CLOSURE_STATUSES] },
+          },
+          data: { status: "CANCELLED", cancelledAtUtc: new Date() },
+        });
+        if (moved.count > 0) {
+          await emitTenantAudit(
+            {
+              action: "identity.workspace_closure_cancelled",
+              outcome: "success",
+              sourceApp: "API",
+              actorUserId: userId,
+              workspaceId: params.id,
+              resourceType: "workspace_closure_request",
+              resourceId: params.requestId,
+              correlationId: req.id,
+              resultingState: "CANCELLED",
+              metadata: {},
+            },
+            tx as never,
+          );
+        }
+        return moved;
       });
       if (cancelled.count === 0) {
         const exists = await prisma.workspaceClosureRequest.findFirst({
@@ -3729,17 +3867,6 @@ export async function teamsRoutes(app: FastifyInstance) {
           .send({ error: { code: "closure_not_cancellable" } });
       }
 
-      await emitTenantAudit({
-        action: "identity.workspace_closure_cancelled",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: userId,
-        workspaceId: params.id,
-        resourceType: "workspace_closure_request",
-        resourceId: params.requestId,
-        correlationId: req.id,
-        metadata: {},
-      }).catch(() => null);
       const row = await prisma.workspaceClosureRequest.findFirst({
         where: { id: params.requestId, teamId: params.id },
         select: WORKSPACE_CLOSURE_SELECT,
@@ -3793,6 +3920,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           teamId,
           actorUserId: userId,
           newOwnerUserId: body.newOwnerUserId,
+          correlationId: req.id,
         });
         return reply.code(200).send({ transfer: result });
       } catch (err) {
@@ -3818,6 +3946,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         const result = await reopenClosedWorkspace({
           teamId,
           actorUserId: userId,
+          correlationId: req.id,
         });
         return reply.code(200).send({ reopened: result });
       } catch (err) {

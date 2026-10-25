@@ -28,6 +28,7 @@ import {
   COLLABORATION_TEAMS_PATH,
   COLLABORATION_TEAM_TYPES,
   TEAMS_PLAN_LOCKED_COPY,
+  collaborationUnavailableCopy,
   buildCreateTeamBody,
   createDisabledReason,
   formatTeamLimitReachedMessage,
@@ -281,10 +282,7 @@ export default function CollaborationScreen() {
       {phase === "loading" ? (
         <ProovraLoadingState label="Loading Teams" />
       ) : phase === "unavailable" ? (
-        <ProovraEmpty
-          title="Collaboration isn’t available here"
-          purpose="Collaboration groups are part of Team plans. Your evidence in Personal Space is unaffected."
-        />
+        <ProovraEmpty {...collaborationUnavailableCopy(entitlement)} />
       ) : phase === "error" && error ? (
         <ProovraCard testID="teams-error">
           <View style={styles.inline}>

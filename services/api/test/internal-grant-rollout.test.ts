@@ -113,6 +113,11 @@ describe("internal-grant rollout — migration state", () => {
       // Members audit ACC-01/ACC-10: a Collaboration Team's reach into a Case.
       // One new empty table; EXPAND only.
       "20281025000000_case_collaboration_team_access",
+      // Members audit LIFE-17: one custody enum value. EXPAND only.
+      "20281026000000_custody_evidence_ownership_transferred",
+      // Members audit DOM-12 / DOM-06: history refusal triggers and the owner
+      // FK delete rule (CASCADE → RESTRICT). EXPAND only.
+      "20281026000100_members_history_append_only_owner_restrict",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

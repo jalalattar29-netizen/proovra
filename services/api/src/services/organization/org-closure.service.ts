@@ -33,6 +33,7 @@ import { evaluateOrganizationClosurePreflight } from "../identity/account-lifecy
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
 import { CLOSURE_STALE_MS, closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
 import { isContractTerminationClosure } from "./enterprise-termination.service.js";
 import { transitionEnterpriseContractStatusTx } from "./enterprise-contract.service.js";
 
@@ -78,10 +79,15 @@ export async function executeOrganizationClosure(input: {
   requestedByUserId: string;
   /** Members audit LIFE-16 — this closure executes a contract termination. */
   terminateContract?: boolean;
+  /**
+   * Members audit AUD-01 — the request's COMPLETED state and its audit row
+   * commit in the SAME transaction as the closure.
+   */
+  closureRequestId?: string;
 }): Promise<void> {
   const { organizationId, requestedByUserId } = input;
 
-  await prisma.$transaction(async (tx) => {
+  const noticeIds = await prisma.$transaction(async (tx) => {
     const orgTeams = await tx.team.findMany({
       where: { organizationId },
       select: { id: true },
@@ -95,7 +101,7 @@ export async function executeOrganizationClosure(input: {
     // Members audit LIFE-10 / LIFE-12 — the ONE closure leg set: memberships
     // (and their reach), invitations, machine access, external grants and
     // pointers, and the durable `closedAtUtc` on every org workspace.
-    await closeWorkspacesTx(tx, {
+    const closed = await closeWorkspacesTx(tx, {
       teamIds,
       actorUserId: requestedByUserId,
       reason: "organization closure",
@@ -115,6 +121,76 @@ export async function executeOrganizationClosure(input: {
       targetId: organizationId,
       metadata: { workspacesArchived: teamIds.length },
     });
+    if (input.closureRequestId) {
+      await tx.organizationClosureRequest.update({
+        where: { id: input.closureRequestId },
+        data: { status: "COMPLETED", completedAtUtc: new Date() },
+      });
+      await emitTenantAudit(
+        {
+          action: "identity.organization_closure_completed",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: requestedByUserId,
+          serviceActor: "org_closure_worker",
+          organizationId,
+          resourceType: "organization_closure_request",
+          resourceId: input.closureRequestId,
+          causationId: input.closureRequestId,
+          previousState: "PROCESSING",
+          resultingState: "COMPLETED",
+          metadata: { workspacesArchived: teamIds.length, terminateContract: input.terminateContract === true },
+        },
+        tx as never,
+      );
+    }
+    return closed.noticeIds;
+  });
+  await dispatchEnqueuedEmailNotifications(noticeIds);
+}
+
+/** A closure request's terminal refusal or failure, and its audit, in one transaction. */
+async function recordOrganizationClosureOutcome(input: {
+  requestId: string;
+  organizationId: string;
+  requestedByUserId: string;
+  fromStatus: string;
+  outcome: "BLOCKED" | "FAILED";
+  blockers?: Array<{ code: string }>;
+}): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const moved = await tx.organizationClosureRequest.updateMany({
+      where: { id: input.requestId, status: input.fromStatus },
+      data:
+        input.outcome === "BLOCKED"
+          ? { status: "BLOCKED", blockersJson: JSON.stringify(input.blockers ?? []) }
+          : { status: "FAILED", failureCode: "closure_failed" },
+    });
+    if (moved.count === 0) return;
+    await emitTenantAudit(
+      {
+        action:
+          input.outcome === "BLOCKED"
+            ? "identity.organization_closure_blocked"
+            : "identity.organization_closure_failed",
+        outcome: input.outcome === "BLOCKED" ? "denied" : "error",
+        ...(input.outcome === "BLOCKED" ? { denialReason: "closure_blocked" } : {}),
+        sourceApp: "API",
+        actorUserId: input.requestedByUserId,
+        serviceActor: "org_closure_worker",
+        organizationId: input.organizationId,
+        resourceType: "organization_closure_request",
+        resourceId: input.requestId,
+        causationId: input.requestId,
+        previousState: input.fromStatus,
+        resultingState: input.outcome,
+        metadata:
+          input.outcome === "BLOCKED"
+            ? { blockers: (input.blockers ?? []).map((b) => b.code) }
+            : { failureCode: "closure_failed" },
+      },
+      tx as never,
+    );
   });
 }
 
@@ -168,22 +244,14 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
         )
       : preflight.blockers;
     if (blockers.length > 0) {
-      await prisma.organizationClosureRequest.updateMany({
-        where: { id: req.id, status: req.status },
-        data: { status: "BLOCKED", blockersJson: JSON.stringify(blockers) },
-      });
-      await emitTenantAudit({
-        action: "identity.organization_closure_blocked",
-        outcome: "denied",
-        denialReason: "closure_blocked",
-        sourceApp: "API",
-        actorUserId: req.requestedByUserId,
-        serviceActor: "org_closure_worker",
+      await recordOrganizationClosureOutcome({
+        requestId: req.id,
         organizationId: req.organizationId,
-        resourceType: "organization_closure_request",
-        resourceId: req.id,
-        metadata: { blockers: blockers.map((b) => b.code) },
-      }).catch(() => null);
+        requestedByUserId: req.requestedByUserId,
+        fromStatus: req.status,
+        outcome: "BLOCKED",
+        blockers,
+      });
       continue;
     }
 
@@ -198,39 +266,17 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
         organizationId: req.organizationId,
         requestedByUserId: req.requestedByUserId,
         terminateContract: termination,
+        closureRequestId: req.id,
       });
-      await prisma.organizationClosureRequest.update({
-        where: { id: req.id },
-        data: { status: "COMPLETED", completedAtUtc: new Date() },
-      });
-      await emitTenantAudit({
-        action: "identity.organization_closure_completed",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: req.requestedByUserId,
-        serviceActor: "org_closure_worker",
-        organizationId: req.organizationId,
-        resourceType: "organization_closure_request",
-        resourceId: req.id,
-        metadata: {},
-      }).catch(() => null);
     } catch {
-      await prisma.organizationClosureRequest
-        .update({
-          where: { id: req.id },
-          data: { status: "FAILED", failureCode: "closure_failed" },
-        })
-        .catch(() => null);
-      await emitTenantAudit({
-        action: "identity.organization_closure_failed",
-        outcome: "error",
-        sourceApp: "API",
-        actorUserId: req.requestedByUserId,
-        serviceActor: "org_closure_worker",
+      // The closure rolled back as a unit. If recording the failure fails
+      // too, the request stays PROCESSING and the reaper resumes it.
+      await recordOrganizationClosureOutcome({
+        requestId: req.id,
         organizationId: req.organizationId,
-        resourceType: "organization_closure_request",
-        resourceId: req.id,
-        metadata: { failureCode: "closure_failed" },
+        requestedByUserId: req.requestedByUserId,
+        fromStatus: "PROCESSING",
+        outcome: "FAILED",
       }).catch(() => null);
     }
   }

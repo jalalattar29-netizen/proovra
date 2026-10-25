@@ -611,7 +611,7 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
 
     setSubscription("I-ACT", { status: "ACTIVE", status_update_time: "2026-09-25T10:05:00Z" });
     await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-ACT", status: "ACTIVE" });
-    expect(billingService.setPersonalPlan).toHaveBeenCalledWith(USER, "PRO");
+    expect(billingService.setPersonalPlan).toHaveBeenCalledWith(USER, "PRO", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
   });
 
   it("out of order: a late CREATED event (live read unavailable) cannot revoke an ACTIVE plan", async () => {
@@ -629,17 +629,17 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
     });
 
     expect(state.subRows.get("I-OOO")?.status).toBe("ACTIVE");
-    expect(billingService.setPersonalPlan).not.toHaveBeenCalledWith(USER, "FREE");
+    expect(billingService.setPersonalPlan).not.toHaveBeenCalledWith(USER, "FREE", expect.anything());
   });
 
   it("upgrade: after a revise, the billed plan_id (TEAM) wins over the stale custom_id (PRO)", async () => {
     setSubscription("I-UP", { status: "ACTIVE" });
     await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-UP" });
-    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "PRO");
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "PRO", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
 
     setSubscription("I-UP", { status: "ACTIVE", plan_id: "P-TEAM-USD", status_update_time: "2026-09-26T10:00:00Z" });
     await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-UP" });
-    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "TEAM");
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "TEAM", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
     expect(state.subRows.get("I-UP")?.plan).toBe("TEAM");
   });
 
@@ -652,7 +652,7 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
 
     setSubscription("I-DOWN", { status: "ACTIVE", plan_id: "P-PRO-USD", custom_id: `${USER}::TEAM`, status_update_time: "2026-09-26T10:00:00Z" });
     await deliver("BILLING.SUBSCRIPTION.UPDATED", { id: "I-DOWN" });
-    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "TEAM");
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "TEAM", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
   });
 
   it("cancellation returns the account to FREE", async () => {
@@ -660,7 +660,7 @@ describe("PayPal subscriptions — no entitlement before activation", () => {
     await deliver("BILLING.SUBSCRIPTION.ACTIVATED", { id: "I-CAN" });
     setSubscription("I-CAN", { status: "CANCELLED", status_update_time: "2026-09-27T10:00:00Z" });
     await deliver("BILLING.SUBSCRIPTION.CANCELLED", { id: "I-CAN" });
-    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "FREE");
+    expect(billingService.setPersonalPlan).toHaveBeenLastCalledWith(USER, "FREE", expect.objectContaining({ serviceActor: "billing_provider_webhook" }));
   });
 
   it("the return confirmation is bound to the signed-in account", async () => {

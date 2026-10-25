@@ -682,31 +682,119 @@ export async function processDueNotificationRetries(
   });
 
   for (const row of candidates) {
-    // Atomic claim: only proceed if the row is still RETRY_SCHEDULED. If a
-    // concurrent sweeper picked it up first, updateMany returns count 0
-    // and we skip it.
-    const claim = await client.notificationDelivery.updateMany({
-      where: { id: row.id, status: "RETRY_SCHEDULED" },
-      data: { status: "PENDING" },
-    });
-    if (claim.count !== 1) continue;
+    const result = await claimAndDispatch(row.id, client);
+    if (result === "not_claimed") continue;
     summary.pickedUp += 1;
-
-    const refreshed = await client.notificationDelivery.findUnique({
-      where: { id: row.id },
-    });
-    if (!refreshed) continue;
-    try {
-      const result = await dispatchDelivery(refreshed, client);
-      if (result.status === "sent") summary.resent += 1;
-      else if (result.status === "retry_scheduled") summary.rescheduled += 1;
-      else summary.failed += 1;
-    } catch {
-      summary.failed += 1;
-    }
+    if (result === "sent") summary.resent += 1;
+    else if (result === "retry_scheduled") summary.rescheduled += 1;
+    else summary.failed += 1;
   }
 
   return summary;
+}
+
+/**
+ * The ONE claim of a scheduled delivery, shared by the sweeper and the
+ * post-commit dispatch below. Atomic: only a row still RETRY_SCHEDULED is
+ * taken, so a sweeper and an inline dispatch racing on the same row send it
+ * once.
+ */
+async function claimAndDispatch(
+  deliveryId: string,
+  client: PrismaClient,
+): Promise<"not_claimed" | NotificationSendResult["status"] | "threw"> {
+  const claim = await client.notificationDelivery.updateMany({
+    where: { id: deliveryId, status: "RETRY_SCHEDULED" },
+    data: { status: "PENDING" },
+  });
+  if (claim.count !== 1) return "not_claimed";
+  const refreshed = await client.notificationDelivery.findUnique({
+    where: { id: deliveryId },
+  });
+  if (!refreshed) return "not_claimed";
+  try {
+    return (await dispatchDelivery(refreshed, client)).status;
+  } catch {
+    return "threw";
+  }
+}
+
+// -----------------------------------------------------------------------------
+// THE NOTIFICATION OUTBOX (members audit AUD-04).
+//
+// `sendEmailNotification` sends after the business write has committed, so a
+// crash between the two loses the message, and a rolled-back write can still
+// have sent one. A lifecycle notice ("your access was removed") must be
+// neither lost nor sent for a change that did not happen. So the delivery row
+// is written INSIDE the caller's transaction, already scheduled
+// (RETRY_SCHEDULED, due now, retryCount 0): it commits or rolls back with the
+// change. After the commit the caller dispatches it inline
+// (`dispatchEnqueuedEmailNotifications`); if that never runs, the existing
+// sweeper (`processDueNotificationRetries`) claims it through the same claim.
+// No second queue: the NotificationDelivery table is the outbox.
+// -----------------------------------------------------------------------------
+
+export async function enqueueEmailNotificationTx(
+  tx: Prisma.TransactionClient,
+  input: SendEmailNotificationInput,
+): Promise<string | null> {
+  const recipientEmail = (input.recipientEmail ?? "").trim();
+  if (!recipientEmail) return null;
+  const base = {
+    teamId: input.teamId ?? null,
+    eventType: input.eventType,
+    channel: "EMAIL" as const,
+    provider: "RESEND" as const,
+    recipient: recipientEmail,
+    recipientName: input.recipientName ?? null,
+    recipientUserId: input.recipientUserId ?? null,
+    evidenceRequestId: input.evidenceRequestId ?? null,
+    evidenceId: input.evidenceId ?? null,
+    intakeLinkId: input.intakeLinkId ?? null,
+    templateKey: input.eventType,
+    initiatedByUserId: input.initiatedByUserId ?? null,
+  };
+  if (!isNotificationsFeatureEnabled()) {
+    await tx.notificationDelivery.create({
+      data: { ...base, status: "SKIPPED", errorCode: "feature_flag_off" },
+    });
+    return null;
+  }
+  const rendered = renderTransactionalTemplate(input.eventType, input.template);
+  const deliveryId = randomUUID();
+  await tx.notificationDelivery.create({
+    data: {
+      ...base,
+      id: deliveryId,
+      status: "RETRY_SCHEDULED",
+      nextAttemptAtUtc: new Date(),
+      subject: rendered.subject.slice(0, 400),
+      renderedPreview: rendered.plaintextPreview.slice(0, 2000),
+      templateContextJson: input.template as unknown as Prisma.InputJsonValue,
+      metadata: {
+        [STORED_IDEMPOTENCY_KEY_FIELD]: mintEmailIdempotencyKey(
+          NOTIFICATION_IDEMPOTENCY_OPERATION,
+          deliveryId,
+        ),
+      },
+    },
+  });
+  return deliveryId;
+}
+
+/** Post-commit: send what a transaction enqueued. Never throws. */
+export async function dispatchEnqueuedEmailNotifications(
+  deliveryIds: ReadonlyArray<string | null>,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  for (const id of deliveryIds) {
+    if (!id) continue;
+    try {
+      await claimAndDispatch(id, client);
+    } catch {
+      // The row stays RETRY_SCHEDULED; the sweeper owns it from here.
+    }
+  }
 }
 
 // -----------------------------------------------------------------------------

@@ -32,6 +32,8 @@ import { prisma } from "../../db.js";
 import { massRevokeWorkspaceMemberships } from "../identity/membership-provisioning.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { evaluateWorkspaceClosurePreflight } from "../identity/account-lifecycle-preflight.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
+import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 
 export const WORKSPACE_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const PROCESS_BATCH = 3;
@@ -67,6 +69,10 @@ type ClosureTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
  * invitations, which then revived on reopen. One leg set now, run inside the
  * caller's transaction:
  *
+ *   * every person whose membership this closure ended is told
+ *     (WORKSPACE_CLOSED, through the notification outbox — the caller
+ *     dispatches the returned `noticeIds` after commit; members audit
+ *     AUD-04); the actor is not written to about their own act;
  *   * every membership that has not ended (ACTIVE and SUSPENDED) → REVOKED,
  *     with its standing reach (case access, assignments, groups) ended;
  *   * pending invitations → revoked;
@@ -83,8 +89,8 @@ type ClosureTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 export async function closeWorkspacesTx(
   tx: ClosureTx,
   input: { teamIds: readonly string[]; actorUserId: string | null; reason: string },
-): Promise<{ membersRevoked: number }> {
-  if (input.teamIds.length === 0) return { membersRevoked: 0 };
+): Promise<{ membersRevoked: number; noticeIds: string[] }> {
+  if (input.teamIds.length === 0) return { membersRevoked: 0, noticeIds: [] };
   const now = new Date();
   const teamIds = [...input.teamIds];
 
@@ -118,16 +124,34 @@ export async function closeWorkspacesTx(
     where: { id: { in: teamIds }, closedAtUtc: null },
     data: { closedAtUtc: now },
   });
-  return { membersRevoked: revoked.count };
+  const noticeIds: string[] = [];
+  for (const m of revoked.revoked) {
+    if (m.userId === input.actorUserId) continue;
+    const id = await enqueueMembershipLifecycleNoticeTx(tx as never, {
+      eventType: "WORKSPACE_CLOSED",
+      teamId: m.teamId,
+      recipientUserId: m.userId,
+      actorUserId: input.actorUserId,
+    });
+    if (id) noticeIds.push(id);
+  }
+  return { membersRevoked: revoked.count, noticeIds };
 }
 
+/**
+ * Execute a workspace closure. With `closureRequestId` the request's
+ * COMPLETED state and its audit row commit in the SAME transaction as the
+ * closure itself (members audit AUD-01): there is no window in which the
+ * workspace is closed and the request, or the audit trail, says otherwise.
+ */
 export async function executeWorkspaceClosure(input: {
   teamId: string;
   requestedByUserId: string;
+  closureRequestId?: string;
 }): Promise<void> {
   const { teamId, requestedByUserId } = input;
 
-  await prisma.$transaction(async (tx) => {
+  const noticeIds = await prisma.$transaction(async (tx) => {
     const closed = await closeWorkspacesTx(tx, {
       teamIds: [teamId],
       actorUserId: requestedByUserId,
@@ -143,6 +167,76 @@ export async function executeWorkspaceClosure(input: {
         metadata: { membersRevoked: closed.membersRevoked },
       },
     });
+    if (input.closureRequestId) {
+      await tx.workspaceClosureRequest.update({
+        where: { id: input.closureRequestId },
+        data: { status: "COMPLETED", completedAtUtc: new Date() },
+      });
+      await emitTenantAudit(
+        {
+          action: "identity.workspace_closure_completed",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: requestedByUserId,
+          serviceActor: "workspace_closure_worker",
+          workspaceId: teamId,
+          resourceType: "workspace_closure_request",
+          resourceId: input.closureRequestId,
+          causationId: input.closureRequestId,
+          previousState: "PROCESSING",
+          resultingState: "COMPLETED",
+          metadata: { membersRevoked: closed.membersRevoked },
+        },
+        tx as never,
+      );
+    }
+    return closed.noticeIds;
+  });
+  await dispatchEnqueuedEmailNotifications(noticeIds);
+}
+
+/** A closure request's terminal refusal or failure, and its audit, in one transaction. */
+async function recordWorkspaceClosureOutcome(input: {
+  requestId: string;
+  teamId: string;
+  requestedByUserId: string;
+  fromStatus: string;
+  outcome: "BLOCKED" | "FAILED";
+  blockers?: Array<{ code: string }>;
+}): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const moved = await tx.workspaceClosureRequest.updateMany({
+      where: { id: input.requestId, status: input.fromStatus },
+      data:
+        input.outcome === "BLOCKED"
+          ? { status: "BLOCKED", blockersJson: JSON.stringify(input.blockers ?? []) }
+          : { status: "FAILED", failureCode: "closure_failed" },
+    });
+    if (moved.count === 0) return;
+    await emitTenantAudit(
+      {
+        action:
+          input.outcome === "BLOCKED"
+            ? "identity.workspace_closure_blocked"
+            : "identity.workspace_closure_failed",
+        outcome: input.outcome === "BLOCKED" ? "denied" : "error",
+        ...(input.outcome === "BLOCKED" ? { denialReason: "closure_blocked" } : {}),
+        sourceApp: "API",
+        actorUserId: input.requestedByUserId,
+        serviceActor: "workspace_closure_worker",
+        workspaceId: input.teamId,
+        resourceType: "workspace_closure_request",
+        resourceId: input.requestId,
+        causationId: input.requestId,
+        previousState: input.fromStatus,
+        resultingState: input.outcome,
+        metadata:
+          input.outcome === "BLOCKED"
+            ? { blockers: (input.blockers ?? []).map((b) => b.code) }
+            : { failureCode: "closure_failed" },
+      },
+      tx as never,
+    );
   });
 }
 
@@ -177,22 +271,14 @@ export async function processWorkspaceClosures(now: Date): Promise<void> {
   for (const req of due) {
     const { blockers } = await evaluateWorkspaceClosurePreflight(req.teamId);
     if (blockers.length > 0) {
-      await prisma.workspaceClosureRequest.updateMany({
-        where: { id: req.id, status: req.status },
-        data: { status: "BLOCKED", blockersJson: JSON.stringify(blockers) },
+      await recordWorkspaceClosureOutcome({
+        requestId: req.id,
+        teamId: req.teamId,
+        requestedByUserId: req.requestedByUserId,
+        fromStatus: req.status,
+        outcome: "BLOCKED",
+        blockers,
       });
-      await emitTenantAudit({
-        action: "identity.workspace_closure_blocked",
-        outcome: "denied",
-        denialReason: "closure_blocked",
-        sourceApp: "API",
-        actorUserId: req.requestedByUserId,
-        serviceActor: "workspace_closure_worker",
-        workspaceId: req.teamId,
-        resourceType: "workspace_closure_request",
-        resourceId: req.id,
-        metadata: { blockers: blockers.map((b) => b.code) },
-      }).catch(() => null);
       continue;
     }
 
@@ -206,39 +292,17 @@ export async function processWorkspaceClosures(now: Date): Promise<void> {
       await executeWorkspaceClosure({
         teamId: req.teamId,
         requestedByUserId: req.requestedByUserId,
+        closureRequestId: req.id,
       });
-      await prisma.workspaceClosureRequest.update({
-        where: { id: req.id },
-        data: { status: "COMPLETED", completedAtUtc: new Date() },
-      });
-      await emitTenantAudit({
-        action: "identity.workspace_closure_completed",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: req.requestedByUserId,
-        serviceActor: "workspace_closure_worker",
-        workspaceId: req.teamId,
-        resourceType: "workspace_closure_request",
-        resourceId: req.id,
-        metadata: {},
-      }).catch(() => null);
     } catch {
-      await prisma.workspaceClosureRequest
-        .update({
-          where: { id: req.id },
-          data: { status: "FAILED", failureCode: "closure_failed" },
-        })
-        .catch(() => null);
-      await emitTenantAudit({
-        action: "identity.workspace_closure_failed",
-        outcome: "error",
-        sourceApp: "API",
-        actorUserId: req.requestedByUserId,
-        serviceActor: "workspace_closure_worker",
-        workspaceId: req.teamId,
-        resourceType: "workspace_closure_request",
-        resourceId: req.id,
-        metadata: { failureCode: "closure_failed" },
+      // The closure rolled back as a unit. If recording the failure fails
+      // too, the request stays PROCESSING and the reaper resumes it.
+      await recordWorkspaceClosureOutcome({
+        requestId: req.id,
+        teamId: req.teamId,
+        requestedByUserId: req.requestedByUserId,
+        fromStatus: "PROCESSING",
+        outcome: "FAILED",
       }).catch(() => null);
     }
   }

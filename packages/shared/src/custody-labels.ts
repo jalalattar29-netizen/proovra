@@ -79,6 +79,7 @@ const LABELS: Readonly<Record<string, string>> = {
   INVESTIGATION_TIMELINE_EXPORTED: "Investigation timeline exported",
   INVESTIGATION_DUPLICATES_EXPORTED: "Investigation duplicates exported",
   CHAIN_TRANSFER_CUSTODY_EXTENDED: "Chain-of-custody transfer recorded",
+  EVIDENCE_OWNERSHIP_TRANSFERRED: "Record ownership transferred",
   EVIDENCE_UNLOCKED: "Evidence record unlocked",
   RETENTION_AUTO_EXTENDED: "Retention period extended by policy",
   REDACTION_RECORDED: "Redaction step recorded",

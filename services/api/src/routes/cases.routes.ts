@@ -18,6 +18,7 @@ import {
   emitPlatformAudit,
   type TenantAuditOutcome,
 } from "../services/audit/tenant-audit.service.js";
+import { bump } from "../services/ops/metrics.service.js";
 import { writeAnalyticsEvent } from "../services/analytics-event.service.js";
 import {
   changeCaseStatus,
@@ -195,11 +196,14 @@ function auditCaseAction(
     teamId?: string | null;
     metadata?: Record<string, unknown>;
   }
-) {
+): Promise<void> {
+  // Members audit AUD-01 / SEC-13 — awaited, never fire-and-forget: the
+  // response does not leave before the row is durable, and a failed write is
+  // counted and logged with the request id instead of silently dropped.
   const outcome = mapCaseOutcome(params.outcome);
   const reason =
     typeof params.metadata?.reason === "string" ? params.metadata.reason : null;
-  void emitTenantAudit({
+  return emitTenantAudit({
     action: params.action,
     outcome,
     denialReason: outcome !== "success" ? reason : null,
@@ -215,7 +219,10 @@ function auditCaseAction(
       ipAddress: req.ip,
       userAgent: readUserAgent(req),
     },
-  }).catch(() => undefined);
+  }).catch((err: unknown) => {
+    bump("platform_audit_append_failed_total");
+    req.log.error({ err, action: params.action, requestId: req.id }, "case_audit_append_failed");
+  });
 }
 
 function fireCaseAnalyticsEvent(params: {
@@ -245,7 +252,7 @@ function fireCaseAnalyticsEvent(params: {
  * to each handler's missing-case branch; its audit row carries no workspace
  * (the caller has no standing in it).
  */
-function refuseCaseAccessManagement(
+async function refuseCaseAccessManagement(
   req: FastifyRequest,
   reply: FastifyReply,
   decision: Exclude<CaseAccessManagerDecision, { kind: "allowed" }>,
@@ -263,7 +270,7 @@ function refuseCaseAccessManagement(
       : decision.kind === "not_team_case"
         ? "not_team_case"
         : "forbidden";
-  auditCaseAction(req, {
+  await auditCaseAction(req, {
     userId: audit.userId,
     action: audit.action,
     outcome: "blocked",
@@ -299,7 +306,7 @@ export async function casesRoutes(app: FastifyInstance) {
       // P0 remediation (2026-07-21) — only ACTIVE membership may create
       // records into a workspace; suspended/revoked members are denied.
       if (member?.status !== "ACTIVE") {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.create",
           outcome: "blocked",
@@ -316,7 +323,7 @@ export async function casesRoutes(app: FastifyInstance) {
       // issuing the request directly. Membership status answers "may this
       // person be here"; it has never answered "may this person write".
       if (member.role === "VIEWER") {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.create",
           outcome: "blocked",
@@ -351,7 +358,7 @@ export async function casesRoutes(app: FastifyInstance) {
       await assertWorkspaceAllowsCases(scope);
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; message?: string };
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.create",
         outcome: "blocked",
@@ -385,7 +392,7 @@ export async function casesRoutes(app: FastifyInstance) {
       void indexCase({ teamId: created.teamId, caseId: created.id });
     }
 
-    auditCaseAction(req, {
+    await auditCaseAction(req, {
       userId: ownerUserId,
       action: "cases.create",
       outcome: "success",
@@ -457,7 +464,7 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true },
       });
       if (!evidence) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.list",
           outcome: "blocked",
@@ -506,7 +513,7 @@ export async function casesRoutes(app: FastifyInstance) {
         take: 200,
       });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.list",
         outcome: "success",
@@ -546,7 +553,7 @@ export async function casesRoutes(app: FastifyInstance) {
       take: 200,
     });
 
-    auditCaseAction(req, {
+    await auditCaseAction(req, {
       userId: ownerUserId,
       action: "cases.list",
       outcome: "success",
@@ -596,7 +603,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!item) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.view",
           outcome: "failure",
@@ -620,7 +627,7 @@ export async function casesRoutes(app: FastifyInstance) {
             : item.access.some((a) => a.userId === ownerUserId)
               ? "direct_share"
               : "workspace";
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.view",
           outcome: "success",
@@ -638,7 +645,7 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(200).send({ case: item });
       }
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.view",
         outcome: "blocked",
@@ -670,7 +677,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!item) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.access_grant",
           outcome: "failure",
@@ -703,7 +710,7 @@ export async function casesRoutes(app: FastifyInstance) {
       // user, a suspended/revoked member and an id that names nobody are
       // refused identically, so the answer says nothing about which it was.
       if (!(await isActiveWorkspaceMember(item.teamId, body.userId))) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.access_grant",
           outcome: "blocked",
@@ -724,7 +731,7 @@ export async function casesRoutes(app: FastifyInstance) {
         create: { caseId: id, userId: body.userId },
       });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.access_grant",
         outcome: "success",
@@ -758,7 +765,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!item) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.export",
           outcome: "failure",
@@ -780,7 +787,7 @@ export async function casesRoutes(app: FastifyInstance) {
        */
       const exportDecision = await resolveCaseRecordAccess({ userId: ownerUserId, caseId: id });
       if (!exportDecision.allowed) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.export",
           outcome: "blocked",
@@ -838,7 +845,7 @@ export async function casesRoutes(app: FastifyInstance) {
         }),
       );
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.export",
         outcome: "success",
@@ -934,7 +941,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.team_members_list",
           outcome: "failure",
@@ -978,7 +985,7 @@ export async function casesRoutes(app: FastifyInstance) {
         },
       });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.team_members_list",
         outcome: "success",
@@ -1008,7 +1015,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const item = await prisma.case.findUnique({ where: { id } });
       if (!item) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.rename",
           outcome: "failure",
@@ -1035,7 +1042,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
       if (!renameGate.allowed) {
         const outsider = renameGate.accessRole === "NONE";
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.rename",
           outcome: "blocked",
@@ -1076,7 +1083,7 @@ export async function casesRoutes(app: FastifyInstance) {
         void indexCase({ teamId: updated.teamId, caseId: updated.id });
       }
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId,
         action: "cases.rename",
         outcome: "success",
@@ -1106,7 +1113,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const item = await prisma.case.findUnique({ where: { id } });
       if (!item) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.delete",
           outcome: "failure",
@@ -1135,7 +1142,7 @@ export async function casesRoutes(app: FastifyInstance) {
         // the legal-hold check ran first, 403 with the hold ids), which
         // proved the record exists in another tenant.
         const outsider = deleteGate.accessRole === "NONE";
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.delete",
           outcome: "blocked",
@@ -1185,7 +1192,7 @@ export async function casesRoutes(app: FastifyInstance) {
       if (item.teamId) {
         const holdDecision = await evaluateCaseDeletionHold({ caseId: id, teamId: item.teamId });
         if (holdDecision.kind === "unavailable") {
-          auditCaseAction(req, {
+          await auditCaseAction(req, {
             userId,
             action: "cases.delete",
             outcome: "blocked",
@@ -1198,7 +1205,7 @@ export async function casesRoutes(app: FastifyInstance) {
         }
         if (holdDecision.kind === "held") {
           const holdChk = { holdIds: holdDecision.holdIds };
-          auditCaseAction(req, {
+          await auditCaseAction(req, {
             userId,
             action: "cases.delete",
             outcome: "blocked",
@@ -1232,7 +1239,7 @@ export async function casesRoutes(app: FastifyInstance) {
         throw err;
       }
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId,
         action: "cases.delete",
         outcome: "success",
@@ -1261,7 +1268,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.add_evidence",
           outcome: "failure",
@@ -1279,7 +1286,7 @@ export async function casesRoutes(app: FastifyInstance) {
       // answered differently.
       const linkAuth = await authorizeCaseEvidenceLink({ userId, caseId: id, evidenceId: body.evidenceId });
       if (!linkAuth.allowed) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.add_evidence",
           outcome: "blocked",
@@ -1302,7 +1309,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!evidence) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.add_evidence",
           outcome: "failure",
@@ -1327,7 +1334,7 @@ export async function casesRoutes(app: FastifyInstance) {
         evidenceTeamId: evidence.teamId,
       });
       if (!crossTeam.allowed) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.add_evidence",
           outcome: "blocked",
@@ -1352,7 +1359,7 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       if (evidence.deletedAt) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.add_evidence",
           outcome: "blocked",
@@ -1417,7 +1424,7 @@ export async function casesRoutes(app: FastifyInstance) {
         teamId: updatedRow.teamId,
       };
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId,
         action: "cases.add_evidence",
         outcome: "success",
@@ -1451,7 +1458,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
           outcome: "failure",
@@ -1468,7 +1475,7 @@ export async function casesRoutes(app: FastifyInstance) {
       // concealed (404) exactly like a missing case.
       const linkAuth = await authorizeCaseEvidenceLink({ userId, caseId: id });
       if (!linkAuth.allowed) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
           outcome: "blocked",
@@ -1491,7 +1498,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!evidence) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
           outcome: "failure",
@@ -1523,7 +1530,7 @@ export async function casesRoutes(app: FastifyInstance) {
         // UC-CASE-001 — refused under an active case hold (zero mutation).
         const refusal = caseUnlinkRefusal(err);
         if (!refusal) throw err;
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
           outcome: "blocked",
@@ -1536,7 +1543,7 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       if (!detachResult.detached) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
           outcome: "blocked",
@@ -1573,7 +1580,7 @@ export async function casesRoutes(app: FastifyInstance) {
         teamId: updatedRow.teamId,
       };
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId,
         action: "cases.remove_evidence",
         outcome: "success",
@@ -1603,7 +1610,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.available_evidence_list",
           outcome: "failure",
@@ -1615,7 +1622,7 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       if (caseItem.ownerUserId !== ownerUserId) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.available_evidence_list",
           outcome: "blocked",
@@ -1680,7 +1687,7 @@ export async function casesRoutes(app: FastifyInstance) {
         }),
       }));
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.available_evidence_list",
         outcome: "success",
@@ -1703,7 +1710,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.share_team",
           outcome: "failure",
@@ -1735,7 +1742,7 @@ export async function casesRoutes(app: FastifyInstance) {
       // Granting CaseAccess confers standing access, so a suspended /
       // revoked target member must not be shareable-to.
       if (!(await isActiveWorkspaceMember(caseItem.teamId, body.userId))) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.share_team",
           outcome: "blocked",
@@ -1756,7 +1763,7 @@ export async function casesRoutes(app: FastifyInstance) {
         create: { caseId: id, userId: body.userId },
       });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.share_team",
         outcome: "success",
@@ -1811,7 +1818,7 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { id: true, teamId: true, ownerUserId: true },
       });
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.share_email",
           outcome: "failure",
@@ -1851,7 +1858,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (targets.length !== 1) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.share_email",
           outcome: "blocked",
@@ -1876,7 +1883,7 @@ export async function casesRoutes(app: FastifyInstance) {
         create: { caseId: id, userId: targetUserId },
       });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.share_email",
         outcome: "success",
@@ -1910,7 +1917,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const caseItem = await prisma.case.findUnique({ where: { id } });
       if (!caseItem) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.access_revoke",
           outcome: "failure",
@@ -1945,7 +1952,7 @@ export async function casesRoutes(app: FastifyInstance) {
       });
 
       if (!access || access.caseId !== id) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.access_revoke",
           outcome: "failure",
@@ -1959,7 +1966,7 @@ export async function casesRoutes(app: FastifyInstance) {
 
       await prisma.caseAccess.delete({ where: { id: accessId } });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: ownerUserId,
         action: "cases.access_revoke",
         outcome: "success",
@@ -2031,7 +2038,7 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { id: true, workspaceId: true, status: true, name: true },
       });
       if (!team || team.workspaceId !== item.teamId) {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: actorUserId,
           action: "cases.team_access_grant",
           outcome: "blocked",
@@ -2047,7 +2054,7 @@ export async function casesRoutes(app: FastifyInstance) {
       }
       // An archived team grants nothing, so it cannot be given a grant either.
       if (team.status !== "ACTIVE") {
-        auditCaseAction(req, {
+        await auditCaseAction(req, {
           userId: actorUserId,
           action: "cases.team_access_grant",
           outcome: "blocked",
@@ -2073,7 +2080,7 @@ export async function casesRoutes(app: FastifyInstance) {
         select: { id: true, collaborationTeamId: true, createdAt: true },
       });
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: actorUserId,
         action: "cases.team_access_grant",
         outcome: "success",
@@ -2164,7 +2171,7 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      auditCaseAction(req, {
+      await auditCaseAction(req, {
         userId: actorUserId,
         action: "cases.team_access_revoke",
         outcome: "success",

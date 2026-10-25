@@ -106,7 +106,7 @@ describe("closure execution", () => {
     expect(CLOSURE).toMatch(
       // A contract termination filters two self-service blockers between the
       // preflight and the BLOCKED write (members audit LIFE-16).
-      /evaluateOrganizationClosurePreflight\([\s\S]{0,1400}status:\s*"BLOCKED"/,
+      /evaluateOrganizationClosurePreflight\([\s\S]{0,1400}outcome:\s*"BLOCKED"/,
     );
     expect(CLOSURE).toMatch(/if \(claimed\.count === 0\) continue;/);
     expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);

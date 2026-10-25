@@ -117,6 +117,17 @@ export const NOTIFICATION_EVENT_TYPES = [
   // Bodies contain ONLY item titles/categories the recipient was already
   // authorized to see when the item was surfaced — never raw content.
   "OPERATIONS_DIGEST",
+  // Members & access lifecycle (members audit AUD-04). The person whose
+  // access changed is told, in the same transaction that changed it (the
+  // delivery row is the outbox). Bodies carry the workspace name and the
+  // change only — never who else is a member, never a reason note.
+  "WORKSPACE_ACCESS_REMOVED",
+  "WORKSPACE_ACCESS_SUSPENDED",
+  "WORKSPACE_ACCESS_RESTORED",
+  "WORKSPACE_ROLE_CHANGED",
+  "WORKSPACE_OWNERSHIP_RECEIVED",
+  "WORKSPACE_CLOSED",
+  "ACCOUNT_CLOSED",
 ] as const;
 export const NotificationEventTypeSchema = z.enum(NOTIFICATION_EVENT_TYPES);
 export type NotificationEventType = z.infer<typeof NotificationEventTypeSchema>;

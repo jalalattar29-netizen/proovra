@@ -178,7 +178,7 @@ describe("source-contract: billing personal-target surfaces guard before mutatio
     const routeAt = src.indexOf('"/v1/billing/plan"');
     expect(routeAt).toBeGreaterThan(-1);
     const guardAt = src.indexOf("assertPersonalCheckoutAllowed(userId, undefined)", routeAt);
-    const setAt = src.indexOf("await setPersonalPlan(userId, body.plan)", routeAt);
+    const setAt = src.indexOf("await setPersonalPlan(userId, body.plan,", routeAt);
     expect(guardAt).toBeGreaterThan(routeAt);
     expect(setAt).toBeGreaterThan(routeAt);
     expect(guardAt).toBeLessThan(setAt);

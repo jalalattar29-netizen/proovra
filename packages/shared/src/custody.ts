@@ -106,6 +106,8 @@ const ADMINISTRATIVE_CUSTODY_EVENT_TYPES = new Set<string>([
   "PUBLIC_VERIFY_UNPUBLISHED",
   "PUBLIC_VERIFY_SUSPENDED",
   "PUBLIC_VERIFY_RESTORED",
+  // Members audit LIFE-17 — who in the workspace owns the record; never the bytes.
+  "EVIDENCE_OWNERSHIP_TRANSFERRED",
 ]);
 
 export function isAdministrativeCustodyEventType(eventType: string | null | undefined): boolean {

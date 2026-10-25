@@ -984,7 +984,7 @@ export async function massRevokeWorkspaceMemberships(
     actorUserId?: string | null;
     reason: string;
   },
-): Promise<{ count: number }> {
+): Promise<{ count: number; revoked: Array<{ teamId: string; userId: string }> }> {
   // Members audit LIFE-13 / ACC-11 (2026-10-25) — a closure TERMINATES every
   // membership that has not already ended: a SUSPENDED one used to survive the
   // workspace it belonged to and come back with any later restore.
@@ -1000,7 +1000,7 @@ export async function massRevokeWorkspaceMemberships(
     where: memberWhere,
     select: { id: true, userId: true, teamId: true },
   });
-  if (affected.length === 0) return { count: 0 };
+  if (affected.length === 0) return { count: 0, revoked: [] };
   await tx.teamMember.updateMany({
     where: { id: { in: affected.map((m) => m.id) } },
     data: {
@@ -1032,7 +1032,10 @@ export async function massRevokeWorkspaceMemberships(
     },
     tx as never,
   );
-  return { count: affected.length };
+  return {
+    count: affected.length,
+    revoked: affected.map((m) => ({ teamId: m.teamId, userId: m.userId })),
+  };
 }
 
 /**

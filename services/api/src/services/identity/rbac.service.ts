@@ -39,6 +39,8 @@ import { prisma as defaultPrisma } from "../../db.js";
 // run (see middleware/authorize.ts `authorizeCurrentWorkspaceOrFail`).
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
+import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 import { evaluateMemberAccess } from "./access-policy.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 // PHASE 3 (2026-07-21) — grant provenance (rbac IS the MANUAL-intent
@@ -167,7 +169,33 @@ type LifecycleInput = {
   reason?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  /** Members audit AUD-03 — the request this mutation belongs to. */
+  correlationId?: string | null;
+  /**
+   * Members audit AUD-04 — when this call runs inside the CALLER's
+   * transaction, the lifecycle notice it enqueued cannot be sent yet (the
+   * caller may still roll back). Its id is pushed here for the caller to
+   * dispatch after its own commit; without a sink the notification sweeper
+   * delivers it.
+   */
+  noticeSink?: string[];
 };
+
+/**
+ * Send a lifecycle notice after commit when this call owned the transaction;
+ * otherwise hand it to the caller (see `noticeSink`).
+ */
+async function settleLifecycleNotice(
+  client: PrismaClient,
+  noticeId: string | null,
+  sink: string[] | undefined,
+): Promise<void> {
+  if (!noticeId) return;
+  const ownsTransaction =
+    typeof (client as unknown as { $transaction?: unknown }).$transaction === "function";
+  if (ownsTransaction) await dispatchEnqueuedEmailNotifications([noticeId], client);
+  else sink?.push(noticeId);
+}
 
 async function loadTargetMember(
   client: PrismaClient,
@@ -266,6 +294,13 @@ async function emitMemberAudit(
     metadata?: Record<string, unknown>;
     ipAddress?: string | null;
     userAgent?: string | null;
+    /**
+     * Members audit AUD-03 — the transition, as the audit sink's sealed
+     * columns (not only metadata), and the request that caused it.
+     */
+    previousState?: string | null;
+    resultingState?: string | null;
+    correlationId?: string | null;
   },
 ): Promise<void> {
   safeEmitSecurityEvent(
@@ -291,6 +326,9 @@ async function emitMemberAudit(
     workspaceId: input.teamId,
     resourceType: "team_member",
     resourceId: input.subjectMemberId,
+    previousState: input.previousState ?? null,
+    resultingState: input.resultingState ?? null,
+    correlationId: input.correlationId ?? null,
     metadata: {
       subjectUserId: input.subjectUserId,
       reason: input.reason ?? null,
@@ -305,7 +343,7 @@ export async function suspendMember(
   input: LifecycleInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  const { updated, subjectUserId } = await runAtomically(client, async (tx) => {
+  const { updated, subjectUserId, noticeId } = await runAtomically(client, async (tx) => {
     const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
     if (target.userId === input.actorUserId) {
       throw new RbacError("self_action_forbidden");
@@ -365,9 +403,19 @@ export async function suspendMember(
       reason: input.reason,
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
+      previousState: target.status,
+      resultingState: "SUSPENDED",
+      correlationId: input.correlationId,
     });
-    return { updated: row, subjectUserId: target.userId };
+    const noticeId = await enqueueMembershipLifecycleNoticeTx(tx as never, {
+      eventType: "WORKSPACE_ACCESS_SUSPENDED",
+      teamId: input.teamId,
+      recipientUserId: target.userId,
+      actorUserId: input.actorUserId,
+    });
+    return { updated: row, subjectUserId: target.userId, noticeId };
   });
+  await settleLifecycleNotice(client, noticeId, input.noticeSink);
   // Phase 19 — suspended members lose every active session. Best-effort and
   // deliberately AFTER the commit: it is a downstream effect, never part of
   // the membership transition's atomic unit.
@@ -386,7 +434,7 @@ export async function revokeMember(
   input: LifecycleInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  const { updated, subjectUserId } = await runAtomically(client, async (tx) => {
+  const { updated, subjectUserId, noticeId } = await runAtomically(client, async (tx) => {
     const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
     if (target.userId === input.actorUserId) {
       throw new RbacError("self_action_forbidden");
@@ -451,9 +499,19 @@ export async function revokeMember(
       reason: input.reason,
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
+      previousState: target.status,
+      resultingState: "REVOKED",
+      correlationId: input.correlationId,
     });
-    return { updated: row, subjectUserId: target.userId };
+    const noticeId = await enqueueMembershipLifecycleNoticeTx(tx as never, {
+      eventType: "WORKSPACE_ACCESS_REMOVED",
+      teamId: input.teamId,
+      recipientUserId: target.userId,
+      actorUserId: input.actorUserId,
+    });
+    return { updated: row, subjectUserId: target.userId, noticeId };
   });
+  await settleLifecycleNotice(client, noticeId, input.noticeSink);
   // Phase 19 — revoked members lose every active session (post-commit).
   await autoRevokeAllSessions(client, {
     teamId: input.teamId,
@@ -470,7 +528,7 @@ export async function restoreMember(
   input: LifecycleInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  return runAtomically(client, async (tx) => {
+  const { updated, noticeId } = await runAtomically(client, async (tx) => {
     const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
     assertNotOwner(target.role);
     await assertActorOutranks(tx, {
@@ -513,9 +571,20 @@ export async function restoreMember(
       reason: input.reason,
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
+      previousState: target.status,
+      resultingState: "ACTIVE",
+      correlationId: input.correlationId,
     });
-    return updated;
+    const noticeId = await enqueueMembershipLifecycleNoticeTx(tx as never, {
+      eventType: "WORKSPACE_ACCESS_RESTORED",
+      teamId: input.teamId,
+      recipientUserId: target.userId,
+      actorUserId: input.actorUserId,
+    });
+    return { updated, noticeId };
   });
+  await settleLifecycleNotice(client, noticeId, input.noticeSink);
+  return updated;
 }
 
 /**
@@ -574,6 +643,8 @@ export async function leaveWorkspace(
       reason: "left_workspace",
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
+      previousState: target.status,
+      resultingState: "REVOKED",
     });
     return row;
   });
@@ -628,7 +699,7 @@ export async function changeMemberRole(
   input: RoleChangeInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.TeamMember> {
-  return runAtomically(client, async (tx) => {
+  const { updated, noticeId } = await runAtomically(client, async (tx) => {
   const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
   if (target.userId === input.actorUserId) {
     throw new RbacError("self_action_forbidden");
@@ -676,9 +747,24 @@ export async function changeMemberRole(
     metadata: { fromRole: target.role, toRole: input.newRole },
     ipAddress: input.ipAddress,
     userAgent: input.userAgent,
+    previousState: target.role,
+    resultingState: input.newRole,
+    correlationId: input.correlationId,
   });
+  const noticeId =
+    target.role === input.newRole
+      ? null
+      : await enqueueMembershipLifecycleNoticeTx(tx as never, {
+          eventType: "WORKSPACE_ROLE_CHANGED",
+          teamId: input.teamId,
+          recipientUserId: target.userId,
+          actorUserId: input.actorUserId,
+          newRole: input.newRole,
+        });
+  return { updated, noticeId };
+  });
+  await settleLifecycleNotice(client, noticeId, input.noticeSink);
   return updated;
-  });
 }
 
 // -----------------------------------------------------------------------------

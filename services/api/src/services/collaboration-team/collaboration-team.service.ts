@@ -1442,18 +1442,21 @@ export async function deleteCollaborationTeam(
       );
     }
     await tx.collaborationTeam.delete({ where: { id: input.teamId } });
-  });
-
-  // Outside the transaction: the group is gone, and the audit record must
-  // survive independently of it.
-  await emitTenantAudit({
-    action: "collaboration_team.deleted",
-    outcome: "success",
-    sourceApp: "API",
-    actorUserId: input.actorUserId,
-    workspaceId: team.workspaceId,
-    resourceType: "collaboration_team",
-    resourceId: input.teamId,
+    // In the same transaction (members audit AUD-01): the platform audit log
+    // does not cascade with the group, so the row survives it — and a delete
+    // that rolls back can no longer leave a record claiming it happened.
+    await emitTenantAudit(
+      {
+        action: "collaboration_team.deleted",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: team.workspaceId,
+        resourceType: "collaboration_team",
+        resourceId: input.teamId,
+      },
+      tx as never,
+    );
   });
 }
 

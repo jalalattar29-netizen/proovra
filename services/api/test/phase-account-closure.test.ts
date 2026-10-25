@@ -78,7 +78,7 @@ describe("worker: cooling-off + execution safety", () => {
 
   it("re-runs preflight at execution time — a new blocker moves the row to BLOCKED", () => {
     expect(CLOSURE).toMatch(
-      /evaluateAccountClosurePreflight\(req\.userId\)[\s\S]{0,400}status:\s*"BLOCKED"/,
+      /evaluateAccountClosurePreflight\(req\.userId\)[\s\S]{0,400}outcome:\s*"BLOCKED"/,
     );
   });
 

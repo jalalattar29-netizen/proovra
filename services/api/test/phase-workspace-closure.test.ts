@@ -74,7 +74,7 @@ describe("routes: owner-only + typed confirmation + step-up", () => {
 describe("execution", () => {
   it("worker re-runs preflight, claims atomically, and runs through the lifecycle tick", () => {
     expect(CLOSURE).toMatch(
-      /evaluateWorkspaceClosurePreflight\([\s\S]{0,600}status:\s*"BLOCKED"/,
+      /evaluateWorkspaceClosurePreflight\([\s\S]{0,600}outcome:\s*"BLOCKED"/,
     );
     expect(CLOSURE).toMatch(/if \(claimed\.count === 0\) continue;/);
     expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);

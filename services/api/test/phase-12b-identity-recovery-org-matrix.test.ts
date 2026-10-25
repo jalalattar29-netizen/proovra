@@ -525,6 +525,12 @@ vi.mock("../src/services/organization/org-invite-delivery.service.js", () => ({
     rec("attemptInitialOrgInviteDelivery", null);
     return { status: "SENT", attempts: 1, lastError: null };
   },
+  // Members audit DOM-10 — the one-pending-invite slot lock. Recorded, not
+  // simulated: the race it closes is proven against PostgreSQL in
+  // members-audit-notifications.integration.test.ts.
+  lockOrganizationInviteSlotTx: async (_tx: unknown, i: unknown) => {
+    rec("lockOrganizationInviteSlotTx", i);
+  },
   recordOrgInviteDeliveryPending: async () => ({ deliveryId: "del-1" }),
   resendOrgInviteDelivery: async (i: unknown) => {
     rec("resendOrgInviteDelivery", i);

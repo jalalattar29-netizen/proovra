@@ -76,7 +76,7 @@ describe("Phase 9 §12.6 — billing failure/cancellation never deletes Evidence
       // outcome, and a surviving live subscription's plan is kept (moved to it
       // only when the plan in force was the cancelled one's). Still no other
       // write: FREE, or the survivor's plan.
-      /SubscriptionStatus\.CANCELED\)\s*\{[\s\S]*?if \(!everCarriedEntitlement\) return applied;[\s\S]*?if \(otherLive\) \{[\s\S]*?return applied;\s*\}\s*await setPersonalPlan\(params\.userId,\s*prismaPkg\.PlanType\.FREE\);/,
+      /SubscriptionStatus\.CANCELED\)\s*\{[\s\S]*?if \(!everCarriedEntitlement\) return applied;[\s\S]*?if \(otherLive\) \{[\s\S]*?return applied;\s*\}\s*await setPersonalPlan\(params\.userId,\s*prismaPkg\.PlanType\.FREE,\s*WEBHOOK_PLAN_ORIGIN\(params\.providerSubId\)\);/,
     );
 
     // NEVER deletes evidence or purges memberships on cancellation.

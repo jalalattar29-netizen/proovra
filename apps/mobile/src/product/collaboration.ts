@@ -372,6 +372,28 @@ export function parseCollaborationEntitlement(payload: unknown): CollaborationEn
 export const TEAMS_PLAN_LOCKED_COPY = "Teams are available on Pro, Team, and Enterprise plans.";
 
 /**
+ * Members audit CT-16 — what a refused Collaboration Teams read MEANS.
+ *
+ * The list and detail reads answer 403 for a ROLE that may not open them, not
+ * for a plan: the plan answer comes from the entitlement read. Every 403 used
+ * to render "part of Team plans", which told a Viewer on a Team plan to buy
+ * what their workspace already has. The plan sentence is shown only when the
+ * entitlement says the plan does not include Teams.
+ */
+export function collaborationUnavailableCopy(
+  entitlement: CollaborationEntitlement | null,
+): { title: string; purpose: string } {
+  if (entitlement?.planLocked) {
+    return { title: "Teams aren't on this plan", purpose: TEAMS_PLAN_LOCKED_COPY };
+  }
+  return {
+    title: "You can't open Teams here",
+    purpose:
+      "Your role in this workspace doesn't include Collaboration Teams. Ask a workspace administrator if you need access.",
+  };
+}
+
+/**
  * The web's TEAM_LIMIT_REACHED message from the refusal's `details`
  * (`limit` + `plan`), or null when no usable limit was sent — numbers are
  * never fabricated (team-entitlement-copy.ts:28).

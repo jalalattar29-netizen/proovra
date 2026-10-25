@@ -474,6 +474,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "A retired endpoint answering a legacy client, not a person.",
   },
+  INVITE_PENDING_WITH_DIFFERENT_ROLE: { disposition: "customer", where: "global" },
   INVITE_NOT_FOUND: {
     disposition: "generic",
     why:

@@ -249,6 +249,18 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "That person is already a member of this workspace.",
     severity: "info",
   },
+  INVITE_PENDING_WITH_DIFFERENT_ROLE: {
+    title: "An invitation is already pending",
+    message:
+      "This address already has a pending invitation with a different role. Revoke it and invite again to change the role.",
+    severity: "info",
+  },
+  INVITE_RESEND_LIMIT: {
+    title: "Resent too often",
+    message:
+      "This invitation was already resent several times today. Try again tomorrow, or revoke it and send a new one.",
+    severity: "warning",
+  },
   INVITE_NOT_FOUND: {
     title: "Invitation not found",
     message: "This invitation doesn't exist any more. Ask for a new one.",

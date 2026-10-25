@@ -96,6 +96,17 @@ export type OperationsDigestContext = {
   operationsCenterUrl: string | null;
 };
 
+/**
+ * Members & access lifecycle (members audit AUD-04). The workspace name, the
+ * change, and — for a role change — the new role's display label. Nothing
+ * else: no other member, no actor identity, no reason text.
+ */
+export type MembershipLifecycleContext = {
+  workspaceName: string;
+  roleLabel: string | null;
+  actionUrl: string | null;
+};
+
 // Discriminated union the renderer accepts. Adding an event type means
 // adding both an entry here and a renderer branch below.
 export type TemplateContext =
@@ -106,7 +117,8 @@ export type TemplateContext =
   | { kind: "IntakeLinkCreated"; data: ExternalIntakeLinkCreatedContext }
   | { kind: "IntakeSubmitted"; data: ExternalIntakeSubmittedContext }
   | { kind: "Simple"; data: EvidenceRequestSimpleContext }
-  | { kind: "OperationsDigest"; data: OperationsDigestContext };
+  | { kind: "OperationsDigest"; data: OperationsDigestContext }
+  | { kind: "MembershipLifecycle"; data: MembershipLifecycleContext };
 
 export type RenderedTemplate = {
   subject: string;
@@ -219,6 +231,14 @@ export function renderTransactionalTemplate(
         "Contributor reply",
         "An external contributor replied on a discussion you own",
       );
+    case "WORKSPACE_ACCESS_REMOVED":
+    case "WORKSPACE_ACCESS_SUSPENDED":
+    case "WORKSPACE_ACCESS_RESTORED":
+    case "WORKSPACE_ROLE_CHANGED":
+    case "WORKSPACE_OWNERSHIP_RECEIVED":
+    case "WORKSPACE_CLOSED":
+    case "ACCOUNT_CLOSED":
+      return renderMembershipLifecycle(eventType, expectCtx(ctx, "MembershipLifecycle"));
     default: {
       const _exhaustive: never = eventType;
       throw new Error(
@@ -240,6 +260,7 @@ function expectCtx(ctx: TemplateContext, kind: "IntakeLinkCreated"): ExternalInt
 function expectCtx(ctx: TemplateContext, kind: "IntakeSubmitted"): ExternalIntakeSubmittedContext;
 function expectCtx(ctx: TemplateContext, kind: "Simple"): EvidenceRequestSimpleContext;
 function expectCtx(ctx: TemplateContext, kind: "OperationsDigest"): OperationsDigestContext;
+function expectCtx(ctx: TemplateContext, kind: "MembershipLifecycle"): MembershipLifecycleContext;
 function expectCtx(ctx: TemplateContext, kind: TemplateContext["kind"]): unknown {
   if (ctx.kind !== kind) {
     throw new Error(
@@ -638,6 +659,65 @@ function renderOperationsDigest(d: OperationsDigestContext): RenderedTemplate {
     text,
     plaintextPreview: text.slice(0, 2000),
   };
+}
+
+type MembershipLifecycleEvent =
+  | "WORKSPACE_ACCESS_REMOVED"
+  | "WORKSPACE_ACCESS_SUSPENDED"
+  | "WORKSPACE_ACCESS_RESTORED"
+  | "WORKSPACE_ROLE_CHANGED"
+  | "WORKSPACE_OWNERSHIP_RECEIVED"
+  | "WORKSPACE_CLOSED"
+  | "ACCOUNT_CLOSED";
+
+function renderMembershipLifecycle(
+  eventType: MembershipLifecycleEvent,
+  d: MembershipLifecycleContext,
+): RenderedTemplate {
+  const brand = getEmailBrandName();
+  const role = d.roleLabel ?? "a new role";
+  const copy: Record<MembershipLifecycleEvent, { title: string; line: string }> = {
+    WORKSPACE_ACCESS_REMOVED: {
+      title: "Your workspace access was removed",
+      line: `Your access to the workspace ${d.workspaceName} was removed. Records you created there stay with the workspace under its retention and legal hold rules.`,
+    },
+    WORKSPACE_ACCESS_SUSPENDED: {
+      title: "Your workspace access was suspended",
+      line: `Your access to the workspace ${d.workspaceName} was suspended. A workspace administrator can restore it.`,
+    },
+    WORKSPACE_ACCESS_RESTORED: {
+      title: "Your workspace access was restored",
+      line: `Your access to the workspace ${d.workspaceName} was restored.`,
+    },
+    WORKSPACE_ROLE_CHANGED: {
+      title: "Your workspace role changed",
+      line: `Your role in the workspace ${d.workspaceName} is now ${role}.`,
+    },
+    WORKSPACE_OWNERSHIP_RECEIVED: {
+      title: "You now own a workspace",
+      line: `Ownership of the workspace ${d.workspaceName} was transferred to you.`,
+    },
+    WORKSPACE_CLOSED: {
+      title: "A workspace you belonged to was closed",
+      line: `The workspace ${d.workspaceName} was closed, and your access to it has ended. Its records remain governed by retention and legal hold.`,
+    },
+    ACCOUNT_CLOSED: {
+      title: `Your ${brand} account was closed`,
+      line: `Your ${brand} account was closed. Records held by workspaces remain governed by their retention and legal hold rules.`,
+    },
+  };
+  const { title, line } = copy[eventType];
+  const html = renderEmailShell({
+    title,
+    preheader: line.slice(0, 120),
+    bodyHtml: `<div style="margin:0 0 12px 0;">${escapeEmailHtml(line)}</div>`,
+    ctaText: d.actionUrl ? "Open your workspaces" : undefined,
+    ctaUrl: d.actionUrl ?? undefined,
+  });
+  const text = [title, "", line, d.actionUrl ? `Open: ${d.actionUrl}` : null]
+    .filter((l): l is string => typeof l === "string")
+    .join("\n");
+  return { subject: title, html, text, plaintextPreview: text.slice(0, 2000) };
 }
 
 function renderIntakeSubmitted(

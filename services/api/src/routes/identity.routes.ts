@@ -517,6 +517,7 @@ export async function identityRoutes(app: FastifyInstance) {
           reason: body.reason ?? null,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
+          correlationId: req.id,
         });
         return reply.code(200).send({ member: updated });
       } catch (err) {
@@ -559,6 +560,7 @@ export async function identityRoutes(app: FastifyInstance) {
           reason: body.reason ?? null,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
+          correlationId: req.id,
         });
         return reply.code(200).send({ member: updated });
       } catch (err) {
@@ -599,6 +601,7 @@ export async function identityRoutes(app: FastifyInstance) {
           reason: body.reason ?? null,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
+          correlationId: req.id,
         });
         return reply.code(200).send({ member: updated });
       } catch (err) {
@@ -647,6 +650,7 @@ export async function identityRoutes(app: FastifyInstance) {
           newRole: body.role as prismaPkg.TeamRole,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
+          correlationId: req.id,
         });
         return reply.code(200).send({ member: updated });
       } catch (err) {

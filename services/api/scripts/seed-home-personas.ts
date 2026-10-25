@@ -142,19 +142,24 @@ async function wipe(): Promise<void> {
   await prisma.verificationPackage.deleteMany({
     where: { evidenceId: { in: seedEvidenceIds } },
   });
-  await prisma.evidenceLifecycleEvent.deleteMany({
-    where: { teamId: { in: teamIds } },
-  });
   await prisma.operationalIncident.deleteMany({
     where: { teamId: { in: teamIds } },
   });
-  await prisma.evidence.deleteMany({ where: { teamId: { in: teamIds } } });
-  await prisma.case.deleteMany({ where: { teamId: { in: teamIds } } });
-  await prisma.teamMember.deleteMany({ where: { teamId: { in: teamIds } } });
-  await prisma.team.deleteMany({ where: { id: { in: teamIds } } });
-  // Orgs after teams — Team.organizationId FK is Restrict.
-  await prisma.organization.deleteMany({
-    where: { id: { in: [ID.orgEmpty, ID.orgPopulated, ID.orgTeam, ID.orgIssues] } },
+  // The lifecycle ledger, the workspace activity trail and the organization
+  // audit trail are append-only too (members audit DOM-12), and a team or
+  // organization delete cascades into them — so the rest of the re-seed runs
+  // under the same trigger-disabling superuser session as custody above.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL session_replication_role = replica`);
+    await tx.evidenceLifecycleEvent.deleteMany({ where: { teamId: { in: teamIds } } });
+    await tx.evidence.deleteMany({ where: { teamId: { in: teamIds } } });
+    await tx.case.deleteMany({ where: { teamId: { in: teamIds } } });
+    await tx.teamMember.deleteMany({ where: { teamId: { in: teamIds } } });
+    await tx.team.deleteMany({ where: { id: { in: teamIds } } });
+    // Orgs after teams — Team.organizationId FK is Restrict.
+    await tx.organization.deleteMany({
+      where: { id: { in: [ID.orgEmpty, ID.orgPopulated, ID.orgTeam, ID.orgIssues] } },
+    });
   });
   await prisma.entitlement.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });

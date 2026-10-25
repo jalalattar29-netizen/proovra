@@ -41,7 +41,12 @@
  *      `closedAtUtc` stamped. The user's own memberships elsewhere end the
  *      same way, invitations addressed to them are revoked, and credentials
  *      they minted in other workspaces are revoked.
- *   B. ANONYMISATION — only after A has committed.
+ *   B. ANONYMISATION — only after A has committed. With a closure request,
+ *      the request's COMPLETED state and its audit row commit in this same
+ *      transaction (members audit AUD-01).
+ *
+ * The person is told (ACCOUNT_CLOSED, members audit AUD-04): the notice is
+ * enqueued in A, while the address still exists, and dispatched after B.
  *
  * Every leg selects only what is still live, so the whole execution is
  * idempotent: a reaper that finds a request stuck in PROCESSING simply runs it
@@ -55,6 +60,8 @@ import { evaluateAccountClosurePreflight } from "./account-lifecycle-preflight.s
 // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED transition.
 import { archiveOrganizationStatusTx } from "../organization/org-closure.service.js";
 import { closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
+import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
 import {
   massRevokeWorkspaceMemberships,
@@ -82,7 +89,10 @@ export const CANCELLABLE_CLOSURE_STATUSES = [
   "SCHEDULED",
 ] as const;
 
-export async function executeAccountClosure(userId: string): Promise<void> {
+export async function executeAccountClosure(
+  userId: string,
+  opts: { closureRequestId?: string } = {},
+): Promise<void> {
   const now = new Date();
 
   // 1. Sessions first — the account must be unreachable before PII is
@@ -98,7 +108,7 @@ export async function executeAccountClosure(userId: string): Promise<void> {
   });
 
   // A. DURABLE CLOSURE — committed before a single field is anonymised.
-  await prisma.$transaction(async (tx) => {
+  const noticeIds = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
 
     // Solo implicit organizations go first, so their workspaces close with
@@ -132,7 +142,7 @@ export async function executeAccountClosure(userId: string): Promise<void> {
       },
       select: { id: true },
     });
-    await closeWorkspacesTx(tx, {
+    const closed = await closeWorkspacesTx(tx, {
       teamIds: owned.map((t) => t.id),
       actorUserId: userId,
       reason: "account closure",
@@ -159,6 +169,13 @@ export async function executeAccountClosure(userId: string): Promise<void> {
       where: { createdByUserId: userId, status: "ACTIVE" },
       data: { status: "REVOKED", revokedAtUtc: now, revokedReason: "account_closed" },
     });
+    const confirmation = await enqueueMembershipLifecycleNoticeTx(tx as never, {
+      eventType: "ACCOUNT_CLOSED",
+      teamId: null,
+      recipientUserId: userId,
+      actorUserId: userId,
+    });
+    return [...closed.noticeIds, confirmation];
   });
 
   // B. ANONYMISATION — login methods, PII and privacy artifacts.
@@ -191,6 +208,72 @@ export async function executeAccountClosure(userId: string): Promise<void> {
         currentWorkspaceId: null,
       },
     });
+    if (opts.closureRequestId) {
+      await tx.accountClosureRequest.update({
+        where: { id: opts.closureRequestId },
+        data: { status: "COMPLETED", completedAtUtc: new Date() },
+      });
+      await emitPlatformAudit(
+        {
+          action: "identity.account_closure_completed",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: userId,
+          serviceActor: "account_closure_worker",
+          resourceType: "account_closure_request",
+          resourceId: opts.closureRequestId,
+          causationId: opts.closureRequestId,
+          previousState: "PROCESSING",
+          resultingState: "COMPLETED",
+          metadata: {},
+        },
+        tx as never,
+      );
+    }
+  });
+  await dispatchEnqueuedEmailNotifications(noticeIds);
+}
+
+/** A closure request's terminal refusal or failure, and its audit, in one transaction. */
+async function recordAccountClosureOutcome(input: {
+  requestId: string;
+  userId: string;
+  fromStatus: string;
+  outcome: "BLOCKED" | "FAILED";
+  blockers?: Array<{ code: string }>;
+}): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const moved = await tx.accountClosureRequest.updateMany({
+      where: { id: input.requestId, status: input.fromStatus },
+      data:
+        input.outcome === "BLOCKED"
+          ? { status: "BLOCKED", blockersJson: JSON.stringify(input.blockers ?? []) }
+          : { status: "FAILED", failureCode: "closure_failed" },
+    });
+    if (moved.count === 0) return;
+    await emitPlatformAudit(
+      {
+        action:
+          input.outcome === "BLOCKED"
+            ? "identity.account_closure_blocked"
+            : "identity.account_closure_failed",
+        outcome: input.outcome === "BLOCKED" ? "denied" : "error",
+        ...(input.outcome === "BLOCKED" ? { denialReason: "closure_blocked" } : {}),
+        sourceApp: "API",
+        actorUserId: input.userId,
+        serviceActor: "account_closure_worker",
+        resourceType: "account_closure_request",
+        resourceId: input.requestId,
+        causationId: input.requestId,
+        previousState: input.fromStatus,
+        resultingState: input.outcome,
+        metadata:
+          input.outcome === "BLOCKED"
+            ? { blockers: (input.blockers ?? []).map((b) => b.code) }
+            : { failureCode: "closure_failed" },
+      },
+      tx as never,
+    );
   });
 }
 
@@ -235,20 +318,12 @@ export async function processAccountClosures(now: Date): Promise<void> {
     // stops execution cold.
     const { blockers } = await evaluateAccountClosurePreflight(req.userId);
     if (blockers.length > 0) {
-      await prisma.accountClosureRequest.updateMany({
-        where: { id: req.id, status: req.status },
-        data: { status: "BLOCKED", blockersJson: JSON.stringify(blockers) },
-      });
-      await emitPlatformAudit({
-        action: "identity.account_closure_blocked",
-        outcome: "denied",
-        denialReason: "closure_blocked",
-        sourceApp: "API",
-        actorUserId: req.userId,
-        serviceActor: "account_closure_worker",
-        resourceType: "account_closure_request",
-        resourceId: req.id,
-        metadata: { blockers: blockers.map((b) => b.code) },
+      await recordAccountClosureOutcome({
+        requestId: req.id,
+        userId: req.userId,
+        fromStatus: req.status,
+        outcome: "BLOCKED",
+        blockers,
       });
       continue;
     }
@@ -265,37 +340,15 @@ export async function processAccountClosures(now: Date): Promise<void> {
 /** Execute one claimed request and record its outcome. */
 async function runClaimedClosure(req: { id: string; userId: string }): Promise<void> {
   try {
-    await executeAccountClosure(req.userId);
-    await prisma.accountClosureRequest.update({
-      where: { id: req.id },
-      data: { status: "COMPLETED", completedAtUtc: new Date() },
-    });
-    await emitPlatformAudit({
-      action: "identity.account_closure_completed",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: req.userId,
-      serviceActor: "account_closure_worker",
-      resourceType: "account_closure_request",
-      resourceId: req.id,
-      metadata: {},
-    });
+    await executeAccountClosure(req.userId, { closureRequestId: req.id });
   } catch {
-    await prisma.accountClosureRequest
-      .update({
-        where: { id: req.id },
-        data: { status: "FAILED", failureCode: "closure_failed" },
-      })
-      .catch(() => null);
-    await emitPlatformAudit({
-      action: "identity.account_closure_failed",
-      outcome: "error",
-      sourceApp: "API",
-      actorUserId: req.userId,
-      serviceActor: "account_closure_worker",
-      resourceType: "account_closure_request",
-      resourceId: req.id,
-      metadata: { failureCode: "closure_failed" },
+    // A committed, B rolled back (or A rolled back): either way the request
+    // records FAILED with its audit, and A's legs are idempotent on re-run.
+    await recordAccountClosureOutcome({
+      requestId: req.id,
+      userId: req.userId,
+      fromStatus: "PROCESSING",
+      outcome: "FAILED",
     }).catch(() => null);
   }
 }

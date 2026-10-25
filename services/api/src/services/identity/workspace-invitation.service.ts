@@ -287,44 +287,86 @@ export async function createWorkspaceInvitation(
  * Rotation is the point. An operator resends because the first link did not
  * arrive or went somewhere it should not have; leaving the old token valid
  * would mean the resend fixed the delivery and not the exposure.
+ *
+ * MEMBERS AUDIT INV-04 — a resend is a recorded, bounded act. Each one writes
+ * an `invite_resent` row to the workspace trail, and an invitation can be
+ * resent at most `MAX_INVITE_RESENDS_PER_24H` times in any 24 hours (counted
+ * from those rows, which are append-only). The invite row is locked first, so
+ * two resends racing at the limit cannot both pass the count.
  */
+export const MAX_INVITE_RESENDS_PER_24H = 5;
+
 export async function resendWorkspaceInvitation(
-  input: { workspaceId: string; inviteId: string; expiresInMs?: number },
+  input: {
+    workspaceId: string;
+    inviteId: string;
+    expiresInMs?: number;
+    actorUserId?: string | null;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedWorkspaceInvitation> {
-  const existing = await client.teamInvite.findFirst({
-    where: { id: input.inviteId, teamId: input.workspaceId },
-  });
-  if (!existing) {
-    throw new WorkspaceInvitationError(
-      "INVITE_NOT_FOUND",
-      "Invitation not found.",
-      404,
-    );
-  }
-  const status = invitationStatus(existing);
-  if (status === "ACCEPTED" || status === "REVOKED") {
-    throw new WorkspaceInvitationError(
-      "INVITE_NOT_PENDING",
-      `This invitation is ${status.toLowerCase()} and cannot be resent.`,
-      409,
-      { status },
-    );
-  }
+  return client.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "team_invites" WHERE "id" = ${input.inviteId}::uuid FOR UPDATE`;
+    const existing = await tx.teamInvite.findFirst({
+      where: { id: input.inviteId, teamId: input.workspaceId },
+    });
+    if (!existing) {
+      throw new WorkspaceInvitationError(
+        "INVITE_NOT_FOUND",
+        "Invitation not found.",
+        404,
+      );
+    }
+    const status = invitationStatus(existing);
+    if (status === "ACCEPTED" || status === "REVOKED") {
+      throw new WorkspaceInvitationError(
+        "INVITE_NOT_PENDING",
+        `This invitation is ${status.toLowerCase()} and cannot be resent.`,
+        409,
+        { status },
+      );
+    }
+    const recentResends = await tx.teamActivity.count({
+      where: {
+        teamId: input.workspaceId,
+        eventType: "invite_resent",
+        targetId: existing.id,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+    });
+    if (recentResends >= MAX_INVITE_RESENDS_PER_24H) {
+      throw new WorkspaceInvitationError(
+        "INVITE_RESEND_LIMIT",
+        `This invitation was already resent ${MAX_INVITE_RESENDS_PER_24H} times in the last 24 hours.`,
+        429,
+        { limit: MAX_INVITE_RESENDS_PER_24H, windowHours: 24 },
+      );
+    }
 
-  const { raw, hash } = mintToken();
-  const updated = await client.teamInvite.update({
-    where: { id: existing.id },
-    data: {
-      tokenHash: hash,
-      expiresAt: new Date(
-        Date.now() + (input.expiresInMs ?? WORKSPACE_INVITE_TTL_MS),
-      ),
-      lastResentAt: new Date(),
-      resendCount: { increment: 1 },
-    },
+    const { raw, hash } = mintToken();
+    const updated = await tx.teamInvite.update({
+      where: { id: existing.id },
+      data: {
+        tokenHash: hash,
+        expiresAt: new Date(
+          Date.now() + (input.expiresInMs ?? WORKSPACE_INVITE_TTL_MS),
+        ),
+        lastResentAt: new Date(),
+        resendCount: { increment: 1 },
+      },
+    });
+    await tx.teamActivity.create({
+      data: {
+        teamId: input.workspaceId,
+        eventType: "invite_resent",
+        targetType: "invite",
+        targetId: existing.id,
+        actorUserId: input.actorUserId ?? null,
+        metadata: { email: existing.email, role: existing.role, resendCount: updated.resendCount },
+      },
+    });
+    return { invite: projectInvitation(updated), rawToken: raw };
   });
-  return { invite: projectInvitation(updated), rawToken: raw };
 }
 
 // =============================================================================

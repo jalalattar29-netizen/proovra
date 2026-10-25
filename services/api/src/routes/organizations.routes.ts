@@ -97,6 +97,7 @@ import { establishOrganizationSessionContext } from "../services/identity/concur
 import {
   attemptInitialOrgInviteDelivery,
   getOrgInviteDeliveryStates,
+  lockOrganizationInviteSlotTx,
   processDueOrgInviteDeliveries,
   recordOrgInviteDeliveryPending,
   resendOrgInviteDelivery,
@@ -869,6 +870,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
+        await lockOrganizationInviteSlotTx(tx, { organizationId: orgId, email: body.email });
         // Reject if a non-revoked, non-accepted, non-expired invite
         // already exists for this email in this org.
         const now = new Date();
@@ -2222,6 +2224,27 @@ export async function organizationsRoutes(app: FastifyInstance) {
             billingOwnerTransferred,
           },
         });
+        // Both parties see the transfer on their own activity timelines; the
+        // rows commit with the transfer (members audit AUD-01 / AUD-03).
+        for (const [party, role] of [
+          [userId, "previous_owner"],
+          [body.targetUserId, "new_owner"],
+        ] as const) {
+          await emitTenantAudit(
+            {
+              action: "identity.organization_ownership_transferred",
+              outcome: "success",
+              sourceApp: "API",
+              actorUserId: party,
+              organizationId: orgId,
+              resourceType: "organization",
+              resourceId: orgId,
+              correlationId: req.id,
+              metadata: { role, billingOwnerTransferred },
+            },
+            tx as never,
+          );
+        }
         return { kind: "ok" as const, billingOwnerTransferred };
       });
 
@@ -2234,23 +2257,6 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .send({ error: { code: "target_not_member" } });
       }
 
-      // Both parties see the transfer on their own activity timelines.
-      for (const [party, role] of [
-        [userId, "previous_owner"],
-        [body.targetUserId, "new_owner"],
-      ] as const) {
-        await emitTenantAudit({
-          action: "identity.organization_ownership_transferred",
-          outcome: "success",
-          sourceApp: "API",
-          actorUserId: party,
-          organizationId: orgId,
-          resourceType: "organization",
-          resourceId: orgId,
-          correlationId: req.id,
-          metadata: { role, billingOwnerTransferred: result.billingOwnerTransferred },
-        }).catch(() => null);
-      }
 
       return reply.code(200).send({
         transferred: true,
@@ -2298,6 +2304,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
             teamId: params.teamId,
             actorUserId: userId,
             organizationId: params.id,
+            correlationId: req.id,
           });
           return reply.code(200).send({ [leg]: result });
         } catch (err) {
@@ -2456,7 +2463,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         userId,
       );
       if (blockers.length > 0) {
-        const blocked = await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx) => {
           const row = await tx.organizationClosureRequest.create({
             data: {
               organizationId: orgId,
@@ -2475,20 +2482,25 @@ export async function organizationsRoutes(app: FastifyInstance) {
             targetId: orgId,
             metadata: { blockers: blockers.map((b) => b.code) },
           });
+          // Members audit AUD-01 — the tenant audit row commits with the request.
+          await emitTenantAudit(
+            {
+              action: "identity.organization_closure_blocked",
+              outcome: "denied",
+              denialReason: "closure_blocked",
+              sourceApp: "API",
+              actorUserId: userId,
+              organizationId: orgId,
+              resourceType: "organization_closure_request",
+              resourceId: row.id,
+              correlationId: req.id,
+              resultingState: "BLOCKED",
+              metadata: { blockers: blockers.map((b) => b.code) },
+            },
+            tx as never,
+          );
           return row;
         });
-        await emitTenantAudit({
-          action: "identity.organization_closure_blocked",
-          outcome: "denied",
-          denialReason: "closure_blocked",
-          sourceApp: "API",
-          actorUserId: userId,
-          organizationId: orgId,
-          resourceType: "organization_closure_request",
-          resourceId: blocked.id,
-          correlationId: req.id,
-          metadata: { blockers: blockers.map((b) => b.code) },
-        }).catch(() => null);
         return reply
           .code(409)
           .send({ error: { code: "closure_blocked" }, blockers });
@@ -2518,19 +2530,23 @@ export async function organizationsRoutes(app: FastifyInstance) {
             coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString(),
           },
         });
+        await emitTenantAudit(
+          {
+            action: "identity.organization_closure_requested",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: userId,
+            organizationId: orgId,
+            resourceType: "organization_closure_request",
+            resourceId: row.id,
+            correlationId: req.id,
+            resultingState: "COOLING_OFF",
+            metadata: { coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString() },
+          },
+          tx as never,
+        );
         return row;
       });
-      await emitTenantAudit({
-        action: "identity.organization_closure_requested",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: userId,
-        organizationId: orgId,
-        resourceType: "organization_closure_request",
-        resourceId: created.id,
-        correlationId: req.id,
-        metadata: { coolingOffEndsAtUtc: coolingOffEndsAtUtc.toISOString() },
-      }).catch(() => null);
       return reply.code(201).send({ request: created });
     },
   );
@@ -2576,6 +2592,21 @@ export async function organizationsRoutes(app: FastifyInstance) {
           targetId: params.id,
           metadata: { requestId: params.requestId },
         });
+        await emitTenantAudit(
+          {
+            action: "identity.organization_closure_cancelled",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: userId,
+            organizationId: params.id,
+            resourceType: "organization_closure_request",
+            resourceId: params.requestId,
+            correlationId: req.id,
+            resultingState: "CANCELLED",
+            metadata: {},
+          },
+          tx as never,
+        );
         return true;
       });
       if (!cancelled) {
@@ -2591,17 +2622,6 @@ export async function organizationsRoutes(app: FastifyInstance) {
           .send({ error: { code: "closure_not_cancellable" } });
       }
 
-      await emitTenantAudit({
-        action: "identity.organization_closure_cancelled",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: userId,
-        organizationId: params.id,
-        resourceType: "organization_closure_request",
-        resourceId: params.requestId,
-        correlationId: req.id,
-        metadata: {},
-      }).catch(() => null);
       const row = await prisma.organizationClosureRequest.findFirst({
         where: { id: params.requestId, organizationId: params.id },
         select: ORG_CLOSURE_SELECT,

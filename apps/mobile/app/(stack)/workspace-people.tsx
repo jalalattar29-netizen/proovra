@@ -500,7 +500,7 @@ export default function WorkspacePeopleScreen() {
                 Every seat is in use.
               </ProovraText>
               <ProovraText variant="label" color={theme.color.ink.secondary}>
-                A new person can be invited once a seat frees up, or when the plan is changed.
+                You can still send invitations, but an invited person can join only once a seat frees up or the contract adds seats.
               </ProovraText>
               <ProovraButton label="Review plan and seats" variant="ghost" fullWidth={false} onPress={() => router.push("/billing" as never)} />
             </ProovraCard>
@@ -808,7 +808,7 @@ export default function WorkspacePeopleScreen() {
         </ProovraText>
         {roomLeft === false ? (
           <ProovraText variant="label" color={theme.color.status.pending.fg}>
-            Every seat on this plan is in use. Free a seat or change plan to invite more people.
+            Every seat is in use. The invitation is still sent; the person can join once a seat frees up.
           </ProovraText>
         ) : null}
         <ProovraFormField label="Email address">
@@ -837,7 +837,7 @@ export default function WorkspacePeopleScreen() {
             label={busy ? "Sending…" : "Send invitation"}
             fullWidth={false}
             loading={busy}
-            disabled={roomLeft === false || !email.trim()}
+            disabled={!email.trim()}
             onPress={() => void invite()}
           />
         </View>

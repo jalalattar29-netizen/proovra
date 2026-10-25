@@ -222,7 +222,8 @@ describe("Phase 4 — Legal Hold prevails at execution time", () => {
     // request (members audit LIFE-11).
     const requestWrites = H.calls.filter(
       (c) =>
-        c.model === "workspaceClosureRequest" &&
+        // Outside or inside the outcome transaction (members audit AUD-01).
+        c.model.endsWith("workspaceClosureRequest") &&
         c.method === "updateMany" &&
         (c.args[0] as { where?: { status?: unknown } }).where?.status !== "PROCESSING",
     );

@@ -32,6 +32,13 @@ import * as prismaPkg from "@prisma/client";
 // legitimately does set an organization workspace's plan.
 import { prisma } from "../../db.js";
 import { setPersonalPlan, upsertSubscription } from "../billing.service.js";
+
+/** Members audit ENT-12 — a provider fact changed the plan; the audit names the subscription. */
+const WEBHOOK_PLAN_ORIGIN = (providerSubId: string) => ({
+  actorUserId: null,
+  serviceActor: "billing_provider_webhook",
+  providerSubId,
+});
 import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
 import { recordBillingReviewItem } from "./billing-review.service.js";
 import {
@@ -186,7 +193,7 @@ export async function syncPlanForSubscription(params: {
         canceledAtProvider,
       };
     }
-    await setPersonalPlan(params.userId, subscription.plan);
+    await setPersonalPlan(params.userId, subscription.plan, WEBHOOK_PLAN_ORIGIN(params.providerSubId));
     return { outcome: "APPLIED", subscriptionId: subscription.id, status: subscription.status };
   }
 
@@ -254,13 +261,13 @@ export async function syncPlanForSubscription(params: {
           select: { plan: true },
         });
         if (entitlement?.plan === subscription.plan) {
-          await setPersonalPlan(params.userId, otherLive.plan);
+          await setPersonalPlan(params.userId, otherLive.plan, WEBHOOK_PLAN_ORIGIN(params.providerSubId));
         }
       }
       return applied;
     }
 
-    await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE);
+    await setPersonalPlan(params.userId, prismaPkg.PlanType.FREE, WEBHOOK_PLAN_ORIGIN(params.providerSubId));
   }
 
   return applied;

@@ -405,3 +405,18 @@ test("the entitlement is read at the server's keys (collaborationTeams, featureI
   assert.equal(fiction.teamsLimit, null);
   assert.equal(fiction.planLocked, false);
 });
+
+test("CT-16: a refused Teams read names the plan only when the entitlement says the plan lacks Teams", () => {
+  const locked = mod.parseCollaborationEntitlement({ featureIncluded: false, plan: "FREE" });
+  assert.deepEqual(mod.collaborationUnavailableCopy(locked), {
+    title: "Teams aren't on this plan",
+    purpose: mod.TEAMS_PLAN_LOCKED_COPY,
+  });
+  // A Viewer on a Team plan is refused by ROLE: no upsell.
+  const included = mod.parseCollaborationEntitlement({ featureIncluded: true, plan: "TEAM" });
+  const role = mod.collaborationUnavailableCopy(included);
+  assert.equal(role.title, "You can't open Teams here");
+  assert.doesNotMatch(role.purpose, /plan/i);
+  // Unknown entitlement: never claim a plan reason the server did not give.
+  assert.doesNotMatch(mod.collaborationUnavailableCopy(null).purpose, /plan/i);
+});

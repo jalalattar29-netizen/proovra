@@ -340,6 +340,25 @@ export function projectOrgInviteDelivery(row: DeliveryRow): OrgInviteDeliverySta
 }
 
 // ---------------------------------------------------------------------------
+// 0. One pending invitation per address per organization (members audit
+//    DOM-10). Both create paths (single and bulk) read "is there a pending
+//    invite?" and then insert; under READ COMMITTED two concurrent requests
+//    both read "no" and both insert. Taking this transaction-scoped lock
+//    BEFORE the read serialises every writer of the same (organization,
+//    address) pair, so the second one reads the first one's row. A partial
+//    unique index cannot express "pending" here: expiry is a time, not a
+//    column state, and live databases already hold expired-but-open rows.
+// ---------------------------------------------------------------------------
+
+export async function lockOrganizationInviteSlotTx(
+  tx: Prisma.TransactionClient,
+  input: { organizationId: string; email: string },
+): Promise<void> {
+  const key = `org-invite:${input.organizationId}:${input.email.trim().toLowerCase()}`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+}
+
+// ---------------------------------------------------------------------------
 // 1. Outbox commit — MUST run inside the SAME transaction as the invite
 //    create so a committed invite always has a delivery record (and a
 //    rolled-back invite never leaves an orphan outbox row).

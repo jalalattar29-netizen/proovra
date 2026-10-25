@@ -71,6 +71,12 @@ const EVENT_FILTERS: Array<{ value: string; label: string }> = [
   { value: "EVIDENCE_REQUEST_NEEDS_MORE_INFO", label: "Needs more info" },
   { value: "REVIEW_REQUEST_ASSIGNED", label: "Review assignment" },
   { value: "EXTERNAL_INTAKE_LINK_CREATED", label: "Intake link created" },
+  { value: "WORKSPACE_ACCESS_REMOVED", label: "Access removed" },
+  { value: "WORKSPACE_ACCESS_SUSPENDED", label: "Access suspended" },
+  { value: "WORKSPACE_ACCESS_RESTORED", label: "Access restored" },
+  { value: "WORKSPACE_ROLE_CHANGED", label: "Role changed" },
+  { value: "WORKSPACE_OWNERSHIP_RECEIVED", label: "Ownership received" },
+  { value: "WORKSPACE_CLOSED", label: "Workspace closed" },
 ];
 
 // PV-LANG-003 — the filter vocabulary is the label source for a row's event

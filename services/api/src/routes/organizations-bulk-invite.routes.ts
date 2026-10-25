@@ -65,6 +65,7 @@ import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js
 // path — no second delivery system.
 import {
   attemptInitialOrgInviteDelivery,
+  lockOrganizationInviteSlotTx,
   recordOrgInviteDeliveryPending,
   resendOrgInviteDelivery,
   type OrgInviteDeliveryState,
@@ -640,6 +641,7 @@ async function executeBatch(input: {
     }
     try {
       const created = await prisma.$transaction(async (tx) => {
+        await lockOrganizationInviteSlotTx(tx, { organizationId: input.orgId, email: row.email });
         // Re-check inside the tx to close the read→write race (another admin
         // may have invited this email between plan and execute).
         const nowTx = new Date();
