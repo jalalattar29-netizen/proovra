@@ -450,6 +450,12 @@ async function recordActivity(
       metadata: (args.metadata ?? {}) as Prisma.InputJsonValue,
     },
   });
+  // The group's activity order is its row's `updatedAt` (members audit
+  // CT-13). A group deleted in this same transaction has no row to touch.
+  await client.collaborationTeam.updateMany({
+    where: { id: args.teamId },
+    data: { updatedAt: new Date() },
+  });
 }
 
 // =============================================================================
@@ -800,6 +806,24 @@ async function computeWorkspaceRollup(
  * Ordering is `(updatedAt desc, id desc)` and the cursor is the id, so a page
  * boundary is stable even when two groups share a timestamp.
  */
+/**
+ * The list orders the database can answer honestly. "Activity" is the group
+ * row's `updatedAt`, which every recorded activity touches
+ * (`recordActivity`), so it is the most recent thing that happened in the
+ * group. There is no member-count order: the count shown is EFFECTIVE members
+ * (ACTIVE in the group AND in the workspace), which no index can order by, and
+ * an order by raw rows would rank removed members.
+ */
+export type CollaborationTeamListSort = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC";
+const COLLABORATION_TEAM_LIST_ORDER: Record<
+  CollaborationTeamListSort,
+  Prisma.CollaborationTeamOrderByWithRelationInput[]
+> = {
+  ACTIVITY_DESC: [{ updatedAt: "desc" }, { id: "desc" }],
+  ACTIVITY_ASC: [{ updatedAt: "asc" }, { id: "asc" }],
+  NAME_ASC: [{ name: "asc" }, { id: "asc" }],
+};
+
 export async function listCollaborationTeams(
   input: {
     workspaceId: string;
@@ -832,6 +856,15 @@ export async function listCollaborationTeams(
      * is an authorization decision.
      */
     canSurveyWorkspace?: boolean;
+    /**
+     * Members audit CT-13 — the type filter, the status filter and the order
+     * are the DATABASE'S. They used to run in the browser over the loaded
+     * page, so a workspace with more groups than one page sorted and filtered
+     * a fragment and called it the list.
+     */
+    teamType?: string | null;
+    status?: "ACTIVE" | "ARCHIVED" | null;
+    sort?: CollaborationTeamListSort | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{
@@ -873,7 +906,12 @@ export async function listCollaborationTeams(
         { members: { some: { userId: input.actorUserId } } };
   const where = {
     workspaceId: input.workspaceId,
-    ...(input.includeArchived ? {} : { status: "ACTIVE" }),
+    ...(input.status
+      ? { status: input.status }
+      : input.includeArchived
+        ? {}
+        : { status: "ACTIVE" }),
+    ...(input.teamType ? { teamType: input.teamType } : {}),
     ...participationFilter,
     ...(search
       ? {
@@ -900,7 +938,7 @@ export async function listCollaborationTeams(
 
   const teams = await client.collaborationTeam.findMany({
     where,
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    orderBy: COLLABORATION_TEAM_LIST_ORDER[input.sort ?? "ACTIVITY_DESC"],
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
     take: take + 1,
     include: {

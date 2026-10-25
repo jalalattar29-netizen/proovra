@@ -82,7 +82,7 @@ export default function TeamsOverviewPage() {
 
 type StatusFilter = "ALL" | CollaborationTeamStatus;
 type TypeFilter = "ALL" | CollaborationTeamType;
-type SortKey = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC" | "MEMBERS_DESC";
+type SortKey = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC";
 
 const TEAM_TYPE_LABELS: Record<CollaborationTeamType, string> = {
   GENERAL: "General",
@@ -235,6 +235,9 @@ function TeamsOverview() {
         listTeams({
           search,
           includeArchived: statusFilter === "ARCHIVED" || statusFilter === "ALL",
+          status: statusFilter === "ALL" ? null : statusFilter,
+          teamType: typeFilter === "ALL" ? null : typeFilter,
+          sort: sortKey,
           cursor: opts?.cursor ?? null,
           scope,
         }),
@@ -297,7 +300,7 @@ function TeamsOverview() {
     // re-fetch. No cross-tenant data was ever served — the server refuses —
     // but the display was another tenant's, which on an evidence platform is a
     // trust failure whether or not a byte leaked.
-    [search, statusFilter, scope, activeWorkspaceId],
+    [search, statusFilter, typeFilter, sortKey, scope, activeWorkspaceId],
   );
 
   useEffect(() => {
@@ -327,38 +330,10 @@ function TeamsOverview() {
     setCanGovern(false);
   }, [activeWorkspaceId]);
 
-  // Derived, in-memory view of the fetched teams. Never triggers a fetch.
-  const visibleTeams = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    // `search` was applied by the database; re-applying it here would only
-    // narrow a page the server already narrowed. Status and type still filter
-    // the page in hand, and the sort orders it.
-    void q;
-    const filtered = teams.filter((t) => {
-      if (statusFilter !== "ALL" && t.status !== statusFilter) return false;
-      if (typeFilter !== "ALL" && t.teamType !== typeFilter) return false;
-      return true;
-    });
-    const activityMs = (t: CollaborationTeamSummary) =>
-      t.lastActivityAt ? new Date(t.lastActivityAt).getTime() : 0;
-    const sorted = [...filtered];
-    switch (sortKey) {
-      case "ACTIVITY_ASC":
-        sorted.sort((a, b) => activityMs(a) - activityMs(b));
-        break;
-      case "NAME_ASC":
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "MEMBERS_DESC":
-        sorted.sort((a, b) => b.memberCount - a.memberCount);
-        break;
-      case "ACTIVITY_DESC":
-      default:
-        sorted.sort((a, b) => activityMs(b) - activityMs(a));
-        break;
-    }
-    return sorted;
-  }, [teams, search, statusFilter, typeFilter, sortKey]);
+  // Members audit CT-13 — search, status, type and order are all applied by
+  // the server, so the rows are shown exactly as they arrive. Sorting or
+  // filtering here would act on one page and present it as the whole list.
+  const visibleTeams = teams;
 
   const controlsActive =
     search.trim().length > 0 ||
@@ -696,7 +671,6 @@ function TeamsToolbar({
     { value: "ACTIVITY_DESC", label: "Last activity (newest)" },
     { value: "ACTIVITY_ASC", label: "Last activity (oldest)" },
     { value: "NAME_ASC", label: "Name (A–Z)" },
-    { value: "MEMBERS_DESC", label: "Most members" },
   ] as const;
 
   return (

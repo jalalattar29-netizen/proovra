@@ -529,7 +529,9 @@ function TeamDetailPageBody() {
     return team.members.find((member) => member.userId === currentUserId) ?? null;
   }, [team?.members, currentUserId]);
 
-  const currentRole = team?.currentUserRole || myMemberRecord?.role || "VIEWER";
+  // Members audit MEM-04 — no invented role: when neither the projection nor
+  // the roster names one, the page says nothing about it rather than "VIEWER".
+  const currentRole: string | null = team?.currentUserRole || myMemberRecord?.role || null;
   // PHASE 12 POINT 4 STEP 1 — owner-only affordances (delete workspace,
   // workspace closure) read the SERVER projection, not a client role string.
   // DELETE /v1/teams/:id and the closure routes enforce OWNER themselves.
@@ -1192,7 +1194,8 @@ function TeamDetailPageBody() {
                   wording and the cross-link below, not by a banner.
                 */}
                 Who can access {team.name} — members, invitations, roles and
-                access governance. You are {currentRole}
+                access governance.
+                {currentRole ? ` Your role: ${workspaceRoleLabel(currentRole)}` : ""}
                 {effectivePlan ? ` · ${effectivePlan} plan` : ""}
               </p>
             </div>
@@ -1752,17 +1755,32 @@ function TeamDetailPageBody() {
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       aria-label="Workspace name"
+                      aria-invalid={!teamName.trim()}
+                      aria-describedby={!teamName.trim() ? "workspace-name-required" : undefined}
                       data-testid="workspace-name-input"
                     />
                     <button
                       type="button"
                       className="app-secondary-action app-secondary-action--filled"
                       onClick={() => void handleSaveTeamName()}
-                      disabled={savingName}
+                      disabled={savingName || !teamName.trim()}
                       data-testid="workspace-name-save"
                     >
                       {savingName ? "Saving…" : "Save name"}
                     </button>
+                    {/* Members audit MEM-04 — a blank name used to be a silent
+                        no-op: the button did nothing and said nothing. */}
+                    {!teamName.trim() ? (
+                      <p
+                        id="workspace-name-required"
+                        className="app-field__help"
+                        role="status"
+                        style={{ flexBasis: "100%", margin: 0 }}
+                        data-testid="workspace-name-required"
+                      >
+                        Enter a name for the workspace.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
                 <dl className="app-kv-list">
@@ -1888,7 +1906,10 @@ function TeamDetailPageBody() {
           Nothing about the access-review endpoint, its authority, or the
           external-grant model changed.
         */}
-        {teamId ? <TeamAccessReviewCard teamId={teamId} /> : null}
+        {/* Members audit MEM-04 — the card reads and revokes through ADMIN+
+            endpoints, so it is mounted for those who can use it, not shown to
+            everyone as a refusal. */}
+        {teamId && canManageTeam ? <TeamAccessReviewCard teamId={teamId} /> : null}
 
         {/*
           CASE LINK MANAGEMENT WAS REMOVED FROM THIS PAGE (members audit MEM-05,
@@ -1933,7 +1954,18 @@ function TeamDetailPageBody() {
             </>
           }
         >
-          <div style={{ display: "grid", gap: 14 }}>
+          {/* Members audit MEM-04 — a real form: Enter in the address field
+              sends, and assistive technology announces one form, not two
+              loose controls. The footer button stays the visible action. */}
+          <form
+            style={{ display: "grid", gap: 14 }}
+            aria-label="Invite a person to this workspace"
+            data-testid="people-invite-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!inviting && inviteEmail.trim()) void handleInvite();
+            }}
+          >
             <div>
               <label className="app-field-label" htmlFor="people-invite-email">
                 Email address
@@ -1941,6 +1973,8 @@ function TeamDetailPageBody() {
               <input
                 id="people-invite-email"
                 type="email"
+                required
+                autoComplete="off"
                 className="app-form-input"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
@@ -1970,7 +2004,7 @@ function TeamDetailPageBody() {
                 moves by transfer.
               </p>
             </div>
-          </div>
+          </form>
         </Modal>
       ) : null}
 

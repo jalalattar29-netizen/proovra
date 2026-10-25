@@ -345,9 +345,16 @@ export async function listTeams(opts?: {
    * a client may always ask. `scope` on the response says which one came back.
    */
   scope?: "PARTICIPATING" | "ALL";
+  /** Members audit CT-13 — filtered and ordered by the server, never the page. */
+  teamType?: string | null;
+  status?: "ACTIVE" | "ARCHIVED" | null;
+  sort?: "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC";
 }): Promise<CollaborationTeamPage> {
   const qs = new URLSearchParams();
   if (opts?.scope === "ALL") qs.set("scope", "all");
+  if (opts?.teamType) qs.set("type", opts.teamType);
+  if (opts?.status) qs.set("status", opts.status);
+  if (opts?.sort) qs.set("sort", opts.sort);
   if (opts?.includeArchived) qs.set("includeArchived", "true");
   if (opts?.search?.trim()) qs.set("q", opts.search.trim());
   if (opts?.limit) qs.set("limit", String(opts.limit));

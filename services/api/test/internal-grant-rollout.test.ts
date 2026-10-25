@@ -118,6 +118,8 @@ describe("internal-grant rollout — migration state", () => {
       // Members audit DOM-12 / DOM-06: history refusal triggers and the owner
       // FK delete rule (CASCADE → RESTRICT). EXPAND only.
       "20281026000100_members_history_append_only_owner_restrict",
+      // Members audit DOM-11: partial unique keys over ACTIVE rows. EXPAND only.
+      "20281026000200_live_status_unique_keys",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

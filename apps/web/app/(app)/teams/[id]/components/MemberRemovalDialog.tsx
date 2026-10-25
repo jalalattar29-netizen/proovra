@@ -247,7 +247,7 @@ export function MemberRemovalDialog({
         if (!submitting) onCancel();
       }}
       title={`Remove ${member.label}`}
-      description={`Confirm removal of ${member.label} from this team. Their owned records may need to be transferred first.`}
+      description={`Confirm removal of ${member.label} from this workspace. Their owned records may need to be transferred first.`}
       testid="team-member-removal"
       dismissDisabled={submitting}
       footer={
@@ -287,7 +287,7 @@ export function MemberRemovalDialog({
             style={{ margin: 0, opacity: 0.75, fontSize: 13 }}
             data-member-removal-loading
           >
-            Checking what they own in this team…
+            Checking what they own in this workspace…
           </p>
         ) : null}
 
@@ -427,7 +427,7 @@ export function MemberRemovalDialog({
                 data-member-removal-no-transfer
               >
                 This member doesn't own any active evidence or cases in
-                this team. Removing them won't transfer any ownership.
+                this workspace. Removing them won't transfer any ownership.
               </p>
             )}
 

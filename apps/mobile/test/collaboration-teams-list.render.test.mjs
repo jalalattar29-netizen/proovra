@@ -55,16 +55,21 @@ test("a governor defaults to the whole workspace, once, and the scope reaches th
   assert.doesNotMatch(lastList(), /scope=all/, "choosing My teams must stick");
 });
 
-test("status ALL or ARCHIVED asks the server for archived teams; type and sort apply to the page", async () => {
+test("status, type and sort are the SERVER's: each reaches the list request (members audit CT-13)", async () => {
   const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
   await settle();
   await r.press("Filter by status: All statuses");
   await settle();
   assert.match(lastList(), /includeArchived=true/);
   await r.press("Filter by team type: General");
+  await settle();
+  assert.match(lastList(), /[?&]type=GENERAL(&|$)/);
   await r.press("Sort teams: Name (A–Z)");
+  await settle();
+  assert.match(lastList(), /[?&]sort=NAME_ASC(&|$)/);
+  // The rows are shown as the server ordered them — never re-sorted locally.
   const names = r.root.findAll((n) => typeof n.type === "string" && n.props?.accessibilityRole === "button" && ["Zulu", "Alpha", "Mike"].includes(n.props.accessibilityLabel)).map((n) => n.props.accessibilityLabel);
-  assert.deepEqual(names, ["Alpha", "Mike"]);
+  assert.deepEqual(names, TEAMS.map((t) => t.name).filter((n) => ["Zulu", "Alpha", "Mike"].includes(n)));
 });
 
 test("search reaches the server as q", async () => {

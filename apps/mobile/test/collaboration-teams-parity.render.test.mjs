@@ -33,8 +33,12 @@ beforeEach(async () => {
   routes = {
     ...authenticatedRoutes(),
     "/v1/collaboration-teams/entitlement": () => ENT,
-    "/v1/collaboration-teams": (method) =>
-      method === "POST" ? { __status: 201, team: { id: "t-new" } } : { teams: TEAMS, nextCursor: null, scope: "ALL", rollup: null, canGovernWorkspace: true },
+    // The server applies the type filter (members audit CT-13), so the fake does too.
+    "/v1/collaboration-teams": (method, path = "") => {
+      if (method === "POST") return { __status: 201, team: { id: "t-new" } };
+      const type = new URLSearchParams(path.split("?")[1] ?? "").get("type");
+      return { teams: type ? TEAMS.filter((t) => t.teamType === type) : TEAMS, nextCursor: null, scope: "ALL", rollup: null, canGovernWorkspace: true };
+    },
     "/v1/me/inbox/summary": () => ({ unread: 0 }),
   };
   globalThis.fetch = async (url, init = {}) => {
@@ -42,7 +46,7 @@ beforeEach(async () => {
     const method = init.method ?? "GET";
     requests.push({ path, method, body: init.body ? JSON.parse(init.body) : null });
     const key = Object.keys(routes).filter((p) => path.startsWith(p)).sort((a, b) => b.length - a.length)[0];
-    const res = key ? routes[key](method) : undefined;
+    const res = key ? routes[key](method, path) : undefined;
     const status = res === undefined ? 500 : res.__status ?? 200;
     return new Response(JSON.stringify(res ?? {}), { status, headers: { "content-type": "application/json" } });
   };
@@ -84,8 +88,10 @@ test("each row says its status, type and activity; the overflow opens the team o
 test("a filter that hides every team offers the reset; an empty workspace offers Create team", async () => {
   const r = await render();
   await r.press("Filter by team type: Compliance");
+  await settle();
   assert.ok(r.hasText("No teams match the current filters"));
   await r.press("Show all teams");
+  await settle();
   assert.ok(r.hasText("Claims"));
   r.unmount();
   routes["/v1/collaboration-teams"] = () => ({ teams: [], nextCursor: null, scope: "PARTICIPATING", rollup: null, canGovernWorkspace: false });

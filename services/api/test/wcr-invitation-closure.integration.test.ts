@@ -720,11 +720,12 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
       expect(before.limit).toBe(5);
       expect(before.used).toBe(3);
 
-      // Two seats left, eight contenders, each with their OWN invitation —
-      // so the single-use claim cannot be what bounds this. Only the seat
-      // check under the per-workspace lock can.
+      // Two seats left, five contenders (the most pending invitations a
+      // five-seat contract allows), each with their OWN invitation — so the
+      // single-use claim cannot be what bounds this. Only the seat check under
+      // the per-workspace lock can.
       const contenders = await Promise.all(
-        Array.from({ length: 8 }, async (_unused, i) => {
+        Array.from({ length: 5 }, async (_unused, i) => {
           const email = addr(`race-${i}`);
           const created = await invite(ws, org.owner.userId, email);
           const u = await outsider(`race-${i}`);
@@ -757,7 +758,7 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
 
       expect(accepted, `accepted=${accepted} results=${results.join(",")}`).toBe(2);
       expect(other, `unexpected outcomes: ${other.join(",")}`).toEqual([]);
-      expect(seatRefusals).toBe(6);
+      expect(seatRefusals).toBe(3);
       expect((await seats.resolveWorkspaceSeatState(ws, prisma as never)).used).toBe(5);
     });
 

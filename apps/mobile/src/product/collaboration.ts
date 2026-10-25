@@ -242,14 +242,16 @@ export const COLLABORATION_TEAMS_PATH = "/v1/collaboration-teams";
 /* ------------------------------------------------ list filters (T-12) */
 
 /**
- * The web list's four filters (collaboration-teams/page.tsx:699-766). SCOPE and
- * ARCHIVED go to the server (`scope=all` is granted only to governors; the
- * server says which view came back); status, type and sort apply to the page
- * in hand, exactly as the web applies them.
+ * The web list's four filters (collaboration-teams/page.tsx). Every one goes to
+ * the server (members audit CT-13): `scope=all` is granted only to governors
+ * and the server says which view came back; status, type and order are applied
+ * by the database, never to the page in hand. There is no member-count order —
+ * the count shown is effective membership, which the database cannot order by
+ * honestly.
  */
 export type TeamsScope = "PARTICIPATING" | "ALL";
 export type TeamsStatusFilter = "ALL" | "ACTIVE" | "ARCHIVED";
-export type TeamsSort = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC" | "MEMBERS_DESC";
+export type TeamsSort = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC";
 
 export const TEAMS_SCOPE_OPTIONS: ReadonlyArray<{ value: TeamsScope; label: string }> = [
   { value: "ALL", label: "All workspace teams" },
@@ -271,7 +273,6 @@ export const TEAMS_SORT_OPTIONS: ReadonlyArray<{ value: TeamsSort; label: string
   { value: "ACTIVITY_DESC", label: "Last activity (newest)" },
   { value: "ACTIVITY_ASC", label: "Last activity (oldest)" },
   { value: "NAME_ASC", label: "Name (A–Z)" },
-  { value: "MEMBERS_DESC", label: "Most members" },
 ];
 
 export function buildCollaborationTeamsPath(opts: {
@@ -280,10 +281,16 @@ export function buildCollaborationTeamsPath(opts: {
   q?: string | null;
   cursor?: string | null;
   limit?: number;
+  status?: TeamsStatusFilter;
+  type?: string;
+  sort?: TeamsSort;
 }): string {
   const qs = new URLSearchParams();
   if (opts.scope === "ALL") qs.set("scope", "all");
   if (opts.includeArchived) qs.set("includeArchived", "true");
+  if (opts.status && opts.status !== "ALL") qs.set("status", opts.status);
+  if (opts.type && opts.type !== "ALL") qs.set("type", opts.type);
+  if (opts.sort) qs.set("sort", opts.sort);
   if (opts.q && opts.q.trim()) qs.set("q", opts.q.trim());
   if (opts.cursor) qs.set("cursor", opts.cursor);
   if (opts.limit) qs.set("limit", String(opts.limit));
@@ -295,27 +302,6 @@ export function buildCollaborationTeamsPath(opts: {
 export function parseCanGovernWorkspace(data: unknown): boolean {
   const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
   return d["canGovernWorkspace"] === true;
-}
-
-/** Status + type filter and sort over the page in hand (the web's visibleTeams). */
-export function visibleTeams(
-  teams: readonly CollaborationTeamRow[],
-  f: { status: TeamsStatusFilter; type: string; sort: TeamsSort },
-): CollaborationTeamRow[] {
-  const at = (t: CollaborationTeamRow) => (t.lastActivityAt ? Date.parse(t.lastActivityAt) || 0 : 0);
-  const out = teams.filter(
-    (t) => (f.status === "ALL" || t.status === f.status) && (f.type === "ALL" || t.teamType === f.type),
-  );
-  switch (f.sort) {
-    case "ACTIVITY_ASC":
-      return out.sort((a, b) => at(a) - at(b));
-    case "NAME_ASC":
-      return out.sort((a, b) => a.name.localeCompare(b.name));
-    case "MEMBERS_DESC":
-      return out.sort((a, b) => (b.memberCount ?? 0) - (a.memberCount ?? 0));
-    default:
-      return out.sort((a, b) => at(b) - at(a));
-  }
 }
 
 // The team types were a hand copy of the shared tuple, with nothing able to

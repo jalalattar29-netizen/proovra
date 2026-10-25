@@ -1109,9 +1109,13 @@ export async function teamsRoutes(app: FastifyInstance) {
           : {}),
       };
 
+      // Members audit MEM-04 — the OWNER heads the roster, then administrators,
+      // members and viewers, each oldest first. Ordered by join date alone, the
+      // owner of a transferred workspace could sit beyond the first page.
+      // `id` keeps the order total, so the cursor stays stable.
       const rows = await prisma.teamMember.findMany({
         where,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        orderBy: [{ role: "asc" }, { createdAt: "asc" }, { id: "asc" }],
         take: limit + 1,
         ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
         include: {

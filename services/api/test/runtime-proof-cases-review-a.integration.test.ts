@@ -22,9 +22,15 @@
  * The access row the revoke test removes is SEEDED; the grant route's own
  * proof (D5) lives in matter-access-tab.integration.test.ts.
  *
- * `auditCaseAction` in cases.routes.ts is fire-and-forget (`void
- * emitTenantAudit(...)`); those rows are read with `expect.poll` — a bounded
- * wait for a write the product already dispatched, never a retry of the action.
+ * `auditCaseAction` in cases.routes.ts is awaited before the response
+ * (members audit AUD-01 / SEC-13); the rows are still read with `expect.poll`,
+ * which now resolves on its first read — a bounded wait, never a retry of the
+ * action.
+ *
+ * Assigning a case to a person is the REVIEW_ASSIGNMENTS capability (TEAM and
+ * Enterprise), and deleting a team case takes a fresh step-up (members audit
+ * SEC-03), so the fixture workspace is on TEAM and the deletion carries an
+ * approved challenge.
  */
 
 import { randomUUID } from "node:crypto";
@@ -32,12 +38,14 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 
 describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
   let prisma: Prisma;
+  let stepUp: ReturnType<typeof createStepUpCeremony>;
 
   const call = (opts: {
     method: "GET" | "POST" | "PATCH" | "DELETE";
@@ -107,6 +115,14 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    stepUp = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
+    await prisma.team.updateMany({
+      where: { id: h.fixtures.teamA.teamId },
+      data: { billingPlan: "TEAM", billingStatus: "ACTIVE" },
+    });
   }, 900_000);
 
   afterAll(async () => {
@@ -337,7 +353,19 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
       expect(await prisma.case.count({ where: { id: c.id } })).toBe(1);
       expect(await prisma.caseEvidenceLink.count({ where: { caseId: c.id } })).toBe(1);
 
-      const ok = await call({ method: "DELETE", url: `/v1/cases/${c.id}`, token: a.adminToken });
+      const ok = await call({
+        method: "DELETE",
+        url: `/v1/cases/${c.id}`,
+        token: a.adminToken,
+        headers: await stepUp.approvedHeader({
+          token: a.adminToken,
+          userId: a.adminUserId,
+          teamId: a.teamId,
+          purpose: "CASE_DELETE",
+          resourceKind: "case",
+          resourceId: c.id,
+        }),
+      });
       expect(ok.statusCode, ok.body).toBe(204);
       expect(await prisma.case.count({ where: { id: c.id } })).toBe(0);
       expect(await prisma.caseEvidenceLink.count({ where: { caseId: c.id } })).toBe(0);

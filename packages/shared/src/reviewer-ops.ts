@@ -323,6 +323,9 @@ export const REVIEWER_OPS_ERROR_CODES = [
   // Members audit REV-02 (2026-10-25) — the person named cannot carry this
   // review: not an active reviewer-capable member, or unable to reach it.
   "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+  // Members audit (unassigned-member decision) — on PRO/TEAM the person is not
+  // yet placed in an active Collaboration Team.
+  "REVIEW_ASSIGNEE_NOT_PLACED",
 ] as const;
 export type ReviewerOpsErrorCode = (typeof REVIEWER_OPS_ERROR_CODES)[number];
 
@@ -756,6 +759,7 @@ export const REVIEWER_OPS_BULK_ITEM_ERROR_CODES = [
   "REVIEW_ESCALATION_EXISTS",
   "REVIEW_ACTOR_BLOCKED",
   "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+  "REVIEW_ASSIGNEE_NOT_PLACED",
   "REVIEW_ITEM_FAILED",
 ] as const;
 export type ReviewerOpsBulkItemErrorCode =
@@ -806,6 +810,10 @@ export const REVIEWER_OPS_BULK_ITEM_ERRORS: Readonly<
   REVIEW_ASSIGNEE_NOT_ELIGIBLE: {
     message: "That person cannot be assigned this review. Choose an active reviewer who can open this record.",
     nextAction: "REFRESH_AND_RETRY",
+  },
+  REVIEW_ASSIGNEE_NOT_PLACED: {
+    message: "That person isn't in a Collaboration Team yet. Place them in a team before assigning them work.",
+    nextAction: "CONTACT_ADMIN",
   },
   REVIEW_ITEM_FAILED: {
     message:

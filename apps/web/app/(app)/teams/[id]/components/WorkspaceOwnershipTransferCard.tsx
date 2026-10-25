@@ -106,8 +106,27 @@ function readStepUp(
   };
 }
 
+/**
+ * Members audit LIFE-14 — the server says WHICH refusal it is; the card used to
+ * answer every 409 with one sentence listing all three possible reasons.
+ */
+const TRANSFER_REFUSAL_COPY: Readonly<Record<string, string>> = {
+  TRANSFER_TARGET_NOT_ACTIVE_MEMBER:
+    "That person isn't an active member of this workspace any more. Choose someone who is.",
+  TRANSFER_TARGET_IS_OWNER: "That person already owns this workspace.",
+  PERSONAL_WORKSPACE_NOT_TRANSFERABLE:
+    "A Personal Workspace belongs to its account and can't change owners.",
+  ORG_WORKSPACE_OWNERSHIP_IS_ORG_GOVERNED:
+    "This workspace belongs to an organization; its ownership is managed by the organization.",
+  NOT_WORKSPACE_OWNER: "Only the workspace owner can transfer ownership.",
+  WORKSPACE_KIND_UNKNOWN:
+    "This workspace's type couldn't be confirmed, so ownership wasn't transferred. Nothing was changed.",
+};
+
 function denialCopy(err: unknown): string {
-  const e = err as { statusCode?: number };
+  const e = err as { statusCode?: number; code?: string };
+  const code = typeof e.code === "string" ? e.code.toUpperCase() : "";
+  if (TRANSFER_REFUSAL_COPY[code]) return TRANSFER_REFUSAL_COPY[code];
   const status = typeof e.statusCode === "number" ? e.statusCode : 0;
   if (status === 403) {
     return "You don't have permission to transfer this workspace. Only its owner can.";

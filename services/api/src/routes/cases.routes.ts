@@ -1167,23 +1167,6 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      // Deleting a case is irreversible (members audit SEC-03): a fresh
-      // step-up, as for every other action that ends access to records. A
-      // personal case has no workspace to bind a challenge to; its owner-only
-      // rule above is the gate there.
-      if (item.teamId) {
-        const gate = await requireStepUpForSensitiveAction({
-          req,
-          reply,
-          teamId: item.teamId,
-          userId,
-          purpose: "CASE_DELETE",
-          resourceKind: "case",
-          resourceId: id,
-        });
-        if (gate.sent) return;
-      }
-
       // Phase 4B Final Closure I5 — legal-hold gate: a CASE or
       // WORKSPACE hold MUST block deletion. ET-SEC-17 — it fails CLOSED: an
       // unreadable hold state is 503 and the case stays.
@@ -1216,6 +1199,26 @@ export async function casesRoutes(app: FastifyInstance) {
           });
           return reply.code(403).send({ denial: "LEGAL_HOLD_BLOCKED", holdIds: holdChk.holdIds });
         }
+      }
+
+      // Deleting a case is irreversible (members audit SEC-03): a fresh
+      // step-up, as for every other action that ends access to records. It is
+      // demanded only once the deletion could actually proceed — a request the
+      // permission gate or a legal hold will refuse is refused with its reason
+      // first, never after a step-up ceremony (the ROLE-01 preflight rule). A
+      // personal case has no workspace to bind a challenge to; its owner-only
+      // rule above is the gate there.
+      if (item.teamId) {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: item.teamId,
+          userId,
+          purpose: "CASE_DELETE",
+          resourceKind: "case",
+          resourceId: id,
+        });
+        if (gate.sent) return;
       }
 
       // Track 1B — case deletion detaches relationships through the

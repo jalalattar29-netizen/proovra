@@ -215,9 +215,12 @@ describe("PLATFORM ADMIN — drill-down and search (live PostgreSQL 16)", () => 
       // The composed verdict, not a re-derivation of Team.billingPlan.
       expect(body.commercial, body.commercialUnavailableReason ?? "").toBeTruthy();
       expect(typeof body.commercial.plan).toBe("string");
+      // A TEAM workspace has no workspace-wide seat ceiling: capacity is per
+      // Collaboration Team (members audit ENT-04 / ENT-05), so the composed
+      // verdict says "no limit" (null), never an invented number.
       expect(body.commercial.seats).toMatchObject({
         consumed: expect.any(Number),
-        limit: expect.any(Number),
+        limit: null,
       });
       // The stored projection is shown ALONGSIDE, never instead.
       expect(body.raw.billingPlan).toBe("TEAM");

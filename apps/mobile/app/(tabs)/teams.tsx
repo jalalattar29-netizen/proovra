@@ -16,7 +16,7 @@
  * Search and the archived filter go to the database; status, type and sort
  * apply to the page in hand, exactly as the web applies them.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
@@ -51,7 +51,6 @@ import {
   TEAM_TYPE_LABELS,
   buildCollaborationTeamsPath,
   parseCanGovernWorkspace,
-  visibleTeams,
   type TeamsScope,
   type TeamsSort,
   type TeamsStatusFilter,
@@ -120,6 +119,9 @@ export default function CollaborationScreen() {
         buildCollaborationTeamsPath({
           scope,
           includeArchived: statusFilter === "ARCHIVED" || statusFilter === "ALL",
+          status: statusFilter,
+          type: typeFilter,
+          sort: sortKey,
           q: search,
           cursor: nextCursor,
         }),
@@ -150,16 +152,15 @@ export default function CollaborationScreen() {
     } finally {
       setLoadingMore(false);
     }
-  }, [scope, statusFilter, search]);
+  }, [scope, statusFilter, typeFilter, sortKey, search]);
 
   useEffect(() => {
     void load(null, []);
   }, [load]);
 
-  const shown = useMemo(
-    () => visibleTeams(teams, { status: statusFilter, type: typeFilter, sort: sortKey }),
-    [teams, statusFilter, typeFilter, sortKey],
-  );
+  // Members audit CT-13 — the server filtered and ordered these; the rows are
+  // shown as they arrive, never re-sorted as if one page were the list.
+  const shown = teams;
   const controlsActive = search.length > 0 || statusFilter !== "ALL" || typeFilter !== "ALL";
 
   const loadEntitlement = useCallback(async () => {

@@ -1460,6 +1460,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // and the teams owner FK delete rule CASCADE → RESTRICT. No row or column
       // is touched; no `security_events` object is touched.
       "20281026000100_members_history_append_only_owner_restrict",
+      // Members audit DOM-11: partial unique keys over ACTIVE rows replace
+      // status-inclusive keys. No `security_events` object is touched.
+      "20281026000200_live_status_unique_keys",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -398,8 +398,10 @@ export default function OrganizationAdminLayout({
           >
             Legacy detail
           </Link>
+          {/* Members audit DOM-03 — "Workspace admin" landed on Collaboration
+              Teams. Workspace administration is /workspaces. */}
           <Link
-            href="/teams"
+            href="/workspaces"
             data-action="workspace-admin-link"
             className="cases-filter-chip"
           >

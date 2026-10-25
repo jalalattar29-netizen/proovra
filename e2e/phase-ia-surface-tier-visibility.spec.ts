@@ -336,21 +336,15 @@ test.describe("Phase IA-surface-tier — normal user cannot SEE hidden surfaces"
       "Search",
       "Reports",
       /*
-       * "Collaboration Teams" and "Members & Access" (2026-09-08).
+       * "Teams" and "Members & Access" (members audit, 2026-10-25).
        *
-       * These are checked as SUBSTRINGS, so "Teams" still matched after the
-       * nav label was disambiguated to "Collaboration Teams" — but "People"
-       * did not, because that surface is now "Members & Access". The rename
-       * is deliberate: "People" named a population rather than what the
-       * surface decides, and beside "Teams" the two read as unrelated product
-       * areas instead of two halves of one model.
-       *
-       * The canonical source is the route registry entry `workspace.people`,
-       * whose label is pinned by `members-and-access-ia.test.ts`. The full
-       * names are asserted here rather than the shorter ones, so a partial
-       * revert to "Teams"/"People" fails instead of passing on a substring.
+       * The Collaboration Teams surface is titled "Teams" (one Team is a
+       * "Collaboration Team"), and the workspace roster is "Members &
+       * Access" — never "People". Both canonical labels live in the route
+       * registry and are pinned by `members-and-access-ia.test.ts`; this
+       * asserts the rendered sidebar carries them.
        */
-      "Collaboration Teams",
+      "Teams",
       "Members & Access",
       "Notifications",
       "Billing",

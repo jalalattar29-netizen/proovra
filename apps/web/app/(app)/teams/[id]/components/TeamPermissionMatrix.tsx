@@ -163,7 +163,7 @@ function CapabilityCheckmark({
 export function TeamPermissionMatrix({
   currentRole,
 }: {
-  /** The current viewer's role in this team, for "your access" emphasis. */
+  /** The current viewer's role in this workspace, for "your access" emphasis. */
   currentRole?: RoleId | null;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -218,7 +218,7 @@ export function TeamPermissionMatrix({
         Who can do what
       </h2>
       <p className="m-0 mt-1 text-[12.5px] leading-snug text-[#5F6B7D]">
-        What each role on this team can do. This list comes from the API —
+        What each role in this workspace can do. This list comes from the API —
         if a cell isn&apos;t checked, the action is blocked for that role.{" "}
         {currentRoleLabel ? (
           <>

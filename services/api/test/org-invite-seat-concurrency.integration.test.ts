@@ -37,10 +37,13 @@ import {
   type IntegrationDatabase,
 } from "./integration-harness.js";
 
-// A TEAM plan seats 10. The owner holds one and we pre-seat seven more, so
-// exactly TWO are free when the contenders arrive.
-const SEAT_LIMIT = 10;
-const PRE_SEATED = 8;
+// Only an Enterprise contract bounds a workspace as a whole (members audit
+// ENT-04/ENT-05 — a self-serve plan has no workspace-wide ceiling; capacity
+// is per Collaboration Team). The contract states nine accepted non-owner
+// members; the owner never counts. Seven are pre-seated, so exactly TWO are
+// free when the contenders arrive.
+const SEAT_LIMIT = 9;
+const PRE_SEATED = 7;
 const FREE_SEATS = SEAT_LIMIT - PRE_SEATED;
 const CONTENDERS = 8;
 
@@ -114,7 +117,7 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
         ownerUserId: ownerId,
         organizationId: orgId,
         isPersonal: false,
-        billingPlan: "TEAM",
+        billingPlan: "ENTERPRISE",
         /**
          * ACTIVE, because the plan alone is not the answer.
          * `resolveWorkspaceEffectivePlan` reads plan AND status, and the
@@ -130,12 +133,17 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
       },
     });
 
-    // Fill to exactly two free seats. `used` counts ACTIVE members, so this is
-    // the population the gate will measure.
+    // The contract that states the seats.
+    await prisma.enterpriseContract.create({
+      data: { organizationId: orgId, status: "ACTIVE", seatCount: SEAT_LIMIT },
+    });
+
+    // Fill to exactly two free seats. `used` counts ACTIVE non-owner
+    // members, so this is the population the gate will measure.
     await prisma.teamMember.create({
       data: { teamId: workspaceId, userId: ownerId, role: "OWNER", status: "ACTIVE" },
     });
-    for (let i = 0; i < PRE_SEATED - 1; i += 1) {
+    for (let i = 0; i < PRE_SEATED; i += 1) {
       const uid = randomUUID();
       await prisma.user.create({
         data: {
@@ -230,7 +238,7 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
     expect(
       { limit: seats.limit, used: seats.used, plan: seats.plan },
       "the race is only meaningful against a known ceiling",
-    ).toEqual({ limit: SEAT_LIMIT, used: PRE_SEATED, plan: "TEAM" });
+    ).toEqual({ limit: SEAT_LIMIT, used: PRE_SEATED, plan: "ENTERPRISE" });
   }, 60_000);
 
   it("seats exactly the free seats and refuses the rest, with no over-allocation", async () => {
@@ -273,11 +281,11 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
 
     // THE INVARIANT. Exactly the free seats were allocated — no more.
     const activeMembers = await db.teamMember.count({
-      where: { teamId: workspaceId, status: "ACTIVE" },
+      where: { teamId: workspaceId, status: "ACTIVE", role: { not: "OWNER" } },
     });
     expect(
       activeMembers,
-      `workspace seats over-allocated: ${activeMembers} active against a ceiling of ${SEAT_LIMIT}`,
+      `workspace seats over-allocated: ${activeMembers} active non-owner members against a contract of ${SEAT_LIMIT}`,
     ).toBe(SEAT_LIMIT);
     expect(activeMembers - PRE_SEATED).toBe(FREE_SEATS);
 

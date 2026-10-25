@@ -9208,7 +9208,8 @@ model SsoConnection {
   managedIdentities User[] @relation("ManagedIdentityConn")
 
   /// One team can have ONE active connection per provider at a time.
-  @@unique([teamId, provider, status])
+  // Members audit DOM-11 — one ACTIVE connection per provider: a partial unique
+  // index (WHERE status = 'ACTIVE') in migration 20281026000200.
   @@index([teamId, status])
   @@index([teamId, provider])
   @@index([revokedAtUtc])
@@ -9480,7 +9481,8 @@ model ScimGroup {
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, externalId])
-  @@unique([teamId, displayName, status])
+  // Members audit DOM-11 — one ACTIVE row per name: a partial unique index
+  // (WHERE status = 'ACTIVE') in migration 20281026000200, not expressible here.
   @@index([teamId, status])
   @@index([teamId, mappedRole])
   @@map("scim_groups")
@@ -9628,7 +9630,8 @@ model EvidenceRetentionPolicy {
   createdBy User                             @relation("EvidenceRetentionPolicyCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
   versions  EvidenceRetentionPolicyVersion[] @relation("RetentionPolicyVersions")
 
-  @@unique([teamId, displayName, status])
+  // Members audit DOM-11 — one ACTIVE row per name: a partial unique index
+  // (WHERE status = 'ACTIVE') in migration 20281026000200, not expressible here.
   @@index([teamId, status])
   @@index([teamId, scope])
   @@index([caseId])

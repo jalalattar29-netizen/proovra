@@ -436,6 +436,13 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           // The rollup follows GOVERNANCE, not the list scope. A governor
           // viewing only their own teams still supervises the workspace.
           canSurveyWorkspace: ctx.canGovernWorkspace,
+          // Members audit CT-13 — filtered and ordered in the database.
+          teamType: q.type && /^[A-Z_]{2,40}$/.test(q.type) ? q.type : null,
+          status: q.status === "ACTIVE" || q.status === "ARCHIVED" ? q.status : null,
+          sort:
+            q.sort === "ACTIVITY_ASC" || q.sort === "NAME_ASC" || q.sort === "ACTIVITY_DESC"
+              ? q.sort
+              : null,
         });
         return reply.send({
           ...res,

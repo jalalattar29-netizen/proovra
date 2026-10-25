@@ -270,18 +270,22 @@ function OrganizationsListPageInner() {
               of an Enterprise agreement — they cannot be created
               self-service.
             </p>
+            {/* Members audit DOM-03 — this offered to "create a workspace from
+                the Teams page", which the server refuses. Working with other
+                people is your Personal Workspace on Pro or Team. */}
             <p style={{ fontSize: 13, opacity: 0.85 }}>
-              Want to work with your team? Create a <strong>workspace</strong>{" "}
-              from the Teams page — it has its own members, roles, and
-              billing, without an Enterprise contract.
+              Want to work with other people? Your <strong>Personal
+              Workspace</strong> on the Pro or Team plan can invite members and
+              organise them into Collaboration Teams — no Enterprise contract
+              needed.
             </p>
             <div style={modalActions}>
               <Link
-                href="/teams"
-                data-action="go-create-workspace"
+                href="/billing"
+                data-action="go-collaboration-plans"
                 style={toolbarBtn(true)}
               >
-                Create a workspace
+                See plans
               </Link>
               <button
                 type="button"
@@ -525,7 +529,7 @@ function OrganizationsListPageInner() {
                   Open
                 </Link>
                 <Link
-                  href="/teams"
+                  href="/workspaces"
                   style={cardLinkBtn(false)}
                   data-action="open-workspace-admin"
                   data-org-id={org.organizationId}

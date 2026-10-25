@@ -414,6 +414,64 @@ describe("Phase E — atomic audit and lifecycle notices (live PostgreSQL)", () 
   });
 
   // -------------------------------------------------------------------------
+  // MEM-04 / DOM-15 — the roster: the owner leads it, and removed members are
+  // listed under the REVOKED filter rather than vanishing.
+  // -------------------------------------------------------------------------
+
+  it("the roster lists the OWNER first and the REVOKED filter returns removed members", async () => {
+    const w = await ownedWorkspace();
+    // Members who joined before a transfer made a later-joining person owner.
+    const early = await person(w.teamId, "MEMBER");
+    const gone = await person(w.teamId, "MEMBER");
+    await prisma.teamMember.update({ where: { id: gone.memberId! }, data: { status: "REVOKED", revokedAtUtc: new Date() } });
+    // The owner is the LATEST to join (as after a transfer), so join order alone
+    // would list them last.
+    await prisma.teamMember.updateMany({
+      where: { teamId: w.teamId, role: "OWNER" },
+      data: { createdAt: new Date(Date.now() + 60_000) },
+    });
+    const roster = await h.app.inject({ method: "GET", url: `/v1/teams/${w.teamId}/members?limit=1`, headers: bearer(w.owner.token) });
+    expect(roster.statusCode, roster.body).toBe(200);
+    expect(roster.json().members.map((m: { role: string }) => m.role)).toEqual(["OWNER"]);
+    const revoked = await h.app.inject({ method: "GET", url: `/v1/teams/${w.teamId}/members?status=REVOKED`, headers: bearer(w.owner.token) });
+    expect(revoked.statusCode, revoked.body).toBe(200);
+    const ids = revoked.json().members.map((m: { userId: string }) => m.userId);
+    expect(ids).toEqual([gone.id]);
+    expect(ids).not.toContain(early.id);
+  });
+
+  // -------------------------------------------------------------------------
+  // DOM-11 — one ACTIVE row per name; any number of retired ones.
+  // -------------------------------------------------------------------------
+
+  it("two same-named retention policies can each be archived; a second ACTIVE one is still refused", async () => {
+    const retention = await import("../src/services/governance-lifecycle/retention-engine.service.js");
+    const name = `Default ${tag()}`;
+    const make = () =>
+      retention.createRetentionPolicy({
+        teamId: A().teamId,
+        actorUserId: A().ownerUserId,
+        displayName: name,
+        scope: "WORKSPACE",
+        retentionDays: 365,
+      } as never);
+    const first = await make();
+    await expect(make()).rejects.toBeTruthy();
+    await retention.transitionRetentionPolicy({
+      teamId: A().teamId, id: first.id, actorUserId: A().ownerUserId, nextStatus: "ARCHIVED", changeNote: "retire",
+    });
+    const second = await make();
+    await expect(
+      retention.transitionRetentionPolicy({
+        teamId: A().teamId, id: second.id, actorUserId: A().ownerUserId, nextStatus: "ARCHIVED", changeNote: "retire again",
+      }),
+    ).resolves.toMatchObject({ status: "ARCHIVED" });
+    expect(
+      await prisma.evidenceRetentionPolicy.count({ where: { teamId: A().teamId, displayName: name, status: "ARCHIVED" } }),
+    ).toBe(2);
+  });
+
+  // -------------------------------------------------------------------------
   // ENT-12 — the plan writer records from → to on every path.
   // -------------------------------------------------------------------------
 

@@ -570,6 +570,16 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "Only a lead of this team or the workspace owner can change a lead's role or membership.",
     severity: "warning",
   },
+  REVIEW_ASSIGNEE_NOT_PLACED: {
+    title: "Place them in a team first",
+    message: "That person isn't in a Collaboration Team yet. Place them in a team before assigning them work.",
+    severity: "info",
+  },
+  ASSIGNEE_NOT_PLACED: {
+    title: "Place them in a team first",
+    message: "That person isn't in a Collaboration Team yet. Place them in a team before assigning them work.",
+    severity: "info",
+  },
   REVIEW_ASSIGNEE_NOT_ELIGIBLE: {
     title: "Choose another reviewer",
     message: "That person cannot be assigned this review. Choose an active reviewer who can open this record.",
