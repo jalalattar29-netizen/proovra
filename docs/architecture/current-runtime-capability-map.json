@@ -105082,7 +105082,7 @@
       "method": "GET",
       "path": "/v1/batch-analysis",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:588",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:589",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -105144,7 +105144,7 @@
       "method": "GET",
       "path": "/v1/batch-analysis/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:517",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:518",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -105189,7 +105189,7 @@
       "method": "GET",
       "path": "/v1/batch-analysis/:id/export",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:880",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:881",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -105253,7 +105253,7 @@
       "method": "GET",
       "path": "/v1/batch-analysis/:id/results",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:736",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:737",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126960,7 +126960,7 @@
       "method": "GET",
       "path": "/v1/quotas",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:936",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:937",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134677,7 +134677,7 @@
       "method": "GET",
       "path": "/v1/usage-stats",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:971",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:972",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -144202,8 +144202,7 @@
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/routes/enterprise.routes.ts: evidence.findMany — no tenant or self predicate"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -144218,7 +144217,7 @@
       "method": "POST",
       "path": "/v1/batch-analysis/:id/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:802",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:803",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -144283,7 +144282,7 @@
       "method": "POST",
       "path": "/v1/batch-analysis/:id/process",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:636",
+      "registrationEvidence": "services/api/src/routes/enterprise.routes.ts:637",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
