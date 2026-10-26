@@ -9255,8 +9255,8 @@
     "aud": "LIFE-09",
     "name": "sessions are revoked outside the closing transaction",
     "file": "services/api/src/services/identity/account-closure.service.ts",
-    "find": "await revokeAllSessionsForUser({ userId, reason: \"ACCOUNT_CLOSED\" }, tx as never);",
-    "replace": "await revokeAllSessionsForUser({ userId, reason: \"ACCOUNT_CLOSED\" });",
+    "find": "await revokeAllSessionsForUser({ userId, reason: \"ACCOUNT_CLOSED\" }, tx as never, { securityEvent: false });",
+    "replace": "await revokeAllSessionsForUser({ userId, reason: \"ACCOUNT_CLOSED\" }, undefined, { securityEvent: false });",
     "tests": [
       {
         "cwd": "services/api",
@@ -9701,6 +9701,269 @@
           "--config",
           "vitest.integration.config.ts",
           "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "R4-5-REQUEST-REFUSED-EXPECTED",
+    "aud": "N-7",
+    "name": "web reports the server expected denial REQUEST_REFUSED",
+    "file": "apps/web/lib/feedback/toSafeUserError.ts",
+    "find": "  // an unknown or removed ROUTE (the canonical not-found handler)\n  \"ROUTE_NOT_FOUND\",\n",
+    "replace": "  // an unknown or removed ROUTE (the canonical not-found handler)\n  \"ROUTE_NOT_FOUND\",\n  \"REQUEST_REFUSED\",\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/sentry-expected-refusal-wiring.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-1-RETRY",
+    "aud": "LIFE-09",
+    "name": "a phase-B failure after A committed records FAILED again",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "    if (accessEnded) {\n      await recordAccountClosureWaiting({\n        requestId: req.id,\n        userId: req.userId,\n        reason: \"anonymisation_retrying\",\n      }).catch(() => null);\n      return;\n    }\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-1-CLEAR",
+    "aud": "LIFE-09",
+    "name": "completion leaves the waiting failureCode set",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "data: { status: \"COMPLETED\", completedAtUtc: new Date(), failureCode: null },",
+    "replace": "data: { status: \"COMPLETED\", completedAtUtc: new Date() },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-1-ONCE",
+    "aud": "LIFE-09",
+    "name": "the waiting audit is written on every reaper pass",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "        OR: [{ failureCode: null }, { failureCode: { not: input.reason } }],\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-6-DEFER",
+    "aud": "LIFE-09",
+    "name": "a hold deferral after A is silent (no reason, no audit)",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "    if (err instanceof AccountClosureDeferredError) {\n      await recordAccountClosureWaiting({\n        requestId: req.id,\n        userId: req.userId,\n        reason: \"legal_hold_deferred\",\n        blockers: err.blockers,\n      }).catch(() => null);\n      return;\n    }\n",
+    "replace": "    if (err instanceof AccountClosureDeferredError) return;\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-2-EMIT",
+    "aud": "LIFE-09",
+    "name": "the closure emits no all_sessions_revoked event after A commits",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "  if (sessionsRevoked) emitAllSessionsRevokedEvent({ userId, reason: \"ACCOUNT_CLOSED\" });\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-2-INTX",
+    "aud": "LIFE-09",
+    "name": "the revocation also emits its event on the closing transaction",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "tx as never, { securityEvent: false });",
+    "replace": "tx as never);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-3-WF",
+    "aud": "REV-01",
+    "name": "the workflow ASSIGNED event insert is swallowed again",
+    "file": "services/api/src/services/observability/workflow.service.ts",
+    "find": "  await client.operationalWorkflowEvent.create({\n    data: {\n      workflowId: updated.id,\n      teamId: input.teamId,\n      eventType: \"ASSIGNED\",\n      actorUserId: input.actorUserId,\n      fromStatus,\n      toStatus: nextStatus,\n      summary: `Workflow assigned to operator ${input.assigneeUserId.slice(0, 8)}.`,\n    },\n  });\n",
+    "replace": "  try {\n    await client.operationalWorkflowEvent.create({\n      data: {\n        workflowId: updated.id,\n        teamId: input.teamId,\n        eventType: \"ASSIGNED\",\n        actorUserId: input.actorUserId,\n        fromStatus,\n        toStatus: nextStatus,\n        summary: `Workflow assigned to operator ${input.assigneeUserId.slice(0, 8)}.`,\n      },\n    });\n  } catch {\n    /* best-effort */\n  }\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-3-INC",
+    "aud": "REV-01",
+    "name": "the incident assigned event insert is swallowed again",
+    "file": "services/api/src/services/observability/incident.service.ts",
+    "find": "  await client.operationalIncidentEvent.create({\n    data: {\n      incidentId: updated.id,\n      eventType: isUnassign ? \"unassigned\" : \"assigned\",\n      safeMessage: isUnassign\n        ? \"Condition returned to the unassigned queue.\"\n        : `Condition assigned to operator ${input.assigneeUserId!.slice(0, 8)}.`,\n    },\n  });\n",
+    "replace": "  try {\n    await client.operationalIncidentEvent.create({\n      data: {\n        incidentId: updated.id,\n        eventType: isUnassign ? \"unassigned\" : \"assigned\",\n        safeMessage: isUnassign\n          ? \"Condition returned to the unassigned queue.\"\n          : `Condition assigned to operator ${input.assigneeUserId!.slice(0, 8)}.`,\n      },\n    });\n  } catch {\n    /* best-effort */\n  }\n",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-4-CREATE",
+    "aud": "AUD-01",
+    "name": "comment create audits after its transaction commits",
+    "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+    "find": "    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, created);\n    return created;\n  });\n\n  return result;",
+    "replace": "    return created;\n  });\n\n  if (input.auditTx) await input.auditTx(client, result);\n  return result;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-4-EDIT",
+    "aud": "AUD-01",
+    "name": "comment edit audits after its transaction commits",
+    "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+    "find": "    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);\n  });\n}\n\nexport async function deleteComment(",
+    "replace": "  });\n  if (input.auditTx) await input.auditTx(client, undefined);\n}\n\nexport async function deleteComment(",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA4-R4-4-DELETE",
+    "aud": "AUD-01",
+    "name": "comment delete audits after its transaction commits",
+    "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
+    "find": "      metadata: { moderated: isModerator && !isAuthor },\n    });\n    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);\n  });\n}",
+    "replace": "      metadata: { moderated: isModerator && !isAuthor },\n    });\n  });\n  if (input.auditTx) await input.auditTx(client, undefined);\n}",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
         ],
         "integration": true
       }

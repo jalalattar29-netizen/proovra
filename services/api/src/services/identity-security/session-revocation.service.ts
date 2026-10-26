@@ -119,22 +119,17 @@ export type RevokeAllForUserInput = {
   userAgent?: string | null;
 };
 
-export async function revokeAllSessionsForUser(
+/**
+ * The `all_sessions_revoked` security event. Best-effort and fire-and-forget,
+ * so it never runs on a transaction client: a caller revoking inside its own
+ * transaction emits it after that transaction commits (re-audit 4, R4-2) —
+ * an un-awaited write on a transaction client is either lost after commit or,
+ * failing while the transaction is open, aborts it.
+ */
+export function emitAllSessionsRevokedEvent(
   input: RevokeAllForUserInput,
   client: PrismaClient = defaultPrisma,
-): Promise<prismaPkg.RevokedSession> {
-  const now = Math.floor(Date.now() / 1000);
-  const row = await client.revokedSession.create({
-    data: {
-      teamId: input.teamId ?? null,
-      userId: input.userId,
-      scope: prismaPkg.RevokedSessionScope.ALL_FOR_USER,
-      sessionIdHash: null,
-      revokedBeforeIat: BigInt(now),
-      reason: input.reason.slice(0, 64),
-      revokedByUserId: input.actorUserId ?? null,
-    },
-  });
+): void {
   safeEmitSecurityEvent(
     {
       teamId: input.teamId ?? null,
@@ -148,6 +143,29 @@ export async function revokeAllSessionsForUser(
     },
     client,
   );
+}
+
+export async function revokeAllSessionsForUser(
+  input: RevokeAllForUserInput,
+  client: PrismaClient = defaultPrisma,
+  options: {
+    /** False inside a caller's transaction: it emits the event after commit. */
+    securityEvent?: boolean;
+  } = {},
+): Promise<prismaPkg.RevokedSession> {
+  const now = Math.floor(Date.now() / 1000);
+  const row = await client.revokedSession.create({
+    data: {
+      teamId: input.teamId ?? null,
+      userId: input.userId,
+      scope: prismaPkg.RevokedSessionScope.ALL_FOR_USER,
+      sessionIdHash: null,
+      revokedBeforeIat: BigInt(now),
+      reason: input.reason.slice(0, 64),
+      revokedByUserId: input.actorUserId ?? null,
+    },
+  });
+  if (options.securityEvent !== false) emitAllSessionsRevokedEvent(input, client);
   await emitTenantAudit({
     action: "identity_security.session.revoke_all",
     outcome: "success",

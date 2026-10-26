@@ -73,7 +73,10 @@
  */
 
 import { prisma } from "../../db.js";
-import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+import {
+  emitAllSessionsRevokedEvent,
+  revokeAllSessionsForUser,
+} from "../identity-security/session-revocation.service.js";
 import { emitPlatformAudit } from "../audit/tenant-audit.service.js";
 import { evaluateAccountClosurePreflight } from "./account-lifecycle-preflight.service.js";
 // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED transition.
@@ -161,6 +164,7 @@ export async function executeAccountClosure(
 
   // A. DURABLE CLOSURE — access ends and the workspaces close in one
   // transaction, committed before a single field is anonymised.
+  let sessionsRevoked = false;
   const noticeIds = await prisma.$transaction(async (tx) => {
     // EXECUTION-TIME PREFLIGHT, INSIDE THIS TRANSACTION (members re-audit,
     // second round, defect 7). The cron's check before the claim — and the
@@ -254,7 +258,8 @@ export async function executeAccountClosure(
     // in. Settled once; a resumed run finds them already ended.
     if (accessAlreadyEnded) return closed.noticeIds;
     // RevokedSession is the JWT-validation source of truth.
-    await revokeAllSessionsForUser({ userId, reason: "ACCOUNT_CLOSED" }, tx as never);
+    await revokeAllSessionsForUser({ userId, reason: "ACCOUNT_CLOSED" }, tx as never, { securityEvent: false });
+    sessionsRevoked = true;
     await tx.authenticatedSession.updateMany({
       where: { userId, revokedAtUtc: null },
       data: {
@@ -288,6 +293,8 @@ export async function executeAccountClosure(
     });
     return [...closed.noticeIds, confirmation];
   });
+  // The security event of the revocation, now that it has committed (R4-2).
+  if (sessionsRevoked) emitAllSessionsRevokedEvent({ userId, reason: "ACCOUNT_CLOSED" });
   // Members of the closed workspaces lost access in A: they are told now,
   // whether or not anonymisation has to wait for a hold.
   await dispatchEnqueuedEmailNotifications(noticeIds);
@@ -326,7 +333,7 @@ export async function executeAccountClosure(
     if (opts.closureRequestId) {
       await tx.accountClosureRequest.update({
         where: { id: opts.closureRequestId },
-        data: { status: "COMPLETED", completedAtUtc: new Date() },
+        data: { status: "COMPLETED", completedAtUtc: new Date(), failureCode: null },
       });
       await emitPlatformAudit(
         {
@@ -345,6 +352,55 @@ export async function executeAccountClosure(
         tx as never,
       );
     }
+  });
+}
+
+/**
+ * A PROCESSING request that is waiting after its access phase committed (a
+ * legal hold defers anonymisation, or the remaining phase failed and the
+ * reaper retries it). The reason is kept on the request (`failureCode`, a
+ * safe code) and audited once per change of reason, never on every reaper
+ * pass. Completion clears it.
+ */
+async function recordAccountClosureWaiting(input: {
+  requestId: string;
+  userId: string;
+  reason: "legal_hold_deferred" | "anonymisation_retrying";
+  blockers?: Array<{ code: string }>;
+}): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const moved = await tx.accountClosureRequest.updateMany({
+      where: {
+        id: input.requestId,
+        status: "PROCESSING",
+        OR: [{ failureCode: null }, { failureCode: { not: input.reason } }],
+      },
+      data: {
+        failureCode: input.reason,
+        ...(input.blockers ? { blockersJson: JSON.stringify(input.blockers) } : {}),
+      },
+    });
+    if (moved.count === 0) return;
+    await emitPlatformAudit(
+      {
+        action: "identity.account_closure_waiting",
+        outcome: input.reason === "legal_hold_deferred" ? "denied" : "error",
+        ...(input.reason === "legal_hold_deferred" ? { denialReason: "legal_hold_active" } : {}),
+        sourceApp: "API",
+        actorUserId: input.userId,
+        serviceActor: "account_closure_worker",
+        resourceType: "account_closure_request",
+        resourceId: input.requestId,
+        causationId: input.requestId,
+        previousState: "PROCESSING",
+        resultingState: "PROCESSING",
+        metadata: {
+          reason: input.reason,
+          ...(input.blockers ? { blockers: input.blockers.map((b) => b.code) } : {}),
+        },
+      },
+      tx as never,
+    );
   });
 }
 
@@ -472,10 +528,35 @@ async function runClaimedClosure(req: { id: string; userId: string }): Promise<v
     // Third round (N4): A committed — access ended, workspaces closed — and a
     // legal hold now governs anonymisation. The closure is irrevocably in
     // progress, so it is neither BLOCKED (cancellable) nor FAILED: it stays
-    // PROCESSING and the reaper resumes it until the hold is released.
-    if (err instanceof AccountClosureDeferredError) return;
-    // A committed, B rolled back (or A rolled back): either way the request
-    // records FAILED with its audit, and A's legs are idempotent on re-run.
+    // PROCESSING and the reaper resumes it until the hold is released. The
+    // wait is visible (re-audit 4, R4-6): the request carries why, and one
+    // audit row records each change of reason.
+    if (err instanceof AccountClosureDeferredError) {
+      await recordAccountClosureWaiting({
+        requestId: req.id,
+        userId: req.userId,
+        reason: "legal_hold_deferred",
+        blockers: err.blockers,
+      }).catch(() => null);
+      return;
+    }
+    // Re-audit 4, R4-1 — once A has committed the person can no longer sign
+    // in to ask again, so a failure of the remaining phase must not strand the
+    // request in FAILED: it stays PROCESSING and the reaper retries it.
+    const accessEnded = await prisma.user
+      .findUnique({ where: { id: req.userId }, select: { providerUserId: true } })
+      .then((u) => u?.providerUserId === `closed:${req.userId}`)
+      .catch(() => false);
+    if (accessEnded) {
+      await recordAccountClosureWaiting({
+        requestId: req.id,
+        userId: req.userId,
+        reason: "anonymisation_retrying",
+      }).catch(() => null);
+      return;
+    }
+    // A rolled back: nothing changed, and the request records FAILED with its
+    // audit (the person still holds their account and may ask again).
     await recordAccountClosureOutcome({
       requestId: req.id,
       userId: req.userId,

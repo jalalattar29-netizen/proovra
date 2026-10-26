@@ -97,15 +97,13 @@ test("typed business 4xx refusals (401, 403, 404, 400, 429) are NOT sent", async
 // Third re-audit N-7 — codes that never mean a business refusal are sent,
 // exactly as a code-less answer of the same status. Real server shapes: the
 // canonical unknown-route 404 (http/not-found-handler.ts), the legacy-handler
-// 500 (createErrorResponse(INTERNAL_SERVER_ERROR)), the untyped-legacy
-// REQUEST_REFUSED.
-test("the canonical ROUTE_NOT_FOUND 404, an INTERNAL_SERVER_ERROR 500 and a REQUEST_REFUSED 403 ARE sent", async () => {
+// 500 (createErrorResponse(INTERNAL_SERVER_ERROR)).
+test("the canonical ROUTE_NOT_FOUND 404 and an INTERNAL_SERVER_ERROR 500 ARE sent", async () => {
   const ts = "2026-10-26T00:00:00.000Z";
   const sent = [];
   for (const [status, body] of [
     [404, { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found.", requestId: "r1" } }],
     [500, { error: { code: "INTERNAL_SERVER_ERROR", message: "Internal server error", requestId: "r2", timestamp: ts } }],
-    [403, { error: { code: "REQUEST_REFUSED", message: "Request refused.", requestId: "r3" } }],
   ]) {
     const err = await failure(status, body);
     sent.push(err);
@@ -117,8 +115,10 @@ test("the canonical ROUTE_NOT_FOUND 404, an INTERNAL_SERVER_ERROR 500 and a REQU
 // ...while NOT_FOUND (a missing or concealed record), FORBIDDEN, the auth
 // middleware's nested UNAUTHORIZED (indistinguishable from an expired session)
 // and VALIDATION_ERROR stay expected.
-test("NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401 and VALIDATION_ERROR 400 are NOT sent", async () => {
+test("NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401, VALIDATION_ERROR 400 and REQUEST_REFUSED 404 are NOT sent", async () => {
   const ts = "2026-10-26T00:00:00.000Z";
+  // Re-audit 4, R4-5 — the server classes REQUEST_REFUSED as an expected denial.
+  M.captureException(await failure(404, { error: { code: "REQUEST_REFUSED", message: "Request refused.", requestId: "r3" } }));
   M.captureException(await failure(404, { error: { code: "NOT_FOUND", message: "Not found.", requestId: "r4" } }));
   M.captureException(await failure(403, { error: { code: "FORBIDDEN", message: "Access denied", requestId: "r5", timestamp: ts } }));
   M.captureException(await failure(401, { error: { code: "UNAUTHORIZED", message: "Authentication required", requestId: "r6", timestamp: ts } }));

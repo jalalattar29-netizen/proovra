@@ -37,7 +37,8 @@ export function mobileSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
  * business refusal: the transport's placeholders (`API_ERROR` = "the body
  * carried no code", `NETWORK_ERROR`, `PARSE_ERROR`), the canonical
  * unknown-route 404 `ROUTE_NOT_FOUND`, the framework-shaped 405 / 413 / 415
- * codes, the untyped-legacy `REQUEST_REFUSED` and the server-fault codes. Each
+ * codes and the server-fault codes (`REQUEST_REFUSED` is not: the server classes
+ * it as an expected denial, some routes use it for concealed 404s). Each
  * is classified exactly as a code-less answer of the same status.
  * `NOT_FOUND` (a missing or concealed record), `FORBIDDEN`, `UNAUTHORIZED`,
  * `VALIDATION_ERROR`, `INVALID_INPUT`, `INVALID_REQUEST`, `BAD_REQUEST` and
@@ -60,7 +61,6 @@ export const GENERIC_NON_BUSINESS_CODES: ReadonlySet<string> = new Set([
   "METHOD_NOT_ALLOWED",
   "PAYLOAD_TOO_LARGE",
   "UNSUPPORTED_MEDIA_TYPE",
-  "REQUEST_REFUSED",
   "INTERNAL_ERROR",
   "INTERNAL_SERVER_ERROR",
   "DATABASE_ERROR",

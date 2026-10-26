@@ -168,8 +168,10 @@ export function hasExplanationFor(error: unknown): boolean {
  * business refusal: the transport's placeholders (`API_ERROR`, stamped by
  * lib/api.ts on a body with no code; `NETWORK_ERROR`; `PARSE_ERROR`), the
  * canonical unknown-route 404 `ROUTE_NOT_FOUND` (services/api
- * http/not-found-handler.ts), the framework-shaped 405 / 413 / 415 codes, the
- * untyped-legacy `REQUEST_REFUSED`, and the server-fault codes. Each is
+ * http/not-found-handler.ts), the framework-shaped 405 / 413 / 415 codes and
+ * the server-fault codes. (`REQUEST_REFUSED` is NOT on it: the server's central
+ * handler classes it as an expected denial, and some routes use it for
+ * concealed 404s.) Each is
  * classified exactly as a code-less answer of the same status.
  *
  * Deliberately NOT on the list: `NOT_FOUND` (a missing or concealed record —
@@ -203,7 +205,6 @@ export const GENERIC_NON_BUSINESS_CODES: ReadonlySet<string> = new Set([
   "PAYLOAD_TOO_LARGE",
   "UNSUPPORTED_MEDIA_TYPE",
   // the central handler's answer to an untyped legacy thrower
-  "REQUEST_REFUSED",
   // server faults
   "INTERNAL_ERROR",
   "INTERNAL_SERVER_ERROR",

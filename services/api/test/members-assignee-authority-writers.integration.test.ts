@@ -1048,8 +1048,13 @@ describe("the one assignee authority holds for every writer, and a departure rel
       await prisma.collaborationTeamMember.count({ where: { userId: stayer.id, status: "ACTIVE", team: { workspaceId: A().teamId } } }),
     ).toBeGreaterThan(0);
 
-    // Operator cleanup so later tests see a clean vocabulary.
+    // Operator cleanup so later tests see a clean, VALIDATED vocabulary — the
+    // state 20281026001400 leaves a database with no legacy rows in.
     await prisma.$executeRawUnsafe(`UPDATE "collaboration_teams" SET "status" = 'ARCHIVED' WHERE id = $1::uuid`, legacyStatusGroup);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "collaboration_teams" VALIDATE CONSTRAINT "collaboration_teams_status_vocab"`);
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "collaboration_team_members" VALIDATE CONSTRAINT "collaboration_team_members_role_vocab"`,
+    );
   });
 
   // ===========================================================================

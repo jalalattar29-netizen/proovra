@@ -125,15 +125,13 @@ describe("AUD-05 — web: business refusals are not Sentry incidents; faults are
   // THIRD re-audit N-7 — codes that never mean a business refusal are sent,
   // exactly as a code-less answer of the same status. Real server shapes: the
   // canonical unknown-route 404 (http/not-found-handler.ts), the legacy-handler
-  // 500 (createErrorResponse(INTERNAL_SERVER_ERROR)), the untyped-legacy
-  // REQUEST_REFUSED.
-  it("captureException: the canonical ROUTE_NOT_FOUND 404, an INTERNAL_SERVER_ERROR 500 and a REQUEST_REFUSED 403 ARE sent", async () => {
+  // 500 (createErrorResponse(INTERNAL_SERVER_ERROR)).
+  it("captureException: the canonical ROUTE_NOT_FOUND 404 and an INTERNAL_SERVER_ERROR 500 ARE sent", async () => {
     const ts = "2026-10-26T00:00:00.000Z";
     const sent: unknown[] = [];
     const answers: Array<[number, unknown]> = [
       [404, { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found.", requestId: "r1" } }],
       [500, { error: { code: "INTERNAL_SERVER_ERROR", message: "Internal server error", requestId: "r2", timestamp: ts } }],
-      [403, { error: { code: "REQUEST_REFUSED", message: "Request refused.", requestId: "r3" } }],
     ];
     for (const [status, body] of answers) {
       const err = await failure(status, body);
@@ -147,8 +145,11 @@ describe("AUD-05 — web: business refusals are not Sentry incidents; faults are
   // record (NOT_FOUND), a scope / origin refusal (FORBIDDEN), the auth
   // middleware's nested UNAUTHORIZED (indistinguishable from an expired
   // session) and a validation answer (VALIDATION_ERROR).
-  it("captureException: NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401 and VALIDATION_ERROR 400 are NOT sent", async () => {
+  it("captureException: NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401, VALIDATION_ERROR 400 and REQUEST_REFUSED 404 are NOT sent", async () => {
     const ts = "2026-10-26T00:00:00.000Z";
+    // Re-audit 4, R4-5 — the server classes REQUEST_REFUSED as an expected
+    // denial; some routes answer a concealed 404 with it.
+    captureException(await failure(404, { error: { code: "REQUEST_REFUSED", message: "Request refused.", requestId: "r3" } }));
     captureException(await failure(404, { error: { code: "NOT_FOUND", message: "Not found.", requestId: "r4" } }));
     captureException(await failure(403, { error: { code: "FORBIDDEN", message: "Access denied", requestId: "r5", timestamp: ts } }));
     captureException(await failure(401, { error: { code: "UNAUTHORIZED", message: "Authentication required", requestId: "r6", timestamp: ts } }));

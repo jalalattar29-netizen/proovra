@@ -66,21 +66,21 @@ export async function assignWorkflow(
       status: nextStatus,
     },
   });
-  try {
-    await client.operationalWorkflowEvent.create({
-      data: {
-        workflowId: updated.id,
-        teamId: input.teamId,
-        eventType: "ASSIGNED",
-        actorUserId: input.actorUserId,
-        fromStatus,
-        toStatus: nextStatus,
-        summary: `Workflow assigned to operator ${input.assigneeUserId.slice(0, 8)}.`,
-      },
-    });
-  } catch {
-    /* best-effort */
-  }
+  // Re-audit 4, R4-3 — every caller assigns inside a transaction (the
+  // assignee is decided in the write), where a swallowed insert failure would
+  // still abort it. The event is the assignment's history: it commits or rolls
+  // back with it.
+  await client.operationalWorkflowEvent.create({
+    data: {
+      workflowId: updated.id,
+      teamId: input.teamId,
+      eventType: "ASSIGNED",
+      actorUserId: input.actorUserId,
+      fromStatus,
+      toStatus: nextStatus,
+      summary: `Workflow assigned to operator ${input.assigneeUserId.slice(0, 8)}.`,
+    },
+  });
   await audit(client, input, updated.id, "assigned", existing);
   return updated;
 }

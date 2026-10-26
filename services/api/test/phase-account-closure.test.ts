@@ -97,7 +97,7 @@ describe("execution: anonymize + revoke, never destroy evidence", () => {
   it("revokes every session through the canonical revocation service", () => {
     expect(CLOSURE).toMatch(
       // In the transaction that closes the workspaces (members re-audit 3, A-N4).
-      /revokeAllSessionsForUser\(\{\s*userId,\s*reason:\s*"ACCOUNT_CLOSED"\s*\},\s*tx as never\)/,
+      /revokeAllSessionsForUser\(\{\s*userId,\s*reason:\s*"ACCOUNT_CLOSED"\s*\},\s*tx as never,\s*\{ securityEvent: false \}\)/,
     );
   });
 

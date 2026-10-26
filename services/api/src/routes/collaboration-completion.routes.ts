@@ -90,6 +90,8 @@ async function audit(args: {
   // raw request param.
   workspaceId: string;
   metadata?: Record<string, unknown>;
+  /** The mutation's transaction: the row commits or rolls back with it. */
+  db?: unknown;
 }): Promise<void> {
   await emitTenantAudit({
     action: args.action,
@@ -101,7 +103,7 @@ async function audit(args: {
     resourceId: args.resourceId,
     correlationId: args.requestId,
     metadata: args.metadata ?? {},
-  });
+  }, args.db as never);
 }
 
 // =============================================================================
@@ -191,18 +193,20 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             targetType: parsed.data.targetType,
             targetId: parsed.data.targetId ?? null,
             body: parsed.data.body,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.comment.created",
-            resourceType: "collaboration_team_comment",
-            resourceId: result.id,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
-            metadata: {
-              mentionCount: result.mentionCount,
-              notificationCount: result.notificationCount,
-            },
+            auditTx: (db, created) =>
+              audit({
+                userId: ctx.userId,
+                action: "collaboration_team.comment.created",
+                resourceType: "collaboration_team_comment",
+                resourceId: created.id,
+                requestId: req.id ?? null,
+                workspaceId: ctx.workspaceId,
+                metadata: {
+                  mentionCount: created.mentionCount,
+                  notificationCount: created.notificationCount,
+                },
+                db,
+              }),
           });
           return reply.code(201).send({ comment: { id: result.id } });
         } catch (err) {
@@ -244,14 +248,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             actorUserId: ctx.userId,
             commentId: req.params.commentId,
             body: parsed.data.body,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.comment.edited",
-            resourceType: "collaboration_team_comment",
-            resourceId: req.params.commentId,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
+            auditTx: (db) =>
+              audit({
+                userId: ctx.userId,
+                action: "collaboration_team.comment.edited",
+                resourceType: "collaboration_team_comment",
+                resourceId: req.params.commentId,
+                requestId: req.id ?? null,
+                workspaceId: ctx.workspaceId,
+                db,
+              }),
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -281,14 +287,16 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             commentId: req.params.commentId,
-          });
-          await audit({
-            userId: ctx.userId,
-            action: "collaboration_team.comment.deleted",
-            resourceType: "collaboration_team_comment",
-            resourceId: req.params.commentId,
-            requestId: req.id ?? null,
-            workspaceId: ctx.workspaceId,
+            auditTx: (db) =>
+              audit({
+                userId: ctx.userId,
+                action: "collaboration_team.comment.deleted",
+                resourceType: "collaboration_team_comment",
+                resourceId: req.params.commentId,
+                requestId: req.id ?? null,
+                workspaceId: ctx.workspaceId,
+                db,
+              }),
           });
           return reply.send({ ok: true });
         } catch (err) {

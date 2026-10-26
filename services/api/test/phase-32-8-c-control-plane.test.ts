@@ -338,9 +338,11 @@ describe("Phase 32.8C control plane — assignIncident action", () => {
   it("exports assignIncident from the existing incident service", () => {
     expect(INCIDENT_SVC).toMatch(/export async function assignIncident\(/);
   });
+  // Members re-audit 3 (B5): `assignIncident` runs `assignIncidentWithin` in one
+  // transaction; the body these pins read is the inner writer.
 
   it("assignIncident emits a tenant audit log row via the canonical facade", () => {
-    const block = INCIDENT_SVC.match(/export async function assignIncident[\s\S]*?\n\}\s*\n/);
+    const block = INCIDENT_SVC.match(/async function assignIncidentWithin[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/emitTenantAudit\(/);
     expect(block![0]).toMatch(// CONTRACT MIGRATION — closure pass (2026-08-22). The action is now chosen
@@ -351,7 +353,7 @@ describe("Phase 32.8C control plane — assignIncident action", () => {
   });
 
   it("assignIncident emits an OperationalIncidentEvent history row", () => {
-    const block = INCIDENT_SVC.match(/export async function assignIncident[\s\S]*?\n\}\s*\n/);
+    const block = INCIDENT_SVC.match(/async function assignIncidentWithin[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
     expect(block![0]).toMatch(/operationalIncidentEvent\.create/);
     expect(block![0]).toMatch(// CONTRACT MIGRATION — closure pass (2026-08-22). Same reason: the history
@@ -635,7 +637,7 @@ describe("Phase 32.8C control plane — no-regression invariants", () => {
   });
 
   it("assignIncident does NOT change incident status (assignment is orthogonal to lifecycle)", () => {
-    const block = INCIDENT_SVC.match(/export async function assignIncident[\s\S]*?\n\}\s*\n/);
+    const block = INCIDENT_SVC.match(/async function assignIncidentWithin[\s\S]*?\n\}\s*\n/);
     expect(block).not.toBeNull();
     // Allow `status` in the audit log metadata payload, but not as a
     // mutated field on the update.

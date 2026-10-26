@@ -1315,19 +1315,18 @@ async function assignIncidentWithin(
       assignedAtUtc: isUnassign ? null : new Date(),
     },
   });
-  try {
-    await client.operationalIncidentEvent.create({
-      data: {
-        incidentId: updated.id,
-        eventType: isUnassign ? "unassigned" : "assigned",
-        safeMessage: isUnassign
-          ? "Condition returned to the unassigned queue."
-          : `Condition assigned to operator ${input.assigneeUserId!.slice(0, 8)}.`,
-      },
-    });
-  } catch {
-    /* best-effort */
-  }
+  // Re-audit 4, R4-3 — this runs in the assignment's transaction, where a
+  // swallowed insert failure would still abort it: the event commits or rolls
+  // back with the assignment.
+  await client.operationalIncidentEvent.create({
+    data: {
+      incidentId: updated.id,
+      eventType: isUnassign ? "unassigned" : "assigned",
+      safeMessage: isUnassign
+        ? "Condition returned to the unassigned queue."
+        : `Condition assigned to operator ${input.assigneeUserId!.slice(0, 8)}.`,
+    },
+  });
   bump("operational_incident_assigned");
 
   await emitTenantAudit(

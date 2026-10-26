@@ -196,6 +196,9 @@ function validateCommentTarget(t: string | null | undefined): CollaborationTeamC
   return t as CollaborationTeamCommentTarget;
 }
 
+/** A route's success audit, run inside the comment mutation's transaction. */
+export type CommentAudit<R> = (db: PrismaClient, result: R) => Promise<void>;
+
 export async function createComment(
   input: {
     teamId: string;
@@ -203,6 +206,11 @@ export async function createComment(
     targetType: string;
     targetId?: string | null;
     body: string;
+    /**
+     * Re-audit 4, R4-4 — the route's success audit, written inside this
+     * mutation's transaction (a failed audit rolls the comment back).
+     */
+    auditTx?: CommentAudit<{ id: string; mentionCount: number; notificationCount: number }>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string; mentionCount: number; notificationCount: number }> {
@@ -426,11 +434,13 @@ export async function createComment(
       },
     });
 
-    return {
+    const created = {
       id: comment.id,
       mentionCount: mentionRows.length,
       notificationCount,
     };
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, created);
+    return created;
   });
 
   return result;
@@ -524,6 +534,7 @@ export async function editComment(
     actorUserId: string;
     commentId: string;
     body: string;
+    auditTx?: CommentAudit<void>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -570,11 +581,12 @@ export async function editComment(
       targetType: "COMMENT",
       targetId: input.commentId,
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
 export async function deleteComment(
-  input: { teamId: string; actorUserId: string; commentId: string },
+  input: { teamId: string; actorUserId: string; commentId: string; auditTx?: CommentAudit<void> },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   const { team, role } = await requireMemberRole(
@@ -588,7 +600,11 @@ export async function deleteComment(
   });
   if (!comment || comment.teamId !== input.teamId)
     throw new CollaborationTeamError("team_not_found", "Comment not found.", 404);
-  if (comment.status === "DELETED") return;
+  if (comment.status === "DELETED") {
+    // Idempotent: nothing changes, and the request is still recorded.
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   const isAuthor = comment.authorUserId === input.actorUserId;
   const isModerator = isCollaborationTeamModerator(role);
   if (!isAuthor && !isModerator)
@@ -615,6 +631,7 @@ export async function deleteComment(
       targetId: input.commentId,
       metadata: { moderated: isModerator && !isAuthor },
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 

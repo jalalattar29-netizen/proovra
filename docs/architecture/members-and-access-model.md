@@ -284,7 +284,7 @@ enforced in code and proven behaviourally; the test named is the proof.
   writes its audit in the mutation's transaction; a failed audit rolls the
   change back. So do bulk evidence archive/trash/restore (the single routes'
   audit, per record) and every Collaboration Team mutation (create, update,
-  archive, members, invites, tasks), whose route hands its success audit to the
+  archive, members, invites, tasks, comments), whose route hands its success audit to the
   canonical service to write inside the mutation. Proof:
   `members-reaudit2-audit-atomicity`, `members-reaudit3-findings` "N2 …", "N3 …".
 - **Inbox items built from a record obey restricted cases.** Integrity
@@ -318,9 +318,11 @@ enforced in code and proven behaviourally; the test named is the proof.
   A member removed, suspended or leaving releases what they held (unassigned,
   history kept, one audit row). The bulk Operations sweep and incident assign
   decide inside the write too (third re-audit, B5). A directory (SCIM)
-  deactivation is a suspension: it goes through the same writer as an
-  administrator's, releases the person's work in every Workspace it suspends
-  and ends their owner links and external-review grants (`CREATOR_SUSPENDED`).
+  deactivation is a suspension: its writer (`suspendWorkspaceMembership`) takes
+  the same steps as an administrator's (`suspendMember`), in the same
+  transaction as the status change — it releases the person's work in every
+  Workspace it suspends and ends their owner links and external-review grants
+  (`CREATOR_SUSPENDED`).
   Proof: `members-assignee-authority-writers`,
   `members-organization-identity-reaudit3` "B-N1 …".
 - **Legacy vocabulary rows.** `20281026001400` normalised every deterministic
@@ -348,7 +350,11 @@ enforced in code and proven behaviourally; the test named is the proof.
   only before that transaction commits. A legal hold that appears afterwards
   does not reopen or block the closure; it defers anonymisation: the request
   stays PROCESSING with access ended, and the reaper completes it once the hold
-  is released. Proof: `members-reaudit3-closure-irrevocable`.
+  is released. Any other failure after access ended is retried the same way
+  (the person can no longer sign in to ask again), never left FAILED. The
+  request carries why it waits (`legal_hold_deferred` / `anonymisation_retrying`)
+  and one `identity.account_closure_waiting` audit row records each change of
+  reason. Proof: `members-reaudit3-closure-irrevocable`, `members-reaudit4`.
 - **Invitation delivery is audited apart from the decision.** An invitation's
   decision (`teams.invite_create` / `teams.invite_resend`) commits with it;
   whether its email was delivered is a separate `teams.invite_delivery` row

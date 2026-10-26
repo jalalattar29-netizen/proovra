@@ -128,6 +128,11 @@ const CURATED: Record<string, SecurityEventPresentation> = {
     title: "Account closure failed",
     description: "Closing your account did not complete. No data was lost.",
   },
+  "identity.account_closure_waiting": {
+    title: "Account closure in progress",
+    description:
+      "Your account is closed. Removing your personal details is waiting — for a legal hold to be released, or to be retried — and will finish automatically.",
+  },
   "identity.organization_ownership_transferred": {
     title: "Organization ownership transferred",
     description: "Ownership of an organization changed hands.",
