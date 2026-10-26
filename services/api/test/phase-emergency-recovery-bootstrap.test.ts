@@ -173,8 +173,12 @@ describe("Phase EMERGENCY-RECOVERY — platform-context builder", () => {
     expect(SVC).toMatch(/personal_bootstrap_after_stale/);
   });
 
-  it("distinguishes scope via team.isPersonal, not heuristics", () => {
-    expect(SVC).toMatch(/team\.isPersonal\s*\?\s*"PERSONAL"\s*:\s*"TEAM"/);
+  it("distinguishes scope through the canonical workspace-kind classifier, not heuristics", () => {
+    // The scope is the ONE mapper over the canonical kind (members re-audit
+    // DOM-14; behaviour proven in dom-14-legacy-scope-mapper.test.ts). This
+    // pin used to match a sentence in a comment.
+    expect(SVC).toMatch(/isPersonal:\s*team\.isPersonal/);
+    expect(SVC).toMatch(/scope:\s*legacyScopeFromKind\(resolvedKind\)/);
   });
 
   it("emits recoveryActions via buildRecoveryActions helper", () => {

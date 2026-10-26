@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 339,
-    "classifiedMigrations": 339,
+    "filesystemMigrations": 341,
+    "classifiedMigrations": 341,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 339,
+    "productionSnapshotUnknown": 341,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 339,
-    "classifiedMigrations": 339,
+    "filesystemMigrations": 341,
+    "classifiedMigrations": 341,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 339,
+    "productionSnapshotUnknown": 341,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 108,
-      "BACKFILL": 30,
+      "EXPAND": 109,
+      "BACKFILL": 31,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 124,
+      "SAFE_TO_APPLY_NOW": 126,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 4
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 339
+    "ProductionMigrationStateUnknown": 341
   },
   "gateFailures": [],
   "migrations": [
@@ -25689,8 +25689,148 @@
       "evidence": "ORGANIZATION-SCOPED IDENTITY (2026-10-26, members audit DOM-13). organization_id (backfilled from teams, NOT NULL, RESTRICT FK, BEFORE INSERT fill trigger) on sso_connections, scim_provisioning_tokens, scim_groups, external_identity_mappings, sso_callback_attempts. One live connection per (organization, provider) — duplicates DISABLED (DUPLICATE_PROVIDER_IN_ORGANIZATION); one live SCIM group per (organization, external id) — duplicates ARCHIVED and carried as projections of the canonical group; new scim_group_workspace_projections seeded from every group; external identities unique per (organization, provider, subject). Three per-workspace/global keys retired in guarded DO blocks after their replacements exist. Nothing deleted. Apply WITH the API image. Idempotent. READINESS: 4:0. ROLLBACK: code-first is not available once applied (the retired keys would have to be recreated, possible only while no cross-organization duplicate exists); the added columns/table are additive. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281026000800_case_restriction_flag",
       "order": 338,
+      "sqlPresent": true,
+      "byteLength": 1566,
+      "checksumSha256": "2b3c614ceb578c78161816298f524698d149629d539262fcadf6fa6b35c218ec",
+      "checksumSha256Raw": "2b3c614ceb578c78161816298f524698d149629d539262fcadf6fa6b35c218ec",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "ee72bdbd806da9f396fdd47b3e0633582224da46",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "BACKFILL",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cases",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "cases"
+        ],
+        "addedColumns": [
+          "restricted_at_utc"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cases"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cases"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20260205100000_b2b_org_locking",
+        "20281025000000_case_collaboration_team_access"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='cases' AND column_name='restricted_at_utc') || ':' || (SELECT count(*) FROM cases c WHERE c.restricted_at_utc IS NULL AND (EXISTS (SELECT 1 FROM case_access a WHERE a.case_id = c.id) OR EXISTS (SELECT 1 FROM case_collaboration_team_access t WHERE t.case_id = c.id)))\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "CASE RESTRICTION FLAG (2026-10-26, members re-audit defect 6). Restriction was derived from the presence of access rows, so a departing member's standing-reach cleanup could open a restricted case to the whole workspace. Adds cases.restricted_at_utc (nullable) and backfills it for every case currently carrying an access list; already-emptied cases are left unrestricted (no reach invented). Safe on either image; idempotent. READINESS: 1:0 after apply. ROLLBACK: code-first; the column is additive. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "20281026000900_holds_and_groups_outlive_workspace",
+      "order": 339,
+      "sqlPresent": true,
+      "byteLength": 1845,
+      "checksumSha256": "346a9ca8db4e97c65300663d10579a29d9cb9dff39c568ce1a7c295155bcb8c5",
+      "checksumSha256Raw": "346a9ca8db4e97c65300663d10579a29d9cb9dff39c568ce1a7c295155bcb8c5",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "ee72bdbd806da9f396fdd47b3e0633582224da46",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence_legal_holds",
+          "scim_groups"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "evidence_legal_holds_team_id_fkey",
+          "scim_groups_team_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing",
+        "20260517100000_add_governance_phase9",
+        "20260604100000_phase26_5_identity_hardening"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT string_agg(conname || '=' || confdeltype, ',' ORDER BY conname) FROM pg_constraint WHERE conname IN ('evidence_legal_holds_team_id_fkey','scim_groups_team_id_fkey')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "HOLDS AND GROUPS OUTLIVE THE WORKSPACE (2026-10-26, members re-audit defects 8 and 12). evidence_legal_holds.team_id and scim_groups.team_id foreign keys move from ON DELETE CASCADE to ON DELETE RESTRICT (same columns, ON UPDATE CASCADE). No row touched; no backfill. Safe on either image; idempotent. READINESS: both 'r' after apply. ROLLBACK: re-create with ON DELETE CASCADE (DDL only). NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 340,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

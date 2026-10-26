@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "a704de954aac253992fb40b2e9501594cf8bf739c52f71557e0024944c12b641",
+  "capabilityRouteInventoryHash": "08b090ff7d996ce1e2ab9de1ab8d800241b6e83b856aeecf42f2ff7c14cf2f30",
   "totals": {
-    "routes": 1205,
-    "routesWithAnyTestCaller": 46,
+    "routes": 1206,
+    "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
-    "testCallSites": 100,
+    "testCallSites": 104,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -3209,9 +3209,11 @@
     },
     {
       "routeId": "GET /v1/teams/:id",
-      "testCallerCount": 1,
+      "testCallerCount": 3,
       "testOnly": false,
       "testCallerFiles": [
+        "apps/mobile/test/sentry-expected-refusal-wiring.test.mjs",
+        "apps/web/__tests__/render/sentry-expected-refusal-wiring.render.test.tsx",
         "apps/web/__tests__/workspace-lifecycle-refusal-presentation.test.ts"
       ]
     },
@@ -3647,6 +3649,12 @@
     },
     {
       "routeId": "PATCH /v1/governance/retention-policies/:id",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "PATCH /v1/identity/capabilities/:id",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6998,9 +7006,11 @@
     },
     {
       "routeId": "POST /v1/teams/:id/invites",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/mobile/test/sentry-expected-refusal-wiring.test.mjs"
+      ]
     },
     {
       "routeId": "POST /v1/teams/:id/invites/:inviteId/resend",
@@ -7345,5 +7355,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "3e2dd36481b7911b124dd3106cc9abdb182c33c838907b58daa3a6853b08b707"
+  "contentHash": "ddd847c3f2711f8af95f9787e20a0bc04f1ffbb8b67b3f3626fc3d0159ff2923"
 }

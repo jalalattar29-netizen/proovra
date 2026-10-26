@@ -69,7 +69,8 @@ describe("Phase 2 — /v1/teams/:id/activity filter wiring (source contract)", (
     // permission → support guard) instead of comparing a status field. The
     // scope check this pins is stronger than it was; only its arity moved.
     expect(handler).toContain("getActorMembership(req, teamId, userId)");
-    expect(handler).toMatch(/return reply\.code\(403\)\.send\(\{\s*message:\s*['"]Forbidden['"]/);
+    // Members re-audit AUD-05 — the refusal carries a typed code.
+    expect(handler).toMatch(/return reply\.code\(403\)\.send\(\{\s*code:\s*"FORBIDDEN",\s*message:\s*['"]Forbidden['"]/);
   });
 
   it("declares the optional filter zod schema with bounded inputs", () => {

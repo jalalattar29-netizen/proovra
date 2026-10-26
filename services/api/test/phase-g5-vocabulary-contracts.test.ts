@@ -434,8 +434,11 @@ describe("Phase G5.2 — Team → Workspace carryover", () => {
     const offenders: Array<{ file: string; line: number; excerpt: string }> = [];
     // Match phrases that look like UI labels — preceded by a quote
     // or JSX `>` and containing the word Team with a capital T.
+    // "Collaboration Team(s)" is the sanctioned name of the GROUP (members
+    // audit vocabulary decision): only Team meaning the workspace/tenant is
+    // forbidden, so exactly that compound is not an offender.
     const labelRe =
-      /["'>](?:[^"'<>]*\b)?Team(?:s)?\b(?!Id|Member|Role|Workspace|Permission)/;
+      /["'>](?:[^"'<>]*\b)?(?<!Collaboration )Team(?:s)?\b(?!Id|Member|Role|Workspace|Permission)/;
     for (const f of files) {
       const rel = relative(WEB_ROOT, f).replace(/\\/g, "/");
       if (TEAM_WORDING_ALLOWLIST.has(rel) || inAllowedTree(rel)) continue;

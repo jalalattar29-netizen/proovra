@@ -229,16 +229,15 @@ export async function evaluateAccountClosurePreflight(
       });
       return kind === "PERSONAL" || kind === "OWNED";
     };
-    const otherMembersWhere = (teamIds: string[]) => ({
-      teamId: { in: teamIds },
-      userId: { not: userId },
-      status: { in: ["ACTIVE", "SUSPENDED"] as Array<"ACTIVE" | "SUSPENDED"> },
-    });
     const heldIds = ownedTeams.filter((t) => !closesWithAccount(t)).map((t) => t.id);
     if (heldIds.length > 0) {
       const withMembers = await prisma.teamMember.groupBy({
         by: ["teamId"],
-        where: otherMembersWhere(heldIds),
+        where: {
+          teamId: { in: heldIds },
+          userId: { not: userId },
+          status: { in: ["ACTIVE", "SUSPENDED"] },
+        },
         _count: { id: true },
       });
       if (withMembers.length > 0) {
@@ -252,7 +251,13 @@ export async function evaluateAccountClosurePreflight(
     }
     const closingIds = ownedTeams.filter(closesWithAccount).map((t) => t.id);
     const others = closingIds.length > 0
-      ? await prisma.teamMember.count({ where: otherMembersWhere(closingIds) })
+      ? await prisma.teamMember.count({
+          where: {
+            teamId: { in: closingIds },
+            userId: { not: userId },
+            status: { in: ["ACTIVE", "SUSPENDED"] },
+          },
+        })
       : 0;
     if (others > 0) {
       consequences.push({
