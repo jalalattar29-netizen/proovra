@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1411,
-    "ReachableSensitiveMutations": 1392,
-    "ClassifiedSensitiveMutations": 1392,
+    "TerminalWriters": 1412,
+    "ReachableSensitiveMutations": 1393,
+    "ClassifiedSensitiveMutations": 1393,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 19,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 221,
+      "ACCOUNT_SESSION_SECURITY": 222,
       "ORGANIZATION": 33,
       "ORGANIZATION_MEMBERSHIP": 28,
       "WORKSPACE": 70,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1244,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1245,
       "JOB_ATTRIBUTED_REACHABLE": 138,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10568,
+      "METHOD_ON_VALUE": 10569,
       "UNRESOLVED_IDENTIFIER": 1491
     },
     "MutationFixpointRounds": 9,
@@ -44802,8 +44802,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.create@330",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:330",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.create@338",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:338",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -44835,8 +44835,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@561",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:561",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@572",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:572",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "editComment",
       "kind": "DATABASE",
@@ -44868,8 +44868,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@601",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:601",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@617",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:617",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "deleteComment",
       "kind": "DATABASE",
@@ -44901,8 +44901,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamCommentMention.createMany@355",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:355",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamCommentMention.createMany@363",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:363",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -44934,8 +44934,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@398",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:398",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@406",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:406",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -53584,8 +53584,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.create@127",
-      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:127",
+      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.create@157",
+      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:157",
       "file": "services/api/src/services/identity-security/session-revocation.service.ts",
       "enclosingDeclaration": "revokeAllSessionsForUser",
       "kind": "DATABASE",
@@ -54387,8 +54387,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.update@327",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:327",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.update@334",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:334",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54422,8 +54422,43 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@360",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:360",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@372",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:372",
+      "file": "services/api/src/services/identity/account-closure.service.ts",
+      "enclosingDeclaration": "recordAccountClosureWaiting",
+      "kind": "DATABASE",
+      "target": "accountClosureRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/run-digests"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@416",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:416",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "recordAccountClosureOutcome",
       "kind": "DATABASE",
@@ -54457,8 +54492,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@422",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:422",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@478",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:478",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "processAccountClosures",
       "kind": "DATABASE",
@@ -54492,8 +54527,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@445",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:445",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@501",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:501",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "processAccountClosures",
       "kind": "DATABASE",
@@ -54527,8 +54562,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountDataExportRequest.updateMany@308",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:308",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountDataExportRequest.updateMany@315",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:315",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54562,8 +54597,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#apiCredential.updateMany@247",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:247",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#apiCredential.updateMany@251",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:251",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54597,8 +54632,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#authenticatedSession.updateMany@258",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:258",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#authenticatedSession.updateMany@263",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:263",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54632,8 +54667,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#teamInvite.updateMany@242",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:242",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#teamInvite.updateMany@246",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:246",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54667,8 +54702,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@274",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:274",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@279",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:279",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54702,8 +54737,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@314",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:314",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@321",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:321",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -54737,8 +54772,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#userIdentityLink.updateMany@270",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:270",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#userIdentityLink.updateMany@275",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:275",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -65271,8 +65306,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1602",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1602",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncident.updateMany@1601",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1601",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -68329,8 +68364,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1319",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1319",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1321",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1321",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "assignIncidentWithin",
       "kind": "DATABASE",
@@ -69342,8 +69377,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1611",
-      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1611",
+      "writerId": "services/api/src/services/observability/incident.service.ts#operationalIncidentEvent.create@1610",
+      "terminalLocation": "services/api/src/services/observability/incident.service.ts:1610",
       "file": "services/api/src/services/observability/incident.service.ts",
       "enclosingDeclaration": "transitionIncident",
       "kind": "DATABASE",
@@ -71858,8 +71893,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/observability/workflow.service.ts#operationalWorkflowEvent.create@70",
-      "terminalLocation": "services/api/src/services/observability/workflow.service.ts:70",
+      "writerId": "services/api/src/services/observability/workflow.service.ts#operationalWorkflowEvent.create@73",
+      "terminalLocation": "services/api/src/services/observability/workflow.service.ts:73",
       "file": "services/api/src/services/observability/workflow.service.ts",
       "enclosingDeclaration": "assignWorkflow",
       "kind": "DATABASE",
@@ -97643,7 +97678,7 @@
       "method": "DELETE",
       "path": "/v1/collaboration-teams/:teamId/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:264",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:270",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107942,7 +107977,7 @@
       "method": "GET",
       "path": "/v1/collaboration-team-notifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:341",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108184,7 +108219,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:478",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:486",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108305,7 +108340,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/activity/v2",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:515",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:523",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108531,7 +108566,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:130",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:132",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108759,7 +108794,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/guests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:428",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:436",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108871,7 +108906,7 @@
       "method": "GET",
       "path": "/v1/collaboration-teams/:teamId/notification-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:383",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:391",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -136874,7 +136909,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/access-review/items/:itemId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:494",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:502",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -137035,7 +137070,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:215",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:219",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -137114,7 +137149,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/guests/:guestId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:444",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:452",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -137263,7 +137298,7 @@
       "method": "PATCH",
       "path": "/v1/collaboration-teams/:teamId/notification-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:391",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:399",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149814,7 +149849,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-notifications/:notificationId/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:346",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:354",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149853,7 +149888,7 @@
       "method": "POST",
       "path": "/v1/collaboration-team-notifications/read-all",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:354",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:362",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -149993,7 +150028,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:486",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:494",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150032,7 +150067,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/access-review/:reviewId/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:502",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:510",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150284,7 +150319,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:161",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:163",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150372,7 +150407,7 @@
       "method": "POST",
       "path": "/v1/collaboration-teams/:teamId/guests/invite",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:436",
+      "registrationEvidence": "services/api/src/routes/collaboration-completion.routes.ts:444",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -167961,7 +167996,6 @@
         "scimGroup",
         "scimGroupWorkspaceProjection",
         "scimProvisioningToken",
-        "securityEvent",
         "ssoConnection",
         "team",
         "teamActivity",

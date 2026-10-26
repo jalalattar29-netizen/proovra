@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | ed632eea1a56064cd86daa44608fd268610b48748b1ff401f0716fe1cf0fd92d |
+| engineHash    | f1bc7792a6fb6fcdac443585c56a193f04e1c0a1597dfec5392cd10ae6d40e7f |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -73,7 +73,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 420   |
+| AuditFilesInventoried                      | 421   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
@@ -122,7 +122,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 327   |
+| ProductBehaviorTestsInventoried            | 328   |
 
 ### Report roles
 

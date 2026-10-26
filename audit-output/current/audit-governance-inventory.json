@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 420,
+    "AuditFilesInventoried": 421,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 327
+    "ProductBehaviorTestsInventoried": 328
   },
   "reportRoles": {
     "counts": {
@@ -132,7 +132,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 327,
+    "PRODUCT_BEHAVIOR_TEST": 328,
     "DOMAIN_AUTHORITY": 61,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
@@ -3558,6 +3558,21 @@
     },
     {
       "path": "services/api/test/members-reaudit3-findings.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/members-reaudit4.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
