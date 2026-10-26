@@ -101,11 +101,13 @@ export async function resolveUserDepartmentScope(
     };
   }
 
-  // A workspace governor bypasses the department scope (members audit DOM-09:
-  // the canonical permission — held by OWNER/ADMIN, delegable through the
-  // GOVERNANCE_ADMIN scope — replaces the retired ORG_ADMIN tier).
+  // The retired ORG_ADMIN / GLOBAL_ADMIN tiers bypassed the department scope;
+  // a workspace ADMIN did not. Members re-audit (second round): the bypass is
+  // the delegated-only department authority those tiers carried
+  // (`governance.department.define`, no role but the OWNER holds it), never
+  // a permission every ADMIN holds by default.
   const governs = await evaluateMemberAccess(
-    { teamId: input.teamId, userId: input.userId, permission: "governance.policy.manage" },
+    { teamId: input.teamId, userId: input.userId, permission: "governance.department.define" },
     prisma,
   );
   if (governs.allowed) {

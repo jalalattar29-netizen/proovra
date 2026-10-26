@@ -12,28 +12,48 @@
  * memberships move to their ended states; only the live access-list entry
  * (which IS the grant) is removed.
  *
+ * It also RELEASES THE WORK the person held (members re-audit 2, B1): review
+ * workflows, open escalations, Team tasks, Operations ownership, QC samples
+ * and evidence-request reviews go back to their pools, unassigned, with their
+ * history kept and the release audited (assignment/release-held-work.ts).
+ *
  * One module, imported by the per-member engine and the mass orchestrator
  * alike, so the two cannot disagree about what "ended" means.
  */
 import type { PrismaClient } from "@prisma/client";
 
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
+import {
+  releaseWorkHeldByTx,
+  type ReleaseReason,
+  type ReleaseTx,
+} from "../assignment/release-held-work.js";
 
 type ReachTx = Pick<
   PrismaClient,
   "caseAccess" | "caseAssignment" | "collaborationTeamMember" | "verificationShareToken" | "externalReviewGrant"
->;
+> &
+  ReleaseTx;
+
+export type EndStandingReachOptions = {
+  /** Who ended the membership (null: PROOVRA's own act, e.g. a SCIM deprovision). */
+  actorUserId?: string | null;
+  /** Recorded on every released item's history. */
+  reason?: ReleaseReason;
+};
 
 export async function endStandingReach(
   tx: ReachTx,
   input: { teamId: string; userId: string },
+  options: EndStandingReachOptions = {},
 ): Promise<void> {
-  await endStandingReachForMembers(tx, [input]);
+  await endStandingReachForMembers(tx, [input], options);
 }
 
 export async function endStandingReachForMembers(
   tx: ReachTx,
   members: ReadonlyArray<{ teamId: string; userId: string }>,
+  options: EndStandingReachOptions = {},
 ): Promise<void> {
   if (members.length === 0) return;
   const now = new Date();
@@ -46,6 +66,14 @@ export async function endStandingReachForMembers(
     else byWorkspace.set(m.teamId, [m.userId]);
   }
   for (const [teamId, userIds] of byWorkspace) {
+    // The work first, while the person's group memberships still say which
+    // groups their tasks belong to.
+    await releaseWorkHeldByTx(tx, {
+      teamId,
+      userIds,
+      actorUserId: options.actorUserId ?? null,
+      reason: options.reason ?? "membership_ended",
+    });
     await tx.caseAccess.deleteMany({
       where: { userId: { in: userIds }, case: { teamId } },
     });
@@ -62,4 +90,24 @@ export async function endStandingReachForMembers(
   // departing member created end with their membership (a governed removal
   // may first transfer them to the workspace's ownership).
   await revokeCreatorShareGrantsTx(tx, { creators: members, reason: "CREATOR_REMOVED" });
+}
+
+/**
+ * A SUSPENSION releases the work too (re-audit B1): a suspended person cannot
+ * open the workspace, so work left with them is stuck until somebody notices.
+ * Their standing reach is NOT ended — suspension is reversible and a restore
+ * gives back case access and groups — but the work goes back to its pools
+ * (reassigning is a deliberate act after a restore, not an automatic one).
+ * Called by the membership engine's suspend transition, in its transaction.
+ */
+export async function releaseWorkOnSuspension(
+  tx: ReleaseTx,
+  input: { teamId: string; userId: string; actorUserId: string | null },
+): Promise<void> {
+  await releaseWorkHeldByTx(tx, {
+    teamId: input.teamId,
+    userIds: [input.userId],
+    actorUserId: input.actorUserId,
+    reason: "member_suspended",
+  });
 }

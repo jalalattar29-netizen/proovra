@@ -242,7 +242,9 @@ describe("matter Access tab — case access family (live PostgreSQL 16)", () => 
       expect(foreign.body).toBe(missing.body);
       expect(await prisma.caseAccess.count({ where: { id: access.id } })).toBe(1);
 
-      // A same-workspace non-manager can see the case exists: still 403.
+      // A same-workspace non-manager who can SEE the case (on its list — it is
+      // restricted, and only those who see it learn it exists): still 403.
+      await prisma.caseAccess.create({ data: { caseId: c.id, userId: a.viewerUserId } });
       const viewer = await call({
         method: "DELETE",
         url: `/v1/cases/${c.id}/access/${access.id}`,
@@ -292,14 +294,23 @@ describe("matter Access tab — case access family (live PostgreSQL 16)", () => 
       ]);
 
       // Revoke by an ADMIN who is not the case owner — the same authority
-      // that may grant may withdraw.
+      // that may grant may withdraw, provided they can see the now-restricted
+      // case (members re-audit, second round): the owner adds them first.
+      const adminAccess = await call({
+        method: "POST",
+        url: `/v1/cases/${c.id}/access`,
+        token: a.ownerToken,
+        payload: { userId: a.adminUserId },
+      });
+      expect(adminAccess.statusCode, adminAccess.body).toBe(201);
       const revoked = await call({
         method: "DELETE",
         url: `/v1/cases/${c.id}/access/${granted.json().access.id}`,
         token: a.adminToken,
       });
       expect(revoked.statusCode, revoked.body).toBe(204);
-      expect(await grants(c.id)).toEqual([]);
+      // The member's grant is gone; the revoking ADMIN's own entry remains.
+      expect(await grants(c.id)).toEqual([expect.objectContaining({ userId: a.adminUserId })]);
     });
   });
 });

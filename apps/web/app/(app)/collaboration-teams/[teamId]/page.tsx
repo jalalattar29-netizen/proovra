@@ -442,6 +442,10 @@ function TeamDetail() {
   const canAssign =
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.create");
+  /** CT-07 — moving somebody else's task is the server's `team.assignment.reassign`. */
+  const canSupervise =
+    !isArchived &&
+    collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.reassign");
   /** Reopen and delete are the two writes an archived team still accepts. */
   const canArchive = collaborationTeamRoleHasPermission(
     team.viewerRole,
@@ -931,6 +935,7 @@ function TeamDetail() {
           <AssignmentsTab
             team={team}
             canAssign={canAssign}
+            canSupervise={canSupervise}
             onCreateAssignment={() => setCreateAssignmentOpen(true)}
             reloadToken={assignmentReloadToken}
           />

@@ -6593,7 +6593,9 @@ model ExternalIdentityMapping {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // Members re-audit D-12 — an Organization identity link does not disappear
+  // with the workspace it was configured from.
+  team Team @relation(fields: [teamId], references: [id], onDelete: Restrict)
   user User @relation("ExternalIdentityMappingUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, provider, externalSubjectId], map: "external_identity_mappings_org_provider_subject_uk")
@@ -9275,7 +9277,9 @@ model ScimProvisioningToken {
   revokedByUserId String?   @map("revoked_by_user_id") @db.Uuid
   revokedReason   String?   @map("revoked_reason") @db.VarChar(400)
 
-  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // Members re-audit D-12 — the Organization's directory credential does not
+  // disappear with the workspace it was configured from.
+  team      Team @relation(fields: [teamId], references: [id], onDelete: Restrict)
   createdBy User @relation("ScimProvisioningTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([teamId, status])
@@ -9471,7 +9475,8 @@ model SsoCallbackAttempt {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  team          Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // Members re-audit D-12 — Organization sign-in history outlives the workspace.
+  team          Team          @relation(fields: [teamId], references: [id], onDelete: Restrict)
   ssoConnection SsoConnection @relation(fields: [ssoConnectionId], references: [id], onDelete: Cascade)
 
   @@index([teamId, status])
@@ -9515,6 +9520,14 @@ model ScimGroup {
   team Team @relation(fields: [teamId], references: [id], onDelete: Restrict)
   projections ScimGroupWorkspaceProjection[]
 
+  // Members re-audit N-4 — a duplicate group archived when the Organization's
+  // same-externalId groups were merged names the survivor it was merged into;
+  // the directory that still addresses the archived id is answered by the
+  // survivor (PATCH / remove keep applying — deprovisioning never stops).
+  mergedIntoGroupId String?     @map("merged_into_group_id") @db.Uuid
+  mergedInto        ScimGroup?  @relation("ScimGroupMergedInto", fields: [mergedIntoGroupId], references: [id], onDelete: Restrict)
+  mergedFrom        ScimGroup[] @relation("ScimGroupMergedInto")
+
   // Members audit DOM-13 — one live group per (organization, externalId):
   // a partial unique index in raw SQL (scim_groups_org_external_id_live_uk).
   @@index([organizationId, status])
@@ -9522,6 +9535,7 @@ model ScimGroup {
   // (WHERE status = 'ACTIVE') in migration 20281026000200, not expressible here.
   @@index([teamId, status])
   @@index([teamId, mappedRole])
+  @@index([mergedIntoGroupId])
   @@map("scim_groups")
 }
 

@@ -43,6 +43,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { prisma } from "../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 // COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state machine
 // and the record-aware eligibility resolver, so this fallback and the workspace
 // aggregator cannot describe the same record differently.
@@ -260,6 +261,13 @@ export default async function registerReportsRoutes(
       const whereEvidence: Record<string, unknown> = {
         AND: [
           accessClause,
+          // Members re-audit (second round, defect 3) — workspace
+          // `evidence.read` is necessary, never sufficient: a record linked to
+          // a restricted case the caller cannot see is not listed (title,
+          // file names, case id and verification reference included). The
+          // canonical narrowing rule (case-visibility.ts), as every record
+          // list applies it; a legacy personal-scope row is the owner's own.
+          { OR: [{ teamId: null }, evidenceVisibleThroughCasesWhere(userId)] },
           { status: { in: ["SIGNED", "REPORTED"] } },
           // Soft-delete safety. Schemas without `deletedAt` ignore the
           // clause; rows with `deletedAt` set are excluded.

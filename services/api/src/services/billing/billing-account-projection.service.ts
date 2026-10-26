@@ -1134,6 +1134,18 @@ export async function buildBillingAccountProjection(input: {
     });
   }
 
+  // SECOND RE-AUDIT CT-14 — from here on the account IS PERSONAL.
+  // `BillingAccountType` is "PERSONAL" | "ORGANIZATION" (billing-accounts.service.ts),
+  // the only route (`GET /v1/billing/accounts/:type/:id`) parses exactly those
+  // two, and ORGANIZATION returned above. A shared workspace's billing is
+  // projected by `buildOrganizationProjection` (its pending-invitation count
+  // included). This assignment is the proof in the compiler: widen the type
+  // (a WORKSPACE account) and it stops compiling here, at the place the
+  // remaining `account.type === "PERSONAL" ? … : …` WORKSPACE arms would need
+  // to come back to life.
+  const personalAccountType: "PERSONAL" = account.type;
+  void personalAccountType;
+
   // ---- PERSONAL and WORKSPACE share the scope/usage machinery --------------
   //
   // The scope comes OUT of the canonical envelope rather than from a second
@@ -1659,29 +1671,15 @@ export async function buildBillingAccountProjection(input: {
         limit: caps.maxCollaborationTeamsPerWorkspace,
       };
     }
-  } else {
-    // A SHARED workspace reports SEATS. Pending invitations are counted and
-    // reported separately — an invitation is not an accepted member, and the
-    // seat cap has never been an invite cap.
-    //
-    // Members audit CT-14 (2026-10-25) — counted from the WORKSPACE invitation
-    // authority (`team_invites`), the one that grants membership. This read the
-    // retired Collaboration Team invitation table, which no current writer
-    // fills, so the meter reported 0 pending however many people were invited.
-    const pendingInvites = await prisma.teamInvite.count({
-      where: {
-        teamId: account.id,
-        acceptedAt: null,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-    });
-    collaboration.seats = {
-      used: usage.teamMemberCount,
-      limit: usage.seatLimit,
-      pendingInvites,
-    };
   }
+  // SECOND RE-AUDIT CT-14 — there is no WORKSPACE arm here. The `else` that
+  // counted a shared workspace's seats and pending invitations was unreachable
+  // (the account is PERSONAL past the ORGANIZATION return; see
+  // `personalAccountType` above), so its CT-14 fix could not be exercised and
+  // proved nothing. A shared workspace's seats and open invitations are
+  // projected — and tested — on the Organization branch
+  // (`buildOrganizationProjection`). A personal account reports its
+  // Collaboration Teams allowance and never a seats block.
 
   // ---- Storage add-ons ----------------------------------------------------
   /*

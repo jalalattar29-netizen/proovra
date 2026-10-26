@@ -51,6 +51,10 @@ import {
 } from "@proovra/shared";
 import { intakeLinkMintRefusal } from "./intake/intake-link-mint-gate.js";
 import { indexIntakeLinkBestEffort } from "./search/evidence-indexing.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "./assignment/assignee-eligibility.js";
 
 // -----------------------------------------------------------------------------
 // Feature flag — Phase 7.5
@@ -99,7 +103,12 @@ export type EvidenceRequestErrorCode =
   | "case_not_in_workspace"
   | "evidence_not_in_workspace"
   // AUD-09 (2026-10-20) — the named reviewer is not an ACTIVE member here.
-  | "assignee_not_workspace_member";
+  | "assignee_not_workspace_member"
+  // Members re-audit B3 — the named reviewer is a member, but the one
+  // assignee authority refuses them: not placed (PRO/TEAM), or no review
+  // capability / no reach to the request's record.
+  | "assignee_not_placed"
+  | "assignee_not_eligible";
 
 /** ET-INT-07 — the canonical mint gate's refusal, in this service's vocabulary. */
 async function assertIntakeLinkMintAllowed(
@@ -126,6 +135,7 @@ export class EvidenceRequestError extends Error {
     super(code);
     this.name = "EvidenceRequestError";
     if (code === "assignee_not_workspace_member") this.statusCode = 400;
+    if (code === "assignee_not_placed" || code === "assignee_not_eligible") this.statusCode = 422;
   }
 }
 
@@ -147,6 +157,87 @@ async function assertAssigneeIsActiveMember(
     select: { status: true },
   });
   if (member?.status !== "ACTIVE") throw new EvidenceRequestError("assignee_not_workspace_member");
+}
+
+/**
+ * THE ASSIGNED REVIEWER IS A REVIEWER ASSIGNMENT (members re-audit B3).
+ *
+ * An ACTIVE membership was all the request's reviewer needed, so a VIEWER, an
+ * unplaced member on PRO/TEAM or one whose access had expired received the
+ * review queue item and its email. The reviewer now passes THE ONE assignee
+ * authority — the reviewer permission, reach to the request's evidence and
+ * case, and placement — with `client` the write's own transaction, so the
+ * placement it relies on is share-locked until the request commits. Every
+ * writer of the column (create, draft edit, the assign action) comes here.
+ */
+export async function assertRequestReviewerEligible(
+  client: PrismaClient,
+  input: {
+    teamId: string;
+    assignedReviewerUserId: string | null | undefined;
+    evidenceId: string | null;
+    caseId: string | null;
+  },
+): Promise<void> {
+  if (!input.assignedReviewerUserId) return;
+  await assertAssigneeIsActiveMember(client, input.teamId, input.assignedReviewerUserId);
+  try {
+    await assertWorkAssigneeEligible(
+      {
+        workspaceId: input.teamId,
+        assigneeUserId: input.assignedReviewerUserId,
+        permission: "evidence_request.review",
+        evidenceId: input.evidenceId,
+        caseId: input.caseId,
+      },
+      client,
+      { inTransaction: true },
+    );
+  } catch (err) {
+    if (err instanceof AssigneeEligibilityError) {
+      throw new EvidenceRequestError(
+        err.reason === "NOT_PLACED" ? "assignee_not_placed" : "assignee_not_eligible",
+      );
+    }
+    throw err;
+  }
+}
+
+/**
+ * The quick "assign reviewer" action (`POST /v1/evidence-requests/:id/assign`):
+ * the decision, the write and its event are one transaction.
+ */
+export async function assignEvidenceRequestReviewer(
+  input: { id: string; teamId: string; actorUserId: string; assignedReviewerUserId: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<RequestRow> {
+  return client.$transaction(async (tx) => {
+    const existing = await tx.evidenceRequest.findUnique({
+      where: { id: input.id },
+      select: { id: true, teamId: true, evidenceId: true, caseId: true },
+    });
+    if (!existing || existing.teamId !== input.teamId) {
+      throw new EvidenceRequestError("request_not_found");
+    }
+    await assertRequestReviewerEligible(tx as unknown as PrismaClient, {
+      teamId: existing.teamId,
+      assignedReviewerUserId: input.assignedReviewerUserId,
+      evidenceId: existing.evidenceId,
+      caseId: existing.caseId,
+    });
+    await tx.evidenceRequest.update({
+      where: { id: input.id },
+      data: { assignedReviewerUserId: input.assignedReviewerUserId },
+    });
+    await appendRequestEvent(
+      tx,
+      input.id,
+      input.assignedReviewerUserId ? "EVIDENCE_REQUEST_ASSIGNED" : "EVIDENCE_REQUEST_UNASSIGNED",
+      input.actorUserId,
+      { assignedReviewerUserId: input.assignedReviewerUserId } as Prisma.InputJsonValue,
+    );
+    return loadRequest(tx, input.id);
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -242,9 +333,14 @@ export async function createEvidenceRequest(
     });
     if (!owned) throw new EvidenceRequestError("evidence_not_in_workspace");
   }
-  await assertAssigneeIsActiveMember(client, parsed.teamId, parsed.assignedReviewerUserId);
-
   return client.$transaction(async (tx) => {
+    // B3 — the reviewer is decided inside the write.
+    await assertRequestReviewerEligible(tx as unknown as PrismaClient, {
+      teamId: parsed.teamId,
+      assignedReviewerUserId: parsed.assignedReviewerUserId,
+      evidenceId: parsed.evidenceId ?? null,
+      caseId: parsed.caseId ?? null,
+    });
     const created = await tx.evidenceRequest.create({
       data: {
         teamId: parsed.teamId,
@@ -439,7 +535,12 @@ export async function editDraftEvidenceRequest(
     if (p.workflowTemplateSlug !== undefined)
       data.workflowTemplateSlug = p.workflowTemplateSlug;
     if (p.assignedReviewerUserId !== undefined) {
-      await assertAssigneeIsActiveMember(tx, existing.teamId, p.assignedReviewerUserId);
+      await assertRequestReviewerEligible(tx as unknown as PrismaClient, {
+        teamId: existing.teamId,
+        assignedReviewerUserId: p.assignedReviewerUserId,
+        evidenceId: existing.evidenceId,
+        caseId: existing.caseId,
+      });
       data.assignedReviewer = p.assignedReviewerUserId
         ? { connect: { id: p.assignedReviewerUserId } }
         : { disconnect: true };

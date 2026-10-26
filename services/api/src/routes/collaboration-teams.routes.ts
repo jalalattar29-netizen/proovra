@@ -18,6 +18,10 @@
  *     database stores the sha256 hash only.
  */
 
+import {
+  LEGACY_RECORD_NEEDS_REVIEW,
+  legacyVocabularyViolation,
+} from "../services/collaboration-team/legacy-vocabulary.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   collaborationTeamRoleHasPermission,
@@ -226,6 +230,11 @@ function handleServiceError(
         requestId,
       },
     });
+    return;
+  }
+  // Members re-audit N-8 — a legacy row an operator must review: typed 409.
+  if (legacyVocabularyViolation(err)) {
+    void reply.code(409).send({ error: { ...LEGACY_RECORD_NEEDS_REVIEW, requestId } });
     return;
   }
   void reply.code(500).send({

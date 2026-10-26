@@ -1477,6 +1477,16 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281026000800_case_restriction_flag",
       // Members re-audit defects 8 and 12: legal holds and Organization SCIM groups no longer cascade with a workspace. EXPAND (FK delete rule).
       "20281026000900_holds_and_groups_outlive_workspace",
+      // Members re-audit N-2: live tier grants of holders SUSPENDED at the DOM-09 convergence are carried forward (inert until reinstatement). BACKFILL.
+      "20281026001000_delegated_admin_suspended_holders",
+      // Members re-audit N-1: grants the precise delegated-only floor permissions to carried tier holders. BACKFILL.
+      "20281026001100_delegated_admin_floor",
+      // Members re-audit N-4: archived duplicate SCIM groups record their survivor so a directory still addressing them keeps deprovisioning. EXPAND + BACKFILL.
+      "20281026001200_scim_group_merged_into",
+      // Members re-audit D-12: SCIM tokens, identity mappings, SSO callback attempts and SSO connections no longer cascade with a workspace. EXPAND (FK delete rule).
+      "20281026001300_identity_rows_outlive_workspace",
+      // Members re-audit N-8: normalises deterministic legacy vocabulary variants and validates the DOM-08 checks that have no violators. BACKFILL.
+      "20281026001400_collaboration_vocabulary_normalise",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

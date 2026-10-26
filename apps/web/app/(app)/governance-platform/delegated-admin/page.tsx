@@ -10,6 +10,10 @@
  * member delegated SCOPE folded into the permission engine, granted,
  * updated and revoked per member in Security Center.
  *
+ * Retirement was forward-only: every LIVE tier grant was carried as member
+ * capability grants on the same member and still admits them (re-audit N-3 —
+ * this page must never claim a former grantee holds nothing).
+ *
  * The URL stays so an old bookmark lands on an explanation instead of a 404.
  * This page makes NO request to the retired endpoints.
  */
@@ -47,9 +51,21 @@ export default function DelegatedAdminPage() {
             can be updated or revoked at any time. Every governance action
             checks those permissions on the server.
           </p>
-          <p>
-            The earlier tiered grants no longer give anyone access. Past grants
-            and revocations remain in the audit history.
+          <p data-delegated-admin-officer-copy>
+            Officer authorities — executing or approving evidence destruction,
+            authoring governance policies, running access-review campaigns,
+            publishing trust and status notices, deciding evidence exchange —
+            are not part of the admin role or of any scope. They are granted
+            to a named member as individual permissions in Security Center,
+            and only by someone who holds them.
+          </p>
+          <p data-delegated-admin-carried-copy>
+            The earlier tiered grants were carried forward: each one that was
+            live when this changed became individual permissions on the same
+            member, with the same grantor and expiry, and those permissions
+            still give that member access today. Review, extend or revoke them
+            per member in Security Center. Past tier grants and revocations
+            remain in the audit history.
           </p>
           <a
             href="/security-center/identity"

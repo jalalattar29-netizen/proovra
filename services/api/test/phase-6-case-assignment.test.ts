@@ -50,14 +50,47 @@ import {
 } from "../src/services/cases/case-lifecycle.service.js";
 import { evaluateCaseMutationPermission } from "../src/services/cases/case-permission.service.js";
 
-// The canonical permission engine is proven elsewhere; this suite's fake models
-// membership as an ACTIVE row, so the member check reads that row.
-vi.mock("../src/services/identity/access-policy.service.js", async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  evaluateMemberAccess: vi.fn(async (input: { teamId: string; userId: string }, client: { teamMember: { findFirst: (a: unknown) => Promise<unknown> } }) => ({
-    allowed: Boolean(await client.teamMember.findFirst({ where: { teamId: input.teamId, userId: input.userId, status: "ACTIVE" } })),
-  })),
+// THE ONE ASSIGNEE AUTHORITY (`assertWorkAssigneeEligible`) is proven against
+// PostgreSQL in members-unassigned-rule.integration.test.ts and
+// members-assignment-surfaces.integration.test.ts. `addCaseAssignment` asks it
+// inside the write's transaction, and there it reads capability through the
+// real default client — which this offline suite has no database for. So the
+// authority is substituted by a faithful miniature of its two rules that this
+// suite's fake can model: (1) an ACTIVE membership row on the transaction
+// client (`makeClient({ member: null })` removes it), and (2) reach to the case
+// through the record authority mocked above (`reach.allowed`). Either failing
+// throws the real `AssigneeEligibilityError("NOT_ELIGIBLE")`, so the SERVICE's
+// own mapping to `invalid_assignee` is what the refusal cases below test.
+const authority = vi.hoisted(() => ({
+  calls: [] as Array<{ input: Record<string, unknown>; inTransaction: boolean }>,
 }));
+vi.mock("../src/services/assignment/assignee-eligibility.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/assignment/assignee-eligibility.js")>();
+  const { resolveCaseRecordAccess } = await import("../src/services/cases/case-permission.service.js");
+  return {
+    ...actual,
+    assertWorkAssigneeEligible: vi.fn(
+      async (
+        input: { workspaceId: string; assigneeUserId: string; permission: string; caseId?: string | null },
+        client: { teamMember: { findFirst: (a: unknown) => Promise<unknown> } },
+        options: { inTransaction?: boolean } = {},
+      ) => {
+        authority.calls.push({ input, inTransaction: options.inTransaction === true });
+        const member = await client.teamMember.findFirst({
+          where: { teamId: input.workspaceId, userId: input.assigneeUserId, status: "ACTIVE" },
+        });
+        if (!member) throw new actual.AssigneeEligibilityError("NOT_ELIGIBLE");
+        if (input.caseId) {
+          const r = await resolveCaseRecordAccess(
+            { userId: input.assigneeUserId, caseId: input.caseId },
+            client as never,
+          );
+          if (!r.allowed) throw new actual.AssigneeEligibilityError("NOT_ELIGIBLE");
+        }
+      },
+    ),
+  };
+});
 
 
 // The placement prerequisite is proven against PostgreSQL in
@@ -128,6 +161,7 @@ function makeClient(overrides?: {
 
 beforeEach(() => {
   reach.allowed = true;
+  authority.calls.length = 0;
   appendPlatformAuditLogMock.mockClear();
 });
 
@@ -146,6 +180,19 @@ describe("SCOPE B — assign a case to a user", () => {
     );
     expect(client.caseAssignment.create).toHaveBeenCalledTimes(1);
     expect(row.status).toBe("ACTIVE");
+    // The writer asked the one assignee authority, inside its write, with the
+    // work the case role names (B6) and the case it must reach.
+    expect(authority.calls).toEqual([
+      {
+        input: {
+          workspaceId: "team-1",
+          assigneeUserId: "user-2",
+          permission: "evidence.update_metadata",
+          caseId: "case-1",
+        },
+        inTransaction: true,
+      },
+    ]);
     // Audit emitted with the canonical action + no secret payload.
     expect(appendPlatformAuditLogMock).toHaveBeenCalledTimes(1);
     const audit = (

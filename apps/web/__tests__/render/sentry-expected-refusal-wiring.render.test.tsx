@@ -7,6 +7,8 @@
  * and `captureException` against a recording fake of `@sentry/browser`, with
  * errors produced by the REAL `apiFetch` from real HTTP responses:
  *
+ *   - `captureException(err)`: a typed 4xx refusal and a code-less 409/422 (second
+ *     re-audit N-7) are not sent; a code-less 401/403/404/405/413/415 is;
  *   - `captureException(err)`: a 409 business refusal (typed, and code-less)
  *     never reaches `Sentry.captureException`; a 500 and a network failure do;
  *   - the `beforeSend` hook `initSentry` installs: drops an event whose
@@ -101,11 +103,39 @@ describe("AUD-05 — web: business refusals are not Sentry incidents; faults are
     expect(sentry.captured).toEqual([]);
   });
 
-  it("captureException: code-less 403 / 404 / 422 answers are NOT sent", async () => {
-    for (const status of [403, 404, 422]) {
-      captureException(await failure(status, { message: "no" }));
-    }
+  it("captureException: a code-less 422 validation answer is NOT sent", async () => {
+    captureException(await failure(422, { message: "no" }));
     expect(sentry.captured).toEqual([]);
+  });
+
+  it("captureException: typed 4xx refusals (403, 404, 401, 429) are NOT sent", async () => {
+    captureException(await failure(403, { error: { code: "WORKSPACE_ACCESS_DENIED" } }));
+    captureException(await failure(404, { error: { code: "TEAM_NOT_FOUND" } }));
+    captureException(await failure(401, { error: { code: "UNAUTHORIZED" } }));
+    captureException(await failure(429, { error: { code: "RATE_LIMITED" } }));
+    expect(sentry.captured).toEqual([]);
+  });
+
+  // Second re-audit N-7 — a code-less 401 / 403 / 404 is a fault (an auth
+  // regression, Fastify's 404 for a removed or mistyped route), not a refusal.
+  it("captureException: code-less 401 / 403 / 404 answers ARE sent", async () => {
+    const sent: unknown[] = [];
+    for (const status of [401, 403, 404]) {
+      const err = await failure(status, { message: "no" });
+      sent.push(err);
+      captureException(err);
+    }
+    expect(sentry.captured).toEqual(sent);
+  });
+
+  it("captureException: code-less 405 / 413 / 415 answers ARE sent", async () => {
+    const sent: unknown[] = [];
+    for (const status of [405, 413, 415]) {
+      const err = await failure(status, { message: "no" });
+      sent.push(err);
+      captureException(err);
+    }
+    expect(sentry.captured).toEqual(sent);
   });
 
   it("captureException: a 500 IS sent", async () => {
@@ -134,5 +164,7 @@ describe("AUD-05 — web: business refusals are not Sentry incidents; faults are
     expect(beforeSend({ message: "unhandled rejection" }, { originalException: refusal })).toBeNull();
     expect(beforeSend({ message: "unhandled rejection" }, { originalException: fault })).not.toBeNull();
     expect(beforeSend({ message: "plain error" }, { originalException: new Error("boom") })).not.toBeNull();
+    const routeMissing = await failure(404, { message: "Route POST:/v1/teamz not found" });
+    expect(beforeSend({ message: "unhandled rejection" }, { originalException: routeMissing })).not.toBeNull();
   });
 });

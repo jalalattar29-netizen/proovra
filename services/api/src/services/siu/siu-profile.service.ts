@@ -41,6 +41,11 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
+import { CASE_ROLE_WORK_PERMISSION, assigneeRefusal } from "../assignment/assignment-write.js";
 // Phase O1.5D — bounded siu.followup.request span. NEVER claimant
 // PII or contact details in attributes.
 import {
@@ -229,6 +234,8 @@ export async function upsertSiuProfile(
     select: {
       id: true,
       intakeTemplateId: true,
+      assignedAdjusterUserId: true,
+      assignedSiuReviewerUserId: true,
     },
   });
   const intakeTemplateId =
@@ -259,62 +266,105 @@ export async function upsertSiuProfile(
     updatedByUserId: input.actorUserId ?? undefined,
   };
 
-  if (existing) {
-    await prisma.caseSiuProfile.update({
-      where: { id: existing.id },
-      data: baseData,
-    });
-  } else {
-    // Create + materialize the checklist atomically.
-    const templateChecklist: ReadonlyArray<SiuChecklistItem> = intakeTemplateId
-      ? buildEmptySiuChecklist(getSiuIntakeTemplate(intakeTemplateId))
-      : [];
-    const templateItemsInput = intakeTemplateId
-      ? getSiuIntakeTemplate(intakeTemplateId).items
-      : [];
-    await prisma.caseSiuProfile.create({
-      data: {
-        caseId: input.caseId,
-        teamId: tenant.teamId,
-        claimType: input.patch.claimType,
-        investigationStatus:
-          input.patch.investigationStatus ?? "intake",
-        claimNumber: input.patch.claimNumber ?? null,
-        policyReference: input.patch.policyReference ?? null,
-        incidentDate: input.patch.incidentDate
-          ? new Date(input.patch.incidentDate)
-          : null,
-        incidentLocationJson:
-          incidentLocationJson === Prisma.JsonNull
-            ? Prisma.JsonNull
-            : incidentLocationJson,
-        lossDescription: input.patch.lossDescription ?? null,
-        assignedAdjusterUserId: input.patch.assignedAdjusterUserId ?? null,
-        assignedSiuReviewerUserId:
-          input.patch.assignedSIUReviewerUserId ?? null,
-        claimantName: input.patch.claimantName ?? null,
-        claimantContact: input.patch.claimantContact ?? null,
-        piiVisibilityPolicy:
-          "redacted_by_default" satisfies SiuPiiVisibilityPolicy,
-        intakeTemplateId: intakeTemplateId ?? null,
-        createdByUserId: input.actorUserId ?? null,
-        updatedByUserId: input.actorUserId ?? null,
-        checklistItems: {
-          create: templateChecklist.map((c, i) => ({
-            templateItemId: c.itemId,
-            label: c.label,
-            description: templateItemsInput[i]?.purpose ?? null,
-            required: c.required,
-            acceptedKindsJson:
-              (templateItemsInput[i]?.acceptedKinds ?? []) as unknown as Prisma.InputJsonValue,
-            status: c.status,
-            mappedEvidenceIdsJson: [] as Prisma.InputJsonValue,
-            note: c.note,
-          })),
-        },
-      },
-    });
+  /*
+   * THE ADJUSTER AND THE SIU REVIEWER ARE GIVEN WORK (members re-audit B11).
+   *
+   * Both were written from the body with no check at all — any UUID, another
+   * tenant's user included — and they drive the SIU queue's "mine" views. A
+   * NEWLY named holder now passes THE ONE assignee authority for this case:
+   * the adjuster as case work (INVESTIGATOR), the SIU reviewer as review work
+   * (REVIEWER), reach to the case, placement on PRO/TEAM — inside the write.
+   * A value the profile already holds is not re-decided, so an unrelated
+   * edit is never refused for someone else's later change of standing.
+   */
+  const newlyNamed: Array<{ userId: string; role: "INVESTIGATOR" | "REVIEWER" }> = [];
+  const adjuster = input.patch.assignedAdjusterUserId ?? null;
+  const siuReviewer = input.patch.assignedSIUReviewerUserId ?? null;
+  if (adjuster && adjuster !== (existing?.assignedAdjusterUserId ?? null)) {
+    newlyNamed.push({ userId: adjuster, role: "INVESTIGATOR" });
   }
+  if (siuReviewer && siuReviewer !== (existing?.assignedSiuReviewerUserId ?? null)) {
+    newlyNamed.push({ userId: siuReviewer, role: "REVIEWER" });
+  }
+
+  await prisma.$transaction(async (txc) => {
+    const tx = txc as unknown as typeof prisma;
+    for (const holder of newlyNamed) {
+      try {
+        await assertWorkAssigneeEligible(
+          {
+            workspaceId: tenant.teamId,
+            assigneeUserId: holder.userId,
+            permission: CASE_ROLE_WORK_PERMISSION[holder.role],
+            caseId: tenant.caseId,
+          },
+          tx,
+          { inTransaction: true },
+        );
+      } catch (err) {
+        if (err instanceof AssigneeEligibilityError) {
+          throw assigneeRefusal(err.reason, holder.role === "REVIEWER" ? "REVIEW" : "WORK");
+        }
+        throw err;
+      }
+    }
+    if (existing) {
+      await tx.caseSiuProfile.update({
+        where: { id: existing.id },
+        data: baseData,
+      });
+    } else {
+      // Create + materialize the checklist atomically.
+      const templateChecklist: ReadonlyArray<SiuChecklistItem> = intakeTemplateId
+        ? buildEmptySiuChecklist(getSiuIntakeTemplate(intakeTemplateId))
+        : [];
+      const templateItemsInput = intakeTemplateId
+        ? getSiuIntakeTemplate(intakeTemplateId).items
+        : [];
+      await tx.caseSiuProfile.create({
+        data: {
+          caseId: input.caseId,
+          teamId: tenant.teamId,
+          claimType: input.patch.claimType,
+          investigationStatus:
+            input.patch.investigationStatus ?? "intake",
+          claimNumber: input.patch.claimNumber ?? null,
+          policyReference: input.patch.policyReference ?? null,
+          incidentDate: input.patch.incidentDate
+            ? new Date(input.patch.incidentDate)
+            : null,
+          incidentLocationJson:
+            incidentLocationJson === Prisma.JsonNull
+              ? Prisma.JsonNull
+              : incidentLocationJson,
+          lossDescription: input.patch.lossDescription ?? null,
+          assignedAdjusterUserId: input.patch.assignedAdjusterUserId ?? null,
+          assignedSiuReviewerUserId:
+            input.patch.assignedSIUReviewerUserId ?? null,
+          claimantName: input.patch.claimantName ?? null,
+          claimantContact: input.patch.claimantContact ?? null,
+          piiVisibilityPolicy:
+            "redacted_by_default" satisfies SiuPiiVisibilityPolicy,
+          intakeTemplateId: intakeTemplateId ?? null,
+          createdByUserId: input.actorUserId ?? null,
+          updatedByUserId: input.actorUserId ?? null,
+          checklistItems: {
+            create: templateChecklist.map((c, i) => ({
+              templateItemId: c.itemId,
+              label: c.label,
+              description: templateItemsInput[i]?.purpose ?? null,
+              required: c.required,
+              acceptedKindsJson:
+                (templateItemsInput[i]?.acceptedKinds ?? []) as unknown as Prisma.InputJsonValue,
+              status: c.status,
+              mappedEvidenceIdsJson: [] as Prisma.InputJsonValue,
+              note: c.note,
+            })),
+          },
+        },
+      });
+    }
+  });
 
   return loadSiuProfile({
     caseId: input.caseId,

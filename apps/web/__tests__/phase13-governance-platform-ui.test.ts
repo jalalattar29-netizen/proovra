@@ -351,10 +351,17 @@ test("POST /v1/governance/cross-org-review/:id/accept — accept is wired with i
   // The optional uuid is validated before it is sent.
   assert.ok(src.includes("trimmed && !isUuid(trimmed)"), "the external grant id is not validated as a UUID");
 
-  // Permission: the same governance.exchange.manage check, on both controls.
+  // Permission (members re-audit N-1): invite mirrors governance.exchange.manage,
+  // accept mirrors the delegated-only governance.exchange.decide.
+  assert.ok(src.includes('const CROSS_ORG_DECIDE_PERMISSION = "governance.exchange.decide"'));
   assert.equal(
     (src.match(/const permitted = access\.ready && access\.allows\(CROSS_ORG_PERMISSION\);/g) ?? []).length,
-    2,
+    1,
+    "the invite control does not mirror its required permission",
+  );
+  assert.equal(
+    (src.match(/const permitted = access\.ready && access\.allows\(CROSS_ORG_DECIDE_PERMISSION\);/g) ?? []).length,
+    1,
     "the accept control does not mirror its required permission",
   );
   assert.ok(src.includes('data-cross-org-accept-blocked="permission"'), "no permission-denied state on accept");
@@ -441,8 +448,8 @@ test("POST /v1/governance/access-reviews/campaigns — campaign creation is wire
   );
   assert.ok(src.includes("MAX_ITEMS = 500"), "the 500-item cap is not enforced client-side");
 
-  // Permission: requireWorkspacePermission("identity.access_review.action").
-  assert.ok(src.includes('const CAMPAIGN_PERMISSION = "identity.access_review.action"'));
+  // Permission (members re-audit N-1): the delegated-only campaign authority.
+  assert.ok(src.includes('const CAMPAIGN_PERMISSION = "governance.access_review.campaign.manage"'));
   assert.ok(src.includes("const permitted = access.ready && access.allows(CAMPAIGN_PERMISSION);"));
   assert.ok(src.includes('data-access-review-campaign-blocked="permission"'), "no permission-denied state");
   assert.ok(src.includes("permissionRequiredDetail(CAMPAIGN_PERMISSION)"), "the denial does not name the permission");

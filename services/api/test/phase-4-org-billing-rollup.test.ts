@@ -47,15 +47,16 @@ describe("Phase 4 — org billing rollup", () => {
 
   it("aggregates seat usage (included + used) and over-seat count", () => {
     const h = rollupHandler();
-    // Used seats come from the team member count — same signal the
-    // per-workspace billing overview uses.
-    expect(h).toContain("_count: { select: { members: true } }");
+    // Members re-audit ENT-05 — seats come from the ONE seat authority
+    // (owner excluded, ACTIVE only, bounded by an ACTIVE contract); behaviour
+    // proven in org-billing-rollup-seat-authority.integration.test.ts.
+    expect(h).toContain("listOrgWorkspaceSeatRows(orgId)");
     expect(h).toContain("totalIncludedSeats");
     expect(h).toContain("totalUsedSeats");
     expect(h).toContain("overSeatWorkspaceCount");
     expect(h).toContain("activeWorkspaceCount");
     // Per-workspace view exposes used vs. included + an overSeat flag.
-    expect(h).toContain("usedSeats: w._count.members");
+    expect(h).toContain("usedSeats: w.usedSeats");
     expect(h).toMatch(/overSeat:/);
   });
 

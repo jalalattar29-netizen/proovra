@@ -53,6 +53,12 @@ interface RollupWorkspace {
   billingPlan: string | null;
   billingStatus: string | null;
   includedSeats: number;
+  /**
+   * Members re-audit ENT-05 — the one seat authority's ceiling: null when
+   * nothing bounds the workspace as a whole (capacity is per Collaboration
+   * Team; only an ACTIVE Enterprise contract sets a workspace seat count).
+   */
+  seatLimit?: number | null;
   usedSeats: number;
   overSeat: boolean;
 }
@@ -258,7 +264,9 @@ function RollupBody({ data }: { data: BillingRollup }) {
             fontWeight: w.overSeat ? 600 : 400,
           }}
         >
-          {w.usedSeats} / {w.includedSeats} seats
+          {w.seatLimit === null
+            ? `${w.usedSeats} ${w.usedSeats === 1 ? "member" : "members"} · no workspace ceiling`
+            : `${w.usedSeats} / ${w.seatLimit ?? w.includedSeats} seats`}
           {w.overSeat ? " · over" : ""}
         </span>
       ),

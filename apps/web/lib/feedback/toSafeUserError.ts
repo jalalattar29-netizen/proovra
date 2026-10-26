@@ -153,27 +153,43 @@ export function hasExplanationFor(error: unknown): boolean {
  * correctly. Kept here, beside the code map, so "explained" and "expected"
  * are decided from the same vocabulary.
  *
- * MEMBERS RE-AUDIT AUD-05 / DEFECT 18. A code-less answer with a BUSINESS
- * status — 401, 403, 404, 409, 422 — is also the product saying "no": not
- * signed in, not allowed, not there, conflicts with current state, not
- * acceptable. About thirty such `{ message }` refusals remained on the
- * workspace routes, and reporting each as an `API_ERROR` incident is how
- * routine refusals kept reaching Sentry. A missing code is a copy defect for
- * the route to fix, not an incident.
+ * SECOND RE-AUDIT N-7 — the code-less half is NARROW. An earlier cut also
+ * swallowed every code-less 401/403/404: Fastify's own 404 for a mistyped or
+ * removed route, and an auth regression that 401s everyone, went silent and
+ * survived only in server logs. Those are faults, not refusals. The rule:
  *
- * Still reported: network failures, every 5xx, and a code-less 4xx outside
- * those business statuses (a 400, 405, 413, 415 … is the client sending
- * something the server did not expect — a fault).
+ *   - any 4xx carrying a business `code` → expected, not sent;
+ *   - a code-less 409 or 422 → expected (a validation / state conflict the
+ *     route has not typed yet — a copy defect, not an incident);
+ *   - a code-less 401 / 403 / 404, any other code-less 4xx (400, 405, 413,
+ *     415 …), every 5xx and every network failure → REPORTED.
+ *
+ * "Code-less" means the transport's placeholder, not a server code: the web
+ * client (lib/api.ts) stamps `API_ERROR` on any body without a code, and
+ * `UNAUTHORIZED` on a code-less 401. A server-typed 401 arrives in the nested
+ * `{ error: { code } }` envelope, so as an `ApiError` carrying
+ * `body.error.code`; the synthesized `UNAUTHORIZED` has no such envelope.
  */
-const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409, 422]);
+const CODELESS_EXPECTED_STATUSES: ReadonlySet<number> = new Set([409, 422]);
+
+function businessCode(error: unknown, status: number): string | undefined {
+  const e = (error && typeof error === "object" ? error : {}) as ErrorLike & {
+    body?: { error?: { code?: unknown } };
+  };
+  const code = readString(e.code)?.toUpperCase();
+  if (!code || code === "API_ERROR") return undefined;
+  if (code === "UNAUTHORIZED" && status === 401 && !readString(e.body?.error?.code)) {
+    return undefined;
+  }
+  return code;
+}
 
 export function isExpectedBusinessRefusal(error: unknown): boolean {
   const e = (error && typeof error === "object" ? error : {}) as ErrorLike;
   const status = readStatus(e);
   if (typeof status !== "number" || status < 400 || status >= 500) return false;
-  const code = readString(e.code)?.toUpperCase();
-  if (code && code !== "API_ERROR") return true;
-  return BUSINESS_REFUSAL_STATUSES.has(status);
+  if (businessCode(error, status)) return true;
+  return CODELESS_EXPECTED_STATUSES.has(status);
 }
 
 function fromStatus(status: number): Omit<SafeUserError, "supportReference"> {

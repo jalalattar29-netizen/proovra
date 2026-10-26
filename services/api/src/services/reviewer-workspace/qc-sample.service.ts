@@ -35,6 +35,11 @@ import { prisma as defaultPrisma } from "../../db.js";
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary QC mutation.
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
+import { withinAssignmentWrite } from "../assignment/assignment-write.js";
 
 const DEFAULT_QC_SAMPLE_PERCENT = 5;
 
@@ -123,7 +128,15 @@ export async function assignSample(input: {
   qcReviewerUserId: string;
   /** The operator who made the assignment. Optional for older callers. */
   actorUserId?: string | null;
-}): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
+}): Promise<
+  | { ok: true }
+  | {
+      ok: false;
+      denial: ReviewerDenialReason;
+      /** Which assignee rule refused (members re-audit B2); the route may forward it. */
+      code?: "REVIEW_ASSIGNEE_NOT_PLACED" | "REVIEW_ASSIGNEE_NOT_ELIGIBLE";
+    }
+> {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.qcSample.findFirst({
     where: { id: input.sampleId, teamId: input.teamId },
@@ -133,26 +146,55 @@ export async function assignSample(input: {
   if (row.state !== "SAMPLED" && row.state !== "ASSIGNED") {
     return deny("QC_VERDICT_INVALID");
   }
-  // The assignee must be an ACTIVE member of THIS workspace. The body only
-  // carries a uuid, so without this check any user id — including one from
-  // another tenant — could be written as the QC reviewer.
-  const member = await prisma.teamMember.findFirst({
-    where: {
-      teamId: input.teamId,
-      userId: input.qcReviewerUserId,
-      status: "ACTIVE",
-    },
-    select: { userId: true },
+  /*
+   * A QC REVIEWER IS A REVIEWER ASSIGNMENT (members re-audit B2).
+   *
+   * This checked only for an ACTIVE membership row, so a VIEWER, a member
+   * whose access had expired, someone off the sampled review's restricted
+   * case, or an unplaced member on PRO/TEAM could be made the QC reviewer.
+   * The assignee now passes THE ONE assignee authority with the reviewer
+   * permission and reach to the sampled workflow's evidence — inside the
+   * write, so the placement it relies on is share-locked until it commits.
+   * (A user id from another tenant has no membership here and is refused.)
+   */
+  const workflow = await prisma.evidenceReviewWorkflow.findFirst({
+    where: { id: row.workflowId, teamId: input.teamId },
+    select: { evidenceId: true },
   });
-  if (!member) return deny("NOT_PERMITTED");
-  await prisma.qcSample.update({
-    where: { id: row.id },
-    data: {
-      qcReviewerUserId: input.qcReviewerUserId,
-      state: "ASSIGNED",
-      assignedAtUtc: new Date(),
-    },
+  if (!workflow) return deny("WORKFLOW_NOT_FOUND");
+  const refusal = await withinAssignmentWrite(prisma, async (tx) => {
+    try {
+      await assertWorkAssigneeEligible(
+        {
+          workspaceId: input.teamId,
+          assigneeUserId: input.qcReviewerUserId,
+          permission: "evidence_request.review",
+          evidenceId: workflow.evidenceId,
+        },
+        tx,
+        { inTransaction: true },
+      );
+    } catch (err) {
+      if (err instanceof AssigneeEligibilityError) return err.reason;
+      throw err;
+    }
+    await tx.qcSample.update({
+      where: { id: row.id },
+      data: {
+        qcReviewerUserId: input.qcReviewerUserId,
+        state: "ASSIGNED",
+        assignedAtUtc: new Date(),
+      },
+    });
+    return null;
   });
+  if (refusal) {
+    return {
+      ok: false,
+      denial: "NOT_PERMITTED",
+      code: refusal === "NOT_PLACED" ? "REVIEW_ASSIGNEE_NOT_PLACED" : "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+    };
+  }
   // The assignment decides who may render the verdict, so it is audited
   // like the verdict itself. Bounded metadata: IDs only.
   await emitTenantAudit({

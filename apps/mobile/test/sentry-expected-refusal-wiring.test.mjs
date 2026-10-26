@@ -75,13 +75,34 @@ test("a typed 409 refusal is NOT sent", async () => {
   assert.deepEqual(captured(), []);
 });
 
-test("a code-less 409 / 403 / 404 / 422 business answer is NOT sent", async () => {
-  for (const status of [409, 403, 404, 422]) {
+test("a code-less 409 / 422 conflict or validation answer is NOT sent", async () => {
+  for (const status of [409, 422]) {
     const err = await failure(status, { message: "no" });
     assert.equal(err.code, "API_ERROR");
     M.captureException(err);
   }
   assert.deepEqual(captured(), []);
+});
+
+test("typed 4xx refusals (401, 403, 404, 429) are NOT sent", async () => {
+  M.captureException(await failure(401, { error: { code: "UNAUTHORIZED" } }));
+  M.captureException(await failure(403, { error: { code: "WORKSPACE_ACCESS_DENIED" } }));
+  M.captureException(await failure(404, { code: "GRANT_NOT_FOUND" }));
+  M.captureException(await failure(429, { error: { code: "RATE_LIMITED" } }));
+  assert.deepEqual(captured(), []);
+});
+
+// Second re-audit N-7 — a code-less 401 / 403 / 404 is a fault (an auth
+// regression, a removed or mistyped route), as is any other code-less 4xx.
+test("a code-less 401 / 403 / 404 / 405 / 413 / 415 IS sent", async () => {
+  const sent = [];
+  for (const status of [401, 403, 404, 405, 413, 415]) {
+    const err = await failure(status, { message: "no" });
+    assert.equal(err.code, "API_ERROR");
+    sent.push(err);
+    M.captureException(err);
+  }
+  assert.deepEqual(captured(), sent);
 });
 
 test("a 500 IS sent", async () => {
@@ -109,4 +130,6 @@ test("beforeSend drops a refusal's event (unhandled-rejection path) and keeps a 
   assert.equal(beforeSend({ message: "unhandled" }, { originalException: refusal }), null);
   assert.notEqual(beforeSend({ message: "unhandled" }, { originalException: fault }), null);
   assert.notEqual(beforeSend({ message: "plain" }, { originalException: new Error("boom") }), null);
+  const routeMissing = await failure(404, { message: "Route POST:/v1/teamz not found" });
+  assert.notEqual(beforeSend({ message: "unhandled" }, { originalException: routeMissing }), null);
 });

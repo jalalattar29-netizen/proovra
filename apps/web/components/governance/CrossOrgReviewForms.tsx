@@ -10,9 +10,11 @@
  * them. It could not create one, and it could not accept one — so an INVITED
  * row was a dead end with exactly one exit, refusal.
  *
- * Authorisation (mirrored client-side only to disable the control): both
- * routes require the `governance.exchange.manage` permission from the
- * permission engine (role, capability grant or delegated scope), plus — for
+ * Authorisation (mirrored client-side only to disable the control): invite
+ * requires `governance.exchange.manage`; accept, decline and revoke require
+ * the delegated-only `governance.exchange.decide` (members re-audit N-1) —
+ * each from the permission engine (role, capability grant or delegated
+ * scope), plus — for
  * invite — the FEATURE_CROSS_ORG_REVIEW and FEATURE_GOVERNANCE_PLATFORM
  * entitlements (server-checked; a denial renders as the bounded entitlement
  * message).
@@ -52,6 +54,7 @@ type FieldErrors = Record<string, string | null>;
 
 /** The permission both cross-org routes ask the engine for. */
 const CROSS_ORG_PERMISSION = "governance.exchange.manage" as const;
+const CROSS_ORG_DECIDE_PERMISSION = "governance.exchange.decide" as const;
 
 // ---------------------------------------------------------------------------
 // Invite — POST /v1/governance/cross-org-review
@@ -276,7 +279,7 @@ export function CrossOrgAcceptForm({
   const [externalGrantId, setExternalGrantId] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
-  const permitted = access.ready && access.allows(CROSS_ORG_PERMISSION);
+  const permitted = access.ready && access.allows(CROSS_ORG_DECIDE_PERMISSION);
   const contextReady = !org.loading && org.organizationId !== null;
   const canSubmit = permitted && contextReady && !busy;
 
@@ -383,7 +386,7 @@ export function CrossOrgAcceptForm({
             <span style={noteStyle}>Checking your permissions…</span>
           ) : !permitted ? (
             <span style={noteStyle} data-cross-org-accept-blocked="permission">
-              {permissionRequiredDetail(CROSS_ORG_PERMISSION)}
+              {permissionRequiredDetail(CROSS_ORG_DECIDE_PERMISSION)}
             </span>
           ) : !contextReady ? (
             <span style={noteStyle} data-cross-org-accept-blocked="organization">

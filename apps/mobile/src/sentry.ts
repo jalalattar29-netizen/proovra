@@ -24,14 +24,17 @@ export function mobileSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
 /**
  * IS THIS AN EXPECTED BUSINESS REFUSAL? (members re-audit AUD-05 / defect 19)
  *
- * The same rule the web applies (apps/web/lib/feedback/toSafeUserError.ts):
- * a 4xx with a typed refusal code, or a 401/403/404/409/422 answer even
- * without one, is the product saying "no" — a seat limit, a permission, a
- * lifecycle state — and has its own copy on screen. It is not an incident.
- * Still reported: every 5xx, network failures (no status), a code-less 4xx
- * outside those business statuses, and anything that is not an API error.
+ * The same rule the web applies (apps/web/lib/feedback/toSafeUserError.ts,
+ * second re-audit N-7): a 4xx with a typed refusal code is the product saying
+ * "no" — a seat limit, a permission, a lifecycle state — and has its own copy
+ * on screen; a code-less 409 or 422 is a validation / state conflict the route
+ * has not typed yet. Neither is an incident.
+ * Still reported: a code-less 401 / 403 / 404 (an auth regression, a removed
+ * or mistyped route), any other code-less 4xx (400, 405, 413, 415 …), every
+ * 5xx, network failures (no status), and anything that is not an API error.
+ * `API_ERROR` is the transport's placeholder for "the body carried no code".
  */
-const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409, 422]);
+const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([409, 422]);
 
 export function isExpectedBusinessRefusal(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;

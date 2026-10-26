@@ -89,26 +89,51 @@ export const CANCELLABLE_CLOSURE_STATUSES = [
   "SCHEDULED",
 ] as const;
 
+/**
+ * MEMBERS RE-AUDIT (second round, defect 7) — a blocker found at EXECUTION
+ * time, inside the closure transaction. Nothing was closed: the transaction
+ * rolled back. The request records BLOCKED with these blockers.
+ */
+export class AccountClosureBlockedError extends Error {
+  constructor(readonly blockers: Array<{ code: string }>) {
+    super("account_closure_blocked_at_execution");
+    this.name = "AccountClosureBlockedError";
+  }
+}
+
 export async function executeAccountClosure(
   userId: string,
   opts: { closureRequestId?: string } = {},
 ): Promise<void> {
   const now = new Date();
 
-  // 1. Sessions first — the account must be unreachable before PII is
-  // touched. RevokedSession is the JWT-validation source of truth.
-  await revokeAllSessionsForUser({ userId, reason: "ACCOUNT_CLOSED" });
-  await prisma.authenticatedSession.updateMany({
-    where: { userId, revokedAtUtc: null },
-    data: {
-      revokedAtUtc: now,
-      revokedByUserId: userId,
-      revokedReason: "ACCOUNT_CLOSED",
-    },
-  });
-
   // A. DURABLE CLOSURE — committed before a single field is anonymised.
   const noticeIds = await prisma.$transaction(async (tx) => {
+    // EXECUTION-TIME PREFLIGHT, INSIDE THIS TRANSACTION (members re-audit,
+    // second round, defect 7). The cron's check before the claim — and the
+    // reaper, which ran no check at all — left a window in which a member
+    // joining, or a legal hold placed on, a workspace this user owns was not
+    // seen before that workspace closed. The workspaces this execution can
+    // close are locked FOR UPDATE first: a membership or hold insert takes a
+    // KEY SHARE lock on its workspace row (foreign key), so any such write
+    // either committed before this lock — and the preflight below sees it —
+    // or waits until this transaction has finished. A blocker found here
+    // rolls the transaction back: nothing closes, and the request records
+    // BLOCKED. A direct call with no request (an operator tool) is not
+    // re-judged here; it carries its own decision.
+    if (opts.closureRequestId) {
+      await tx.$queryRaw`
+        SELECT t."id" FROM "teams" t
+         WHERE t."owner_user_id" = ${userId}::uuid
+            OR t."organization_id" IN (
+                 SELECT m."organization_id" FROM "organization_memberships" m
+                  WHERE m."user_id" = ${userId}::uuid AND m."role" = 'ORG_OWNER')
+         ORDER BY t."id"
+           FOR UPDATE OF t`;
+      const { blockers } = await evaluateAccountClosurePreflight(userId);
+      if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);
+    }
+
     const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
 
     // Solo implicit organizations go first, so their workspaces close with
@@ -176,6 +201,20 @@ export async function executeAccountClosure(
       actorUserId: userId,
     });
     return [...closed.noticeIds, confirmation];
+  });
+
+  // Sessions next — the account must be unreachable before PII is touched.
+  // RevokedSession is the JWT-validation source of truth. (They are revoked
+  // after A, not before it, so a closure the execution-time preflight refuses
+  // leaves the person signed in: a refused closure changes nothing.)
+  await revokeAllSessionsForUser({ userId, reason: "ACCOUNT_CLOSED" });
+  await prisma.authenticatedSession.updateMany({
+    where: { userId, revokedAtUtc: null },
+    data: {
+      revokedAtUtc: now,
+      revokedByUserId: userId,
+      revokedReason: "ACCOUNT_CLOSED",
+    },
   });
 
   // B. ANONYMISATION — login methods, PII and privacy artifacts.
@@ -341,7 +380,20 @@ export async function processAccountClosures(now: Date): Promise<void> {
 async function runClaimedClosure(req: { id: string; userId: string }): Promise<void> {
   try {
     await executeAccountClosure(req.userId, { closureRequestId: req.id });
-  } catch {
+  } catch (err) {
+    // A blocker found inside the closure transaction: nothing closed, and
+    // the request is BLOCKED (with its audit), exactly as a blocker found
+    // before the claim — on the reaper path too.
+    if (err instanceof AccountClosureBlockedError) {
+      await recordAccountClosureOutcome({
+        requestId: req.id,
+        userId: req.userId,
+        fromStatus: "PROCESSING",
+        outcome: "BLOCKED",
+        blockers: err.blockers,
+      }).catch(() => null);
+      return;
+    }
     // A committed, B rolled back (or A rolled back): either way the request
     // records FAILED with its audit, and A's legs are idempotent on re-run.
     await recordAccountClosureOutcome({

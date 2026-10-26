@@ -157,6 +157,14 @@ export function projectInvitation(invite: {
 // Create
 // =============================================================================
 
+/**
+ * MEMBERS RE-AUDIT (second round) AUD-01 — an invitation's audit row commits
+ * in the invitation's own transaction. The caller (the route, which owns the
+ * audit vocabulary) passes the write; a failure rolls the change back, so an
+ * invitation never exists, is resent, revoked or accepted without its row.
+ */
+export type InvitationAuditTx<T> = (tx: PrismaClient, result: T) => Promise<void>;
+
 export type CreatedWorkspaceInvitation = {
   invite: WorkspaceInvitationView;
   /** Returned ONCE, to the caller that will deliver it. Never persisted. */
@@ -178,6 +186,8 @@ export async function createWorkspaceInvitation(
     role: prismaPkg.TeamRole;
     invitedByUserId: string;
     expiresInMs?: number;
+    /** The caller's audit row, written in the invitation's transaction. */
+    auditTx?: InvitationAuditTx<WorkspaceInvitationView>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedWorkspaceInvitation> {
@@ -250,17 +260,22 @@ export async function createWorkspaceInvitation(
   );
 
   try {
-    const created = await client.teamInvite.create({
-      data: {
-        teamId: input.workspaceId,
-        email,
-        role: input.role,
-        tokenHash: hash,
-        invitedByUserId: input.invitedByUserId,
-        expiresAt,
-      },
+    const view = await client.$transaction(async (tx) => {
+      const created = await tx.teamInvite.create({
+        data: {
+          teamId: input.workspaceId,
+          email,
+          role: input.role,
+          tokenHash: hash,
+          invitedByUserId: input.invitedByUserId,
+          expiresAt,
+        },
+      });
+      const projected = projectInvitation(created);
+      if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
+      return projected;
     });
-    return { invite: projectInvitation(created), rawToken: raw };
+    return { invite: view, rawToken: raw };
   } catch (err) {
     if (
       err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError &&
@@ -302,6 +317,8 @@ export async function resendWorkspaceInvitation(
     inviteId: string;
     expiresInMs?: number;
     actorUserId?: string | null;
+    /** The caller's audit row, written in the resend's transaction. */
+    auditTx?: InvitationAuditTx<WorkspaceInvitationView>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedWorkspaceInvitation> {
@@ -365,7 +382,9 @@ export async function resendWorkspaceInvitation(
         metadata: { email: existing.email, role: existing.role, resendCount: updated.resendCount },
       },
     });
-    return { invite: projectInvitation(updated), rawToken: raw };
+    const projected = projectInvitation(updated);
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
+    return { invite: projected, rawToken: raw };
   });
 }
 
@@ -374,7 +393,13 @@ export async function resendWorkspaceInvitation(
 // =============================================================================
 
 export async function revokeWorkspaceInvitation(
-  input: { workspaceId: string; inviteId: string; actorUserId: string },
+  input: {
+    workspaceId: string;
+    inviteId: string;
+    actorUserId: string;
+    /** The caller's audit row, written in the revocation's transaction. */
+    auditTx?: InvitationAuditTx<WorkspaceInvitationView>;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<WorkspaceInvitationView> {
   const existing = await client.teamInvite.findFirst({
@@ -396,17 +421,21 @@ export async function revokeWorkspaceInvitation(
   }
   if (existing.revokedAt) return projectInvitation(existing);
 
-  const updated = await client.teamInvite.update({
-    where: { id: existing.id },
-    data: {
-      revokedAt: new Date(),
-      revokedByUserId: input.actorUserId,
-      // The token dies with the invitation. Keeping a revoked hash resolvable
-      // would leave the link working until it expired.
-      tokenHash: hashToken(`revoked:${existing.id}:${randomBytes(16).toString("hex")}`),
-    },
+  return client.$transaction(async (tx) => {
+    const updated = await tx.teamInvite.update({
+      where: { id: existing.id },
+      data: {
+        revokedAt: new Date(),
+        revokedByUserId: input.actorUserId,
+        // The token dies with the invitation. Keeping a revoked hash resolvable
+        // would leave the link working until it expired.
+        tokenHash: hashToken(`revoked:${existing.id}:${randomBytes(16).toString("hex")}`),
+      },
+    });
+    const projected = projectInvitation(updated);
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
+    return projected;
   });
-  return projectInvitation(updated);
 }
 
 // =============================================================================
@@ -473,7 +502,12 @@ function assertInvitationCannotReviveMembership(
 }
 
 export async function acceptWorkspaceInvitation(
-  input: { rawToken: string; actorUserId: string },
+  input: {
+    rawToken: string;
+    actorUserId: string;
+    /** The caller's audit row, written in the acceptance's transaction. */
+    auditTx?: InvitationAuditTx<AcceptResult>;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<AcceptResult> {
   const hash = hashToken(input.rawToken);
@@ -570,15 +604,19 @@ export async function acceptWorkspaceInvitation(
   // and the invitation is CONSUMED (members audit INV-07): left PENDING it kept
   // counting against the pending allowance and stayed replayable until expiry.
   if (existingMembership?.status === prismaPkg.TeamMemberStatus.ACTIVE) {
-    await client.teamInvite.updateMany({
-      where: { id: invite.id, acceptedAt: null, revokedAt: null },
-      data: { acceptedAt: new Date(), acceptedByUserId: input.actorUserId },
-    });
-    return {
+    const consumed: AcceptResult = {
       workspaceId: invite.teamId,
       role: invite.role,
       alreadyMember: true,
     };
+    await client.$transaction(async (tx) => {
+      await tx.teamInvite.updateMany({
+        where: { id: invite.id, acceptedAt: null, revokedAt: null },
+        data: { acceptedAt: new Date(), acceptedByUserId: input.actorUserId },
+      });
+      if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, consumed);
+    });
+    return consumed;
   }
   assertInvitationCannotReviveMembership(existingMembership, invite.createdAt);
 
@@ -678,11 +716,13 @@ export async function acceptWorkspaceInvitation(
       accessReason: "workspace invitation acceptance",
     });
 
-    return {
+    const accepted: AcceptResult = {
       workspaceId: invite.teamId,
       role: invite.role,
       alreadyMember: false,
     };
+    if (input.auditTx) await input.auditTx(tx, accepted);
+    return accepted;
   };
 
   // Bounded, jittered retry. The jitter matters: without it a burst of

@@ -32,8 +32,10 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { revokeGrantsOfCreatorsWithoutReachTx } from "./case-reach-share-revocation.js";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import { evaluateCrossTeamAttach } from "./case-permission.service.js";
+import { CASE_VISIBILITY_SELECT, caseRowVisibleTo } from "./case-visibility.js";
 
 export type CaseEvidenceAuthorityErrorCode =
   | "case_not_found"
@@ -45,6 +47,9 @@ export type CaseEvidenceAuthorityErrorCode =
   | "case_hold_active"
   // UC-CASE-001 — hold state could not be read: fail closed.
   | "hold_state_unavailable"
+  // Members re-audit (second round) — removing a record from a RESTRICTED case
+  // can open it to the whole workspace; that is a manager's act.
+  | "restricted_unlink_requires_manager"
   // Members re-audit ACC-06 — the case was under a legal hold; the hold's
   // record must be kept, and it names the case, so the case is never deleted.
   | "case_hold_history";
@@ -231,6 +236,14 @@ export async function attachEvidenceToCase(
       tx as unknown as PrismaClient,
     );
 
+    // Members re-audit defect 4 — linking a record to a restricted case closes
+    // it to everyone off that case; a link or grant such a person handed out
+    // on the record ends with their reach (case-reach-share-revocation.ts).
+    await revokeGrantsOfCreatorsWithoutReachTx(tx as unknown as PrismaClient, {
+      evidenceIds: [evidence.id],
+      actorUserId: input.actorUserId ?? null,
+    });
+
     return { created: true as const, link: created as LinkRow };
   }).catch(async (err: unknown) => {
     if ((err as { code?: string }).code === "P2002") {
@@ -259,6 +272,39 @@ export type DetachEvidenceFromCaseResult = {
   detached: boolean;
   removedLinkCount: number;
 };
+
+/**
+ * Members re-audit (second round) — a record linked to a RESTRICTED case is
+ * closed to everyone off that case's list (ACC-01). Removing it from the case
+ * can therefore open it to the whole workspace, which is the same act as
+ * removing a case's last access entry: only someone who may manage the case's
+ * access does it — the case owner, or an ACTIVE OWNER / ADMIN of its
+ * workspace who can see the case. Linking rights (EVIDENCE_LINK) alone are not
+ * enough. A system call (no actor) is unaffected. Read in the unlink's
+ * transaction, after the case row's hold check.
+ */
+async function assertMayUnlinkFromRestrictedCaseTx(
+  tx: Prisma.TransactionClient,
+  caseId: string,
+  actorUserId: string | null,
+): Promise<void> {
+  if (!actorUserId) return;
+  const row = await tx.case.findUnique({ where: { id: caseId }, select: CASE_VISIBILITY_SELECT });
+  if (!row) return;
+  const restricted = row.restrictedAtUtc !== null || row.access.length > 0 || row.teamAccess.length > 0;
+  if (!restricted || row.ownerUserId === actorUserId) return;
+  const member = row.teamId
+    ? await tx.teamMember.findUnique({
+        where: { teamId_userId: { teamId: row.teamId, userId: actorUserId } },
+        select: { role: true, status: true },
+      })
+    : null;
+  const manager =
+    member?.status === "ACTIVE" &&
+    (member.role === "OWNER" || member.role === "ADMIN") &&
+    caseRowVisibleTo(row, actorUserId);
+  if (!manager) throw new CaseEvidenceAuthorityError("restricted_unlink_requires_manager");
+}
 
 /** Atomic, idempotent detach. Detaching an unattached pair is a no-op. */
 export async function detachEvidenceFromCase(
@@ -289,6 +335,7 @@ export async function detachEvidenceFromCase(
 
   const outcome = await client.$transaction(async (tx) => {
     await assertCaseNotHeldForUnlinkTx(tx, caseRow.id);
+    await assertMayUnlinkFromRestrictedCaseTx(tx, caseRow.id, input.actorUserId ?? null);
     const res = await tx.caseEvidenceLink.deleteMany({
       where: { caseId: caseRow.id, evidenceId: evidence.id },
     });
@@ -346,7 +393,16 @@ export async function detachEvidenceFromCase(
  * the case go together, or nothing does.
  */
 export async function deleteCaseAtomically(
-  input: CaseEvidenceActorContext & { caseId: string; teamId: string | null },
+  input: CaseEvidenceActorContext & {
+    caseId: string;
+    teamId: string | null;
+    /**
+     * The caller's own audit row for the deletion, written in THIS
+     * transaction (members re-audit AUD-01): a failed write rolls the delete
+     * back instead of leaving a deleted case with no record of who did it.
+     */
+    auditTx?: (tx: PrismaClient) => Promise<void>;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ removedLinkCount: number }> {
   return client.$transaction(async (tx) => {
@@ -402,6 +458,7 @@ export async function deleteCaseAtomically(
       },
       tx as unknown as PrismaClient,
     );
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient);
     return { removedLinkCount: removed.count };
   });
 }
@@ -467,8 +524,18 @@ export async function listCasesForEvidence(
  */
 export function caseUnlinkRefusal(
   err: unknown,
-): { status: 409 | 503; body: { code: string; message: string } } | null {
+): { status: 403 | 409 | 503; body: { code: string; message: string } } | null {
   if (!(err instanceof CaseEvidenceAuthorityError)) return null;
+  if (err.code === "restricted_unlink_requires_manager") {
+    return {
+      status: 403,
+      body: {
+        code: "CASE_RESTRICTED_UNLINK_MANAGER_REQUIRED",
+        message:
+          "This case is restricted. Removing a record from it can open the record to the whole workspace, so only the case owner or a workspace admin on the case can do it.",
+      },
+    };
+  }
   if (err.code === "case_hold_active") {
     return {
       status: 409,
@@ -507,7 +574,8 @@ export function caseUnlinkRefusalError(err: unknown): DomainError | null {
     httpStatus: refusal.status,
     publicCode: refusal.body.code,
     publicMessage: refusal.body.message,
-    reportability: refusal.status === 409 ? "EXPECTED_DENIAL" : "OPERATIONAL_WARNING",
-    severity: refusal.status === 409 ? "info" : "warning",
+    // Only an unreadable hold state (503) is operational; a refusal is expected.
+    reportability: refusal.status === 503 ? "OPERATIONAL_WARNING" : "EXPECTED_DENIAL",
+    severity: refusal.status === 503 ? "warning" : "info",
   });
 }

@@ -74,11 +74,25 @@ test("a typed refusal is an expected business decision, not a Sentry incident", 
   assert.equal(isExpectedBusinessRefusal(err), true);
 });
 
-// Members re-audit AUD-05 / defect 18 — a code-less 401/403/404/409/422 is a
-// business answer (not an incident); a code-less 400 is still a fault.
-test("a code-less business-status refusal is expected, not an incident", async () => {
-  for (const status of [401, 403, 404, 409, 422]) {
+// Members re-audit AUD-05 / second re-audit N-7 — a code-less 409/422 is a
+// business answer (not an incident); a code-less 401/403/404 is a fault (an
+// auth regression, a removed or mistyped route) and so is a code-less 400/405/
+// 413/415.
+test("a code-less conflict / validation refusal is expected, not an incident", async () => {
+  for (const status of [409, 422]) {
     assert.equal(isExpectedBusinessRefusal(await refusal(status, { message: "legacy" })), true, String(status));
+  }
+});
+
+test("a code-less 401 / 403 / 404 / 400 / 405 / 413 / 415 is reported", async () => {
+  for (const status of [401, 403, 404, 400, 405, 413, 415]) {
+    assert.equal(isExpectedBusinessRefusal(await refusal(status, { message: "legacy" })), false, String(status));
+  }
+});
+
+test("a typed 4xx refusal at any status is expected", async () => {
+  for (const [status, code] of [[401, "UNAUTHORIZED"], [403, "FORBIDDEN"], [404, "TEAM_NOT_FOUND"], [400, "INVALID_QUERY"], [429, "RATE_LIMITED"]] as const) {
+    assert.equal(isExpectedBusinessRefusal(await refusal(status, { error: { code } })), true, `${status} ${code}`);
   }
 });
 

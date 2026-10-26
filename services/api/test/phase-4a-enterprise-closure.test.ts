@@ -296,16 +296,17 @@ describe("Phase 4A Closure — canonical permission enforcement on routes (tier 
   it("trust article + subprocessor AUTHORING POSTs are permission-gated", () => {
     // AUTHORING — the routes that write custom workspace content — are
     // gated. The /seed paths below intentionally are NOT (see the next test).
-    expect(guardOf("POST", "/v1/trust/articles")).toBe('"governance.policy.manage"');
-    expect(guardOf("POST", "/v1/trust/subprocessors")).toBe('"governance.policy.manage"');
-    // A SECURITY article additionally needs the security-policy permission,
+    // Members re-audit N-1 — the precise, delegated-only authorities.
+    expect(guardOf("POST", "/v1/trust/articles")).toBe('"trust.article.publish"');
+    expect(guardOf("POST", "/v1/trust/subprocessors")).toBe('"trust.subprocessor.manage"');
+    // A SECURITY article additionally needs the security-article authority,
     // checked through the canonical evaluator (it replaced the kind-aware
     // SECURITY_OFFICER tier check).
     const article = routeSource(src, "POST", "/v1/trust/articles");
     expect(article).toMatch(
-      /body\.kind === "SECURITY"[\s\S]{0,300}evaluateMemberAccess\([\s\S]{0,200}"identity\.org_policy\.manage"/,
+      /body\.kind === "SECURITY"[\s\S]{0,400}"trust\.article\.security\.publish"/,
     );
-    expect(article).toMatch(/denial: "PERMISSION_REQUIRED", permission: "identity\.org_policy\.manage"/);
+    expect(article).toMatch(/denial: "PERMISSION_REQUIRED"/);
   });
 
   it("trust SEED POSTs are NOT delegated-tier-gated (workspace-member self-heal)", () => {
@@ -322,8 +323,8 @@ describe("Phase 4A Closure — canonical permission enforcement on routes (tier 
   });
 
   it("department + department-membership mutations are permission-gated", () => {
-    expect(guardOf("POST", "/v1/governance/departments")).toBe('"governance.policy.manage"');
-    expect(guardOf("POST", "/v1/governance/departments/:id/archive")).toBe('"governance.policy.manage"');
+    expect(guardOf("POST", "/v1/governance/departments")).toBe('"governance.department.define"');
+    expect(guardOf("POST", "/v1/governance/departments/:id/archive")).toBe('"governance.department.define"');
     expect(guardOf("POST", "/v1/governance/departments/:id/memberships")).toBe(
       '"governance.department.manage"',
     );
@@ -347,29 +348,31 @@ describe("Phase 4A Closure — canonical permission enforcement on routes (tier 
   });
 
   it("policy + access-review + cross-org mutations are permission-gated", () => {
+    // Members re-audit N-1 — each former tier route requires its precise,
+    // delegated-only authority (behaviour: members-delegated-admin "N-1 …").
     for (const path of [
       "/v1/governance/policies",
       "/v1/governance/policies/:id/activate",
       "/v1/governance/policies/:id/deprecate",
-      "/v1/governance/policies/:id/assignments",
     ]) {
-      expect(guardOf("POST", path), path).toBe('"governance.policy.manage"');
+      expect(guardOf("POST", path), path).toBe('"governance.policy.author"');
     }
+    expect(guardOf("POST", "/v1/governance/policies/:id/assignments")).toBe('"governance.policy.assign"');
     for (const path of [
       "/v1/governance/access-reviews/campaigns",
       "/v1/governance/access-reviews/campaigns/:id/open",
       "/v1/governance/access-reviews/campaigns/:id/close",
-      "/v1/governance/access-reviews/items/:id/decision",
     ]) {
-      expect(guardOf("POST", path), path).toBe('"identity.access_review.action"');
+      expect(guardOf("POST", path), path).toBe('"governance.access_review.campaign.manage"');
     }
+    expect(guardOf("POST", "/v1/governance/access-reviews/items/:id/decision")).toBe('"governance.access_review.decide"');
+    expect(guardOf("POST", "/v1/governance/cross-org-review")).toBe('"governance.exchange.manage"');
     for (const path of [
-      "/v1/governance/cross-org-review",
       "/v1/governance/cross-org-review/:id/accept",
       "/v1/governance/cross-org-review/:id/decline",
       "/v1/governance/cross-org-review/:id/revoke",
     ]) {
-      expect(guardOf("POST", path), path).toBe('"governance.exchange.manage"');
+      expect(guardOf("POST", path), path).toBe('"governance.exchange.decide"');
     }
   });
 
@@ -789,9 +792,10 @@ describe("Phase 4A Closure — status probes", () => {
 // ---------------------------------------------------------------------------
 
 describe("Phase 4A Closure — department scope", () => {
-  // Members audit DOM-09 — the department-scope bypass is the canonical
-  // permission `governance.policy.manage` (it replaced the retired ORG_ADMIN /
-  // GLOBAL_ADMIN tier), read through the permission engine's member snapshot.
+  // The department-scope bypass is the delegated-only department authority
+  // the retired ORG_ADMIN / GLOBAL_ADMIN tiers carried
+  // (`governance.department.define`, members re-audit second round). A
+  // workspace ADMIN never bypassed it; neither does a role default or a scope.
   const memberRow = (over: {
     role?: string;
     status?: string;
@@ -823,25 +827,7 @@ describe("Phase 4A Closure — department scope", () => {
       departmentMembership: { findMany: async () => [] },
     }) as never;
 
-  it("resolveUserDepartmentScope returns unrestricted=true for a GOVERNANCE_ADMIN delegated-scope holder", async () => {
-    const { resolveUserDepartmentScope } = await import(
-      "../src/services/governance/department-scope.service.js"
-    );
-    const envelope = await resolveUserDepartmentScope({
-      prisma: scopeStub(
-        memberRow({
-          delegatedAdminScopes: [
-            { id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: null },
-          ],
-        }),
-      ),
-      teamId: "team-1",
-      userId: "user-1",
-    });
-    expect(envelope.unrestricted).toBe(true);
-  });
-
-  it("resolveUserDepartmentScope returns unrestricted=true for a governance.policy.manage capability grant", async () => {
+  it("resolveUserDepartmentScope returns unrestricted=true for a governance.department.define capability grant", async () => {
     const { resolveUserDepartmentScope } = await import(
       "../src/services/governance/department-scope.service.js"
     );
@@ -849,7 +835,7 @@ describe("Phase 4A Closure — department scope", () => {
       prisma: scopeStub(
         memberRow({
           capabilityGrants: [
-            { id: "g-1", permission: "governance.policy.manage", expiresAtUtc: null, revokedAtUtc: null },
+            { id: "g-1", permission: "governance.department.define", expiresAtUtc: null, revokedAtUtc: null },
           ],
         }),
       ),
@@ -859,20 +845,21 @@ describe("Phase 4A Closure — department scope", () => {
     expect(envelope.unrestricted).toBe(true);
   });
 
-  it("an expired / revoked governor scope, or a SUSPENDED holder, does NOT bypass the department scope", async () => {
+  it("an ADMIN, a GOVERNANCE_ADMIN scope, a governance.policy.manage grant, an expired / revoked grant or a SUSPENDED holder does NOT bypass the department scope", async () => {
     const { resolveUserDepartmentScope } = await import(
       "../src/services/governance/department-scope.service.js"
     );
     const past = new Date(Date.now() - 60_000);
+    const define = (over: { expiresAtUtc?: Date | null; revokedAtUtc?: Date | null } = {}) => [
+      { id: "g-1", permission: "governance.department.define", expiresAtUtc: over.expiresAtUtc ?? null, revokedAtUtc: over.revokedAtUtc ?? null },
+    ];
     for (const row of [
-      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: past, revokedAtUtc: null }] }),
-      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: past }] }),
-      memberRow({
-        status: "SUSPENDED",
-        delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: null }],
-      }),
-      // A scope that does not carry governance.policy.manage.
-      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "REVIEW_ADMIN", expiresAtUtc: null, revokedAtUtc: null }] }),
+      memberRow({ role: "ADMIN" }),
+      memberRow({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", expiresAtUtc: null, revokedAtUtc: null }] }),
+      memberRow({ capabilityGrants: [{ id: "g-1", permission: "governance.policy.manage", expiresAtUtc: null, revokedAtUtc: null }] }),
+      memberRow({ capabilityGrants: define({ expiresAtUtc: past }) }),
+      memberRow({ capabilityGrants: define({ revokedAtUtc: past }) }),
+      memberRow({ status: "SUSPENDED", capabilityGrants: define() }),
     ]) {
       const envelope = await resolveUserDepartmentScope({
         prisma: scopeStub(row),

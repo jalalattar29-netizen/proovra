@@ -89,7 +89,10 @@ import {
   type MemberStatusFilter,
   buildWorkspacePath,
   canInviteMore,
+  inviteCreateOutcome,
+  isExpiredInvite,
   looksLikeEmail,
+  pendingInviteFigure,
   memberStatusTone,
   parseWorkspaceInvites,
   parseWorkspaceMembers,
@@ -270,14 +273,17 @@ export default function WorkspacePeopleScreen() {
     }
     setBusy(true);
     try {
-      await apiFetch(buildWorkspaceInvitesPath(teamId), {
+      const created = await apiFetch(buildWorkspaceInvitesPath(teamId), {
         method: "POST",
         body: JSON.stringify({ email: value, role }),
       });
       setEmail("");
       setRole("MEMBER");
       setInviteOpen(false);
-      addToast("Invitation created successfully", "success");
+      // Second re-audit INV-03 / B8 — say what the server did: an invitation
+      // whose email did not go out is not "sent" (the web's sentences).
+      const outcome = inviteCreateOutcome(value, created);
+      addToast(outcome.message, outcome.tone);
       await reloadInvites();
     } catch (err) {
       addToast(toSafeUserError(err, { message: "Failed to invite member" }).message, "error");
@@ -397,7 +403,14 @@ export default function WorkspacePeopleScreen() {
   const canManage = overview?.canManageMembers === true;
   const currentRole =
     overview?.currentUserRole ?? members.find((m) => m.userId && m.userId === selfId)?.role ?? null;
-  const pendingCount = invitesRead === "ready" ? invites.length : overview?.pendingInviteCount ?? 0;
+  // Second re-audit B7 — the web's rule: EXPIRED invitations are listed but
+  // not pending, and an unknown count is "—", never 0.
+  const pendingCount = pendingInviteFigure({
+    canManage: overview?.canManageMembers === true,
+    invitesRead,
+    invites,
+    serverCount: overview?.pendingInviteCount,
+  });
   // The server's count — never the length of a page the screen happened to load.
   const caseCount = overview?.caseCount ?? 0;
   const activeMemberCount = overview?.seats.memberCount ?? 0;
@@ -466,7 +479,7 @@ export default function WorkspacePeopleScreen() {
           <ProovraKpiGrid
             items={[
               { key: "active", label: "Active members", value: String(activeMemberCount), caption: "With access to this workspace", tone: "verified" },
-              { key: "pending", label: "Pending invitations", value: String(pendingCount), caption: "Sent, not yet accepted", tone: "pending" },
+              { key: "pending", label: "Pending invitations", value: pendingCount === null ? "—" : String(pendingCount), caption: "Sent, not yet accepted", tone: "pending" },
               {
                 key: "seats",
                 label: "Seats available",
@@ -627,7 +640,13 @@ export default function WorkspacePeopleScreen() {
                             : i.createdAtIso
                               ? `Sent ${formatUserDate(i.createdAtIso)}`
                               : null,
-                          i.expiresAtIso ? `Expires ${formatUserDate(i.expiresAtIso)}` : null,
+                          // Second re-audit B7 — the web's row: an expired, still-open
+                          // invitation is labelled, and Resend renews it.
+                          isExpiredInvite(i)
+                            ? `Expired${i.expiresAtIso ? ` ${formatUserDate(i.expiresAtIso)}` : ""} — resend to renew`
+                            : i.expiresAtIso
+                              ? `Expires ${formatUserDate(i.expiresAtIso)}`
+                              : null,
                         ]
                           .filter(Boolean)
                           .join(" · ") || "—"}

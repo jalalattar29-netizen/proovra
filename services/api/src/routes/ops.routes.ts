@@ -2389,10 +2389,19 @@ export async function opsRoutes(app: FastifyInstance) {
       // set the operator is shown and the set the server accepts cannot
       // drift. Cross-workspace assignment is refused by construction: the
       // resolver is scoped to `teamId`.
+      //
+      // Members re-audit B4 — the condition's evidence is part of the work: an
+      // operator who cannot open `relatedEvidenceId` (restricted case) cannot
+      // own it. The resolver is the one assignee authority.
       if (body.assigneeUserId !== null) {
+        const condition = await prisma.operationalIncident.findFirst({
+          where: { id, teamId: body.teamId },
+          select: { relatedEvidenceId: true },
+        });
         const eligible = await isAssignableOperator({
           teamId: body.teamId,
           userId: body.assigneeUserId,
+          evidenceId: condition?.relatedEvidenceId ?? null,
         });
         if (!eligible) {
           return reply.code(400).send({
@@ -2476,6 +2485,15 @@ export async function opsRoutes(app: FastifyInstance) {
     }
     if (e?.code === "invalid_transition") {
       reply.code(409).send({ error: { code: "invalid_transition" } });
+      return true;
+    }
+    // The in-write assignee re-check refused (a placement or access change
+    // landed after the early check): the same answer the early check gives.
+    if (e?.code === "invalid_assignee") {
+      reply.code(400).send({
+        error: "invalid_assignee",
+        message: "Assignee must be a member of this workspace.",
+      });
       return true;
     }
     return false;
@@ -2728,10 +2746,17 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      // The same eligibility rule as incident assignment: ACTIVE, access not
-      // expired, role holds the Operations permission. A suspended, revoked or
-      // expired member is not a valid owner.
-      if (!(await isAssignableOperator({ teamId: bound.teamId, userId: body.assigneeUserId }))) {
+      // The one assignee authority (members re-audit B4): ACTIVE, access not
+      // expired, the Operations permission, placement on PRO/TEAM — and reach
+      // to the workflow's case and evidence, as the bulk sweep already asks.
+      // Asked here for the early answer, and again INSIDE the write below.
+      const assigneeTarget = {
+        teamId: bound.teamId,
+        userId: body.assigneeUserId,
+        evidenceId: bound.workflow.evidenceId,
+        caseId: bound.workflow.caseId,
+      };
+      if (!(await isAssignableOperator(assigneeTarget))) {
         return reply.code(400).send({
           error: "invalid_assignee",
           message: "Assignee must be a member of this workspace.",
@@ -2749,13 +2774,24 @@ export async function opsRoutes(app: FastifyInstance) {
           const { assignWorkflow } = await import(
             "../services/observability/workflow.service.js"
           );
-          return assignWorkflow({
-            workflowId: id,
-            teamId: bound.teamId,
-            assigneeUserId: body.assigneeUserId,
-            actorUserId: actor.userId,
-            ipAddress: requestIp(req),
-            userAgent: requestUa(req),
+          // B5 — the decision and the write are one transaction: the
+          // placement the assignee relies on is share-locked until commit.
+          return prisma.$transaction(async (tx) => {
+            const txc = tx as unknown as typeof prisma;
+            if (!(await isAssignableOperator(assigneeTarget, txc, { inTransaction: true }))) {
+              throw Object.assign(new Error("invalid_assignee"), { code: "invalid_assignee" });
+            }
+            return assignWorkflow(
+              {
+                workflowId: id,
+                teamId: bound.teamId,
+                assigneeUserId: body.assigneeUserId,
+                actorUserId: actor.userId,
+                ipAddress: requestIp(req),
+                userAgent: requestUa(req),
+              },
+              txc,
+            );
           });
         },
       });

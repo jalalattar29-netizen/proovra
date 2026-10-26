@@ -723,7 +723,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/packages/:id/revoke",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -829,7 +829,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/accept",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -850,7 +850,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/reject",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -871,7 +871,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/revoke",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -888,7 +888,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/exchange/chain-transfers/:id/complete",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -941,7 +941,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/integrations/webhooks/endpoints",
-    { preHandler: [requireAuth, requireWorkspacePermission("integration.webhook.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("integration.lifecycle_webhook.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -990,7 +990,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/integrations/webhooks/endpoints/:id/deactivate",
-    { preHandler: [requireAuth, requireWorkspacePermission("integration.webhook.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("integration.lifecycle_webhook.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1121,7 +1121,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/integrations/webhooks/lifecycle-deliveries/:id/replay",
-    { preHandler: [requireAuth, requireWorkspacePermission("integration.webhook.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("integration.lifecycle_webhook.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1178,7 +1178,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("governance.retention.manage"),
+        requireWorkspacePermission("governance.retention_policy.manage"),
       ],
     },
     async (req, reply) => {
@@ -1218,7 +1218,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("governance.retention.manage"),
+        requireWorkspacePermission("governance.retention_policy.manage"),
       ],
     },
     async (req, reply) => {
@@ -1537,7 +1537,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/lifecycle/archive/transition",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.retention.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.archive.transition")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1622,7 +1622,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("governance.retention.manage"),
+        requireWorkspacePermission("governance.destruction.request"),
       ],
     },
     async (req, reply) => {
@@ -1654,7 +1654,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission(["governance.retention.manage", "identity.org_policy.manage"]),
+        requireWorkspacePermission("governance.destruction.approve"),
       ],
     },
     async (req, reply) => {
@@ -1679,7 +1679,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("governance.retention.manage"),
+        requireWorkspacePermission("governance.destruction.request"),
       ],
     },
     async (req, reply) => {
@@ -1703,7 +1703,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
   app.post(
     "/v1/lifecycle/destruction/requests/:id/execute",
     {
-      preHandler: [requireAuth, requireWorkspacePermission("governance.retention.manage")],
+      preHandler: [requireAuth, requireWorkspacePermission("governance.destruction.execute")],
     },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
@@ -1904,7 +1904,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("audit.read"),
+        requireWorkspacePermission("audit.lifecycle_package.preview"),
       ],
     },
     async (req, reply) => {

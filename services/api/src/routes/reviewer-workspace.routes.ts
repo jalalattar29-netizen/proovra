@@ -209,8 +209,10 @@ function denyWith(
   reply: FastifyReply,
   status: number,
   denial: ReviewerDenialReason,
+  /** The assignee authority's typed reason (members re-audit B2/B10). */
+  code?: string | null,
 ): FastifyReply {
-  return reply.code(status).send({ denial });
+  return reply.code(status).send({ denial, ...(code ? { code } : {}) });
 }
 
 function denyNoPermission(reply: FastifyReply): FastifyReply {
@@ -694,7 +696,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         verdict: body.verdict,
         rationale: body.rationale,
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
+      if (!res.ok) return denyWith(reply, 409, res.denial, "code" in res ? (res as { code?: string | null }).code : null);
       return reply.code(200).send({ ok: true });
     },
   );
@@ -740,7 +742,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         qcReviewerUserId: body.qcReviewerUserId,
         actorUserId: ctx.userId,
       });
-      if (!res.ok) return denyWith(reply, 409, res.denial);
+      if (!res.ok) return denyWith(reply, 409, res.denial, "code" in res ? (res as { code?: string | null }).code : null);
       return reply.code(200).send({ ok: true });
     },
   );

@@ -227,8 +227,14 @@ describe("§6.5 — identity.idp_outage is SOURCE_TRUTH, and the signal is real"
       "services/api/src/services/operations/operations-source-probes.ts",
     );
     expect(probes).toContain("outageDetectedAtUtc");
-    // Workspace-bound: a fingerprint is not an authorization.
-    expect(probes).toMatch(/id: connectionId, teamId: ctx\.teamId/);
+    // Bound to the condition's own Organization (DOM-13: SSO is
+    // Organization-scoped): the connection must belong to the Organization
+    // that owns THIS workspace — a fingerprint is not an authorization. The
+    // behaviour is proven against PostgreSQL in
+    // members-organization-identity-residual.integration.test.ts.
+    expect(probes).toMatch(
+      /id: connectionId, organization: \{ workspaces: \{ some: \{ id: ctx\.teamId \} \} \}/,
+    );
   });
 });
 

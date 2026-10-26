@@ -61,8 +61,10 @@ type CaseRestrictionTx = {
  * Restrict a case before its first access entry is written. Idempotent: an
  * already-restricted case keeps the moment it was first restricted.
  */
-export async function markCaseRestrictedTx(tx: CaseRestrictionTx, caseId: string): Promise<void> {
-  await tx.case.updateMany({ where: { id: caseId, restrictedAtUtc: null }, data: { restrictedAtUtc: new Date() } });
+export async function markCaseRestrictedTx(tx: CaseRestrictionTx, caseId: string): Promise<boolean> {
+  const r = await tx.case.updateMany({ where: { id: caseId, restrictedAtUtc: null }, data: { restrictedAtUtc: new Date() } });
+  // True when THIS call set the flag — the moment reach may have narrowed.
+  return r.count > 0;
 }
 
 /**

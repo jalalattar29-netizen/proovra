@@ -90,6 +90,9 @@ const H = vi.hoisted(() => ({
   /** The operator's current workspace (intelligence-platform resolves it). */
   currentWorkspaceId: "22222222-2222-4222-8222-222222222222" as string | null,
 
+  /** Assignees the (mocked) assignee authority was asked about, in order. */
+  assigneeChecks: [] as string[],
+
   /** EVERY canonical state write the routes performed. A denial leaves it empty. */
   writes: [] as string[],
 
@@ -243,8 +246,11 @@ function workflowRow() {
   } as never;
 }
 
-vi.mock("../src/db.js", () => ({
-  prisma: {
+vi.mock("../src/db.js", () => {
+  const prisma: Record<string, unknown> = {
+    // The workflow assign decides and writes in ONE transaction (members
+    // re-audit B5); the seam runs the callback on itself.
+    $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
     // Graph provenance + diagnostics read through raw SQL. The seam answers
     // by TABLE so each read stays independently controllable.
     $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
@@ -379,8 +385,9 @@ vi.mock("../src/db.js", () => ({
     },
     evidenceReviewWorkflow: { findUnique: async () => null },
     evidence: { findMany: async () => [] },
-  },
-}));
+  };
+  return { prisma };
+});
 
 // ---------------------------------------------------------------------------
 // Canonical domain services — assert the routes CALL them, never re-implement.
@@ -691,6 +698,27 @@ import { aiReviewerRoutes } from "../src/routes/ai-reviewer.routes.js";
 // every assignment writer over HTTP against real PostgreSQL in
 // members-assignment-surfaces.integration.test.ts (and the service-level
 // members-unassigned-rule.integration.test.ts).
+// THE ASSIGNEE AUTHORITY IS NOT THIS SUITE'S SUBJECT either. The workflow
+// assign asks `assertWorkAssigneeEligible` (via `isAssignableOperator`) before
+// and again inside the write; here it answers from the membership seam (an
+// ACTIVE member of the workspace is eligible, anyone else NOT_ELIGIBLE) so the
+// matrix keeps testing its own subject: exactly one canonical state writer,
+// and a refusal BEFORE any state write. The authority itself is proven against
+// PostgreSQL in members-unassigned-rule.integration.test.ts and
+// members-assignment-surfaces.integration.test.ts.
+vi.mock("../src/services/assignment/assignee-eligibility.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/assignment/assignee-eligibility.js")>();
+  return {
+    ...actual,
+    assertWorkAssigneeEligible: async (input: { workspaceId: string; assigneeUserId: string }) => {
+      H.assigneeChecks.push(input.assigneeUserId);
+      if (H.members.get(memberKey(input.workspaceId, input.assigneeUserId)) !== "ACTIVE") {
+        throw new actual.AssigneeEligibilityError("NOT_ELIGIBLE");
+      }
+    },
+  };
+});
+
 vi.mock("../src/services/assignment/placement-policy.js", () => ({
   assignmentRequiresPlacement: async () => false,
   meetsPlacementPolicy: async () => true,
@@ -722,6 +750,7 @@ beforeEach(async () => {
   H.stepUpCalls.length = 0;
   H.currentWorkspaceId = TEAM;
   H.writes.length = 0;
+  H.assigneeChecks.length = 0;
   H.workflowStatus = "OPEN";
   H.workflowUpdatedAt = new Date("2026-07-30T10:00:00.000Z");
   H.replayToken = null;
@@ -918,6 +947,9 @@ describe("Operations Intelligence — Command Center workflow board", () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toBe("invalid_assignee");
     expect(H.writes).toEqual([]);
+    // The refusal came from the one assignee authority, asked once (the
+    // early answer) — the in-transaction re-check was never reached.
+    expect(H.assigneeChecks).toEqual(["12121212-1212-4121-8121-121212121212"]);
   });
 });
 

@@ -729,14 +729,14 @@ describe("Trust residue — lifecycle verification-package preview", () => {
     expect(H.writes).toEqual([]);
   });
 
-  it("the route permission gate (audit.read) runs BEFORE the workspace is even resolved", async () => {
+  it("the route permission gate (audit.lifecycle_package.preview, members re-audit N-1) runs BEFORE the workspace is even resolved", async () => {
     H.permissionAllowed = false;
     const res = await lifecycle.inject({
       method: "GET",
       url: "/v1/lifecycle/verification-package/preview?kind=retention",
     });
     expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body)).toEqual({ denial: "PERMISSION_REQUIRED", permission: "audit.read" });
+    expect(JSON.parse(res.body)).toEqual({ denial: "PERMISSION_REQUIRED", permission: "audit.lifecycle_package.preview" });
     expect(H.writes).toEqual([]);
   });
 });

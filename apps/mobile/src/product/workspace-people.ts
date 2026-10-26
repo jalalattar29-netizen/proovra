@@ -242,6 +242,12 @@ export interface WorkspaceInvite {
   createdAtIso: string | null;
   expiresAtIso: string | null;
   lastResentAtIso: string | null;
+  /**
+   * The server's projection (teams.routes.ts invites list, members audit
+   * INV-05): PENDING, or EXPIRED — still open, and Resend renews it. Read as
+   * the web reads it (teams/[id]/page.tsx); an absent status is PENDING.
+   */
+  status: string;
 }
 
 export function parseWorkspaceInvites(payload: unknown): WorkspaceInvite[] {
@@ -258,6 +264,7 @@ export function parseWorkspaceInvites(payload: unknown): WorkspaceInvite[] {
         createdAtIso: str(i.createdAt),
         expiresAtIso: str(i.expiresAt),
         lastResentAtIso: str(i.lastResentAt),
+        status: (str(i.status) ?? "PENDING").toUpperCase(),
       };
     })
     .filter((i): i is WorkspaceInvite => i !== null);
@@ -808,3 +815,57 @@ export function transferOutcome(targetLabel: string, teamName: string): string {
   return `${targetLabel || "the new owner"} now owns ${teamName}. Billing ownership moved with it; you remain a member.`;
 }
 
+
+// ---------------------------------------------------------------------------
+// Invitations — status, pending figure, create outcome (second re-audit B7/B8)
+// ---------------------------------------------------------------------------
+
+/** An open invitation whose link has lapsed — listed, not pending; Resend renews it. */
+export function isExpiredInvite(invite: WorkspaceInvite): boolean {
+  return invite.status === "EXPIRED";
+}
+
+/**
+ * The "Pending invitations" figure — the web's rule (teams/[id]/page.tsx
+ * `pendingInviteFigure`), so the two clients cannot disagree:
+ *   - a manager whose invitation list was read: that list minus EXPIRED ones
+ *     (the server lists expired-but-open invitations since INV-05; they are
+ *     not pending);
+ *   - everyone else: the server's own `stats.pendingInviteCount`;
+ *   - neither known: `null` — rendered "—", never 0.
+ */
+export function pendingInviteFigure(input: {
+  canManage: boolean;
+  invitesRead: "ready" | string;
+  invites: WorkspaceInvite[];
+  serverCount: number | null | undefined;
+}): number | null {
+  if (input.canManage && input.invitesRead === "ready") {
+    return input.invites.filter((i) => !isExpiredInvite(i)).length;
+  }
+  return typeof input.serverCount === "number" ? input.serverCount : null;
+}
+
+/**
+ * What creating an invitation actually did — POST /v1/teams/:id/invites →
+ * `{ invite, emailSent, existing }` (teams.routes.ts). The same sentences the
+ * web shows (teams/[id]/page.tsx `handleInvite`): an invitation whose email
+ * did not go out is not "sent", and the server's own "Invitation created
+ * successfully" is never shown.
+ */
+export function inviteCreateOutcome(
+  email: string,
+  payload: unknown,
+): { message: string; tone: "success" | "warning" } {
+  const d = obj(payload);
+  if (d.emailSent === false) {
+    return {
+      message: `The invitation for ${email} was created, but the email could not be delivered. Use Resend to try again.`,
+      tone: "warning",
+    };
+  }
+  if (d.existing === true) {
+    return { message: `An invitation for ${email} was already pending. It has been sent again.`, tone: "success" };
+  }
+  return { message: `Invitation sent to ${email}.`, tone: "success" };
+}

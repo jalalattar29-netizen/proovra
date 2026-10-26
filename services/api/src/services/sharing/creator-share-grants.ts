@@ -28,7 +28,51 @@ export type CreatorShareRevocationReason =
   | "CREATOR_REMOVED"
   | "CREATOR_SUSPENDED"
   | "CREATOR_LOST_AUTHORITY"
+  | "CREATOR_LOST_RECORD_REACH"
   | "WORKSPACE_CLOSED";
+
+/**
+ * End the named live owner links and external-review grants (members re-audit
+ * defect 4). Used when a creator keeps their membership and role but loses
+ * REACH to the record the grant is on — a restricted case closed it to them —
+ * so ending every grant they hold in the workspace would be too much. The
+ * caller decides which grants lost reach; this is only the revocation, the
+ * same shape as `revokeCreatorShareGrantsTx`: rows are revoked with the
+ * reason, never deleted, and a grant already ended is left as it is.
+ */
+export async function revokeShareGrantsByIdTx(
+  tx: ShareTx,
+  input: {
+    ownerShareIds: readonly string[];
+    externalReviewIds: readonly string[];
+    reason: CreatorShareRevocationReason;
+    actorUserId?: string | null;
+  },
+): Promise<{ ownerShares: number; externalReview: number }> {
+  const now = new Date();
+  let ownerShares = 0;
+  let externalReview = 0;
+  if (input.ownerShareIds.length > 0) {
+    const r = await tx.verificationShareToken.updateMany({
+      where: { id: { in: [...input.ownerShareIds] }, purpose: "OWNER_SHARE", revokedAtUtc: null },
+      data: { revokedAtUtc: now, revokedByUserId: input.actorUserId ?? null, revocationReason: input.reason },
+    });
+    ownerShares = r.count;
+  }
+  if (input.externalReviewIds.length > 0) {
+    const r = await tx.externalReviewGrant.updateMany({
+      where: { id: { in: [...input.externalReviewIds] }, state: { in: ["INVITED", "ACTIVE"] } },
+      data: {
+        state: "REVOKED",
+        revokedAtUtc: now,
+        updatedAtUtc: now,
+        ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}),
+      },
+    });
+    externalReview = r.count;
+  }
+  return { ownerShares, externalReview };
+}
 
 /** End the live owner links and external-review grants these creators hold. */
 export async function revokeCreatorShareGrantsTx(

@@ -64,6 +64,14 @@ async function main(): Promise<number> {
         problems += 1;
         continue;
       }
+      if (!offer.stripeProductId) {
+        // ENT-08 — the Product id is optional configuration: without it the
+        // Price's product is not compared. Say so, with the product to set.
+        const product = typeof price.product === "string" ? price.product : price.product?.id ?? "?";
+        console.log(`PRODUCT_NOT_CONFIGURED ${name}  ${offer.stripePriceId}  (Stripe product ${product}; set its STRIPE_*_PRODUCT_ID to compare it)`);
+        problems += 1;
+        continue;
+      }
       console.log(`OK              ${name}  ${offer.stripePriceId}`);
     }
   }

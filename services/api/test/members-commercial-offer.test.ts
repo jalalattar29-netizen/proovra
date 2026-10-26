@@ -23,6 +23,7 @@ import {
 import {
   __clearVerifiedOffersForTests,
   allSelfServiceOffers,
+  compareStripePrice,
   describeOffer,
   type CommercialOffer,
 } from "../src/services/billing/commercial-offer.service.js";
@@ -43,6 +44,7 @@ type StripePrice = {
   unit_amount: number | null;
   type: "recurring" | "one_time";
   recurring: { interval: string; interval_count: number } | null;
+  product: string;
 };
 
 const savedEnv = new Map<string, string | undefined>();
@@ -59,6 +61,8 @@ function priceEnvKeys(): string[] {
     keys.push(`STRIPE_PRO_PRICE_ID_${c}`, `STRIPE_TEAM_PRICE_ID_${c}`, `STRIPE_PAYG_PRICE_ID_${c}`);
     for (const a of Object.values(prismaPkg.StorageAddonKey)) keys.push(`STRIPE_STORAGE_${a}_MONTHLY_${c}_PRICE_ID`);
   }
+  keys.push("STRIPE_PRO_PRODUCT_ID", "STRIPE_TEAM_PRODUCT_ID", "STRIPE_PAYG_PRODUCT_ID");
+  for (const a of Object.values(prismaPkg.StorageAddonKey)) keys.push(`STRIPE_STORAGE_${a}_PRODUCT_ID`);
   return keys;
 }
 
@@ -103,10 +107,26 @@ afterEach(() => {
   savedEnv.clear();
 });
 
+/** The env variable naming the Stripe Product an offer is sold under. */
+function productEnvKey(offer: CommercialOffer): string {
+  const p = offer.product;
+  return p.kind === "PLAN"
+    ? `STRIPE_${p.plan}_PRODUCT_ID`
+    : p.kind === "EVIDENCE_CREDIT"
+      ? "STRIPE_PAYG_PRODUCT_ID"
+      : `STRIPE_STORAGE_${p.addonKey}_PRODUCT_ID`;
+}
+
+/** The synthetic Stripe Product id an offer is sold under. */
+function productIdOf(offer: CommercialOffer): string {
+  return `prod_${productEnvKey(offer).toLowerCase()}`;
+}
+
 /** Configure a Stripe price that agrees with the offer (then let a case break it). */
 function configure(offer: CommercialOffer, envKey: string, patch: Partial<StripePrice> = {}): string {
   const id = `price_${describeOffer(offer).replace(/[^A-Za-z0-9]/g, "_")}`;
   setEnv(envKey, id);
+  setEnv(productEnvKey(offer), productIdOf(offer));
   prices.set(id, {
     id,
     active: true,
@@ -114,6 +134,7 @@ function configure(offer: CommercialOffer, envKey: string, patch: Partial<Stripe
     unit_amount: offer.amountCents,
     type: offer.interval === "MONTH" ? "recurring" : "one_time",
     recurring: offer.interval === "MONTH" ? { interval: "month", interval_count: 1 } : null,
+    product: productIdOf(offer),
     ...patch,
   });
   return id;
@@ -206,6 +227,20 @@ describe("ENT-08 — every self-service Stripe product × interval", () => {
         expect(form.get("mode")).toBe(offer.interval === "MONTH" ? "subscription" : "payment");
       });
 
+      it("no configured Stripe product: the product is not compared (optional setting); everything else still is", async () => {
+        const offer = c.offer();
+        const priceId = configure(offer, c.envKey, { product: "prod_some_other_product" });
+        setEnv(productEnvKey(offer), undefined);
+        // A Price of some other product is accepted while no Product is
+        // configured — the operator check reports it NOT_CONFIGURED …
+        await expect(c.run()).resolves.toBeTruthy();
+        // … but the amount is still held to the catalogue (positive control).
+        prices.set(priceId, { ...prices.get(priceId)!, unit_amount: 1 });
+        __clearVerifiedOffersForTests();
+        const err = await refusal(c.run);
+        expect(err.metadata).toMatchObject({ provider: "stripe", reason: "plan_price_mismatch" });
+      });
+
       it("no configured price: refused before Stripe is asked anything", async () => {
         const err = await refusal(c.run);
         expect(err.publicCode).toBe("PAYMENTS_UNAVAILABLE");
@@ -226,6 +261,9 @@ describe("ENT-08 — every self-service Stripe product × interval", () => {
               : { type: "recurring" as const, recurring: { interval: "month", interval_count: 1 } },
         ],
         ["an archived price", () => ({ active: false })],
+        // Second re-audit ENT-08 note: a Price under ANOTHER Stripe Product is a
+        // mismatch even when amount, currency and interval agree.
+        ["another product", () => ({ product: "prod_some_other_product" })],
       ] as const) {
         it(`a Stripe price with ${what} is refused — display and charge never disagree`, async () => {
           const offer = c.offer();
@@ -264,6 +302,7 @@ describe("ENT-08 — the mapping as a whole", () => {
 
   it("a configured id Stripe does not know is a configuration fault, not an outage", async () => {
     setEnv("STRIPE_PRO_PRICE_ID_EUR", "price_that_was_deleted");
+    setEnv("STRIPE_PRO_PRODUCT_ID", "prod_stripe_pro_product_id");
     const err = await refusal(() => createStripeCheckoutSession({ userId: "u-1", plan: "PRO", currency: "EUR" }));
     expect(err.metadata).toMatchObject({ reason: "plan_not_configured" });
     expect(posts).toEqual([]);
@@ -285,5 +324,47 @@ describe("ENT-08 — the mapping as a whole", () => {
     await createStripeCheckoutSession({ userId: "u-2", plan: "TEAM", currency: "EUR" });
     expect(gets).toHaveLength(1);
     expect(posts).toHaveLength(2);
+  });
+});
+
+describe("ENT-08 — the Stripe Product is part of the offer (second re-audit)", () => {
+  it("TEAM's price id pointing at a price of the PRO product is refused; the same price under TEAM's product is charged", async () => {
+    const all = allSelfServiceOffers("EUR");
+    const pro = all.find((o) => o.product.kind === "PLAN" && o.product.plan === "PRO")!;
+    const team = all.find((o) => o.product.kind === "PLAN" && o.product.plan === "TEAM")!;
+    configure(pro, "STRIPE_PRO_PRICE_ID_EUR");
+    // TEAM's amount, currency and interval — but the Price lives under PRO's product.
+    const teamId = configure(team, "STRIPE_TEAM_PRICE_ID_EUR", { product: productIdOf(pro) });
+
+    const err = await refusal(() => createStripeCheckoutSession({ userId: "u-1", plan: "TEAM", currency: "EUR" }));
+    expect(err.publicCode).toBe("PAYMENTS_UNAVAILABLE");
+    expect(err.metadata).toMatchObject({ provider: "stripe", reason: "plan_price_mismatch" });
+    expect(posts).toEqual([]);
+
+    // Positive control: the same price, moved under TEAM's product, is charged.
+    prices.set(teamId, { ...prices.get(teamId)!, product: productIdOf(team) });
+    __clearVerifiedOffersForTests();
+    await createStripeCheckoutSession({ userId: "u-1", plan: "TEAM", currency: "EUR" });
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.form.get("line_items[0][price]")).toBe(teamId);
+  });
+
+  it("compareStripePrice reads the product as an id or as the expanded object", () => {
+    const pro = allSelfServiceOffers("USD").find((o) => o.product.kind === "PLAN" && o.product.plan === "PRO")!;
+    const offer: CommercialOffer = { ...pro, stripeProductId: "prod_pro" };
+    const base = {
+      active: true,
+      currency: "usd",
+      unit_amount: offer.amountCents,
+      type: "recurring",
+      recurring: { interval: "month", interval_count: 1 },
+    };
+    expect(compareStripePrice({ ...base, product: "prod_pro" }, offer)).toEqual([]);
+    expect(compareStripePrice({ ...base, product: { id: "prod_pro" } }, offer)).toEqual([]);
+    expect(compareStripePrice({ ...base, product: "prod_team" }, offer)).toEqual(["product"]);
+    expect(compareStripePrice({ ...base, product: { id: "prod_team" } }, offer)).toEqual(["product"]);
+    expect(compareStripePrice({ ...base }, offer)).toEqual(["product"]);
+    // No configured Product: not compared.
+    expect(compareStripePrice({ ...base, product: "prod_team" }, { ...offer, stripeProductId: null })).toEqual([]);
   });
 });

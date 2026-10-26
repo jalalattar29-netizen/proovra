@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281026000900_holds_and_groups_outlive_workspace";
+export const EXPECTED_MIGRATION_HEAD = "20281026001400_collaboration_vocabulary_normalise";
 
 export type MigrationRow = {
   migration_name: string;

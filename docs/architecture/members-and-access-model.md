@@ -101,6 +101,26 @@ tier grants behind `require-delegated-tier`. The permission engine is kept.
   idempotency, coverage of every former route per tier, no widening, the
   managed writer, revocation, concurrency),
   `phase-12-new-005-permission-guard-membership.integration.test.ts`.
+* **The floor (second re-audit, N-1).** Retiring the tiers had widened their
+  routes to every workspace ADMIN by role default. Each former tier route now
+  requires a precise, delegated-only permission (e.g.
+  `governance.destruction.approve` / `.execute`, `governance.policy.author`,
+  `governance.access_review.campaign.manage`, `trust.article.security.publish`,
+  `governance.department.define`, `governance.exchange.decide`). No workspace
+  role holds them except the OWNER, which holds every non-service permission by
+  construction, and no delegated scope carries them: they reach a member only
+  through a capability grant from a holder (the grantor must hold what they
+  grant). Migrations `20281026001000` (holders suspended at convergence,
+  inert until reinstatement) and `20281026001100` (the floor grants, anchored
+  on each holder's live carried capability) carry the people who held the
+  tiers. The department-scope bypass is the same delegated-only
+  `governance.department.define`. Proof: `members-delegated-admin` "N-1 …",
+  "N-2 …"; `phase-4a-enterprise-closure` department scope.
+* **The OWNER (recorded consequence).** Before retirement the OWNER was not
+  implied for the COMPLIANCE / SECURITY tiers, but could grant itself any tier
+  as implied ORG_ADMIN, so the practical floor is unchanged; excluding the
+  OWNER would leave a fresh workspace with nobody able to grant these
+  authorities. The OWNER therefore holds them.
 
 ### 5.2 Unassigned members — who may be given work
 
@@ -237,6 +257,66 @@ enforced in code and proven behaviourally; the test named is the proof.
   collaboration limits takes the Enterprise contract defaults published in the
   catalogue (1000 Collaboration Teams, 500 members each). Those defaults are
   the standard contract terms; setting the contract fields changes them.
+- **Case delete and restriction.** Deleting a case removes its access list
+  with it: a record whose only restriction was that case returns to its
+  workspace's normal reach, as when an authorised manager removes a case's last
+  access entry. Records also linked to another restricted case stay restricted
+  by it. Deleting needs a manager who can see the case, a step-up, and no hold;
+  a case that was ever under a legal hold keeps the hold's record and cannot be
+  deleted (`CASE_HOLD_HISTORY_KEPT`, close it instead).
+- **Unlinking from a restricted case.** Removing a record from a restricted
+  case can open it to the whole workspace, so it is a manager's act — the case
+  owner, or an ACTIVE OWNER / ADMIN who can see the case — not a linking right
+  (`CASE_RESTRICTED_UNLINK_MANAGER_REQUIRED`). Proof:
+  `members-reaudit2-case-reach` "Unlink …".
+- **Managing a restricted case's list.** Only someone who can see the case
+  manages its access list; workspace role alone is not reach. Proof:
+  `members-reaudit2-case-reach` "P1 …".
+- **Creator grants follow record reach.** A person's owner share links and
+  external-review grants end (`CREATOR_LOST_RECORD_REACH`, rows kept) when a
+  restricted case closes the record to them — the case becomes restricted
+  without them, they or their Collaboration Team leave its list, or the record
+  is linked to a restricted case they are not on. Proof:
+  `members-reaudit2-case-reach` "Defect 4 …", `members-assignee-authority-writers`
+  "defect 4 (lead) …".
+- **Audit commits with the change.** Every case access-list change, invitation
+  action, case link/unlink, external-access revoke and evidence archive/trash
+  writes its audit in the mutation's transaction; a failed audit rolls the
+  change back. Proof: `members-reaudit2-audit-atomicity`.
+- **ENT-11 — cases on PRO and TEAM.** Cases are one capability on PRO and TEAM:
+  both include cases, and a case may be assigned to the owner or to a member
+  placed in an ACTIVE Collaboration Team (§5.2). The plans differ only in
+  Collaboration Team capacity; no surface describes "Personal cases" versus
+  "Team cases". Proof: `pricing-cases-row-truth.render.test.tsx`,
+  `members-assignment-surfaces` "ENT-11 …".
+- **REV-04 — a Collaboration Team REVIEW task is a group to-do, not a review
+  assignment.** It points at a review workflow the way a CASE task points at a
+  case. Its assignee must be an effective member of the group in a task-holding
+  role and pass the one assignee authority (`evidence_request.review`, reach,
+  placement), decided inside the task write. Creating, reassigning or
+  completing it never changes the workflow's assignee, stage or decision; only
+  the reviewer-assignment writers do that. Archiving the group cancels the task;
+  removing or suspending the member releases it. Proof:
+  `members-review-task-authority`, `members-assignee-authority-writers`.
+- **Every writer of work, and departure.** Reviews (assign, claim, legacy
+  PATCH, bulk), escalations (named or defaulted — an ineligible default leaves
+  the escalation unassigned), QC samples, second and supervisor review takes,
+  Evidence Request reviewers, Operations workflows and incidents (picker and
+  write agree), case assignments, Collaboration Team tasks and SIU assignees all
+  pass the one assignee authority, inside the write. Case roles ask the
+  capability their work needs: OWNER and INVESTIGATOR `evidence.update_metadata`,
+  REVIEWER `evidence_request.review`, GOVERNANCE and OBSERVER `evidence.read`.
+  A member removed, suspended or leaving releases what they held (unassigned,
+  history kept, one audit row). Proof: `members-assignee-authority-writers`.
+- **Legacy vocabulary rows.** `20281026001400` normalised every deterministic
+  variant; a row holding a value with no canonical meaning waits for an
+  operator, and a write to it is a typed 409 `LEGACY_RECORD_NEEDS_REVIEW`
+  (logged with the constraint), never a 500. Proof:
+  `members-collaboration-vocabulary-normalise`.
+- **Telemetry of refusals.** A refusal carrying a business code, or a code-less
+  409 / 422, is expected and not sent to Sentry; code-less 401 / 403 / 404,
+  400 / 405 / 413 / 415, 5xx and network failures are. Proof:
+  `sentry-expected-refusal-wiring` (web and mobile).
 - **SEC-03 — step-up.** Irreversible destruction needs a fresh factor: case
   delete (`CASE_DELETE`) and Collaboration Team delete. Moving evidence to the
   trash or to the archive does not, because both can be reversed from the same

@@ -56,7 +56,7 @@ export function webSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
  * An `ApiError` that escapes as an unhandled rejection, or is captured by
  * an integration, never passes through the wrapper; Sentry hands its original
  * exception to `beforeSend` as `hint.originalException`. A business refusal
- * (typed 4xx, or a 401/403/404/409/422 answer) is dropped here; a 5xx, a
+ * (a typed 4xx, or a code-less 409/422 — second re-audit N-7) is dropped here; a 5xx, a
  * network failure or anything unexpected is kept.
  */
 export function webSentryBeforeSend<T>(

@@ -181,10 +181,9 @@ describe("Phase 8 reports — REAL data sources (not fabricated)", () => {
       "prisma.organizationMembership.findMany",
     );
   });
-  it("seats.csv reads team billing fields (same source as billing/rollup)", () => {
+  it("seats.csv reads the same seat rows as billing/rollup (the one seat authority)", () => {
     const s = sliceEndpoint("seats.csv");
-    expect(s).toContain("prisma.team.findMany");
-    expect(s).toContain("_count: { select: { members: true } }");
+    expect(s).toContain("listOrgWorkspaceSeatRows(orgId)");
   });
   it("audit.csv reads organizationAuditEvent (same model as /audit-events)", () => {
     expect(sliceEndpoint("audit.csv")).toContain(

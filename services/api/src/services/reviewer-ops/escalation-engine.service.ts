@@ -49,10 +49,18 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
+import { withinAssignmentWrite } from "../assignment/assignment-write.js";
 
 // -----------------------------------------------------------------------------
 // Error
 // -----------------------------------------------------------------------------
+
+/**
+ * The decision and the escalation row are ONE write: the authority reads the
+ * placement it relies on under a share lock held until the row commits
+ * (members re-audit B5 — the archive-versus-assign race).
+ */
+const withinWrite = withinAssignmentWrite;
 
 async function assertEscalationAssigneeEligible(
   client: PrismaClient,
@@ -67,6 +75,7 @@ async function assertEscalationAssigneeEligible(
         evidenceId: input.evidenceId,
       },
       client,
+      { inTransaction: true },
     );
   } catch (err) {
     if (err instanceof AssigneeEligibilityError) {
@@ -74,6 +83,20 @@ async function assertEscalationAssigneeEligible(
         err.reason === "NOT_PLACED" ? "REVIEW_ASSIGNEE_NOT_PLACED" : "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
       );
     }
+    throw err;
+  }
+}
+
+/** The same authority as a yes/no, for the default (unnamed) assignee. */
+async function escalationAssigneeStillEligible(
+  client: PrismaClient,
+  input: { teamId: string; assigneeUserId: string; evidenceId: string | null },
+): Promise<boolean> {
+  try {
+    await assertEscalationAssigneeEligible(client, input);
+    return true;
+  } catch (err) {
+    if (err instanceof EscalationEngineError) return false;
     throw err;
   }
 }
@@ -353,32 +376,52 @@ export async function createEscalation(
     }
   }
 
-  // An escalation routed to a named person gives them work: the one assignee
-  // rule applies (members audit, unassigned-member decision). Routing to the
-  // workflow's current assignee was already decided when they were assigned.
-  if (!input.routeToWorkspaceAdmins && input.assignedToUserId) {
-    await assertEscalationAssigneeEligible(client, {
-      teamId: input.teamId,
-      assigneeUserId: input.assignedToUserId,
-      evidenceId: input.evidenceId ?? workflow.evidenceId,
+  // An escalation gives its assignee work, so the ONE assignee rule decides
+  // who holds it (members audit, owner decision 5), inside the write:
+  //   - a NAMED assignee must pass it, or the escalation is refused;
+  //   - with none named, the escalation defaults to the workflow's current
+  //     assignee — but only when that person STILL passes it. Eligibility at
+  //     assignment time is not eligibility now: they may since have been
+  //     suspended, removed, taken off the case or left without a group
+  //     (re-audit B1). A default that no longer passes leaves the escalation
+  //     UNASSIGNED — never refused: an automatic SLA escalation must still be
+  //     raised, and an unassigned open escalation reaches the workspace's
+  //     owners and admins, where a stale assignee would leave it stuck.
+  const escalationEvidenceId = input.evidenceId ?? workflow.evidenceId;
+  const created = await withinWrite(client, async (tx) => {
+    let assignedToUserId: string | null = null;
+    if (!input.routeToWorkspaceAdmins) {
+      if (input.assignedToUserId) {
+        await assertEscalationAssigneeEligible(tx, {
+          teamId: input.teamId,
+          assigneeUserId: input.assignedToUserId,
+          evidenceId: escalationEvidenceId,
+        });
+        assignedToUserId = input.assignedToUserId;
+      } else if (workflow.assignedToUserId) {
+        const stillEligible = await escalationAssigneeStillEligible(tx, {
+          teamId: input.teamId,
+          assigneeUserId: workflow.assignedToUserId,
+          evidenceId: escalationEvidenceId,
+        });
+        assignedToUserId = stillEligible ? workflow.assignedToUserId : null;
+      }
+    }
+    return tx.reviewEscalation.create({
+      data: {
+        teamId: input.teamId,
+        workflowId: input.workflowId,
+        workflowInstanceId: input.workflowInstanceId ?? null,
+        evidenceId: escalationEvidenceId,
+        reason: input.reason,
+        severity,
+        status: "OPEN",
+        safeSummary: summary,
+        createdByUserId: input.createdByUserId ?? null,
+        assignedToUserId,
+        fingerprint,
+      },
     });
-  }
-  const created = await client.reviewEscalation.create({
-    data: {
-      teamId: input.teamId,
-      workflowId: input.workflowId,
-      workflowInstanceId: input.workflowInstanceId ?? null,
-      evidenceId: input.evidenceId ?? workflow.evidenceId,
-      reason: input.reason,
-      severity,
-      status: "OPEN",
-      safeSummary: summary,
-      createdByUserId: input.createdByUserId ?? null,
-      assignedToUserId: input.routeToWorkspaceAdmins
-        ? null
-        : (input.assignedToUserId ?? workflow.assignedToUserId ?? null),
-      fingerprint,
-    },
   });
 
   /**
@@ -583,17 +626,20 @@ export async function reassignEscalation(
 ): Promise<EscalationProjection> {
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "REASSIGNED");
-  await assertEscalationAssigneeEligible(client, {
-    teamId: input.teamId,
-    assigneeUserId: input.newAssigneeUserId,
-    evidenceId: row.evidenceId ?? null,
-  });
-  const updated = await client.reviewEscalation.update({
-    where: { id: row.id },
-    data: {
-      status: "REASSIGNED",
-      assignedToUserId: input.newAssigneeUserId,
-    },
+  // The authority decides inside the write (re-audit B5).
+  const updated = await withinWrite(client, async (tx) => {
+    await assertEscalationAssigneeEligible(tx, {
+      teamId: input.teamId,
+      assigneeUserId: input.newAssigneeUserId,
+      evidenceId: row.evidenceId ?? null,
+    });
+    return tx.reviewEscalation.update({
+      where: { id: row.id },
+      data: {
+        status: "REASSIGNED",
+        assignedToUserId: input.newAssigneeUserId,
+      },
+    });
   });
   safeEmitSecurityEvent({
     teamId: input.teamId,

@@ -55,6 +55,7 @@ import {
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { listOrgWorkspaceSeatRows } from "./organizations-governance.routes.js";
 import {
   toCsv,
   csvDownloadHeaders,
@@ -239,18 +240,11 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       return reply.code(429).send(RATE_LIMITED);
     }
 
-    const workspaces = await prisma.team.findMany({
-      where: { organizationId: orgId, isPersonal: false },
-      select: {
-        id: true,
-        name: true,
-        billingPlan: true,
-        billingStatus: true,
-        includedSeats: true,
-        _count: { select: { members: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    // Second re-audit ENT-05 / N-6 — the SAME seat projection as the billing
+    // rollup, which asks the one seat authority (`resolveWorkspaceSeatState`:
+    // owner excluded, ACTIVE only, bounded only by an ACTIVE Enterprise
+    // contract). Never `_count.members` against the raw `includedSeats` column.
+    const workspaces = await listOrgWorkspaceSeatRows(orgId);
 
     type Row = (typeof workspaces)[number];
     const columns: CsvColumn<Row>[] = [
@@ -258,13 +252,10 @@ export async function organizationsReportsRoutes(app: FastifyInstance) {
       { header: "workspaceName", value: (w) => w.name },
       { header: "billingPlan", value: (w) => w.billingPlan ?? "FREE" },
       { header: "billingStatus", value: (w) => w.billingStatus ?? "NONE" },
-      { header: "includedSeats", value: (w) => w.includedSeats ?? 0 },
-      { header: "usedSeats", value: (w) => w._count.members },
-      {
-        header: "overSeat",
-        value: (w) =>
-          (w.includedSeats ?? 0) > 0 && w._count.members > (w.includedSeats ?? 0),
-      },
+      // 0 when nothing bounds the workspace as a whole, as the rollup says.
+      { header: "includedSeats", value: (w) => w.seatLimit ?? 0 },
+      { header: "usedSeats", value: (w) => w.usedSeats },
+      { header: "overSeat", value: (w) => w.overSeat },
     ];
 
     const csv = toCsv(workspaces, columns);

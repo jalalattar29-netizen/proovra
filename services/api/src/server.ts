@@ -4,6 +4,10 @@
 import "./observability/otel-bootstrap.js";
 import { PRESENTATION_CONTRACT_HEADER, PRESENTATION_CONTRACT_VERSION } from "@proovra/shared";
 import { randomUUID } from "node:crypto";
+import {
+  LEGACY_RECORD_NEEDS_REVIEW,
+  legacyVocabularyViolation,
+} from "./services/collaboration-team/legacy-vocabulary.js";
 import Fastify from "fastify";
 import type { FastifyBaseLogger } from "fastify";
 import { demoRequestsRoutes } from "./routes/demo-requests.routes.js";
@@ -926,6 +930,20 @@ allowedHeaders: [
         "request.failed.validation",
       );
       return reply.code(wire.status).send(wire.body);
+    }
+
+    // Members re-audit N-8 — a legacy Collaboration Team row still holding a
+    // value outside the vocabulary refuses any later write (23514): a typed
+    // 409 for the operator, never a 500 or a Sentry incident.
+    {
+      const constraint = isAppError(err) ? null : legacyVocabularyViolation(err);
+      if (constraint) {
+        req.log.warn(
+          { ...requestContext, errorCode: LEGACY_RECORD_NEEDS_REVIEW.code, statusCode: 409, constraint },
+          "request.refused.legacy_vocabulary_row",
+        );
+        return reply.code(409).send({ error: { ...LEGACY_RECORD_NEEDS_REVIEW, requestId } });
+      }
     }
 
     if (!isAppError(err) && isPrismaKnownRequestError(err)) {

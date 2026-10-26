@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { markCaseRestrictedTx, releaseRestrictionIfEmptyTx } from "../services/cases/case-visibility.js";
+import { revokeGrantsOfCreatorsWithoutReachTx } from "../services/cases/case-reach-share-revocation.js";
 import * as prismaPkg from "@prisma/client";
 import archiver from "archiver";
 import { getObjectStream } from "../storage.js";
@@ -48,7 +49,7 @@ import {
 } from "../services/cases/case-permission.service.js";
 import { listAccessibleWorkspaces } from "../services/access/accessible-workspaces.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
+import { CASE_VISIBILITY_SELECT, caseRowVisibleTo, caseVisibleToWhere } from "../services/cases/case-visibility.js";
 import {
   accessibleWorkspaceIdsFor,
   caseReachWhere,
@@ -137,6 +138,16 @@ async function resolveCaseAccessManager(
       reason: "Caller is not an active member of the case's workspace.",
     };
   }
+  // Members re-audit (second round, P1) — whoever manages a case's access list
+  // must be able to SEE the case: its owner, someone on its list, or a member
+  // of a Collaboration Team granted it. Workspace role alone is not reach
+  // (ACC-01): an OWNER or ADMIN off a restricted case's list could otherwise
+  // add themselves to it. Such a caller is answered exactly like an outsider.
+  const visibility = await prisma.case.findUnique({
+    where: { id: caseRow.id },
+    select: CASE_VISIBILITY_SELECT,
+  });
+  if (!visibility || !caseRowVisibleTo(visibility, userId)) return { kind: "concealed" };
   const decision = evaluateCaseMutationPermission({
     mutation: "MANAGE_ACCESS",
     accessRole: isCaseOwner ? "OWNER" : (member.role as CaseAccessRole),
@@ -154,6 +165,52 @@ async function isActiveWorkspaceMember(teamId: string, userId: string): Promise<
     select: { status: true },
   });
   return target?.status === "ACTIVE";
+}
+
+/**
+ * Write one person's grant on a case — the ONE write behind `POST /access`,
+ * `share-team` and `share-email`. The restriction flag, the access row, the
+ * grants that lose their reach when the case closes (members re-audit defect
+ * 4) and the audit row commit together or not at all (AUD-01 / SEC-13).
+ */
+async function grantCaseAccessTx(
+  req: FastifyRequest,
+  input: {
+    caseId: string;
+    teamId: string | null;
+    targetUserId: string;
+    actorUserId: string;
+    action: string;
+    metadata: Record<string, unknown>;
+  },
+) {
+  return prisma.$transaction(async (tx) => {
+    // A grant makes the case restricted, durably (re-audit defect 6).
+    const nowRestricted = await markCaseRestrictedTx(tx, input.caseId);
+    const access = await tx.caseAccess.upsert({
+      where: { caseId_userId: { caseId: input.caseId, userId: input.targetUserId } },
+      update: {},
+      create: { caseId: input.caseId, userId: input.targetUserId },
+    });
+    // Restricting the case may close its records to people who handed out
+    // links to them; their links end with their reach.
+    const revokedGrants = nowRestricted
+      ? await revokeGrantsOfCreatorsWithoutReachTx(tx as never, {
+          caseIds: [input.caseId],
+          actorUserId: input.actorUserId,
+        })
+      : null;
+    await auditCaseAction(req, {
+      userId: input.actorUserId,
+      action: input.action,
+      outcome: "success",
+      resourceId: input.caseId,
+      teamId: input.teamId,
+      metadata: { ...input.metadata, accessId: access.id, ...(revokedGrants ? { revokedGrants } : {}) },
+      db: tx,
+    });
+    return access;
+  });
 }
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
@@ -196,6 +253,13 @@ function auditCaseAction(
     resourceId?: string | null;
     teamId?: string | null;
     metadata?: Record<string, unknown>;
+    /**
+     * The mutation's transaction. With it the row commits or rolls back WITH
+     * the change, and a failed write fails the change (members re-audit,
+     * second round: AUD-01 / SEC-13). Without it — a refusal or a read, where
+     * nothing was changed — a failed write is counted and logged.
+     */
+    db?: unknown;
   }
 ): Promise<void> {
   // Members audit AUD-01 / SEC-13 — awaited, never fire-and-forget: the
@@ -204,7 +268,7 @@ function auditCaseAction(
   const outcome = mapCaseOutcome(params.outcome);
   const reason =
     typeof params.metadata?.reason === "string" ? params.metadata.reason : null;
-  return emitTenantAudit({
+  const write = emitTenantAudit({
     action: params.action,
     outcome,
     denialReason: outcome !== "success" ? reason : null,
@@ -220,7 +284,9 @@ function auditCaseAction(
       ipAddress: req.ip,
       userAgent: readUserAgent(req),
     },
-  }).catch((err: unknown) => {
+  }, params.db as never);
+  if (params.db) return write;
+  return write.catch((err: unknown) => {
     bump("platform_audit_append_failed_total");
     req.log.error({ err, action: params.action, requestId: req.id }, "case_audit_append_failed");
   });
@@ -375,12 +441,28 @@ export async function casesRoutes(app: FastifyInstance) {
       });
     }
 
-    const created = await prisma.case.create({
-      data: {
-        name: body.name,
-        ownerUserId,
-        teamId: effectiveCaseTeamId,
-      },
+    // The case and its audit row commit together (members re-audit AUD-01).
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.case.create({
+        data: {
+          name: body.name,
+          ownerUserId,
+          teamId: effectiveCaseTeamId,
+        },
+      });
+      await auditCaseAction(req, {
+        userId: ownerUserId,
+        action: "cases.create",
+        outcome: "success",
+        resourceId: row.id,
+        teamId: row.teamId,
+        metadata: {
+          name: row.name,
+          teamId: row.teamId,
+        },
+        db: tx,
+      });
+      return row;
     });
 
     // Phase SEARCH-REMEDIATION — index the new case so it shows up
@@ -392,18 +474,6 @@ export async function casesRoutes(app: FastifyInstance) {
       );
       void indexCase({ teamId: created.teamId, caseId: created.id });
     }
-
-    await auditCaseAction(req, {
-      userId: ownerUserId,
-      action: "cases.create",
-      outcome: "success",
-      resourceId: created.id,
-      teamId: created.teamId,
-      metadata: {
-        name: created.name,
-        teamId: created.teamId,
-      },
-    });
 
     fireCaseAnalyticsEvent({
       eventType: "case_created",
@@ -643,7 +713,16 @@ export async function casesRoutes(app: FastifyInstance) {
           entityId: id,
           metadata: { accessMode },
         });
-        return reply.code(200).send({ case: item });
+        // Members re-audit (second round, defect 2) — whether the case is
+        // RESTRICTED, decided here by the one rule (case-visibility.ts): a
+        // case whose list emptied after a departure is still restricted by
+        // its flag, and must never be shown as open to the whole workspace.
+        return reply.code(200).send({
+          case: {
+            ...item,
+            restricted: item.restrictedAtUtc !== null || item.access.length > 0 || item.teamAccess.length > 0,
+          },
+        });
       }
 
       await auditCaseAction(req, {
@@ -726,21 +805,13 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      // A grant makes the case restricted, durably (re-audit defect 6).
-      await markCaseRestrictedTx(prisma, id);
-      const access = await prisma.caseAccess.upsert({
-        where: { caseId_userId: { caseId: id, userId: body.userId } },
-        update: {},
-        create: { caseId: id, userId: body.userId },
-      });
-
-      await auditCaseAction(req, {
-        userId: ownerUserId,
-        action: "cases.access_grant",
-        outcome: "success",
-        resourceId: id,
+      const access = await grantCaseAccessTx(req, {
+        caseId: id,
         teamId: item.teamId,
-        metadata: { targetUserId: body.userId, accessId: access.id },
+        targetUserId: body.userId,
+        actorUserId: ownerUserId,
+        action: "cases.access_grant",
+        metadata: { targetUserId: body.userId },
       });
 
       fireCaseAnalyticsEvent({
@@ -1086,9 +1157,21 @@ export async function casesRoutes(app: FastifyInstance) {
 
       const body = RenameCaseBody.parse(req.body);
 
-      const updated = await prisma.case.update({
-        where: { id },
-        data: { name: body.name },
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.case.update({
+          where: { id },
+          data: { name: body.name },
+        });
+        await auditCaseAction(req, {
+          userId,
+          action: "cases.rename",
+          outcome: "success",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: { name: body.name },
+          db: tx,
+        });
+        return row;
       });
 
       // Phase SEARCH-REMEDIATION — keep the search projection in
@@ -1099,15 +1182,6 @@ export async function casesRoutes(app: FastifyInstance) {
         );
         void indexCase({ teamId: updated.teamId, caseId: updated.id });
       }
-
-      await auditCaseAction(req, {
-        userId,
-        action: "cases.rename",
-        outcome: "success",
-        resourceId: id,
-        teamId: item.teamId,
-        metadata: { name: body.name },
-      });
 
       fireCaseAnalyticsEvent({
         eventType: "case_updated",
@@ -1252,20 +1326,22 @@ export async function casesRoutes(app: FastifyInstance) {
           actorUserId: userId,
           ipAddress: req.ip,
           userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+          // The deletion's audit row commits with it (members re-audit AUD-01).
+          auditTx: (tx) =>
+            auditCaseAction(req, {
+              userId,
+              action: "cases.delete",
+              outcome: "success",
+              resourceId: id,
+              teamId: item.teamId,
+              db: tx,
+            }),
         });
       } catch (err) {
         const refusal = caseUnlinkRefusal(err);
         if (refusal) return reply.code(refusal.status).send(refusal.body);
         throw err;
       }
-
-      await auditCaseAction(req, {
-        userId,
-        action: "cases.delete",
-        outcome: "success",
-        resourceId: id,
-        teamId: item.teamId,
-      });
 
       fireCaseAnalyticsEvent({
         eventType: "case_deleted",
@@ -1777,21 +1853,13 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      // A grant makes the case restricted, durably (re-audit defect 6).
-      await markCaseRestrictedTx(prisma, id);
-      const access = await prisma.caseAccess.upsert({
-        where: { caseId_userId: { caseId: id, userId: body.userId } },
-        update: {},
-        create: { caseId: id, userId: body.userId },
-      });
-
-      await auditCaseAction(req, {
-        userId: ownerUserId,
-        action: "cases.share_team",
-        outcome: "success",
-        resourceId: id,
+      const access = await grantCaseAccessTx(req, {
+        caseId: id,
         teamId: caseItem.teamId,
-        metadata: { targetUserId: body.userId, accessId: access.id },
+        targetUserId: body.userId,
+        actorUserId: ownerUserId,
+        action: "cases.share_team",
+        metadata: { targetUserId: body.userId },
       });
 
       fireCaseAnalyticsEvent({
@@ -1899,21 +1967,13 @@ export async function casesRoutes(app: FastifyInstance) {
       }
 
       const targetUserId = targets[0].userId;
-      // A grant makes the case restricted, durably (re-audit defect 6).
-      await markCaseRestrictedTx(prisma, id);
-      const access = await prisma.caseAccess.upsert({
-        where: { caseId_userId: { caseId: id, userId: targetUserId } },
-        update: {},
-        create: { caseId: id, userId: targetUserId },
-      });
-
-      await auditCaseAction(req, {
-        userId: ownerUserId,
-        action: "cases.share_email",
-        outcome: "success",
-        resourceId: id,
+      await grantCaseAccessTx(req, {
+        caseId: id,
         teamId: caseItem.teamId,
-        metadata: { targetUserId, email: body.email, accessId: access.id },
+        targetUserId,
+        actorUserId: ownerUserId,
+        action: "cases.share_email",
+        metadata: { targetUserId, email: body.email },
       });
 
       fireCaseAnalyticsEvent({
@@ -1988,18 +2048,27 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Access record not found" });
       }
 
-      await prisma.caseAccess.delete({ where: { id: accessId } });
-      // A manager removing the LAST entry is the explicit act that opens the
-      // case to its workspace again (re-audit defect 6).
-      await releaseRestrictionIfEmptyTx(prisma, id);
-
-      await auditCaseAction(req, {
-        userId: ownerUserId,
-        action: "cases.access_revoke",
-        outcome: "success",
-        resourceId: id,
-        teamId: caseItem.teamId,
-        metadata: { accessId, targetUserId: access.userId },
+      // ONE TRANSACTION (members re-audit, second round): the removal, the
+      // restriction it may lift, the grants its target loses with their reach
+      // (defect 4) and the audit row (AUD-01) commit together or not at all.
+      await prisma.$transaction(async (tx) => {
+        await tx.caseAccess.delete({ where: { id: accessId } });
+        // A manager removing the LAST entry is the explicit act that opens the
+        // case to its workspace again (re-audit defect 6).
+        await releaseRestrictionIfEmptyTx(tx, id);
+        const revokedGrants = await revokeGrantsOfCreatorsWithoutReachTx(tx as never, {
+          caseIds: [id],
+          actorUserId: ownerUserId,
+        });
+        await auditCaseAction(req, {
+          userId: ownerUserId,
+          action: "cases.access_revoke",
+          outcome: "success",
+          resourceId: id,
+          teamId: caseItem.teamId,
+          metadata: { accessId, targetUserId: access.userId, revokedGrants },
+          db: tx,
+        });
       });
 
       fireCaseAnalyticsEvent({
@@ -2100,22 +2169,30 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      // A grant makes the case restricted, durably (re-audit defect 6).
-      await markCaseRestrictedTx(prisma, id);
-      const grant = await prisma.caseCollaborationTeamAccess.upsert({
-        where: { caseId_collaborationTeamId: { caseId: id, collaborationTeamId: team.id } },
-        update: {},
-        create: { caseId: id, collaborationTeamId: team.id, grantedByUserId: actorUserId },
-        select: { id: true, collaborationTeamId: true, createdAt: true },
-      });
-
-      await auditCaseAction(req, {
-        userId: actorUserId,
-        action: "cases.team_access_grant",
-        outcome: "success",
-        resourceId: id,
-        teamId: item.teamId,
-        metadata: { collaborationTeamId: team.id, grantId: grant.id },
+      const grant = await prisma.$transaction(async (tx) => {
+        // A grant makes the case restricted, durably (re-audit defect 6).
+        const nowRestricted = await markCaseRestrictedTx(tx, id);
+        const row = await tx.caseCollaborationTeamAccess.upsert({
+          where: { caseId_collaborationTeamId: { caseId: id, collaborationTeamId: team.id } },
+          update: {},
+          create: { caseId: id, collaborationTeamId: team.id, grantedByUserId: actorUserId },
+          select: { id: true, collaborationTeamId: true, createdAt: true },
+        });
+        // Restricting the case may close its records to people who handed out
+        // links to them (members re-audit defect 4).
+        const revokedGrants = nowRestricted
+          ? await revokeGrantsOfCreatorsWithoutReachTx(tx as never, { caseIds: [id], actorUserId })
+          : null;
+        await auditCaseAction(req, {
+          userId: actorUserId,
+          action: "cases.team_access_grant",
+          outcome: "success",
+          resourceId: id,
+          teamId: item.teamId,
+          metadata: { collaborationTeamId: team.id, grantId: row.id, ...(revokedGrants ? { revokedGrants } : {}) },
+          db: tx,
+        });
+        return row;
       });
 
       return reply.code(201).send({
@@ -2190,10 +2267,27 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      const removed = await prisma.caseCollaborationTeamAccess.deleteMany({
-        where: { caseId: params.id, collaborationTeamId: params.collaborationTeamId },
+      const removed = await prisma.$transaction(async (tx) => {
+        const r = await tx.caseCollaborationTeamAccess.deleteMany({
+          where: { caseId: params.id, collaborationTeamId: params.collaborationTeamId },
+        });
+        if (r.count === 0) return r;
+        await releaseRestrictionIfEmptyTx(tx, params.id);
+        const revokedGrants = await revokeGrantsOfCreatorsWithoutReachTx(tx as never, {
+          caseIds: [params.id],
+          actorUserId,
+        });
+        await auditCaseAction(req, {
+          userId: actorUserId,
+          action: "cases.team_access_revoke",
+          outcome: "success",
+          resourceId: params.id,
+          teamId: item.teamId,
+          metadata: { collaborationTeamId: params.collaborationTeamId, revokedGrants },
+          db: tx,
+        });
+        return r;
       });
-      if (removed.count > 0) await releaseRestrictionIfEmptyTx(prisma, params.id);
       if (removed.count === 0) {
         return reply.code(404).send({
           error: { code: "CASE_TEAM_ACCESS_NOT_FOUND", message: "That team does not have access to this case.", requestId: req.id },
@@ -2201,14 +2295,6 @@ export async function casesRoutes(app: FastifyInstance) {
         });
       }
 
-      await auditCaseAction(req, {
-        userId: actorUserId,
-        action: "cases.team_access_revoke",
-        outcome: "success",
-        resourceId: params.id,
-        teamId: item.teamId,
-        metadata: { collaborationTeamId: params.collaborationTeamId },
-      });
       return reply.code(204).send();
     },
   );

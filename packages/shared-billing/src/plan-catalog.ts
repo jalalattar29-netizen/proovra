@@ -103,7 +103,8 @@ export type PlanCapabilities = {
    *   - "Intake links" + "Submission requests":
    *       Not included / Included / Included / Included / Included
    *   - "Cases & matters":
-   *       Not included / Not included / Personal / Team / Org-wide
+   *       Not included / Not included / Cases (assignable to Collaboration
+   *       Team members) / same / Org-wide — members re-audit ENT-11
    *   - "Reviewer operations" + "Tasks & review queues":
    *       Not included / Not included / Not included / Team / Advanced
    */

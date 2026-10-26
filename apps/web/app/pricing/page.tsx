@@ -638,12 +638,23 @@ export default function MarketingPricingPage() {
       ],
     },
     {
+      /*
+       * SECOND RE-AUDIT ENT-11 — PRO and TEAM sell the SAME case capability.
+       * The catalogue grants `casesIncluded` and collaboration to both, and
+       * the server opens case assignment on any plan that sells collaboration
+       * (`planIncludesCollaboration`), to a member placed in an ACTIVE
+       * Collaboration Team (owner decision 5; `assertWorkAssigneeEligible`).
+       * "Personal cases" vs "Team cases" described a difference the product
+       * does not have — the difference between the two plans is the size of
+       * their Collaboration Teams, stated in its own row. "Team" is never the
+       * workspace here.
+       */
       label: "Cases & matters",
       values: [
         "Not included",
         "Not included",
-        "Personal cases",
-        "Team cases",
+        "Cases, assignable to Collaboration Team members",
+        "Cases, assignable to Collaboration Team members",
         "Organization-wide matters",
       ],
     },

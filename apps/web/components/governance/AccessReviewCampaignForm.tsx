@@ -47,7 +47,9 @@ type CampaignItem = { subjectUserId: string; grantRef: string };
 
 const MAX_ITEMS = 500;
 /** The permission the campaign routes ask the engine for. */
-const CAMPAIGN_PERMISSION = "identity.access_review.action" as const;
+// Members re-audit N-1 — the campaign routes require the delegated-only
+// campaign authority (mirrored here only to disable the control).
+const CAMPAIGN_PERMISSION = "governance.access_review.campaign.manage" as const;
 
 export function AccessReviewCampaignForm({
   onCreated,

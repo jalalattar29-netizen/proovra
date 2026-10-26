@@ -36,6 +36,28 @@ const prismaStub = {
 };
 vi.mock("../src/db.js", () => ({ prisma: prismaStub }));
 
+// THE ONE ASSIGNEE AUTHORITY (`assertWorkAssigneeEligible`: capability, reach
+// to the sampled evidence, placement) is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts and
+// members-assignment-surfaces.integration.test.ts. Here it is a seam with a
+// verdict, so this suite tests its own subject: what assignSample asks it, and
+// that a refusal writes and audits nothing while an acceptance audits the
+// actor and the previous assignee. A refusal throws the REAL error class, so
+// the service's own mapping to its typed denial is what is under test.
+const authority = vi.hoisted(() => ({ verdict: null as null | "NOT_ELIGIBLE" | "NOT_PLACED" }));
+const assertWorkAssigneeEligibleMock = vi.fn();
+vi.mock("../src/services/assignment/assignee-eligibility.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/assignment/assignee-eligibility.js")>();
+  return {
+    ...actual,
+    assertWorkAssigneeEligible: (...args: unknown[]) => {
+      assertWorkAssigneeEligibleMock(...args);
+      if (authority.verdict) throw new actual.AssigneeEligibilityError(authority.verdict);
+      return Promise.resolve();
+    },
+  };
+});
+
 const qc = await import("../src/services/reviewer-workspace/qc-sample.service.js");
 const coding = await import("../src/services/reviewer-workspace/coding-schema.service.js");
 const portalDecisions = await import(
@@ -50,6 +72,7 @@ const ACTOR = "00000000-0000-4000-8000-000000000005";
 const SCHEMA = "00000000-0000-4000-8000-000000000006";
 const OLD_SCHEMA = "00000000-0000-4000-8000-000000000007";
 const GRANT = "00000000-0000-4000-8000-000000000008";
+const EVIDENCE = "00000000-0000-4000-8000-000000000009";
 
 type AuditCall = {
   action: string;
@@ -65,6 +88,8 @@ function audit(action: string): AuditCall | undefined {
 }
 
 beforeEach(() => {
+  authority.verdict = null;
+  assertWorkAssigneeEligibleMock.mockReset();
   emitTenantAuditMock.mockReset();
   emitTenantAuditMock.mockResolvedValue(undefined);
   for (const model of Object.values(prismaStub)) {
@@ -77,15 +102,27 @@ describe("assignSample", () => {
     prismaStub.qcSample.findFirst.mockResolvedValueOnce({
       id: SAMPLE, state: "SAMPLED", workflowId: WORKFLOW, qcReviewerUserId: null,
     });
-    prismaStub.teamMember.findFirst.mockResolvedValueOnce(null);
+    prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: EVIDENCE });
+    authority.verdict = "NOT_ELIGIBLE";
     const res = await qc.assignSample({
       teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER, actorUserId: ACTOR,
     });
-    expect(res).toEqual({ ok: false, denial: "NOT_PERMITTED" });
-    expect(prismaStub.teamMember.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { teamId: TEAM, userId: REVIEWER, status: "ACTIVE" },
-      }),
+    expect(res).toEqual({ ok: false, denial: "NOT_PERMITTED", code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE" });
+    // The one assignee authority decided, with the reviewer permission, reach
+    // to the sampled review's evidence, inside the write.
+    expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledTimes(1);
+    expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledWith(
+      {
+        workspaceId: TEAM,
+        assigneeUserId: REVIEWER,
+        permission: "evidence_request.review",
+        evidenceId: EVIDENCE,
+      },
+      prismaStub,
+      { inTransaction: true },
+    );
+    expect(prismaStub.evidenceReviewWorkflow.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: WORKFLOW, teamId: TEAM } }),
     );
     expect(prismaStub.qcSample.update).not.toHaveBeenCalled();
     expect(emitTenantAuditMock).not.toHaveBeenCalled();
@@ -95,12 +132,13 @@ describe("assignSample", () => {
     prismaStub.qcSample.findFirst.mockResolvedValueOnce({
       id: SAMPLE, state: "ASSIGNED", workflowId: WORKFLOW, qcReviewerUserId: "prev-user",
     });
-    prismaStub.teamMember.findFirst.mockResolvedValueOnce({ userId: REVIEWER });
+    prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: EVIDENCE });
     prismaStub.qcSample.update.mockResolvedValueOnce({});
     const res = await qc.assignSample({
       teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER, actorUserId: ACTOR,
     });
     expect(res).toEqual({ ok: true });
+    expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledTimes(1);
     expect(prismaStub.qcSample.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ qcReviewerUserId: REVIEWER, state: "ASSIGNED" }),
@@ -125,6 +163,7 @@ describe("assignSample", () => {
     });
     const res = await qc.assignSample({ teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER });
     expect(res).toEqual({ ok: false, denial: "QC_VERDICT_INVALID" });
+    expect(assertWorkAssigneeEligibleMock).not.toHaveBeenCalled();
     expect(prismaStub.qcSample.update).not.toHaveBeenCalled();
   });
 });

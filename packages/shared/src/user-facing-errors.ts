@@ -516,6 +516,24 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "That person doesn't have access to this record. Give them access first, or choose someone who has it.",
     severity: "warning",
   },
+  /** Members re-audit (second round) — unlinking from a restricted case is a manager's act. */
+  CASE_RESTRICTED_UNLINK_MANAGER_REQUIRED: {
+    title: "Only a case manager can remove this record",
+    message: "This case is restricted. Removing a record from it can open the record to the whole workspace, so only the case owner or a workspace admin on the case can do it.",
+    severity: "warning",
+  },
+  /** Members re-audit N-8 — a legacy row an operator must review before it can change. */
+  LEGACY_RECORD_NEEDS_REVIEW: {
+    title: "This record needs review",
+    message: "It holds a value from an earlier version. An administrator needs to review it before it can be changed.",
+    severity: "warning",
+  },
+  /** Members re-audit B11 — an assignee the one assignee authority refuses. */
+  ASSIGNEE_NOT_ELIGIBLE: {
+    title: "Choose someone else",
+    message: "That person can't take on this work here. Choose an active member who can open this record.",
+    severity: "warning",
+  },
   /** Members re-audit ACC-06 — a held case's hold record outlives it. */
   CASE_HOLD_HISTORY_KEPT: {
     title: "This case can't be deleted",

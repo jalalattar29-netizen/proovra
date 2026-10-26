@@ -160,6 +160,9 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   REVIEW_NOTE_REQUIRED: { disposition: "customer", where: "global" },
   CASES_MANAGE_REQUIRED: { disposition: "customer", where: "global" },
   CASE_DELETE_DENIED: { disposition: "customer", where: "global" },
+  // Members re-audit B3 — the Evidence Request reviewer passes the one assignee authority.
+  REVIEW_ASSIGNEE_NOT_PLACED: { disposition: "customer", where: "global" },
+  REVIEW_ASSIGNEE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
   CASE_ACCESS_TARGET_NOT_MEMBER: { disposition: "customer", where: "global" },
   WORKSPACE_MEMBERSHIP_REQUIRED: { disposition: "customer", where: "global" },

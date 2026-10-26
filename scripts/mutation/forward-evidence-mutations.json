@@ -1942,7 +1942,7 @@
     "phase": "P10",
     "name": "the service stores any assignee again",
     "file": "services/api/src/services/evidence-request.service.ts",
-    "find": "  await assertAssigneeIsActiveMember(client, parsed.teamId, parsed.assignedReviewerUserId);",
+    "find": "  await assertAssigneeIsActiveMember(client, input.teamId, input.assignedReviewerUserId);",
     "replace": "  void assertAssigneeIsActiveMember;",
     "tests": [
       {
@@ -7637,8 +7637,8 @@
     "aud": "DEFECT-6",
     "name": "granting case access no longer marks the case restricted",
     "file": "services/api/src/routes/cases.routes.ts",
-    "find": "          teamId: item.teamId,\n          metadata: { reason: \"user_not_in_team\", targetUserId: body.userId },\n        });\n        return reply.code(400).send({\n          message: \"User is not in this team\",\n          code: \"CASE_ACCESS_TARGET_NOT_MEMBER\",\n        });\n      }\n\n      // A grant makes the case restricted, durably (re-audit defect 6).\n      await markCaseRestrictedTx(prisma, id);",
-    "replace": "          teamId: item.teamId,\n          metadata: { reason: \"user_not_in_team\", targetUserId: body.userId },\n        });\n        return reply.code(400).send({\n          message: \"User is not in this team\",\n          code: \"CASE_ACCESS_TARGET_NOT_MEMBER\",\n        });\n      }\n\n      // A grant makes the case restricted, durably (re-audit defect 6).\n      void markCaseRestrictedTx;",
+    "find": "    const nowRestricted = await markCaseRestrictedTx(tx, input.caseId);",
+    "replace": "    const nowRestricted = false; void markCaseRestrictedTx;",
     "tests": [
       {
         "cwd": "services/api",
@@ -7693,6 +7693,1340 @@
           "--config",
           "vitest.integration.config.ts",
           "test/members-lifecycle-closure.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-P1-SELFGRANT",
+    "aud": "ACC-01",
+    "name": "an OWNER/ADMIN off a restricted case can manage its access list",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "  if (!visibility || !caseRowVisibleTo(visibility, userId)) return { kind: \"concealed\" };",
+    "replace": "  void visibility;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-P1-LEGACYREVOKE",
+    "aud": "ACC-01",
+    "name": "an ADMIN off a restricted case revokes its legacy grant (opening it)",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "      if (!grant || !caseRowVisibleTo(grant.case, userId)) {",
+    "replace": "      if (!grant) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D2-PROJECTION",
+    "aud": "ACC-11",
+    "name": "a flag-only restricted case is reported open",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "            restricted: item.restrictedAtUtc !== null || item.access.length > 0 || item.teamAccess.length > 0,",
+    "replace": "            restricted: item.access.length > 0 || item.teamAccess.length > 0,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D2-EXPLAIN",
+    "aud": "ACC-11",
+    "name": "the access explanation ignores the restriction flag",
+    "file": "services/api/src/services/access/access-explanation.service.ts",
+    "find": "      for (const c of cases.filter(isRestricted)) {",
+    "replace": "      for (const c of cases.filter((x) => x.access.length > 0 || x.teamAccess.length > 0)) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D3-REPORTS",
+    "aud": "ACC-01",
+    "name": "the reports list shows restricted-case records to off-list members",
+    "file": "services/api/src/routes/reports.routes.ts",
+    "find": "          { OR: [{ teamId: null }, evidenceVisibleThroughCasesWhere(userId)] },",
+    "replace": "          // MUTANT",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D3-LINKABLE",
+    "aud": "ACC-01",
+    "name": "linkable-evidence shows restricted-case records to off-list members",
+    "file": "services/api/src/routes/case-workspace.routes.ts",
+    "find": "          ...(caseRow.teamId ? { AND: [evidenceVisibleThroughCasesWhere(callerUserId)] } : {}),",
+    "replace": "          // MUTANT",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D5-BATCH",
+    "aud": "ACC-03",
+    "name": "batch analysis admits records without the record authority",
+    "file": "services/api/src/routes/enterprise.routes.ts",
+    "find": "          where: { id: { in: uniqueIds }, deletedAt: null },",
+    "replace": "          where: { id: { in: uniqueIds }, ownerUserId: userId, deletedAt: null },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D4-CREATORREACH",
+    "aud": "SEC-08",
+    "name": "a creator's grants survive losing reach through a restricted case",
+    "file": "services/api/src/services/cases/case-reach-share-revocation.ts",
+    "find": "  const caseIds = [...new Set(input.caseIds ?? [])];",
+    "replace": "  if (input) return { ownerShares: 0, externalReview: 0 };\n  const caseIds = [...new Set(input.caseIds ?? [])];",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-AUD01-CASE",
+    "aud": "AUD-01",
+    "name": "a case mutation commits without its audit",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "  }, params.db as never);\n  if (params.db) return write;",
+    "replace": "  }, undefined as never);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-audit-atomicity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-AUD01-TEAM",
+    "aud": "AUD-01",
+    "name": "a workspace mutation commits without its audit",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "          metadata,\n        },\n        params.db as never,\n      );\n    } else {",
+    "replace": "          metadata,\n        },\n        undefined as never,\n      );\n    } else {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-audit-atomicity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-SEC13-LIFECYCLE",
+    "aud": "SEC-13",
+    "name": "an evidence archive/trash commits without its audit",
+    "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+    "find": "    if (input.auditTx) {\n      await input.auditTx(tx as unknown as PrismaClient, {",
+    "replace": "    if (input.auditTx && Date.now() < 0) {\n      await input.auditTx(tx as unknown as PrismaClient, {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-audit-atomicity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D7-CLOSURE",
+    "aud": "LIFE-09",
+    "name": "account closure skips the execution-time blocker check",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "    if (opts.closureRequestId) {\n      await tx.$queryRaw`",
+    "replace": "    if (opts.closureRequestId && Date.now() < 0) {\n      await tx.$queryRaw`",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-audit-atomicity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D2-WEB",
+    "aud": "ACC-11",
+    "name": "the Access tab shows a flag-only restricted case as open",
+    "file": "apps/web/components/cases-experience/MatterAccessTab.tsx",
+    "find": "  const restricted = serverRestricted || grantList.length > 0 || teamGrants.length > 0;",
+    "replace": "  const restricted = grantList.length > 0 || teamGrants.length > 0;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/matter-access-flag-restriction.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "RA2-LIFE14-COPY",
+    "aud": "LIFE-14",
+    "name": "every ownership-transfer refusal collapses to one sentence",
+    "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceOwnershipTransferCard.tsx",
+    "find": "  if (TRANSFER_REFUSAL_COPY[code]) return TRANSFER_REFUSAL_COPY[code];",
+    "replace": "          // MUTANT",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/workspace-ownership-transfer-refusal-copy.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "RA2-P1-LISTINGS",
+    "aud": "ACC-01",
+    "name": "the external-collaborators listing names restricted cases the caller cannot see",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "      // 2. All cases owned by this team.\n      // Members re-audit (second round) — a restricted case the caller cannot\n      // see is not listed: not its name, not its id, not its grants.\n      const teamCases = (\n        await prisma.case.findMany({\n          where: { AND: [await workspaceCaseWhere(teamId, prisma)] },\n          select: { id: true, name: true, ...CASE_VISIBILITY_SELECT },\n        })\n      ).filter((c) => caseRowVisibleTo(c, userId));",
+    "replace": "      // 2. All cases owned by this team.\n      // Members re-audit (second round) — a restricted case the caller cannot\n      // see is not listed: not its name, not its id, not its grants.\n      const teamCases = (\n        await prisma.case.findMany({\n          where: { AND: [await workspaceCaseWhere(teamId, prisma)] },\n          select: { id: true, name: true, ...CASE_VISIBILITY_SELECT },\n        })\n      );",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B1-ESCALATION-DEFAULT",
+    "aud": "DECISION-5",
+    "name": "MEM-B1-ESCALATION-DEFAULT",
+    "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
+    "find": "assignedToUserId = stillEligible ? workflow.assignedToUserId : null;",
+    "replace": "assignedToUserId = workflow.assignedToUserId;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B1-DEPARTURE-RELEASE",
+    "aud": "DECISION-5",
+    "name": "MEM-B1-DEPARTURE-RELEASE",
+    "file": "services/api/src/services/identity/standing-reach.ts",
+    "find": "    await releaseWorkHeldByTx(tx, {\n      teamId,\n      userIds,",
+    "replace": "    if (0) await releaseWorkHeldByTx(tx, {\n      teamId,\n      userIds,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B9-CT-REMOVE-RELEASE",
+    "aud": "DECISION-5",
+    "name": "MEM-B9-CT-REMOVE-RELEASE",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "    await releaseTeamTasksTx(tx, {\n      workspaceId: team.workspaceId,\n      userIds: [member.userId],\n      collaborationTeamId: input.teamId,\n      actorUserId: input.actorUserId,\n      reason: \"group_member_removed\",",
+    "replace": "    if (0) await releaseTeamTasksTx(tx, {\n      workspaceId: team.workspaceId,\n      userIds: [member.userId],\n      collaborationTeamId: input.teamId,\n      actorUserId: input.actorUserId,\n      reason: \"group_member_removed\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B2-QC-AUTHORITY",
+    "aud": "DECISION-5",
+    "name": "MEM-B2-QC-AUTHORITY",
+    "file": "services/api/src/services/reviewer-workspace/qc-sample.service.ts",
+    "find": "          assigneeUserId: input.qcReviewerUserId,\n          permission: \"evidence_request.review\",\n          evidenceId: workflow.evidenceId,\n        },\n        tx,\n        { inTransaction: true },\n      );\n    } catch (err) {\n      if (err instanceof AssigneeEligibilityError) return err.reason;",
+    "replace": "          assigneeUserId: input.qcReviewerUserId,\n          permission: \"evidence_request.review\",\n          evidenceId: workflow.evidenceId,\n        },\n        tx,\n        { inTransaction: true },\n      );\n    } catch (err) {\n      if (err instanceof AssigneeEligibilityError) { void err; } else",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B3-REQUEST-REVIEWER-AUTHORITY",
+    "aud": "DECISION-5",
+    "name": "MEM-B3-REQUEST-REVIEWER-AUTHORITY",
+    "file": "services/api/src/services/evidence-request.service.ts",
+    "find": "  await assertAssigneeIsActiveMember(client, input.teamId, input.assignedReviewerUserId);\n  try {",
+    "replace": "  await assertAssigneeIsActiveMember(client, input.teamId, input.assignedReviewerUserId);\n  return;\n  try {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B4-OPS-WORKFLOW-REACH",
+    "aud": "DECISION-5",
+    "name": "MEM-B4-OPS-WORKFLOW-REACH",
+    "file": "services/api/src/routes/ops.routes.ts",
+    "find": "        evidenceId: bound.workflow.evidenceId,\n        caseId: bound.workflow.caseId,",
+    "replace": "        evidenceId: null,\n        caseId: null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B6-CASE-ROLE-CAPABILITY",
+    "aud": "DECISION-5",
+    "name": "MEM-B6-CASE-ROLE-CAPABILITY",
+    "file": "services/api/src/services/assignment/assignment-write.ts",
+    "find": "  OWNER: \"evidence.update_metadata\",\n  INVESTIGATOR: \"evidence.update_metadata\",\n  REVIEWER: \"evidence_request.review\",",
+    "replace": "  OWNER: \"evidence.read\",\n  INVESTIGATOR: \"evidence.read\",\n  REVIEWER: \"evidence.read\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B10-SECOND-REVIEW-AUTHORITY",
+    "aud": "DECISION-5",
+    "name": "MEM-B10-SECOND-REVIEW-AUTHORITY",
+    "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
+    "find": "    if (input.to === \"UNDER_SECOND_REVIEW\" || input.to === \"UNDER_SUPERVISOR_REVIEW\") {\n      const workflow",
+    "replace": "    if (false as boolean) {\n      const workflow",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B11-SIU-ASSIGNEE-AUTHORITY",
+    "aud": "DECISION-5",
+    "name": "MEM-B11-SIU-ASSIGNEE-AUTHORITY",
+    "file": "services/api/src/services/siu/siu-profile.service.ts",
+    "find": "    for (const holder of newlyNamed) {",
+    "replace": "    for (const holder of newlyNamed.slice(newlyNamed.length)) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B4-INCIDENT-EVIDENCE-REACH",
+    "aud": "DECISION-5",
+    "name": "MEM-B4-INCIDENT-EVIDENCE-REACH",
+    "file": "services/api/src/routes/ops.routes.ts",
+    "find": "          evidenceId: condition?.relatedEvidenceId ?? null,",
+    "replace": "          evidenceId: null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B5-CASE-ASSIGN-IN-WRITE",
+    "aud": "DECISION-5",
+    "name": "MEM-B5-CASE-ASSIGN-IN-WRITE",
+    "file": "services/api/src/services/cases/case-lifecycle.service.ts",
+    "find": "          tx,\n          { inTransaction: true },\n        );\n      } catch (err) {\n        if (err instanceof AssigneeEligibilityError) {\n          throw new CaseError(",
+    "replace": "          tx,\n          { inTransaction: false },\n        );\n      } catch (err) {\n        if (err instanceof AssigneeEligibilityError) {\n          throw new CaseError(",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B5-ESCALATION-IN-WRITE",
+    "aud": "DECISION-5",
+    "name": "MEM-B5-ESCALATION-IN-WRITE",
+    "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
+    "find": "      client,\n      { inTransaction: true },\n    );\n  } catch (err) {\n    if (err instanceof AssigneeEligibilityError) {\n      throw new EscalationEngineError(",
+    "replace": "      client,\n      { inTransaction: false },\n    );\n  } catch (err) {\n    if (err instanceof AssigneeEligibilityError) {\n      throw new EscalationEngineError(",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B5-CT-REVIEW-TASK-IN-WRITE",
+    "aud": "DECISION-5",
+    "name": "MEM-B5-CT-REVIEW-TASK-IN-WRITE",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "        { inTransaction: options.inTransaction === true },",
+    "replace": "        { inTransaction: false },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B5-OPS-ASSIGN-IN-WRITE",
+    "aud": "DECISION-5",
+    "name": "MEM-B5-OPS-ASSIGN-IN-WRITE",
+    "file": "services/api/src/routes/ops.routes.ts",
+    "find": "            if (!(await isAssignableOperator(assigneeTarget, txc, { inTransaction: true }))) {",
+    "replace": "            if (!(await isAssignableOperator(assigneeTarget, txc, { inTransaction: false }))) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B1-SUSPENSION-RELEASE",
+    "aud": "DECISION-5",
+    "name": "MEM-B1-SUSPENSION-RELEASE",
+    "file": "services/api/src/services/identity/standing-reach.ts",
+    "find": "  await releaseWorkHeldByTx(tx, {\n    teamId: input.teamId,",
+    "replace": "  if (0) await releaseWorkHeldByTx(tx, {\n    teamId: input.teamId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-B4-OPERATOR-ONE-RULE",
+    "aud": "DECISION-5",
+    "name": "MEM-B4-OPERATOR-ONE-RULE",
+    "file": "services/api/src/services/operations/assignable-operators.service.ts",
+    "find": "  try {\n    await assertWorkAssigneeEligible(\n      {\n        workspaceId: input.teamId,",
+    "replace": "  if (input.userId) return (await listAssignableOperators({ teamId: input.teamId }, client)).some((o) => o.userId === input.userId);\n  try {\n    await assertWorkAssigneeEligible(\n      {\n        workspaceId: input.teamId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-D4-CT-GROUP-REACH-REVOKE",
+    "aud": "DECISION-5",
+    "name": "MEM-D4-CT-GROUP-REACH-REVOKE",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "  if (granted.length === 0) return;\n  await revokeGrantsOfCreatorsWithoutReachTx(",
+    "replace": "  if (granted.length >= 0) return;\n  await revokeGrantsOfCreatorsWithoutReachTx(",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N7-WEB-CODELESS",
+    "aud": "AUD-05",
+    "name": "web reports nothing for code-less 401/403/404",
+    "file": "apps/web/lib/feedback/toSafeUserError.ts",
+    "find": "const CODELESS_EXPECTED_STATUSES: ReadonlySet<number> = new Set([409, 422]);",
+    "replace": "const CODELESS_EXPECTED_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409, 422]);",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/sentry-expected-refusal-wiring.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "N7-MOBILE-CODELESS",
+    "aud": "AUD-05",
+    "name": "mobile reports nothing for code-less 401/403/404",
+    "file": "apps/mobile/src/sentry.ts",
+    "find": "const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([409, 422]);",
+    "replace": "const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409, 422]);",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/sentry-expected-refusal-wiring.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ENT08-PRODUCT",
+    "aud": "ENT-08",
+    "name": "a Stripe Price of another product is charged",
+    "file": "services/api/src/services/billing/commercial-offer.service.ts",
+    "find": "  if (offer.stripeProductId && stripePriceProductId(price) !== offer.stripeProductId) out.push(\"product\");",
+    "replace": "  void stripePriceProductId;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/members-commercial-offer.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ENT05-ROLLUP-AUTHORITY",
+    "aud": "ENT-05",
+    "name": "the billing rollup counts raw membership rows",
+    "file": "services/api/src/routes/organizations-governance.routes.ts",
+    "find": "      usedSeats: seats.used,",
+    "replace": "      usedSeats: await prisma.teamMember.count({ where: { teamId: ws.id } }),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/org-billing-rollup-seat-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "ENT05-OVERSEAT",
+    "aud": "ENT-05",
+    "name": "the billing rollup's over-seat flag is not the authority's",
+    "file": "services/api/src/routes/organizations-governance.routes.ts",
+    "find": "      overSeat: seats.overLimit,",
+    "replace": "      overSeat: seats.used > 0 && seats.used >= (seats.limit ?? Infinity),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/org-billing-rollup-seat-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "INV03-WEB-TOAST",
+    "aud": "INV-03",
+    "name": "an undelivered invitation is reported as sent (web)",
+    "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+    "find": "      if (data?.emailSent === false) {",
+    "replace": "      if (false as boolean) {",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/team-invite-create-delivery.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEM03-ACTIVITY-ERROR",
+    "aud": "MEM-03",
+    "name": "a failed activity read shows an empty panel",
+    "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+    "find": "          {activitiesFailed ? (",
+    "replace": "          {(false as boolean) ? (",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/team-invite-create-delivery.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "INV03-MOBILE",
+    "aud": "INV-03",
+    "name": "an undelivered invitation is reported as sent (mobile)",
+    "file": "apps/mobile/src/product/workspace-people.ts",
+    "find": "  if (d.emailSent === false) {",
+    "replace": "  if (false as boolean) {",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/workspace-people-invite-status.render.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "B7-MOBILE-EXPIRED",
+    "aud": "INV-05",
+    "name": "mobile counts expired invitations as pending",
+    "file": "apps/mobile/src/product/workspace-people.ts",
+    "find": "    return input.invites.filter((i) => !isExpiredInvite(i)).length;",
+    "replace": "    return input.invites.length;",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/workspace-people-invite-status.render.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "B7-MOBILE-UNKNOWN",
+    "aud": "INV-05",
+    "name": "mobile shows 0 for an unknown pending count",
+    "file": "apps/mobile/src/product/workspace-people.ts",
+    "find": "  return typeof input.serverCount === \"number\" ? input.serverCount : null;",
+    "replace": "  return input.serverCount ?? 0;",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/workspace-people-invite-status.render.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ENT11-PRICING",
+    "aud": "ENT-11",
+    "name": "pricing sells Personal cases on PRO",
+    "file": "apps/web/app/pricing/page.tsx",
+    "find": "        \"Not included\",\n        \"Cases, assignable to Collaboration Team members\",",
+    "replace": "        \"Not included\",\n        \"Personal cases\",",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/pricing-cases-row-truth.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ENT05-WEB-CEILING",
+    "aud": "ENT-05",
+    "name": "the org billing page shows N / 0 seats with no workspace ceiling",
+    "file": "apps/web/app/(app)/organizations/[id]/admin/billing/page.tsx",
+    "find": "          {w.seatLimit === null\n",
+    "replace": "          {false\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/org-billing-rollup-seat-ceiling.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "N1-FLOOR-EXECUTE",
+    "aud": "DOM-09",
+    "name": "destruction execute falls back to a permission every ADMIN holds",
+    "file": "services/api/src/routes/product-and-lifecycle.routes.ts",
+    "find": "requireWorkspacePermission(\"governance.destruction.execute\")",
+    "replace": "requireWorkspacePermission(\"governance.retention.manage\")",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-delegated-admin.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N1-FLOOR-MIGRATION",
+    "aud": "DOM-09",
+    "name": "the floor migration forgets the compliance officer's execute grant",
+    "file": "services/api/prisma/migrations/20281026001100_delegated_admin_floor/migration.sql",
+    "find": "    ('COMPLIANCE_OFFICER', 'governance.destruction.execute', 'governance.retention.manage'),\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-delegated-admin.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N2-SUSPENDED",
+    "aud": "DOM-09",
+    "name": "holders suspended at convergence are not carried",
+    "file": "services/api/prisma/migrations/20281026001000_delegated_admin_suspended_holders/migration.sql",
+    "find": "     AND m.\"status\" IN ('SUSPENDED', 'ACTIVE')\n   WHERE",
+    "replace": "     AND m.\"status\" IN ('ACTIVE')\n   WHERE",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-delegated-admin.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N1-DEPARTMENT-SCOPE",
+    "aud": "DOM-09",
+    "name": "every ADMIN bypasses the department scope",
+    "file": "services/api/src/services/governance/department-scope.service.ts",
+    "find": "permission: \"governance.department.define\" },",
+    "replace": "permission: \"governance.policy.manage\" },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/phase-4a-enterprise-closure.test.ts"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "N3-COPY",
+    "aud": "DOM-09",
+    "name": "the delegated-admin page says carried grants give nobody access",
+    "file": "apps/web/app/(app)/governance-platform/delegated-admin/page.tsx",
+    "find": "still give that member access today",
+    "replace": "no longer give anyone access",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/delegated-admin-retired-copy.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "DOM13-DRIFT",
+    "aud": "DOM-13",
+    "name": "a drift scan reads only the addressed workspace's identity links",
+    "file": "services/api/src/services/access-control/scim-reconciliation.service.ts",
+    "find": "      organization: { workspaces: { some: { id: input.teamId } } },\n      userId: { in:",
+    "replace": "      teamId: input.teamId,\n      userId: { in:",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-residual.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "DOM13-LINKS",
+    "aud": "DOM-13",
+    "name": "identity links are listed per workspace",
+    "file": "services/api/src/services/identity/external-identity.service.ts",
+    "find": "      ...organizationLinkScope(input.teamId),\n      ...(input.activeOnly",
+    "replace": "      teamId: input.teamId,\n      ...(input.activeOnly",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-residual.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "DOM13-PROBE",
+    "aud": "DOM-13",
+    "name": "the SSO outage probe reads only the addressed workspace's connection",
+    "file": "services/api/src/services/operations/operations-source-probes.ts",
+    "find": "where: { id: connectionId, organization: { workspaces: { some: { id: ctx.teamId } } } },",
+    "replace": "where: { id: connectionId, teamId: ctx.teamId },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-residual.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N4-ALIAS",
+    "aud": "DOM-13",
+    "name": "a merged SCIM group's archived id stops resolving",
+    "file": "services/api/src/services/access-control/scim-groups.service.ts",
+    "find": "  const resolved = await resolveDirectoryGroup(ctx, groupId, client);\n  const row = resolved?.group;",
+    "replace": "  const row = await client.scimGroup.findFirst({ where: { id: groupId, organizationId: ctx.organizationId } });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-residual.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "D12-RESTRICT",
+    "aud": "DOM-13",
+    "name": "identity mappings still cascade with the workspace",
+    "file": "services/api/prisma/migrations/20281026001300_identity_rows_outlive_workspace/migration.sql",
+    "find": "ARRAY['scim_provisioning_tokens', 'external_identity_mappings',",
+    "replace": "ARRAY['scim_provisioning_tokens',",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-residual.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N8-CANCELED",
+    "aud": "DOM-08",
+    "name": "the legacy CANCELED status is not normalised",
+    "file": "services/api/prisma/migrations/20281026001400_collaboration_vocabulary_normalise/migration.sql",
+    "find": "CASE WHEN UPPER(BTRIM(\"status\")) = 'CANCELED' THEN 'CANCELLED' ELSE UPPER(BTRIM(\"status\")) END",
+    "replace": "UPPER(BTRIM(\"status\"))",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-collaboration-vocabulary-normalise.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-UNLINK-MANAGER",
+    "aud": "ACC-01",
+    "name": "a listed MEMBER unlinks a record from a restricted case, opening it",
+    "file": "services/api/src/services/cases/case-evidence-link.service.ts",
+    "find": "    await assertMayUnlinkFromRestrictedCaseTx(tx, caseRow.id, input.actorUserId ?? null);\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-OPS-PICKER",
+    "aud": "DECISION-5",
+    "name": "the Operations picker ignores capability grants",
+    "file": "services/api/src/services/operations/assignable-operators.service.ts",
+    "find": "    if (decision.allowed) holds.add(m.userId);",
+    "replace": "    if (decision.allowed && snapshot.capabilityGrants.length === 0) holds.add(m.userId);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-SUPERVISOR-TAKE",
+    "aud": "DECISION-5",
+    "name": "an unplaced supervisor takes the supervisor review",
+    "file": "services/api/src/services/reviewer-workspace/reviewer-disagreement.service.ts",
+    "find": "    if (input.to === \"UNDER_SECOND_REVIEW\" || input.to === \"UNDER_SUPERVISOR_REVIEW\") {\n      const workflow",
+    "replace": "    if (input.to === \"UNDER_SECOND_REVIEW\") {\n      const workflow",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-RELEASE-DISPUTES",
+    "aud": "DECISION-5",
+    "name": "a departed second reviewer keeps holding an open disagreement",
+    "file": "services/api/src/services/assignment/release-held-work.ts",
+    "find": "    if (written.count > 0) bucket(holder).disagreements += 1;",
+    "replace": "    void written; void holder;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-RELEASE-SIU",
+    "aud": "DECISION-5",
+    "name": "a departed SIU adjuster stays assigned",
+    "file": "services/api/src/services/assignment/release-held-work.ts",
+    "find": "    if (written.count > 0) bucket(profile.assignedAdjusterUserId!).siuAssignments += 1;",
+    "replace": "    void written;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-SUSPEND-RELEASE",
+    "aud": "DECISION-5",
+    "name": "a workspace suspension releases nothing",
+    "file": "services/api/src/services/identity/rbac.service.ts",
+    "find": "    await releaseWorkOnSuspension(tx as never, {",
+    "replace": "    if (0) await releaseWorkOnSuspension(tx as never, {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "LEAD-N8-LEGACY-409",
+    "aud": "DOM-08",
+    "name": "a write to an unmappable legacy row answers 500",
+    "file": "services/api/src/routes/collaboration-teams.routes.ts",
+    "find": "  if (legacyVocabularyViolation(err)) {",
+    "replace": "  if (false as boolean) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-collaboration-vocabulary-normalise.integration.test.ts"
         ],
         "integration": true
       }

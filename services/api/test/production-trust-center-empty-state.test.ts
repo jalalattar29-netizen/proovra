@@ -149,16 +149,16 @@ describe("Production fix B — seed POSTs no longer require delegated tier", () 
     // Pin that POST /v1/trust/articles (NO trailing /seed) and
     // POST /v1/trust/subprocessors (NO trailing /seed) DO still carry an
     // authorization pre-handler. We only opened up the canonical seed paths.
-    // Members audit DOM-09 retired the delegated tier; the gate is now the
-    // canonical permission `governance.policy.manage`.
+    // Members audit DOM-09 retired the delegated tier; the re-audit's N-1
+    // floor made each gate a precise, delegated-only permission.
     const authoringSlice = routeSource(ROUTES, "POST", "/v1/trust/articles");
     expect(authoringSlice).toMatch(
-      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("governance\.policy\.manage"\)\]/,
+      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("trust\.article\.publish"\)\]/,
     );
 
     const subAuthoringSlice = routeSource(ROUTES, "POST", "/v1/trust/subprocessors");
     expect(subAuthoringSlice).toMatch(
-      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("governance\.policy\.manage"\)\]/,
+      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("trust\.subprocessor\.manage"\)\]/,
     );
   });
 });

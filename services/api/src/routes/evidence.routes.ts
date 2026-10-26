@@ -1845,12 +1845,18 @@ async function auditEvidenceAction(
     resourceId?: string | null;
     teamId?: string | null;
     metadata?: Record<string, unknown>;
+    /**
+     * The mutation's transaction (members re-audit, second round): the row
+     * commits or rolls back with the change, and a failed write fails it.
+     */
+    db?: unknown;
   }
 ): Promise<void> {
   const outcome = mapEvidenceOutcome(params.outcome);
   const reason =
     typeof params.metadata?.reason === "string" ? params.metadata.reason : null;
-  const mustCommit = outcome === "success" && !EVIDENCE_READ_AUDIT_ACTIONS.has(params.action);
+  const mustCommit =
+    params.db !== undefined || (outcome === "success" && !EVIDENCE_READ_AUDIT_ACTIONS.has(params.action));
   const write = emitTenantAudit({
     action: params.action,
     outcome,
@@ -1868,7 +1874,7 @@ async function auditEvidenceAction(
       ...(params.metadata ?? {}),
       severity: params.severity ?? "info",
     },
-  });
+  }, params.db as never);
   if (mustCommit) {
     await write;
     return;
@@ -7298,6 +7304,23 @@ return {
       action: input.action,
       source: "single",
       req,
+      // SEC-13 / defect 8 — the audit row is written INSIDE the lifecycle
+      // transaction: a failed audit rolls the archive/trash back, so the
+      // request never answers 500 for a change that was already applied.
+      auditTx: (tx, written) =>
+        auditEvidenceAction(req, {
+          userId: input.actorUserId,
+          action: input.auditAction,
+          outcome: "success",
+          resourceId: input.id,
+          teamId: written.teamId,
+          metadata: {
+            actorUserId: input.actorUserId,
+            productState: written.productState,
+            changed: true,
+          },
+          db: tx,
+        }),
     });
 
     if (!outcome.ok) {
@@ -7332,18 +7355,22 @@ return {
       return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
     }
 
-    await auditEvidenceAction(req, {
-      userId: input.actorUserId,
-      action: input.auditAction,
-      outcome: "success",
-      resourceId: input.id,
-      teamId: outcome.teamId,
-      metadata: {
-        actorUserId: input.actorUserId,
-        productState: outcome.productState,
-        changed: outcome.changed,
-      },
-    });
+    // An idempotent success wrote nothing, so it has no transaction to share;
+    // its row is still awaited before the response.
+    if (!outcome.changed) {
+      await auditEvidenceAction(req, {
+        userId: input.actorUserId,
+        action: input.auditAction,
+        outcome: "success",
+        resourceId: input.id,
+        teamId: outcome.teamId,
+        metadata: {
+          actorUserId: input.actorUserId,
+          productState: outcome.productState,
+          changed: false,
+        },
+      });
+    }
 
     if (input.shape === "evidence") {
       const storage = await getStorageProtectionSummary(

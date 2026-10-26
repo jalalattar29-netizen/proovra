@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
+import { usePlatformContext } from "../../../../../lib/platform-context";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 // THE canonical accessible dialog (focus trap, Escape, focus restoration).
 // Despite the `cases-experience` path this is the app-wide authority — the
@@ -132,11 +133,19 @@ const SearchIcon = () => (
 function AssignmentsTab({
   team,
   canAssign,
+  canSupervise = canAssign,
   onCreateAssignment,
   reloadToken = 0,
 }: {
   team: CollaborationTeamDetail;
   canAssign: boolean;
+  /**
+   * Members re-audit CT-07 — may the viewer move SOMEBODY ELSE's task through
+   * its states? That is the server's `team.assignment.reassign` (a supervisory
+   * act). The viewer's OWN task needs no permission: the server lets the
+   * assignee start, put back and complete it whatever their group role.
+   */
+  canSupervise?: boolean;
   /**
    * Opens the team's ONE create-assignment dialog, which the page owns.
    *
@@ -154,6 +163,10 @@ function AssignmentsTab({
   reloadToken?: number;
 }) {
   const { addToast } = useToast();
+  // The signed-in person, from the one platform context the page already
+  // reads (the same source the Operations and QC pages use for "mine").
+  const viewerUserId = usePlatformContext().envelope?.user?.id ?? null;
+  const isActiveTeam = team.status === "ACTIVE";
   const [items, setItems] =
     useState<ReadonlyArray<CollaborationTeamAssignment>>([]);
   const [loading, setLoading] = useState(true);
@@ -533,6 +546,11 @@ function AssignmentsTab({
                   assignment={a}
                   teamId={team.id}
                   canAssign={canAssign}
+                  canWork={
+                    isActiveTeam &&
+                    (canSupervise ||
+                      (viewerUserId !== null && a.assigneeUserId === viewerUserId))
+                  }
                   members={team.members}
                   onChanged={async (msg) => {
                     addToast(msg, "success");
@@ -580,6 +598,7 @@ function AssignmentRow({
   assignment,
   teamId,
   canAssign,
+  canWork,
   members,
   onChanged,
   onError,
@@ -587,6 +606,12 @@ function AssignmentRow({
   assignment: CollaborationTeamAssignment;
   teamId: string;
   canAssign: boolean;
+  /**
+   * CT-07 — Start and Complete: the assignee on their own task (any group
+   * role the server lets hold work), or a supervisor on anyone's — exactly
+   * the server's rule (`ASSIGNEE_SELF_TRANSITIONS` / `team.assignment.reassign`).
+   */
+  canWork: boolean;
   members: ReadonlyArray<CollaborationTeamMember>;
   onChanged: (msg: string) => void | Promise<void>;
   /** The error itself — see the note on MembersTab's identical prop (§5). */
@@ -755,7 +780,7 @@ function AssignmentRow({
       </td>
       <td data-label="" style={{ textAlign: "right" }}>
         <span className="app-table__actions">
-          {canAssign && assignment.status === "OPEN" ? (
+          {canWork && assignment.status === "OPEN" ? (
             <>
               <button
                 type="button"
@@ -782,7 +807,7 @@ function AssignmentRow({
               </button>
             </>
           ) : null}
-          {canAssign && assignment.status === "IN_PROGRESS" ? (
+          {canWork && assignment.status === "IN_PROGRESS" ? (
             <button
               type="button"
               disabled={busy}
@@ -838,7 +863,7 @@ function AssignmentRow({
               </button>
             </>
           ) : null}
-          {!canAssign ||
+          {!(canAssign || canWork) ||
           (assignment.status !== "OPEN" &&
             assignment.status !== "IN_PROGRESS") ? (
             <span className="app-table__muted" aria-hidden>

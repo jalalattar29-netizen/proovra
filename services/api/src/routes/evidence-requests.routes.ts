@@ -49,6 +49,7 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import { resendNotificationDelivery } from "../services/notifications/index.js";
 import {
   createEvidenceRequest,
+  assignEvidenceRequestReviewer,
   editDraftEvidenceRequest,
   EvidenceRequestError,
   evidenceRequestsFeatureDisabledReason,
@@ -118,6 +119,14 @@ function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {
       return;
     case "assignee_not_workspace_member":
       sendAssigneeNotMember(reply);
+      return;
+    // Members re-audit B3 — the one assignee authority refused the reviewer
+    // (the same codes every reviewer-assignment writer answers with).
+    case "assignee_not_placed":
+      reply.code(422).send({ error: { code: "REVIEW_ASSIGNEE_NOT_PLACED" } });
+      return;
+    case "assignee_not_eligible":
+      reply.code(422).send({ error: { code: "REVIEW_ASSIGNEE_NOT_ELIGIBLE" } });
       return;
     // ET-INT-07 — the intake-link mint gate refused.
     case "intake_not_included":
@@ -845,31 +854,23 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         return sendAssigneeNotMember(reply);
       }
 
-      const updated = await prisma.evidenceRequest.update({
-        where: { id },
-        data: { assignedReviewerUserId: body.assignedReviewerUserId },
-        include: {
-          deliverables: { orderBy: { sortOrder: "asc" } },
-          responses: { orderBy: { submittedAtUtc: "desc" } },
-        },
-      });
-
-      await prisma.evidenceRequestEvent.create({
-        data: {
-          evidenceRequestId: id,
-          eventType: body.assignedReviewerUserId
-            ? "EVIDENCE_REQUEST_ASSIGNED"
-            : "EVIDENCE_REQUEST_UNASSIGNED",
+      // Members re-audit B3 — the reviewer passes the one assignee authority
+      // (reviewer permission, reach to the request's record, placement), and
+      // the decision, the write and its event are one transaction.
+      try {
+        const updated = await assignEvidenceRequestReviewer({
+          id,
+          teamId: existing.teamId,
           actorUserId: ok.userId,
-          payload: {
-            assignedReviewerUserId: body.assignedReviewerUserId,
-          },
-        },
-      });
-
-      return reply
-        .code(200)
-        .send({ request: projectRequestForAuthenticatedView(updated) });
+          assignedReviewerUserId: body.assignedReviewerUserId,
+        });
+        return reply
+          .code(200)
+          .send({ request: projectRequestForAuthenticatedView(updated) });
+      } catch (err) {
+        if (err instanceof EvidenceRequestError) return errorToReply(err, reply);
+        throw err;
+      }
     },
   );
 

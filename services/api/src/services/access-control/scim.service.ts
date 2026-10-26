@@ -555,8 +555,16 @@ export async function projectScimManagedMembership(
     }
   }
 
+  // DOM-13 — directory links are the Organization's: a directory-provisioned
+  // user's mapping carries the token's default workspace, so a sibling
+  // workspace keyed on its own id saw no managed member at all. Read the
+  // Organization's links for the people who hold a membership HERE
+  // (membership stays Workspace-scoped).
   const mappings = await client.externalIdentityMapping.findMany({
-    where: { teamId: input.teamId },
+    where: {
+      organization: { workspaces: { some: { id: input.teamId } } },
+      user: { teamMembers: { some: { teamId: input.teamId } } },
+    },
     orderBy: [{ linkedAtUtc: "desc" }],
     take: limit + 1,
     select: {

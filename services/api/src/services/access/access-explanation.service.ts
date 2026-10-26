@@ -115,14 +115,18 @@ export async function explainMemberAccess(
     const cases = caseIds.length
       ? await client.case.findMany({ where: { id: { in: caseIds } }, select: { id: true, ...CASE_VISIBILITY_SELECT, teamAccess: { select: { collaborationTeam: { select: { id: true, name: true, workspaceId: true, status: true, members: { select: { userId: true, status: true } } } } } } } })
       : [];
-    const restricted = cases.some(
-      (c) => c.restrictedAtUtc !== null || c.access.length > 0 || c.teamAccess.length > 0,
-    );
+    // A case is restricted by its flag OR a list (case-visibility.ts). A case
+    // whose list emptied after a departure is still restricted by its flag,
+    // so its owner is explained as CASE_OWNER, not by workspace capability
+    // (members re-audit, second round, defect 2).
+    const isRestricted = (c: (typeof cases)[number]) =>
+      c.restrictedAtUtc !== null || c.access.length > 0 || c.teamAccess.length > 0;
+    const restricted = cases.some(isRestricted);
     let via: AccessPath = "NO_CURRENT_ACCESS";
     let viaTeam: { id: string; name: string } | null = null;
     if (allowed) {
       via = "WORKSPACE_CAPABILITY";
-      for (const c of cases.filter((x) => x.access.length > 0 || x.teamAccess.length > 0)) {
+      for (const c of cases.filter(isRestricted)) {
         if (c.ownerUserId === input.subjectUserId) {
           via = "CASE_OWNER";
           break;

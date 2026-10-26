@@ -19,8 +19,13 @@
  * `AppListbox`, `AppStatusBadge`, `.app-empty`. No data-fetching,
  * permission, billing-limit, route or behaviour changes — every
  * data-testid / data-* and the plan-capacity logic are preserved
- * verbatim. Client-side search / filter / sort operate purely on the
- * ALREADY-FETCHED teams array (no new API calls).
+ * verbatim.
+ *
+ * Members audit CT-13 — search, status, type and sort are SERVER-SIDE: each
+ * change re-issues `GET /v1/collaboration-teams` with the filter and the order,
+ * and the rows are rendered exactly as they arrive, across pages ("Load more"
+ * appends the server's next page). Nothing is filtered or sorted in the
+ * browser — that would act on one page and present it as the whole list.
  */
 
 "use client";
@@ -76,8 +81,8 @@ export default function TeamsOverviewPage() {
 }
 
 // =============================================================================
-// Client-side controls — search / filter / sort operate on the already-loaded
-// teams array in memory. No new API calls are made.
+// List controls — search / status / type / sort. Every one is a SERVER query
+// parameter (members audit CT-13); none of them is applied in the browser.
 // =============================================================================
 
 type StatusFilter = "ALL" | CollaborationTeamStatus;
@@ -147,8 +152,8 @@ function TeamsOverview() {
   const [rollup, setRollup] =
     useState<CollaborationWorkspaceRollup | null>(null);
 
-  // Client-side control state (no new fetches — filters/sorts operate on the
-  // already-fetched `teams` array).
+  // List control state. Each value is sent to the server by `refresh` below;
+  // a change re-fetches from the first page (CT-13).
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
@@ -212,8 +217,8 @@ function TeamsOverview() {
    * The page used to filter an already-loaded array, and the array was whatever
    * fitted under a server-side cap of 100 — so on a workspace with more groups
    * than that, typing a name that existed found nothing and the truncation was
-   * invisible. `search` and the archived filter go to the database; the type
-   * filter and the sort stay local because they operate on the page in hand.
+   * invisible. `search`, the status and type filters and the sort all go to
+   * the database (CT-13); the page renders the rows in the order received.
    */
   const refresh = useCallback(
     async (

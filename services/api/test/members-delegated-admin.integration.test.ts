@@ -26,6 +26,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  DELEGATED_ADMIN_SCOPE_KINDS,
+  listPermissionsForDelegatedAdminScope,
+  roleHasPermission,
+  type Permission,
+} from "@proovra/shared";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -36,6 +42,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION = path.resolve(
   HERE,
   "../prisma/migrations/20281026000500_delegated_admin_convergence/migration.sql",
+);
+// Re-audit N-2 (suspended holders) and N-1 (the delegated-administration floor).
+const SUSPENDED_MIGRATION = path.resolve(
+  HERE,
+  "../prisma/migrations/20281026001000_delegated_admin_suspended_holders/migration.sql",
+);
+const FLOOR_MIGRATION = path.resolve(
+  HERE,
+  "../prisma/migrations/20281026001100_delegated_admin_floor/migration.sql",
 );
 
 type Tier =
@@ -76,6 +91,67 @@ const EXPECTED: Record<Tier, string[]> = {
     "identity.access_review.action",
   ],
 };
+
+/**
+ * Re-audit N-1 — the precise permissions each tier's former routes now ask
+ * for, beyond what the convergence carried. Derived from GATES below (which
+ * tier admitted which route), independent of the floor migration's text.
+ */
+const ORG_FLOOR = [
+  "audit.lifecycle_package.preview",
+  "audit.verification_package.preview",
+  "governance.access_review.decide",
+  "governance.archive.transition",
+  "governance.department.define",
+  "governance.destruction.approve",
+  "governance.destruction.request",
+  "governance.exchange.decide",
+  "governance.policy.assign",
+  "governance.retention_policy.manage",
+  "integration.lifecycle_webhook.manage",
+  "trust.article.publish",
+  "trust.status.manage",
+  "trust.subprocessor.manage",
+];
+const FLOOR: Record<Tier, string[]> = {
+  GLOBAL_ADMIN: ORG_FLOOR,
+  ORG_ADMIN: ORG_FLOOR,
+  DEPARTMENT_ADMIN: [],
+  WORKSPACE_ADMIN: [],
+  REVIEWER_LEAD: [],
+  SECURITY_OFFICER: [
+    "audit.verification_package.preview",
+    "governance.access_review.campaign.manage",
+    "governance.access_review.decide",
+    "governance.destruction.approve",
+    "governance.policy.author",
+    "governance.trust_scan.run",
+    "trust.article.ai_disclosure.publish",
+    "trust.article.publish",
+    "trust.article.security.publish",
+    "trust.status.manage",
+  ],
+  COMPLIANCE_OFFICER: [
+    "audit.lifecycle_package.preview",
+    "audit.verification_package.preview",
+    "governance.access_review.campaign.manage",
+    "governance.access_review.decide",
+    "governance.destruction.approve",
+    "governance.destruction.execute",
+    "governance.destruction.request",
+    "governance.policy.author",
+    "governance.retention_policy.manage",
+    "governance.trust_scan.run",
+    "trust.article.ai_disclosure.publish",
+    "trust.article.publish",
+    "trust.subprocessor.manage",
+  ],
+};
+
+/** Every permission a former tier route now asks for (none is role-held but the OWNER's). */
+const DELEGATED_ONLY = [
+  ...new Set([...ORG_FLOOR, ...FLOOR.SECURITY_OFFICER, ...FLOOR.COMPLIANCE_OFFICER, "governance.exchange.manage", "governance.department.manage"]),
+] as Permission[];
 
 // The tier gates as they stood before retirement (git HEAD of the release
 // before this one), with the ORG-chain ladder applied: a route requiring
@@ -235,10 +311,10 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
     });
   }
 
-  async function runMigration(): Promise<void> {
+  async function runMigration(file: string = MIGRATION): Promise<void> {
     // The whole file, exactly as `prisma migrate deploy` would run it (simple
     // query protocol: every statement, in order).
-    const sql = readFileSync(MIGRATION, "utf8");
+    const sql = readFileSync(file, "utf8");
     const conn = new pg.Client({ connectionString: process.env.DATABASE_URL });
     await conn.connect();
     try {
@@ -364,8 +440,135 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
   });
 
   // -------------------------------------------------------------------------
+  // 1b. Re-audit N-2 and N-1 — suspended holders, and the floor
+  // -------------------------------------------------------------------------
+
+  let suspendedHolder: Person;
+  let suspendedRow: string;
+  let revokedAnchorHolder: Person;
+  let plainAdmin: Person;
+
+  it("N-1: the floor migration grants each tier holder exactly the precise permissions of its tier — and nobody else", async () => {
+    // A tier holder whose carried anchor an administrator has since revoked
+    // keeps nothing further on that anchor's routes.
+    revokedAnchorHolder = await person(A().teamId, "VIEWER");
+    await tierGrant(revokedAnchorHolder.id, "COMPLIANCE_OFFICER");
+    // A workspace ADMIN with no tier, and the holders of ended grants: nothing.
+    plainAdmin = await person(A().teamId, "ADMIN");
+    await runMigration();
+    await prisma.memberCapabilityGrant.updateMany({
+      where: { teamMemberId: revokedAnchorHolder.memberId, permission: "governance.retention.manage" },
+      data: { revokedAtUtc: new Date(), revokedReason: "test" },
+    });
+
+    await runMigration(SUSPENDED_MIGRATION);
+    await runMigration(FLOOR_MIGRATION);
+
+    for (const tier of TIERS) {
+      expect(await liveCapabilities(holders.get(tier)!.memberId), tier).toEqual(
+        [...new Set([...EXPECTED[tier], ...FLOOR[tier]])].sort(),
+      );
+    }
+    expect(await liveCapabilities(plainAdmin.memberId)).toEqual([]);
+    expect(await liveCapabilities(nobody.memberId)).toEqual([]);
+    const partial = await liveCapabilities(revokedAnchorHolder.memberId);
+    for (const p of ["governance.destruction.execute", "governance.destruction.request", "governance.retention_policy.manage"]) {
+      expect(partial, p).not.toContain(p);
+    }
+    expect(partial).toContain("governance.policy.author"); // its own anchor is live
+
+    // The floor grant names its tier row and grantor, and never outlives the tier.
+    const g = await prisma.memberCapabilityGrant.findFirstOrThrow({
+      where: { teamMemberId: holders.get("COMPLIANCE_OFFICER")!.memberId, permission: "governance.destruction.execute" },
+    });
+    expect(g.reason).toContain("COMPLIANCE_OFFICER");
+    expect(g.reason).toContain(tierRows.get("COMPLIANCE_OFFICER")!);
+    expect(g.grantedByUserId).toBe(A().ownerUserId);
+  });
+
+  it("N-1: the floor migration is idempotent and never overrides a later revocation", async () => {
+    const snapshot = () =>
+      prisma.memberCapabilityGrant.findMany({
+        where: { teamId: A().teamId },
+        orderBy: { id: "asc" },
+        select: { id: true, permission: true, revokedAtUtc: true, expiresAtUtc: true, updatedAt: true },
+      });
+    // An administrator revokes one floor grant after the release.
+    const target = await prisma.memberCapabilityGrant.findFirstOrThrow({
+      where: { teamMemberId: holders.get("SECURITY_OFFICER")!.memberId, permission: "trust.status.manage" },
+    });
+    await prisma.memberCapabilityGrant.update({ where: { id: target.id }, data: { revokedAtUtc: new Date(), revokedReason: "test" } });
+    const before = await snapshot();
+    await runMigration(SUSPENDED_MIGRATION);
+    await runMigration(FLOOR_MIGRATION);
+    expect(await snapshot()).toEqual(before);
+    // Restore the holder for the coverage checks below.
+    await prisma.memberCapabilityGrant.update({ where: { id: target.id }, data: { revokedAtUtc: null, revokedReason: null } });
+  });
+
+  it("N-2: a holder SUSPENDED at convergence is carried forward — inert while suspended, restored on reinstatement", async () => {
+    suspendedHolder = await person(A().teamId, "VIEWER");
+    suspendedRow = (await tierGrant(suspendedHolder.id, "COMPLIANCE_OFFICER")).id;
+    await prisma.teamMember.update({ where: { id: suspendedHolder.memberId }, data: { status: "SUSPENDED" } });
+
+    // The convergence retires it (the defect), then the forward migrations run.
+    await runMigration();
+    expect((await prisma.delegatedAdminGrant.findUniqueOrThrow({ where: { id: suspendedRow } })).state).toBe("RETIRED_NO_MEMBER");
+    await runMigration(SUSPENDED_MIGRATION);
+    expect((await prisma.delegatedAdminGrant.findUniqueOrThrow({ where: { id: suspendedRow } })).state).toBe("CONVERGED");
+    await runMigration(FLOOR_MIGRATION);
+    expect(await liveCapabilities(suspendedHolder.memberId)).toEqual(
+      [...new Set([...EXPECTED.COMPLIANCE_OFFICER, ...FLOOR.COMPLIANCE_OFFICER])].sort(),
+    );
+
+    // The REVOKED grantee's row stays retired and carries nothing.
+    expect((await prisma.delegatedAdminGrant.findUniqueOrThrow({ where: { id: orphanRow } })).state).toBe("RETIRED_NO_MEMBER");
+    expect(await prisma.memberCapabilityGrant.count({ where: { teamMember: { userId: orphanUser } } })).toBe(0);
+
+    const execute = GATES.find((g) => g.path === "/v1/lifecycle/destruction/requests/:id/execute")!;
+    expect(isPermissionRefusal(await call(execute, suspendedHolder.token))).toBe(true); // inert while suspended
+    await prisma.teamMember.update({ where: { id: suspendedHolder.memberId }, data: { status: "ACTIVE" } });
+    expect(isPermissionRefusal(await call(execute, suspendedHolder.token))).toBe(false); // reinstated → restored
+
+    // Idempotent: another run of either changes nothing.
+    const before = await liveCapabilities(suspendedHolder.memberId);
+    await runMigration(SUSPENDED_MIGRATION);
+    await runMigration(FLOOR_MIGRATION);
+    expect(await liveCapabilities(suspendedHolder.memberId)).toEqual(before);
+  });
+
+  // -------------------------------------------------------------------------
   // 2. Coverage and no widening
   // -------------------------------------------------------------------------
+
+  it("N-1: no workspace role but the OWNER holds any delegated-only permission", async () => {
+    for (const role of ["ADMIN", "MEMBER", "VIEWER"] as const) {
+      for (const p of DELEGATED_ONLY) expect(roleHasPermission(role, p), `${role} ${p}`).toBe(false);
+    }
+    for (const p of DELEGATED_ONLY) expect(roleHasPermission("OWNER", p), p).toBe(true);
+    for (const scope of DELEGATED_ADMIN_SCOPE_KINDS) {
+      for (const p of DELEGATED_ONLY) expect(listPermissionsForDelegatedAdminScope(scope), `${scope} ${p}`).not.toContain(p);
+    }
+  });
+
+  it("N-1: a workspace ADMIN and a MEMBER are refused on every formerly tier-gated route", async () => {
+    // The one exception is not new: an ADMIN placed and released legal holds
+    // through the governance legal-hold routes before the tiers were retired.
+    const ADMIN_HELD_BEFORE = new Set(["/v1/lifecycle/legal-holds", "/v1/lifecycle/legal-holds/:id/release"]);
+    const member = await person(A().teamId, "MEMBER");
+    const admitted: string[] = [];
+    for (const [who, label] of [[plainAdmin, "ADMIN"], [member, "MEMBER"]] as const) {
+      for (const gate of GATES) {
+        if (label === "ADMIN" && ADMIN_HELD_BEFORE.has(gate.path)) continue;
+        const res = await call(gate, who.token);
+        if (!isPermissionRefusal(res)) admitted.push(`${label} ${gate.method} ${gate.path} → ${res.statusCode}`);
+      }
+    }
+    expect(admitted, admitted.join("\n")).toEqual([]);
+    // Positive control: the same ADMIN still reaches what the role always held.
+    const holds = GATES.find((g) => g.path === "/v1/lifecycle/legal-holds")!;
+    expect(isPermissionRefusal(await call(holds, plainAdmin.token))).toBe(false);
+  }, 300_000);
 
   it("every tier holder is still admitted on every route their tier admitted", async () => {
     const lost: string[] = [];
@@ -400,6 +603,13 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
     expect(await may("REVIEWER_LEAD", "review.assign")).toBe(false);
     expect(await may("DEPARTMENT_ADMIN", "governance.policy.manage")).toBe(false);
     expect(await may("COMPLIANCE_OFFICER", "billing.manage")).toBe(false);
+    // Re-audit N-1 — the precise floor keeps each tier inside its own routes.
+    expect(await may("ORG_ADMIN", "governance.destruction.execute")).toBe(false);
+    expect(await may("SECURITY_OFFICER", "governance.destruction.execute")).toBe(false);
+    expect(await may("REVIEWER_LEAD", "governance.exchange.decide")).toBe(false);
+    expect(await may("COMPLIANCE_OFFICER", "trust.article.security.publish")).toBe(false);
+    expect(await may("ORG_ADMIN", "governance.policy.author")).toBe(false);
+    expect(await may("COMPLIANCE_OFFICER", "governance.destruction.execute")).toBe(true);
     // ...and each holds what it should.
     expect(await may("REVIEWER_LEAD", "governance.exchange.manage")).toBe(true);
     expect(await may("DEPARTMENT_ADMIN", "governance.department.manage")).toBe(true);
@@ -436,7 +646,9 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
 
   it("grant → inspect → update → revoke a scope through Security Center, step-up bound and audited", async () => {
     const delegate = await person(A().teamId, "VIEWER");
-    const policies = GATES.find((g) => g.path === "/v1/governance/policies")!;
+    // A route the GOVERNANCE_ADMIN scope admits (legal holds) — policy
+    // authoring is a delegated-only permission no scope carries (re-audit N-1).
+    const policies = GATES.find((g) => g.path === "/v1/lifecycle/legal-holds")!;
     expect(isPermissionRefusal(await call(policies, delegate.token))).toBe(true);
 
     const ownerAuth = bearer(A().ownerToken);
@@ -613,7 +825,9 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
       { teamId: A().teamId, teamMemberId: delegate.memberId, scopeKind: "GOVERNANCE_ADMIN", actorUserId: A().ownerUserId },
       prisma,
     );
-    const policies = GATES.find((g) => g.path === "/v1/governance/policies")!;
+    // A route the GOVERNANCE_ADMIN scope admits (legal holds) — policy
+    // authoring is a delegated-only permission no scope carries (re-audit N-1).
+    const policies = GATES.find((g) => g.path === "/v1/lifecycle/legal-holds")!;
     expect(isPermissionRefusal(await call(policies, delegate.token))).toBe(false);
     await prisma.memberDelegatedAdminScope.update({ where: { id: scope.id }, data: { expiresAtUtc: new Date(Date.now() - 1000) } });
     expect(isPermissionRefusal(await call(policies, delegate.token))).toBe(true);
@@ -653,7 +867,9 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
     const after = await prisma.memberDelegatedAdminScope.findUniqueOrThrow({ where: { id: scope.id } });
     expect(after.revokedAtUtc).not.toBeNull();
     expect(after.revokedReason).toBe("access_review_revoked");
-    const policies = GATES.find((g) => g.path === "/v1/governance/policies")!;
+    // A route the GOVERNANCE_ADMIN scope admits (legal holds) — policy
+    // authoring is a delegated-only permission no scope carries (re-audit N-1).
+    const policies = GATES.find((g) => g.path === "/v1/lifecycle/legal-holds")!;
     expect(isPermissionRefusal(await call(policies, delegate.token))).toBe(true);
   });
 

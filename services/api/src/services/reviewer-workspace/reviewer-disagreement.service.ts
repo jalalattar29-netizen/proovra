@@ -30,6 +30,12 @@ import { prisma as defaultPrisma } from "../../db.js";
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary disagreement mutation.
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+  type AssigneeIneligibility,
+} from "../assignment/assignee-eligibility.js";
+import { withinAssignmentWrite } from "../assignment/assignment-write.js";
 
 export type FileDisagreementInput = {
   prisma?: PrismaClient;
@@ -126,11 +132,19 @@ function buildResolutionSummary(input: {
 
 export async function transitionDisagreement(
   input: TransitionDisagreementInput,
-): Promise<{ ok: true } | { ok: false; denial: ReviewerDenialReason }> {
+): Promise<
+  | { ok: true }
+  | {
+      ok: false;
+      denial: ReviewerDenialReason;
+      /** Which assignee rule refused a second-review take (re-audit B10); the route may forward it. */
+      code?: "REVIEW_ASSIGNEE_NOT_PLACED" | "REVIEW_ASSIGNEE_NOT_ELIGIBLE";
+    }
+> {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.reviewerDisagreement.findFirst({
     where: { id: input.disagreementId, teamId: input.teamId },
-    select: { id: true, state: true, challengerUserId: true },
+    select: { id: true, state: true, challengerUserId: true, workflowId: true },
   });
   if (!row) return deny("DISAGREEMENT_NOT_FOUND");
   if (
@@ -181,10 +195,54 @@ export async function transitionDisagreement(
     }
   }
 
-  await prisma.reviewerDisagreement.update({
-    where: { id: row.id },
-    data: data as never,
+  /*
+   * TAKING THE SECOND REVIEW IS BEING GIVEN REVIEW WORK (members re-audit B10).
+   *
+   * The move to UNDER_SECOND_REVIEW makes the actor the second reviewer. It
+   * wrote `secondReviewerUserId = actor` with no assignee rule, so an unplaced
+   * reviewer (or one off the review's restricted case) could take second-review
+   * work a queue claim would refuse. The actor now passes THE ONE assignee
+   * authority — reviewer permission, reach to the disputed review's evidence,
+   * placement — inside the write, the placement share-locked until it commits.
+   * Taking the SUPERVISOR review (UNDER_SUPERVISOR_REVIEW) is the same act at
+   * the next stage and passes the same authority.
+   */
+  const refusal = await withinAssignmentWrite(prisma, async (tx): Promise<AssigneeIneligibility | null> => {
+    if (input.to === "UNDER_SECOND_REVIEW" || input.to === "UNDER_SUPERVISOR_REVIEW") {
+      const workflow = await tx.evidenceReviewWorkflow.findFirst({
+        where: { id: row.workflowId, teamId: input.teamId },
+        select: { evidenceId: true },
+      });
+      try {
+        if (!workflow) throw new AssigneeEligibilityError("NOT_ELIGIBLE");
+        await assertWorkAssigneeEligible(
+          {
+            workspaceId: input.teamId,
+            assigneeUserId: input.actorUserId,
+            permission: "evidence_request.review",
+            evidenceId: workflow.evidenceId,
+          },
+          tx,
+          { inTransaction: true },
+        );
+      } catch (err) {
+        if (err instanceof AssigneeEligibilityError) return err.reason;
+        throw err;
+      }
+    }
+    await tx.reviewerDisagreement.update({
+      where: { id: row.id },
+      data: data as never,
+    });
+    return null;
   });
+  if (refusal) {
+    return {
+      ok: false,
+      denial: "NOT_PERMITTED",
+      code: refusal === "NOT_PLACED" ? "REVIEW_ASSIGNEE_NOT_PLACED" : "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+    };
+  }
   // Phase 4 — best-effort audit emission for state transitions.
   // Bounded metadata: IDs, enum states, and (when present) the
   // bounded verdict enum. Raw rationale text is intentionally NOT

@@ -98,6 +98,28 @@ function clientWith(members: Array<Record<string, unknown>>) {
           return true;
         });
       }),
+      // The permission engine loads each candidate's snapshot (members
+      // re-audit, second round: the picker asks the engine, not a role table).
+      findUnique: vi.fn(async ({ where }: { where: { teamId_userId: { teamId: string; userId: string } } }) => {
+        const m = members.find(
+          (x) => x.teamId === where.teamId_userId.teamId && x.userId === where.teamId_userId.userId,
+        );
+        if (!m) return null;
+        return {
+          id: `tm-${String(m.userId)}`,
+          ...m,
+          team: {
+            isPersonal: false,
+            workspaceKind: "ORGANIZATION",
+            billingPlan: null,
+            organizationId: "org-a",
+            ownerUserId: "owner-X",
+            organization: { status: "ACTIVE" },
+          },
+          capabilityGrants: (m.capabilityGrants as unknown[]) ?? [],
+          delegatedAdminScopes: [],
+        };
+      }),
     },
   };
 }
@@ -194,9 +216,23 @@ describe("Closure — the eligible-assignee resolver", () => {
   it("the write path validates through the SAME resolver as the picker", async () => {
     // Two implementations of "who is eligible" is how the list an operator
     // sees and the set the server accepts come apart.
+    // The write path decides through THE ONE assignee authority (members
+    // re-audit 2, B4) with the Operations permission; the picker filters by
+    // the SAME permission constant and the SAME placement policy module.
     expect(RESOLVER).toContain("export async function isAssignableOperator");
-    expect(RESOLVER).toMatch(
-      /isAssignableOperator[\s\S]{0,600}listAssignableOperators\(/,
+    const resolverCode = stripComments(RESOLVER);
+    expect(resolverCode).toMatch(
+      /export async function isAssignableOperator[\s\S]{0,600}assertWorkAssigneeEligible\(\s*\{[\s\S]{0,200}permission: REQUIRED_ASSIGNEE_PERMISSION/,
+    );
+    expect(resolverCode).toMatch(
+      /export async function listAssignableOperators[\s\S]{0,2000}REQUIRED_ASSIGNEE_PERMISSION[\s\S]{0,400}export async function isAssignableOperator/,
+    );
+    expect(resolverCode).toMatch(
+      /listAssignableOperators[\s\S]{0,1500}assignmentRequiresPlacement\(input\.teamId, client\)[\s\S]{0,300}placedUserIdsForWorkspace\(/,
+    );
+    // No second, picker-local eligibility predicate on the write path.
+    expect(resolverCode).not.toMatch(
+      /export async function isAssignableOperator[\s\S]*listAssignableOperators\(/,
     );
     expect(OPS_ROUTES).toContain("isAssignableOperator({");
   });

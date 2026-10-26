@@ -55,7 +55,7 @@ import {
 // When a membership ENDS (revoked or left), its standing reach ends with it in
 // the same transaction (members audit MEM-01 / ACC-08). Suspension keeps it —
 // inert while the membership is not ACTIVE, back with a restore.
-import { endStandingReach } from "./standing-reach.js";
+import { endStandingReach, releaseWorkOnSuspension } from "./standing-reach.js";
 
 // -----------------------------------------------------------------------------
 // Error surface
@@ -382,6 +382,16 @@ export async function suspendMember(
       reason: "CREATOR_SUSPENDED",
       actorUserId: input.actorUserId,
     });
+    // Owner decision 5 / members re-audit B1 — a suspended member can no
+    // longer hold work: their reviews, escalations, Collaboration Team tasks,
+    // Operations ownership, QC samples and request reviews return to the
+    // queue (history kept, audited). Reach is not ended: suspension is
+    // reversible; work is re-assigned deliberately.
+    await releaseWorkOnSuspension(tx as never, {
+      teamId: input.teamId,
+      userId: target.userId,
+      actorUserId: input.actorUserId,
+    });
     const row = await tx.teamMember.update({
       where: { id: target.id },
       data: {
@@ -468,7 +478,7 @@ export async function revokeMember(
       userId: target.userId,
       actorUserId: input.actorUserId,
     });
-    await endStandingReach(tx, { teamId: input.teamId, userId: target.userId });
+    await endStandingReach(tx, { teamId: input.teamId, userId: target.userId }, { actorUserId: input.actorUserId, reason: "member_removed" });
     await assertNotLastAdministrator(tx, {
       teamId: input.teamId,
       teamMemberId: target.id,
@@ -638,7 +648,7 @@ export async function leaveWorkspace(
       userId: target.userId,
       actorUserId: input.userId,
     });
-    await endStandingReach(tx, { teamId: input.teamId, userId: target.userId });
+    await endStandingReach(tx, { teamId: input.teamId, userId: target.userId }, { actorUserId: input.userId, reason: "member_left" });
     await repairStaleCurrentWorkspacePointers(
       { memberships: [{ userId: target.userId, workspaceId: input.teamId }] },
       tx as never,

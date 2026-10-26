@@ -16,6 +16,7 @@
  */
 
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
+import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -854,9 +855,15 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const where = caseRow.teamId
         ? { teamId: caseRow.teamId }
         : { ownerUserId: caseRow.ownerUserId };
+      // Members re-audit (second round, defect 3) — a record linked to a
+      // restricted case the CALLER cannot see is not offered here, not even
+      // by title and status: the canonical narrowing rule (case-visibility.ts),
+      // the same one every record list applies.
+      const callerUserId = getAuthUserId(req);
       const items = await prisma.evidence.findMany({
         where: {
           ...where,
+          ...(caseRow.teamId ? { AND: [evidenceVisibleThroughCasesWhere(callerUserId)] } : {}),
           ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
           ...(search
             ? { title: { contains: search, mode: "insensitive" } }

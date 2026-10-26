@@ -76,6 +76,36 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
+import { releaseTeamTasksTx } from "../assignment/release-held-work.js";
+import { revokeGrantsOfCreatorsWithoutReachTx } from "../cases/case-reach-share-revocation.js";
+
+/**
+ * A GROUP'S CASE REACH ENDS FOR WHOEVER LEAVES IT (members re-audit 2, defect 4).
+ *
+ * A restricted case granted to this Collaboration Team
+ * (`case_collaboration_team_access`) is reachable by its effective members.
+ * When a member is removed or suspended, or the group is archived, those
+ * people may no longer reach the case — and an owner share link or an
+ * external-review grant they created for its records must not keep opening
+ * them for somebody else. Called INSIDE the write's transaction, after the
+ * membership / group status has changed, so the record authority it asks sees
+ * the new state. Someone who still reaches the case another way (its own
+ * access list, another group) keeps their grants.
+ */
+async function revokeGrantsLostWithGroupReachTx(
+  tx: Prisma.TransactionClient,
+  input: { teamId: string; actorUserId: string },
+): Promise<void> {
+  const granted = await tx.caseCollaborationTeamAccess.findMany({
+    where: { collaborationTeamId: input.teamId },
+    select: { caseId: true },
+  });
+  if (granted.length === 0) return;
+  await revokeGrantsOfCreatorsWithoutReachTx(tx as unknown as PrismaClient, {
+    caseIds: granted.map((g) => g.caseId),
+    actorUserId: input.actorUserId,
+  });
+}
 import { emitTeamNotifications } from "./team-notifications.js";
 import {
   assertCanCreateCollaborationTeam,
@@ -1578,6 +1608,9 @@ export async function archiveCollaborationTeam(
       actorUserId: input.actorUserId,
       eventType: "TEAM_ARCHIVED",
     });
+    // The group's case reach ends with it: grants its members created on
+    // cases granted only to it end too.
+    await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
   });
 }
 
@@ -1910,6 +1943,17 @@ export async function suspendMember(
       targetType: "USER",
       targetId: member.userId,
     });
+    // Members re-audit B9 — a suspended member can no longer act on their
+    // tasks in this group (self-service needs an effective membership), so
+    // the group's open tasks they hold go back to it, unassigned, history kept.
+    await releaseTeamTasksTx(tx, {
+      workspaceId: team.workspaceId,
+      userIds: [member.userId],
+      collaborationTeamId: input.teamId,
+      actorUserId: input.actorUserId,
+      reason: "group_member_suspended",
+    });
+    await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
   });
 }
 
@@ -2042,6 +2086,16 @@ export async function removeMember(
       targetType: "USER",
       targetId: member.userId,
     });
+    // Members re-audit B9 — the open tasks they held in this group go back
+    // to it, unassigned (never cancelled), each recorded on the timeline.
+    await releaseTeamTasksTx(tx, {
+      workspaceId: team.workspaceId,
+      userIds: [member.userId],
+      collaborationTeamId: input.teamId,
+      actorUserId: input.actorUserId,
+      reason: "group_member_removed",
+    });
+    await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
   });
 }
 
@@ -2546,6 +2600,11 @@ async function assertTaskAssigneeEligible(
     targetType: CollaborationTeamAssignmentTarget;
     targetId: string;
   },
+  /**
+   * Members re-audit B5 — `client` is the write's own transaction: the REVIEW
+   * authority reads placement under a share lock held until the task commits.
+   */
+  options: { inTransaction?: boolean } = {},
 ): Promise<void> {
   const member = await client.collaborationTeamMember.findFirst({
     where: {
@@ -2587,6 +2646,7 @@ async function assertTaskAssigneeEligible(
           evidenceId: workflow.evidenceId,
         },
         client,
+        { inTransaction: options.inTransaction === true },
       );
     } catch (err) {
       if (err instanceof AssigneeEligibilityError) throw E.assigneeNotEligible();
@@ -3114,17 +3174,23 @@ export async function createAssignment(
     throw E.notFound("Review");
   }
 
-  if (input.assigneeUserId) {
-    await assertTaskAssigneeEligible(client, {
-      teamId: input.teamId,
-      workspaceId: team.workspaceId,
-      assigneeUserId: input.assigneeUserId,
-      targetType,
-      targetId: input.targetId,
-    });
-  }
-
   const result = await client.$transaction(async (tx) => {
+    // The assignee is decided INSIDE the write (members re-audit B5): the
+    // placement a REVIEW task's assignee relies on stays share-locked until
+    // the task commits, so a racing group archive cannot leave it unplaced.
+    if (input.assigneeUserId) {
+      await assertTaskAssigneeEligible(
+        tx as unknown as PrismaClient,
+        {
+          teamId: input.teamId,
+          workspaceId: team.workspaceId,
+          assigneeUserId: input.assigneeUserId,
+          targetType,
+          targetId: input.targetId,
+        },
+        { inTransaction: true },
+      );
+    }
     const a = await tx.collaborationTeamAssignment.create({
       data: {
         teamId: input.teamId,
@@ -3306,15 +3372,7 @@ export async function updateAssignment(
     if (TEAM_TASK_TRANSITIONS[String(assignment.status)]?.length === 0) {
       throw E.taskTransitionInvalid(String(assignment.status), "REASSIGNED");
     }
-    if (input.assigneeUserId) {
-      await assertTaskAssigneeEligible(client, {
-        teamId: input.teamId,
-        workspaceId: assignment.workspaceId,
-        assigneeUserId: input.assigneeUserId,
-        targetType: assignment.targetType as CollaborationTeamAssignmentTarget,
-        targetId: assignment.targetId,
-      });
-    }
+    // The new assignee is decided inside the guarded write below (B5).
     (data as Record<string, unknown>).assigneeUserId = input.assigneeUserId ?? null;
     eventEmissions.push("ASSIGNMENT_REASSIGNED");
     meta.assigneeUserId = input.assigneeUserId ?? null;
@@ -3330,6 +3388,21 @@ export async function updateAssignment(
   if (Object.keys(data).length === 0) return;
 
   const outcome = await client.$transaction(async (tx) => {
+    // Members re-audit B5 — the new assignee passes the authority INSIDE the
+    // write, the placement it relies on share-locked until commit.
+    if (input.assigneeUserId) {
+      await assertTaskAssigneeEligible(
+        tx as unknown as PrismaClient,
+        {
+          teamId: input.teamId,
+          workspaceId: assignment.workspaceId,
+          assigneeUserId: input.assigneeUserId,
+          targetType: assignment.targetType as CollaborationTeamAssignmentTarget,
+          targetId: assignment.targetId,
+        },
+        { inTransaction: true },
+      );
+    }
     /**
      * GUARDED WRITE (members audit CT-08). The state the transition was judged
      * from is part of the WHERE: two concurrent completions both read OPEN and

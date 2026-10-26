@@ -27,6 +27,7 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
+import { CASE_ROLE_WORK_PERMISSION, withinAssignmentWrite } from "../assignment/assignment-write.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   attachEvidenceToCase,
@@ -315,86 +316,94 @@ export async function addCaseAssignment(
    * its own access list and team grants). One refusal for both, so the
    * assigner learns nothing about a person's access they could not see.
    */
-  if (existing.teamId) {
-    // THE ONE assignee authority: an ACTIVE member who can open the case, and
-    // — on PRO/TEAM, or an Enterprise contract that says so — placed in an
-    // ACTIVE Collaboration Team (the owner excepted).
-    try {
-      await assertWorkAssigneeEligible(
-        {
-          workspaceId: existing.teamId,
-          assigneeUserId: input.assignedToUserId,
-          permission: "evidence.read",
-          caseId: existing.id,
-        },
-        client,
-      );
-    } catch (err) {
-      if (err instanceof AssigneeEligibilityError) {
-        throw new CaseError(err.reason === "NOT_PLACED" ? "assignee_not_placed" : "invalid_assignee");
+  // ONE WRITE (members re-audit B5): the decision below and the assignment
+  // commit together, the placement the decision relies on share-locked until
+  // then — a racing Collaboration Team archive cannot leave an unplaced holder.
+  return withinAssignmentWrite(client, async (tx) => {
+    if (existing.teamId) {
+      // THE ONE assignee authority: an ACTIVE member whose role carries the
+      // work the CASE ROLE names (B6 — `evidence.read` alone let a VIEWER be
+      // made OWNER, INVESTIGATOR or REVIEWER), who can open the case, and — on
+      // PRO/TEAM, or an Enterprise contract that says so — placed in an ACTIVE
+      // Collaboration Team (the owner excepted).
+      try {
+        await assertWorkAssigneeEligible(
+          {
+            workspaceId: existing.teamId,
+            assigneeUserId: input.assignedToUserId,
+            permission: CASE_ROLE_WORK_PERMISSION[input.role] ?? "evidence.update_metadata",
+            caseId: existing.id,
+          },
+          tx,
+          { inTransaction: true },
+        );
+      } catch (err) {
+        if (err instanceof AssigneeEligibilityError) {
+          throw new CaseError(err.reason === "NOT_PLACED" ? "assignee_not_placed" : "invalid_assignee");
+        }
+        throw err;
       }
-      throw err;
     }
-  }
 
-  // Idempotent on (caseId, assignedToUserId, role). If a REMOVED row
-  // exists, reactivate it; otherwise create.
-  const existingAssignment = await client.caseAssignment.findFirst({
-    where: {
-      caseId: existing.id,
-      assignedToUserId: input.assignedToUserId,
-      role: input.role as prismaPkg.CaseAssignmentRole,
-    },
-  });
-  let row: prismaPkg.CaseAssignment;
-  if (existingAssignment) {
-    if (existingAssignment.status === "ACTIVE") {
-      throw new CaseError("assignment_exists");
-    }
-    row = await client.caseAssignment.update({
-      where: { id: existingAssignment.id },
-      data: {
-        status: "ACTIVE",
-        assignedAtUtc: new Date(),
-        assignedByUserId: input.actorUserId,
-        removedAtUtc: null,
-        removedByUserId: null,
-        note: input.note ? input.note.slice(0, 400) : null,
-      },
-    });
-  } else {
-    row = await client.caseAssignment.create({
-      data: {
-        teamId: existing.teamId,
+    // Idempotent on (caseId, assignedToUserId, role). If a REMOVED row
+    // exists, reactivate it; otherwise create.
+    const existingAssignment = await tx.caseAssignment.findFirst({
+      where: {
         caseId: existing.id,
         assignedToUserId: input.assignedToUserId,
-        assignedByUserId: input.actorUserId,
         role: input.role as prismaPkg.CaseAssignmentRole,
-        status: "ACTIVE",
-        note: input.note ? input.note.slice(0, 400) : null,
       },
     });
-  }
-  await emitTenantAudit(
-    {
-      action: "cases.assignment_added",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: input.actorUserId,
-      workspaceId: existing.teamId,
-      resourceType: "case_assignment",
-      resourceId: row.id,
-      metadata: {
-        caseId: existing.id,
-        assignedToUserId: input.assignedToUserId,
-        role: input.role,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
+    let row: prismaPkg.CaseAssignment;
+    if (existingAssignment) {
+      if (existingAssignment.status === "ACTIVE") {
+        throw new CaseError("assignment_exists");
+      }
+      row = await tx.caseAssignment.update({
+        where: { id: existingAssignment.id },
+        data: {
+          status: "ACTIVE",
+          assignedAtUtc: new Date(),
+          assignedByUserId: input.actorUserId,
+          removedAtUtc: null,
+          removedByUserId: null,
+          note: input.note ? input.note.slice(0, 400) : null,
+        },
+      });
+    } else {
+      row = await tx.caseAssignment.create({
+        data: {
+          teamId: existing.teamId,
+          caseId: existing.id,
+          assignedToUserId: input.assignedToUserId,
+          assignedByUserId: input.actorUserId,
+          role: input.role as prismaPkg.CaseAssignmentRole,
+          status: "ACTIVE",
+          note: input.note ? input.note.slice(0, 400) : null,
+        },
+      });
+    }
+    await emitTenantAudit(
+      {
+        action: "cases.assignment_added",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: existing.teamId,
+        resourceType: "case_assignment",
+        resourceId: row.id,
+        metadata: {
+          caseId: existing.id,
+          assignedToUserId: input.assignedToUserId,
+          role: input.role,
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+        },
       },
-    },
-    client,
-  );
-  return row;
+      tx,
+    );
+    return row;
+  });
 }
 
 export async function removeCaseAssignment(

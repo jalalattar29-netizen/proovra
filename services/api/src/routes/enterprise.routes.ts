@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { AppError, ErrorCode } from "../errors.js";
 // A-3 closure — legacy in-memory `apiKeyService` import retired.
 // The Phase 17 `ApiCredential` model + `/v1/integrations/api-keys`
@@ -395,18 +396,31 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       }
 
       try {
-        const evidence = await prisma.evidence.findMany({
-          where: {
-            id: { in: evidenceIds },
-            ownerUserId: userId,
-            deletedAt: null,
-          },
-          // teamId comes back on the same rows that prove ownership, so the
-          // durable job gets its workspace without a second query.
+        // Members re-audit (second round, defect 5) — each record is admitted
+        // ONLY by the canonical record authority (resolveEvidenceRecordAccess,
+        // evidence.read): current ACTIVE, unexpired membership, the
+        // Organization's lifecycle, the role's capability and the
+        // restricted-case rule. Being the record's uploader proves none of
+        // those — a suspended member or an uploader shut out of a restricted
+        // case used to get the analysis of content they can no longer open.
+        const uniqueIds = [...new Set(evidenceIds)];
+        const rows = await prisma.evidence.findMany({
+          where: { id: { in: uniqueIds }, deletedAt: null },
+          // teamId comes back on the same rows, so the durable job gets its
+          // workspace without a second query.
           select: { id: true, teamId: true },
         });
+        const evidence: typeof rows = [];
+        for (const row of rows) {
+          const decision = await resolveEvidenceRecordAccess({
+            userId,
+            evidenceId: row.id,
+            permission: "evidence.read",
+          });
+          if (decision.allowed) evidence.push(row);
+        }
 
-        if (evidence.length !== evidenceIds.length) {
+        if (evidence.length !== uniqueIds.length || uniqueIds.length !== evidenceIds.length) {
           auditEnterpriseAction(req, {
             userId,
             action: "enterprise.batch_create",

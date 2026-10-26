@@ -1022,9 +1022,11 @@ async function observeIdpOutage(
     );
     if (!connectionId) return { ...base, activity: "NOT_APPLICABLE" };
     const row = await ctx.client.ssoConnection.findFirst({
-      // Workspace-bound: the connection must belong to the workspace whose
-      // operator is asking.
-      where: { id: connectionId, teamId: ctx.teamId },
+      // Members audit DOM-13 — a connection is its ORGANIZATION's (team_id is
+      // only the workspace it was configured from): it is found when it belongs
+      // to the Organization of the workspace whose operator is asking, and never
+      // across Organizations.
+      where: { id: connectionId, organization: { workspaces: { some: { id: ctx.teamId } } } },
       select: { outageDetectedAtUtc: true, status: true },
     });
     if (!row) return { ...base, activity: "NOT_APPLICABLE" };

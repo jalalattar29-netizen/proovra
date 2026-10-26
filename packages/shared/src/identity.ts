@@ -111,8 +111,9 @@ const DELEGATED_ADMIN_SCOPE_PERMISSIONS: Readonly<
   GOVERNANCE_ADMIN: [
     "governance.policy.read",
     "governance.policy.manage",
-    "governance.exchange.manage",
-    "governance.department.manage",
+    // NOT governance.exchange.manage / governance.department.manage, nor any
+    // delegated-administration floor permission (re-audit N-1): an ADMIN may
+    // grant this scope, so nothing a former tier alone admitted belongs here.
     "governance.legal_hold.manage",
     "governance.retention.manage",
     "audit.read",

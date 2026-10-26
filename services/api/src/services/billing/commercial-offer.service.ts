@@ -18,7 +18,16 @@
  *   - no configured price                 → PAYMENTS_UNAVAILABLE (plan_not_configured)
  *   - two products mapped to one price    → PAYMENTS_UNAVAILABLE (plan_price_mismatch)
  *   - the Price disagrees on active,
- *     currency, amount or interval        → PAYMENTS_UNAVAILABLE (plan_price_mismatch)
+ *     currency, amount or interval, or
+ *     (where the offer's Stripe Product is
+ *     configured) on its product          → PAYMENTS_UNAVAILABLE (plan_price_mismatch)
+ *
+ * The Product id is OPTIONAL configuration (STRIPE_<…>_PRODUCT_ID). Owner
+ * decision ENT-08 leaves exactly one thing pending: the live Stripe
+ * configuration, confirmed by the read-only operator command
+ * (scripts/verify-stripe-offers.ts), which reports a missing Product id as
+ * NOT_CONFIGURED. Making it mandatory would refuse every checkout on a deploy
+ * that predates the setting, so it is enforced only when configured.
  *   - Stripe cannot be asked              → PAYMENTS_UNAVAILABLE (provider_unreachable_before_create)
  *
  * The refusal precedes the checkout/session call, so nothing was created or
@@ -52,7 +61,31 @@ export type CommercialOffer = {
   interval: OfferInterval;
   /** The configured Stripe price, or null when none is configured. */
   stripePriceId: string | null;
+  /**
+   * The configured Stripe PRODUCT this offer is sold under, or null when none
+   * is configured (second re-audit ENT-08 note). A Stripe Price belongs to one
+   * Product; a price id pointing at a price of ANOTHER product (TEAM's price
+   * id wired to a PRO-product price, a storage price under the credit product)
+   * is a mismatch even when amount, currency and interval happen to agree.
+   * Currency-agnostic: one Stripe Product carries every currency's Price.
+   */
+  stripeProductId: string | null;
 };
+
+/**
+ * The configured Stripe Product id for a self-service product:
+ * STRIPE_PRO_PRODUCT_ID, STRIPE_TEAM_PRODUCT_ID, STRIPE_PAYG_PRODUCT_ID (the
+ * evidence credit, beside STRIPE_PAYG_PRICE_ID_*), STRIPE_STORAGE_<KEY>_PRODUCT_ID.
+ */
+export function getStripeProductId(product: SelfServiceProduct): string | null {
+  const envKey =
+    product.kind === "PLAN"
+      ? `STRIPE_${product.plan}_PRODUCT_ID`
+      : product.kind === "EVIDENCE_CREDIT"
+        ? "STRIPE_PAYG_PRODUCT_ID"
+        : `STRIPE_STORAGE_${product.addonKey}_PRODUCT_ID`;
+  return process.env[envKey]?.trim() || null;
+}
 
 export function resolveCommercialOffer(
   product: SelfServiceProduct,
@@ -66,6 +99,7 @@ export function resolveCommercialOffer(
         amountCents: getPlanPriceCents(product.plan, currency),
         interval: "MONTH",
         stripePriceId: getStripePlanPriceId(product.plan, currency),
+        stripeProductId: getStripeProductId(product),
       };
     case "EVIDENCE_CREDIT":
       return {
@@ -74,6 +108,7 @@ export function resolveCommercialOffer(
         amountCents: getPlanPriceCents(prismaPkg.PlanType.PAYG, currency),
         interval: "ONE_TIME",
         stripePriceId: getStripePlanPriceId(prismaPkg.PlanType.PAYG, currency),
+        stripeProductId: getStripeProductId(product),
       };
     case "STORAGE_ADDON":
       // Storage add-ons are sold as recurring monthly subscriptions only.
@@ -87,6 +122,7 @@ export function resolveCommercialOffer(
           billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
           currency,
         }),
+        stripeProductId: getStripeProductId(product),
       };
   }
 }
@@ -134,11 +170,23 @@ export type StripePriceFacts = {
   unit_amount?: number | null;
   type?: string;
   recurring?: { interval?: string; interval_count?: number } | null;
+  /** The Product the Price belongs to: an id, or the expanded object. */
+  product?: string | { id?: string } | null;
 };
+
+function stripePriceProductId(price: StripePriceFacts): string | null {
+  const p = price.product;
+  if (typeof p === "string") return p.trim() || null;
+  if (p && typeof p === "object" && typeof p.id === "string") return p.id.trim() || null;
+  return null;
+}
 
 export function compareStripePrice(price: StripePriceFacts, offer: CommercialOffer): string[] {
   const out: string[] = [];
   if (price.active !== true) out.push("active");
+  // A Price of another Product is not this offer, whatever its amount says
+  // (checked wherever the offer's Product is configured).
+  if (offer.stripeProductId && stripePriceProductId(price) !== offer.stripeProductId) out.push("product");
   if (String(price.currency ?? "").toUpperCase() !== offer.currency) out.push("currency");
   if (price.unit_amount !== offer.amountCents) out.push("amount");
   if (offer.interval === "MONTH") {
@@ -177,7 +225,7 @@ export async function requireVerifiedStripePrice(
       "plan_price_mismatch",
     );
   }
-  const key = `${priceId}:${offer.currency}:${offer.amountCents}:${offer.interval}`;
+  const key = `${priceId}:${offer.stripeProductId}:${offer.currency}:${offer.amountCents}:${offer.interval}`;
   const at = verified.get(key);
   if (at && Date.now() - at < VERIFIED_TTL_MS) return priceId;
   let price: StripePriceFacts;

@@ -55,6 +55,7 @@ const prismaStub: {
   workflowReviewDecision: { findFirst: AnyFn };
   reviewerDisagreement: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
   codingSchema: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
+  evidenceReviewWorkflow: { findFirst: AnyFn };
 } = {
   qcSample: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   workflowReviewDecision: { findFirst: vi.fn() },
@@ -64,10 +65,24 @@ const prismaStub: {
     update: vi.fn(),
   },
   codingSchema: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  // Taking the second review (UNDER_SECOND_REVIEW) reads the disputed
+  // review's evidence for the assignee authority (members re-audit B10).
+  evidenceReviewWorkflow: { findFirst: vi.fn() },
 };
 
 vi.mock("../src/db.js", () => ({
   prisma: prismaStub,
+}));
+
+// THE ONE ASSIGNEE AUTHORITY is proven against PostgreSQL in
+// members-unassigned-rule.integration.test.ts and
+// members-assignment-surfaces.integration.test.ts; this suite's subject is
+// audit emission, so the authority is a seam that accepts and records what it
+// was asked.
+const assertWorkAssigneeEligibleMock = vi.fn(async () => undefined);
+vi.mock("../src/services/assignment/assignee-eligibility.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  assertWorkAssigneeEligible: (...args: unknown[]) => assertWorkAssigneeEligibleMock(...(args as [])),
 }));
 
 // ---------------------------------------------------------------------------
@@ -277,7 +292,10 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
       id: "dis-1",
       state: "FILED",
       challengerUserId: ACTOR_ID,
+      workflowId: WORKFLOW_ID,
     });
+    prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: "ev-1" });
+    assertWorkAssigneeEligibleMock.mockClear();
     prismaStub.reviewerDisagreement.update.mockResolvedValueOnce({});
 
     const supervisorRationale =
@@ -292,6 +310,13 @@ describe("Phase 4 — reviewer-disagreement.service audit emission", () => {
     });
 
     expect(result).toEqual({ ok: true });
+    // The actor taking the second review passed the assignee authority first.
+    expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledTimes(1);
+    expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: TEAM_ID, assigneeUserId: ACTOR_ID, evidenceId: "ev-1" }),
+      prismaStub,
+      { inTransaction: true },
+    );
 
     const audit = findAuditCall("reviewer.disagreement.transitioned");
     expect(audit).toBeDefined();

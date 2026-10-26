@@ -149,12 +149,14 @@ async function buildResource(
   ctx: GroupCtx,
   row: DbGroup,
   client: PrismaClient,
+  /** N-4 — the id the directory addressed (an archived, merged duplicate). */
+  presentedId: string = row.id,
 ): Promise<ScimGroupResource> {
   void ctx;
   const members = await loadGroupMembers(row, client);
   return {
     schemas: [SCIM_GROUP_SCHEMA_URI],
-    id: row.id,
+    id: presentedId,
     displayName: row.displayName,
     externalId: row.externalId,
     mappedRole: row.mappedRole as ScimGroupMappedRole,
@@ -163,9 +165,49 @@ async function buildResource(
       resourceType: "Group",
       created: row.createdAt.toISOString(),
       lastModified: row.updatedAt.toISOString(),
-      location: `${ctx.baseUrl}/Groups/${row.id}`,
+      location: `${ctx.baseUrl}/Groups/${presentedId}`,
     },
   };
+}
+
+/**
+ * MEMBERS RE-AUDIT N-4 — WHICH GROUP DOES THIS ID NAME?
+ *
+ * When the Organization's same-externalId groups were merged, each sibling
+ * workspace's duplicate was ARCHIVED and recorded as merged into the surviving
+ * group (merged_into_group_id). That workspace's directory still addresses the
+ * archived id; it is answered by the survivor, so membership changes —
+ * removals above all, the deprovisioning path — keep applying. A group
+ * archived by its own directory has no survivor and stays archived.
+ */
+async function resolveDirectoryGroup(
+  ctx: GroupCtx,
+  groupId: string,
+  client: PrismaClient,
+): Promise<{ group: DbGroup; alias: DbGroup | null } | null> {
+  const row = await client.scimGroup.findFirst({
+    where: { id: groupId, organizationId: ctx.organizationId },
+  });
+  if (!row) return null;
+  if (row.status === "ACTIVE" || !row.mergedIntoGroupId) return { group: row, alias: null };
+  const survivor = await client.scimGroup.findFirst({
+    where: { id: row.mergedIntoGroupId, organizationId: ctx.organizationId },
+  });
+  if (!survivor) return { group: row, alias: null };
+  return { group: survivor, alias: row };
+}
+
+/**
+ * The provenance refs a group's grants were recorded under: its own and those
+ * of every duplicate merged into it (N-4 — a removal through the survivor also
+ * undoes the role an archived duplicate had granted).
+ */
+async function groupProvenanceRefs(group: DbGroup, client: PrismaClient): Promise<string[]> {
+  const merged = await client.scimGroup.findMany({
+    where: { mergedIntoGroupId: group.id },
+    select: { id: true },
+  });
+  return [group.id, ...merged.map((m) => m.id)].map((id) => `scim-group:${id}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -313,11 +355,9 @@ export async function scimReadGroup(
   groupId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<ScimGroupResource | null> {
-  const row = await client.scimGroup.findFirst({
-    where: { id: groupId, organizationId: ctx.organizationId },
-  });
-  if (!row) return null;
-  return buildResource(ctx, row, client);
+  const resolved = await resolveDirectoryGroup(ctx, groupId, client);
+  if (!resolved) return null;
+  return buildResource(ctx, resolved.group, client, groupId);
 }
 
 export async function scimListGroups(
@@ -385,9 +425,9 @@ export async function scimPatchGroup(
   if (!parsed.success) {
     return { ok: false, status: 400, detail: "invalid_patch" };
   }
-  const row = await client.scimGroup.findFirst({
-    where: { id: groupId, organizationId: ctx.organizationId },
-  });
+  // N-4 — an archived duplicate merged into a survivor is answered by it.
+  const resolved = await resolveDirectoryGroup(ctx, groupId, client);
+  const row = resolved?.group;
   if (!row || row.status !== "ACTIVE") {
     return { ok: false, status: 404, detail: "group_not_found" };
   }
@@ -474,7 +514,7 @@ export async function scimPatchGroup(
   if (!refreshed) {
     return { ok: false, status: 500, detail: "group_lookup_failed" };
   }
-  return { ok: true, group: await buildResource(ctx, refreshed, client) };
+  return { ok: true, group: await buildResource(ctx, refreshed, client, groupId) };
 }
 
 // -----------------------------------------------------------------------------
@@ -486,10 +526,29 @@ export async function scimDeleteGroup(
   groupId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<{ ok: boolean }> {
-  const row = await client.scimGroup.findFirst({
-    where: { id: groupId, organizationId: ctx.organizationId },
-  });
-  if (!row) return { ok: false };
+  const resolved = await resolveDirectoryGroup(ctx, groupId, client);
+  if (!resolved) return { ok: false };
+  if (resolved.alias) {
+    // N-4 — the directory deletes the group it knows by the archived,
+    // merged id. Before the merge that ended the group's reach into ITS
+    // workspace only; it still does: the survivor's projection into that
+    // workspace is archived (demoting what it granted there) and the survivor
+    // keeps serving every other workspace.
+    const aliasWorkspace = resolved.alias.teamId;
+    const projection = await client.scimGroupWorkspaceProjection.findFirst({
+      where: { scimGroupId: resolved.group.id, workspaceId: aliasWorkspace, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (projection) {
+      await archiveScimGroupProjection(
+        { organizationId: ctx.organizationId, projectionId: projection.id, actorUserId: null },
+        client,
+      );
+    }
+    bump("scim_group_sync_total");
+    return { ok: true };
+  }
+  const row = resolved.group;
   // PHASE 12B — ATOMIC soft delete: archiving the group AND demoting every
   // member the group's mapped role granted are ONE outcome. Previously the
   // archive committed first, so a demotion failure left an ARCHIVED group whose
@@ -619,6 +678,7 @@ export async function applyGroupMembership(
 ): Promise<void> {
   let changed = 0;
   const projections = only ? [only] : await liveGroupProjections(group.id, client);
+  const provenanceRefs = op === "remove" ? await groupProvenanceRefs(group, client) : [];
   for (const userId of userIds) {
     // PHASE 12B — EXPLICIT failure for an unresolved / cross-Organization
     // member reference (never a silent skip): the whole Operation set rolls back.
@@ -663,7 +723,7 @@ export async function applyGroupMembership(
       if (op === "remove") {
         if (pr.mappedRole !== "ADMIN" || member.role !== "ADMIN") continue;
         const grant = await client.membershipGrant.findFirst({
-          where: { teamMemberId: member.id, externalRef: `scim-group:${group.id}`, revokedAtUtc: null },
+          where: { teamMemberId: member.id, externalRef: { in: provenanceRefs }, revokedAtUtc: null },
           orderBy: { createdAt: "desc" },
           select: { grantedRole: true },
         });
@@ -887,7 +947,8 @@ export async function addScimGroupProjection(
 }
 
 export async function archiveScimGroupProjection(
-  input: { organizationId: string; projectionId: string; actorUserId: string },
+  /** actorUserId null = the directory itself (a SCIM DELETE of a merged id, N-4). */
+  input: { organizationId: string; projectionId: string; actorUserId: string | null },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ demoted: number }> {
   return client.$transaction(async (tx) => {
@@ -913,8 +974,9 @@ export async function archiveScimGroupProjection(
     await emitTenantAudit({
       action: "scim.group.projection_archived",
       outcome: "success",
-      sourceApp: "API",
+      sourceApp: input.actorUserId ? "API" : "SCIM",
       actorUserId: input.actorUserId,
+      ...(input.actorUserId ? {} : { serviceActor: "scim_service" }),
       workspaceId: projection.workspaceId,
       organizationId: input.organizationId,
       resourceType: "scim_group_workspace_projection",

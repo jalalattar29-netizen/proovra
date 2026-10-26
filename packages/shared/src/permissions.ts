@@ -119,6 +119,69 @@ export const PERMISSIONS = [
   "audit.read",
   "audit.export",
 
+  /*
+   * THE DELEGATED-ADMINISTRATION FLOOR (members re-audit N-1, 2026-10-26).
+   *
+   * Retiring the tier model (DOM-09) swapped each tier gate for the broad
+   * permission of its domain — and the ADMIN role already held every one of
+   * those, so every workspace ADMIN silently gained what only a named tier
+   * holder could do before: execute evidence destruction, author governance
+   * policies, run access-review campaigns, publish trust incidents, decide
+   * evidence exchange. The floor is restored HERE, in the one engine: each
+   * former tier route asks for one of the precise permissions below, and NO
+   * workspace role holds any of them except the OWNER (who holds every
+   * non-service permission by construction).
+   * They reach anyone else only through a member capability grant, and the
+   * capability writer lets only a holder hand one out (D29), exactly as only
+   * an ORG_ADMIN could grant a tier.
+   *
+   * They are deliberately in NO delegated-admin scope: a scope is a coarse
+   * bundle an ADMIN may grant, and putting these in one would hand the ADMIN
+   * the authority back one step removed.
+   *
+   * Former tier gate → permission (GLOBAL/ORG_ADMIN = "ORG"):
+   *   ORG                exchange decide (package revoke, chain transfer
+   *                      accept/reject/revoke/complete, cross-org review
+   *                      accept/decline/revoke), department create/archive,
+   *                      lifecycle webhook endpoints, archive transition,
+   *                      policy assignment
+   *   ORG | COMPLIANCE   retention policy create/release, destruction
+   *                      request/reject, lifecycle package preview,
+   *                      subprocessors
+   *   ORG | COMPL | SEC  destruction approve, trust article publish, trust
+   *                      verification-package preview, access-review item
+   *                      decision
+   *   ORG | SECURITY     trust status incidents/maintenance
+   *   COMPLIANCE         destruction execute
+   *   SEC | COMPLIANCE   policy authoring (create/activate/deprecate),
+   *                      access-review campaigns, trust drift / claims
+   *                      scans, AI-disclosure articles
+   *   SECURITY           SECURITY trust articles
+   * (Exchange initiation — ORG | REVIEWER_LEAD — keeps
+   * governance.exchange.manage; department membership — ORG | DEPARTMENT —
+   * keeps governance.department.manage. Neither is held by the ADMIN role.)
+   */
+  "governance.exchange.decide",
+  "governance.department.define",
+  "integration.lifecycle_webhook.manage",
+  "governance.archive.transition",
+  "governance.policy.assign",
+  "governance.retention_policy.manage",
+  "governance.destruction.request",
+  "governance.destruction.approve",
+  "governance.destruction.execute",
+  "audit.lifecycle_package.preview",
+  "audit.verification_package.preview",
+  "trust.article.publish",
+  "trust.article.security.publish",
+  "trust.article.ai_disclosure.publish",
+  "trust.subprocessor.manage",
+  "trust.status.manage",
+  "governance.policy.author",
+  "governance.access_review.campaign.manage",
+  "governance.access_review.decide",
+  "governance.trust_scan.run",
+
   // Integration platform (admin-only canonical permissions; ALSO
   // valid as API-key scopes for the public enterprise API).
   "integration.api_key.manage",
@@ -349,6 +412,7 @@ export function mapTeamRoleToCanonical(role: DbTeamRole): CanonicalRole {
 /** Permissions no workspace role holds: performed by the platform's own services. */
 export const SERVICE_ONLY_PERMISSIONS: ReadonlyArray<Permission> = ["evidence.purge"];
 
+
 const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>>> = {
   OWNER: PERMISSIONS.filter((p) => !SERVICE_ONLY_PERMISSIONS.includes(p)),
 
@@ -385,8 +449,10 @@ const ROLE_PERMISSIONS: Readonly<Record<CanonicalRole, ReadonlyArray<Permission>
     "notification.delivery.resend",
     "governance.policy.read",
     "governance.policy.manage",
-    "governance.exchange.manage",
-    "governance.department.manage",
+    // NOT: governance.exchange.manage, governance.department.manage, nor any
+    // of the delegated-administration floor permissions (re-audit N-1). A
+    // workspace ADMIN never held a delegated tier by role; those authorities
+    // reach a member only through a capability grant.
     "governance.legal_hold.manage",
     "governance.retention.manage",
     "audit.read",

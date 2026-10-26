@@ -92,6 +92,15 @@ export type EvidenceLifecycleMutationInput = {
   /** Injected clock so a test and a request handler agree. */
   now?: Date;
   client?: PrismaClient;
+  /**
+   * The caller's audit row for a change that IS written, run inside the
+   * lifecycle transaction after the state and custody writes (members
+   * re-audit, second round: SEC-13 / defect 8). A failed audit write rolls
+   * the change back, so a request never fails after its change committed and
+   * a change never commits without its row. Not called for an idempotent
+   * success (nothing was written) or a refusal.
+   */
+  auditTx?: (tx: PrismaClient, written: { productState: EvidenceProductState; teamId: string | null }) => Promise<void>;
 };
 
 export type EvidenceLifecycleMutationResult =
@@ -455,6 +464,12 @@ export async function applyEvidenceLifecycleAction(
       ip: input.req?.ip ?? null,
       userAgent: userAgentOf(input.req),
     });
+    if (input.auditTx) {
+      await input.auditTx(tx as unknown as PrismaClient, {
+        productState: patch.productState,
+        teamId: evidence.teamId ?? null,
+      });
+    }
     return null;
   });
   if (conflict && "idempotent" in conflict) {

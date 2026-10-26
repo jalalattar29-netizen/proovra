@@ -183,6 +183,17 @@ export async function linkExternalIdentity(
   return created;
 }
 
+/**
+ * Members audit DOM-13 — the identity links a workspace sees: its
+ * Organization's, for the people who hold a membership in it.
+ */
+function organizationLinkScope(teamId: string) {
+  return {
+    organization: { workspaces: { some: { id: teamId } } },
+    user: { teamMembers: { some: { teamId } } },
+  } as const;
+}
+
 export type UnlinkExternalIdentityInput = {
   teamId: string;
   mappingId: string;
@@ -195,8 +206,12 @@ export async function unlinkExternalIdentity(
   input: UnlinkExternalIdentityInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.ExternalIdentityMapping> {
+  // Members audit DOM-13 — the link is the Organization's (a directory-
+  // provisioned identity carries the token's default workspace), so it is
+  // found through the Organization; this workspace may act on it only for a
+  // person who holds a membership here (membership stays Workspace-scoped).
   const mapping = await client.externalIdentityMapping.findFirst({
-    where: { id: input.mappingId, teamId: input.teamId, unlinkedAtUtc: null },
+    where: { id: input.mappingId, unlinkedAtUtc: null, ...organizationLinkScope(input.teamId) },
   });
   if (!mapping) throw new ExternalIdentityError("mapping_not_found");
   // PHASE 12 POINT 4 PASS C3 — unlinking an IdP-managed subject would sever a
@@ -246,7 +261,7 @@ export async function listExternalIdentityMappings(
 ): Promise<prismaPkg.ExternalIdentityMapping[]> {
   return client.externalIdentityMapping.findMany({
     where: {
-      teamId: input.teamId,
+      ...organizationLinkScope(input.teamId),
       ...(input.activeOnly ? { unlinkedAtUtc: null } : {}),
     },
     orderBy: { linkedAtUtc: "desc" },

@@ -56,7 +56,19 @@ type TeamGrant = {
 };
 
 type CaseDetailResponse = {
-  case: { id: string; ownerUserId: string | null; access?: Grant[]; teamAccess?: TeamGrant[] };
+  case: {
+    id: string;
+    ownerUserId: string | null;
+    access?: Grant[];
+    teamAccess?: TeamGrant[];
+    /**
+     * Whether the case is restricted, decided by the server's one rule
+     * (members re-audit, second round, defect 2): a case whose list emptied
+     * after a departure is still restricted by its flag.
+     */
+    restricted?: boolean;
+    restrictedAtUtc?: string | null;
+  };
 };
 
 type TeamCandidate = { id: string; name: string };
@@ -110,6 +122,7 @@ export function MatterAccessTab({
 
   const [grants, setGrants] = useState<Load<Grant[]>>({ status: "loading" });
   const [teamGrants, setTeamGrants] = useState<TeamGrant[]>([]);
+  const [serverRestricted, setServerRestricted] = useState(false);
   const [teamCandidates, setTeamCandidates] = useState<Load<TeamCandidate[]> | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [members, setMembers] = useState<Load<TeamMemberRow[]> | null>(null);
@@ -126,6 +139,7 @@ export function MatterAccessTab({
     })) as CaseDetailResponse;
     const rows = res.case.access ?? [];
     setTeamGrants(res.case.teamAccess ?? []);
+    setServerRestricted(res.case.restricted === true || (res.case.restrictedAtUtc ?? null) !== null);
     setGrants({ status: "ready", data: rows });
     setUnconfirmed(false);
     return rows;
@@ -191,8 +205,12 @@ export function MatterAccessTab({
   }, [loadTeamCandidates]);
 
   const grantList = grants.status === "ready" ? grants.data : [];
-  // A case is restricted by its people list OR a Collaboration Team grant.
-  const restricted = grantList.length > 0 || teamGrants.length > 0;
+  // A case is restricted by its flag (the server says so), its people list
+  // OR a Collaboration Team grant. The flag alone is enough: after a
+  // departure empties the list the case stays closed to the workspace, and
+  // calling it "open to the whole workspace" would misinform its owner.
+  const restricted = serverRestricted || grantList.length > 0 || teamGrants.length > 0;
+  const restrictedToOwnerOnly = restricted && grantList.length === 0 && teamGrants.length === 0;
   const viewerIsOwner = caseOwnerUserId !== null && caseOwnerUserId === viewer.userId;
   const alreadyGranted = selected ? grantList.some((g) => g.userId === selected.userId) : false;
 
@@ -268,7 +286,9 @@ export function MatterAccessTab({
       setNotice("");
       setFailure("");
       const who = personLabel(row.user ?? {});
-      const last = grantList.length === 1;
+      // Removing the last entry reopens the case only when no team grant
+      // keeps it restricted (the server's releaseRestrictionIfEmptyTx).
+      const last = grantList.length === 1 && teamGrants.length === 0;
       const ok = await confirm({
         title: `Remove ${who}'s access?`,
         description:
@@ -310,7 +330,7 @@ export function MatterAccessTab({
         feedbackRef.current?.focus();
       }
     },
-    [busy, caseId, confirm, grantList.length, readGrants],
+    [busy, caseId, confirm, grantList.length, readGrants, teamGrants.length],
   );
 
   const grantTeam = useCallback(async () => {
@@ -420,9 +440,16 @@ export function MatterAccessTab({
         </div>
       ) : restricted ? (
         <>
-          <p className="app-hint" data-matter-access-mode="restricted">
-            Only the case owner, the people below and the members of the Collaboration Teams below can open this case.
-          </p>
+          {restrictedToOwnerOnly ? (
+            <p className="app-hint" data-matter-access-mode="restricted" data-matter-access-owner-only>
+              This case is restricted and no one is on its access list right now, so only the case owner can
+              open it. Give someone access to let them open it too.
+            </p>
+          ) : (
+            <p className="app-hint" data-matter-access-mode="restricted">
+              Only the case owner, the people below and the members of the Collaboration Teams below can open this case.
+            </p>
+          )}
           <ul className="case-detail-rows" data-matter-access-grants>
             {grantList.map((g) => {
               const who = personLabel(g.user ?? {});

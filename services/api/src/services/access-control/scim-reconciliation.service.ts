@@ -169,9 +169,12 @@ export async function detectScimDrift(
     take: 500,
   });
   const memberUserIds = memberships.map((m) => m.userId);
+  // DOM-13 — identity links are the Organization's (a directory-provisioned
+  // user's mapping carries the token's default workspace, not this one);
+  // membership stays this workspace's.
   const linkedIdentities = await client.externalIdentityMapping.findMany({
     where: {
-      teamId: input.teamId,
+      organization: { workspaces: { some: { id: input.teamId } } },
       userId: { in: memberUserIds.length > 0 ? memberUserIds : ["00000000-0000-0000-0000-000000000000"] },
       unlinkedAtUtc: null,
     },
@@ -199,7 +202,7 @@ export async function detectScimDrift(
   // ---- Category 2: UNLINKED_IDENTITY_ACTIVE_USER ----
   const unlinked = await client.externalIdentityMapping.findMany({
     where: {
-      teamId: input.teamId,
+      organization: { workspaces: { some: { id: input.teamId } } },
       unlinkedAtUtc: { not: null },
     },
     select: {
@@ -309,7 +312,7 @@ export async function detectScimDrift(
   // happens (DB drift / migration replay) we surface it as HIGH risk.
   // Group by (provider, externalSubjectId) and find counts > 1.
   const allMappings = await client.externalIdentityMapping.findMany({
-    where: { teamId: input.teamId, unlinkedAtUtc: null },
+    where: { organization: { workspaces: { some: { id: input.teamId } } }, unlinkedAtUtc: null },
     select: {
       provider: true,
       externalSubjectId: true,

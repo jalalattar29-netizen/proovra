@@ -316,7 +316,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/articles",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("trust.article.publish")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -342,14 +342,20 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       if (!(sections as ReadonlyArray<string>).includes(body.section)) {
         return reply.code(409).send({ denial: "POLICY_REJECTED" });
       }
-      // Kind-aware secondary tier check.
       // Kind-aware secondary permission (members audit DOM-09: one authority —
-      // the canonical permission engine). A SECURITY article additionally needs
-      // the security-policy permission; every other kind is governed by the
-      // route's governance.policy.manage.
-      if (body.kind === "SECURITY") {
-        const ok = await evaluateMemberAccess({ teamId: ctx.teamId, userId: ctx.userId, permission: "identity.org_policy.manage" });
-        if (!ok.allowed) return reply.code(403).send({ denial: "PERMISSION_REQUIRED", permission: "identity.org_policy.manage" });
+      // the canonical permission engine; re-audit N-1: the floor the tiers
+      // drew). A SECURITY article was a security officer's alone; an
+      // AI_DISCLOSURE article a security or compliance officer's. Neither
+      // permission is held by any workspace role but the OWNER.
+      const kindPermission =
+        body.kind === "SECURITY"
+          ? ("trust.article.security.publish" as const)
+          : body.kind === "AI_DISCLOSURE"
+            ? ("trust.article.ai_disclosure.publish" as const)
+            : null;
+      if (kindPermission) {
+        const ok = await evaluateMemberAccess({ teamId: ctx.teamId, userId: ctx.userId, permission: kindPermission });
+        if (!ok.allowed) return reply.code(403).send({ denial: "PERMISSION_REQUIRED", permission: kindPermission });
       }
       const res = await upsertTrustArticle({
         teamId: ctx.teamId,
@@ -524,7 +530,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/subprocessors",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("trust.subprocessor.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -570,7 +576,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     // documentation, not customer content. Any authenticated
     // workspace member can request the idempotent canonical seed.
     // Authoring custom subprocessor rows (POST
-    // /v1/trust/subprocessors) remains gated by the delegated tier.
+    // /v1/trust/subprocessors) remains gated (trust.subprocessor.manage — re-audit N-1).
     { preHandler: requireAuth },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
@@ -629,7 +635,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/status/incidents",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.org_policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("trust.status.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -680,7 +686,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/status/incidents/:id/updates",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.org_policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("trust.status.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -737,7 +743,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/status/maintenance",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.org_policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("trust.status.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -817,7 +823,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/departments",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.department.define")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -864,7 +870,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/departments/:id/archive",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.department.define")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -943,7 +949,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.author")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -976,7 +982,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies/:id/activate",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.author")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -993,7 +999,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies/:id/deprecate",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.author")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1010,7 +1016,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/policies/:id/assignments",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.assign")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1183,7 +1189,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/campaigns",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.access_review.campaign.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1227,7 +1233,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/campaigns/:id/open",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.access_review.campaign.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1240,7 +1246,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/campaigns/:id/close",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.access_review.campaign.manage")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1265,7 +1271,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/access-reviews/items/:id/decision",
-    { preHandler: [requireAuth, requireWorkspacePermission("identity.access_review.action")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.access_review.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1355,7 +1361,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review/:id/accept",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1381,7 +1387,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review/:id/decline",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1398,7 +1404,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/governance/cross-org-review/:id/revoke",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.exchange.decide")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1459,7 +1465,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/drift/scan",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.trust_scan.run")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1510,7 +1516,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/trust/security-claims/scan",
-    { preHandler: [requireAuth, requireWorkspacePermission("governance.policy.manage")] },
+    { preHandler: [requireAuth, requireWorkspacePermission("governance.trust_scan.run")] },
     async (req, reply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
@@ -1849,7 +1855,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("audit.read"),
+        requireWorkspacePermission("audit.verification_package.preview"),
       ],
     },
     async (req, reply) => {

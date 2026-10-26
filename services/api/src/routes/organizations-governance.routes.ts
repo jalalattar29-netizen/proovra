@@ -43,12 +43,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "../db.js";
-import {
-  resolveEffectiveContractSeats,
-  resolveEnterpriseContractLimits,
-} from "../services/billing/enterprise-contract-limits.js";
-import { resolveEnterpriseContract } from "../services/organization/enterprise-contract.service.js";
-import { getPlanCapabilities } from "../services/plan-catalog.service.js";
+import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { getAuthUserId } from "../auth.js";
@@ -128,6 +123,52 @@ async function requireOrgMember(input: {
   });
   if (result.kind !== "ok") return { ok: false, denial: orgAccessDenial(result) };
   return { ok: true, role: result.role };
+}
+
+export type OrgWorkspaceSeatRow = {
+  id: string;
+  name: string;
+  billingPlan: Prisma.TeamGetPayload<{ select: { billingPlan: true } }>["billingPlan"];
+  billingStatus: Prisma.TeamGetPayload<{ select: { billingStatus: true } }>["billingStatus"];
+  /** Distinct ACTIVE memberships, the owner's excluded. */
+  usedSeats: number;
+  /** The workspace-wide ceiling, or null when nothing bounds the workspace as a whole. */
+  seatLimit: number | null;
+  overSeat: boolean;
+};
+
+/**
+ * THE seat projection behind the organization billing rollup AND the seats
+ * CSV (second re-audit ENT-05 / N-6).
+ *
+ * Both used to count `_count.members` — every membership row of any status,
+ * REVOKED and SUSPENDED and the OWNER included — against the contract or the
+ * raw `Team.includedSeats` column. A 4-seat Enterprise contract with owner + 4
+ * ACTIVE + 1 REVOKED read "6 / 4 seats · over" here while the Seats card (the
+ * canonical answer) said 4 / 4, within limit. There is one seat authority:
+ * `resolveWorkspaceSeatState` — owner excluded, ACTIVE only, bounded only by
+ * an ACTIVE Enterprise contract. This asks it for every workspace.
+ */
+export async function listOrgWorkspaceSeatRows(orgId: string): Promise<OrgWorkspaceSeatRow[]> {
+  const workspaces = await prisma.team.findMany({
+    where: { organizationId: orgId, isPersonal: false },
+    select: { id: true, name: true, billingPlan: true, billingStatus: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const rows: OrgWorkspaceSeatRow[] = [];
+  for (const ws of workspaces) {
+    const seats = await resolveWorkspaceSeatState(ws.id, prisma);
+    rows.push({
+      id: ws.id,
+      name: ws.name,
+      billingPlan: ws.billingPlan,
+      billingStatus: ws.billingStatus,
+      usedSeats: seats.used,
+      seatLimit: seats.limit,
+      overSeat: seats.overLimit,
+    });
+  }
+  return rows;
 }
 
 export async function organizationsGovernanceRoutes(app: FastifyInstance) {
@@ -306,28 +347,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         return reply.code(access.denial.status).send(access.denial.body);
       }
 
-      const workspaces = await prisma.team.findMany({
-        where: { organizationId: orgId, isPersonal: false },
-        select: {
-          id: true,
-          name: true,
-          billingPlan: true,
-          billingStatus: true,
-          includedSeats: true,
-          // Used seats = current member count. Same signal the
-          // per-workspace billing overview surfaces
-          // (billing.service.ts `team._count.members`). Counts only —
-          // no member identities cross the wire here.
-          _count: { select: { members: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      });
-
-      // The organization's contract, resolved ONCE — an Enterprise term is an
-      // ORG-level fact, so the rollup gets the exact ceiling without an N+1.
-      const seatContract = resolveEnterpriseContractLimits(
-        await resolveEnterpriseContract(orgId),
-      );
+      const workspaces = await listOrgWorkspaceSeatRows(orgId);
 
       // Billing owner is an ORG-level field (organizations.billingOwnerUserId).
       // Surface the operator-readable identity (email + display name) so
@@ -357,28 +377,10 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         planCounts[plan] = (planCounts[plan] ?? 0) + 1;
         const status = String(ws.billingStatus ?? "NONE");
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-        /*
-         * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — the included
-         * seats for a workspace are THE canonical seat rule's answer, not the
-         * raw `Team.includedSeats` column, which is one input to that rule and
-         * is 0 on a self-serve workspace. The rollup therefore reported an
-         * organization of PRO workspaces as having zero included seats, and
-         * `overSeatWorkspaceCount` could never rise above zero because the
-         * `included > 0` guard below was never satisfied.
-         */
-        const included = resolveEffectiveContractSeats({
-          plan: (ws.billingPlan ?? "FREE") as Parameters<
-            typeof getPlanCapabilities
-          >[0],
-          contract: seatContract,
-        });
-        const used = ws._count.members;
         // `null` = no workspace-wide ceiling (members audit ENT-04).
-        totalIncludedSeats += included ?? 0;
-        totalUsedSeats += used;
-        // Over-seat = a workspace whose member count exceeds a contracted
-        // ceiling. A workspace with no workspace-wide ceiling is never over.
-        if (included !== null && included > 0 && used > included) overSeatWorkspaceCount += 1;
+        totalIncludedSeats += ws.seatLimit ?? 0;
+        totalUsedSeats += ws.usedSeats;
+        if (ws.overSeat) overSeatWorkspaceCount += 1;
         if (
           status === "ACTIVE" ||
           status === "PAST_DUE"
@@ -413,11 +415,12 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
           name: w.name,
           billingPlan: w.billingPlan,
           billingStatus: w.billingStatus,
-          includedSeats: w.includedSeats ?? 0,
-          usedSeats: w._count.members,
-          overSeat:
-            (w.includedSeats ?? 0) > 0 &&
-            w._count.members > (w.includedSeats ?? 0),
+          // The seat authority's ceiling; 0 when nothing bounds the
+          // workspace as a whole (`seatLimit: null`).
+          includedSeats: w.seatLimit ?? 0,
+          seatLimit: w.seatLimit,
+          usedSeats: w.usedSeats,
+          overSeat: w.overSeat,
         })),
       });
     },

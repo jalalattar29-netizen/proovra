@@ -1009,6 +1009,9 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
         data: { name: `k5 external ${tag()}`, teamId: a.teamId, ownerUserId: a.ownerUserId },
       });
       const grant = await prisma.caseAccess.create({ data: { caseId: kase.id, userId: external.id } });
+      // The case is now restricted: only someone who can see it manages its
+      // list (members re-audit, second round). The revoking ADMIN is on it.
+      await prisma.caseAccess.create({ data: { caseId: kase.id, userId: a.adminUserId } });
 
       const member = await call({ method: "DELETE", url: `/v1/teams/${a.teamId}/external-grants/${grant.id}`, token: a.memberToken });
       expect(member.statusCode).toBe(403);

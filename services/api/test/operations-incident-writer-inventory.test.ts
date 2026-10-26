@@ -104,6 +104,16 @@ const WRITERS: readonly Writer[] = [
     writesStatus: false,
     authority: "N/A — deletes its own seeded rows by id; writes no status",
   },
+  {
+    // Members re-audit 2 (B1) — a departing member's held conditions are
+    // released: `updateMany` clears assignedOperatorUserId / assignedByUserId /
+    // assignedAtUtc and nothing else, the same unassign assignIncident does.
+    module: "../src/services/assignment/release-held-work.ts",
+    host: "API",
+    writesStatus: false,
+    authority:
+      "N/A — departure release clears assignedOperatorUserId only (the unassign assignIncident performs); writes no status",
+  },
 ];
 
 /** Any Prisma call that could write the incident table. */

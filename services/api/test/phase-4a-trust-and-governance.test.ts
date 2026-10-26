@@ -476,10 +476,10 @@ describe("Phase 4A — delegated administration in the canonical permission engi
     const { listPermissionsForDelegatedAdminScope } = await import("@proovra/shared");
     const m = member({ delegatedAdminScopes: [{ id: "s-1", scopeKind: "GOVERNANCE_ADMIN", ...live }] });
     const family = listPermissionsForDelegatedAdminScope("GOVERNANCE_ADMIN");
+    // Members re-audit N-1: exchange and department authority are no longer
+    // in any scope (an ADMIN may grant any scope); they are delegated-only.
     for (const p of [
       "governance.policy.manage",
-      "governance.exchange.manage",
-      "governance.department.manage",
       "governance.retention.manage",
       "governance.legal_hold.manage",
       "audit.read",

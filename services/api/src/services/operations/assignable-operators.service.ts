@@ -35,10 +35,13 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import { mapTeamRoleToCanonical, roleHasPermission } from "@proovra/shared";
+import { mapTeamRoleToCanonical } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evaluateAccess, loadMemberAccessSnapshot } from "../identity/access-policy.service.js";
 import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
   assignmentRequiresPlacement,
   placedUserIdsForWorkspace,
 } from "../assignment/assignee-eligibility.js";
@@ -94,13 +97,23 @@ export async function listAssignableOperators(
   const placed = placementRequired
     ? await placedUserIdsForWorkspace(input.teamId, members.map((m) => m.userId), client)
     : null;
+  // Members re-audit (second round) — the picker offers exactly whom the
+  // write accepts: the permission engine's own decision over each member's
+  // snapshot (role, capability grants, delegated scopes, expiry, the parent
+  // Organization's lifecycle) — not a role-only rule, which hid people holding
+  // the permission through a grant and offered people a suspended
+  // Organization refuses. The pure evaluator records nothing: listing
+  // candidates is not a permission attempt. Reach is per record and is decided
+  // at the write.
+  const holds = new Set<string>();
+  for (const m of members) {
+    const snapshot = await loadMemberAccessSnapshot({ teamId: input.teamId, userId: m.userId }, client);
+    if (!snapshot) continue;
+    const decision = evaluateAccess({ kind: "MEMBER", member: snapshot }, { permission: REQUIRED_ASSIGNEE_PERMISSION });
+    if (decision.allowed) holds.add(m.userId);
+  }
   return members
-    .filter((m) =>
-      roleHasPermission(
-        mapTeamRoleToCanonical(m.role),
-        REQUIRED_ASSIGNEE_PERMISSION,
-      ),
-    )
+    .filter((m) => holds.has(m.userId))
     .filter((m) => placed === null || placed.has(m.userId))
     .map((m) => ({
       userId: m.userId,
@@ -111,20 +124,41 @@ export async function listAssignableOperators(
 }
 
 /**
- * May this specific user be assigned work in this workspace, right now?
+ * May this specific user be assigned this work, right now?
  *
- * The write path calls THIS rather than re-implementing the predicate, so a
- * caller cannot post a userId the picker would never have offered — including
- * a perfectly valid user from a DIFFERENT workspace, which the `teamId` scope
- * refuses by construction.
+ * THE ONE ASSIGNEE AUTHORITY decides (members re-audit 2, B4). This was a
+ * second eligibility rule — the picker's role-only filter re-run per write —
+ * which ignored delegated capability grants and the parent Organization's
+ * lifecycle, read placement outside the write, and never asked whether the
+ * person could open the record the work is about. It now asks
+ * `assertWorkAssigneeEligible` with the Operations permission: an ACTIVE,
+ * unexpired member of THIS workspace (another workspace's user has no
+ * membership here and is refused by construction) whose role or grant holds
+ * `operations.acknowledge`, who can reach the work's evidence and case when
+ * it names them, and — on PRO/TEAM — is placed. Pass the write's transaction
+ * client with `inTransaction: true` and the placement stays share-locked
+ * until the assignment commits (B5).
  */
 export async function isAssignableOperator(
-  input: { teamId: string; userId: string },
+  input: { teamId: string; userId: string; evidenceId?: string | null; caseId?: string | null },
   client: PrismaClient = defaultPrisma,
+  options: { inTransaction?: boolean } = {},
 ): Promise<boolean> {
-  const eligible = await listAssignableOperators(
-    { teamId: input.teamId },
-    client,
-  );
-  return eligible.some((operator) => operator.userId === input.userId);
+  try {
+    await assertWorkAssigneeEligible(
+      {
+        workspaceId: input.teamId,
+        assigneeUserId: input.userId,
+        permission: REQUIRED_ASSIGNEE_PERMISSION,
+        evidenceId: input.evidenceId ?? null,
+        caseId: input.caseId ?? null,
+      },
+      client,
+      options,
+    );
+    return true;
+  } catch (err) {
+    if (err instanceof AssigneeEligibilityError) return false;
+    throw err;
+  }
 }

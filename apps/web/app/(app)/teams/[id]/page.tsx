@@ -780,6 +780,13 @@ function TeamDetailPageBody() {
           `The invitation for ${invitedEmail} was created, but the email could not be delivered. Use Resend to try again.`,
           "warning",
         );
+      } else if (data?.existing === true) {
+        // B8 — a repeat invitation is the pending one, sent again (the server
+        // reissues its link), not a second invitation.
+        addToast(
+          `An invitation for ${invitedEmail} was already pending. It has been sent again.`,
+          "success",
+        );
       } else {
         addToast(`Invitation sent to ${invitedEmail}.`, "success");
       }
