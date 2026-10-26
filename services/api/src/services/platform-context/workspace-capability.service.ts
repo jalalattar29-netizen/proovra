@@ -51,7 +51,16 @@ function coercePlan(raw: string | null | undefined): WorkspacePlan | null {
   return PLANS.has(upper) ? (upper as WorkspacePlan) : null;
 }
 
-function scopeFromKind(kind: ResolvedWorkspaceKind): WorkspaceScope | null {
+/**
+ * DOM-14 — THE ONE mapper from the canonical workspace kind to the LEGACY
+ * two-value `scope`. The platform-context envelope and this resolver both call
+ * it, so they cannot report different scopes for one workspace, and the
+ * eventual removal of `scope` has one definition to delete.
+ *
+ * UNKNOWN maps to null rather than to a guess: a workspace whose kind could
+ * not be proven must not be presented as either scope.
+ */
+export function legacyScopeFromKind(kind: ResolvedWorkspaceKind): WorkspaceScope | null {
   if (kind === "PERSONAL") return "PERSONAL";
   if (kind === "OWNED" || kind === "ORGANIZATION") return "TEAM";
   return null;
@@ -134,7 +143,7 @@ export async function resolveMemberWorkspaceCapabilities(input: {
     reviewerOperationsIncluded = false;
   }
   const capabilities = resolveCapabilities({
-    scope: scopeFromKind(workspaceKind),
+    scope: legacyScopeFromKind(workspaceKind),
     role,
     plan,
     isPlatformAdmin: false,

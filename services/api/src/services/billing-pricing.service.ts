@@ -27,30 +27,58 @@ export function resolveCheckoutCurrency(params: {
   return normalizeBillingCurrency(params.requestedCurrency);
 }
 
+/**
+ * THE ONE PRICE AUTHORITY (members re-audit defect 13, owner decision 4).
+ *
+ * Every price the product shows or charges — the Pricing catalogue API, the
+ * Billing projection, the checkout offer (`resolveCommercialOffer`) and the
+ * provider read-back that verifies it — is this function. There is no second
+ * set of literals: the default IS the catalogue's own number
+ * (`PLAN_CAPABILITIES[plan].monthlyPriceCents`; for the evidence credit,
+ * `EVIDENCE_CREDIT_PRODUCT.unitPriceCents`). This used to restate 500 / 1900 /
+ * 7900 here, so editing the catalogue changed nothing a customer saw or paid.
+ *
+ * The `BILLING_*_PRICE_CENTS_<CURRENCY>` override is kept deliberately: it is
+ * the documented per-currency published amount (services/api/.env.example;
+ * the catalogue carries one currency-less number), and checkout refuses unless
+ * the configured Stripe/PayPal price bills exactly this amount. Because the
+ * catalogue API, Billing and checkout all read THIS function, an override
+ * moves all three together. Nothing displays or charges the raw catalogue
+ * literal.
+ */
+function catalogueDefaultPriceCents(plan: prismaPkg.PlanType): number {
+  if (plan === prismaPkg.PlanType.PAYG) return EVIDENCE_CREDIT_PRODUCT.unitPriceCents;
+  if (plan === prismaPkg.PlanType.PRO) return PLAN_CAPABILITIES.PRO.monthlyPriceCents ?? 0;
+  if (plan === prismaPkg.PlanType.TEAM) return PLAN_CAPABILITIES.TEAM.monthlyPriceCents ?? 0;
+  // ENTERPRISE is Custom — no published monthly price; FREE is 0.
+  return 0;
+}
+
 export function getPlanPriceCents(
   plan: prismaPkg.PlanType,
   currency: BillingCurrency
 ): number {
+  const fallback = catalogueDefaultPriceCents(plan);
+
   if (plan === prismaPkg.PlanType.PAYG) {
     return currency === "EUR"
-      ? readInt("BILLING_PAYG_PRICE_CENTS_EUR", 500)
-      : readInt("BILLING_PAYG_PRICE_CENTS_USD", 500);
+      ? readInt("BILLING_PAYG_PRICE_CENTS_EUR", fallback)
+      : readInt("BILLING_PAYG_PRICE_CENTS_USD", fallback);
   }
 
   if (plan === prismaPkg.PlanType.PRO) {
     return currency === "EUR"
-      ? readInt("BILLING_PRO_PRICE_CENTS_EUR", 1900)
-      : readInt("BILLING_PRO_PRICE_CENTS_USD", 1900);
+      ? readInt("BILLING_PRO_PRICE_CENTS_EUR", fallback)
+      : readInt("BILLING_PRO_PRICE_CENTS_USD", fallback);
   }
 
   if (plan === prismaPkg.PlanType.TEAM) {
     return currency === "EUR"
-      ? readInt("BILLING_TEAM_PRICE_CENTS_EUR", 7900)
-      : readInt("BILLING_TEAM_PRICE_CENTS_USD", 7900);
+      ? readInt("BILLING_TEAM_PRICE_CENTS_EUR", fallback)
+      : readInt("BILLING_TEAM_PRICE_CENTS_USD", fallback);
   }
 
-  // ENTERPRISE is Custom — no published monthly price; FREE is 0.
-  return 0;
+  return fallback;
 }
 
 /**

@@ -140,6 +140,41 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
     expect((await prisma.team.findUniqueOrThrow({ where: { id: t.personalTeamId } })).closedAtUtc).toEqual(closedAt);
   });
 
+  it("LIFE-13 — other members are a consequence shown before confirming, not a blocker; closure then revokes them", async () => {
+    const t = await seedPersonalTenant(deps, "TEAM");
+    const active = await seedUser(deps, `active-${tag()}`);
+    const suspended = await seedUser(deps, `suspended-${tag()}`);
+    await prisma.teamMember.create({ data: { teamId: t.personalTeamId, userId: active.userId, role: "MEMBER", status: "ACTIVE" } });
+    await prisma.teamMember.create({ data: { teamId: t.personalTeamId, userId: suspended.userId, role: "MEMBER", status: "SUSPENDED" } });
+
+    const res = await harness.app.inject({
+      method: "GET",
+      url: "/v1/identity/account-closure",
+      headers: { authorization: `Bearer ${t.owner.token}` },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      blockers: Array<{ code: string }>;
+      consequences: Array<{ code: string; count: number }>;
+    };
+    expect(body.blockers).toEqual([]);
+    expect(body.consequences).toEqual([expect.objectContaining({ code: "WORKSPACE_MEMBERS_LOSE_ACCESS", count: 2 })]);
+
+    // A solo owner sees no consequence (positive control for the count).
+    const solo = await seedPersonalTenant(deps, "TEAM");
+    const soloRes = await harness.app.inject({
+      method: "GET",
+      url: "/v1/identity/account-closure",
+      headers: { authorization: `Bearer ${solo.owner.token}` },
+    });
+    expect((JSON.parse(soloRes.body) as { consequences: unknown[] }).consequences).toEqual([]);
+
+    await accountClosure.executeAccountClosure(t.owner.userId);
+    for (const userId of [active.userId, suspended.userId]) {
+      expect((await prisma.teamMember.findFirstOrThrow({ where: { teamId: t.personalTeamId, userId } })).status).toBe("REVOKED");
+    }
+  });
+
   it("LIFE-11 — an interrupted closure left PROCESSING is resumed by the reaper", async () => {
     const t = await seedPersonalTenant(deps, "PRO");
     const live = await populate(t.personalTeamId, t.owner.userId);

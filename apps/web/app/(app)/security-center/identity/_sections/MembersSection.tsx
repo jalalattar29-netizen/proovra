@@ -11,6 +11,7 @@
  *   POST   /v1/identity/members/:id/role
  *   POST   /v1/identity/members/:id/suspend | /restore | /revoke
  *   POST   /v1/identity/members/:id/capabilities
+ *   PATCH  /v1/identity/capabilities/:id      (change expiry / reason; DOM-09)
  *   DELETE /v1/identity/capabilities/:id
  *   POST   /v1/identity/members/:id/delegated-admin
  *   PATCH  /v1/identity/delegated-admin/:id   (change expiry / reason)
@@ -83,6 +84,8 @@ type CapabilityGrant = {
   grantedAtUtc: string;
   expiresAtUtc: string | null;
   revokedAtUtc: string | null;
+  /** Optional on the roster; the PATCH response always carries it. */
+  reason?: string | null;
 };
 
 type DelegatedScope = {
@@ -237,6 +240,11 @@ export function MembersSection({
   // What the update route answered for a scope, so its reason stays visible
   // after the roster reload even where the roster omits it.
   const [scopeDetails, setScopeDetails] = useState<Record<string, ScopeDetail>>({});
+  // Members re-audit DOM-09 — the same edit for a capability grant (carried
+  // from a retired tier or issued here). `scopeId` holds the grant id.
+  const [capEdit, setCapEdit] = useState<ScopeEdit | null>(null);
+  const [capEditError, setCapEditError] = useState<string | null>(null);
+  const [capDetails, setCapDetails] = useState<Record<string, ScopeDetail>>({});
 
   // ---------------------------------------------------------------------------
   // Read — the ONE projection this surface renders.
@@ -443,6 +451,54 @@ export function MembersSection({
       );
     },
     [selected, confirm, run, reason],
+  );
+
+  const capReason = useCallback(
+    (grant: CapabilityGrant): string | null | undefined =>
+      grant.reason !== undefined ? grant.reason : capDetails[grant.id]?.reason,
+    [capDetails],
+  );
+
+  const updateCapability = useCallback(
+    async (grant: CapabilityGrant) => {
+      if (!selected || !capEdit || capEdit.scopeId !== grant.id) return;
+      const built = buildScopeUpdateBody(capEdit, {
+        expiresAtUtc: grant.expiresAtUtc,
+        reason: capReason(grant),
+      });
+      if (!built.ok) {
+        setCapEditError(built.message);
+        return;
+      }
+      setCapEditError(null);
+      let answered: ScopeDetail | null = null;
+      await run(
+        selected.teamMemberId,
+        `Capability ${grant.permission} updated.`,
+        "Could not update the capability.",
+        async (headers) => {
+          const res = await apiFetch(`/v1/identity/capabilities/${grant.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify(built.body),
+          });
+          const g = (res as { grant?: Partial<ScopeDetail> } | null)?.grant;
+          if (g) {
+            answered = {
+              reason: typeof g.reason === "string" ? g.reason : null,
+              expiresAtUtc: typeof g.expiresAtUtc === "string" ? g.expiresAtUtc : null,
+            };
+          }
+          return res;
+        },
+      );
+      const detail = answered as ScopeDetail | null;
+      if (detail) {
+        setCapDetails((prev) => ({ ...prev, [grant.id]: detail }));
+        setCapEdit(null);
+      }
+    },
+    [selected, capEdit, capReason, run],
   );
 
   const grantDelegated = useCallback(async () => {
@@ -904,6 +960,7 @@ export function MembersSection({
                       data-identity-capability-row={g.id}
                       style={{
                         display: "flex",
+                        flexWrap: "wrap",
                         justifyContent: "space-between",
                         alignItems: "center",
                         gap: 8,
@@ -922,15 +979,98 @@ export function MembersSection({
                           {g.expiresAtUtc ? ` · expires ${fmt(g.expiresAtUtc)}` : ""}
                         </span>
                       </span>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        data-identity-capability-revoke={g.id}
-                        disabled={busyRow === selected.teamMemberId}
-                        onClick={() => void revokeCapability(g)}
-                      >
-                        Revoke
-                      </Button>
+                      <span style={{ display: "flex", gap: 4 }}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          data-identity-capability-edit={g.id}
+                          disabled={busyRow === selected.teamMemberId}
+                          onClick={() => {
+                            setCapEditError(null);
+                            setCapEdit(
+                              capEdit?.scopeId === g.id
+                                ? null
+                                : {
+                                    scopeId: g.id,
+                                    expiresAt: toLocalInputValue(g.expiresAtUtc),
+                                    noExpiry: g.expiresAtUtc === null,
+                                    reason: capReason(g) ?? "",
+                                  },
+                            );
+                          }}
+                        >
+                          {capEdit?.scopeId === g.id ? "Close" : "Edit"}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          data-identity-capability-revoke={g.id}
+                          disabled={busyRow === selected.teamMemberId}
+                          onClick={() => void revokeCapability(g)}
+                        >
+                          Revoke
+                        </Button>
+                      </span>
+                      {capEdit?.scopeId === g.id ? (
+                        <form
+                          data-identity-capability-edit-form={g.id}
+                          style={{ display: "grid", gap: 6, marginTop: 8, padding: 8, border: "1px solid var(--border-subtle, #e5e7eb)", borderRadius: 8, flexBasis: "100%" }}
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void updateCapability(g);
+                          }}
+                        >
+                          <label className="adm-help" htmlFor={`cap-expiry-${g.id}`}>
+                            Expires
+                          </label>
+                          <input
+                            id={`cap-expiry-${g.id}`}
+                            type="datetime-local"
+                            className="adm-input"
+                            data-identity-capability-edit-expiry={g.id}
+                            value={capEdit.expiresAt}
+                            disabled={capEdit.noExpiry}
+                            onChange={(e) => setCapEdit({ ...capEdit, expiresAt: e.target.value })}
+                          />
+                          <label className="adm-help" style={{ display: "flex", gap: 6 }}>
+                            <input
+                              type="checkbox"
+                              data-identity-capability-edit-no-expiry={g.id}
+                              checked={capEdit.noExpiry}
+                              onChange={(e) => setCapEdit({ ...capEdit, noExpiry: e.target.checked })}
+                            />
+                            No expiry
+                          </label>
+                          <label className="adm-help" htmlFor={`cap-reason-${g.id}`}>
+                            Reason (recorded on the grant and its audit entry)
+                          </label>
+                          <input
+                            id={`cap-reason-${g.id}`}
+                            className="adm-input"
+                            data-identity-capability-edit-reason={g.id}
+                            value={capEdit.reason}
+                            maxLength={400}
+                            onChange={(e) => setCapEdit({ ...capEdit, reason: e.target.value })}
+                          />
+                          {capEditError ? (
+                            <div role="alert" className="adm-help" data-identity-capability-edit-error={g.id} style={{ color: "var(--danger-strong)" }}>
+                              {capEditError}
+                            </div>
+                          ) : null}
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <Button
+                              type="submit"
+                              variant="enterprise"
+                              size="sm"
+                              data-identity-capability-edit-save={g.id}
+                              loading={busyRow === selected.teamMemberId}
+                              disabled={busyRow === selected.teamMemberId}
+                            >
+                              Save changes
+                            </Button>
+                          </div>
+                        </form>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

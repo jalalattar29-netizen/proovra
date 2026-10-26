@@ -49,8 +49,22 @@ export function webSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
   return scrubTelemetryBreadcrumb(breadcrumb, SCRUB);
 }
 
-export function webSentryBeforeSend<T>(event: T): T | null {
+/**
+ * MEMBERS RE-AUDIT AUD-05 — the expected-refusal filter lives in the hook
+ * Sentry itself calls, not only in our `captureException` wrapper.
+ *
+ * An `ApiError` that escapes as an unhandled rejection, or is captured by
+ * an integration, never passes through the wrapper; Sentry hands its original
+ * exception to `beforeSend` as `hint.originalException`. A business refusal
+ * (typed 4xx, or a 401/403/404/409/422 answer) is dropped here; a 5xx, a
+ * network failure or anything unexpected is kept.
+ */
+export function webSentryBeforeSend<T>(
+  event: T,
+  hint?: { originalException?: unknown },
+): T | null {
   try {
+    if (hint && isExpectedBusinessRefusal(hint.originalException)) return null;
     const ev = event as AnySentryEvent;
     // A route family that carries a capability in its URL (verify, share,
     // intake, portal, evidence, cases, auth callback): keep the error, but

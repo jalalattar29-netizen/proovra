@@ -33,6 +33,7 @@ import {
   authorizeCollaborationWorkspace,
 } from "../services/collaboration-team/collaboration-authorization.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   CollaborationTeamError,
   acceptInvite,
@@ -711,6 +712,28 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           userId: binding.workspace.userId,
         };
         try {
+          // PERMANENT DELETION NEEDS A FRESH STEP-UP (members audit SEC-03).
+          // Archive is the reversible retirement; delete is irreversible, so the
+          // LEAD confirms it is them first. A group that cannot be deleted at
+          // all (it carries history) is refused by the service below WITHOUT a
+          // step-up being asked for — a ceremony for a certain refusal helps
+          // nobody. The challenge is bound to this group.
+          const disposition = await assessCollaborationTeamDisposability({
+            teamId: req.params.teamId,
+            actorUserId: ctx.userId,
+          });
+          if (disposition.disposable) {
+            const gate = await requireStepUpForSensitiveAction({
+              req,
+              reply,
+              teamId: ctx.workspaceId,
+              userId: ctx.userId,
+              purpose: "COLLABORATION_TEAM_DELETE",
+              resourceKind: "collaboration_team",
+              resourceId: req.params.teamId,
+            });
+            if (gate.sent) return;
+          }
           // D19 — the service writes the success record itself, outside the
           // delete transaction so it survives the row; a second write here
           // recorded every deletion twice.

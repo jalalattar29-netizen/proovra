@@ -58,6 +58,8 @@ import {
   type TeamDisposability,
 } from "../product/collaboration";
 import { humanizeEnum } from "../product/domain-display";
+import { STEP_UP_CANCEL } from "../product/challenge-step-up";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "./challenge-step-up";
 
 type Pending = { kind: "archive" | "unarchive" | "delete" } | null;
 
@@ -72,6 +74,9 @@ export function CollaborationSettingsSection({
 }) {
   const teamId = team.id;
   const admin = canAdministerTeam(team.viewerRole);
+  // SEC-03 — deleting a group is irreversible: a fresh factor, bound to the
+  // group's workspace, through the one challenge flow.
+  const stepUp = useChallengeStepUp(team.workspaceId);
 
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description ?? "");
@@ -162,15 +167,24 @@ export function CollaborationSettingsSection({
         });
         onChanged();
       } else {
-        await apiFetch(buildCollaborationTeamPath(teamId), { method: "DELETE" });
+        await stepUp.run((headers) =>
+          apiFetch(buildCollaborationTeamPath(teamId), {
+            method: "DELETE",
+            ...(headers ? { headers } : {}),
+          }),
+        );
         onDeleted();
       }
     } catch (err) {
+      if ((err as { code?: string })?.code === STEP_UP_CANCEL) {
+        setMessage("Not deleted — confirmation cancelled.");
+        return;
+      }
       setMessage(toSafeUserError(err).message);
     } finally {
       setBusy(false);
     }
-  }, [pending, teamId, onChanged, onDeleted]);
+  }, [pending, teamId, onChanged, onDeleted, stepUp]);
 
   const changeRole = useCallback(
     async (member: CollaborationMember, role: string) => {

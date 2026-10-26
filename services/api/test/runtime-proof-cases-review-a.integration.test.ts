@@ -27,9 +27,10 @@
  * which now resolves on its first read — a bounded wait, never a retry of the
  * action.
  *
- * Assigning a case to a person is the REVIEW_ASSIGNMENTS capability (TEAM and
- * Enterprise), and deleting a team case takes a fresh step-up (members audit
- * SEC-03), so the fixture workspace is on TEAM and the deletion carries an
+ * Assigning a case to a person needs a plan that sells collaboration (PRO,
+ * TEAM and Enterprise; members re-audit ENT-11) and an assignee placed in an
+ * ACTIVE Collaboration Team; deleting a case takes a fresh step-up (members
+ * audit SEC-03). The fixture workspace is on TEAM and the deletion carries an
  * approved challenge.
  */
 

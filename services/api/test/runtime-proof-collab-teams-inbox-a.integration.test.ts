@@ -241,11 +241,32 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       expect(foreign.json()).toEqual(member.json());
       expect(await prisma.collaborationTeam.findUnique({ where: { id: group.id } })).not.toBeNull();
 
-      const res = await call({
+      // Members audit SEC-03 — permanent deletion needs a fresh step-up.
+      const noStepUp = await call({
         method: "DELETE",
         url: `/v1/collaboration-teams/${group.id}`,
         token: a.ownerToken,
         headers: { [WS]: a.teamId },
+      });
+      expect(noStepUp.statusCode).toBe(401);
+      expect((noStepUp.json() as { error: { code: string } }).error.code).toBe("STEP_UP_REQUIRED");
+      expect(await prisma.collaborationTeam.findUnique({ where: { id: group.id } })).not.toBeNull();
+
+      const res = await call({
+        method: "DELETE",
+        url: `/v1/collaboration-teams/${group.id}`,
+        token: a.ownerToken,
+        headers: {
+          [WS]: a.teamId,
+          ...(await stepUp.approvedHeader({
+            token: a.ownerToken,
+            userId: a.ownerUserId,
+            teamId: a.teamId,
+            purpose: "COLLABORATION_TEAM_DELETE",
+            resourceKind: "collaboration_team",
+            resourceId: group.id,
+          })),
+        },
       });
       expect(res.statusCode, res.body).toBe(200);
       expect(res.json()).toEqual({ ok: true });
@@ -855,7 +876,9 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
 
       const member = await call({ method: "DELETE", url, token: a.memberToken });
       expect(member.statusCode).toBe(403);
-      expect(member.json()).toEqual({ message: "Forbidden" });
+      // A typed refusal (members audit AUD-05): the web client classifies it as an
+      // expected business refusal, not an API_ERROR incident.
+      expect(member.json()).toEqual({ code: "FORBIDDEN", message: "Forbidden" });
       const foreign = await call({
         method: "DELETE",
         url: `/v1/teams/${h.fixtures.teamB.teamId}/invites/${invite.id}`,
@@ -895,7 +918,9 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
 
       const member = await call({ method: "DELETE", url, token: a.memberToken });
       expect(member.statusCode).toBe(403);
-      expect(member.json()).toEqual({ message: "Forbidden" });
+      // A typed refusal (members audit AUD-05): the web client classifies it as an
+      // expected business refusal, not an API_ERROR incident.
+      expect(member.json()).toEqual({ code: "FORBIDDEN", message: "Forbidden" });
       const foreign = await call({
         method: "DELETE",
         url: `/v1/teams/${h.fixtures.teamB.teamId}/members/${membership.id}`,
@@ -953,7 +978,7 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       expect(member.statusCode).toBe(403);
       const foreign = await call({ method: "DELETE", url: `/v1/teams/${b.teamId}/cases/${kase.id}`, token: b.ownerToken });
       expect(foreign.statusCode).toBe(404);
-      expect(foreign.json()).toEqual({ message: "Case not found in team" });
+      expect(foreign.json()).toEqual({ code: "CASE_NOT_FOUND", message: "Case not found in this workspace" });
       expect((await prisma.case.findUniqueOrThrow({ where: { id: kase.id } })).teamId).toBe(a.teamId);
 
       const res = await call({ method: "DELETE", url: `/v1/teams/${a.teamId}/cases/${kase.id}`, token: a.adminToken });

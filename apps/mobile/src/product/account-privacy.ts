@@ -150,6 +150,8 @@ export interface ClosureView {
   request: ClosureRequest | null;
   /** The server's reasons closure cannot proceed. Never invented here. */
   blockers: string[];
+  /** What closure will do to other people — shown, never blocking (LIFE-13). */
+  consequences: string[];
   /** The exact words the route checks. Published so the two cannot drift. */
   confirmationPhrase: string | null;
   coolingOffDays: number | null;
@@ -175,6 +177,9 @@ export function parseClosure(payload: unknown): ClosureView {
     blockers: rows(d.blockers)
       .map((b) => (typeof b === "string" ? b : str(obj(b).message) ?? str(obj(b).code)))
       .filter((b): b is string => typeof b === "string" && b.length > 0),
+    consequences: rows(d.consequences)
+      .map((c) => str(obj(c).message))
+      .filter((c): c is string => typeof c === "string" && c.length > 0),
     confirmationPhrase: str(d.confirmationPhrase),
     coolingOffDays: num(d.coolingOffDays),
   };

@@ -336,6 +336,32 @@ function requireReviewerCapable(
   return true;
 }
 
+/**
+ * Members audit REV-05 / defect 4 (2026-10-25) — HANDING WORK TO SOMEONE is the
+ * `review.assign` capability, on every assignment route here exactly as on the
+ * bulk path (`/v1/review-operations/bulk` ASSIGN) and the assignee picker.
+ * Single assign, reassign, escalation reassign and an escalation routed to a
+ * NAMED person used to gate the assigner on `evidence_request.review` alone;
+ * the two coincide for the built-in roles but diverge for delegated capability
+ * grants, so a member granted only the reviewer permission could hand reviews
+ * out. Read from the PROVEN capability set (role + live grants).
+ */
+function requireReviewAssigner(
+  ctx: ReviewerActorContext,
+  reply: FastifyReply,
+): boolean {
+  if (!contextHasCapability(ctx.authorized, "review.assign")) {
+    reply.code(403).send({
+      error: {
+        code: "REVIEW_PERMISSION_DENIED",
+        reason: "review_assign_required",
+      },
+    });
+    return false;
+  }
+  return true;
+}
+
 // Phase R5 — bulk reviewer operations require the GRANULAR `review.bulk`
 // capability (SUPERVISOR / REVIEW_ADMIN in the canonical reviewer-role
 // model), NOT merely the boolean `evidence_request.review` reviewer flag.
@@ -1171,6 +1197,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      if (!requireReviewAssigner(ctx, reply)) return;
       /**
        * WCR-01 (2026-09-07) — `QUOTA_REVIEWER_SEATS` removed, same defect as
        * `QUOTA_USERS` on the workspace-invitation path.
@@ -1218,6 +1245,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      if (!requireReviewAssigner(ctx, reply)) return;
       try {
         const result = await assignReviewerToWorkflow(ctx, {
           workflowId,
@@ -1467,15 +1495,29 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
-      const result = await createEscalation({
-        teamId: body.teamId,
-        workflowId: body.workflowId,
-        reason: body.reason,
-        severity: body.severity,
-        safeSummary: body.safeSummary,
-        createdByUserId: ctx.actorUserId,
-        assignedToUserId: body.assignedToUserId ?? null,
-      });
+      // Routing the escalation to a NAMED person hands them work: the assigner
+      // needs `review.assign` (REV-05). An unrouted escalation stays a
+      // reviewer act.
+      if (body.assignedToUserId && !requireReviewAssigner(ctx, reply)) return;
+      // Defect 20 — the engine refuses an ineligible or unplaced named
+      // assignee with a typed EscalationEngineError. It was not caught here, so
+      // an expected business refusal became a 500 (and a Sentry incident); it
+      // is now the same typed 422 the reassign route answers.
+      let result: Awaited<ReturnType<typeof createEscalation>>;
+      try {
+        result = await createEscalation({
+          teamId: body.teamId,
+          workflowId: body.workflowId,
+          reason: body.reason,
+          severity: body.severity,
+          safeSummary: body.safeSummary,
+          createdByUserId: ctx.actorUserId,
+          assignedToUserId: body.assignedToUserId ?? null,
+        });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
       if (!result.ok) {
         return reply
           .code(result.code === "REVIEW_WORKFLOW_NOT_FOUND" ? 404 : 403)
@@ -1528,6 +1570,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      if (!requireReviewAssigner(ctx, reply)) return;
       try {
         const escalation = await reassignEscalation({
           teamId: body.teamId,

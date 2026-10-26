@@ -8,6 +8,10 @@ import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModa
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { AppStatusBadge } from "../../../../../components/app-primitives/AppStatusBadge";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
 import {
   type CollaborationTeamDetail,
@@ -81,6 +85,7 @@ function SettingsTab({
   const { addToast } = useToast();
   const { confirm } = useConfirmAction();
   const router = useRouter();
+  const stepUp = useStepUpAction({ teamId: team.workspaceId });
   const [name, setName] = useState(team.name);
   const [description, setDescription] = useState(team.description ?? "");
   const [teamType, setTeamType] = useState<CollaborationTeamType>(team.teamType);
@@ -199,10 +204,19 @@ function SettingsTab({
     if (!ok) return;
     setBusy(true);
     try {
-      await deleteTeam(team.id);
+      // SEC-03 — a fresh factor, bound to this group, through the one
+      // step-up flow; the hook retries with the challenge header.
+      await stepUp.runStepUpAction(
+        async (headers) => deleteTeam(team.id, headers ?? undefined),
+        { teamId: team.workspaceId },
+      );
       addToast("Team deleted.", "success");
       router.push("/collaboration-teams");
     } catch (err) {
+      if ((err as { code?: string })?.code === "STEP_UP_CANCEL") {
+        addToast("Not deleted — confirmation cancelled.", "info");
+        return;
+      }
       notifyApiError(addToast, err, { message: "Couldn't delete team." });
     } finally {
       setBusy(false);
@@ -649,6 +663,7 @@ function SettingsTab({
           </div>
         </div>
       </div>
+      <StepUpModal control={stepUp} />
     </section>
   );
 }

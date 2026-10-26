@@ -906,6 +906,76 @@ export async function grantCapability(
   });
 }
 
+export type UpdateCapabilityInput = {
+  teamId: string;
+  grantId: string;
+  actorUserId: string;
+  /** undefined leaves it; null removes the expiry. */
+  expiresAtUtc?: Date | null;
+  reason?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
+/**
+ * Members re-audit DOM-09 — a capability grant (including one carried forward
+ * from a retired delegated-admin tier) can be extended, shortened or
+ * re-explained without being revoked and re-issued. The permission itself is
+ * never changed here: a different permission is a different grant. The same
+ * D54 rule as issuing applies — nobody extends authority they do not hold —
+ * and the conditional write refuses a grant revoked concurrently.
+ */
+export async function updateCapability(
+  input: UpdateCapabilityInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.MemberCapabilityGrant> {
+  return runAtomically(client, async (tx) => {
+    const grant = await tx.memberCapabilityGrant.findFirst({
+      where: { id: input.grantId, teamId: input.teamId, revokedAtUtc: null },
+      select: { id: true, permission: true, teamMemberId: true, expiresAtUtc: true, reason: true },
+    });
+    if (!grant) throw new RbacError("capability_not_found");
+    const grantorDecision = await evaluateMemberAccess(
+      { teamId: input.teamId, userId: input.actorUserId, permission: grant.permission as Permission },
+      client,
+    );
+    if (!grantorDecision.allowed) throw new RbacError("grantor_lacks_permission");
+    const data: { expiresAtUtc?: Date | null; reason?: string | null } = {};
+    if (input.expiresAtUtc !== undefined) data.expiresAtUtc = input.expiresAtUtc;
+    if (input.reason !== undefined) data.reason = input.reason;
+    const changed = await tx.memberCapabilityGrant.updateMany({
+      where: { id: grant.id, revokedAtUtc: null },
+      data,
+    });
+    if (changed.count !== 1) throw new RbacError("capability_not_found");
+    const updated = await tx.memberCapabilityGrant.findUniqueOrThrow({ where: { id: grant.id } });
+    await emitTenantAudit({
+      action: "identity.capability.update",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "member_capability_grant",
+      resourceId: grant.id,
+      metadata: {
+        subjectMemberId: grant.teamMemberId,
+        permission: grant.permission,
+        previous: {
+          expiresAtUtc: grant.expiresAtUtc?.toISOString() ?? null,
+          reason: grant.reason ?? null,
+        },
+        resulting: {
+          expiresAtUtc: updated.expiresAtUtc?.toISOString() ?? null,
+          reason: updated.reason ?? null,
+        },
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
+    }, tx);
+    return updated;
+  });
+}
+
 export type RevokeCapabilityInput = {
   teamId: string;
   grantId: string;

@@ -153,16 +153,27 @@ export function hasExplanationFor(error: unknown): boolean {
  * correctly. Kept here, beside the code map, so "explained" and "expected"
  * are decided from the same vocabulary.
  *
- * Still reported: network failures, 5xx, and a 4xx with NO typed code
- * (`API_ERROR`), because a code-less refusal is itself the defect — a route
- * that refused without saying why.
+ * MEMBERS RE-AUDIT AUD-05 / DEFECT 18. A code-less answer with a BUSINESS
+ * status — 401, 403, 404, 409, 422 — is also the product saying "no": not
+ * signed in, not allowed, not there, conflicts with current state, not
+ * acceptable. About thirty such `{ message }` refusals remained on the
+ * workspace routes, and reporting each as an `API_ERROR` incident is how
+ * routine refusals kept reaching Sentry. A missing code is a copy defect for
+ * the route to fix, not an incident.
+ *
+ * Still reported: network failures, every 5xx, and a code-less 4xx outside
+ * those business statuses (a 400, 405, 413, 415 … is the client sending
+ * something the server did not expect — a fault).
  */
+const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409, 422]);
+
 export function isExpectedBusinessRefusal(error: unknown): boolean {
   const e = (error && typeof error === "object" ? error : {}) as ErrorLike;
   const status = readStatus(e);
   if (typeof status !== "number" || status < 400 || status >= 500) return false;
   const code = readString(e.code)?.toUpperCase();
-  return Boolean(code && code !== "API_ERROR");
+  if (code && code !== "API_ERROR") return true;
+  return BUSINESS_REFUSAL_STATUSES.has(status);
 }
 
 function fromStatus(status: number): Omit<SafeUserError, "supportReference"> {
@@ -226,8 +237,8 @@ export function toSafeUserError(
     // THE SUFFIX IS THE SIGNAL, NOT THE STATUS.
     //
     // Twenty-two routes answer 410 with a `*_RETIRED` code and a truthful
-    // sentence, and every one was discarded: only `TEAM_CONFLICT` may show a
-    // server message, so these fell to the generic 4xx bucket and read
+    // sentence, and every one was discarded: only a short allowlist may show
+    // a server message, so these fell to the generic 4xx bucket and read
     // "review your input and try again" about an endpoint no input reaches.
     //
     // Keyed on the code rather than on 410, because 410 is not only used for

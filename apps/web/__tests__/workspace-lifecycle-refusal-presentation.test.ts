@@ -74,8 +74,16 @@ test("a typed refusal is an expected business decision, not a Sentry incident", 
   assert.equal(isExpectedBusinessRefusal(err), true);
 });
 
-test("a code-less 4xx, a 5xx and a network failure are still reported", async () => {
-  assert.equal(isExpectedBusinessRefusal(await refusal(409, { message: "legacy" })), false);
+// Members re-audit AUD-05 / defect 18 — a code-less 401/403/404/409/422 is a
+// business answer (not an incident); a code-less 400 is still a fault.
+test("a code-less business-status refusal is expected, not an incident", async () => {
+  for (const status of [401, 403, 404, 409, 422]) {
+    assert.equal(isExpectedBusinessRefusal(await refusal(status, { message: "legacy" })), true, String(status));
+  }
+});
+
+test("a code-less non-business 4xx, a 5xx and a network failure are still reported", async () => {
+  assert.equal(isExpectedBusinessRefusal(await refusal(400, { message: "legacy" })), false);
   assert.equal(isExpectedBusinessRefusal(await refusal(500, { error: { code: "INTERNAL" } })), false);
   globalThis.fetch = (async () => {
     throw new TypeError("fetch failed");

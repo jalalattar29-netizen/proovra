@@ -802,10 +802,24 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      const evidence = await prisma.evidence.findMany({
+      const linked = await prisma.evidence.findMany({
         where: { caseLinks: { some: { caseId: id } }, deletedAt: null },
         include: { reports: { orderBy: { version: "desc" }, take: 1 } },
       });
+      // RECORD REACH FIRST (members re-audit defect 7). A record linked to
+      // this case may also be linked to ANOTHER restricted case the caller
+      // cannot reach; reaching this case does not reach that record. The
+      // manifest listed every linked record's id, status and creation time
+      // (and a record with no report skipped the download gate entirely), so
+      // the export disclosed records closed to the caller. A record the
+      // caller cannot read is left out of the export altogether — not listed
+      // as withheld, which would itself disclose it.
+      const reach = await Promise.all(
+        linked.map((ev) =>
+          resolveEvidenceRecordAccess({ userId: ownerUserId, evidenceId: ev.id, permission: "evidence.read" }),
+        ),
+      );
+      const evidence = linked.filter((_, i) => reach[i]!.allowed);
 
       /*
        * EVERY REPORT IN THE ZIP PASSES THE SAME DOWNLOAD GATE (2026-09-29).

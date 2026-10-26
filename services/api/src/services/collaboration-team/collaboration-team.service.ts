@@ -72,6 +72,10 @@ import { listLatestWorkloadSnapshots } from "../reviewer-ops/workload.service.js
 // live, imports FROM this file. Writing rows the canonical account inbox
 // already reads — not a second notification store.
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
 import { emitTeamNotifications } from "./team-notifications.js";
 import {
   assertCanCreateCollaborationTeam,
@@ -246,6 +250,30 @@ const E = {
       "Team tasks are available on the Team and Enterprise plans.",
       403,
       { entitlement: capability, reason: "review_capability_not_included" },
+    ),
+  // Members audit CT-12 — a group takes only ACTIVE members of its workspace;
+  // a typed refusal so a bulk add can say why each person was not added.
+  notWorkspaceMember: () =>
+    new CollaborationTeamError(
+      "COLLABORATION_MEMBER_NOT_IN_WORKSPACE",
+      "Target user is not an active member of the parent workspace.",
+      409,
+    ),
+  // Members audit CT-06 — who may carry a task, as typed refusals: a VIEWER, a
+  // suspended or removed member, or a non-member is not someone work can be
+  // handed to; an eligible member who cannot reach the record is a different
+  // fact with a different fix (grant access first).
+  assigneeNotEligible: () =>
+    new CollaborationTeamError(
+      "TASK_ASSIGNEE_NOT_ELIGIBLE",
+      "Assignee is not an active member of this team who can take on work.",
+      409,
+    ),
+  assigneeCannotReachRecord: () =>
+    new CollaborationTeamError(
+      "TASK_ASSIGNEE_NO_RECORD_ACCESS",
+      "Assignee does not have access to this record.",
+      409,
     ),
   // Members audit CT-08 — a transition outside the task state machine.
   taskTransitionInvalid: (from: string, to: string) =>
@@ -1657,10 +1685,7 @@ export async function addExistingMember(
     },
     select: { id: true },
   });
-  if (!ws)
-    throw E.invalid(
-      "Target user is not an active member of the parent workspace.",
-    );
+  if (!ws) throw E.notWorkspaceMember();
 
   // An archived group grants no new access (members audit CT-11).
   if (team.status !== "ACTIVE") throw E.archived();
@@ -2531,7 +2556,7 @@ async function assertTaskAssigneeEligible(
     select: { role: true },
   });
   if (!member || !TASK_ASSIGNABLE_ROLES.has(String(member.role))) {
-    throw E.invalid("Assignee is not an active member of this team who can take on work.");
+    throw E.assigneeNotEligible();
   }
   const reachable = await assignmentTargetReachableBy(
     client,
@@ -2541,7 +2566,32 @@ async function assertTaskAssigneeEligible(
     input.targetId,
   );
   if (!reachable) {
-    throw E.invalid("Assignee does not have access to this record.");
+    throw E.assigneeCannotReachRecord();
+  }
+  // Members audit REV-04 — a task that points at a review workflow hands its
+  // assignee review work, so the assignee passes the ONE reviewer authority
+  // (workspace review capability, record reach, placement) exactly as a
+  // reviewer assignment would. A group role alone is not a review capability.
+  if (input.targetType === "REVIEW") {
+    const workflow = await client.evidenceReviewWorkflow.findUnique({
+      where: { id: input.targetId },
+      select: { evidenceId: true },
+    });
+    if (!workflow) throw E.notFound("Review");
+    try {
+      await assertWorkAssigneeEligible(
+        {
+          workspaceId: input.workspaceId,
+          assigneeUserId: input.assigneeUserId,
+          permission: "evidence_request.review",
+          evidenceId: workflow.evidenceId,
+        },
+        client,
+      );
+    } catch (err) {
+      if (err instanceof AssigneeEligibilityError) throw E.assigneeNotEligible();
+      throw err;
+    }
   }
 }
 

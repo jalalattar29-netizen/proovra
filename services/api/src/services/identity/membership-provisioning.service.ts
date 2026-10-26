@@ -80,6 +80,7 @@ export {
   changeMemberRole,
   grantCapability,
   revokeCapability,
+  updateCapability,
   grantDelegatedAdminScope,
   revokeDelegatedAdminScope,
   updateDelegatedAdminScope,

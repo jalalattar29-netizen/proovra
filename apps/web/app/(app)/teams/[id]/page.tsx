@@ -593,6 +593,27 @@ function TeamDetailPageBody() {
     [invites],
   );
 
+  /**
+   * Members audit MEM-03 — the "Pending invitations" KPI.
+   *
+   * It used to count the invitation LIST, which a caller who cannot manage
+   * members is never sent (the page does not request it) and which is empty
+   * after a failed read — so a Member, a Viewer, or an administrator whose
+   * read failed was told "0". The figure now comes from the server:
+   *   - an administrator whose list read succeeded sees that list's count (it
+   *     IS the server's answer, and it stays current after an invite, resend
+   *     or revoke on this page without a full reload);
+   *   - everyone else sees the server's own `stats.pendingInviteCount`, which
+   *     uses the same predicate (not accepted, not revoked, not expired);
+   *   - when neither is known the card says the count is unavailable — never 0.
+   */
+  const pendingInviteFigure: number | null =
+    canManageTeam && invitesRead === "ready"
+      ? pendingInvites.filter((i) => i.status !== "EXPIRED").length
+      : typeof team?.stats?.pendingInviteCount === "number"
+        ? team.stats.pendingInviteCount
+        : null;
+
   const [inviteOpen, setInviteOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
 
@@ -1287,12 +1308,12 @@ function TeamDetailPageBody() {
                */
               data-app-metric-tone="warning"
             >
-              <span className="app-metric-card__value">
-                {pendingInvites.filter((i) => i.status !== "EXPIRED").length}
+              <span className="app-metric-card__value" data-testid="people-pending-invite-count">
+                {pendingInviteFigure ?? "—"}
               </span>
               <span className="app-metric-card__label">Pending invitations</span>
               <span className="app-metric-card__meta">
-                Sent, not yet accepted
+                {pendingInviteFigure === null ? "Count unavailable right now" : "Sent, not yet accepted"}
               </span>
             </div>
           </li>

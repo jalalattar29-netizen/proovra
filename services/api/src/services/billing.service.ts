@@ -1,8 +1,9 @@
 import { prisma } from "../db.js";
 // PHASE 12 REMEDIATION §6.1 (2026-08-06) — the ONE seat-OCCUPANCY authority,
-// shared with the worker. The seat-CEILING comparison stays
-// `computeOverSeatLimit` in this file — one quantity, one comparison.
+// shared with the worker. The seat-CEILING answer is the canonical
+// `resolveWorkspaceSeatState` (billing/workspace-seats.service.ts).
 import * as prismaPkg from "@prisma/client";
+import { resolveWorkspaceSeatState } from "./billing/workspace-seats.service.js";
 import { writeAnalyticsEvent } from "./analytics-event.service.js";
 import { emitPlatformAudit } from "./audit/tenant-audit.service.js";
 import {
@@ -1081,38 +1082,31 @@ export async function cancelWorkspaceStorageAddon(params: {
 // cancel a WORKSPACE's commercial state — the obsolete model exactly: a TEAM
 // subscription no longer has a workspace whose state it could sync.
 
-export function computeOverSeatLimit(input: {
-  activeMemberCount: number;
-  includedSeats: number;
-}): boolean {
-  // `includedSeats: 0` means "no seat ceiling", never "zero seats allowed".
-  if (input.includedSeats <= 0) return false;
-  return input.activeMemberCount > input.includedSeats;
-}
-
-export async function refreshTeamSeatState(teamId: string) {
-  const team = await prisma.team.findUnique({
+/**
+ * Persist the workspace's seat posture — the CANONICAL one.
+ *
+ * MEMBERS RE-AUDIT ENT-05 / DEFECT 14. This wrote `Team.overSeatLimit` from
+ * the legacy owner-inclusive formula, so the persisted flag (read by the
+ * org-admin Seats card, the workspace admin panel and the admin dashboard)
+ * could say "over seat limit" for a workspace the member gate admits. The flag
+ * is now the canonical resolver's `overLimit`, so there is one seat answer
+ * whether a surface reads the column or the resolver.
+ */
+export async function refreshTeamSeatState(
+  teamId: string,
+  client: typeof prisma = prisma,
+) {
+  const team = await client.team.findUnique({
     where: { id: teamId },
-    select: {
-      id: true,
-      ownerUserId: true,
-      billingPlan: true,
-      includedSeats: true,
-      _count: {
-        // P5 domain remediation (2026-07-21) — ACTIVE-only seat counting.
-        select: { members: { where: { status: "ACTIVE" } } },
-      },
-    },
+    select: { id: true, ownerUserId: true, billingPlan: true },
   });
 
   if (!team) return null;
 
-  const overSeatLimit = computeOverSeatLimit({
-    activeMemberCount: team._count.members,
-    includedSeats: team.includedSeats,
-  });
+  const seats = await resolveWorkspaceSeatState(teamId, client as never);
+  const overSeatLimit = seats.overLimit;
 
-  const updated = await prisma.team.update({
+  const updated = await client.team.update({
     where: { id: teamId },
     data: {
       overSeatLimit,
@@ -1126,8 +1120,9 @@ export async function refreshTeamSeatState(teamId: string) {
       teamId,
       plan: team.billingPlan,
       metadata: {
-        memberCount: team._count.members,
-        includedSeats: team.includedSeats,
+        nonOwnerActiveMembers: seats.used,
+        seatLimit: seats.limit,
+        source: seats.source,
       },
     });
   }

@@ -420,3 +420,9 @@ test("CT-16: a refused Teams read names the plan only when the entitlement says 
   // Unknown entitlement: never claim a plan reason the server did not give.
   assert.doesNotMatch(mod.collaborationUnavailableCopy(null).purpose, /plan/i);
 });
+
+test("SEC-03 — the detail carries the group's workspace, the tenant its delete step-up is bound to", () => {
+  const detail = mod.parseCollaborationTeamDetail({ team: { id: "t1", name: "Intake", workspaceId: "ws-1" } });
+  assert.equal(detail.workspaceId, "ws-1");
+  assert.equal(mod.parseCollaborationTeamDetail({ team: { id: "t1", name: "Intake" } }).workspaceId, null);
+});

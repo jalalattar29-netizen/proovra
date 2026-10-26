@@ -44,8 +44,12 @@ import {
 // Mocks — bound BEFORE the SUT imports.
 // ---------------------------------------------------------------------------
 
-const { emitOrgAuditEventMock, appendPlatformAuditLogMock, sendEmailMock } =
+const { emitOrgAuditEventMock, appendPlatformAuditLogMock, sendEmailMock, refreshTeamSeatStateMock } =
   vi.hoisted(() => ({
+    // Members re-audit ENT-05 / defect 14 — the grant persists seat posture
+    // through the ONE canonical writer, after commit (proven against
+    // PostgreSQL in org-seats-canonical-projection.integration.test.ts).
+    refreshTeamSeatStateMock: vi.fn(async (_teamId: string) => null),
     emitOrgAuditEventMock: vi.fn(async () => undefined),
     appendPlatformAuditLogMock: vi.fn(async () => undefined),
     // Macro-Wave A2 — email TRANSPORT mock (the delivery chain writers stay
@@ -57,6 +61,9 @@ const { emitOrgAuditEventMock, appendPlatformAuditLogMock, sendEmailMock } =
       >
     >(async () => ({ ok: true as const, providerMessageId: "msg-1" })),
   }));
+vi.mock("../src/services/billing.service.js", () => ({
+  refreshTeamSeatState: refreshTeamSeatStateMock,
+}));
 vi.mock("../src/services/organization/org-audit.service.js", () => ({
   emitOrgAuditEvent: emitOrgAuditEventMock,
 }));
@@ -341,7 +348,8 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("grantEnterprisePlanToOrg", () => {
-  it("flips every workspace to ENTERPRISE, applies seats + ACTIVE, recomputes overSeatLimit", async () => {
+  it("flips every workspace to ENTERPRISE, applies seats + ACTIVE, then hands seat posture to the canonical writer", async () => {
+    refreshTeamSeatStateMock.mockClear();
     const { client, teams } = makeClient({
       orgs: [{ id: "org-a", name: "Acme", status: "ACTIVE", billingOwnerUserId: null }],
       teams: [
@@ -389,9 +397,10 @@ describe("grantEnterprisePlanToOrg", () => {
       expect(t.billingStatus).toBe("ACTIVE");
       expect(t.includedSeats).toBe(5);
     }
-    // t1 has 3 members (<=5 → within limit); t2 has 10 (>5 → over limit).
-    expect(teams.get("t1")!.overSeatLimit).toBe(false);
-    expect(teams.get("t2")!.overSeatLimit).toBe(true);
+    // No seat formula of its own: the grant writes no overSeatLimit and asks
+    // the canonical writer for each workspace it rewrote.
+    for (const t of teams.values()) expect(t.overSeatLimit).toBe(false);
+    expect(refreshTeamSeatStateMock.mock.calls.map(([id]) => id).sort()).toEqual(["t1", "t2"]);
   });
 
   it("defaults seats to the plan catalog includedSeats when omitted", async () => {

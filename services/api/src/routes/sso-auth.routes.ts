@@ -273,8 +273,9 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           })
         : [];
 
+      // DOM-13 — the Organization's connections, from any of its workspaces.
       const connections = await prisma.ssoConnection.findMany({
-        where: { teamId: actor.teamId },
+        where: { organization: { workspaces: { some: { id: actor.teamId } } } },
         orderBy: [{ status: "asc" }, { createdAt: "desc" }],
         take: 100,
         select: {

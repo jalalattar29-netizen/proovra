@@ -287,18 +287,18 @@ describe("Phase 5 — download audit metadata carries NO secrets", () => {
 // ===========================================================================
 
 describe("Phase 5 — download audit is best-effort (fail-safe)", () => {
-  it("the wrapper defers the audit write and swallows failures (void ...catch)", () => {
+  it("reads and downloads stay best-effort; a mutation audit must commit (SEC-13, proof: members-assignment-surfaces)", () => {
     // PHASE 11 §3 Batch A — auditEvidenceAction now composes the canonical
     // tenant-audit envelope (`emitTenantAudit`), which itself still calls
     // through to appendPlatformAuditLog (same hash-chained sink) under the
-    // hood. The wrapper still fires fire-and-forget:
-    // `void emitTenantAudit(...).catch(...)`. The download handlers reuse
-    // this exact seam, so an audit failure cannot reject the handler's
-    // request path.
+    // hood. Members audit SEC-13: a successful MUTATION's audit is awaited and
+    // a failed write fails the request; reads, downloads and refusals
+    // (`EVIDENCE_READ_AUDIT_ACTIONS`) stay best-effort, so an audit failure
+    // cannot reject a download's request path.
     const wrapper = functionSource(EVIDENCE_ROUTES, "auditEvidenceAction");
     expect(wrapper).toContain("function auditEvidenceAction(");
-    expect(wrapper).toContain("void emitTenantAudit({");
-    expect(wrapper).toContain(".catch(noteCustodyFailure)");
+    expect(wrapper).toContain("EVIDENCE_READ_AUDIT_ACTIONS");
+    expect(wrapper).toContain("await write.catch(noteCustodyFailure)");
   });
 
   it("a rejected audit write is swallowed by the best-effort seam", async () => {

@@ -2,8 +2,8 @@
  * Workspace People ↔ web teams/[id]/page.tsx parity: the summary figures, the
  * seat-full notice, the Workspace overview (owner resolved from the embedded
  * first page), the Collaboration Teams signpost, invitation resend outcomes,
- * the case picker's exclusion of cases linked elsewhere, the owner-only
- * lifecycle (server-side eligible transfer candidates, closure + reopen,
+ * (case links were removed from this screen — members audit MEM-05), the
+ * owner-only lifecycle (server-side eligible transfer candidates, closure + reopen,
  * delete). Stubs use the real reply shapes:
  *   GET  /v1/teams/:id                          teams.routes.ts:760
  *   GET  /v1/teams/:id/members[?eligible=…]     teams.routes.ts:1025

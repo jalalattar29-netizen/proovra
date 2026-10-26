@@ -104,8 +104,10 @@ export async function buildSsoHealthSnapshot(
   const since24h = new Date(now - DAY_MS);
   const since7d = new Date(now - 7 * DAY_MS);
 
+  // DOM-13 — the health of the Organization's connections, from any of its
+  // workspaces.
   const connections = await client.ssoConnection.findMany({
-    where: { teamId: input.teamId },
+    where: { organization: { workspaces: { some: { id: input.teamId } } } },
     select: {
       id: true,
       provider: true,
@@ -126,7 +128,8 @@ export async function buildSsoHealthSnapshot(
   let aggregatedAnyEnabled = false;
 
   for (const conn of connections) {
-    if (conn.status !== "DISABLED" && conn.status !== "REVOKED") {
+    // A SUSPENDED connection (Organization suspension) signs nobody in.
+    if (conn.status !== "DISABLED" && conn.status !== "REVOKED" && conn.status !== "SUSPENDED") {
       aggregatedAnyEnabled = true;
     }
     const attempts = await client.ssoCallbackAttempt.findMany({

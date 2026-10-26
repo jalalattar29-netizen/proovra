@@ -35,7 +35,7 @@ import { prisma as defaultPrisma } from "../db.js";
 import { getPlanCapabilities } from "./plan-catalog.service.js";
 // PHASE 12 POINT 4 PASS C — the ONE seat-limit policy lives with the canonical
 // commercial authority; this module must not re-implement it.
-import { computeOverSeatLimit } from "./billing.service.js";
+import { refreshTeamSeatState } from "./billing.service.js";
 import { hashInviteToken } from "../routes/organizations.routes.js";
 import { emitOrgAuditEvent } from "./organization/org-audit.service.js";
 import { emitTenantAudit } from "./audit/tenant-audit.service.js";
@@ -104,7 +104,8 @@ export type GrantEnterprisePlanResult = {
  *   billingPlan   = plan
  *   includedSeats = seats ?? getPlanCapabilities(plan).includedSeats
  *   billingStatus = ACTIVE
- *   overSeatLimit = (active member count > seats)
+ *   overSeatLimit — persisted after commit by refreshTeamSeatState (the one
+ *                   seat answer; members re-audit ENT-05 / defect 14)
  *
  * Setting billingPlan=ENTERPRISE auto-unlocks SSO/SCIM/legalHold/etc via
  * getPlanCapabilities(plan).enterpriseFeatures — no separate feature flags.
@@ -176,13 +177,6 @@ export async function grantEnterprisePlanToOrg(
       select: {
         id: true,
         isPersonal: true,
-        _count: {
-          // PHASE 12 POINT 4 PASS C — ACTIVE-only, matching the canonical seat
-          // authority. This counted ALL members, so a suspended or revoked
-          // member inflated the count and could mark a workspace over its seat
-          // limit during an org-plan grant when it was not.
-          select: { members: { where: { status: "ACTIVE" } } },
-        },
       },
     });
 
@@ -198,20 +192,14 @@ export async function grantEnterprisePlanToOrg(
     }
 
     for (const ws of workspaces) {
-      // One seat-limit policy, shared with refreshTeamSeatState. The inline
-      // comparison this replaces also lacked the `includedSeats > 0` unlimited
-      // guard, so the two paths could disagree about the same workspace.
-      const overSeatLimit = computeOverSeatLimit({
-        activeMemberCount: ws._count.members,
-        includedSeats: seats,
-      });
+      // The seat posture is NOT computed here: it is persisted after commit
+      // by the one canonical writer (members re-audit ENT-05 / defect 14).
       await tx.team.update({
         where: { id: ws.id },
         data: {
           billingPlan: plan,
           includedSeats: seats,
           billingStatus: TeamBillingStatus.ACTIVE,
-          overSeatLimit,
           // P1 domain remediation (2026-07-21) — an org-plan grant makes
           // these workspaces enterprise-organization operational contexts.
           ...(plan === "ENTERPRISE"
@@ -260,8 +248,15 @@ export async function grantEnterprisePlanToOrg(
       },
     });
 
-    return { workspacesUpdated: workspaces.length };
+    return { workspacesUpdated: workspaces.length, workspaceIds: workspaces.map((w) => w.id) };
   });
+
+  // Members re-audit ENT-05 / defect 14 — one seat answer. The canonical
+  // resolver reads the commercial context the grant just committed, so it runs
+  // after the transaction, never inside it (it would read the pre-grant plan).
+  for (const workspaceId of result.workspaceIds) {
+    await refreshTeamSeatState(workspaceId, client as never);
+  }
 
   await emitTenantAudit({
     action: "ORG_PLAN_GRANTED",

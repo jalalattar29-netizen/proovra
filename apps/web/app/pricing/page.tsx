@@ -383,7 +383,11 @@ export default function MarketingPricingPage() {
         `${catalogValue(catalog?.team?.maxEvidenceRecordsPerMonth)} evidence records in any 30 days`,
         `${catalogValue(catalog?.team?.storageLabel)} cumulative storage`,
         `AI assistance: ${catalogValue(catalog?.team?.aiAdvisoryMonthlyOperations)} operations / month`,
-        "Collaboration teams, review assignments and team governance — on the workspace you already use",
+        // Members re-audit defect 15 — this said "team governance", and no
+        // TEAM capability sells governance (every governance entitlement is
+        // an Enterprise-only flag). What TEAM adds over PRO in the catalogue
+        // is `reviewQueuesIncluded` and `reviewerOperationsIncluded`.
+        "Collaboration Teams, review queues and review assignments — on the workspace you already use",
         `Up to ${catalogValue(catalog?.team?.maxAcceptedMembersPerCollaborationTeam)} members per Collaboration Team, owner not counted`,
       ],
     },

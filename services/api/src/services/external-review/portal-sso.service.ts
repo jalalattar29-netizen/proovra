@@ -143,8 +143,10 @@ export async function startPortalSsoFlow(
   }
 
   // 2. Resolve the SsoConnection — must be ACTIVE and SAML-shaped.
+  // DOM-13 — the connection is the Organization's: any of its workspaces
+  // may front portal SSO through it.
   const conn = await prisma.ssoConnection.findFirst({
-    where: { id: connectionId, teamId: input.teamId, status: "ACTIVE" },
+    where: { id: connectionId, organization: { workspaces: { some: { id: input.teamId } } }, status: "ACTIVE" },
     select: {
       id: true,
       provider: true,
@@ -229,8 +231,10 @@ export async function completePortalSsoFlow(
   if (!connectionId) {
     return { ok: false, denial: "POLICY_REJECTED" };
   }
+  // DOM-13 — the connection is the Organization's: any of its workspaces
+  // may front portal SSO through it.
   const conn = await prisma.ssoConnection.findFirst({
-    where: { id: connectionId, teamId: input.teamId, status: "ACTIVE" },
+    where: { id: connectionId, organization: { workspaces: { some: { id: input.teamId } } }, status: "ACTIVE" },
     select: {
       id: true,
       provider: true,

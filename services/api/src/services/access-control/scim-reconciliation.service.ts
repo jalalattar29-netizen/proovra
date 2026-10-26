@@ -232,8 +232,9 @@ export async function detectScimDrift(
 
   // ---- Category 3: STALE_TOKEN ----
   const now = generatedAt.getTime();
+  // DOM-13 — the Organization's directory credentials, from any workspace.
   const tokens = await client.scimProvisioningToken.findMany({
-    where: { teamId: input.teamId, status: "ACTIVE" },
+    where: { organization: { workspaces: { some: { id: input.teamId } } }, status: "ACTIVE" },
     select: {
       id: true,
       name: true,
@@ -507,7 +508,7 @@ export async function executeScimReconciliation(
 
       if (item.proposedAction === "ARCHIVE_TOKEN") {
         await client.scimProvisioningToken.update({
-          where: { id: item.subject.id, teamId: input.teamId },
+          where: { id: item.subject.id, organization: { workspaces: { some: { id: input.teamId } } } },
           data: {
             status: "REVOKED",
             revokedAtUtc: new Date(),

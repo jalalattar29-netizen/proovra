@@ -383,6 +383,15 @@ function withoutContactData(metadata: unknown): unknown {
 
 /** The transfer target failed re-validation inside the removal transaction. */
 class InvalidTransferTargetError extends Error {}
+/** Records reached the member being removed while the removal waited for its lock. */
+class TransferTargetRequiredError extends Error {
+  constructor(
+    readonly ownedEvidence: number,
+    readonly ownedCases: number,
+  ) {
+    super("transfer_target_required");
+  }
+}
 
 function getRequestPath(req: FastifyRequest): string {
   const url = req.url || "";
@@ -722,7 +731,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "not_found" },
         });
-        return reply.code(404).send({ message: "Team not found" });
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Workspace not found" });
       }
 
       // The actor may not be on the first page, so their authority is proven
@@ -754,7 +763,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         // they appear in URLs, deep links and shared references. The audit
         // record above still distinguishes the two cases, because the
         // OPERATOR should see the difference; the caller should not.
-        return reply.code(404).send({ message: "Team not found" });
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Workspace not found" });
       }
 
       const userIds = team.members.map((m) => m.userId);
@@ -1007,7 +1016,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       const actor = await getActorMembership(req, teamId, userId);
-      if (!actor) return reply.code(404).send({ message: "Team not found" });
+      if (!actor) return reply.code(404).send({ code: "NOT_FOUND", message: "Workspace not found" });
 
       /**
        * WCR-16 (2026-09-07) — LEAST PRIVILEGE, APPLIED TO THE LARGER CONTAINER.
@@ -1196,7 +1205,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden" },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       const items = await prisma.case.findMany({
@@ -1240,7 +1249,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden" },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       /**
@@ -1317,7 +1326,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden" },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       // RETENTION IS GOVERNANCE, NOT PROFILE (members audit ROLE-05). Any ADMIN
@@ -1338,6 +1347,25 @@ export async function teamsRoutes(app: FastifyInstance) {
           message: "Retention is managed under Governance → Retention, not in workspace profile settings.",
           nextAction: "OPEN_GOVERNANCE_RETENTION",
         });
+      }
+
+      // WORKSPACE IDENTITY NEEDS A FRESH STEP-UP (members audit ROLE-05). The
+      // legal contact address and the logo are printed on reports and verification
+      // material as the workspace's identity, so changing them is a sensitive
+      // act, not profile housekeeping: an ADMIN must confirm it is them. The
+      // challenge is bound to this workspace. (Name, address, timezone stay
+      // ordinary profile edits.)
+      if (body.legalEmail != null || body.logoUrl != null) {
+        const identityStepUp = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId,
+          userId,
+          purpose: "WORKSPACE_IDENTITY_UPDATE",
+          resourceKind: "workspace_identity",
+          resourceId: teamId,
+        });
+        if (identityStepUp.sent) return;
       }
 
       // One transaction (members audit AUD-01): the change, the workspace
@@ -1503,7 +1531,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", email },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       /**
@@ -1889,7 +1917,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", inviteId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       /**
@@ -1962,7 +1990,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", memberId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       const target = await getTeamMemberByMemberId(teamId, memberId);
@@ -1976,7 +2004,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "member_not_found", memberId },
         });
-        return reply.code(404).send({ message: "Member not found" });
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Member not found" });
       }
 
       // THE SAME GATES AS SECURITY CENTER (members audit ROLE-01). A SCIM/SSO
@@ -2117,16 +2145,16 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
       const target = await getTeamMemberByMemberId(teamId, memberId);
       if (!target) {
-        return reply.code(404).send({ message: "Member not found" });
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Member not found" });
       }
       if (query.caseId) {
         const own = await resolveCaseRecordAccess({ userId, caseId: query.caseId });
         const inWorkspace = await prisma.case.count({ where: { id: query.caseId, teamId } });
-        if (!own.allowed || inWorkspace === 0) return reply.code(404).send({ message: "Case not found" });
+        if (!own.allowed || inWorkspace === 0) return reply.code(404).send({ code: "CASE_NOT_FOUND", message: "Case not found" });
       }
       if (query.evidenceId) {
         const own = await resolveEvidenceRecordAccess({
@@ -2135,7 +2163,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           permission: "evidence.read",
         });
         const inWorkspace = await prisma.evidence.count({ where: { id: query.evidenceId, teamId } });
-        if (!own.allowed || inWorkspace === 0) return reply.code(404).send({ message: "Evidence not found" });
+        if (!own.allowed || inWorkspace === 0) return reply.code(404).send({ code: "EVIDENCE_NOT_FOUND", message: "Evidence not found" });
       }
       const explanation = await explainMemberAccess({
         teamId,
@@ -2143,7 +2171,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         caseId: query.caseId ?? null,
         evidenceId: query.evidenceId ?? null,
       });
-      if (!explanation) return reply.code(404).send({ message: "Member not found" });
+      if (!explanation) return reply.code(404).send({ code: "NOT_FOUND", message: "Member not found" });
       return reply.code(200).send({ memberId: target.id, explanation });
     },
   );
@@ -2173,12 +2201,12 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       const target = await getTeamMemberByMemberId(teamId, memberId);
       if (!target) {
-        return reply.code(404).send({ message: "Member not found" });
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Member not found" });
       }
       const targetUserId = target.userId;
 
@@ -2291,7 +2319,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", memberId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       const target = await getTeamMemberByMemberId(teamId, memberId);
@@ -2305,7 +2333,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "member_not_found", memberId },
         });
-        return reply.code(404).send({ message: "Member not found" });
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Member not found" });
       }
 
       if (target.role === prismaPkg.TeamRole.OWNER) {
@@ -2412,20 +2440,52 @@ export async function teamsRoutes(app: FastifyInstance) {
       const noticeIds: string[] = [];
       try {
         await prisma.$transaction(async (tx) => {
+          // LOCKED RE-VALIDATION (members audit SEC-04). The removed member's
+          // row and the transfer target's row are locked FOR UPDATE in one
+          // statement, in id order (two removals naming each other cannot
+          // deadlock). A concurrent revocation or suspension of the target
+          // either committed first — the locked read returns the new status
+          // and the transfer is refused — or waits for this transaction to
+          // commit. A concurrent removal of the TARGET waits on its own row
+          // here and then re-counts the records it now owns (below), so
+          // records never end up owned by a person who is no longer an active
+          // member.
+          const lockedRows = await tx.$queryRaw<Array<{ user_id: string; role: string; status: string }>>`
+            SELECT "user_id"::text AS "user_id", "role"::text AS "role", "status"::text AS "status"
+              FROM "team_members"
+             WHERE "team_id" = ${teamId}::uuid
+               AND "user_id" IN (${target.userId}::uuid, ${transferToUserId ?? target.userId}::uuid)
+             ORDER BY "id"
+               FOR UPDATE`;
           if (transferToUserId) {
-            const transferMember = await tx.teamMember.findUnique({
-              where: { teamId_userId: { teamId, userId: transferToUserId } },
-              select: { role: true, status: true },
-            });
+            const transferMember = lockedRows.find((r) => r.user_id === transferToUserId);
             if (
               !transferMember ||
               transferMember.status !== "ACTIVE" ||
-              !hasRole(transferMember.role, prismaPkg.TeamRole.ADMIN)
+              !hasRole(transferMember.role as prismaPkg.TeamRole, prismaPkg.TeamRole.ADMIN)
             ) {
               throw new InvalidTransferTargetError();
             }
+          } else {
+            // Records may have been handed TO this member by a removal that
+            // committed while this one waited for the lock.
+            const [lateEvidence, lateCases] = await Promise.all([
+              tx.evidence.count({
+                where: {
+                  AND: [await workspaceEvidenceWhere(teamId, prisma)],
+                  ownerUserId: target.userId,
+                  lifecycleState: { not: "DESTROYED" },
+                },
+              }),
+              tx.case.count({
+                where: { AND: [await workspaceCaseWhere(teamId, prisma)], ownerUserId: target.userId },
+              }),
+            ]);
+            if (lateEvidence > 0 || lateCases > 0) {
+              throw new TransferTargetRequiredError(lateEvidence, lateCases);
+            }
           }
-          if (transferToUserId && hasOwnedRecords) {
+          if (transferToUserId) {
             const evidenceWhere = {
               AND: [await workspaceEvidenceWhere(teamId, prisma)],
               ownerUserId: target.userId,
@@ -2513,6 +2573,15 @@ export async function teamsRoutes(app: FastifyInstance) {
           return reply.code(400).send({
             code: "INVALID_TRANSFER_TARGET",
             message: "The person taking over the records must be an active owner or administrator of this workspace.",
+            requestId: req.id,
+          });
+        }
+        if (err instanceof TransferTargetRequiredError) {
+          return reply.code(409).send({
+            code: "TRANSFER_TARGET_REQUIRED",
+            message:
+              "This member still owns evidence or cases in this workspace. Choose who takes them over before removing the member.",
+            impact: { ownedEvidence: err.ownedEvidence, ownedCases: err.ownedCases },
             requestId: req.id,
           });
         }
@@ -2809,7 +2878,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", inviteId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       try {
@@ -2864,7 +2933,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden" },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       // PHASE 2 — Optional filters for collapsed Activity panels on the
@@ -2880,7 +2949,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       if (!parsedQuery.success) {
         return reply
           .code(400)
-          .send({ message: "Invalid query parameters" });
+          .send({ code: "INVALID_QUERY", message: "Invalid query parameters" });
       }
       const { targetType, targetId, eventType, limit } = parsedQuery.data;
 
@@ -2979,7 +3048,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", caseId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       // NO CROSS-TENANT LINK (members audit ROLE-02). The case was loaded by id
@@ -3006,7 +3075,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "case_not_found", caseId },
         });
-        return reply.code(404).send({ message: "Case not found" });
+        return reply.code(404).send({ code: "CASE_NOT_FOUND", message: "Case not found" });
       }
 
       if (caseItem.teamId) {
@@ -3018,7 +3087,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "case_already_linked", caseId },
         });
-        return reply.code(400).send({ message: "Case is already linked to a team" });
+        return reply.code(400).send({ code: "CASE_ALREADY_IN_WORKSPACE", message: "This case already belongs to a workspace." });
       }
 
       if (caseItem.ownerUserId !== userId && !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
@@ -3030,7 +3099,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "not_owner_or_admin", caseId },
         });
-        return reply.code(403).send({ message: "Only case owner or team admin can link case" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Only the case owner or a workspace administrator can add this case." });
       }
 
       const updated = await prisma.case.update({
@@ -3081,7 +3150,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "forbidden", caseId },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       const caseItem = await prisma.case.findUnique({
@@ -3097,7 +3166,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           resourceId: teamId,
           metadata: { reason: "case_not_found_in_team", caseId },
         });
-        return reply.code(404).send({ message: "Case not found in team" });
+        return reply.code(404).send({ code: "CASE_NOT_FOUND", message: "Case not found in this workspace" });
       }
 
       const updated = await prisma.case.update({
@@ -3161,7 +3230,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       // 1. The set of team-member user ids — anyone on this list is
@@ -3296,7 +3365,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       const now = new Date();
@@ -3333,11 +3402,15 @@ export async function teamsRoutes(app: FastifyInstance) {
         };
       });
 
-      // 2. Pending invites — not yet accepted + not expired.
+      // 2. Pending invites — not yet accepted, not revoked, not expired. A
+      //    revoked invitation keeps its expiry, so without `revokedAt: null`
+      //    it was reviewed as pending until that date (members audit INV-05,
+      //    the same rule as the pending count, MEM-03).
       const invites = await prisma.teamInvite.findMany({
         where: {
           teamId,
           acceptedAt: null,
+          revokedAt: null,
           expiresAt: { gt: now },
         },
         select: {
@@ -3467,7 +3540,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const actor = await getActorMembership(req, teamId, userId);
       if (!actor || !hasRole(actor.role, prismaPkg.TeamRole.ADMIN)) {
-        return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
       }
 
       // Verify the grant exists and points at a case that belongs to

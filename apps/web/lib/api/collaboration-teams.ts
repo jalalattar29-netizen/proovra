@@ -584,8 +584,12 @@ export async function getTeamDisposability(
  * group that has done any, and it already frees the capacity slot, so deletion
  * is never the route to more capacity.
  */
-export async function deleteTeam(teamId: string): Promise<void> {
-  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}`, { method: "DELETE" });
+/**
+ * Members audit SEC-03 — deleting a group is irreversible and needs a fresh
+ * factor: the caller passes the step-up headers its retry supplies.
+ */
+export async function deleteTeam(teamId: string, headers?: Record<string, string>): Promise<void> {
+  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}`, { method: "DELETE", ...(headers ? { headers } : {}) });
 }
 
 /**

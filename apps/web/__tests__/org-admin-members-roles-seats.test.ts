@@ -8,12 +8,15 @@
  *     mounts the Seats card, links to the Roles reference.
  *   - ROLES page (organizations/[id]/admin/roles/page.tsx): renders the
  *     role → capability reference, no custom roles, gated.
- *   - SEATS card + model: included / used / over derivation.
+ *   - SEATS card: reads only the canonical seat projection.
  *   - EVIDENCE-SAFETY: removing a member is a membership delete, never a user
  *     delete; org member endpoints never touch evidence.
  *
  * Two styles, matching the sibling web tests:
- *   (A) PURE-LOGIC unit tests over `_lib/orgRoles.ts` + `_lib/seatsModel.ts`.
+ *   (A) PURE-LOGIC unit tests over `_lib/orgRoles.ts`. (`_lib/seatsModel.ts`, a
+ *       third seat formula, was retired by members re-audit ENT-05: the Seats
+ *       card renders the canonical `billing.seats` projection — proof:
+ *       __tests__/render/org-admin-seats-canonical.render.test.tsx.)
  *   (B) SOURCE-SCANNING contract tests over the page/component files + the
  *       backend route file (to pin the evidence-safety claim to real code).
  *
@@ -35,7 +38,6 @@ import {
   roleMeetsMin,
   type OrgRole,
 } from "../app/(app)/organizations/[id]/admin/_lib/orgRoles";
-import { deriveSeatsPosture } from "../app/(app)/organizations/[id]/admin/_lib/seatsModel";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ADMIN_DIR = resolve(
@@ -167,88 +169,6 @@ test("only billing-capable roles can MANAGE billing/seats", () => {
 // (A) PURE LOGIC — Seats derivation model.
 // ===========================================================================
 
-test("seats: within capacity is ok with correct remaining", () => {
-  const p = deriveSeatsPosture({
-    workspaces: [
-      { includedSeats: 10, overSeatLimit: false, billingOwnerUserId: "owner-1" },
-    ],
-    memberCount: 6,
-    pendingInviteCount: 1,
-  });
-  assert.equal(p.includedSeats, 10);
-  assert.equal(p.usedSeats, 6);
-  assert.equal(p.pendingSeats, 1);
-  assert.equal(p.remainingSeats, 4);
-  assert.equal(p.status, "ok");
-  assert.equal(p.overSeatLimit, false);
-  assert.deepEqual(p.billingOwnerUserIds, ["owner-1"]);
-});
-
-test("seats: over the limit is flagged over with negative remaining", () => {
-  const p = deriveSeatsPosture({
-    workspaces: [
-      { includedSeats: 5, overSeatLimit: false, billingOwnerUserId: null },
-    ],
-    memberCount: 8,
-    pendingInviteCount: 0,
-  });
-  assert.equal(p.overSeatLimit, true);
-  assert.equal(p.status, "over");
-  assert.equal(p.remainingSeats, -3);
-});
-
-test("seats: pending invites that would exceed the cap raise a warning", () => {
-  const p = deriveSeatsPosture({
-    workspaces: [
-      { includedSeats: 10, overSeatLimit: false, billingOwnerUserId: null },
-    ],
-    memberCount: 9,
-    pendingInviteCount: 3,
-  });
-  assert.equal(p.overSeatLimit, false);
-  assert.equal(p.projectedOverLimit, true);
-  assert.equal(p.projectedSeats, 12);
-  assert.equal(p.status, "warning");
-});
-
-test("seats: workspace overSeatLimit flag alone marks over", () => {
-  const p = deriveSeatsPosture({
-    workspaces: [
-      { includedSeats: 10, overSeatLimit: true, billingOwnerUserId: null },
-    ],
-    memberCount: 3,
-    pendingInviteCount: 0,
-  });
-  assert.equal(p.anyWorkspaceOverLimit, true);
-  assert.equal(p.status, "over");
-});
-
-test("seats: included is the SUM of visible workspace seats", () => {
-  const p = deriveSeatsPosture({
-    workspaces: [
-      { includedSeats: 5, overSeatLimit: false, billingOwnerUserId: "o1" },
-      { includedSeats: 8, overSeatLimit: false, billingOwnerUserId: "o2" },
-    ],
-    memberCount: 4,
-    pendingInviteCount: 0,
-  });
-  assert.equal(p.includedSeats, 13);
-  assert.deepEqual([...p.billingOwnerUserIds].sort(), ["o1", "o2"]);
-});
-
-test("seats: no billing visibility (all null) is not falsely marked over", () => {
-  const p = deriveSeatsPosture({
-    workspaces: [
-      { includedSeats: null, overSeatLimit: null, billingOwnerUserId: null },
-    ],
-    memberCount: 50,
-    pendingInviteCount: 0,
-  });
-  assert.equal(p.hasBillingVisibility, false);
-  assert.equal(p.overSeatLimit, false);
-  assert.equal(p.status, "ok");
-});
-
 // ===========================================================================
 // (B) CONTRACT — Members page.
 // ===========================================================================
@@ -367,10 +287,9 @@ test("roles page does not invent custom roles", () => {
 // (B) CONTRACT — Seats card reuses existing endpoints only.
 // ===========================================================================
 
-test("seats card reads existing org + workspaces endpoints (no new endpoint)", () => {
+test("seats card reads only the canonical workspaces projection (no second seat formula)", () => {
   assert.match(SEATS_CARD, /\/v1\/orgs\/\$\{orgId\}\/workspaces`/);
-  assert.match(SEATS_CARD, /\/v1\/orgs\/\$\{orgId\}`/);
-  assert.match(SEATS_CARD, /deriveSeatsPosture/);
+  assert.doesNotMatch(SEATS_CARD, /deriveSeatsPosture|\/v1\/orgs\/\$\{orgId\}`/);
 });
 
 test("seats card has a contact-sales CTA and no self-serve checkout", () => {

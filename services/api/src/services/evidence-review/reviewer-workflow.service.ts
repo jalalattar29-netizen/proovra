@@ -9,6 +9,7 @@ import { isDecisionDerivedWorkflowStatus } from "./review-status-vocabulary.js";
 import { AppError, ErrorCode } from "../../errors.js";
 import { isAllowedReviewStageTransition, mapDbStatusToReviewStage, presentReviewOutcome, type ReviewDecision } from "@proovra/shared";
 import { loadCurrentReviewDecision } from "./review-outcome.service.js";
+import { assertWorkAssigneeEligible } from "../assignment/assignee-eligibility.js";
 import {
   templateIdentityAuditMetadata,
   type TemplateIdentityStampSource,
@@ -297,6 +298,37 @@ export async function upsertEvidenceReviewerWorkflow(params: {
           { reason: "invalid_stage_transition", from, to },
         );
       }
+    }
+
+    // ONE ASSIGNMENT AUTHORITY (members audit ACC-07 / defect 1). Naming a
+    // reviewer here is a reviewer assignment like the review console's, so it
+    // is decided by the same rule and the same call the console makes
+    // (review-operations `assertReviewAssigneeEligible`): the canonical
+    // `assertWorkAssigneeEligible` with the reviewer permission — an ACTIVE member whose role (or
+    // grant) holds the reviewer permission, who can reach the record, and who
+    // on PRO/TEAM is placed in an ACTIVE Collaboration Team (the owner exempt
+    // from placement only). It runs inside this write's transaction with the
+    // placement share-locked (defect 5). A teamless (personal) record has no
+    // workspace to be a member of; its route admits only someone who can open
+    // the record. Unassigning, or re-stating the current assignee, gives no
+    // one new work and is not re-decided.
+    if (
+      params.teamId &&
+      params.assignedToUserId &&
+      params.assignedToUserId !== (existing?.assignedToUserId ?? null)
+    ) {
+      // Throws AssigneeEligibilityError (NOT_ELIGIBLE | NOT_PLACED); the route
+      // answers it with the console's typed 422.
+      await assertWorkAssigneeEligible(
+        {
+          workspaceId: params.teamId,
+          assigneeUserId: params.assignedToUserId,
+          permission: "evidence_request.review",
+          evidenceId: params.evidenceId,
+        },
+        tx as unknown as prismaPkg.PrismaClient,
+        { inTransaction: true },
+      );
     }
 
     const nextStatus = params.status ?? existing?.status ?? prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED;

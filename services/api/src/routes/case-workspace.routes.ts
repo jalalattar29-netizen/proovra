@@ -23,7 +23,8 @@ import { z } from "zod";
 import { getAuthUserId } from "../auth.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
-import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
+import { planIncludesCollaboration } from "@proovra/shared-billing";
+import { resolveWorkspaceCommercialContext } from "../services/billing/workspace-seats.service.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 
@@ -125,6 +126,25 @@ function handleCaseError(reply: FastifyReply, err: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Does this workspace's plan sell collaboration (other people to hand work
+ * to)? The one commercial authority (the workspace's commercial context and
+ * the plan catalogue's collaboration rule). Fails closed.
+ */
+async function workspaceSellsCollaboration(teamId: string): Promise<boolean> {
+  try {
+    const workspace = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { id: true, ownerUserId: true },
+    });
+    if (!workspace) return false;
+    const context = await resolveWorkspaceCommercialContext(workspace);
+    return planIncludesCollaboration(context.plan);
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -959,18 +979,24 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       if (!access) return;
       const member = await gateCaseMutation(reply, "ASSIGN", params.id, access);
       if (!member) return;
-      // Members audit ENT-11 — "Team cases": handing a case to a person is a
-      // review ASSIGNMENT, a TEAM / eligible Enterprise capability. PRO keeps
-      // personal cases (and Collaboration Team case access); removing an
+      // Members audit ENT-11 (owner decision 5, 2026-10-25) — PRO and TEAM
+      // placed members can receive work, so handing a case to a person is
+      // open on every plan that sells collaboration (PRO, TEAM, Enterprise).
+      // It used to be a TEAM-only gate (REVIEW_ASSIGNMENTS), which withheld
+      // from PRO the very assignment decision 5 grants it. Who may RECEIVE the
+      // case is still the one assignee authority inside addCaseAssignment:
+      // capability, case reach, and Collaboration Team placement on PRO/TEAM.
+      // A plan with no collaboration (FREE, pay-as-you-go credits) has nobody
+      // but the owner to hand a case to and stays refused. Removing an
       // existing assignment stays open after a downgrade.
       const caseTeam = await prisma.case.findUnique({ where: { id: params.id }, select: { teamId: true } });
-      if (caseTeam?.teamId && !(await workspaceIncludesReviewCapability(caseTeam.teamId, "REVIEW_ASSIGNMENTS"))) {
+      if (caseTeam?.teamId && !(await workspaceSellsCollaboration(caseTeam.teamId))) {
         return reply.code(403).send({
           error: {
             code: "ENTITLEMENT_REQUIRED",
-            reason: "review_capability_not_included",
-            entitlement: "REVIEW_ASSIGNMENTS",
-            message: "Assigning a case to a person is available on the Team and Enterprise plans.",
+            reason: "collaboration_not_included",
+            entitlement: "COLLABORATION",
+            message: "Assigning a case to a person is available on plans that include collaboration.",
             requestId: req.id,
           },
           requestId: req.id,

@@ -268,6 +268,18 @@ export default function PrivacyScreen() {
             <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
               {`Closing your account signs you out everywhere, removes your login methods, and anonymizes your personal details after a ${closure.coolingOffDays ?? 7}-day cancellation window. Evidence is never deleted by account closure — it stays governed by retention and legal-hold rules.`}
             </ProovraText>
+            {closure.consequences.length > 0 ? (
+              <>
+                <ProovraText variant="body" weight="semibold">
+                  Closing your account also:
+                </ProovraText>
+                {closure.consequences.map((c, i) => (
+                  <ProovraText key={i} variant="label" color={theme.color.ink.secondary}>
+                    {`• ${c}`}
+                  </ProovraText>
+                ))}
+              </>
+            ) : null}
             {closure.blockers.length > 0 ? (
               <>
                 <ProovraText variant="body" weight="semibold">

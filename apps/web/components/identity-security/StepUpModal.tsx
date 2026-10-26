@@ -434,6 +434,10 @@ const PURPOSE_LABEL: Record<string, string> = {
   // PHASE 12B CLUSTER 14 — department membership governance.
   DEPARTMENT_MEMBERSHIP_GRANT: "Grant this department membership",
   DEPARTMENT_MEMBERSHIP_REVOKE: "Revoke this department membership",
+  // Members audit SEC-03 / ROLE-05 — irreversible deletes and published identity.
+  CASE_DELETE: "Delete this case",
+  COLLABORATION_TEAM_DELETE: "Delete this Collaboration Team",
+  WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
 };
 
 export function StepUpModal({

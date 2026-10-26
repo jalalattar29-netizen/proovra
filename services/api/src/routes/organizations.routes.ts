@@ -67,6 +67,7 @@ import {
 } from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   verifyAccountStepUp,
@@ -613,17 +614,33 @@ export async function organizationsRoutes(app: FastifyInstance) {
           billingPlan: canSeeBilling,
           billingStatus: canSeeBilling,
           includedSeats: canSeeBilling,
-          overSeatLimit: canSeeBilling,
           billingOwnerUserId: canSeeBilling,
         },
         orderBy: { createdAt: "asc" },
       });
 
+      /*
+       * MEMBERS RE-AUDIT ENT-05 / DEFECT 14 — the seat posture is the
+       * CANONICAL authority's, never the persisted `Team.overSeatLimit`.
+       *
+       * That column was written by the legacy owner-INCLUSIVE formula (every
+       * ACTIVE member, owner included, against raw `includedSeats`), so an
+       * Enterprise workspace with a 10-seat contract, ten members and its
+       * owner was shown "over seat limit" here while the gate that actually
+       * admits members (`resolveWorkspaceSeatState`: owner excluded, only an
+       * ACTIVE contract seat count bounds the workspace, per-Collaboration-Team
+       * capacity otherwise) said it was within limit. This route now projects
+       * the gate's own answer.
+       */
+      const seatStates = canSeeBilling
+        ? await Promise.all(workspaces.map((w) => resolveWorkspaceSeatState(w.id)))
+        : [];
+
       return reply.code(200).send({
         organizationId: orgId,
         summary: { totalWorkspaces: workspaces.length },
         callerCanSeeBilling: canSeeBilling,
-        workspaces: workspaces.map((w) => ({
+        workspaces: workspaces.map((w, i) => ({
           workspaceId: w.id,
           name: w.name,
           isPersonal: w.isPersonal,
@@ -634,8 +651,19 @@ export async function organizationsRoutes(app: FastifyInstance) {
                   plan: w.billingPlan,
                   status: w.billingStatus,
                   includedSeats: w.includedSeats,
-                  overSeatLimit: w.overSeatLimit,
+                  // The canonical answer (owner excluded, contract-bounded).
+                  overSeatLimit: seatStates[i]!.overLimit,
                   billingOwnerUserId: w.billingOwnerUserId,
+                  seats: {
+                    /** ACTIVE non-owner members. */
+                    used: seatStates[i]!.used,
+                    /** Contract ceiling, or null: nothing bounds the workspace. */
+                    limit: seatStates[i]!.limit,
+                    remaining: seatStates[i]!.remaining,
+                    overLimit: seatStates[i]!.overLimit,
+                    featureIncluded: seatStates[i]!.featureIncluded,
+                    source: seatStates[i]!.source,
+                  },
                 },
               }
             : {}),

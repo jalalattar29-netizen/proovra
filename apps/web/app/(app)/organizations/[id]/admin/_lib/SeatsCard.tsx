@@ -3,23 +3,42 @@
 /**
  * Phase 4 (Enterprise Administration) — Seats card.
  *
- * Read-only seat posture for the org. Reuses ALREADY-exposed endpoints:
- *   - GET /v1/orgs/:id            → summary.memberCount (used) + pendingInvite.
- *   - GET /v1/orgs/:id/workspaces → per-workspace billing (includedSeats,
- *                                   overSeatLimit, billingOwnerUserId) for
- *                                   ORG_ADMIN+/ORG_BILLING_ADMIN callers.
+ * MEMBERS RE-AUDIT ENT-05 / DEFECT 14 — this card reads the CANONICAL seat
+ * authority, and nothing else.
  *
- * No self-serve checkout: over-limit surfaces a contact-sales CTA. All seat
- * math lives in the unit-tested `seatsModel.ts`. This component only fetches
- * + presents; the only mutations in this surface remain member/invite ones on
- * the parent page.
+ * It used to sum each workspace's raw `includedSeats`, compare that with the
+ * ORGANIZATION's member count, and OR in the persisted `Team.overSeatLimit`
+ * flag written by the legacy owner-inclusive formula. None of those is what
+ * the member gate decides with, so an Enterprise workspace with a 10-seat
+ * contract, ten members and its owner was shown "over its seat limit" while
+ * the gate admitted it.
+ *
+ * Every figure is now the per-workspace answer of `resolveWorkspaceSeatState`
+ * (services/api/src/services/billing/workspace-seats.service.ts), projected by
+ * GET /v1/orgs/:id/workspaces as `billing.seats`:
+ *   - used       ACTIVE members other than the workspace owner;
+ *   - limit      the ACTIVE Enterprise contract's seat count, or null when
+ *                nothing bounds the workspace as a whole (capacity is then per
+ *                Collaboration Team);
+ *   - overLimit  the gate's own comparison.
+ * Pending invitations consume no seat, so they are not projected here.
+ *
+ * No self-serve checkout: over-limit surfaces a contact-sales CTA.
  */
 
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch, ApiError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
-import { deriveSeatsPosture, type SeatsPosture } from "./seatsModel";
+
+export interface CanonicalWorkspaceSeats {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  overLimit: boolean;
+  featureIncluded: boolean;
+  source: "PLAN_CATALOG" | "ENTERPRISE_CONTRACT";
+}
 
 interface WorkspacesResponse {
   callerCanSeeBilling: boolean;
@@ -27,17 +46,61 @@ interface WorkspacesResponse {
     workspaceId: string;
     name: string;
     billing?: {
-      includedSeats: number | null;
-      overSeatLimit: boolean | null;
       billingOwnerUserId: string | null;
+      seats?: CanonicalWorkspaceSeats;
     };
   }>;
 }
 
-interface OrgSummaryResponse {
-  summary: {
-    memberCount: number;
-    pendingInviteCount: number;
+interface WorkspaceSeatRow {
+  workspaceId: string;
+  name: string;
+  seats: CanonicalWorkspaceSeats;
+}
+
+interface SeatsPosture {
+  /** ACTIVE non-owner members across the organization's workspaces. */
+  usedSeats: number;
+  /** Sum of the contract ceilings, or null when no workspace is bounded. */
+  contractSeats: number | null;
+  /** Remaining under those ceilings, or null when unbounded. */
+  remainingSeats: number | null;
+  overWorkspaces: WorkspaceSeatRow[];
+  billingOwnerUserIds: string[];
+  status: "ok" | "over";
+}
+
+function postureFrom(ws: WorkspacesResponse): SeatsPosture {
+  const rows: WorkspaceSeatRow[] = ws.workspaces.flatMap((w) =>
+    w.billing?.seats
+      ? [{ workspaceId: w.workspaceId, name: w.name, seats: w.billing.seats }]
+      : [],
+  );
+  const bounded = rows.filter((r) => r.seats.limit !== null);
+  const usedSeats = rows.reduce((n, r) => n + r.seats.used, 0);
+  const contractSeats =
+    bounded.length > 0
+      ? bounded.reduce((n, r) => n + (r.seats.limit ?? 0), 0)
+      : null;
+  const remainingSeats =
+    bounded.length > 0
+      ? bounded.reduce((n, r) => n + (r.seats.remaining ?? 0), 0)
+      : null;
+  const overWorkspaces = rows.filter((r) => r.seats.overLimit);
+  const billingOwnerUserIds = Array.from(
+    new Set(
+      ws.workspaces
+        .map((w) => w.billing?.billingOwnerUserId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+  return {
+    usedSeats,
+    contractSeats,
+    remainingSeats,
+    overWorkspaces,
+    billingOwnerUserIds,
+    status: overWorkspaces.length > 0 ? "over" : "ok",
   };
 }
 
@@ -56,24 +119,14 @@ export function SeatsCard({ orgId }: { orgId: string }) {
     if (!orgId) return;
     setState({ kind: "loading" });
     try {
-      const [ws, org] = await Promise.all([
-        apiFetch(`/v1/orgs/${orgId}/workspaces`) as Promise<WorkspacesResponse>,
-        apiFetch(`/v1/orgs/${orgId}`) as Promise<OrgSummaryResponse>,
-      ]);
+      const ws = (await apiFetch(
+        `/v1/orgs/${orgId}/workspaces`,
+      )) as WorkspacesResponse;
       if (!ws.callerCanSeeBilling) {
         setState({ kind: "no-billing-visibility" });
         return;
       }
-      const posture = deriveSeatsPosture({
-        workspaces: ws.workspaces.map((w) => ({
-          includedSeats: w.billing?.includedSeats ?? null,
-          overSeatLimit: w.billing?.overSeatLimit ?? null,
-          billingOwnerUserId: w.billing?.billingOwnerUserId ?? null,
-        })),
-        memberCount: org.summary.memberCount,
-        pendingInviteCount: org.summary.pendingInviteCount,
-      });
-      setState({ kind: "ready", posture });
+      setState({ kind: "ready", posture: postureFrom(ws) });
     } catch (err) {
       if (err instanceof ApiError && err.statusCode === 403) {
         setState({ kind: "no-billing-visibility" });
@@ -105,9 +158,10 @@ export function SeatsCard({ orgId }: { orgId: string }) {
       <header style={{ marginBottom: "0.5rem" }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Seats</h2>
         <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-          Included vs. used seats across this organization's workspaces.
-          Enterprise seat changes go through your account team — no self-serve
-          checkout.
+          Members across this organization&apos;s workspaces, against the seats
+          your contract includes. A workspace owner does not use a seat, and a
+          pending invitation uses none until it is accepted. Enterprise seat
+          changes go through your account team — no self-serve checkout.
         </div>
       </header>
 
@@ -120,7 +174,7 @@ export function SeatsCard({ orgId }: { orgId: string }) {
           data-state="no-billing-visibility"
           style={{ fontSize: 13, opacity: 0.8 }}
         >
-          You don't have billing visibility for this organization. Ask an
+          You don&apos;t have billing visibility for this organization. Ask an
           organization owner, admin, or billing admin.
         </div>
       ) : state.kind === "error" ? (
@@ -136,23 +190,20 @@ export function SeatsCard({ orgId }: { orgId: string }) {
 
 function SeatsBody({ posture }: { posture: SeatsPosture }) {
   const {
-    includedSeats,
     usedSeats,
-    pendingSeats,
-    projectedSeats,
+    contractSeats,
     remainingSeats,
-    status,
+    overWorkspaces,
     billingOwnerUserIds,
-    projectedOverLimit,
+    status,
   } = posture;
 
   return (
     <div
       data-testid="seats-body"
       data-seat-status={status}
-      data-included-seats={includedSeats}
+      data-included-seats={contractSeats ?? ""}
       data-used-seats={usedSeats}
-      data-pending-seats={pendingSeats}
       data-over-seat-limit={status === "over" ? "true" : "false"}
     >
       <div
@@ -163,34 +214,39 @@ function SeatsBody({ posture }: { posture: SeatsPosture }) {
           marginBottom: 10,
         }}
       >
-        <Stat label="Included" value={includedSeats} testId="seats-included" />
+        <Stat
+          label="Contract seats"
+          value={contractSeats ?? "Not capped"}
+          testId="seats-included"
+        />
         <Stat label="Used" value={usedSeats} testId="seats-used" />
-        <Stat
-          label="Pending invites"
-          value={pendingSeats}
-          testId="seats-pending"
-        />
-        <Stat
-          label="Remaining"
-          value={remainingSeats}
-          testId="seats-remaining"
-          tone={remainingSeats < 0 ? "danger" : "default"}
-        />
+        {remainingSeats !== null ? (
+          <Stat
+            label="Remaining"
+            value={remainingSeats}
+            testId="seats-remaining"
+          />
+        ) : null}
       </div>
 
       {status === "over" ? (
         <Banner tone="danger" testId="seats-over-banner">
-          This organization is <strong>over its seat limit</strong> ({usedSeats}{" "}
-          used / {includedSeats} included). Contact your account team to expand
-          seats.
+          {overWorkspaces.map((w) => (
+            <div key={w.workspaceId} data-testid="seats-over-workspace">
+              <strong>{w.name}</strong> is over its contract seat limit (
+              {w.seats.used} used / {w.seats.limit} included).
+            </div>
+          ))}
+          Contact your account team to expand seats.
         </Banner>
-      ) : projectedOverLimit ? (
-        <Banner tone="warning" testId="seats-projected-banner">
-          Accepting all {pendingSeats} pending invite
-          {pendingSeats === 1 ? "" : "s"} would reach {projectedSeats} seats and{" "}
-          <strong>exceed the {includedSeats} included</strong>. Plan seat
-          capacity before they accept.
-        </Banner>
+      ) : contractSeats === null ? (
+        <div
+          data-testid="seats-ok"
+          style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}
+        >
+          No organization-wide seat ceiling applies. Membership capacity is set
+          per Collaboration Team.
+        </div>
       ) : (
         <div
           data-testid="seats-ok"
@@ -241,12 +297,10 @@ function Stat({
   label,
   value,
   testId,
-  tone = "default",
 }: {
   label: string;
-  value: number;
+  value: number | string;
   testId: string;
-  tone?: "default" | "danger";
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -265,7 +319,6 @@ function Stat({
         style={{
           fontSize: 22,
           fontWeight: 700,
-          color: tone === "danger" ? "#d44" : "inherit",
         }}
       >
         {value}

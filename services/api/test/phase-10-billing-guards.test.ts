@@ -27,7 +27,6 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // PHASE 12 POINT 4 PASS C — the ONE seat-limit policy under behavioral test.
-import { computeOverSeatLimit } from "../src/services/billing.service.js";
 
 const API_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
@@ -329,34 +328,20 @@ describe("Phase 10 — /v1/collaboration-teams handlers call the canonical guard
 // A suspended or revoked member therefore inflated the count on the
 // provisioning path and could mark a workspace over its seat limit when it was
 // not — a false commercial restriction, applied silently and with no billing
-// event. Both paths now share `computeOverSeatLimit`.
+// event. Members re-audit ENT-05 / defect 14 retired the shared helper too:
+// the ONE seat answer is `resolveWorkspaceSeatState` (owner excluded, bounded
+// only by an ACTIVE Enterprise contract), persisted by `refreshTeamSeatState`
+// — which the grant calls after commit. Behavioural proof:
+// org-seats-canonical-projection.integration.test.ts.
 // ===========================================================================
 
 describe("Phase 12 Point 4 — one seat-limit policy", () => {
-  it("treats includedSeats: 0 as unlimited, never as zero seats allowed", () => {
-    expect(
-      computeOverSeatLimit({ activeMemberCount: 500, includedSeats: 0 }),
-    ).toBe(false);
-  });
-
-  it("is over the limit only when ACTIVE members exceed the seats", () => {
-    expect(
-      computeOverSeatLimit({ activeMemberCount: 5, includedSeats: 5 }),
-    ).toBe(false);
-    expect(
-      computeOverSeatLimit({ activeMemberCount: 6, includedSeats: 5 }),
-    ).toBe(true);
-  });
-
-  it("the provisioning path counts ACTIVE members only", () => {
-    const src = readFileSync(
-      fileURLToPath(
-        new URL("../src/services/enterprise-provisioning.service.ts", import.meta.url),
-      ),
-      "utf8",
-    );
-    // The grant loop must scope its member count, not count every row.
-    expect(src).toMatch(/members:\s*\{\s*where:\s*\{\s*status:\s*"ACTIVE"\s*\}\s*\}/);
+  it("the legacy owner-inclusive helper is gone and the grant computes no seat state of its own", () => {
+    const billing = readFileSync(fileURLToPath(new URL("../src/services/billing.service.ts", import.meta.url)), "utf8");
+    const grant = readFileSync(fileURLToPath(new URL("../src/services/enterprise-provisioning.service.ts", import.meta.url)), "utf8");
+    expect(billing).not.toMatch(/function computeOverSeatLimit/);
+    expect(grant).not.toMatch(/computeOverSeatLimit|overSeatLimit,/);
+    expect(grant).toMatch(/refreshTeamSeatState\(workspaceId/);
   });
 
   it("neither module re-implements the comparison inline", () => {

@@ -38,6 +38,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendReviewerAuditEvent } from "../evidence-review/reviewer-audit.service.js";
+import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 
 // -----------------------------------------------------------------------------
 // Errors
@@ -56,7 +57,8 @@ export class DiscussionError extends Error {
       | "contributor_revoked"
       | "internal_only"
       | "user_not_found"
-      | "service_account_forbidden",
+      | "service_account_forbidden"
+      | "assignee_not_eligible",
     public readonly details?: Record<string, unknown>,
   ) {
     super(code);
@@ -307,6 +309,35 @@ export async function assignDiscussionThread(
   });
   if (!thread) throw new DiscussionError("thread_not_found");
   if (thread.assignedToUserId === input.assignedToUserId) return thread;
+  /*
+   * WHO MAY RESOLVE A THREAD (members audit defect 3, 2026-10-25).
+   *
+   * The resolver becomes a RESOLVER participant of a conversation ABOUT one
+   * evidence record, so they must be able to open that record through the
+   * canonical record authority — current ACTIVE membership of its workspace,
+   * then the restricted-case rule. Before this any ACTIVE member qualified,
+   * and a thread on restricted-case evidence could be handed (and its
+   * messages opened) to someone off the case's access list.
+   *
+   * PLACEMENT DOES NOT APPLY. Owner decision 5 withholds four kinds of
+   * operational work from a member not placed in a Collaboration Team: Team
+   * tasks, reviewer assignments, queue work and escalation assignments. A
+   * thread resolver is none of them — it routes no queue, carries no review
+   * verdict or SLA, and grants nothing the record's own access rule does not
+   * already grant; it names who is expected to answer a discussion the person
+   * can already read. Reach is therefore the rule, and placement is not
+   * required. (If threads ever become queue work, this is the place to route
+   * the assignee through assertWorkAssigneeEligible instead.)
+   *
+   * The refusal does not say which condition failed.
+   */
+  const reach = await resolveEvidenceRecordAccess(
+    { userId: input.assignedToUserId, evidenceId: thread.evidenceId, permission: "evidence.read" },
+    client,
+  );
+  if (!reach.allowed) {
+    throw new DiscussionError("assignee_not_eligible");
+  }
   const updated = await applyStatusTransition(
     client,
     thread,

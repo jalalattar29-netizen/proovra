@@ -685,6 +685,12 @@ import { aiReviewerRoutes } from "../src/routes/ai-reviewer.routes.js";
 
 // The placement prerequisite is proven against PostgreSQL in
 // members-unassigned-rule.integration.test.ts; this suite tests its own module.
+// PLACEMENT IS NOT THIS SUITE'S SUBJECT (members re-audit defect 22). The
+// placement seam is stubbed open so the suite isolates its own rule; this mock
+// proves nothing about the unassigned-member rule. The placement proof drives
+// every assignment writer over HTTP against real PostgreSQL in
+// members-assignment-surfaces.integration.test.ts (and the service-level
+// members-unassigned-rule.integration.test.ts).
 vi.mock("../src/services/assignment/placement-policy.js", () => ({
   assignmentRequiresPlacement: async () => false,
   meetsPlacementPolicy: async () => true,

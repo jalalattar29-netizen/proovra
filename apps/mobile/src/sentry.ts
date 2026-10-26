@@ -21,7 +21,39 @@ export function mobileSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
   return scrubTelemetryBreadcrumb(breadcrumb, SCRUB);
 }
 
-export function mobileSentryBeforeSend<T>(event: T): T | null {
+/**
+ * IS THIS AN EXPECTED BUSINESS REFUSAL? (members re-audit AUD-05 / defect 19)
+ *
+ * The same rule the web applies (apps/web/lib/feedback/toSafeUserError.ts):
+ * a 4xx with a typed refusal code, or a 401/403/404/409/422 answer even
+ * without one, is the product saying "no" — a seat limit, a permission, a
+ * lifecycle state — and has its own copy on screen. It is not an incident.
+ * Still reported: every 5xx, network failures (no status), a code-less 4xx
+ * outside those business statuses, and anything that is not an API error.
+ */
+const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 403, 404, 409, 422]);
+
+export function isExpectedBusinessRefusal(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { statusCode?: unknown; status?: unknown; code?: unknown };
+  const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
+  if (typeof status !== "number" || status < 400 || status >= 500) return false;
+  const code = typeof e.code === "string" ? e.code.trim().toUpperCase() : "";
+  if (code && code !== "API_ERROR") return true;
+  return BUSINESS_REFUSAL_STATUSES.has(status);
+}
+
+/**
+ * The hook Sentry calls for EVERY event — including an unhandled rejection
+ * that never passed through `captureException` below. Sentry hands the
+ * original exception over as `hint.originalException`; a business refusal is
+ * dropped here.
+ */
+export function mobileSentryBeforeSend<T>(
+  event: T,
+  hint?: { originalException?: unknown },
+): T | null {
+  if (hint && isExpectedBusinessRefusal(hint.originalException)) return null;
   return scrubTelemetryEvent(event, SCRUB);
 }
 
@@ -52,6 +84,8 @@ export function initSentry() {
 
 export function captureException(err: unknown, context?: Record<string, unknown>) {
   if (!sentryReady) return;
+  // A typed / business 4xx refusal is the product answering "no", not an incident.
+  if (isExpectedBusinessRefusal(err)) return;
   if (context) {
     const safeContext = scrubTelemetryValue(context, SCRUB) as Record<string, unknown>;
     Sentry.withScope((scope) => {

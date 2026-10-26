@@ -499,14 +499,37 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * and it says what to DO, because "archived" alone leaves the operator
    * looking for a control they cannot find.
    */
+  /** Members re-audit CT-12 — only workspace members join a group. */
+  COLLABORATION_MEMBER_NOT_IN_WORKSPACE: {
+    title: "Not a member of this workspace",
+    message: "Only active members of this workspace can be added to a Collaboration Team. Invite them to the workspace first.",
+    severity: "warning",
+  },
+  /** Members re-audit CT-06 / REV-04 — who may hold a group task. */
+  TASK_ASSIGNEE_NOT_ELIGIBLE: {
+    title: "Can't assign this task",
+    message: "That person can't take on this work here. Choose an active member of this Collaboration Team who can.",
+    severity: "warning",
+  },
+  TASK_ASSIGNEE_NO_RECORD_ACCESS: {
+    title: "They can't open this record",
+    message: "That person doesn't have access to this record. Give them access first, or choose someone who has it.",
+    severity: "warning",
+  },
+  /** Members re-audit AUD-05 — a case already belongs to a workspace. */
+  CASE_ALREADY_IN_WORKSPACE: {
+    title: "Case is already in a workspace",
+    message: "This case already belongs to a workspace, so it can't be added here.",
+    severity: "warning",
+  },
   COLLABORATION_TEAM_ARCHIVED: {
     title: "This team is archived",
     message: "Reopen this team before making changes. Its history stays available either way.",
     severity: "warning",
   },
   TEAM_MEMBER_LIMIT_REACHED: {
-    title: "This Team is at capacity",
-    message: "This Team has reached the member limit for the owner's plan. Free a seat or upgrade to add more members.",
+    title: "This Collaboration Team is full",
+    message: "This Collaboration Team has reached its member limit on your plan. Remove someone from it, or upgrade to add more.",
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",
@@ -977,7 +1000,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * Twenty-two routes answer 410 with a `*_RETIRED` code (NL_SEARCH_RETIRED,
    * COLLABORATION_TEAM_INVITE_RETIRED, INGEST_RETIRED …). Each already carries
    * a truthful server sentence, and every one of them was being discarded:
-   * only `TEAM_CONFLICT` is allowed to show a server message, so a 410 fell
+   * only a short allowlist may show a server message, so a 410 fell
    * into the `status >= 400` bucket and read "We couldn't complete that
    * action — please review your input and try again."
    *
@@ -1275,10 +1298,6 @@ export const SERVER_MESSAGE_ERROR_CODES: Record<
   string,
   { title: string; severity: UserFacingErrorSeverity }
 > = {
-  TEAM_CONFLICT: {
-    title: "That change isn't possible yet",
-    severity: "warning",
-  },
   /**
    * A generation, recovery or new-version request the server declined. The
    * message is chosen server-side from a closed table keyed by the bounded

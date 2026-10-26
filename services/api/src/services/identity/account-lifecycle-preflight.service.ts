@@ -13,9 +13,6 @@
  *     of an organization that has OTHER members. Ownership must be
  *     transferred first (a solo implicit personal organization does NOT
  *     block; it is archived together with the account).
- *   - WORKSPACE_MEMBERS_ACTIVE — the caller owns a workspace (Team row)
- *     that still has OTHER ACTIVE members. Collaborators would be
- *     stranded; the owner must remove them or transfer the workspace.
  *   - LEGAL_HOLD_ACTIVE — a workspace the caller owns carries an ACTIVE
  *     evidence legal hold. Custodial accountability cannot be dissolved
  *     while a hold is in force.
@@ -26,6 +23,15 @@
  *
  * Closure is UNIVERSAL — no plan/entitlement is consulted anywhere here;
  * blockers protect other people and legal duties, never revenue.
+ *
+ * MEMBERS AUDIT LIFE-13 (2026-10-26) — other members of a workspace the
+ * caller owns are NOT a blocker. Account closure closes every owned workspace
+ * through the ONE closure leg set (`closeWorkspacesTx`), which revokes their
+ * memberships with reach ended and tells each of them (WORKSPACE_CLOSED) —
+ * exactly the rule workspace closure already follows. Forcing the owner to
+ * remove every collaborator by hand first was an undesigned second path to
+ * the same end. It is a CONSEQUENCE, returned so the person sees it before
+ * confirming: WORKSPACE_MEMBERS_LOSE_ACCESS.
  */
 
 import { prisma } from "../../db.js";
@@ -41,13 +47,20 @@ export {
 
 export type AccountClosureBlockerCode =
   | "ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED"
-  | "WORKSPACE_MEMBERS_ACTIVE"
   | "LEGAL_HOLD_ACTIVE"
   | "BILLING_SUBSCRIPTION_ACTIVE";
 
 export type AccountClosureBlocker = {
   code: AccountClosureBlockerCode;
   message: string;
+  count: number;
+};
+
+/** What closure WILL do to other people — shown, never blocking (LIFE-13). */
+export type AccountClosureConsequence = {
+  code: "WORKSPACE_MEMBERS_LOSE_ACCESS";
+  message: string;
+  /** Other ACTIVE or SUSPENDED members across the workspaces the caller owns. */
   count: number;
 };
 
@@ -137,8 +150,9 @@ async function countActiveHoldsAllStores(scope: {
 
 export async function evaluateAccountClosurePreflight(
   userId: string,
-): Promise<{ blockers: AccountClosureBlocker[] }> {
+): Promise<{ blockers: AccountClosureBlocker[]; consequences: AccountClosureConsequence[] }> {
   const blockers: AccountClosureBlocker[] = [];
+  const consequences: AccountClosureConsequence[] = [];
 
   const [ownedOrgMemberships, ownedTeams, activeHoldCount, activeSubs] =
     await Promise.all([
@@ -192,24 +206,23 @@ export async function evaluateAccountClosurePreflight(
     }
   }
 
-  // Owned workspaces that still have OTHER ACTIVE members.
+  // Owned workspaces' other members lose access when they close (LIFE-13):
+  // a consequence the person confirms, not a blocker. The closure legs revoke
+  // ACTIVE and SUSPENDED memberships alike, so both are counted.
   if (ownedTeams.length > 0) {
-    const teamIds = ownedTeams.map((t) => t.id);
-    const withMembers = await prisma.teamMember.groupBy({
-      by: ["teamId"],
+    const others = await prisma.teamMember.count({
       where: {
-        teamId: { in: teamIds },
+        teamId: { in: ownedTeams.map((t) => t.id) },
         userId: { not: userId },
-        status: "ACTIVE",
+        status: { in: ["ACTIVE", "SUSPENDED"] },
       },
-      _count: { id: true },
     });
-    if (withMembers.length > 0) {
-      blockers.push({
-        code: "WORKSPACE_MEMBERS_ACTIVE",
+    if (others > 0) {
+      consequences.push({
+        code: "WORKSPACE_MEMBERS_LOSE_ACCESS",
         message:
-          "A workspace you own still has other active members. Remove them or transfer the workspace first.",
-        count: withMembers.length,
+          "Workspaces you own close with your account. Their other members lose access and are notified; evidence stays governed by retention and legal-hold rules.",
+        count: others,
       });
     }
   }
@@ -229,7 +242,7 @@ export async function evaluateAccountClosurePreflight(
     );
     if (subscriptionBlocker) blockers.push(subscriptionBlocker);
   }
-  return { blockers };
+  return { blockers, consequences };
 }
 
 // -----------------------------------------------------------------------------

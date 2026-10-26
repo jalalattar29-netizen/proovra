@@ -106,6 +106,20 @@ vi.mock("../src/db.js", () => ({
   ),
 }));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
+// Members re-audit ENT-05 — the org workspaces route projects the canonical
+// seat state; this in-memory matrix is about identity recovery, not seats.
+vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+  resolveWorkspaceSeatState: async () => ({
+    plan: "ENTERPRISE",
+    used: 3,
+    limit: 5,
+    remaining: 2,
+    overLimit: false,
+    featureIncluded: true,
+    source: "ENTERPRISE_CONTRACT",
+    contractLimits: {},
+  }),
+}));
 vi.mock("../src/middleware/require-legal-acceptance.js", () => ({
   requireLegalAcceptance: async () => {},
 }));

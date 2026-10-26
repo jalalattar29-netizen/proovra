@@ -117,7 +117,9 @@ function discussionErrorToReply(err: unknown, reply: FastifyReply): void {
         : err.code === "invalid_status_transition" ||
             err.code === "thread_terminal"
           ? 409
-          : err.code === "body_empty" || err.code === "body_too_long"
+          : err.code === "body_empty" ||
+              err.code === "body_too_long" ||
+              err.code === "assignee_not_eligible"
             ? 422
             : err.code === "internal_only" ||
                 err.code === "contributor_revoked" ||

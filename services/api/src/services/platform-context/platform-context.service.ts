@@ -30,7 +30,13 @@
 import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
-import { ACTIVE_MEMBER_COUNT_SELECT, planProducesOperationalConditions } from "./workspace-capability.service.js";
+// DOM-14 — the ONE kind→legacy-scope mapper; the envelope uses it rather than
+// keeping its own copy.
+import {
+  ACTIVE_MEMBER_COUNT_SELECT,
+  legacyScopeFromKind,
+  planProducesOperationalConditions,
+} from "./workspace-capability.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import {
@@ -62,8 +68,6 @@ import {
   type SectionStatus,
   type WorkspacePlan,
   type WorkspaceRole,
-  type WorkspaceScope,
-  type ResolvedWorkspaceKind,
   type OrganizationKindValue,
   PLATFORM_CONTEXT_VERSION,
   type CanonicalContextOrganization,
@@ -98,26 +102,6 @@ import { personalSpaceAllowed as resolvePersonalSpaceAllowed } from "../identity
 // plan path (`tiersAllowedByPlan`) and `getPlanCapabilities("TEAM")`; those
 // are independent of this flag.
 const PRO_PLAN_KEYS: ReadonlySet<WorkspacePlan> = new Set(["PRO", "TEAM"]);
-
-/**
- * ATTENTION ARCHITECTURE (2026-08-22) — the LEGACY two-value scope, derived from the
- * canonical three-value kind instead of from `isPersonal`.
- *
- * `scope` used to be computed independently as
- * `team.isPersonal ? "PERSONAL" : "TEAM"`. Deriving it here means the
- * envelope cannot report a scope that contradicts `Team.workspaceKind`,
- * and it gives the eventual removal of `scope` a single call site.
- *
- * UNKNOWN maps to null rather than to a guess: a workspace whose kind
- * could not be proven must not be presented as either.
- */
-function legacyScopeFromKind(
-  kind: ResolvedWorkspaceKind,
-): WorkspaceScope | null {
-  if (kind === "PERSONAL") return "PERSONAL";
-  if (kind === "OWNED" || kind === "ORGANIZATION") return "TEAM";
-  return null;
-}
 
 function coercePlan(raw: string | null | undefined): WorkspacePlan | null {
   if (!raw) return null;
@@ -1360,23 +1344,27 @@ export async function buildPlatformContext(
   let collaborationMemberActive = false;
   let hasPendingInvitation = false;
   try {
-    const [collabMembers, collabInvites, orgInvites] = await Promise.all([
+    const [collabMembers, workspaceInvites, orgInvites] = await Promise.all([
       // Active member of ≥1 collaboration team (the org-membership case is
       // covered separately by `organizations`).
       prisma.collaborationTeamMember.count({
         where: { userId: userRow.id, status: "ACTIVE" },
       }),
-      // Still-actionable incoming collaboration-team invitation (email-matched;
-      // collaboration invites are actioned on the Teams surface and carry no
-      // inbox item, so participation is the only signal for them).
+      // Members audit CT-14 / defect 16 (2026-10-25) — still-actionable
+      // incoming WORKSPACE invitation, read from the one invitation authority
+      // that grants membership (`team_invites`, written only by
+      // workspace-invitation.service, which stores the address trimmed and
+      // lower-cased). This used to read the retired Collaboration Team
+      // invitation table, which no current writer fills, so the signal was
+      // always false. A pending row has neither acceptedAt nor revokedAt and
+      // has not expired — the same predicate the roster count uses.
       userRow.email
-        ? prisma.collaborationTeamInvite.count({
+        ? prisma.teamInvite.count({
             where: {
-              email: userRow.email,
-              status: "PENDING",
-              acceptedAtUtc: null,
-              revokedAtUtc: null,
-              expiresAtUtc: { gt: now },
+              email: userRow.email.trim().toLowerCase(),
+              acceptedAt: null,
+              revokedAt: null,
+              expiresAt: { gt: now },
             },
           })
         : Promise.resolve(0),
@@ -1394,7 +1382,7 @@ export async function buildPlatformContext(
         : Promise.resolve(0),
     ]);
     collaborationMemberActive = collabMembers > 0;
-    hasPendingInvitation = collabInvites > 0 || orgInvites > 0;
+    hasPendingInvitation = workspaceInvites > 0 || orgInvites > 0;
   } catch {
     // Degraded — conservative FALSE (hide plan/participation-gated
     // surfaces rather than overexpose). Incoming/universal categories are

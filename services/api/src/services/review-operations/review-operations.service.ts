@@ -102,10 +102,11 @@ export class ReviewOperationError extends Error {
  * The refusal does not say WHICH condition failed: a would-be assigner learns
  * nothing about a person's access they could not already see.
  */
-async function assertReviewAssigneeEligible(
+export async function assertReviewAssigneeEligible(
   workflow: { teamId: string | null; evidenceId: string },
   assigneeUserId: string,
   client: PrismaClient,
+  options: { inTransaction?: boolean } = {},
 ): Promise<void> {
   if (!workflow.teamId) throw new ReviewOperationError("assignee_not_eligible");
   // THE ONE assignee authority (capability + reach + Collaboration Team
@@ -119,6 +120,7 @@ async function assertReviewAssigneeEligible(
         evidenceId: workflow.evidenceId,
       },
       client,
+      options,
     );
   } catch (err) {
     if (err instanceof AssigneeEligibilityError) {
@@ -447,8 +449,6 @@ export async function assignReviewer(
     return workflow; // no-op
   }
 
-  await assertReviewAssigneeEligible(workflow, input.assignedToUserId, client);
-
   const now = new Date();
   const isReassignment = !!workflow.assignedToUserId;
   const fromStage = mapDbStatusToReviewStage(workflow.status as string);
@@ -462,6 +462,11 @@ export async function assignReviewer(
   // writes, so a failed audit left a committed assignment with no audit, and
   // the retry was the no-op above. A lost race is a refusal (strict).
   const updated = await client.$transaction(async (txc) => {
+    // Members audit defect 5 — the assignee rule is decided INSIDE the write's
+    // transaction, with the placement it relies on share-locked until commit.
+    await assertReviewAssigneeEligible(workflow, input.assignedToUserId, txc as unknown as PrismaClient, {
+      inTransaction: true,
+    });
     const moved = await applyTransition(
       workflow,
       targetStage,
@@ -556,12 +561,6 @@ export async function claimReviewerWorkflow(
   ) {
     return workflow;
   }
-  // Claiming queue work is RECEIVING work: the same assignee rule applies to
-  // the claimant (members audit, unassigned-member decision).
-  if (workflow.assignedToUserId !== input.actorUserId) {
-    await assertReviewAssigneeEligible(workflow, input.actorUserId, client);
-  }
-
   const now = new Date();
   const targetStage: ReviewStage =
     fromStage === "QUEUED" ? "ASSIGNED" : fromStage;
@@ -570,6 +569,14 @@ export async function claimReviewerWorkflow(
   // concurrent claims exactly one wins; the other is refused (strict, with
   // the assignee it read guarded).
   return client.$transaction(async (txc) => {
+    // Claiming queue work is RECEIVING work: the same assignee rule applies to
+    // the claimant (members audit, unassigned-member decision) — decided inside
+    // the claim's transaction (defect 5), as assignment above.
+    if (workflow.assignedToUserId !== input.actorUserId) {
+      await assertReviewAssigneeEligible(workflow, input.actorUserId, txc as unknown as PrismaClient, {
+        inTransaction: true,
+      });
+    }
     const moved = await applyTransition(
       workflow,
       targetStage,
@@ -1254,9 +1261,18 @@ export async function getReviewQueueCounts(
   input: { teamId: string; meUserId?: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewQueueCounts> {
+  // Members audit defect 10 — the counts are the queue's, so they obey the
+  // queue's reach: a workflow whose evidence sits on a restricted case the
+  // caller is not on is not counted (the canonical case-visibility rule,
+  // restriction flag included — the same narrowing listReviewQueue applies).
+  // Counting it disclosed how much review work the caller cannot see.
+  const scope: Prisma.EvidenceReviewWorkflowWhereInput = {
+    teamId: input.teamId,
+    evidence: evidenceVisibleThroughCasesWhere(input.meUserId ?? null),
+  };
   const stageRows = await client.evidenceReviewWorkflow.groupBy({
     by: ["status"],
-    where: { teamId: input.teamId },
+    where: scope,
     _count: { _all: true },
   });
   const byStage: Record<ReviewStage, number> = {
@@ -1278,16 +1294,16 @@ export async function getReviewQueueCounts(
   const [overdue, dueSoon, unassigned, mine] = await Promise.all([
     client.evidenceReviewWorkflow.count({
       where: {
-        teamId: input.teamId,
+        ...scope,
         slaStatus: { in: ["OVERDUE", "BREACHED"] },
       },
     }),
     client.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, slaStatus: "DUE_SOON" },
+      where: { ...scope, slaStatus: "DUE_SOON" },
     }),
     client.evidenceReviewWorkflow.count({
       where: {
-        teamId: input.teamId,
+        ...scope,
         assignedToUserId: null,
         status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
       },
@@ -1295,7 +1311,7 @@ export async function getReviewQueueCounts(
     input.meUserId
       ? client.evidenceReviewWorkflow.count({
           where: {
-            teamId: input.teamId,
+            ...scope,
             assignedToUserId: input.meUserId,
             status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
           },

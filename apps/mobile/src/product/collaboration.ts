@@ -144,6 +144,8 @@ export interface CollaborationTeamDetail {
    */
   teamType: string;
   updatedAtIso: string | null;
+  /** The group's workspace — the tenant a step-up challenge is bound to (SEC-03). */
+  workspaceId: string | null;
   /** How many members the detail embeds; above it the roster is paged (web MembersTab :308). */
   memberPreviewLimit: number;
   /** Open work the team holds (`assignmentCount`), the Work tab's count. */
@@ -212,6 +214,7 @@ export function parseCollaborationTeamDetail(data: unknown): CollaborationTeamDe
     invites,
     teamType: s(team["teamType"]) ?? "GENERAL",
     updatedAtIso: s(team["updatedAt"]),
+    workspaceId: s(team["workspaceId"]),
     memberPreviewLimit: nOr0(team["memberPreviewLimit"]) || 25,
     assignmentCount: nOr0(team["assignmentCount"]),
     viaWorkspaceGovernance: o(data)["viaWorkspaceGovernance"] === true,

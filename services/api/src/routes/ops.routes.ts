@@ -3669,6 +3669,25 @@ export async function opsRoutes(app: FastifyInstance) {
           });
         }
       }
+      // Members audit defect 2 — a workflow sweep is assignment too, and was
+      // not pre-checked at all: the runner checked only an ACTIVE membership
+      // row. The same resolver as the single-item workflow route answers the
+      // same refusal here; the runner then decides each target (reach to the
+      // workflow's case / evidence) through the one assignee authority.
+      if (body.actionType === "BULK_ASSIGN_WORKFLOWS") {
+        if (!body.assigneeUserId) {
+          return reply.code(400).send({
+            error: "assignee_required",
+            message: "Choose who should own these conditions.",
+          });
+        }
+        if (!(await isAssignableOperator({ teamId: body.teamId, userId: body.assigneeUserId }))) {
+          return reply.code(400).send({
+            error: "invalid_assignee",
+            message: "Assignee must be a member of this workspace.",
+          });
+        }
+      }
 
       // 2. Target-bound step-up. A bulk fan-out mutates many operator
       //    records at once, so the actor re-proves before the runner

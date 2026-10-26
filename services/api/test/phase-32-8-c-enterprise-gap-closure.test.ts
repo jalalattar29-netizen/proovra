@@ -402,8 +402,8 @@ describe("Phase 32.8C FINAL-3 — bulk actions", () => {
     expect(BULK).toMatch(/action:\s*`observability\.bulk_action\./);
   });
 
-  it("BULK_ASSIGN_WORKFLOWS enforces workspace membership on the assignee", () => {
-    expect(BULK).toMatch(/c\.teamMember\.findFirst/);
+  it("BULK_ASSIGN_WORKFLOWS decides each assignee through the one assignment authority (proof: members-assignment-surfaces defect 2)", () => {
+    expect(BULK).toMatch(/assertWorkAssigneeEligible\(/);
     expect(BULK).toMatch(/invalid_assignee/);
   });
 

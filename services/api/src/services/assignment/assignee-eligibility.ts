@@ -54,10 +54,27 @@ export async function assertWorkAssigneeEligible(
     caseId?: string | null;
   },
   client: PrismaClient = defaultPrisma,
+  options: {
+    /**
+     * Members audit defect 5 — the caller passes its OWN transaction client and
+     * the check runs inside the write's transaction: the placement it relies on
+     * is read under a share lock (`FOR SHARE`) on the Collaboration Team row and
+     * the group-membership row, held until the assignment commits. A concurrent
+     * archive of the group (or removal from it) therefore either commits first
+     * — and this check sees it and refuses NOT_PLACED — or waits until the
+     * assignment has committed. Before this the check ran outside the write,
+     * so an archive landing between the two left an unplaced assignee.
+     */
+    inTransaction?: boolean;
+  } = {},
 ): Promise<void> {
   const membership = await evaluateMemberAccess(
     { teamId: input.workspaceId, userId: input.assigneeUserId, permission: input.permission },
-    client,
+    // Inside a transaction the capability is read on the shared client (same
+    // READ COMMITTED visibility): a refusal writes a permission-denied
+    // security event, and that write must not ride a transaction this very
+    // refusal is about to roll back.
+    options.inTransaction ? defaultPrisma : client,
   );
   if (!membership.allowed) throw new AssigneeEligibilityError("NOT_ELIGIBLE");
 
@@ -77,11 +94,50 @@ export async function assertWorkAssigneeEligible(
   }
 
   if (await assignmentRequiresPlacement(input.workspaceId, client)) {
-    const placed = await isPlacedWorkspaceMember(
-      { workspaceId: input.workspaceId, userId: input.assigneeUserId },
-      client,
-    );
+    const placed = options.inTransaction
+      ? await isPlacedLockingPlacement(input.workspaceId, input.assigneeUserId, client)
+      : await isPlacedWorkspaceMember(
+          { workspaceId: input.workspaceId, userId: input.assigneeUserId },
+          client,
+        );
     if (!placed) throw new AssigneeEligibilityError("NOT_PLACED");
   }
+}
+
+/**
+ * The placement predicate of `isPlacedWorkspaceMember` (the owner is always
+ * placed; anyone else by an EFFECTIVE membership — ACTIVE in the group and in
+ * the workspace — of an ACTIVE, unarchived Collaboration Team), read under a
+ * share lock on the placing rows so the placement cannot change until the
+ * caller's transaction ends. Only meaningful on a transaction client.
+ */
+async function isPlacedLockingPlacement(
+  workspaceId: string,
+  userId: string,
+  client: PrismaClient,
+): Promise<boolean> {
+  const workspace = await client.team.findUnique({
+    where: { id: workspaceId },
+    select: { ownerUserId: true },
+  });
+  if (!workspace) return false;
+  if (workspace.ownerUserId === userId) return true;
+  const rows = await client.$queryRaw<Array<{ id: string }>>`
+    SELECT ctm.id
+      FROM collaboration_team_members ctm
+      JOIN collaboration_teams ct ON ct.id = ctm.team_id
+     WHERE ctm.user_id = ${userId}::uuid
+       AND ctm.status = 'ACTIVE'
+       AND ct.workspace_id = ${workspaceId}::uuid
+       AND ct.status = 'ACTIVE'
+       AND ct.archived_at_utc IS NULL
+       AND EXISTS (
+             SELECT 1 FROM team_members tm
+              WHERE tm.team_id = ${workspaceId}::uuid
+                AND tm.user_id = ${userId}::uuid
+                AND tm.status = 'ACTIVE'
+           )
+     FOR SHARE OF ctm, ct`;
+  return rows.length > 0;
 }
 

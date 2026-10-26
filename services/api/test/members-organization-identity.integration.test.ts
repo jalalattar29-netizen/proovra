@@ -43,6 +43,9 @@ describe("DOM-13 — Organization-scoped SSO and SCIM (live PostgreSQL)", () => 
   let orgLifecycle: typeof import("../src/services/organization/org-lifecycle.service.js");
   let orgClosure: typeof import("../src/services/organization/org-closure.service.js");
   let signJwt: typeof import("../src/services/jwt.js").signJwt;
+  let healthSvc: typeof import("../src/services/security/sso-health.service.js");
+  let reconciliation: typeof import("../src/services/access-control/scim-reconciliation.service.js");
+  let portalSso: typeof import("../src/services/external-review/portal-sso.service.js");
 
   const tag = () => randomUUID().slice(0, 8);
 
@@ -58,6 +61,9 @@ describe("DOM-13 — Organization-scoped SSO and SCIM (live PostgreSQL)", () => 
     orgLifecycle = await import("../src/services/organization/org-lifecycle.service.js");
     orgClosure = await import("../src/services/organization/org-closure.service.js");
     ({ signJwt } = await import("../src/services/jwt.js"));
+    healthSvc = await import("../src/services/security/sso-health.service.js");
+    reconciliation = await import("../src/services/access-control/scim-reconciliation.service.js");
+    portalSso = await import("../src/services/external-review/portal-sso.service.js");
   }, 900_000);
 
   afterAll(async () => {
@@ -402,6 +408,157 @@ describe("DOM-13 — Organization-scoped SSO and SCIM (live PostgreSQL)", () => 
     expect(again.body).not.toContain("ORGANIZATION_IDENTITY_ADMIN_REQUIRED");
     expect(again.statusCode).toBe(401);
     expect(again.body).toContain("STEP_UP_REQUIRED");
+  });
+
+  it("DOM-11 — the live keys hold only live rows: retired connections and archived groups never block a successor", async () => {
+    const o = await organization();
+    const conn = (status: string) =>
+      prisma.ssoConnection.create({
+        data: { teamId: o.w1, organizationId: o.orgId, provider: "OKTA", displayName: `Okta ${status}`, status, createdByUserId: o.owner.userId, allowedEmailDomains: [] } as never,
+      });
+    // Two retired rows of one provider coexist with each other and with a live one.
+    await conn("REVOKED");
+    await conn("REVOKED");
+    await conn("DISABLED");
+    await conn("ACTIVE");
+    // A second LIVE row is still refused (positive control for the key).
+    await expect(conn("ACTIVE")).rejects.toMatchObject({ code: "P2002" });
+    await expect(conn("SUSPENDED")).rejects.toMatchObject({ code: "P2002" });
+
+    const externalId = `dom11-${tag()}`;
+    const group = (status: string) =>
+      prisma.scimGroup.create({
+        data: { teamId: o.w1, organizationId: o.orgId, displayName: "G", externalId, mappedRole: "MEMBER", status } as never,
+      });
+    await group("ARCHIVED");
+    await group("ARCHIVED");
+    await group("ACTIVE");
+    await expect(group("ACTIVE")).rejects.toMatchObject({ code: "P2002" });
+    // Another Organization may hold the same external id live.
+    const other = await organization();
+    await expect(
+      prisma.scimGroup.create({
+        data: { teamId: other.w1, organizationId: other.orgId, displayName: "G", externalId, mappedRole: "MEMBER", status: "ACTIVE" } as never,
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it("readers are Organization-scoped: readiness, health and drift from a sibling Workspace see the Organization's connection and credential — another Organization sees neither", async () => {
+    const o = await organization();
+    const other = await organization();
+    const conn = await sso.createSsoConnection(
+      { teamId: o.w1, provider: "OKTA", displayName: "Okta", issuerUrl: "https://okta.example.test", clientId: "c", clientSecret: "dom13-secret-value", actorUserId: o.owner.userId } as never,
+      prisma,
+    );
+    await sso.transitionSsoConnection({ teamId: o.w1, id: conn.projection.id, nextStatus: "ACTIVE", actorUserId: o.owner.userId }, prisma);
+    const { projection: token } = await scim.createScimToken(
+      { teamId: o.w1, actorUserId: o.owner.userId, name: `stale-${tag()}`, scopes: ["users.read"] },
+      prisma,
+    );
+    // Never used and older than the staleness window.
+    await prisma.scimProvisioningToken.update({ where: { id: token.id }, data: { createdAt: new Date(Date.now() - 30 * 86_400_000) } });
+
+    // Readiness (route), from the sibling Workspace.
+    const readiness = await h.app.inject({
+      method: "GET",
+      url: `/v1/auth/sso/readiness?teamId=${o.w2}`,
+      headers: { authorization: `Bearer ${o.owner.token}` },
+    });
+    expect(readiness.statusCode, readiness.body).toBe(200);
+    const ids = (JSON.parse(readiness.body) as { readiness: { connections: Array<{ id: string }> } }).readiness.connections.map((c) => c.id);
+    expect(ids).toEqual([conn.projection.id]);
+    const foreign = await h.app.inject({
+      method: "GET",
+      url: `/v1/auth/sso/readiness?teamId=${other.w1}`,
+      headers: { authorization: `Bearer ${other.owner.token}` },
+    });
+    expect((JSON.parse(foreign.body) as { readiness: { connections: unknown[] } }).readiness.connections).toEqual([]);
+
+    // Health, from the sibling Workspace; another Organization sees nothing.
+    const health = await healthSvc.buildSsoHealthSnapshot({ teamId: o.w2 }, prisma);
+    expect(health.connections.map((c) => c.connectionId)).toEqual([conn.projection.id]);
+    expect((await healthSvc.buildSsoHealthSnapshot({ teamId: other.w1 }, prisma)).connections).toEqual([]);
+
+    // Drift, from the sibling Workspace, names the stale credential and the
+    // archive action reaches it.
+    const drift = await reconciliation.detectScimDrift({ teamId: o.w2, actorUserId: o.owner.userId }, prisma);
+    const stale = drift.items.find((i) => i.category === "STALE_TOKEN" && i.subject.id === token.id);
+    expect(stale).toBeDefined();
+    const foreignDrift = await reconciliation.detectScimDrift({ teamId: other.w1, actorUserId: other.owner.userId }, prisma);
+    expect(foreignDrift.items.some((i) => i.subject.id === token.id)).toBe(false);
+    const executed = await reconciliation.executeScimReconciliation(
+      { teamId: o.w2, actorUserId: o.owner.userId, previewId: drift.previewId, itemIds: [stale!.id] },
+      prisma,
+    );
+    expect(executed.ok, JSON.stringify(executed)).toBe(true);
+    expect((await prisma.scimProvisioningToken.findUniqueOrThrow({ where: { id: token.id } })).status).not.toBe("ACTIVE");
+  });
+
+  it("health counts a SUSPENDED (Organization-suspended) connection as signing nobody in", async () => {
+    const o = await organization();
+    const conn = await sso.createSsoConnection(
+      { teamId: o.w1, provider: "OKTA", displayName: "Okta", issuerUrl: "https://okta.example.test", clientId: "c", clientSecret: "dom13-secret-value", actorUserId: o.owner.userId } as never,
+      prisma,
+    );
+    await sso.transitionSsoConnection({ teamId: o.w1, id: conn.projection.id, nextStatus: "ACTIVE", actorUserId: o.owner.userId }, prisma);
+    expect((await healthSvc.buildSsoHealthSnapshot({ teamId: o.w2 }, prisma)).overallStatus).not.toBe("DISABLED");
+    await orgLifecycle.suspendOrganization({ organizationId: o.orgId, actorUserId: o.owner.userId, reason: "dom13" });
+    expect((await healthSvc.buildSsoHealthSnapshot({ teamId: o.w2 }, prisma)).overallStatus).toBe("DISABLED");
+  });
+
+  it("portal SSO from a sibling Workspace resolves the Organization's SAML connection; another Organization's connection is refused", async () => {
+    const o = await organization();
+    const other = await organization();
+    const samlConnection = (orgId: string, teamId: string, userId: string) =>
+      prisma.ssoConnection.create({
+        data: {
+          teamId,
+          organizationId: orgId,
+          provider: "GENERIC_SAML",
+          displayName: "SAML",
+          status: "ACTIVE",
+          createdByUserId: userId,
+          allowedEmailDomains: [],
+          samlSsoUrl: "https://idp.example.test/sso",
+          samlEntityId: "https://idp.example.test",
+          samlCertificate: "MIIBdom13",
+        },
+        select: { id: true },
+      });
+    const own = await samlConnection(o.orgId, o.w1, o.owner.userId);
+    const foreign = await samlConnection(other.orgId, other.w1, other.owner.userId);
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: o.w2 }, select: { organizationId: true } });
+    const ev = await prisma.evidence.create({
+      data: { title: `Portal ${tag()}`, type: "PHOTO", status: "CREATED", teamId: o.w2, organizationId: team.organizationId, ownerUserId: o.owner.userId },
+      select: { id: true },
+    });
+    const grant = await prisma.externalReviewGrant.create({
+      data: {
+        teamId: o.w2,
+        scopeKind: "EVIDENCE",
+        evidenceId: ev.id,
+        tokenHash: `dom13-${randomUUID()}`,
+        reviewerEmail: `reviewer-${tag()}@external.test`,
+        state: "ACTIVE",
+        invitedByUserId: o.owner.userId,
+        expiresAtUtc: new Date(Date.now() + 86_400_000),
+      },
+      select: { id: true },
+    });
+    await prisma.externalReviewerRoleAssignment.create({
+      data: { id: grant.id, teamId: o.w2, evidenceId: ev.id, grantedByUserId: o.owner.userId, externalEmail: `reviewer-${tag()}@external.test`, authMethod: "SSO", ssoConnectionId: own.id },
+    });
+    const start = (ssoConnectionIdOverride?: string) =>
+      portalSso.startPortalSsoFlow({
+        prisma: prisma as never,
+        teamId: o.w2,
+        grantId: grant.id,
+        ssoConnectionIdOverride,
+        spEntityId: "https://app.example.test/sp",
+        acsUrl: "https://app.example.test/acs",
+      });
+    expect(await start()).toMatchObject({ ok: true, connectionId: own.id });
+    expect(await start(foreign.id)).toEqual({ ok: false, denial: "POLICY_REJECTED" });
   });
 
   it("the forward migration reconciles legacy per-workspace duplicates and is idempotent", async () => {

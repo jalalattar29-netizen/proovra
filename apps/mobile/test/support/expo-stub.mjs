@@ -252,3 +252,17 @@ export const openBrowserAsync = async (url) => {
 
 export const dismissBrowser = async () => {};
 export const dismissAuthSession = () => {};
+
+// ── @sentry/react-native ────────────────────────────────────────────────────
+// A recording fake so a test can drive the app's REAL Sentry wiring
+// (src/sentry.ts): `init` keeps the options it was given (and so the
+// `beforeSend` hook), `captureException` records what would have been sent.
+// Observed through globalThis.__SENTRY__ = { initOptions, captured: [] }.
+const sentryState = () => (globalThis.__SENTRY__ ??= { initOptions: null, captured: [] });
+export const init = (options) => {
+  sentryState().initOptions = options;
+};
+export const captureException = (err) => {
+  sentryState().captured.push(err);
+};
+export const withScope = (fn) => fn({ setExtra: () => {} });

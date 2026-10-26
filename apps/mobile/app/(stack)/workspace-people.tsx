@@ -18,9 +18,8 @@
  * page — the web route's own comment records what happened when a detail read
  * tried to carry every membership.
  *
- * Linking and unlinking a case are gated DIFFERENTLY by the route — a MEMBER
- * may bring a case in and may not take one out — and the surface keeps them
- * apart rather than treating "can manage cases" as one permission.
+ * Case links are NOT managed here (members audit MEM-05, IA decision
+ * 2026-10-25): who can open a case is managed on the case itself.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";

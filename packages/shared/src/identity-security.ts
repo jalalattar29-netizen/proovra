@@ -110,6 +110,11 @@ export const STEP_UP_PURPOSES = [
   "RETENTION_POLICY_UPDATE",
   // Members audit SEC-03 — deleting a case is irreversible.
   "CASE_DELETE",
+  // Members re-audit SEC-03 — deleting a Collaboration Team is irreversible.
+  "COLLABORATION_TEAM_DELETE",
+  // Members re-audit ROLE-05 — the workspace's legal contact and logo appear
+  // on what the workspace publishes.
+  "WORKSPACE_IDENTITY_UPDATE",
   // Phase 27 — Enterprise destruction queue + lifecycle moves.
   "EVIDENCE_DESTRUCTION_APPROVE",
   "EVIDENCE_DESTRUCTION_EXECUTE",

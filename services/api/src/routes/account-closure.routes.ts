@@ -83,6 +83,7 @@ export async function accountClosureRoutes(app: FastifyInstance) {
       return {
         request: latest,
         blockers: preflight.blockers,
+        consequences: preflight.consequences,
         confirmationPhrase: CLOSURE_CONFIRMATION_PHRASE,
         coolingOffDays: Math.round(COOLING_OFF_MS / 86_400_000),
       };

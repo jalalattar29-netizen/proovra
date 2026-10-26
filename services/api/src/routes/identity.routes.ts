@@ -101,6 +101,7 @@ import {
   listTeamMembersWithAccess,
   restoreMember,
   revokeCapability,
+  updateCapability,
   revokeDelegatedAdminScope,
   updateDelegatedAdminScope,
   revokeMember,
@@ -703,6 +704,59 @@ export async function identityRoutes(app: FastifyInstance) {
           reason: body.reason ?? null,
           expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
           actorUserId: actor.userId,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ grant });
+      } catch (err) {
+        if (handleRbacError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // Members re-audit DOM-09 — extend, shorten or re-explain a grant in place.
+  const UpdateCapabilityBody = DeclaredTeamId.extend({
+    reason: z.string().min(1).max(400).nullable().optional(),
+    expiresAtUtc: z
+      .string()
+      .datetime()
+      .refine((v) => new Date(v).getTime() > Date.now(), "expiresAtUtc must be in the future")
+      .nullable()
+      .optional(),
+  }).refine((b) => b.reason !== undefined || b.expiresAtUtc !== undefined, "nothing to update");
+
+  app.patch(
+    "/v1/identity/capabilities/:id",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const body = UpdateCapabilityBody.parse(req.body ?? {});
+      const target = await resolveCapabilityTarget(reply, id, body.teamId);
+      if (!target) return;
+      const actor = await requireIdentityActor(
+        req, reply, target.teamId, "identity.capability.grant",
+        { kind: "member_capability_grant", id: target.grantId },
+      );
+      if (!actor) return;
+      const gate = await requireStepUpForSensitiveAction({
+        req, reply,
+        teamId: target.teamId,
+        userId: actor.userId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "member_capability_grant",
+        resourceId: target.grantId,
+      });
+      if (gate.sent) return;
+      try {
+        const grant = await updateCapability({
+          teamId: target.teamId,
+          grantId: target.grantId,
+          actorUserId: actor.userId,
+          ...(body.expiresAtUtc !== undefined
+            ? { expiresAtUtc: body.expiresAtUtc === null ? null : new Date(body.expiresAtUtc) }
+            : {}),
+          ...(body.reason !== undefined ? { reason: body.reason } : {}),
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
         });

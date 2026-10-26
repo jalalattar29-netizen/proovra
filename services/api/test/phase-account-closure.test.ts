@@ -22,9 +22,9 @@ const MIGRATION = read(
 );
 
 describe("preflight blockers", () => {
-  it("carries the four stable blocker codes", () => {
+  it("carries the three stable blocker codes; other members are a consequence (LIFE-13, proven in members-lifecycle-closure)", () => {
     expect(PREFLIGHT).toMatch(/"ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED"/);
-    expect(PREFLIGHT).toMatch(/"WORKSPACE_MEMBERS_ACTIVE"/);
+    expect(PREFLIGHT).toMatch(/"WORKSPACE_MEMBERS_LOSE_ACCESS"/);
     expect(PREFLIGHT).toMatch(/"LEGAL_HOLD_ACTIVE"/);
     expect(PREFLIGHT).toMatch(/"BILLING_SUBSCRIPTION_ACTIVE"/);
   });

@@ -15,7 +15,7 @@ and `domain-debt-register.md`.
 | Delegated administration | role + `member_capability_grants` + `member_delegated_admin_scopes`, one permission engine | `middleware/authorize.ts`, `middleware/require-workspace-permission.ts`, `identity/rbac.service.ts` |
 | Capacity | per ACTIVE Collaboration Team: PRO 2 × 5, TEAM 5 × 10 accepted non-owner members; Enterprise contract-defined | `collaboration-team/billing-guards.ts` (one lock per group) |
 | Workspace-wide seat ceiling | only an ACTIVE Enterprise contract's `seat_count` | `billing/workspace-seats.service.ts` |
-| Case reach | `case_access` + `case_collaboration_team_access` (restricted when either has a row) | `cases/record-reach` |
+| Case reach | `case_access` + `case_collaboration_team_access`; restricted while `cases.restricted_at_utc` is set (a grant sets it; only a manager removing the last entry lifts it; a departure never does) | `cases/case-visibility.ts`, `cases/record-reach` |
 | Lifecycle | `closedAtUtc`; one closure leg set `closeWorkspacesTx` | `workspace/workspace-closure.service.ts` |
 | Audit | `admin_audit_logs` via `emitTenantAudit` / `emitPlatformAudit`, in the mutation's transaction | `audit/tenant-audit.service.ts` |
 | Lifecycle notices | `notification_deliveries` as the outbox | `notifications/membership-lifecycle-notice.ts` |
@@ -184,3 +184,58 @@ anything is created. The inline `price_data` fallback is gone. PayPal already
 read its plan back (`assertPayPalPlanIsActive`). Proof:
 `members-commercial-offer.test.ts` (every product × currency × interval).
 The live Stripe configuration itself is an operator check.
+
+## 6. Rules recorded by the remediation (2026-10-26)
+
+These follow from the model in §1 and the owner decisions in §5. Each is
+enforced in code and proven behaviourally; the test named is the proof.
+
+- **LIFE-13 — account closure and other members.** Other members of a
+  workspace the person owns are a *consequence*, not a blocker: account
+  closure closes every owned workspace through `closeWorkspacesTx`, which
+  revokes ACTIVE and SUSPENDED memberships with reach ended and sends each
+  member WORKSPACE_CLOSED, the same rule workspace closure already follows.
+  The preflight returns `WORKSPACE_MEMBERS_LOSE_ACCESS` with a count, and Web
+  and mobile show it before the person confirms. Legal holds, organization
+  ownership and live billing still block. Proof: `members-lifecycle-closure`
+  "LIFE-13 …", `account-closure-consequences.render.test.tsx`.
+- **ACC-12 — reach is case-level only.** There is no per-record grant. A
+  person reaches a record through workspace membership or, when the record is
+  linked to a restricted case, through that case's list (`case_access`) or an
+  ACTIVE Collaboration Team granted the case. An external reviewer reaches a
+  record only through an external-review grant. A per-record grant would be a
+  second access system and is not built.
+- **ACC-10 — Collaboration Teams on a case.** An ACTIVE Collaboration Team of
+  the same workspace may be granted a case. Its ACTIVE members reach it, and
+  archiving the team withdraws that reach. Proof: `members-case-team-access`.
+- **ROLE-04 — workspace rank.** OWNER > ADMIN > MEMBER > VIEWER, strictly:
+  - an ADMIN acts on MEMBER and VIEWER only;
+  - only the OWNER appoints, demotes, suspends or removes an ADMIN;
+  - nobody acts on themselves through these commands.
+
+  Refusal `rank_insufficient`. Proof: `members-membership-commands`
+  "ROLE-04 …".
+- **CT-18 — Collaboration Team rank.** Only a LEAD or the workspace OWNER acts
+  on a LEAD (`LEAD_PROTECTED`). The last effective LEAD cannot be removed or
+  demoted, even by two concurrent demotions. Proof:
+  `members-collaboration-capacity` "CT-18 …".
+- **LIFE-15 — leaving.** A MEMBER, VIEWER or ADMIN may leave a workspace
+  (`POST /v1/teams/:id/leave`). The OWNER may not (`owner_cannot_leave`), and
+  the last-ADMIN check runs under an advisory lock. Proof:
+  `members-membership-commands` "LIFE-15 …".
+- **ENT-04 — capacity is per Collaboration Team.** PRO and TEAM have no
+  workspace-wide member pool: the workspace may hold any number of members.
+  Only placement in an ACTIVE Collaboration Team is capped (PRO 5, TEAM 10
+  non-owner members per group), and work assignment also requires that
+  placement (§5.2). Proof: `members-collaboration-capacity` "ENT-04 …".
+- **CT-10 — Enterprise capacity.** Enterprise follows its contract (§5.2).
+  Without an ACTIVE contract there is no capacity (typed
+  `ENTERPRISE_CONTRACT_REQUIRED`). An ACTIVE contract that names no
+  collaboration limits takes the Enterprise contract defaults published in the
+  catalogue (1000 Collaboration Teams, 500 members each). Those defaults are
+  the standard contract terms; setting the contract fields changes them.
+- **SEC-03 — step-up.** Irreversible destruction needs a fresh factor: case
+  delete (`CASE_DELETE`) and Collaboration Team delete. Moving evidence to the
+  trash or to the archive does not, because both can be reversed from the same
+  screen and legal holds still refuse them. Permanent destruction goes through
+  the governed destruction review.

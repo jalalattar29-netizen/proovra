@@ -379,6 +379,8 @@ function DataExportCard() {
 }
 
 type ClosureBlocker = { code: string; message: string; count: number };
+/** What closure WILL do to other people — shown before confirming, never blocking (LIFE-13). */
+type ClosureConsequence = { code: string; message: string; count: number };
 
 type ClosureRequestRow = {
   id: string;
@@ -415,12 +417,8 @@ const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = 
     label: "Transfer ownership",
     href: "/organizations",
   },
-  // §7.2 — a blocker is never shown without a path to resolve it. This one
-  // pointed at `/teams`, which 308s to `/collaboration-teams`: the operator
-  // was told their account cannot close until workspace members are dealt
-  // with, and the resolution action dropped them into the Collaboration Teams
-  // list, which manages groups and not workspace membership. `/people`
-  // resolves to the surface that can actually remove them.
+  // Historical only (members audit LIFE-13): other members no longer block
+  // closure, but a request BLOCKED by it before then still lists it.
   WORKSPACE_MEMBERS_ACTIVE: {
     label: "Manage workspace people",
     href: WORKSPACE_PEOPLE_PATH,
@@ -432,6 +430,7 @@ function AccountClosureCard() {
   const [state, setState] = useState<{
     request: ClosureRequestRow | null;
     blockers: ClosureBlocker[];
+    consequences?: ClosureConsequence[];
     confirmationPhrase: string;
     coolingOffDays: number;
   } | null>(null);
@@ -450,6 +449,7 @@ function AccountClosureCard() {
       })) as {
         request: ClosureRequestRow | null;
         blockers: ClosureBlocker[];
+        consequences?: ClosureConsequence[];
         confirmationPhrase: string;
         coolingOffDays: number;
       };
@@ -547,6 +547,7 @@ function AccountClosureCard() {
       req.status,
     );
   const blockers = state?.blockers ?? [];
+  const consequences = state?.consequences ?? [];
   const phraseExpected = state?.confirmationPhrase ?? "close my account";
 
   return (
@@ -609,6 +610,21 @@ function AccountClosureCard() {
         </div>
       ) : (
         <>
+          {consequences.length > 0 ? (
+            <div className="mt-3" data-cc-closure-consequences>
+              <p style={{ ...muted, fontWeight: 600 }}>Closing your account also:</p>
+              <ul style={{ ...muted, margin: "6px 0 0", paddingLeft: 18 }}>
+                {consequences.map((c) => (
+                  <li key={c.code} data-cc-closure-consequence={c.code}>
+                    {c.message}
+                    {c.code === "WORKSPACE_MEMBERS_LOSE_ACCESS"
+                      ? ` (${c.count} ${c.count === 1 ? "person" : "people"})`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {blockers.length > 0 ? (
             <div className="mt-3" data-cc-closure-blockers>
               <p style={{ ...muted, fontWeight: 600 }}>

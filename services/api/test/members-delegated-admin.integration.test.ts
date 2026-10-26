@@ -548,6 +548,65 @@ describe("DOM-09 — one delegated-admin authority (live PostgreSQL)", () => {
     expect(await prisma.adminAuditLog.count({ where: { action: "identity.delegated_admin.revoke", resourceId: scopeId } })).toBe(1);
   }, 300_000);
 
+  it("a capability grant (carried or issued) is updated in place: step-up bound, audited, D54-checked, never after revocation", async () => {
+    const holder = await person(A().teamId, "VIEWER");
+    const grant = await rbac.grantCapability(
+      { teamId: A().teamId, teamMemberId: holder.memberId, permission: "billing.manage", actorUserId: A().ownerUserId, reason: "renewal season" },
+      prisma,
+    );
+    const ownerAuth = bearer(A().ownerToken);
+    const newExpiry = new Date(Date.now() + 30 * 86_400_000).toISOString();
+
+    const noStepUp = await h.app.inject({
+      method: "PATCH",
+      url: `/v1/identity/capabilities/${grant.id}`,
+      headers: ownerAuth,
+      payload: { expiresAtUtc: newExpiry },
+    });
+    expect(noStepUp.statusCode).toBe(401);
+    expect(noStepUp.body).toContain("STEP_UP_REQUIRED");
+    const byHolder = await h.app.inject({
+      method: "PATCH",
+      url: `/v1/identity/capabilities/${grant.id}`,
+      headers: bearer(holder.token),
+      payload: { expiresAtUtc: null },
+    });
+    expect([403, 404]).toContain(byHolder.statusCode);
+
+    const header = await stepUp.approvedHeader({
+      token: A().ownerToken,
+      userId: A().ownerUserId,
+      teamId: A().teamId,
+      purpose: "CAPABILITY_GRANT",
+      resourceKind: "member_capability_grant",
+      resourceId: grant.id,
+    });
+    const updated = await h.app.inject({
+      method: "PATCH",
+      url: `/v1/identity/capabilities/${grant.id}`,
+      headers: { ...ownerAuth, ...header },
+      payload: { expiresAtUtc: newExpiry, reason: "extended" },
+    });
+    expect(updated.statusCode, updated.body).toBe(200);
+    const row = await prisma.memberCapabilityGrant.findUniqueOrThrow({ where: { id: grant.id } });
+    expect(row.expiresAtUtc!.toISOString()).toBe(newExpiry);
+    expect(row.reason).toBe("extended");
+    expect(row.permission).toBe("billing.manage");
+    const audit = await prisma.adminAuditLog.findFirstOrThrow({ where: { action: "identity.capability.update", resourceId: grant.id } });
+    expect((audit.metadata as { previous: unknown }).previous).toEqual({ expiresAtUtc: null, reason: "renewal season" });
+
+    // D54 — an ADMIN without billing.manage cannot extend it.
+    const admin = await person(A().teamId, "ADMIN");
+    await expect(
+      rbac.updateCapability({ teamId: A().teamId, grantId: grant.id, actorUserId: admin.id, expiresAtUtc: null }, prisma),
+    ).rejects.toMatchObject({ code: "grantor_lacks_permission" });
+
+    await rbac.revokeCapability({ teamId: A().teamId, grantId: grant.id, actorUserId: A().ownerUserId }, prisma);
+    await expect(
+      rbac.updateCapability({ teamId: A().teamId, grantId: grant.id, actorUserId: A().ownerUserId, reason: "late" }, prisma),
+    ).rejects.toMatchObject({ code: "capability_not_found" });
+  }, 300_000);
+
   it("an expired scope admits nothing", async () => {
     const delegate = await person(A().teamId, "VIEWER");
     const scope = await rbac.grantDelegatedAdminScope(

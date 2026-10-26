@@ -2199,7 +2199,16 @@ async function buildOrganizationProjection(input: {
         used: seatsUsed,
         // NULL where the agreement is silent — never a substituted zero.
         limit: limits.seats ?? null,
-        pendingInvites: 0,
+        // Members re-audit CT-14 — open invitations across the Organization's
+        // workspaces, from the workspace invitation authority (`team_invites`).
+        pendingInvites: await prisma.teamInvite.count({
+          where: {
+            teamId: { in: workspaceIds },
+            acceptedAt: null,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+        }),
       },
     },
     ...(contract

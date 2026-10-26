@@ -500,6 +500,7 @@ import {
   appendReviewerAuditEvent,
   listReviewerAuditEvents,
 } from "../services/evidence-review/reviewer-audit.service.js";
+import { AssigneeEligibilityError } from "../services/assignment/assignee-eligibility.js";
 import {
   getEvidenceReviewerWorkflowSummary,
   listEvidenceReviewerWorkflowEvents,
@@ -1801,7 +1802,40 @@ async function resolveResumableDraftRecord(ownerUserId: string, captureSessionId
   };
 }
 
-function auditEvidenceAction(
+/**
+ * Evidence READ / access audits (listing, viewing, downloading). Their audit is
+ * still written before the response leaves, but a failed write is noted and
+ * does not refuse the read the caller is entitled to.
+ */
+const EVIDENCE_READ_AUDIT_ACTIONS: ReadonlySet<string> = new Set([
+  "evidence.list",
+  "evidence.view",
+  "evidence.parts_listed",
+  "evidence.part_presign_created",
+  "evidence.review_workspace_viewed",
+  "evidence.report_viewed",
+  "evidence.report.downloaded",
+  "evidence.verification_package.downloaded",
+  "evidence.downloaded",
+  "evidence.original.downloaded",
+  "verification.package_accessed",
+  "evidence.certifications_listed",
+]);
+
+/**
+ * THE EVIDENCE ROUTE AUDIT (members audit SEC-13, 2026-10-25).
+ *
+ * This was `void emitTenantAudit(...).catch(...)` — fire-and-forget on every
+ * evidence route, so a response could report a mutation whose audit row did
+ * not exist yet, or never would. It is now AWAITED by every caller: the row is
+ * written before the response is sent. A successful MUTATION whose audit
+ * cannot be written fails the request (the error reaches the error handler)
+ * instead of returning success with no audit; the mutation itself commits in
+ * its own service transaction before this runs (the lifecycle and capture
+ * services own those transactions), so this is the "awaited after the
+ * mutation" form. Reads and refusals keep a noted, non-fatal failure.
+ */
+async function auditEvidenceAction(
   req: FastifyRequest,
   params: {
     userId: string | null;
@@ -1812,11 +1846,12 @@ function auditEvidenceAction(
     teamId?: string | null;
     metadata?: Record<string, unknown>;
   }
-) {
+): Promise<void> {
   const outcome = mapEvidenceOutcome(params.outcome);
   const reason =
     typeof params.metadata?.reason === "string" ? params.metadata.reason : null;
-  void emitTenantAudit({
+  const mustCommit = outcome === "success" && !EVIDENCE_READ_AUDIT_ACTIONS.has(params.action);
+  const write = emitTenantAudit({
     action: params.action,
     outcome,
     denialReason: outcome !== "success" ? reason : null,
@@ -1833,7 +1868,12 @@ function auditEvidenceAction(
       ...(params.metadata ?? {}),
       severity: params.severity ?? "info",
     },
-  }).catch(noteCustodyFailure);
+  });
+  if (mustCommit) {
+    await write;
+    return;
+  }
+  await write.catch(noteCustodyFailure);
 }
 
 // `auditVerificationAction` covers the PUBLIC /public/verify surface —
@@ -5893,7 +5933,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
     });
 
     if (!rate.allowed) {
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.create",
         outcome: "blocked",
@@ -5950,7 +5990,7 @@ export async function evidenceRoutes(app: FastifyInstance) {
         "code" in err &&
         (err as Error & { code?: string }).code === "TEAM_PLAN_REQUIRED"
       ) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.create",
           outcome: "blocked",
@@ -6188,7 +6228,7 @@ const result = body.captureSessionId
           reason: "create_evidence_blocked",
         });
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.create",
           outcome: "blocked",
@@ -6212,7 +6252,7 @@ const result = body.captureSessionId
         "code" in err &&
         (err as Error & { code?: string }).code === "TEAM_PLAN_REQUIRED"
       ) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.create",
           outcome: "blocked",
@@ -6233,7 +6273,7 @@ if (
   "code" in err &&
   (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
 ) {
-  auditEvidenceAction(req, {
+  await auditEvidenceAction(req, {
     userId: ownerUserId,
     action: "evidence.create",
     outcome: "blocked",
@@ -6274,7 +6314,7 @@ if (
           ? (err as Error & { code?: string }).code
           : undefined;
       if (errCode && recordCapCodes.has(errCode)) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.create",
           outcome: "blocked",
@@ -6313,7 +6353,7 @@ if (
        * the response.
        */
       const expected = classifyReportability(err) !== "UNEXPECTED";
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.create",
         outcome: expected ? "blocked" : "failure",
@@ -6395,7 +6435,7 @@ if (
       }
 
       if (evidence.deletedAt) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.update_label",
           outcome: "blocked",
@@ -6436,7 +6476,7 @@ if (
         void indexEvidence({ teamId: updated.teamId, evidenceId: id });
       }
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.update_label",
         outcome: "success",
@@ -6701,7 +6741,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           return { part, created: true as const };
         });
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.part_presign_created",
           outcome: "success",
@@ -6748,7 +6788,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           },
         });
       } catch (err) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.part_presign_created",
           outcome: "failure",
@@ -6890,7 +6930,7 @@ return {
         userAgent: req.headers["user-agent"],
       });
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.parts_listed",
         outcome: "success",
@@ -6980,7 +7020,7 @@ return {
           userAgent: req.headers["user-agent"],
         }).catch(noteCustodyFailure);
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId,
           action: "evidence.claimed",
           outcome: "success",
@@ -7024,7 +7064,7 @@ return {
         evidence.status !== prismaPkg.EvidenceStatus.SIGNED &&
         evidence.status !== prismaPkg.EvidenceStatus.REPORTED
       ) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.lock",
           outcome: "blocked",
@@ -7060,7 +7100,7 @@ return {
           select: SAFE_EVIDENCE_SELECT,
         });
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.lock",
           outcome: "success",
@@ -7141,7 +7181,7 @@ return {
       }
 
       if (!evidence.lockedAt) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.unlock",
           outcome: "blocked",
@@ -7182,7 +7222,7 @@ return {
         select: SAFE_EVIDENCE_SELECT,
       });
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.unlock",
         outcome: "success",
@@ -7271,7 +7311,7 @@ return {
         );
         return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
       }
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: input.actorUserId,
         action: input.auditAction,
         outcome: "blocked",
@@ -7292,7 +7332,7 @@ return {
       return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
     }
 
-    auditEvidenceAction(req, {
+    await auditEvidenceAction(req, {
       userId: input.actorUserId,
       action: input.auditAction,
       outcome: "success",
@@ -7495,7 +7535,7 @@ return {
 
     const mappedItems = pageItems.map(mapEvidenceListItem);
 
-    auditEvidenceAction(req, {
+    await auditEvidenceAction(req, {
       userId: ownerUserId,
       action: "evidence.list",
       outcome: "success",
@@ -7796,7 +7836,7 @@ return {
               evidenceTeamId: evidence.teamId,
             });
             if (!crossTeam.allowed) {
-              auditEvidenceAction(req, {
+              await auditEvidenceAction(req, {
                 userId,
                 action: "evidence.bulk",
                 outcome: "blocked",
@@ -8848,6 +8888,31 @@ return {
         if (!(await workspaceIncludesReviewCapability(evidence.teamId, "BASIC_RECORD_REVIEW"))) {
           return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
         }
+        // Handing the review to SOMEONE ELSE is the `review.assign`
+        // capability, as on every other assignment route (members audit
+        // REV-05); taking it oneself is the reviewer permission above, and
+        // re-stating the current assignee (the editor sends its whole form)
+        // hands nobody anything.
+        const currentAssignee = body.assignedToUserId
+          ? ((
+              await prisma.evidenceReviewWorkflow.findUnique({
+                where: { evidenceId: id },
+                select: { assignedToUserId: true },
+              })
+            )?.assignedToUserId ?? null)
+          : null;
+        if (
+          body.assignedToUserId &&
+          body.assignedToUserId !== userId &&
+          body.assignedToUserId !== currentAssignee
+        ) {
+          const assigner = await authorizeOrFail(req, reply, {
+            teamId: evidence.teamId,
+            permission: "review.assign",
+            antiEnumeration: true,
+          });
+          if (!assigner) return reply;
+        }
       } else if (!(await ownerIncludesReviewCapability(evidence.ownerUserId, "BASIC_RECORD_REVIEW"))) {
         // A legacy teamless record has no workspace to resolve, so its OWNER's
         // personal plan answers (re-audit 2026-10-24, finding 6) — the branch
@@ -8856,12 +8921,13 @@ return {
         return reply.code(403).send({ error: { code: "reviewer_operations_not_included", details: null } });
       }
 
-      if (body.assignedToUserId) {
-        // ONE DECISION (members audit ACC-07): the assignee must be able to
-        // open this record through the canonical record authority — current
-        // membership first, then the restricted-case rule. The old check took
-        // a stale CaseAccess row with no membership (a former member qualified)
-        // and refused an ACTIVE member on an unrestricted case.
+      if (body.assignedToUserId && !evidence.teamId) {
+        // A TEAMLESS (personal) record: there is no workspace whose assignee
+        // rule could apply, so the assignee must at least be able to open the
+        // record through the canonical record authority. A workspace record's
+        // assignee is decided by the ONE assignment authority inside the
+        // write (members audit ACC-07 / defect 1) — see
+        // upsertEvidenceReviewerWorkflow, refused below as a typed 422.
         const targetUserAccessible = (
           await resolveEvidenceRecordAccess({
             userId: body.assignedToUserId,
@@ -8911,25 +8977,44 @@ return {
         manualTrio = undefined;
       }
 
-      const summary = await upsertEvidenceReviewerWorkflow({
-        evidenceId: id,
-        workspaceType: evidence.teamId ? "TEAM" : "PERSONAL",
-        teamId: evidence.teamId ?? null,
-        actorUserId: userId,
-        assignedToUserId: body.assignedToUserId,
-        status: body.status as prismaPkg.EvidenceReviewWorkflowStatus | undefined,
-        priority: body.priority,
-        dueAt:
-          body.dueAt === undefined
-            ? undefined
-            : body.dueAt
-              ? new Date(body.dueAt)
-              : null,
-        note: body.note ?? null,
-        expectedUpdatedAt: body.expectedUpdatedAt ? new Date(body.expectedUpdatedAt) : null,
-        templateIdentity: manualTrio,
-        templateIdentitySource: "direct",
-      });
+      let summary: Awaited<ReturnType<typeof upsertEvidenceReviewerWorkflow>>;
+      try {
+        summary = await upsertEvidenceReviewerWorkflow({
+          evidenceId: id,
+          workspaceType: evidence.teamId ? "TEAM" : "PERSONAL",
+          teamId: evidence.teamId ?? null,
+          actorUserId: userId,
+          assignedToUserId: body.assignedToUserId,
+          status: body.status as prismaPkg.EvidenceReviewWorkflowStatus | undefined,
+          priority: body.priority,
+          dueAt:
+            body.dueAt === undefined
+              ? undefined
+              : body.dueAt
+                ? new Date(body.dueAt)
+                : null,
+          note: body.note ?? null,
+          expectedUpdatedAt: body.expectedUpdatedAt ? new Date(body.expectedUpdatedAt) : null,
+          templateIdentity: manualTrio,
+          templateIdentitySource: "direct",
+        });
+      } catch (err) {
+        // The assignee refusal is the review console's typed refusal (the
+        // same codes /v1/reviewer-ops answers), never a 500. Which rule failed
+        // is named only for placement, which the roster already shows.
+        if (err instanceof AssigneeEligibilityError) {
+          return reply.code(422).send({
+            error: {
+              code:
+                err.reason === "NOT_PLACED"
+                  ? "REVIEW_ASSIGNEE_NOT_PLACED"
+                  : "REVIEW_ASSIGNEE_NOT_ELIGIBLE",
+              details: null,
+            },
+          });
+        }
+        throw err;
+      }
 
       // Every recorded change — status, assignment, priority, due date — is on
       // the Review history, the reviewer audit and the tenant audit, written in
@@ -10368,7 +10453,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             ],
           };
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.review_workspace_viewed",
           outcome: "success",
@@ -10829,7 +10914,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           outputs: artifactStatus.outputs,
         });
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.view",
           outcome: "success",
@@ -11042,7 +11127,7 @@ try {
       });
 
       if (!rate.allowed) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.complete",
           outcome: "blocked",
@@ -11231,7 +11316,7 @@ if (
   "code" in err &&
   (err as Error & { code?: string }).code === "INSUFFICIENT_CREDITS"
 ) {
-  auditEvidenceAction(req, {
+  await auditEvidenceAction(req, {
     userId: ownerUserId,
     action: "evidence.complete",
     outcome: "blocked",
@@ -11250,7 +11335,7 @@ if (
           err instanceof Error &&
           err.message === "Cannot complete evidence without an uploaded file"
         ) {
-          auditEvidenceAction(req, {
+          await auditEvidenceAction(req, {
             userId: ownerUserId,
             action: "evidence.complete",
             outcome: "failure",
@@ -11267,7 +11352,7 @@ if (
           (err.message.startsWith("OBJECT_HEAD_FAILED:") ||
             err.message.startsWith("OBJECT_GET_FAILED:"))
         ) {
-          auditEvidenceAction(req, {
+          await auditEvidenceAction(req, {
             userId: ownerUserId,
             action: "evidence.complete",
             outcome: "failure",
@@ -11293,7 +11378,7 @@ if (
           const reason = err.message.slice("UPLOAD_SESSION_GATE:".length);
           const statusCode =
             (err as Error & { statusCode?: number }).statusCode ?? 409;
-          auditEvidenceAction(req, {
+          await auditEvidenceAction(req, {
             userId: ownerUserId,
             action: "evidence.complete",
             outcome: "blocked",
@@ -11339,7 +11424,7 @@ if (
                 : null,
           });
 
-          auditEvidenceAction(req, {
+          await auditEvidenceAction(req, {
             userId: ownerUserId,
             action: "evidence.complete",
             outcome: "blocked",
@@ -11360,7 +11445,7 @@ if (
         {
           const code = (err as { code?: unknown }).code;
           if (code === "INTAKE_SUBMISSION_REQUIRED" || code === "EVIDENCE_RESERVATION_EXPIRED") {
-            auditEvidenceAction(req, {
+            await auditEvidenceAction(req, {
               userId: ownerUserId,
               action: "evidence.complete",
               outcome: "blocked",
@@ -11379,7 +11464,7 @@ if (
           }
         }
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.complete",
           outcome: "failure",
@@ -11584,7 +11669,7 @@ if (
       });
       if (!access.allowed) {
         if (access.visibility === "FORBIDDEN") {
-          auditEvidenceAction(req, {
+          await auditEvidenceAction(req, {
             userId,
             action: "evidence.report.regenerate_requested",
             outcome: "blocked",
@@ -11610,7 +11695,7 @@ if (
       // disagreed with the value stored at completion can never be promoted
       // into a report or package; the recovery is a new record.
       if (evidenceRecord.status === prismaPkg.EvidenceStatus.FAILED_HASH_MISMATCH) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId,
           action: "evidence.report.regenerate_requested",
           outcome: "blocked",
@@ -11642,7 +11727,7 @@ if (
         actorUserId: userId,
       });
       if (!governance.allowed) {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId,
           action: "evidence.report.regenerate_requested",
           outcome: "blocked",
@@ -11702,7 +11787,7 @@ if (
         if (eligibility && eligibility.plan === "FREE" && eligibility.funding !== "EVIDENCE_CREDIT") {
           const reportable = await loadReportableFacts(id);
           if (!reportable.freshness.hasNewerFacts) {
-            auditEvidenceAction(req, {
+            await auditEvidenceAction(req, {
               userId,
               action: "evidence.report.regenerate_requested",
               outcome: "blocked",
@@ -11757,7 +11842,7 @@ if (
             if (!check.ok) refusal = { required: false, changes: check.changes };
           }
           if (refusal) {
-            auditEvidenceAction(req, {
+            await auditEvidenceAction(req, {
               userId,
               action: "evidence.report.regenerate_requested",
               outcome: "blocked",
@@ -11797,7 +11882,7 @@ if (
         const limited = !perUser.allowed ? perUser : !perRecord.allowed ? perRecord : null;
         if (limited) {
           const retryAfterSec = Math.max(1, Math.ceil((limited.resetAtMs - Date.now()) / 1000));
-          auditEvidenceAction(req, {
+          await auditEvidenceAction(req, {
             userId,
             action: "evidence.report.regenerate_requested",
             outcome: "blocked",
@@ -11834,7 +11919,7 @@ if (
             },
           });
           if (live >= readPositiveIntEnv("NEW_VERSION_MAX_CONCURRENT_PER_WORKSPACE", 10)) {
-            auditEvidenceAction(req, {
+            await auditEvidenceAction(req, {
               userId,
               action: "evidence.report.regenerate_requested",
               outcome: "blocked",
@@ -11874,7 +11959,7 @@ if (
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to request generation.";
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId,
           action: "evidence.report.regenerate_requested",
           outcome: "failure",
@@ -11890,7 +11975,7 @@ if (
         return reply.code(404).send({ message: "Evidence not found" });
       }
       if (result.kind === "stale_offer") {
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId,
           action: "evidence.report.regenerate_requested",
           outcome: "blocked",
@@ -11916,7 +12001,7 @@ if (
       }
 
       const accepted = result.kind === "accepted";
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId,
         action: "evidence.report.regenerate_requested",
         outcome: accepted && result.outcome !== "NOT_INCLUDED" ? "success" : "blocked",
@@ -12073,7 +12158,7 @@ limitationsSnapshot: true,
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.report_viewed",
         outcome: "success",
@@ -12088,9 +12173,9 @@ limitationsSnapshot: true,
       // Record the report DOWNLOAD as a distinct, queryable admin audit
       // action (separate from the "report_viewed" access event above and
       // the REPORT_DOWNLOADED custody event). Best-effort / fail-safe:
-      // auditEvidenceAction is void ...catch(), so an audit-write failure
+      // a read audit's write failure is noted, not fatal (SEC-13), so it
       // never breaks the download. NO signed URL / key material recorded.
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.report.downloaded",
         outcome: "success",
@@ -12273,7 +12358,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.report.downloaded",
         outcome: "success",
@@ -12389,7 +12474,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.verification_package.downloaded",
         outcome: "success",
@@ -12536,7 +12621,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: actorUserId,
         action: "evidence.verification_package.downloaded",
         outcome: "success",
@@ -12650,7 +12735,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         userAgent: req.headers["user-agent"],
       });
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.downloaded",
         outcome: "success",
@@ -12667,7 +12752,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       // "evidence.downloaded" event (kept for back-compat). Best-effort /
       // fail-safe: an audit-write failure never breaks the download. NO
       // presigned URL / key material is recorded.
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.original.downloaded",
         outcome: "success",
@@ -13092,7 +13177,7 @@ displayName: resolvedDisplayName,
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
 
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "verification.package_accessed",
         outcome: "success",
@@ -13113,7 +13198,7 @@ displayName: resolvedDisplayName,
       // fail-safe: an audit-write failure never breaks the download.
       // NO signed URL is recorded; storageKey is an internal object path,
       // not a secret / not a credentialed URL.
-      auditEvidenceAction(req, {
+      await auditEvidenceAction(req, {
         userId: ownerUserId,
         action: "evidence.verification_package.downloaded",
         outcome: "success",
@@ -13154,7 +13239,7 @@ return reply.code(200).send({
         const evidence = await getEvidenceWithReadAccess(ownerUserId, id);
         const certifications = await listEvidenceCertifications(id);
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.certifications_listed",
           outcome: "success",
@@ -13192,7 +13277,7 @@ return reply.code(200).send({
           // ET-CUS-11: the custody event commits with the request.
           custody: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
         });
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
 action: "evidence.certification_requested",
           outcome: "success",
@@ -13246,7 +13331,7 @@ action: "evidence.certification_requested",
           custody: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
         });
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.certification_attested",
           outcome: "success",
@@ -13288,7 +13373,7 @@ action: "evidence.certification_requested",
           custody: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
         });
 
-        auditEvidenceAction(req, {
+        await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.certification_revoked",
           outcome: "success",

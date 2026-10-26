@@ -113,6 +113,16 @@ test("blockers come from the server, in either shape, and nothing is invented", 
   assert.deepEqual(A.parseClosure({}).blockers, []);
 });
 
+test("LIFE-13 — consequences come from the server and are shown, never treated as blockers", () => {
+  const view = A.parseClosure({
+    blockers: [],
+    consequences: [{ code: "WORKSPACE_MEMBERS_LOSE_ACCESS", message: "Their other members lose access and are notified.", count: 2 }, {}],
+  });
+  assert.deepEqual(view.consequences, ["Their other members lose access and are notified."]);
+  assert.deepEqual(view.blockers, []);
+  assert.deepEqual(A.parseClosure({}).consequences, []);
+});
+
 test("an active closure is told apart from a finished one", () => {
   assert.equal(A.isClosureActive({ status: "PENDING" }), true);
   assert.equal(A.isClosureActive({ status: "COOLING_OFF" }), true);

@@ -23,6 +23,17 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  AssigneeEligibilityError,
+  assertWorkAssigneeEligible,
+} from "../assignment/assignee-eligibility.js";
+
+/**
+ * The permission operational work asks of its assignee — the one the operator
+ * picker and the single-item assign route require
+ * (operations/assignable-operators.service.ts).
+ */
+const OPERATIONS_ASSIGNEE_PERMISSION = "operations.acknowledge" as const;
 
 export type BulkActionType =
   | "BULK_ASSIGN_WORKFLOWS"
@@ -224,18 +235,39 @@ async function runOneItem(input: {
       if (!input.actor.assigneeUserId) {
         throw new BulkActionError("invalid_assignee");
       }
-      // PHASE 12 REMEDIATION (2026-08-06) — assignment TARGET validity. Work
-      // must not be bulk-assigned to a suspended or revoked member, who
-      // cannot open it.
-      const member = await c.teamMember.findFirst({
-        where: {
-          teamId: input.teamId,
-          userId: input.actor.assigneeUserId,
-          status: "ACTIVE",
-        },
-        select: { id: true },
+      // WHO MAY BE GIVEN THIS WORK (members audit defect 2, owner decision
+      // 2026-10-25). This checked only an ACTIVE membership row: no
+      // permission, no access expiry, no reach and no Collaboration Team
+      // placement, so a sweep could hand work to someone the single-item
+      // route (`isAssignableOperator`) refuses. Each target is now decided by
+      // THE assignee authority — the operations permission the picker and the
+      // single route require, an unexpired ACTIVE membership, reach to the
+      // case / evidence the workflow is about, and placement on PRO/TEAM —
+      // and a refusal is recorded on that target's item.
+      const target = await c.operationalWorkflow.findFirst({
+        where: { id: input.targetId, teamId: input.teamId },
+        select: { evidenceId: true, caseId: true },
       });
-      if (!member) throw new BulkActionError("invalid_assignee");
+      if (!target) throw new BulkActionError("workflow_not_found");
+      try {
+        await assertWorkAssigneeEligible(
+          {
+            workspaceId: input.teamId,
+            assigneeUserId: input.actor.assigneeUserId,
+            permission: OPERATIONS_ASSIGNEE_PERMISSION,
+            evidenceId: target.evidenceId,
+            caseId: target.caseId,
+          },
+          c,
+        );
+      } catch (err) {
+        if (err instanceof AssigneeEligibilityError) {
+          throw new BulkActionError(
+            err.reason === "NOT_PLACED" ? "assignee_not_placed" : "invalid_assignee",
+          );
+        }
+        throw err;
+      }
       const { assignWorkflow } = await import(
         "../observability/workflow.service.js"
       );

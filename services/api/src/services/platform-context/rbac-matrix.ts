@@ -151,33 +151,43 @@ const CATEGORIES: ReadonlyArray<{ id: string; label: string; capabilities: Reado
     ],
   },
   {
+    // Re-audit defect 17 (2026-10-25) — this category is about the WORKSPACE's
+    // members. Its rows used to say "team" meaning workspace, cited a
+    // workspace seat limit that no longer exists, and printed raw role enums
+    // with a role-change rule the rank authority refuses. The copy below states
+    // the rules rbac.service.ts (assertActorOutranks, the last-administrator
+    // guard) and the invite route's role ceiling actually enforce. The row ids
+    // stay as they are: they are identifiers, not copy.
     id: "team",
-    label: "Team governance",
+    label: "Members & access",
     capabilities: [
       {
         id: "team.invite",
         label: "Invite members",
         permission: "identity.member.invite",
-        description: "Send team invites. Subject to the workspace seat limit.",
+        description:
+          "Invite people to this workspace as an Admin, Member or Viewer, never above your own role and never as Owner. Your plan sets how many invitations can wait at once; capacity is counted per Collaboration Team, not as a workspace seat limit.",
       },
       {
         id: "team.role_change",
         label: "Change member role",
         permission: "identity.member.role.change",
-        description: "Promote or demote between ADMIN / MEMBER / VIEWER.",
+        description:
+          "The Owner can make any other member an Admin, Member or Viewer. An Admin can move only Members and Viewers between Member and Viewer, and cannot change another Admin or the Owner. Nobody changes their own role, the last administrator cannot be demoted, and ownership moves only by transfer. Step-up required.",
       },
       {
         id: "team.remove",
         label: "Remove members (with ownership transfer)",
         permission: "identity.member.revoke",
-        description: "Offboard a member. Owned evidence / cases must be transferred first.",
+        description:
+          "Remove someone from this workspace. The Owner cannot be removed, and an Admin can remove only Members and Viewers, not another Admin. Evidence and cases the person owns must be transferred to another active member first.",
       },
       {
         id: "team.external_revoke",
         label: "Revoke external access grants",
         permission: "identity.contributor_session.revoke",
         description:
-          "Revoke non-team-member access grants on the workspace's cases (Phase 2.6D).",
+          "Revoke case access granted to people outside this workspace, such as external contributors.",
       },
       {
         id: "team.delete",
@@ -232,7 +242,7 @@ const CATEGORIES: ReadonlyArray<{ id: string; label: string; capabilities: Reado
         label: "View workspace activity feed",
         permission: "audit.read",
         description:
-          "See member invitations, role changes, ownership transfers, policy changes recorded in `team_activities`.",
+          "See member invitations, role changes, ownership transfers and policy changes recorded in the workspace activity log.",
       },
       {
         id: "audit.platform",
@@ -240,7 +250,7 @@ const CATEGORIES: ReadonlyArray<{ id: string; label: string; capabilities: Reado
         permission: null,
         authority: "platform administrator (User.platformRole) — never a workspace role",
         roles: [],
-        description: "PLATFORM_ADMIN only — not granted by team role.",
+        description: "Platform administrators only. No workspace role grants it.",
       },
     ],
   },
