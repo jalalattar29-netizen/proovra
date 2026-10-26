@@ -224,8 +224,13 @@ describe("Phase 26.5 — SCIM Groups service", () => {
   it("Group remove demotes only an ADMIN this group granted; never OWNER, never elevates", () => {
     // Only an ADMIN projection's ADMIN row is a removal candidate…
     expect(src).toMatch(/if \(pr\.mappedRole !== "ADMIN" \|\| member\.role !== "ADMIN"\) continue;/);
-    // …and only when THIS group's provenance granted that ADMIN.
-    expect(src).toMatch(/membershipGrant\.findFirst\(\{[\s\S]*?externalRef: `scim-group:\$\{group\.id\}`, revokedAtUtc: null/);
+    // …and only when THIS group's provenance granted that ADMIN — the group
+    // itself or a group merged into it (members re-audit N-4), nothing else.
+    expect(src).toMatch(/membershipGrant\.findFirst\(\{[\s\S]*?externalRef: \{ in: provenanceRefs \}, revokedAtUtc: null/);
+    expect(src).toMatch(/const provenanceRefs = op === "remove" \? await groupProvenanceRefs\(group, client\) : \[\];/);
+    expect(src).toMatch(
+      /where: \{ mergedIntoGroupId: group\.id \}[\s\S]{0,80}?\}\);\s*return \[group\.id, \.\.\.merged\.map\(\(m\) => m\.id\)\]\.map\(\(id\) => `scim-group:\$\{id\}`\);/,
+    );
     expect(src).toMatch(/if \(grant\?\.grantedRole !== "ADMIN"\) continue;/);
     // A remove falls back to MEMBER; an OWNER row is never touched by a group.
     expect(src).toMatch(/op === "add" \? \(pr\.mappedRole as TeamRole\) : \("MEMBER" as TeamRole\)/);

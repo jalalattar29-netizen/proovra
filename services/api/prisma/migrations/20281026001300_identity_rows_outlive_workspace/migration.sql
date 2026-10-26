@@ -21,20 +21,52 @@
 -- force.
 
 DO $$
-DECLARE
-  tbl TEXT;
-  fk TEXT;
 BEGIN
-  FOREACH tbl IN ARRAY ARRAY['scim_provisioning_tokens', 'external_identity_mappings',
-                             'sso_callback_attempts', 'sso_connections'] LOOP
-    fk := tbl || '_team_id_fkey';
-    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = fk AND confdeltype <> 'r') THEN
-      EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', tbl, fk);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = fk) THEN
-      EXECUTE format(
-        'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE RESTRICT ON UPDATE CASCADE',
-        tbl, fk);
-    END IF;
-  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'scim_provisioning_tokens_team_id_fkey' AND confdeltype <> 'r'
+  ) THEN
+    ALTER TABLE "scim_provisioning_tokens" DROP CONSTRAINT "scim_provisioning_tokens_team_id_fkey";
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scim_provisioning_tokens_team_id_fkey') THEN
+    ALTER TABLE "scim_provisioning_tokens"
+      ADD CONSTRAINT "scim_provisioning_tokens_team_id_fkey"
+      FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'external_identity_mappings_team_id_fkey' AND confdeltype <> 'r'
+  ) THEN
+    ALTER TABLE "external_identity_mappings" DROP CONSTRAINT "external_identity_mappings_team_id_fkey";
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'external_identity_mappings_team_id_fkey') THEN
+    ALTER TABLE "external_identity_mappings"
+      ADD CONSTRAINT "external_identity_mappings_team_id_fkey"
+      FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'sso_callback_attempts_team_id_fkey' AND confdeltype <> 'r'
+  ) THEN
+    ALTER TABLE "sso_callback_attempts" DROP CONSTRAINT "sso_callback_attempts_team_id_fkey";
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sso_callback_attempts_team_id_fkey') THEN
+    ALTER TABLE "sso_callback_attempts"
+      ADD CONSTRAINT "sso_callback_attempts_team_id_fkey"
+      FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'sso_connections_team_id_fkey' AND confdeltype <> 'r'
+  ) THEN
+    ALTER TABLE "sso_connections" DROP CONSTRAINT "sso_connections_team_id_fkey";
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sso_connections_team_id_fkey') THEN
+    ALTER TABLE "sso_connections"
+      ADD CONSTRAINT "sso_connections_team_id_fkey"
+      FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
 END $$;

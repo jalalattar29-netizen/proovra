@@ -7833,10 +7833,32 @@
   {
     "id": "RA2-D5-BATCH",
     "aud": "ACC-03",
-    "name": "batch analysis admits records without the record authority",
+    "name": "batch analysis admits the uploader's records without the record authority",
     "file": "services/api/src/routes/enterprise.routes.ts",
-    "find": "          where: { id: { in: uniqueIds }, deletedAt: null },",
-    "replace": "          where: { id: { in: uniqueIds }, ownerUserId: userId, deletedAt: null },",
+    "find": "          if (decision.allowed) evidence.push(row);",
+    "replace": "          evidence.push(row);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit2-case-reach.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA2-D5-BATCH-UPLOADER",
+    "aud": "ACC-03",
+    "name": "batch analysis admits a record the caller did not upload",
+    "file": "services/api/src/routes/enterprise.routes.ts",
+    "find": "          where: { id: { in: uniqueIds }, ownerUserId: userId, deletedAt: null },",
+    "replace": "          where: { id: { in: uniqueIds }, deletedAt: null },",
     "tests": [
       {
         "cwd": "services/api",
@@ -7899,10 +7921,10 @@
   {
     "id": "RA2-AUD01-TEAM",
     "aud": "AUD-01",
-    "name": "a workspace mutation commits without its audit",
+    "name": "a workspace mutation commits when its audit write fails",
     "file": "services/api/src/routes/teams.routes.ts",
-    "find": "          metadata,\n        },\n        params.db as never,\n      );\n    } else {",
-    "replace": "          metadata,\n        },\n        undefined as never,\n      );\n    } else {",
+    "find": "    if (params.db) throw err;\n    bump(\"platform_audit_append_failed_total\");\n    req.log.error({ err, action: params.action, requestId: req.id }, \"team_audit_append_failed\");",
+    "replace": "    bump(\"platform_audit_append_failed_total\");\n    req.log.error({ err, action: params.action, requestId: req.id }, \"team_audit_append_failed\");",
     "tests": [
       {
         "cwd": "services/api",
@@ -8839,8 +8861,8 @@
     "aud": "DOM-13",
     "name": "identity mappings still cascade with the workspace",
     "file": "services/api/prisma/migrations/20281026001300_identity_rows_outlive_workspace/migration.sql",
-    "find": "ARRAY['scim_provisioning_tokens', 'external_identity_mappings',",
-    "replace": "ARRAY['scim_provisioning_tokens',",
+    "find": "WHERE conname = 'external_identity_mappings_team_id_fkey' AND confdeltype <> 'r'",
+    "replace": "WHERE conname = 'external_identity_mappings_team_id_fkey' AND confdeltype = 'x'",
     "tests": [
       {
         "cwd": "services/api",

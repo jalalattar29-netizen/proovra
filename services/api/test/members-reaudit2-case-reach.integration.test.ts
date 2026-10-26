@@ -300,7 +300,7 @@ describe("members re-audit 2 — case reach: self-grant, listings, lists, batch,
     const batch = (token: string, evidenceIds: string[]) =>
       post(`/v1/batch-analysis`, token, { evidenceIds, name: `ra2 batch ${tag()}` });
 
-    it("the uploader shut out of a restricted case is refused; a listed non-uploader is admitted", async () => {
+    it("the uploader shut out of a restricted case is refused; a listed non-uploader is refused; the listed uploader is admitted", async () => {
       const caseOwner = await person("MEMBER");
       const uploader = await person("MEMBER");
       const listed = await person("MEMBER");
@@ -313,7 +313,14 @@ describe("members re-audit 2 — case reach: self-grant, listings, lists, batch,
       expect(refused.statusCode, refused.body).toBe(404);
       expect(await prisma.batchAnalysisJobItem.count({ where: { evidenceId: ev } })).toBe(0);
 
-      const admitted = await batch(listed.token, [ev]);
+      // A batch is built from the caller's own uploads: reach alone does not
+      // make someone else's record theirs to analyse.
+      const notTheirs = await batch(listed.token, [ev]);
+      expect(notTheirs.statusCode, notTheirs.body).toBe(404);
+      expect(await prisma.batchAnalysisJobItem.count({ where: { evidenceId: ev } })).toBe(0);
+
+      await prisma.caseAccess.create({ data: { caseId: c.id, userId: uploader.id } });
+      const admitted = await batch(uploader.token, [ev]);
       expect(admitted.statusCode, admitted.body).toBe(200);
       expect(await prisma.batchAnalysisJobItem.count({ where: { evidenceId: ev } })).toBe(1);
     });

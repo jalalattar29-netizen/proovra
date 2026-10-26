@@ -271,14 +271,16 @@ test("POST /v1/search/reconcile endpoint is registered + queries for orphan evid
 test("Case create route calls indexCase() inline (no worker dependency)", () => {
   assert.match(
     CASES_ROUTES,
-    /prisma\.case\.create\([\s\S]{0,800}?indexCase\(\{ teamId: created\.teamId, caseId: created\.id \}\)/,
+    // Create runs in a transaction with its audit (members re-audit AUD-01);
+    // indexing follows the commit.
+    /tx\.case\.create\([\s\S]{0,1600}?indexCase\(\{ teamId: created\.teamId, caseId: created\.id \}\)/,
   );
 });
 
 test("Case rename route calls indexCase() inline", () => {
   assert.match(
     CASES_ROUTES,
-    /prisma\.case\.update\([\s\S]{0,800}?indexCase\(\{ teamId: updated\.teamId, caseId: updated\.id \}\)/,
+    /tx\.case\.update\([\s\S]{0,1600}?indexCase\(\{ teamId: updated\.teamId, caseId: updated\.id \}\)/,
   );
 });
 

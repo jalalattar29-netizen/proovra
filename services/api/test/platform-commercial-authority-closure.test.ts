@@ -334,8 +334,12 @@ describe("Workspace seats — one authority, including the bulk path", () => {
     const code = codeOnly(
       read("services/api/src/routes/organizations-governance.routes.ts"),
     );
-    expect(code).toContain("resolveEffectiveContractSeats({");
-    expect(code).toContain("resolveEnterpriseContract(orgId)");
+    // Members re-audit (ENT-05) — each workspace row is the one seat
+    // authority's answer (owner excluded, the contract's ceiling), not a
+    // second formula; the behaviour is proven by
+    // org-seats-canonical-projection.integration.test.ts.
+    expect(code).toContain("await resolveWorkspaceSeatState(ws.id, prisma)");
+    expect(code).not.toContain("resolveEffectiveContractSeats(");
   });
 
   it("the platform sweep calls the shared rule, not a local formula", () => {

@@ -173,7 +173,7 @@ describe("case hold, role and link concurrency (live PostgreSQL 16)", () => {
 
   // --- UC-CASE-002 ------------------------------------------------------------
 
-  it("CASE-002: a VIEWER on the case's access list stays a viewer (403, never 500, no mutation); a MEMBER on it may", async () => {
+  it("CASE-002: a VIEWER on the case's access list stays a viewer (403, never 500, no mutation); unlinking from the restricted case is the manager's act", async () => {
     const caseId = await newCase("acl");
     await prisma.caseAccess.create({ data: { caseId, userId: A().viewerUserId } });
     await prisma.caseAccess.create({ data: { caseId, userId: A().memberUserId } });
@@ -194,8 +194,17 @@ describe("case hold, role and link concurrency (live PostgreSQL 16)", () => {
     expect(add.statusCode, add.body).toBe(403);
     expect(await linkCount(caseId, other)).toBe(0);
 
+    // A MEMBER on the list may link, but removing a record from a restricted
+    // case can open it to the whole workspace — only the case owner or an
+    // ACTIVE OWNER / ADMIN who can see the case may do that.
     const memberUnlink = await h.app.inject({ method: "DELETE", url: `/v1/cases/${caseId}/evidence/${ev}`, headers: auth(A().memberToken) });
-    expect(memberUnlink.statusCode, memberUnlink.body).toBe(200);
+    expect(memberUnlink.statusCode, memberUnlink.body).toBe(403);
+    expect(memberUnlink.json().code).toBe("CASE_RESTRICTED_UNLINK_MANAGER_REQUIRED");
+    expect(await linkCount(caseId, ev)).toBe(1);
+
+    const ownerUnlink = await h.app.inject({ method: "DELETE", url: `/v1/cases/${caseId}/evidence/${ev}`, headers: auth(A().ownerToken) });
+    expect(ownerUnlink.statusCode, ownerUnlink.body).toBe(200);
+    expect(await linkCount(caseId, ev)).toBe(0);
   });
 
   // --- UC-CASE-004 ------------------------------------------------------------

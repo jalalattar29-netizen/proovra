@@ -396,8 +396,9 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       }
 
       try {
-        // Members re-audit (second round, defect 5) — each record is admitted
-        // ONLY by the canonical record authority (resolveEvidenceRecordAccess,
+        // Members re-audit (second round, defect 5) — a batch is still built
+        // only from the caller's own uploads, and each one must ALSO pass the
+        // canonical record authority (resolveEvidenceRecordAccess,
         // evidence.read): current ACTIVE, unexpired membership, the
         // Organization's lifecycle, the role's capability and the
         // restricted-case rule. Being the record's uploader proves none of
@@ -405,7 +406,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
         // case used to get the analysis of content they can no longer open.
         const uniqueIds = [...new Set(evidenceIds)];
         const rows = await prisma.evidence.findMany({
-          where: { id: { in: uniqueIds }, deletedAt: null },
+          where: { id: { in: uniqueIds }, ownerUserId: userId, deletedAt: null },
           // teamId comes back on the same rows, so the durable job gets its
           // workspace without a second query.
           select: { id: true, teamId: true },

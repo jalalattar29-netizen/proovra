@@ -180,6 +180,13 @@ const H = vi.hoisted(() => {
       organization: { t: "organization", many: false, on: (o, x) => x["id"] === o["organizationId"] },
       team: { t: "team", many: false, on: (o, x) => x["id"] === o["teamId"] },
     },
+    // A directory link is the Organization's; the managed-membership read
+    // lists it for the people who hold a membership in the workspace.
+    externalIdentityMapping: {
+      organization: { t: "organization", many: false, on: (o, x) => x["id"] === o["organizationId"] },
+      user: { t: "user", many: false, on: (o, x) => x["id"] === o["userId"] },
+    },
+    user: { teamMembers: { t: "teamMember", many: true, on: (o, x) => x["userId"] === o["id"] } },
     team: { organization: { t: "organization", many: false, on: (o, x) => x["id"] === o["organizationId"] } },
     teamMember: {
       team: { t: "team", many: false, on: (o, x) => x["id"] === o["teamId"] },

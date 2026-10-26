@@ -504,18 +504,22 @@ describe("§1 — NEW-005: permission-guard admission requires a LIVE membership
 
   it("11 — a permission the caller does not hold is refused on exactly the routes that require it", async () => {
     await restoreBaseline();
-    // Hold ONLY identity.org_policy.manage. It is named alone on some routes
-    // and as one member of an any-of on another (destruction approve), so it
-    // exercises both shapes: every registration that names it must admit,
-    // every one that does not must refuse.
-    const kept: Permission = "identity.org_policy.manage";
+    // Hold ONLY governance.legal_hold.manage, which several routes name: every
+    // registration that names it must admit, every one that does not must
+    // refuse.
+    const kept: Permission = "governance.legal_hold.manage";
     expect(permissions).toContain(kept);
+    expect(routes.filter((r) => r.permissions.includes(kept)).length).toBeGreaterThan(1);
     const n = await updateOperatorGrants({ revokedAtUtc: new Date() }, { permissionNot: kept });
     expect(n).toBe(permissions.length - 1);
+    // The delegated-administration floor (second re-audit, N-1): each former
+    // tier route requires ONE precise permission. The any-of registration
+    // (destruction approve = retention OR org policy) widened it, and none
+    // may come back.
     expect(
-      routes.some((r) => r.permissions.length > 1 && r.permissions.includes(kept)),
-      "the surface must still carry an any-of registration naming the kept permission",
-    ).toBe(true);
+      routes.filter((r) => r.permissions.length > 1).map((r) => `${r.method} ${r.path}`),
+      "no guarded route may admit through an any-of",
+    ).toEqual([]);
 
     const wrong: string[] = [];
     for (const route of routes) {
