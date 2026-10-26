@@ -1006,7 +1006,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * Twenty-two routes answer 410 with a `*_RETIRED` code (NL_SEARCH_RETIRED,
    * COLLABORATION_TEAM_INVITE_RETIRED, INGEST_RETIRED …). Each already carries
    * a truthful server sentence, and every one of them was being discarded:
-   * only a short allowlist may show a server message, so a 410 fell
+   * only `TEAM_CONFLICT` is allowed to show a server message, so a 410 fell
    * into the `status >= 400` bucket and read "We couldn't complete that
    * action — please review your input and try again."
    *
@@ -1304,6 +1304,17 @@ export const SERVER_MESSAGE_ERROR_CODES: Record<
   string,
   { title: string; severity: UserFacingErrorSeverity }
 > = {
+  /**
+   * Members re-audit LEAD-01 — live, not dead: the Collaboration Team service
+   * emits it as `team_conflict` (collaboration-team.service.ts `E.conflict`)
+   * with a sentence naming the operation (last LEAD, …), and the client
+   * normalises codes before this lookup. Proof:
+   * apps/web/__tests__/collaboration-team-domain-errors.test.ts.
+   */
+  TEAM_CONFLICT: {
+    title: "That change isn't possible yet",
+    severity: "warning",
+  },
   /**
    * A generation, recovery or new-version request the server declined. The
    * message is chosen server-side from a closed table keyed by the bounded

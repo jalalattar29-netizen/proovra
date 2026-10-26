@@ -237,8 +237,8 @@ export function toSafeUserError(
     // THE SUFFIX IS THE SIGNAL, NOT THE STATUS.
     //
     // Twenty-two routes answer 410 with a `*_RETIRED` code and a truthful
-    // sentence, and every one was discarded: only a short allowlist may show
-    // a server message, so these fell to the generic 4xx bucket and read
+    // sentence, and every one was discarded: only `TEAM_CONFLICT` may show a
+    // server message, so these fell to the generic 4xx bucket and read
     // "review your input and try again" about an endpoint no input reaches.
     //
     // Keyed on the code rather than on 410, because 410 is not only used for

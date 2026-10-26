@@ -38,7 +38,7 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
   let prisma: Prisma;
   let signJwt: typeof import("../src/services/jwt.js").signJwt;
   let holds: typeof import("../src/services/governance/legal-hold.service.js");
-  let REQUIRED_LEGAL_VERSIONS: Record<string, string>;
+  let legalVersions: Record<string, string>;
   let stepUp: ReturnType<typeof createStepUpCeremony>;
   let orgA: string;
   const A = () => h.fixtures.teamA;
@@ -50,7 +50,7 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
     ({ prisma } = await import("../src/db.js"));
     ({ signJwt } = await import("../src/services/jwt.js"));
     holds = await import("../src/services/governance/legal-hold.service.js");
-    ({ REQUIRED_LEGAL_VERSIONS } = (await import("../src/legal/legal-versioning.js")) as never);
+    ({ REQUIRED_LEGAL_VERSIONS: legalVersions } = (await import("../src/legal/legal-versioning.js")) as never);
     stepUp = createStepUpCeremony({
       prisma: prisma as never,
       inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
@@ -74,7 +74,7 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
     const email = `proofs-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({ data: { email, provider: "EMAIL", providerUserId: email }, select: { id: true } });
     await prisma.userLegalAcceptance.createMany({
-      data: Object.entries(REQUIRED_LEGAL_VERSIONS).map(([policyKey, policyVersion]) => ({
+      data: Object.entries(legalVersions).map(([policyKey, policyVersion]) => ({
         userId: user.id,
         policyKey,
         policyVersion,
