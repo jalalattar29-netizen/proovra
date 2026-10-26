@@ -417,8 +417,8 @@ const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = 
     label: "Transfer ownership",
     href: "/organizations",
   },
-  // Historical only (members audit LIFE-13): other members no longer block
-  // closure, but a request BLOCKED by it before then still lists it.
+  // Members audit LIFE-13: only an ORGANIZATION workspace's other members
+  // still block (a Personal or Owned workspace closes with the account).
   WORKSPACE_MEMBERS_ACTIVE: {
     label: "Manage workspace people",
     href: WORKSPACE_PEOPLE_PATH,

@@ -191,13 +191,16 @@ These follow from the model in §1 and the owner decisions in §5. Each is
 enforced in code and proven behaviourally; the test named is the proof.
 
 - **LIFE-13 — account closure and other members.** Other members of a
-  workspace the person owns are a *consequence*, not a blocker: account
-  closure closes every owned workspace through `closeWorkspacesTx`, which
+  Personal or Owned workspace the person owns are a *consequence*, not a
+  blocker: account closure closes those workspaces through `closeWorkspacesTx`, which
   revokes ACTIVE and SUSPENDED memberships with reach ended and sends each
   member WORKSPACE_CLOSED, the same rule workspace closure already follows.
   The preflight returns `WORKSPACE_MEMBERS_LOSE_ACCESS` with a count, and Web
-  and mobile show it before the person confirms. Legal holds, organization
-  ownership and live billing still block. Proof: `members-lifecycle-closure`
+  and mobile show it before the person confirms. An Organization workspace
+  (or one whose kind cannot be proven) never closes as a side effect of one
+  account: while it has other members it still blocks
+  (`WORKSPACE_MEMBERS_ACTIVE`) and ends through organization offboarding.
+  Legal holds, organization ownership and live billing still block. Proof: `members-lifecycle-closure`
   "LIFE-13 …", `account-closure-consequences.render.test.tsx`.
 - **ACC-12 — reach is case-level only.** There is no per-record grant. A
   person reaches a record through workspace membership or, when the record is

@@ -36,6 +36,7 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
   let termination: typeof import("../src/services/organization/enterprise-termination.service.js");
   let tick: typeof import("../src/services/lifecycle/lifecycle-scheduler.service.js");
   let ct: typeof import("../src/services/collaboration-team/collaboration-team.service.js");
+  let preflight: typeof import("../src/services/identity/account-lifecycle-preflight.service.js");
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -47,6 +48,7 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
     termination = await import("../src/services/organization/enterprise-termination.service.js");
     tick = await import("../src/services/lifecycle/lifecycle-scheduler.service.js");
     ct = await import("../src/services/collaboration-team/collaboration-team.service.js");
+    preflight = await import("../src/services/identity/account-lifecycle-preflight.service.js");
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -173,6 +175,32 @@ describe("Phase D — closure lifecycle (live PostgreSQL)", () => {
     for (const userId of [active.userId, suspended.userId]) {
       expect((await prisma.teamMember.findFirstOrThrow({ where: { teamId: t.personalTeamId, userId } })).status).toBe("REVOKED");
     }
+  });
+
+  it("LIFE-13 — an ORGANIZATION workspace never closes as a side effect of one account: its other members still block", async () => {
+    const org = await seedOrganizationTenant(deps, { memberCount: 1 });
+    const pre = await preflight.evaluateAccountClosurePreflight(org.owner.userId);
+    expect(pre.blockers.map((b) => b.code)).toContain("WORKSPACE_MEMBERS_ACTIVE");
+    expect(pre.consequences).toEqual([]);
+
+    // The same rule through the route: refused, and no cooling-off request.
+    const res = await harness.app.inject({
+      method: "GET",
+      url: "/v1/identity/account-closure",
+      headers: { authorization: `Bearer ${org.owner.token}` },
+    });
+    expect((JSON.parse(res.body) as { blockers: Array<{ code: string }> }).blockers.map((b) => b.code)).toContain(
+      "WORKSPACE_MEMBERS_ACTIVE",
+    );
+
+    // Positive control: once the organization workspace has no other member,
+    // that blocker is gone.
+    await prisma.teamMember.updateMany({
+      where: { teamId: org.workspaceId, userId: { not: org.owner.userId } },
+      data: { status: "REVOKED" },
+    });
+    const after = await preflight.evaluateAccountClosurePreflight(org.owner.userId);
+    expect(after.blockers.map((b) => b.code)).not.toContain("WORKSPACE_MEMBERS_ACTIVE");
   });
 
   it("LIFE-11 — an interrupted closure left PROCESSING is resumed by the reaper", async () => {

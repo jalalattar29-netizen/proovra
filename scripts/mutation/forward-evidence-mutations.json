@@ -7675,5 +7675,27 @@
         "integration": true
       }
     ]
+  },
+  {
+    "id": "MEM-LIFE13-ORG-WORKSPACE-HELD",
+    "aud": "LIFE-13",
+    "name": "an Organization workspace with members closes as a side effect of its owner's account closure",
+    "file": "services/api/src/services/identity/account-lifecycle-preflight.service.ts",
+    "find": "      return kind === \"PERSONAL\" || kind === \"OWNED\";",
+    "replace": "      return kind !== \"UNKNOWN\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-lifecycle-closure.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

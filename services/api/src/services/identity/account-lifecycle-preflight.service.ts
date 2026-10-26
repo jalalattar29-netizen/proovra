@@ -24,17 +24,23 @@
  * Closure is UNIVERSAL — no plan/entitlement is consulted anywhere here;
  * blockers protect other people and legal duties, never revenue.
  *
- * MEMBERS AUDIT LIFE-13 (2026-10-26) — other members of a workspace the
- * caller owns are NOT a blocker. Account closure closes every owned workspace
- * through the ONE closure leg set (`closeWorkspacesTx`), which revokes their
- * memberships with reach ended and tells each of them (WORKSPACE_CLOSED) —
- * exactly the rule workspace closure already follows. Forcing the owner to
- * remove every collaborator by hand first was an undesigned second path to
- * the same end. It is a CONSEQUENCE, returned so the person sees it before
- * confirming: WORKSPACE_MEMBERS_LOSE_ACCESS.
+ * MEMBERS AUDIT LIFE-13 (2026-10-26) — other members of a PERSONAL or OWNED
+ * workspace the caller owns are NOT a blocker. Account closure closes those
+ * workspaces through the ONE closure leg set (`closeWorkspacesTx`), which
+ * revokes their memberships with reach ended and tells each of them
+ * (WORKSPACE_CLOSED) — exactly the rule workspace closure already follows.
+ * Forcing the owner to remove every collaborator by hand first was an
+ * undesigned second path to the same end. It is a CONSEQUENCE, returned so the
+ * person sees it before confirming: WORKSPACE_MEMBERS_LOSE_ACCESS.
+ *
+ * An ORGANIZATION workspace (or one whose kind cannot be proven) is different:
+ * it ends through organization offboarding, never as a side effect of one
+ * person's account closure. While it has other members it still blocks
+ * (WORKSPACE_MEMBERS_ACTIVE), failing closed.
  */
 
 import { prisma } from "../../db.js";
+import { resolveWorkspaceKind } from "./workspace-kind.js";
 import {
   buildSubscriptionClosureBlocker,
   type ClosureSubscriptionCandidate,
@@ -47,6 +53,7 @@ export {
 
 export type AccountClosureBlockerCode =
   | "ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED"
+  | "WORKSPACE_MEMBERS_ACTIVE"
   | "LEGAL_HOLD_ACTIVE"
   | "BILLING_SUBSCRIPTION_ACTIVE";
 
@@ -162,7 +169,7 @@ export async function evaluateAccountClosurePreflight(
       }),
       prisma.team.findMany({
         where: { ownerUserId: userId },
-        select: { id: true },
+        select: { id: true, workspaceKind: true, isPersonal: true, billingPlan: true },
       }),
       // PHASE 12B CLUSTER 8 — count ACTIVE holds of EVERY scope across ALL
       // stores. Closing an account is irreversible, so a hold sitting in a
@@ -206,17 +213,47 @@ export async function evaluateAccountClosurePreflight(
     }
   }
 
-  // Owned workspaces' other members lose access when they close (LIFE-13):
-  // a consequence the person confirms, not a blocker. The closure legs revoke
-  // ACTIVE and SUSPENDED memberships alike, so both are counted.
+  // Owned workspaces' other members (LIFE-13). A Personal or Owned workspace
+  // closes with the account: its members losing access is a consequence the
+  // person confirms. An Organization workspace — or one whose kind cannot be
+  // proven — never closes as a side effect of one account: other members
+  // there still block. The closure legs revoke ACTIVE and SUSPENDED
+  // memberships alike, so both are counted.
   if (ownedTeams.length > 0) {
-    const others = await prisma.teamMember.count({
-      where: {
-        teamId: { in: ownedTeams.map((t) => t.id) },
-        userId: { not: userId },
-        status: { in: ["ACTIVE", "SUSPENDED"] },
-      },
+    const closesWithAccount = (t: (typeof ownedTeams)[number]) => {
+      const kind = resolveWorkspaceKind({
+        workspaceKind: t.workspaceKind,
+        isPersonal: t.isPersonal,
+        billingPlan: t.billingPlan,
+        teamLoaded: true,
+      });
+      return kind === "PERSONAL" || kind === "OWNED";
+    };
+    const otherMembersWhere = (teamIds: string[]) => ({
+      teamId: { in: teamIds },
+      userId: { not: userId },
+      status: { in: ["ACTIVE", "SUSPENDED"] as Array<"ACTIVE" | "SUSPENDED"> },
     });
+    const heldIds = ownedTeams.filter((t) => !closesWithAccount(t)).map((t) => t.id);
+    if (heldIds.length > 0) {
+      const withMembers = await prisma.teamMember.groupBy({
+        by: ["teamId"],
+        where: otherMembersWhere(heldIds),
+        _count: { id: true },
+      });
+      if (withMembers.length > 0) {
+        blockers.push({
+          code: "WORKSPACE_MEMBERS_ACTIVE",
+          message:
+            "An organization workspace you own still has other members. Offboard the organization or transfer the workspace before closing your account.",
+          count: withMembers.length,
+        });
+      }
+    }
+    const closingIds = ownedTeams.filter(closesWithAccount).map((t) => t.id);
+    const others = closingIds.length > 0
+      ? await prisma.teamMember.count({ where: otherMembersWhere(closingIds) })
+      : 0;
     if (others > 0) {
       consequences.push({
         code: "WORKSPACE_MEMBERS_LOSE_ACCESS",
