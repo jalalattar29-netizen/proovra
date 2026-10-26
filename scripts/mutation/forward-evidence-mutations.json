@@ -7059,5 +7059,621 @@
         "integration": true
       }
     ]
+  },
+  {
+    "id": "MEM-ACC05-DESTRUCTIVE-REACH",
+    "aud": "ACC-05",
+    "name": "case rename/delete stop asking the case-read authority (expiry, org suspension, restricted list)",
+    "file": "services/api/src/services/cases/case-permission.service.ts",
+    "find": "  const reach = await resolveCaseRecordAccess({ userId, caseId: caseRow.id });\n  if (!reach.allowed) {",
+    "replace": "  const reach = { allowed: true };\n  if (!reach.allowed) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ACC06-HOLD-IN-TX",
+    "aud": "ACC-06",
+    "name": "case delete stops re-reading the hold inside its transaction",
+    "file": "services/api/src/services/cases/case-evidence-link.service.ts",
+    "find": "    if (held > 0) throw new CaseEvidenceAuthorityError(\"case_hold_active\");\n    // A released or expired hold",
+    "replace": "    void held;\n    // A released or expired hold",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ACC06-HOLD-HISTORY",
+    "aud": "ACC-06",
+    "name": "a case with hold history is deleted (database refusal surfaces as a 500)",
+    "file": "services/api/src/services/cases/case-evidence-link.service.ts",
+    "find": "    if (history > 0) throw new CaseEvidenceAuthorityError(\"case_hold_history\");",
+    "replace": "    void history;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-SEC03-CASE-DELETE-STEPUP",
+    "aud": "SEC-03",
+    "name": "case delete no longer demands a step-up",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "          purpose: \"CASE_DELETE\",\n          resourceKind: \"case\",\n          resourceId: id,\n        });\n        if (gate.sent) return;",
+    "replace": "          purpose: \"CASE_DELETE\",\n          resourceKind: \"case\",\n          resourceId: id,\n        });\n        void gate;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ACC09-INBOX-RESTRICTED",
+    "aud": "ACC-09",
+    "name": "the inbox lists case assignments on restricted cases the assignee cannot open",
+    "file": "services/api/src/routes/me-inbox.routes.ts",
+    "find": "                    case: caseVisibleToWhere(userId),\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ACC01-RESTRICTED-RECORD",
+    "aud": "ACC-01",
+    "name": "a record linked to a restricted case opens to OWNER/ADMIN off its list",
+    "file": "services/api/src/services/evidence/evidence-record-access.service.ts",
+    "find": "      if (!caseRowVisibleTo(link.case, input.userId)) {\n        return { allowed: false, internalReason: \"case_access_list\" };",
+    "replace": "      if (false as boolean) {\n        return { allowed: false, internalReason: \"case_access_list\" };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ACC03-EXPIRY",
+    "aud": "ACC-03",
+    "name": "an expired membership keeps contributing its workspace to lists",
+    "file": "services/api/src/services/access/accessible-workspaces.ts",
+    "find": "      row.accessExpiresAtUtc !== null &&\n      row.accessExpiresAtUtc.getTime() <= now",
+    "replace": "      false &&\n      row.accessExpiresAtUtc !== null",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-access-proofs.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DEFECT5-PLACEMENT-LOCK",
+    "aud": "DEFECT-5",
+    "name": "the placement read stops holding a share lock until the assignment commits",
+    "file": "services/api/src/services/assignment/assignee-eligibility.ts",
+    "find": "     FOR SHARE OF ctm, ct`;",
+    "replace": "     `;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignment-surfaces.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-REV05-ASSIGNER",
+    "aud": "REV-05",
+    "name": "handing out reviews no longer needs review.assign",
+    "file": "services/api/src/routes/reviewer-ops.routes.ts",
+    "find": "  if (!contextHasCapability(ctx.authorized, \"review.assign\")) {\n    reply.code(403).send({\n      error: {\n        code: \"REVIEW_PERMISSION_DENIED\",\n        reason: \"review_assign_required\",",
+    "replace": "  if (false as boolean) {\n    reply.code(403).send({\n      error: {\n        code: \"REVIEW_PERMISSION_DENIED\",\n        reason: \"review_assign_required\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignment-surfaces.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DEFECT10-QUEUE-COUNTS",
+    "aud": "DEFECT-10",
+    "name": "queue counts include reviews on restricted cases the caller is not on",
+    "file": "services/api/src/services/review-operations/review-operations.service.ts",
+    "find": "    evidence: evidenceVisibleThroughCasesWhere(input.meUserId ?? null),\n  };",
+    "replace": "  };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignment-surfaces.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ACC07-LEGACY-PATCH",
+    "aud": "ACC-07",
+    "name": "the legacy reviewer PATCH stops checking its assignee",
+    "file": "services/api/src/services/evidence-review/reviewer-workflow.service.ts",
+    "find": "      await assertWorkAssigneeEligible(\n        {\n          workspaceId: params.teamId,",
+    "replace": "      if (false as boolean) await assertWorkAssigneeEligible(\n        {\n          workspaceId: params.teamId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignment-surfaces.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ENT11-PRO-CASE-ASSIGNMENT",
+    "aud": "ENT-11",
+    "name": "case assignment is TEAM/Enterprise-only again (PRO refused)",
+    "file": "services/api/src/routes/case-workspace.routes.ts",
+    "find": "    return planIncludesCollaboration(context.plan);",
+    "replace": "    return context.plan === \"TEAM\" || context.plan === \"ENTERPRISE\";",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignment-surfaces.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-SEC13-MUTATION-AUDIT",
+    "aud": "SEC-13",
+    "name": "a mutation's audit write goes back to fire-and-forget",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "  if (mustCommit) {\n    await write;\n    return;\n  }",
+    "replace": "  void mustCommit;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignment-surfaces.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-REV04-CT-REVIEW-TASK",
+    "aud": "REV-04",
+    "name": "a Collaboration Team REVIEW task skips the reviewer authority",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "  if (input.targetType === \"REVIEW\") {\n    const workflow = await client.evidenceReviewWorkflow.findUnique({",
+    "replace": "  if (false as boolean) {\n    const workflow = await client.evidenceReviewWorkflow.findUnique({",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-review-task-authority.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-SEC04-TARGET-LOCK",
+    "aud": "SEC-04",
+    "name": "member removal stops locking the transfer target",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "             ORDER BY \"id\"\n               FOR UPDATE`;",
+    "replace": "             ORDER BY \"id\"`;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit-membership-concurrency.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-INV05-REVOKED-PENDING",
+    "aud": "INV-05",
+    "name": "access review lists revoked invitations as pending",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "MEM-03).\n      const invites = await prisma.teamInvite.findMany({\n        where: {\n          teamId,\n          acceptedAt: null,\n          revokedAt: null,",
+    "replace": "MEM-03).\n      const invites = await prisma.teamInvite.findMany({\n        where: {\n          teamId,\n          acceptedAt: null,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit-invitations.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-SEC03-CT-DELETE-STEPUP",
+    "aud": "SEC-03",
+    "name": "Collaboration Team delete no longer demands a step-up",
+    "file": "services/api/src/routes/collaboration-teams.routes.ts",
+    "find": "              purpose: \"COLLABORATION_TEAM_DELETE\",\n              resourceKind: \"collaboration_team\",\n              resourceId: req.params.teamId,\n            });\n            if (gate.sent) return;",
+    "replace": "              purpose: \"COLLABORATION_TEAM_DELETE\",\n              resourceKind: \"collaboration_team\",\n              resourceId: req.params.teamId,\n            });\n            void gate;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit-collaboration-teams.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ROLE05-IDENTITY-STEPUP",
+    "aud": "ROLE-05",
+    "name": "changing the workspace legal contact or logo no longer demands a step-up",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "        if (identityStepUp.sent) return;",
+    "replace": "        void identityStepUp;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit-membership-concurrency.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-CT14-PLATFORM-INVITE",
+    "aud": "CT-14",
+    "name": "the pending-invitation signal reads the retired invite table again",
+    "file": "services/api/src/services/platform-context/platform-context.service.ts",
+    "find": "        ? prisma.teamInvite.count({\n            where: {\n              email: userRow.email.trim().toLowerCase(),",
+    "replace": "        ? prisma.teamInvite.count({\n            where: {\n              id: \"00000000-0000-0000-0000-000000000000\",\n              email: userRow.email.trim().toLowerCase(),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-platform-context-pending-invite.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-CT14-ORG-PROJECTION",
+    "aud": "CT-14",
+    "name": "the Organization billing projection reports zero pending invitations",
+    "file": "services/api/src/services/billing/billing-account-projection.service.ts",
+    "find": "        pendingInvites: await prisma.teamInvite.count({\n          where: {\n            teamId: { in: workspaceIds },",
+    "replace": "        pendingInvites: 0 * await prisma.teamInvite.count({\n          where: {\n            teamId: { in: workspaceIds },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/org-seats-canonical-projection.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ENT05-GRANT-REFRESH",
+    "aud": "ENT-05",
+    "name": "an org-plan grant stops persisting the canonical seat state",
+    "file": "services/api/src/services/enterprise-provisioning.service.ts",
+    "find": "    await refreshTeamSeatState(workspaceId, client as never);",
+    "replace": "    void workspaceId;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/org-seats-canonical-projection.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-ENT05-ORG-ROUTE-SEATS",
+    "aud": "ENT-05",
+    "name": "the org workspaces route stops projecting the canonical seat state",
+    "file": "services/api/src/routes/organizations.routes.ts",
+    "find": "        ? await Promise.all(workspaces.map((w) => resolveWorkspaceSeatState(w.id)))",
+    "replace": "        ? await Promise.all(workspaces.map(async (w) => ({ ...(await resolveWorkspaceSeatState(w.id)), overLimit: true })))",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/org-seats-canonical-projection.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-LIFE13-CONSEQUENCE",
+    "aud": "LIFE-13",
+    "name": "other members block account closure again",
+    "file": "services/api/src/services/identity/account-lifecycle-preflight.service.ts",
+    "find": "      consequences.push({\n        code: \"WORKSPACE_MEMBERS_LOSE_ACCESS\",",
+    "replace": "      blockers.push({\n        code: \"WORKSPACE_MEMBERS_LOSE_ACCESS\" as never,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-lifecycle-closure.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM09-CAPABILITY-UPDATE-D54",
+    "aud": "DOM-09",
+    "name": "an actor may extend a capability grant they do not hold",
+    "file": "services/api/src/services/identity/rbac.service.ts",
+    "find": "    if (!grantorDecision.allowed) throw new RbacError(\"grantor_lacks_permission\");\n    const data: { expiresAtUtc?: Date | null; reason?: string | null } = {};",
+    "replace": "    void grantorDecision;\n    const data: { expiresAtUtc?: Date | null; reason?: string | null } = {};",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-delegated-admin.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-HEALTH-ORG",
+    "aud": "DOM-13",
+    "name": "SSO health reads only the addressed workspace's connections",
+    "file": "services/api/src/services/security/sso-health.service.ts",
+    "find": "    where: { organization: { workspaces: { some: { id: input.teamId } } } },",
+    "replace": "    where: { teamId: input.teamId },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DOM13-PORTAL-ORG",
+    "aud": "DOM-13",
+    "name": "portal SSO resolves only the addressed workspace's connection",
+    "file": "services/api/src/services/external-review/portal-sso.service.ts",
+    "find": "    where: { id: connectionId, organization: { workspaces: { some: { id: input.teamId } } }, status: \"ACTIVE\" },\n    select: {\n      id: true,\n      provider: true,\n      samlSsoUrl: true,",
+    "replace": "    where: { id: connectionId, teamId: input.teamId, status: \"ACTIVE\" },\n    select: {\n      id: true,\n      provider: true,\n      samlSsoUrl: true,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DEFECT6-GRANT-FLAG",
+    "aud": "DEFECT-6",
+    "name": "granting case access no longer marks the case restricted",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "          teamId: item.teamId,\n          metadata: { reason: \"user_not_in_team\", targetUserId: body.userId },\n        });\n        return reply.code(400).send({\n          message: \"User is not in this team\",\n          code: \"CASE_ACCESS_TARGET_NOT_MEMBER\",\n        });\n      }\n\n      // A grant makes the case restricted, durably (re-audit defect 6).\n      await markCaseRestrictedTx(prisma, id);",
+    "replace": "          teamId: item.teamId,\n          metadata: { reason: \"user_not_in_team\", targetUserId: body.userId },\n        });\n        return reply.code(400).send({\n          message: \"User is not in this team\",\n          code: \"CASE_ACCESS_TARGET_NOT_MEMBER\",\n        });\n      }\n\n      // A grant makes the case restricted, durably (re-audit defect 6).\n      void markCaseRestrictedTx;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-case-departure.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEM-DEFECT7-EXPORT-FILTER",
+    "aud": "DEFECT-7",
+    "name": "a case export includes linked records the caller cannot reach",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "      const evidence = linked.filter((_, i) => reach[i]!.allowed);",
+    "replace": "      const evidence = linked.filter((_, i) => reach[i] !== undefined);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-case-departure.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

@@ -60,10 +60,23 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
     await prisma.team.update({ where: { id: A().teamId }, data: { billingPlan: plan, billingStatus: "ACTIVE" } as never });
   }
 
+  /**
+   * PRO and TEAM are sold on a Personal Workspace, whose plan is its owner's
+   * entitlement (team A is an ORGANIZATION workspace: its plan is the
+   * Organization's, so it can never be on PRO).
+   */
+  const P = () => h.fixtures.personal;
+  async function setPersonalPlan(plan: "FREE" | "PRO" | "TEAM") {
+    await prisma.entitlement.updateMany({ where: { userId: P().userId }, data: { active: false } });
+    await prisma.entitlement.create({ data: { userId: P().userId, plan, active: true, credits: 0 } });
+  }
+
   async function person(
     role: "ADMIN" | "MEMBER" | "VIEWER" | null,
-    opts: { placed?: boolean } = {},
+    opts: { placed?: boolean; workspaceId?: string; workspaceOwnerId?: string } = {},
   ): Promise<Person> {
+    const workspaceId = opts.workspaceId ?? A().teamId;
+    const workspaceOwnerId = opts.workspaceOwnerId ?? owner();
     const email = `assign-surfaces-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({
       data: { email, firstName: "Assign", lastName: "Surface", provider: "EMAIL", providerUserId: email },
@@ -81,12 +94,12 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
     if (role) {
       memberId = (
         await prisma.teamMember.create({
-          data: { teamId: A().teamId, userId: user.id, role, status: "ACTIVE" },
+          data: { teamId: workspaceId, userId: user.id, role, status: "ACTIVE" },
           select: { id: true },
         })
       ).id;
       if (opts.placed) {
-        await placeInCollaborationTeam(prisma, { workspaceId: A().teamId, createdByUserId: owner(), userIds: [user.id] });
+        await placeInCollaborationTeam(prisma, { workspaceId, createdByUserId: workspaceOwnerId, userIds: [user.id] });
       }
     }
     const token = signJwt(
@@ -572,26 +585,40 @@ describe("every assignment writer obeys the one assignee authority (live Postgre
 
   for (const plan of ["TEAM", "PRO"] as const) {
     it(`ENT-11 — ${plan}: a case goes to a placed member and is refused to an unplaced one`, async () => {
-      await setPlan(plan);
-      try {
-        const unplaced = await person("MEMBER");
-        const placed = await person("MEMBER", { placed: true });
-        const c = await prisma.case.create({
-          data: { name: `Assignable ${tag()}`, teamId: A().teamId, ownerUserId: owner() },
-          select: { id: true },
-        });
-        const url = `/v1/cases/${c.id}/assignments`;
-        const refused = await post(url, A().ownerToken, { assignedToUserId: unplaced.id, role: "INVESTIGATOR" });
-        expect(refused.statusCode, refused.body).toBe(422);
-        expect(errorCode(refused)).toBe("assignee_not_placed");
-        const ok = await post(url, A().ownerToken, { assignedToUserId: placed.id, role: "INVESTIGATOR" });
-        expect(ok.statusCode, ok.body).toBe(200);
-        expect(await prisma.caseAssignment.count({ where: { caseId: c.id } })).toBe(1);
-      } finally {
-        await setPlan("TEAM");
-      }
+      await setPersonalPlan(plan);
+      const where = { workspaceId: P().teamId, workspaceOwnerId: P().userId };
+      const unplaced = await person("MEMBER", where);
+      const placed = await person("MEMBER", { ...where, placed: true });
+      const c = await prisma.case.create({
+        data: { name: `Assignable ${tag()}`, teamId: P().teamId, ownerUserId: P().userId },
+        select: { id: true },
+      });
+      const url = `/v1/cases/${c.id}/assignments`;
+      const refused = await post(url, P().token, { assignedToUserId: unplaced.id, role: "INVESTIGATOR" });
+      expect(refused.statusCode, refused.body).toBe(422);
+      expect(errorCode(refused)).toBe("assignee_not_placed");
+      const ok = await post(url, P().token, { assignedToUserId: placed.id, role: "INVESTIGATOR" });
+      expect(ok.statusCode, ok.body).toBe(200);
+      expect(await prisma.caseAssignment.count({ where: { caseId: c.id } })).toBe(1);
     });
   }
+
+  it("ENT-11 — FREE: a Personal Workspace without collaboration refuses case assignment with a typed entitlement answer", async () => {
+    await setPersonalPlan("FREE");
+    try {
+      const member = await person("MEMBER", { workspaceId: P().teamId, workspaceOwnerId: P().userId });
+      const c = await prisma.case.create({
+        data: { name: `Free ${tag()}`, teamId: P().teamId, ownerUserId: P().userId },
+        select: { id: true },
+      });
+      const res = await post(`/v1/cases/${c.id}/assignments`, P().token, { assignedToUserId: member.id, role: "INVESTIGATOR" });
+      expect(res.statusCode, res.body).toBe(403);
+      expect(errorCode(res)).toBe("ENTITLEMENT_REQUIRED");
+      expect(await prisma.caseAssignment.count({ where: { caseId: c.id } })).toBe(0);
+    } finally {
+      await setPersonalPlan("TEAM");
+    }
+  });
 
   // ===========================================================================
   // Defect 3 — a discussion thread's resolver must reach its evidence

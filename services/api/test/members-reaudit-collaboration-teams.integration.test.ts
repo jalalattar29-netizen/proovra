@@ -153,7 +153,8 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
     expect(body.added).toEqual([member]);
     expect(body.failed).toEqual([{ userId: outsider, reason: "COLLABORATION_MEMBER_NOT_IN_WORKSPACE" }]);
 
-    // A plan refusal keeps its own code too (FREE has no group places).
+    // A plan refusal keeps its own code too: FREE has no group places, so the
+    // one growth-lock code (billing-guards assertTeamsFeatureIncluded).
     const late = await person("MEMBER");
     await plan(A().teamId, "FREE");
     try {
@@ -165,7 +166,7 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
       });
       if (refused.statusCode === 409) {
         const failed = (refused.json() as { failed: Array<{ userId: string; reason: string }> }).failed;
-        expect(failed).toEqual([{ userId: late, reason: "TEAM_MEMBER_LIMIT_REACHED" }]);
+        expect(failed).toEqual([{ userId: late, reason: "TEAM_INVITES_NOT_INCLUDED" }]);
       } else {
         // Refused before the per-person loop by the plan gate: still typed.
         expect(refused.statusCode).toBeGreaterThanOrEqual(400);
@@ -268,8 +269,9 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
     await ct.suspendMember({ teamId, actorUserId: owner(), memberId });
     await plan(A().teamId, "FREE");
     try {
+      // The plan's growth lock (no group places on FREE), not the group's room.
       expect(await codeOf(ct.reinstateMember({ teamId, actorUserId: owner(), memberId }))).toBe(
-        "TEAM_MEMBER_LIMIT_REACHED",
+        "TEAM_INVITES_NOT_INCLUDED",
       );
       expect((await prisma.collaborationTeamMember.findUniqueOrThrow({ where: { id: memberId } })).status).toBe("SUSPENDED");
     } finally {
@@ -310,7 +312,9 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
     const insider = await person("MEMBER");
     const outsider = await person("MEMBER");
     await ct.addExistingMember({ teamId, actorUserId: owner(), userIdToAdd: insider, role: "ADMIN" });
-    await ct.addExistingMember({ teamId, actorUserId: owner(), userIdToAdd: outsider, role: "MEMBER" });
+    // ADMIN in the group, like the insider: both may create tasks, so the only
+    // difference the assertions below observe is access to the record.
+    await ct.addExistingMember({ teamId, actorUserId: owner(), userIdToAdd: outsider, role: "ADMIN" });
     const evidenceId = await restrictedEvidence([insider]);
     const review = await prisma.evidenceReviewWorkflow.create({
       data: { teamId: A().teamId, evidenceId, workspaceType: "TEAM" },

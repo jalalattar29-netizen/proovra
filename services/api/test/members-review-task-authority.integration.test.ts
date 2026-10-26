@@ -88,22 +88,26 @@ describe("REV-04 — Collaboration Team REVIEW tasks obey the reviewer assignee 
     });
   }
 
+  /** A group the workspace owner leads, so the owner may create its tasks. */
+  async function ownerLedGroup(userIds: string[]) {
+    const groupId = await placeInCollaborationTeam(prisma, { workspaceId: A().teamId, createdByUserId: owner(), userIds });
+    await prisma.collaborationTeamMember.create({ data: { teamId: groupId, userId: owner(), role: "LEAD", status: "ACTIVE" } as never });
+    return groupId;
+  }
+
   const createTask = (groupId: string, targetId: string, assigneeUserId: string) =>
     h.app.inject({
       method: "POST",
       url: `/v1/collaboration-teams/${groupId}/assignments`,
-      headers: { authorization: `Bearer ${A().ownerToken}` },
+      // The group lives in team A, so the request names that workspace.
+      headers: { authorization: `Bearer ${A().ownerToken}`, "x-proovra-workspace-id": A().teamId },
       payload: { targetType: "REVIEW", targetId, assigneeUserId },
     });
 
   it("a group member whose workspace role cannot review (VIEWER) is refused a REVIEW task; a reviewer-capable member is accepted", async () => {
     const viewer = await person("VIEWER");
     const reviewer = await person("MEMBER");
-    const groupId = await placeInCollaborationTeam(prisma, {
-      workspaceId: A().teamId,
-      createdByUserId: owner(),
-      userIds: [viewer.id, reviewer.id],
-    });
+    const groupId = await ownerLedGroup([viewer.id, reviewer.id]);
     const wf = await reviewWorkflow();
 
     const refused = await createTask(groupId, wf.id, viewer.id);
@@ -118,11 +122,7 @@ describe("REV-04 — Collaboration Team REVIEW tasks obey the reviewer assignee 
   it("a workspace member who is not in the group (so not placed by it) is refused a REVIEW task", async () => {
     const outsider = await person("MEMBER");
     const insider = await person("MEMBER");
-    const groupId = await placeInCollaborationTeam(prisma, {
-      workspaceId: A().teamId,
-      createdByUserId: owner(),
-      userIds: [insider.id],
-    });
+    const groupId = await ownerLedGroup([insider.id]);
     const wf = await reviewWorkflow();
     const refused = await createTask(groupId, wf.id, outsider.id);
     expect(refused.statusCode, refused.body).toBe(409);

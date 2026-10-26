@@ -247,7 +247,7 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
       prisma.evidenceLegalHold.update({ where: { id: holdId }, data: { status: "RELEASED", releasedAtUtc: new Date() } as never });
 
     for (const scope of ["CASE", "WORKSPACE"] as const) {
-      it(`a ${scope}-scope hold present at delete time refuses with LEGAL_HOLD_BLOCKED; case, links and access list stay; after release the delete succeeds`, async () => {
+      it(`a ${scope}-scope hold present at delete time refuses with LEGAL_HOLD_BLOCKED; case, links and access list stay; after release a CASE hold still keeps the case (typed), a WORKSPACE hold does not`, async () => {
         const { admin, caseId } = await heldFixture();
         const hold = await holds.placeCanonicalLegalHold({
           teamId: A().teamId,
@@ -265,9 +265,18 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
         } finally {
           await release(hold.id);
         }
-        const ok = await del(caseId, admin.token, await stepUpHeader(admin, caseId));
-        expect(ok.statusCode, ok.body).toBe(204);
-        expect(await intact(caseId)).toEqual({ case: 0, links: 0, access: 0 });
+        const after = await del(caseId, admin.token, await stepUpHeader(admin, caseId));
+        if (scope === "CASE") {
+          // The released hold's record names the case and is kept: the case is
+          // never deleted, and the refusal is typed, not a database error.
+          expect(after.statusCode, after.body).toBe(409);
+          expect((after.json() as { code?: string }).code).toBe("CASE_HOLD_HISTORY_KEPT");
+          expect(await intact(caseId)).toEqual({ case: 1, links: 1, access: 2 });
+          expect(await prisma.evidenceLegalHold.count({ where: { id: hold.id } })).toBe(1);
+        } else {
+          expect(after.statusCode, after.body).toBe(204);
+          expect(await intact(caseId)).toEqual({ case: 0, links: 0, access: 0 });
+        }
       });
     }
 

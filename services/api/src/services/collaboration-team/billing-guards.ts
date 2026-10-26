@@ -218,7 +218,7 @@ export function assertTeamsFeatureIncluded(plan: PlanType): void {
   throwBillingError({
     code: "TEAM_INVITES_NOT_INCLUDED",
     message:
-      "The Team owner's current plan does not include Teams. Existing data remains accessible; upgrading restores Team membership and invitations.",
+      "The workspace owner's current plan does not include Collaboration Teams. Existing groups remain readable; upgrading restores adding members and invitations.",
     details: { plan, requiredPlan: lowestPlanWithTeams() },
   });
 }

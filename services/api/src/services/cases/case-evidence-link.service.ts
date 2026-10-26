@@ -44,7 +44,10 @@ export type CaseEvidenceAuthorityErrorCode =
   // evidence scope may not be reduced.
   | "case_hold_active"
   // UC-CASE-001 — hold state could not be read: fail closed.
-  | "hold_state_unavailable";
+  | "hold_state_unavailable"
+  // Members re-audit ACC-06 — the case was under a legal hold; the hold's
+  // record must be kept, and it names the case, so the case is never deleted.
+  | "case_hold_history";
 
 export class CaseEvidenceAuthorityError extends Error {
   code: CaseEvidenceAuthorityErrorCode;
@@ -365,6 +368,16 @@ export async function deleteCaseAtomically(
       throw new CaseEvidenceAuthorityError("hold_state_unavailable");
     }
     if (held > 0) throw new CaseEvidenceAuthorityError("case_hold_active");
+    // A released or expired hold on this case is preserved history that names
+    // it: deleting the case would either erase that record or be refused by the
+    // database (an unhandled 500). Refuse it as what it is.
+    let history: number;
+    try {
+      history = await tx.evidenceLegalHold.count({ where: { caseId: input.caseId } });
+    } catch {
+      throw new CaseEvidenceAuthorityError("hold_state_unavailable");
+    }
+    if (history > 0) throw new CaseEvidenceAuthorityError("case_hold_history");
 
     const removed = await tx.caseEvidenceLink.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseAccess.deleteMany({ where: { caseId: input.caseId } });
@@ -462,6 +475,15 @@ export function caseUnlinkRefusal(
       body: {
         code: "LEGAL_HOLD_BLOCKED",
         message: "This case is under an active legal hold. Evidence cannot be removed from it until the hold is released.",
+      },
+    };
+  }
+  if (err.code === "case_hold_history") {
+    return {
+      status: 409,
+      body: {
+        code: "CASE_HOLD_HISTORY_KEPT",
+        message: "This case was under a legal hold. Its hold record is kept, so the case can't be deleted. Close the case instead.",
       },
     };
   }

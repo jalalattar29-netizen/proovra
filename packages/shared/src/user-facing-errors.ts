@@ -516,6 +516,12 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "That person doesn't have access to this record. Give them access first, or choose someone who has it.",
     severity: "warning",
   },
+  /** Members re-audit ACC-06 — a held case's hold record outlives it. */
+  CASE_HOLD_HISTORY_KEPT: {
+    title: "This case can't be deleted",
+    message: "It was under a legal hold, and the hold's record is kept. Close the case instead.",
+    severity: "warning",
+  },
   /** Members re-audit AUD-05 — a case already belongs to a workspace. */
   CASE_ALREADY_IN_WORKSPACE: {
     title: "Case is already in a workspace",
@@ -542,8 +548,8 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionHref: "/billing",
   },
   TEAM_INVITES_NOT_INCLUDED: {
-    title: "Invitations aren't included in the current plan",
-    message: "The Team owner's current plan no longer supports this invitation.",
+    title: "Collaboration Teams aren't included in the current plan",
+    message: "The workspace owner's current plan doesn't include Collaboration Teams, so members can't be added, reinstated or invited. Existing groups stay readable; upgrading restores this.",
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",
