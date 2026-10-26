@@ -11,6 +11,14 @@
  * while believing it was asserting on ours — which is a difference that only
  * became visible when the test environment was fixed and its server actually
  * booted.
+ *
+ * THIRD RE-AUDIT N-7 — the code is `ROUTE_NOT_FOUND`, not `NOT_FOUND`. Route
+ * handlers answer a missing (or concealed, anti-enumeration) RECORD with
+ * `NOT_FOUND`, which the clients treat as an expected business answer. An
+ * unknown or removed ROUTE is a client/server contract fault the clients must
+ * report to Sentry, so it needs a code no business refusal uses. No route
+ * reuses this body to look like an unknown route; record-level concealment
+ * keeps its own `NOT_FOUND` / `not_found` answers.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -21,7 +29,7 @@ export function canonicalNotFoundHandler(
 ) {
   return reply.code(404).send({
     error: {
-      code: "NOT_FOUND",
+      code: "ROUTE_NOT_FOUND",
       message: "Resource not found.",
       requestId: req.id,
     },

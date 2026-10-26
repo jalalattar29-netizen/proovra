@@ -99,6 +99,17 @@ const H = vi.hoisted(() => {
       }
       if (typeof v === "object" && !(v instanceof Date) && !Array.isArray(v)) {
         const cond = v as Row;
+        // A relation the row carries as data (an object, or an array for a
+        // to-many `some`) is matched against that data.
+        if (Array.isArray(actual) && "some" in cond) {
+          if (!actual.some((el) => matchWhere(el as Row, cond.some))) return false;
+          continue;
+        }
+        if (actual && typeof actual === "object" && !(actual instanceof Date) && !Array.isArray(actual)
+          && !Object.keys(cond).some((c) => OPS.includes(c))) {
+          if (!matchWhere(actual as Row, cond)) return false;
+          continue;
+        }
         if (!Object.keys(cond).some((c) => OPS.includes(c))) {
           // Compound unique selector (teamId_userId, provider_providerUserId, …)
           // or a nested relation filter — recurse against the same row.
@@ -863,7 +874,13 @@ function seed(): void {
   H.tables.workflowIntakeSession = [
     { id: INTAKE_SESSION, revokedAtUtc: null, intakeLink: { teamId: TEAM } },
   ];
-  H.tables.externalIdentityMapping = [{ id: MAPPING, teamId: TEAM, userId: OTHER }];
+  // Re-audit 3 N-5 — the link is the Organization's; it is reached from a
+  // workspace of that Organization, for a person who holds a membership there.
+  H.tables.externalIdentityMapping = [{
+    id: MAPPING, teamId: TEAM, userId: OTHER, unlinkedAtUtc: null,
+    organization: { workspaces: [{ id: TEAM }] },
+    user: { teamMembers: [{ teamId: TEAM }] },
+  }];
 }
 
 let app: FastifyInstance;
@@ -2190,7 +2207,9 @@ describe("contributor session and external identity authorities", () => {
     expect(called("linkExternalIdentity")).toHaveLength(0);
   });
 
-  it("external-mapping unlink derives the workspace from the TARGET mapping row", async () => {
+  // Re-audit 3 N-5 — administered from the caller's own (pointer) workspace,
+  // never from the link row's configuring one.
+  it("external-mapping unlink acts from the caller's workspace on its Organization's link", async () => {
     const res = await app.inject({
       method: "DELETE", url: `/v1/identity/external-mappings/${MAPPING}`,
       headers: { ...STEP_UP, "content-type": "application/json" }, payload: { teamId: TEAM },

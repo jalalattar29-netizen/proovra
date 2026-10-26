@@ -529,7 +529,7 @@ function Shell() {
         } else if (status === 403 && denial === "PERMISSION_REQUIRED") {
           const copy = permissionDenialCopy(
             denial,
-            readRequiredPermission(err) ?? "governance.policy.manage",
+            readRequiredPermission(err) ?? "governance.department.define",
           );
           setDepartmentsFailure({
             kind: "denied",

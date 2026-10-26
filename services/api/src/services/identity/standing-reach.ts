@@ -20,7 +20,8 @@
  * One module, imported by the per-member engine and the mass orchestrator
  * alike, so the two cannot disagree about what "ended" means.
  */
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { COLLABORATION_TEAM_ROLES } from "@proovra/shared";
 
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
 import {
@@ -81,6 +82,43 @@ export async function endStandingReachForMembers(
       where: { teamId, assignedToUserId: { in: userIds }, status: "ACTIVE" },
       data: { status: "REMOVED", removedAtUtc: now },
     });
+    // Members re-audit T-2 — a legacy group membership whose role has no
+    // canonical meaning (left for an operator by 20281026001400) cannot be
+    // rewritten while it keeps that role: the NOT VALID vocabulary CHECK is
+    // evaluated on every UPDATE of the row. Leaving the workspace must never
+    // wait on that review, so such a membership closes as REMOVED with the
+    // least role, VIEWER, and its original value is kept on the group's
+    // timeline. A removed membership grants nothing, whatever its role.
+    const legacyRoles = await tx.collaborationTeamMember.findMany({
+      where: {
+        userId: { in: userIds },
+        status: { not: "REMOVED" },
+        team: { workspaceId: teamId },
+        role: { notIn: [...COLLABORATION_TEAM_ROLES] },
+      },
+      select: { id: true, teamId: true, userId: true, role: true },
+    });
+    for (const m of legacyRoles) {
+      await tx.collaborationTeamMember.update({
+        where: { id: m.id },
+        data: { status: "REMOVED", removedAt: now, role: "VIEWER" },
+      });
+      await tx.collaborationTeamActivity.create({
+        data: {
+          teamId: m.teamId,
+          workspaceId: teamId,
+          actorUserId: options.actorUserId ?? null,
+          eventType: "MEMBER_REMOVED",
+          targetType: "USER",
+          targetId: m.userId,
+          metadata: {
+            reason: options.reason ?? "membership_ended",
+            legacyRole: m.role,
+            roleRecordedAs: "VIEWER",
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
     await tx.collaborationTeamMember.updateMany({
       where: { userId: { in: userIds }, status: { not: "REMOVED" }, team: { workspaceId: teamId } },
       data: { status: "REMOVED", removedAt: now },

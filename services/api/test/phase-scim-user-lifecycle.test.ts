@@ -149,6 +149,19 @@ function makeFake() {
   // Guard: fail loudly if any code path ever tries a hard delete.
   let deleteAttempts = 0;
 
+  // Re-audit 3 T-1b — the SCIM Users readers scope a link to the token's
+  // Organization (`organization.workspaces.some.id`) and to the people who
+  // hold a membership in its workspace (`user.teamMembers.some.teamId`).
+  const mappingMatches = (m: MappingRow, where: Record<string, unknown>): boolean => {
+    const { organization, user, ...rest } = where as {
+      organization?: { workspaces: { some: { id: string } } };
+      user?: { teamMembers: { some: { teamId: string } } };
+    };
+    if (organization && TEAM_ORG[organization.workspaces.some.id] !== m.organizationId) return false;
+    if (user && !members.some((x) => x.userId === m.userId && x.teamId === user.teamMembers.some.teamId)) return false;
+    return matches(m as unknown as Record<string, unknown>, rest);
+  };
+
   const fake = {
     _users: users,
     _mappings: mappings,
@@ -266,7 +279,7 @@ function makeFake() {
         where: Record<string, unknown>;
         orderBy?: unknown;
       }) {
-        return mappings.find((m) => matches(m as unknown as Record<string, unknown>, where)) ?? null;
+        return mappings.find((m) => mappingMatches(m, where)) ?? null;
       },
       async create({ data }: { data: Partial<MappingRow> }) {
         const now = new Date();
@@ -308,7 +321,7 @@ function makeFake() {
       }) {
         let count = 0;
         for (const m of mappings) {
-          if (matches(m as unknown as Record<string, unknown>, where)) {
+          if (mappingMatches(m, where)) {
             Object.assign(m, data);
             count += 1;
           }
@@ -394,6 +407,23 @@ function makeFake() {
         return { id: nid() };
       },
     },
+
+    // Re-audit 3 B-N1 — a suspension releases the work the person held
+    // (assignment/release-held-work.ts) in its own transaction; this fixture
+    // holds none, so every pool reads empty.
+    evidenceReviewWorkflow: { findMany: async () => [] },
+    reviewEscalation: { findMany: async () => [] },
+    collaborationTeamAssignment: { findMany: async () => [] },
+    operationalWorkflow: { findMany: async () => [] },
+    operationalIncident: { findMany: async () => [] },
+    qcSample: { findMany: async () => [] },
+    evidenceRequest: { findMany: async () => [] },
+    reviewerDisagreement: { findMany: async () => [] },
+    caseSiuProfile: { findMany: async () => [] },
+    // SEC-08 — a suspension also ends the person's owner links and
+    // external-review grants; this fixture holds none.
+    verificationShareToken: { updateMany: async () => ({ count: 0 }) },
+    externalReviewGrant: { updateMany: async () => ({ count: 0 }) },
 
     async $executeRaw() {
       return 0;

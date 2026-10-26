@@ -32,17 +32,61 @@ export function mobileSentryBeforeBreadcrumb<T>(breadcrumb: T): T | null {
  * Still reported: a code-less 401 / 403 / 404 (an auth regression, a removed
  * or mistyped route), any other code-less 4xx (400, 405, 413, 415 …), every
  * 5xx, network failures (no status), and anything that is not an API error.
- * `API_ERROR` is the transport's placeholder for "the body carried no code".
+ *
+ * THIRD RE-AUDIT N-7 — "code-less" also covers the codes that NEVER mean a
+ * business refusal: the transport's placeholders (`API_ERROR` = "the body
+ * carried no code", `NETWORK_ERROR`, `PARSE_ERROR`), the canonical
+ * unknown-route 404 `ROUTE_NOT_FOUND`, the framework-shaped 405 / 413 / 415
+ * codes, the untyped-legacy `REQUEST_REFUSED` and the server-fault codes. Each
+ * is classified exactly as a code-less answer of the same status.
+ * `NOT_FOUND` (a missing or concealed record), `FORBIDDEN`, `UNAUTHORIZED`,
+ * `VALIDATION_ERROR`, `INVALID_INPUT`, `INVALID_REQUEST`, `BAD_REQUEST` and
+ * `CONFLICT` stay expected: they are business or auth states (a client cannot
+ * tell an auth regression from an expired session).
+ *
+ * The SAME list and the same UNAUTHORIZED rule as the web
+ * (apps/web/lib/feedback/toSafeUserError.ts): an `UNAUTHORIZED` 401 counts as
+ * server-typed only when it arrived in the nested `{ error: { code } }`
+ * envelope. test/sentry-generic-codes-parity.test.mjs runs both classifiers
+ * over every code × status × body shape and fails on any disagreement.
  */
 const BUSINESS_REFUSAL_STATUSES: ReadonlySet<number> = new Set([409, 422]);
 
+export const GENERIC_NON_BUSINESS_CODES: ReadonlySet<string> = new Set([
+  "API_ERROR",
+  "NETWORK_ERROR",
+  "PARSE_ERROR",
+  "ROUTE_NOT_FOUND",
+  "METHOD_NOT_ALLOWED",
+  "PAYLOAD_TOO_LARGE",
+  "UNSUPPORTED_MEDIA_TYPE",
+  "REQUEST_REFUSED",
+  "INTERNAL_ERROR",
+  "INTERNAL_SERVER_ERROR",
+  "DATABASE_ERROR",
+  "SCHEMA_NOT_READY",
+]);
+
 export function isExpectedBusinessRefusal(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const e = error as { statusCode?: unknown; status?: unknown; code?: unknown };
+  const e = error as {
+    statusCode?: unknown;
+    status?: unknown;
+    code?: unknown;
+    body?: { error?: { code?: unknown } };
+  };
   const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
   if (typeof status !== "number" || status < 400 || status >= 500) return false;
   const code = typeof e.code === "string" ? e.code.trim().toUpperCase() : "";
-  if (code && code !== "API_ERROR") return true;
+  const nested = e.body?.error?.code;
+  const serverTypedUnauthorized = typeof nested === "string" && nested.trim().length > 0;
+  if (
+    code &&
+    !GENERIC_NON_BUSINESS_CODES.has(code) &&
+    !(code === "UNAUTHORIZED" && status === 401 && !serverTypedUnauthorized)
+  ) {
+    return true;
+  }
   return BUSINESS_REFUSAL_STATUSES.has(status);
 }
 

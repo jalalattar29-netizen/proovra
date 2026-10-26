@@ -84,11 +84,45 @@ test("a code-less 409 / 422 conflict or validation answer is NOT sent", async ()
   assert.deepEqual(captured(), []);
 });
 
-test("typed 4xx refusals (401, 403, 404, 429) are NOT sent", async () => {
-  M.captureException(await failure(401, { error: { code: "UNAUTHORIZED" } }));
+test("typed business 4xx refusals (401, 403, 404, 400, 429) are NOT sent", async () => {
+  M.captureException(await failure(401, { error: { code: "TOKEN_EXPIRED" } }));
   M.captureException(await failure(403, { error: { code: "WORKSPACE_ACCESS_DENIED" } }));
+  M.captureException(await failure(403, { error: { code: "PERMISSION_REQUIRED" } }));
   M.captureException(await failure(404, { code: "GRANT_NOT_FOUND" }));
+  M.captureException(await failure(400, { error: { code: "INVALID_QUERY" } }));
   M.captureException(await failure(429, { error: { code: "RATE_LIMITED" } }));
+  assert.deepEqual(captured(), []);
+});
+
+// Third re-audit N-7 — codes that never mean a business refusal are sent,
+// exactly as a code-less answer of the same status. Real server shapes: the
+// canonical unknown-route 404 (http/not-found-handler.ts), the legacy-handler
+// 500 (createErrorResponse(INTERNAL_SERVER_ERROR)), the untyped-legacy
+// REQUEST_REFUSED.
+test("the canonical ROUTE_NOT_FOUND 404, an INTERNAL_SERVER_ERROR 500 and a REQUEST_REFUSED 403 ARE sent", async () => {
+  const ts = "2026-10-26T00:00:00.000Z";
+  const sent = [];
+  for (const [status, body] of [
+    [404, { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found.", requestId: "r1" } }],
+    [500, { error: { code: "INTERNAL_SERVER_ERROR", message: "Internal server error", requestId: "r2", timestamp: ts } }],
+    [403, { error: { code: "REQUEST_REFUSED", message: "Request refused.", requestId: "r3" } }],
+  ]) {
+    const err = await failure(status, body);
+    sent.push(err);
+    M.captureException(err);
+  }
+  assert.deepEqual(captured(), sent);
+});
+
+// ...while NOT_FOUND (a missing or concealed record), FORBIDDEN, the auth
+// middleware's nested UNAUTHORIZED (indistinguishable from an expired session)
+// and VALIDATION_ERROR stay expected.
+test("NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401 and VALIDATION_ERROR 400 are NOT sent", async () => {
+  const ts = "2026-10-26T00:00:00.000Z";
+  M.captureException(await failure(404, { error: { code: "NOT_FOUND", message: "Not found.", requestId: "r4" } }));
+  M.captureException(await failure(403, { error: { code: "FORBIDDEN", message: "Access denied", requestId: "r5", timestamp: ts } }));
+  M.captureException(await failure(401, { error: { code: "UNAUTHORIZED", message: "Authentication required", requestId: "r6", timestamp: ts } }));
+  M.captureException(await failure(400, { error: { code: "VALIDATION_ERROR", message: "Request validation failed", timestamp: ts } }));
   assert.deepEqual(captured(), []);
 });
 
@@ -132,4 +166,14 @@ test("beforeSend drops a refusal's event (unhandled-rejection path) and keeps a 
   assert.notEqual(beforeSend({ message: "plain" }, { originalException: new Error("boom") }), null);
   const routeMissing = await failure(404, { message: "Route POST:/v1/teamz not found" });
   assert.notEqual(beforeSend({ message: "unhandled" }, { originalException: routeMissing }), null);
+  // Third re-audit N-7 — the canonical unknown-route 404 is kept; a record
+  // NOT_FOUND, a nested UNAUTHORIZED and a business 404 are dropped.
+  const canonical404 = await failure(404, { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found." } });
+  const recordMissing = await failure(404, { error: { code: "NOT_FOUND", message: "Not found." } });
+  const authState = await failure(401, { error: { code: "UNAUTHORIZED", message: "Authentication required" } });
+  assert.notEqual(beforeSend({ message: "unhandled" }, { originalException: canonical404 }), null);
+  assert.equal(beforeSend({ message: "unhandled" }, { originalException: recordMissing }), null);
+  assert.equal(beforeSend({ message: "unhandled" }, { originalException: authState }), null);
+  const typed404 = await failure(404, { error: { code: "TEAM_NOT_FOUND" } });
+  assert.equal(beforeSend({ message: "unhandled" }, { originalException: typed404 }), null);
 });

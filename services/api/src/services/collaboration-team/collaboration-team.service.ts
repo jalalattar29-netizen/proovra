@@ -590,6 +590,22 @@ async function requireMemberWithPermission(
 // assertCanInviteCollaborationTeamMember) so the service and the route
 // layer can never disagree about the commercial contract.
 
+/**
+ * AUDIT COMMITS WITH THE CHANGE (members re-audit, third round, N3;
+ * members-and-access-model §6).
+ *
+ * The caller's tenant-audit row for a mutation. Every mutation below runs it
+ * INSIDE its own transaction, after the change and before commit, so a refused
+ * audit insert rolls the change back and a committed change always has its row.
+ * The routes used to write the row after the service had committed, so a failed
+ * insert answered 500 for a change that had already happened, with no record.
+ *
+ * An idempotent no-op writes nothing and has no transaction to share: the row
+ * is written on the plain client, still before the call returns, exactly as the
+ * success row always was.
+ */
+export type CollaborationMutationAudit<R = void> = (db: PrismaClient, result: R) => Promise<void>;
+
 // =============================================================================
 // Public API
 // =============================================================================
@@ -605,6 +621,7 @@ export async function createCollaborationTeam(
     name: string;
     description?: string | null;
     teamType?: string | null;
+    auditTx?: CollaborationMutationAudit<{ id: string }>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string }> {
@@ -669,6 +686,7 @@ export async function createCollaborationTeam(
       eventType: "TEAM_CREATED",
       metadata: { name, teamType },
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, { id: team.id });
     return team;
   });
 
@@ -1310,6 +1328,7 @@ export async function updateCollaborationTeam(
     name?: string;
     description?: string | null;
     teamType?: string;
+    auditTx?: CollaborationMutationAudit;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -1343,7 +1362,10 @@ export async function updateCollaborationTeam(
     meta.teamType = teamType;
     typeChanged = true;
   }
-  if (Object.keys(data).length === 0) return;
+  if (Object.keys(data).length === 0) {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
 
   await client.$transaction(async (tx) => {
     await tx.collaborationTeam.update({
@@ -1374,6 +1396,7 @@ export async function updateCollaborationTeam(
         eventType: "TEAM_TYPE_CHANGED",
         metadata: meta,
       });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -1557,7 +1580,7 @@ export async function deleteCollaborationTeam(
 }
 
 export async function archiveCollaborationTeam(
-  input: { teamId: string; actorUserId: string },
+  input: { teamId: string; actorUserId: string; auditTx?: CollaborationMutationAudit },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   const { team } = await requireMemberWithPermission(
@@ -1566,7 +1589,10 @@ export async function archiveCollaborationTeam(
     input.actorUserId,
     "team.archive",
   );
-  if (team.status === "ARCHIVED") return;
+  if (team.status === "ARCHIVED") {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   await client.$transaction(async (tx) => {
     await tx.collaborationTeam.update({
       where: { id: input.teamId },
@@ -1611,6 +1637,7 @@ export async function archiveCollaborationTeam(
     // The group's case reach ends with it: grants its members created on
     // cases granted only to it end too.
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -1637,7 +1664,7 @@ export async function archiveCollaborationTeam(
  * creation, because reopening and creating compete for exactly the same slot.
  */
 export async function unarchiveCollaborationTeam(
-  input: { teamId: string; actorUserId: string },
+  input: { teamId: string; actorUserId: string; auditTx?: CollaborationMutationAudit },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   const { team } = await requireMemberWithPermission(
@@ -1647,7 +1674,10 @@ export async function unarchiveCollaborationTeam(
     // Reopening is the inverse of archiving and carries the same authority.
     "team.archive",
   );
-  if (team.status === "ACTIVE") return;
+  if (team.status === "ACTIVE") {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
 
   // Resolved OUTSIDE the transaction, once, so the in-transaction re-check
   // compares against the same numbers rather than resolving a second answer.
@@ -1683,6 +1713,7 @@ export async function unarchiveCollaborationTeam(
       // was. Reusing it rather than minting a second name for one fact.
       eventType: "TEAM_REOPENED",
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -1696,6 +1727,7 @@ export async function addExistingMember(
     actorUserId: string;
     userIdToAdd: string;
     role?: string;
+    auditTx?: CollaborationMutationAudit<{ id: string }>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string }> {
@@ -1744,7 +1776,10 @@ export async function addExistingMember(
     if (existing) {
       // Adding someone who is already a member is idempotent: the answer is
       // the membership they already hold, with nothing written.
-      if (existing.status === "ACTIVE") return { id: existing.id };
+      if (existing.status === "ACTIVE") {
+        if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, { id: existing.id });
+        return { id: existing.id };
+      }
       row = await tx.collaborationTeamMember.update({
         where: { id: existing.id },
         data: {
@@ -1788,6 +1823,7 @@ export async function addExistingMember(
         metadata: { role },
       });
     }
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, { id: row.id });
     return row;
   });
   return result;
@@ -1799,6 +1835,7 @@ export async function changeMemberRole(
     actorUserId: string;
     memberId: string;
     role: string;
+    auditTx?: CollaborationMutationAudit;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -1825,7 +1862,10 @@ export async function changeMemberRole(
     },
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
-  if (member.role === newRole) return;
+  if (member.role === newRole) {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   await assertMayActOnLead(client, {
     workspaceId: team.workspaceId,
     actorUserId: input.actorUserId,
@@ -1874,6 +1914,7 @@ export async function changeMemberRole(
       targetId: member.userId,
       metadata: { from: member.role, to: newRole },
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -1883,6 +1924,7 @@ export async function suspendMember(
     actorUserId: string;
     memberId: string;
     reason?: string | null;
+    auditTx?: CollaborationMutationAudit;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -1897,7 +1939,10 @@ export async function suspendMember(
     select: { id: true, userId: true, status: true, role: true, teamId: true },
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
-  if (member.status !== "ACTIVE") return;
+  if (member.status !== "ACTIVE") {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   await assertMayActOnLead(client, {
     workspaceId: team.workspaceId,
     actorUserId: input.actorUserId,
@@ -1954,6 +1999,7 @@ export async function suspendMember(
       reason: "group_member_suspended",
     });
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -1977,7 +2023,7 @@ export async function suspendMember(
  * check and could re-admit somebody who has since left the workspace entirely.
  */
 export async function reinstateMember(
-  input: { teamId: string; actorUserId: string; memberId: string },
+  input: { teamId: string; actorUserId: string; memberId: string; auditTx?: CollaborationMutationAudit },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   const { team } = await requireMemberWithPermission(
@@ -1991,7 +2037,10 @@ export async function reinstateMember(
     select: { id: true, userId: true, status: true, teamId: true },
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
-  if (member.status === "ACTIVE") return;
+  if (member.status === "ACTIVE") {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   if (member.status === "REMOVED") {
     throw E.conflict(
       "This person was removed from the team. Add them again from the workspace directory.",
@@ -2033,6 +2082,7 @@ export async function reinstateMember(
       targetType: "USER",
       targetId: member.userId,
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -2041,6 +2091,7 @@ export async function removeMember(
     teamId: string;
     actorUserId: string;
     memberId: string;
+    auditTx?: CollaborationMutationAudit;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -2055,7 +2106,10 @@ export async function removeMember(
     select: { id: true, userId: true, status: true, role: true, teamId: true },
   });
   if (!member || member.teamId !== input.teamId) throw E.notFound("Member");
-  if (member.status === "REMOVED") return;
+  if (member.status === "REMOVED") {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   await assertMayActOnLead(client, {
     workspaceId: team.workspaceId,
     actorUserId: input.actorUserId,
@@ -2096,6 +2150,7 @@ export async function removeMember(
       reason: "group_member_removed",
     });
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -2136,7 +2191,7 @@ export async function removeMember(
 // still be in flight — one TTL after the last one was issued.
 
 export async function revokeInvite(
-  input: { teamId: string; actorUserId: string; inviteId: string },
+  input: { teamId: string; actorUserId: string; inviteId: string; auditTx?: CollaborationMutationAudit },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
   const { team } = await requireMemberWithPermission(
@@ -2150,7 +2205,10 @@ export async function revokeInvite(
     select: { id: true, teamId: true, status: true },
   });
   if (!invite || invite.teamId !== input.teamId) throw E.notFound("Invite");
-  if (invite.status !== "PENDING") return;
+  if (invite.status !== "PENDING") {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
   await client.$transaction(async (tx) => {
     await tx.collaborationTeamInvite.update({
       where: { id: input.inviteId },
@@ -2164,6 +2222,7 @@ export async function revokeInvite(
       targetType: "INVITE",
       targetId: input.inviteId,
     });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
   });
 }
 
@@ -2188,10 +2247,12 @@ export async function revokeInvite(
  *   - TEAM_INVITES_NOT_INCLUDED      (402, zero-team owner plan)
  *   - TEAM_MEMBER_LIMIT_REACHED      (409, with details)
  */
+export type AcceptInviteResult = { teamId: string; workspaceId: string; memberId: string; alreadyMember: boolean };
+
 export async function acceptInvite(
-  input: { rawToken: string; actorUserId: string },
+  input: { rawToken: string; actorUserId: string; auditTx?: CollaborationMutationAudit<AcceptInviteResult> },
   client: PrismaClient = defaultPrisma,
-): Promise<{ teamId: string; workspaceId: string; memberId: string; alreadyMember: boolean }> {
+): Promise<AcceptInviteResult> {
   const hash = hashInviteToken(input.rawToken);
   /**
    * COMPATIBILITY REPAIR — the selector, not the model.
@@ -2252,12 +2313,14 @@ export async function acceptInvite(
     select: { id: true },
   });
   if (activeMembership) {
-    return {
+    const already: AcceptInviteResult = {
       teamId: invite.teamId,
       workspaceId: invite.workspaceId,
       memberId: activeMembership.id,
       alreadyMember: true,
     };
+    if (input.auditTx) await input.auditTx(client, already);
+    return already;
   }
 
   if (invite.status === "REVOKED") throw E.inviteRevoked();
@@ -2433,12 +2496,14 @@ export async function acceptInvite(
       targetId: invite.id,
       metadata: { role },
     });
-    return {
+    const accepted: AcceptInviteResult = {
       teamId: invite.teamId,
       workspaceId: invite.workspaceId,
       memberId,
       alreadyMember: false,
     };
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, accepted);
+    return accepted;
   });
 
   return result;
@@ -3119,6 +3184,7 @@ export async function createAssignment(
     priority?: string;
     dueAtUtc?: Date | null;
     note?: string | null;
+    auditTx?: CollaborationMutationAudit<{ id: string }>;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string }> {
@@ -3250,6 +3316,7 @@ export async function createAssignment(
         targetId: a.id,
       });
     }
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, { id: a.id });
     return a;
   });
   return result;
@@ -3265,6 +3332,7 @@ export async function updateAssignment(
     assigneeUserId?: string | null;
     dueAtUtc?: Date | null;
     note?: string | null;
+    auditTx?: CollaborationMutationAudit;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
@@ -3385,7 +3453,10 @@ export async function updateAssignment(
   if (input.note !== undefined) {
     data.note = input.note ? input.note.slice(0, 600) : null;
   }
-  if (Object.keys(data).length === 0) return;
+  if (Object.keys(data).length === 0) {
+    if (input.auditTx) await input.auditTx(client, undefined);
+    return;
+  }
 
   const outcome = await client.$transaction(async (tx) => {
     // Members re-audit B5 — the new assignee passes the authority INSIDE the
@@ -3422,11 +3493,11 @@ export async function updateAssignment(
       if (now && data.status !== undefined && now.status === data.status) return "noop" as const;
       throw E.taskTransitionInvalid(String(now?.status ?? assignment.status), String(data.status ?? assignment.status));
     }
-    return "written" as const;
-  });
-  if (outcome === "noop") return;
 
-  await client.$transaction(async (tx) => {
+    // ONE TRANSACTION (members re-audit, third round, N3). The timeline
+    // events, the notifications and the audit row commit with the guarded
+    // write or not at all; they used to follow it in a second transaction,
+    // so a failure there left a committed change with no record of it.
     for (const evt of eventEmissions) {
       await recordActivity(tx, {
         teamId: input.teamId,
@@ -3493,7 +3564,10 @@ export async function updateAssignment(
         });
       }
     }
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
+    return "written" as const;
   });
+  if (outcome === "noop" && input.auditTx) await input.auditTx(client, undefined);
 }
 
 /**

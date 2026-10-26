@@ -111,7 +111,7 @@ describe("cross-org invite permission (one delegated-administration authority)",
     expect(submit().disabled).toBe(true);
     const blocked = document.querySelector('[data-cross-org-invite-blocked="permission"]');
     expect(blocked?.textContent).toBe(
-      "This needs the “Manage evidence exchange” permission in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+      "This needs the “Manage evidence exchange” permission in this workspace. Someone who already holds it — for example the workspace owner — can grant it to you in Security Center.",
     );
     expect(blocked?.textContent).not.toMatch(/ORG_ADMIN|REVIEWER_LEAD|tier/);
   });

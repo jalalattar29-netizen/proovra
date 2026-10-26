@@ -59,7 +59,7 @@ export function permissionRequiredDetail(
   const what = label
     ? `This needs the “${label}” permission in this workspace.`
     : "This needs a permission you do not have in this workspace.";
-  return `${what} A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.`;
+  return `${what} Someone who already holds it — for example the workspace owner — can grant it to you in Security Center.`;
 }
 
 /**

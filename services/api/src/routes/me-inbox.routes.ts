@@ -59,7 +59,7 @@
  *     scoped to memberships the caller already has.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
+import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import { secondReviewForRound } from "../services/evidence-review/second-review.service.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -1918,6 +1918,15 @@ export async function buildInboxAggregation(
           personalOwnerUserId: w.ownerUserId,
         })),
       );
+      // Members re-audit (third round, N1) — workspace reach is necessary,
+      // never sufficient: no inbox item is built from a record (its title,
+      // file name, case id, discussion title or review work) linked to a
+      // restricted case the caller cannot see. The canonical narrowing rule
+      // (case-visibility.ts), exactly as the reports list applies it; a
+      // legacy personal-scope row is the owner's own.
+      const inboxRecordVisible: Prisma.EvidenceWhereInput = {
+        OR: [{ teamId: null }, evidenceVisibleThroughCasesWhere(userId)],
+      };
       const teamNameById = new Map<string, string>(
         accessibleWorkspaces.map((w) => [w.workspaceId, w.name] as [string, string]),
       );
@@ -1988,6 +1997,9 @@ export async function buildInboxAggregation(
               where: {
                 teamId: { in: adjudicatorTeamIds },
                 stage: { in: ["FIRST", "SECOND", "ADJUDICATION"] },
+                // N1 sweep — the review queue's own reach (review-operations
+                // listReviewQueue): no conflict on a record the caller cannot see.
+                workflow: { evidence: inboxRecordVisible },
               },
               select: {
                 workflowId: true,
@@ -2250,6 +2262,10 @@ export async function buildInboxAggregation(
                       teamId: { in: teamIds },
                       mentionedUserId: userId,
                       notifiedAtUtc: read ? { not: null } : null,
+                      // N1 sweep — the thread title is the record's content: a
+                      // mention on a record the caller cannot see (a restricted
+                      // case they are not on) contributes no item.
+                      message: { thread: { evidence: inboxRecordVisible } },
                     },
                     select: mentionSelect,
                     orderBy: read
@@ -2286,6 +2302,9 @@ export async function buildInboxAggregation(
                     teamId: { in: teamIds },
                     assignedToUserId: userId,
                     status: { notIn: ["RESOLVED", "CLOSED"] },
+                    // N1 sweep — as mentions: no thread title from a record
+                    // the caller cannot see.
+                    evidence: inboxRecordVisible,
                   },
                   select: {
                     id: true,
@@ -2321,6 +2340,10 @@ export async function buildInboxAggregation(
                   // reviewer escalation goes (2026-10-23).
                   where: {
                     status: "OPEN",
+                    // N1 sweep — the review queue's own reach: an escalation
+                    // (its summary and record id) on a record linked to a
+                    // restricted case the caller cannot see is not offered.
+                    workflow: { evidence: inboxRecordVisible },
                     OR: [
                       { teamId: { in: teamIds }, assignedToUserId: userId },
                       ...(adjudicatorTeamIds.length > 0
@@ -2616,7 +2639,7 @@ export async function buildInboxAggregation(
               () =>
                 prisma.evidence.findMany({
                   where: {
-                    AND: [inboxEvidenceScope],
+                    AND: [inboxEvidenceScope, inboxRecordVisible],
                     // A failed proof, or a proof the active Bitcoin main chain
                     // contradicts (the independent check said FAILED).
                     OR: [{ otsStatus: "FAILED" }, { otsChainVerificationStatus: "FAILED" }],
@@ -2780,7 +2803,7 @@ export async function buildInboxAggregation(
               () =>
                 prisma.evidence.findMany({
                   where: {
-                    AND: [inboxEvidenceScope],
+                    AND: [inboxEvidenceScope, inboxRecordVisible],
                     tsaStatus: "FAILED",
                     deletedAt: null,
                   },

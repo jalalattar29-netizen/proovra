@@ -165,7 +165,7 @@ test("PERMISSION_REQUIRED copy names the permission in words and who can grant i
   assert.ok(src.includes("KNOWN_PERMISSIONS.has(value)"), "an unknown key would be echoed");
   assert.ok(
     src.includes(
-      "A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+      "Someone who already holds it — for example the workspace owner — can grant it to you in Security Center.",
     ),
     "the copy does not say who can grant the permission, or where",
   );
@@ -599,8 +599,8 @@ test("POST /v1/governance/policies — policy authoring is wired with a locally-
     "an array or scalar rule would be posted against a z.record schema",
   );
 
-  // Permission: requireWorkspacePermission("governance.policy.manage").
-  assert.ok(src.includes('const POLICY_PERMISSION = "governance.policy.manage"'));
+  // Permission: requireWorkspacePermission("governance.policy.author") (the N-1 floor).
+  assert.ok(src.includes('const POLICY_PERMISSION = "governance.policy.author"'));
   assert.ok(src.includes("const permitted = access.ready && access.allows(POLICY_PERMISSION);"));
   assert.ok(src.includes('data-governance-policy-blocked="permission"'), "no permission-denied state");
   assert.ok(src.includes("permissionRequiredDetail(POLICY_PERMISSION)"), "the denial does not name the permission");

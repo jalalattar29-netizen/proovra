@@ -414,6 +414,13 @@ const BULK_LIFECYCLE_ACTION = {
   TRASH: "TRASH",
   RESTORE_TRASH: "RESTORE_FROM_TRASH",
 } as const satisfies Record<string, EvidenceLifecycleAction>;
+/** The audit action each bulk lifecycle action writes — the single routes' own. */
+const BULK_LIFECYCLE_AUDIT_ACTION = {
+  ARCHIVE: "evidence.archive",
+  RESTORE_ARCHIVED: "evidence.unarchive",
+  TRASH: "evidence.delete",
+  RESTORE_TRASH: "evidence.restore",
+} as const satisfies Record<keyof typeof BULK_LIFECYCLE_ACTION, string>;
 import {
   resolveEvidenceOperationAccess,
   resolveEvidenceRecordAccess,
@@ -7980,15 +7987,73 @@ return {
           case "RESTORE_ARCHIVED":
           case "TRASH":
           case "RESTORE_TRASH": {
-            const outcome = await applyEvidenceLifecycleAction({
-              evidenceId,
-              actorUserId: userId,
-              action: BULK_LIFECYCLE_ACTION[body.action],
-              source: "bulk",
-              req,
-            });
+            // Members re-audit (third round, N2) — the SAME tenant audit the
+            // single routes write, per record, INSIDE the lifecycle
+            // transaction: a failed audit rolls this record's change back (no
+            // state change, no custody event) and the record is reported as
+            // failed; the rest of the batch is unaffected. The bulk path used
+            // to write only the custody event.
+            const auditAction = BULK_LIFECYCLE_AUDIT_ACTION[body.action];
+            let outcome: Awaited<ReturnType<typeof applyEvidenceLifecycleAction>>;
+            try {
+              outcome = await applyEvidenceLifecycleAction({
+                evidenceId,
+                actorUserId: userId,
+                action: BULK_LIFECYCLE_ACTION[body.action],
+                source: "bulk",
+                req,
+                auditTx: (tx, written) =>
+                  auditEvidenceAction(req, {
+                    userId,
+                    action: auditAction,
+                    outcome: "success",
+                    resourceId: evidenceId,
+                    teamId: written.teamId,
+                    metadata: {
+                      actorUserId: userId,
+                      productState: written.productState,
+                      changed: true,
+                      source: "bulk",
+                    },
+                    db: tx,
+                  }),
+              });
+            } catch (err) {
+              // Never a raw database message in the per-record reason.
+              req.log.error({ err, lifecycleAction: body.action }, "bulk evidence lifecycle action failed");
+              throw new Error("Operation failed");
+            }
+            // A refusal is recorded as the single route records it (the
+            // anti-enumeration 404 excepted).
+            if (!outcome.ok && outcome.statusCode !== 404) {
+              await auditEvidenceAction(req, {
+                userId,
+                action: auditAction,
+                outcome: "blocked",
+                severity: "warning",
+                resourceId: evidenceId,
+                metadata: { reason: outcome.code, source: "bulk" },
+              });
+            }
             if (!outcome.ok) {
               throw new Error(outcome.code);
+            }
+            if (!outcome.changed) {
+              // An idempotent success wrote nothing, so it has no transaction
+              // to share; its row is still awaited, as on the single route.
+              await auditEvidenceAction(req, {
+                userId,
+                action: auditAction,
+                outcome: "success",
+                resourceId: evidenceId,
+                teamId: outcome.teamId,
+                metadata: {
+                  actorUserId: userId,
+                  productState: outcome.productState,
+                  changed: false,
+                  source: "bulk",
+                },
+              });
             }
             const updated = await prisma.evidence.findUniqueOrThrow({
               where: { id: evidenceId },

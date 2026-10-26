@@ -105,7 +105,7 @@ describe("department archive workflow", () => {
     render(<DepartmentsPage />);
     fireEvent.click(await archiveButton());
     await screen.findByText(
-      "Permission required. This needs the “Manage governance policies” permission in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+      "Permission required. This needs the “Manage governance policies” permission in this workspace. Someone who already holds it — for example the workspace owner — can grant it to you in Security Center.",
     );
   });
 
@@ -117,7 +117,7 @@ describe("department archive workflow", () => {
     render(<DepartmentsPage />);
     fireEvent.click(await archiveButton());
     await screen.findByText(
-      "Permission required. This needs a permission you do not have in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+      "Permission required. This needs a permission you do not have in this workspace. Someone who already holds it — for example the workspace owner — can grant it to you in Security Center.",
     );
     expect(screen.queryByText(/555-0100/)).toBeNull();
   });

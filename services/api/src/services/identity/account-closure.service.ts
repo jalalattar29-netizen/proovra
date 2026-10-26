@@ -46,7 +46,26 @@
  *      transaction (members audit AUD-01).
  *
  * The person is told (ACCOUNT_CLOSED, members audit AUD-04): the notice is
- * enqueued in A, while the address still exists, and dispatched after B.
+ * enqueued in A, while the address still exists, and dispatched once A has
+ * committed.
+ *
+ * MEMBERS RE-AUDIT, THIRD ROUND (N4) — ONCE A COMMITS, THE CLOSURE IS
+ * IRREVOCABLY IN PROGRESS.
+ *   - A also ends the account's ACCESS: every session (RevokedSession
+ *     ALL_FOR_USER and the AuthenticatedSession mirror) and every login method
+ *     (identity links, password hash, provider subject → `closed:<userId>`)
+ *     ends in the same transaction that closes the workspaces. There is no
+ *     point at which the workspaces are closed and the person can still sign
+ *     in. The scrambled provider subject is the durable "A committed" marker.
+ *   - Blockers are judged only BEFORE A commits. A resumed run whose A has
+ *     already committed is never re-judged into BLOCKED — that would strand a
+ *     closed account half-done and cancellable.
+ *   - A legal hold is never weakened: B anonymises only while no ACTIVE hold
+ *     sits on a workspace the person owns, judged under the same workspace
+ *     lock A takes. A hold that appears after A defers B — the request stays
+ *     PROCESSING with access ended, the reaper resumes it, and anonymisation
+ *     completes once the hold is released ("The hold must be released before
+ *     closure", the preflight's own rule).
  *
  * Every leg selects only what is still live, so the whole execution is
  * idempotent: a reaper that finds a request stuck in PROCESSING simply runs it
@@ -101,13 +120,47 @@ export class AccountClosureBlockedError extends Error {
   }
 }
 
+/**
+ * MEMBERS RE-AUDIT, THIRD ROUND (N4) — phase A has committed (access ended,
+ * workspaces closed) but an ACTIVE legal hold now sits on a workspace the
+ * person owns, so anonymisation waits. The request stays PROCESSING; the
+ * reaper resumes it, and it completes once the hold is released.
+ */
+export class AccountClosureDeferredError extends Error {
+  constructor(readonly blockers: Array<{ code: string }>) {
+    super("account_closure_anonymisation_deferred_by_hold");
+    this.name = "AccountClosureDeferredError";
+  }
+}
+
+/**
+ * Lock every workspace this closure can close (FOR UPDATE). A membership or
+ * legal-hold insert takes a KEY SHARE lock on its workspace row (foreign key),
+ * so any such write either committed before this lock — and a check made
+ * after it sees the write — or waits until the locking transaction ends.
+ */
+async function lockClosableWorkspacesTx(
+  tx: { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> },
+  userId: string,
+): Promise<void> {
+  await tx.$queryRaw`
+    SELECT t."id" FROM "teams" t
+     WHERE t."owner_user_id" = ${userId}::uuid
+        OR t."organization_id" IN (
+             SELECT m."organization_id" FROM "organization_memberships" m
+              WHERE m."user_id" = ${userId}::uuid AND m."role" = 'ORG_OWNER')
+     ORDER BY t."id"
+       FOR UPDATE OF t`;
+}
+
 export async function executeAccountClosure(
   userId: string,
   opts: { closureRequestId?: string } = {},
 ): Promise<void> {
   const now = new Date();
 
-  // A. DURABLE CLOSURE — committed before a single field is anonymised.
+  // A. DURABLE CLOSURE — access ends and the workspaces close in one
+  // transaction, committed before a single field is anonymised.
   const noticeIds = await prisma.$transaction(async (tx) => {
     // EXECUTION-TIME PREFLIGHT, INSIDE THIS TRANSACTION (members re-audit,
     // second round, defect 7). The cron's check before the claim — and the
@@ -121,20 +174,21 @@ export async function executeAccountClosure(
     // rolls the transaction back: nothing closes, and the request records
     // BLOCKED. A direct call with no request (an operator tool) is not
     // re-judged here; it carries its own decision.
-    if (opts.closureRequestId) {
-      await tx.$queryRaw`
-        SELECT t."id" FROM "teams" t
-         WHERE t."owner_user_id" = ${userId}::uuid
-            OR t."organization_id" IN (
-                 SELECT m."organization_id" FROM "organization_memberships" m
-                  WHERE m."user_id" = ${userId}::uuid AND m."role" = 'ORG_OWNER')
-         ORDER BY t."id"
-           FOR UPDATE OF t`;
+    //
+    // Third round (N4): only BEFORE A has ever committed. Once it has (the
+    // provider subject is scrambled), the closure is irrevocably in progress:
+    // a resumed run settles A's legs again (idempotent) and goes on to B,
+    // where a legal hold still governs anonymisation.
+    if (opts.closureRequestId) await lockClosableWorkspacesTx(tx as never, userId);
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { email: true, providerUserId: true },
+    });
+    const accessAlreadyEnded = user?.providerUserId === `closed:${userId}`;
+    if (opts.closureRequestId && !accessAlreadyEnded) {
       const { blockers } = await evaluateAccountClosurePreflight(userId);
       if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);
     }
-
-    const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
 
     // Solo implicit organizations go first, so their workspaces close with
     // the user's own (the multi-member case is a preflight blocker).
@@ -194,6 +248,38 @@ export async function executeAccountClosure(
       where: { createdByUserId: userId, status: "ACTIVE" },
       data: { status: "REVOKED", revokedAtUtc: now, revokedReason: "account_closed" },
     });
+    // ACCESS ENDS IN THIS TRANSACTION (third round, N4) — sessions and login
+    // methods with the workspaces, never after them. A closure refused above
+    // rolls all of this back with everything else: the person stays signed
+    // in. Settled once; a resumed run finds them already ended.
+    if (accessAlreadyEnded) return closed.noticeIds;
+    // RevokedSession is the JWT-validation source of truth.
+    await revokeAllSessionsForUser({ userId, reason: "ACCOUNT_CLOSED" }, tx as never);
+    await tx.authenticatedSession.updateMany({
+      where: { userId, revokedAtUtc: null },
+      data: {
+        revokedAtUtc: now,
+        revokedByUserId: userId,
+        revokedReason: "ACCOUNT_CLOSED",
+      },
+    });
+    // Login methods. The scrambled provider subject keeps the
+    // (provider, providerUserId) unique pair satisfied while making it
+    // impossible for any future OAuth login to resolve to this row — and it
+    // is the durable marker that A has committed.
+    await tx.userIdentityLink.updateMany({
+      where: { userId, status: "ACTIVE" },
+      data: { status: "REVOKED", revokedAtUtc: now },
+    });
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: null,
+        providerUserId: `closed:${userId}`,
+        currentWorkspaceId: null,
+      },
+    });
+
     const confirmation = await enqueueMembershipLifecycleNoticeTx(tx as never, {
       eventType: "ACCOUNT_CLOSED",
       teamId: null,
@@ -202,36 +288,29 @@ export async function executeAccountClosure(
     });
     return [...closed.noticeIds, confirmation];
   });
+  // Members of the closed workspaces lost access in A: they are told now,
+  // whether or not anonymisation has to wait for a hold.
+  await dispatchEnqueuedEmailNotifications(noticeIds);
 
-  // Sessions next — the account must be unreachable before PII is touched.
-  // RevokedSession is the JWT-validation source of truth. (They are revoked
-  // after A, not before it, so a closure the execution-time preflight refuses
-  // leaves the person signed in: a refused closure changes nothing.)
-  await revokeAllSessionsForUser({ userId, reason: "ACCOUNT_CLOSED" });
-  await prisma.authenticatedSession.updateMany({
-    where: { userId, revokedAtUtc: null },
-    data: {
-      revokedAtUtc: now,
-      revokedByUserId: userId,
-      revokedReason: "ACCOUNT_CLOSED",
-    },
-  });
-
-  // B. ANONYMISATION — login methods, PII and privacy artifacts.
+  // B. ANONYMISATION — PII and privacy artifacts.
   await prisma.$transaction(async (tx) => {
-    await tx.userIdentityLink.updateMany({
-      where: { userId, status: "ACTIVE" },
-      data: { status: "REVOKED", revokedAtUtc: now },
-    });
+    // A LEGAL HOLD GOVERNS ANONYMISATION (third round, N4). Judged under the
+    // same workspace lock as A, so a hold placed concurrently either is seen
+    // here or waits for this transaction. A held account stays closed with
+    // its access ended; anonymisation completes once the hold is released.
+    if (opts.closureRequestId) {
+      await lockClosableWorkspacesTx(tx as never, userId);
+      const { blockers } = await evaluateAccountClosurePreflight(userId);
+      const holds = blockers.filter((b) => b.code === "LEGAL_HOLD_ACTIVE");
+      if (holds.length > 0) throw new AccountClosureDeferredError(holds);
+    }
 
     await tx.accountDataExportRequest.updateMany({
       where: { userId, status: { in: ["REQUESTED", "PROCESSING", "READY"] } },
       data: { status: "CANCELLED", packageJson: null, packageSha256: null },
     });
 
-    // Anonymize the account. The scrambled provider subject keeps the
-    // (provider, providerUserId) unique pair satisfied while making it
-    // impossible for any future OAuth login to resolve to this row.
+    // Anonymize the account (its login methods already ended in A).
     await tx.user.update({
       where: { id: userId },
       data: {
@@ -242,9 +321,6 @@ export async function executeAccountClosure(
         avatarUrl: null,
         bio: null,
         country: null,
-        passwordHash: null,
-        providerUserId: `closed:${userId}`,
-        currentWorkspaceId: null,
       },
     });
     if (opts.closureRequestId) {
@@ -270,7 +346,6 @@ export async function executeAccountClosure(
       );
     }
   });
-  await dispatchEnqueuedEmailNotifications(noticeIds);
 }
 
 /** A closure request's terminal refusal or failure, and its audit, in one transaction. */
@@ -394,6 +469,11 @@ async function runClaimedClosure(req: { id: string; userId: string }): Promise<v
       }).catch(() => null);
       return;
     }
+    // Third round (N4): A committed — access ended, workspaces closed — and a
+    // legal hold now governs anonymisation. The closure is irrevocably in
+    // progress, so it is neither BLOCKED (cancellable) nor FAILED: it stays
+    // PROCESSING and the reaper resumes it until the hold is released.
+    if (err instanceof AccountClosureDeferredError) return;
     // A committed, B rolled back (or A rolled back): either way the request
     // records FAILED with its audit, and A's legs are idempotent on re-run.
     await recordAccountClosureOutcome({

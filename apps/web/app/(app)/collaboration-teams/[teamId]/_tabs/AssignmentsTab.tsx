@@ -808,18 +808,38 @@ function AssignmentRow({
             </>
           ) : null}
           {canWork && assignment.status === "IN_PROGRESS" ? (
-            <button
-              type="button"
-              disabled={busy}
-              className="app-secondary-action"
-              style={{ height: 30 }}
-              onClick={() =>
-                void update({ status: "COMPLETED" }, "Assignment completed.")
-              }
-              data-testid={`assignment-complete-${assignment.id}`}
-            >
-              Complete
-            </button>
+            <>
+              {/*
+                Third re-audit B-N3 — the server lets the assignee (and a
+                supervisor) return an in-progress task to Open
+                (TEAM_TASK_TRANSITIONS / ASSIGNEE_SELF_TRANSITIONS); without
+                this control that transition was unreachable on web.
+              */}
+              <button
+                type="button"
+                disabled={busy}
+                className="app-ghost-action"
+                title="Return this task to Open so it can be picked up again."
+                onClick={() =>
+                  void update({ status: "OPEN" }, "Marked open.")
+                }
+                data-testid={`assignment-put-back-${assignment.id}`}
+              >
+                Put back
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                className="app-secondary-action"
+                style={{ height: 30 }}
+                onClick={() =>
+                  void update({ status: "COMPLETED" }, "Assignment completed.")
+                }
+                data-testid={`assignment-complete-${assignment.id}`}
+              >
+                Complete
+              </button>
+            </>
           ) : null}
           {canAssign &&
           (assignment.status === "OPEN" ||

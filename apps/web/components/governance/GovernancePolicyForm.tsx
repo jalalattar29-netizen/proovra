@@ -7,10 +7,10 @@
  * effective chain, and read the audit — but the DRAFT row those actions
  * operate on could only be authored through a REST client.
  *
- * Authorisation: the `governance.policy.manage` permission from the
- * permission engine — the role, a capability grant, or a delegated scope that
- * includes it (GOVERNANCE_ADMIN). Mirrored client-side only to disable the
- * control with a reason; the route re-checks it.
+ * Authorisation: the `governance.policy.author` permission from the
+ * permission engine — the OWNER role or a capability grant (no delegated
+ * scope carries it). Mirrored client-side only to disable the control with a
+ * reason; the route re-checks it.
  *
  * `rule` is a `z.record(z.string(), z.unknown())` — a JSON object. It is
  * authored here as text and parsed CLIENT-SIDE before the request so a typo
@@ -60,8 +60,15 @@ function parseRule(text: string): { ok: true; rule: Record<string, unknown> } | 
   return { ok: true, rule: parsed as Record<string, unknown> };
 }
 
-/** The permission the policy routes ask the engine for. */
-const POLICY_PERMISSION = "governance.policy.manage" as const;
+/**
+ * The permission POST /v1/governance/policies asks the engine for (re-audit
+ * N-1 floor: `governance.policy.author`, held by no workspace role but the
+ * OWNER — a workspace ADMIN reaches it only through a capability grant).
+ * Third re-audit T-3: this mirrored the retired `governance.policy.manage`, so
+ * every ADMIN saw an enabled form the server refused, and a grant holder saw
+ * it disabled.
+ */
+const POLICY_PERMISSION = "governance.policy.author" as const;
 
 export function GovernancePolicyForm({
   onCreated,

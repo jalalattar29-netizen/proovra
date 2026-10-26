@@ -72,6 +72,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { withinAssignmentWrite } from "../assignment/assignment-write.js";
 import {
   platformIncidentWhere,
   scopeForDeclaration,
@@ -1235,13 +1236,25 @@ export async function unsuppressIncident(
  * so "who had this, and when did they give it up" is still answerable after
  * the person has left the workspace entirely.
  */
+type AssignIncidentInput = {
+  /** NULL unassigns. */
+  assigneeUserId: string | null;
+} & IncidentTransitionTarget &
+  IncidentActorContext;
+
 export async function assignIncident(
-  input: {
-    /** NULL unassigns. */
-    assigneeUserId: string | null;
-  } & IncidentTransitionTarget &
-    IncidentActorContext,
+  input: AssignIncidentInput,
   client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.OperationalIncident> {
+  // Members re-audit B5 — the eligibility decision and the write are ONE
+  // transaction (the caller's when it already is one), so the placement the
+  // assignee relies on stays share-locked until the assignment commits.
+  return withinAssignmentWrite(client, (tx) => assignIncidentWithin(input, tx));
+}
+
+async function assignIncidentWithin(
+  input: AssignIncidentInput,
+  client: PrismaClient,
 ): Promise<prismaPkg.OperationalIncident> {
   // ADM-011 — same two lookup scopes as `transitionIncident`, same reason. The
   // assignment write, the event and the audit below are shared.
@@ -1261,13 +1274,23 @@ export async function assignIncident(
   // workspace, access not expired, whose role holds the Operations permission.
   // A suspended, revoked or expired member, or anybody for a workspace-less
   // condition, is refused here rather than at whichever caller remembered.
+  // Members re-audit B4/B5 — reach to the condition's evidence and placement
+  // are part of the same decision, asked inside this write's transaction.
   if (!isUnassign) {
     const { isAssignableOperator } = await import(
       "../operations/assignable-operators.service.js"
     );
     const workspaceOperator =
       existing.teamId != null &&
-      (await isAssignableOperator({ teamId: existing.teamId, userId: input.assigneeUserId! }, client));
+      (await isAssignableOperator(
+        {
+          teamId: existing.teamId,
+          userId: input.assigneeUserId!,
+          evidenceId: existing.relatedEvidenceId ?? null,
+        },
+        client,
+        { inTransaction: true },
+      ));
     // From the PLATFORM console a condition may also be handed to a confirmed
     // platform administrator — the people who act there. Never from a tenant
     // route, which offers workspace operators only.

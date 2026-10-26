@@ -41,6 +41,8 @@ describe("the one assignee authority holds for every writer, and a departure rel
   let reach: typeof import("../src/services/identity/standing-reach.js");
   let groups: typeof import("../src/services/collaboration-team/collaboration-team.service.js");
   let operators: typeof import("../src/services/operations/assignable-operators.service.js");
+  let incidents: typeof import("../src/services/observability/incident.service.js");
+  let bulk: typeof import("../src/services/dashboard/bulk-actions.service.js");
   const A = () => h.fixtures.teamA;
   const P = () => h.fixtures.personal;
   const owner = () => A().ownerUserId;
@@ -61,6 +63,8 @@ describe("the one assignee authority holds for every writer, and a departure rel
     reach = await import("../src/services/identity/standing-reach.js");
     groups = await import("../src/services/collaboration-team/collaboration-team.service.js");
     operators = await import("../src/services/operations/assignable-operators.service.js");
+    incidents = await import("../src/services/observability/incident.service.js");
+    bulk = await import("../src/services/dashboard/bulk-actions.service.js");
     await setPlan("TEAM");
     await setPersonalPlan("TEAM");
   }, 900_000);
@@ -893,6 +897,159 @@ describe("the one assignee authority holds for every writer, and a departure rel
       expect(res.statusCode, res.body).toBe(400);
       expect((await prisma.operationalWorkflow.findUniqueOrThrow({ where: { id: target.id } })).assignedOwnerUserId).toBeNull();
     }
+  });
+
+  it("B5 (third re-audit) — incident assign and the bulk workflow sweep each wait on a racing archive and refuse; placed, both assign", async () => {
+    await setPlan("TEAM");
+    const condition = () =>
+      prisma.operationalIncident.create({
+        data: {
+          teamId: A().teamId,
+          category: "EVIDENCE_INTEGRITY",
+          severity: "HIGH",
+          status: "OPEN",
+          fingerprint: `tsa_failure:${randomUUID()}`,
+          title: "B5 condition",
+          safeSummary: "Integrity condition seeded for the placement race.",
+        },
+        select: { id: true },
+      });
+    const opsWorkflow = () =>
+      prisma.operationalWorkflow.create({
+        data: {
+          teamId: A().teamId,
+          workflowKey: `writers-${randomUUID()}`,
+          workflowType: "REPORT_RETRY",
+          title: "Report generation failed",
+          safeSummary: "A report job failed and needs another attempt.",
+        },
+        select: { id: true },
+      });
+
+    // Incident assign (the shared writer behind the single and bulk routes).
+    {
+      const member = await person("MEMBER");
+      const groupId = await placeInCollaborationTeam(prisma, { workspaceId: A().teamId, createdByUserId: owner(), userIds: [member.id] });
+      const target = await condition();
+      const { result, waited } = await raceAgainstArchive(groupId, () =>
+        incidents.assignIncident({ incidentId: target.id, teamId: A().teamId, assigneeUserId: member.id, actorUserId: owner() }),
+      );
+      expect(waited, "incident assign waited on the archive").toBe(true);
+      await expect(result).rejects.toMatchObject({ code: "invalid_assignee" });
+      expect((await prisma.operationalIncident.findUniqueOrThrow({ where: { id: target.id } })).assignedOperatorUserId).toBeNull();
+    }
+
+    // Bulk workflow sweep.
+    {
+      const member = await person("MEMBER");
+      const groupId = await placeInCollaborationTeam(prisma, { workspaceId: A().teamId, createdByUserId: owner(), userIds: [member.id] });
+      const target = await opsWorkflow();
+      const { result, waited } = await raceAgainstArchive(groupId, () =>
+        bulk.runBulkAction({
+          teamId: A().teamId,
+          actionType: "BULK_ASSIGN_WORKFLOWS",
+          targetIds: [target.id],
+          assigneeUserId: member.id,
+          actorUserId: owner(),
+        }),
+      );
+      expect(waited, "the bulk sweep waited on the archive").toBe(true);
+      const run = await result;
+      expect(run).toMatchObject({ succeeded: 0, failed: 1 });
+      expect((await prisma.operationalWorkflow.findUniqueOrThrow({ where: { id: target.id } })).assignedOwnerUserId).toBeNull();
+    }
+
+    // Positive controls: a placed member is assigned by both writers.
+    {
+      const member = await person("MEMBER", { placed: true });
+      const incident = await condition();
+      const assigned = await incidents.assignIncident({ incidentId: incident.id, teamId: A().teamId, assigneeUserId: member.id, actorUserId: owner() });
+      expect(assigned.assignedOperatorUserId).toBe(member.id);
+      const wf = await opsWorkflow();
+      const run = await bulk.runBulkAction({
+        teamId: A().teamId,
+        actionType: "BULK_ASSIGN_WORKFLOWS",
+        targetIds: [wf.id],
+        assigneeUserId: member.id,
+        actorUserId: owner(),
+      });
+      expect(run).toMatchObject({ succeeded: 1, failed: 0 });
+      expect((await prisma.operationalWorkflow.findUniqueOrThrow({ where: { id: wf.id } })).assignedOwnerUserId).toBe(member.id);
+    }
+  });
+
+  it("T-2 — leaving the workspace is never blocked by a legacy Collaboration Team row; the legacy role is kept on the timeline", async () => {
+    await setPlan("TEAM");
+    const leaver = await person("MEMBER");
+    const stayer = await person("MEMBER", { placed: true });
+    // Two groups: one whose STATUS has no canonical meaning (the leaver holds
+    // a task there), one where the leaver's ROLE has none.
+    const legacyStatusGroup = await placeInCollaborationTeam(prisma, { workspaceId: A().teamId, createdByUserId: owner(), userIds: [leaver.id] });
+    const legacyRoleGroup = await placeInCollaborationTeam(prisma, { workspaceId: A().teamId, createdByUserId: owner(), userIds: [leaver.id] });
+    const c = await prisma.case.create({ data: { name: `T2 ${tag()}`, teamId: A().teamId, ownerUserId: owner() }, select: { id: true } });
+    const task = await prisma.collaborationTeamAssignment.create({
+      data: {
+        teamId: legacyStatusGroup,
+        workspaceId: A().teamId,
+        assignedByUserId: owner(),
+        assigneeUserId: leaver.id,
+        targetType: "CASE",
+        targetId: c.id,
+        status: "IN_PROGRESS",
+      } as never,
+      select: { id: true },
+    });
+    const roleRow = await prisma.collaborationTeamMember.findFirstOrThrow({
+      where: { teamId: legacyRoleGroup, userId: leaver.id },
+      select: { id: true },
+    });
+    // The real legacy state: each CHECK exists NOT VALID and the rows predate it.
+    const legacy = async (table: string, constraint: string, column: string, id: string, value: string) => {
+      const def = (
+        await prisma.$queryRawUnsafe<Array<{ d: string }>>(
+          `SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = $1`,
+          constraint,
+        )
+      )[0]!.d;
+      await prisma.$executeRawUnsafe(`ALTER TABLE "${table}" DROP CONSTRAINT "${constraint}"`);
+      await prisma.$executeRawUnsafe(`UPDATE "${table}" SET "${column}" = $1 WHERE id = $2::uuid`, value, id);
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "${table}" ADD CONSTRAINT "${constraint}" ${def.replace(/ NOT VALID$/, "")} NOT VALID`,
+      );
+    };
+    await legacy("collaboration_teams", "collaboration_teams_status_vocab", "status", legacyStatusGroup, "DORMANT");
+    await legacy("collaboration_team_members", "collaboration_team_members_role_vocab", "role", roleRow.id, "SUPERVISOR");
+
+    await prisma.$transaction(async (tx) => {
+      await reach.endStandingReach(tx as never, { teamId: A().teamId, userId: leaver.id }, { actorUserId: owner(), reason: "membership_ended" });
+    });
+
+    // The departure completed: no live group membership, the task released.
+    expect(
+      await prisma.collaborationTeamMember.count({ where: { userId: leaver.id, status: { not: "REMOVED" }, team: { workspaceId: A().teamId } } }),
+    ).toBe(0);
+    const released = await prisma.collaborationTeamAssignment.findUniqueOrThrow({ where: { id: task.id } });
+    expect(released).toMatchObject({ assigneeUserId: null, status: "OPEN" });
+    // The legacy role closed at the least role, its original value on the timeline.
+    const closed = await prisma.collaborationTeamMember.findUniqueOrThrow({ where: { id: roleRow.id } });
+    expect(closed).toMatchObject({ status: "REMOVED", role: "VIEWER" });
+    const activity = await prisma.collaborationTeamActivity.findFirstOrThrow({
+      where: { teamId: legacyRoleGroup, eventType: "MEMBER_REMOVED", targetId: leaver.id },
+    });
+    expect(activity.metadata).toMatchObject({ legacyRole: "SUPERVISOR", roleRecordedAs: "VIEWER" });
+    // The legacy group itself is left for its operator.
+    const group = await prisma.$queryRawUnsafe<Array<{ status: string }>>(
+      `SELECT status FROM collaboration_teams WHERE id = $1::uuid`,
+      legacyStatusGroup,
+    );
+    expect(group[0]!.status).toBe("DORMANT");
+    // Positive control: another member's placement is untouched.
+    expect(
+      await prisma.collaborationTeamMember.count({ where: { userId: stayer.id, status: "ACTIVE", team: { workspaceId: A().teamId } } }),
+    ).toBeGreaterThan(0);
+
+    // Operator cleanup so later tests see a clean vocabulary.
+    await prisma.$executeRawUnsafe(`UPDATE "collaboration_teams" SET "status" = 'ARCHIVED' WHERE id = $1::uuid`, legacyStatusGroup);
   });
 
   // ===========================================================================

@@ -831,6 +831,20 @@ async function findUserBySubject(
   });
 }
 
+/**
+ * Members audit DOM-13 / re-audit 3 T-1b — the directory users a token's
+ * workspace reads: the ORGANIZATION's links (a directory link carries the
+ * workspace whose token provisioned it, which may be a sibling) for the
+ * people who hold a membership in THIS workspace (membership stays
+ * Workspace-scoped). The same scope `projectScimManagedMembership` reads.
+ */
+function scimDirectoryUserScope(teamId: string) {
+  return {
+    organization: { workspaces: { some: { id: teamId } } },
+    user: { teamMembers: { some: { teamId } } },
+  } as const;
+}
+
 export type ScimCreateUserContext = {
   /** The Organization's default provisioning Workspace (the token's). */
   teamId: string;
@@ -1108,7 +1122,8 @@ export async function scimReadUser(
   });
   if (!user) return null;
   const mapping = await client.externalIdentityMapping.findFirst({
-    where: { teamId: ctx.teamId, userId: user.id, unlinkedAtUtc: null },
+    where: { ...scimDirectoryUserScope(ctx.teamId), userId: user.id, unlinkedAtUtc: null },
+    orderBy: { linkedAtUtc: "desc" },
   });
   if (!mapping) return null;
   const member = await client.teamMember.findUnique({
@@ -1152,7 +1167,7 @@ export async function scimListUsers(
   }
 
   const where = {
-    teamId: ctx.teamId,
+    ...scimDirectoryUserScope(ctx.teamId),
     unlinkedAtUtc: null,
     ...(externalSubjectIdEq
       ? { externalSubjectId: externalSubjectIdEq }
@@ -1244,21 +1259,12 @@ export async function scimDeactivateUser(
   // back to unmanaged by a directory push.
   await client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
-    // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION, once
-    // per workspace of the Organization the identity is live in.
-    for (const member of members) {
-      await suspendWorkspaceMembership(txc, {
-        teamMemberId: member.id,
-        actorUserId: null, // directory-driven
-        reason: SCIM_DEACTIVATION_WORKSPACE_MARKER,
-      });
-    }
-    // Unlink the Organization's external mappings for this user (soft).
-    await txc.externalIdentityMapping.updateMany({
-      where: { organizationId: ctx.organizationId, userId, unlinkedAtUtc: null },
-      data: { unlinkedAtUtc: new Date() },
-    });
-
+    // Re-audit 3, B-N1 — ORDER MATTERS. The governance-membership transition
+    // writes its audit row on the DEFAULT client, outside this transaction,
+    // while the work release below writes its audit rows INSIDE it, taking the
+    // audit hash-chain advisory lock until commit. Suspending the governance
+    // membership first keeps that outside write from waiting on a lock this
+    // transaction holds (it would block until the transaction timed out).
     /**
      * PHASE 12 CORRECTIVE PASS §2 (ARCH-004, 2026-08-07) — THE GOVERNANCE
      * MEMBERSHIP IS SUSPENDED TOO, IN THE SAME TRANSACTION.
@@ -1300,6 +1306,21 @@ export async function scimDeactivateUser(
         reason: SCIM_DEACTIVATION_MEMBERSHIP_MARKER,
       });
     }
+
+    // PHASE 3 (2026-07-21) — canonical orchestrator: MEMBER_SUSPENSION, once
+    // per workspace of the Organization the identity is live in.
+    for (const member of members) {
+      await suspendWorkspaceMembership(txc, {
+        teamMemberId: member.id,
+        actorUserId: null, // directory-driven
+        reason: SCIM_DEACTIVATION_WORKSPACE_MARKER,
+      });
+    }
+    // Unlink the Organization's external mappings for this user (soft).
+    await txc.externalIdentityMapping.updateMany({
+      where: { organizationId: ctx.organizationId, userId, unlinkedAtUtc: null },
+      data: { unlinkedAtUtc: new Date() },
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -1572,7 +1593,8 @@ export async function scimUpdateUserAttributes(
 
       if (update.displayName !== undefined) {
         const mapping = await tx.externalIdentityMapping.findFirst({
-          where: { teamId: ctx.teamId, userId, unlinkedAtUtc: null },
+          // T-1b — the Organization's link (the membership was checked above).
+          where: { ...scimDirectoryUserScope(ctx.teamId), userId, unlinkedAtUtc: null },
           orderBy: { linkedAtUtc: "desc" },
         });
         if (mapping) {

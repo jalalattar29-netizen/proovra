@@ -282,7 +282,16 @@ enforced in code and proven behaviourally; the test named is the proof.
 - **Audit commits with the change.** Every case access-list change, invitation
   action, case link/unlink, external-access revoke and evidence archive/trash
   writes its audit in the mutation's transaction; a failed audit rolls the
-  change back. Proof: `members-reaudit2-audit-atomicity`.
+  change back. So do bulk evidence archive/trash/restore (the single routes'
+  audit, per record) and every Collaboration Team mutation (create, update,
+  archive, members, invites, tasks), whose route hands its success audit to the
+  canonical service to write inside the mutation. Proof:
+  `members-reaudit2-audit-atomicity`, `members-reaudit3-findings` "N2 …", "N3 …".
+- **Inbox items built from a record obey restricted cases.** Integrity
+  failures (OTS, TSA), discussion mentions and assigned threads, review
+  escalations and adjudication conflicts apply the same case-reach rule as the
+  reports list; someone off a restricted case's list does not see its records
+  there. Proof: `members-reaudit3-findings` "N1 …".
 - **ENT-11 — cases on PRO and TEAM.** Cases are one capability on PRO and TEAM:
   both include cases, and a case may be assigned to the owner or to a member
   placed in an ACTIVE Collaboration Team (§5.2). The plans differ only in
@@ -307,16 +316,53 @@ enforced in code and proven behaviourally; the test named is the proof.
   capability their work needs: OWNER and INVESTIGATOR `evidence.update_metadata`,
   REVIEWER `evidence_request.review`, GOVERNANCE and OBSERVER `evidence.read`.
   A member removed, suspended or leaving releases what they held (unassigned,
-  history kept, one audit row). Proof: `members-assignee-authority-writers`.
+  history kept, one audit row). The bulk Operations sweep and incident assign
+  decide inside the write too (third re-audit, B5). A directory (SCIM)
+  deactivation is a suspension: it goes through the same writer as an
+  administrator's, releases the person's work in every Workspace it suspends
+  and ends their owner links and external-review grants (`CREATOR_SUSPENDED`).
+  Proof: `members-assignee-authority-writers`,
+  `members-organization-identity-reaudit3` "B-N1 …".
 - **Legacy vocabulary rows.** `20281026001400` normalised every deterministic
   variant; a row holding a value with no canonical meaning waits for an
   operator, and a write to it is a typed 409 `LEGACY_RECORD_NEEDS_REVIEW`
-  (logged with the constraint), never a 500. Proof:
-  `members-collaboration-vocabulary-normalise`.
+  (logged with the constraint), never a 500. Leaving a Workspace is never
+  blocked by such a row: a group membership whose role has no canonical meaning
+  closes as REMOVED with the least role (VIEWER), its original value kept on the
+  group's timeline, and a group whose status has none is not touched by work
+  release. Proof: `members-collaboration-vocabulary-normalise`,
+  `members-assignee-authority-writers` "T-2 …".
+- **Directory identity is administered from any Workspace of its
+  Organization.** An identity link is unlinked from any Workspace of its
+  Organization, for that Workspace's members, on that Workspace's identity
+  permission plus an Organization identity role; a link outside it is a
+  concealed 404. A Workspace's SCIM token lists and resolves the Organization's
+  directory users who hold a membership in that Workspace. Proof:
+  `members-organization-identity-reaudit3` "N-5 …", "T-1b …".
+- **Access-list writes serialise.** Every case access-list grant or revoke
+  (person, share, Collaboration Team) locks the case row and re-decides the
+  manager inside the write. Proof: `members-reaudit3-access-manager-serialised`.
+- **LIFE-14a — a committed account closure is irrevocable** (recorded by the
+  remediation; owner to confirm). Access ends — sessions, login methods — in
+  the same transaction that closes the person's workspaces. Blockers are judged
+  only before that transaction commits. A legal hold that appears afterwards
+  does not reopen or block the closure; it defers anonymisation: the request
+  stays PROCESSING with access ended, and the reaper completes it once the hold
+  is released. Proof: `members-reaudit3-closure-irrevocable`.
+- **Invitation delivery is audited apart from the decision.** An invitation's
+  decision (`teams.invite_create` / `teams.invite_resend`) commits with it;
+  whether its email was delivered is a separate `teams.invite_delivery` row
+  written after the send (`emailSent`, trigger). Proof:
+  `members-invite-delivery-audit`.
 - **Telemetry of refusals.** A refusal carrying a business code, or a code-less
   409 / 422, is expected and not sent to Sentry; code-less 401 / 403 / 404,
-  400 / 405 / 413 / 415, 5xx and network failures are. Proof:
-  `sentry-expected-refusal-wiring` (web and mobile).
+  400 / 405 / 413 / 415, 5xx and network failures are. A client cannot tell an
+  auth regression from an expired session, so a server-typed `UNAUTHORIZED` is
+  an expected auth state on the client (as are `NOT_FOUND`, `FORBIDDEN` and the
+  validation codes); an unknown or removed route answers `404 ROUTE_NOT_FOUND`,
+  which — like the other transport and infrastructure codes — is reported.
+  Proof: `sentry-expected-refusal-wiring` (web and mobile),
+  `sentry-generic-codes-parity`, `route-not-found-code`.
 - **SEC-03 — step-up.** Irreversible destruction needs a fresh factor: case
   delete (`CASE_DELETE`) and Collaboration Team delete. Moving evidence to the
   trash or to the archive does not, because both can be reversed from the same

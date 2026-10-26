@@ -475,6 +475,50 @@ async function auditTeamAction(
   }
 }
 
+/**
+ * WHETHER THE INVITATION EMAIL WENT OUT — its own audit row (third re-audit
+ * B-N2).
+ *
+ * AUD-01 moved the `teams.invite_create` / `teams.invite_resend` rows into the
+ * invitation's transaction, so no invitation commits without its row. That
+ * row is written BEFORE delivery, and it has to be: the email carries a live
+ * token, and sending it from inside a transaction that may still roll back
+ * would put a working link in an inbox for an invitation that never existed.
+ * Moving the audit back out to record `emailSent` would reopen AUD-01.
+ *
+ * So the two facts get two rows, each written when it is true:
+ *   - the decision (`teams.invite_create` / `teams.invite_resend`) commits
+ *     with the invitation, inside its transaction;
+ *   - the delivery (`teams.invite_delivery`) is written after the send, with
+ *     `emailSent`, the invitation id and which act triggered it, outcome
+ *     `success` when the email was handed to the provider and `failure` (a
+ *     warning) when it was not — provider unconfigured or the send threw.
+ *
+ * The delivery row is post-commit and best-effort by construction: the
+ * invitation and the email already exist, so a failure to append it is
+ * logged and counted (`platform_audit_append_failed_total`), never turned into
+ * a failed response that would make the operator invite twice.
+ */
+async function auditInviteDelivery(
+  req: FastifyRequest,
+  params: {
+    userId: string;
+    teamId: string;
+    inviteId: string;
+    emailSent: boolean;
+    trigger: "create" | "repeat_invite" | "resend";
+  },
+): Promise<void> {
+  await auditTeamAction(req, {
+    userId: params.userId,
+    action: "teams.invite_delivery",
+    outcome: params.emailSent ? "success" : "failure",
+    severity: params.emailSent ? "info" : "warning",
+    resourceId: params.teamId,
+    metadata: { inviteId: params.inviteId, emailSent: params.emailSent, trigger: params.trigger },
+  });
+}
+
 function fireTeamAnalyticsEvent(params: {
   eventType: string;
   userId: string;
@@ -1724,6 +1768,13 @@ export async function teamsRoutes(app: FastifyInstance) {
           rawToken: resent.rawToken,
           log: req.log,
         });
+        await auditInviteDelivery(req, {
+          userId,
+          teamId,
+          inviteId: resent.invite.id,
+          emailSent,
+          trigger: "repeat_invite",
+        });
         return reply.code(200).send({
           invite: resent.invite,
           emailSent,
@@ -1833,7 +1884,8 @@ export async function teamsRoutes(app: FastifyInstance) {
           invitedByUserId: userId,
           // The invitation's audit row commits with it (members re-audit
           // AUD-01): no invitation exists without its row. Delivery happens
-          // after the commit, so its outcome is in the response, not the row.
+          // after the commit; its outcome is the `teams.invite_delivery` row
+          // written below (third re-audit B-N2).
           auditTx: (tx, invite) =>
             auditTeamAction(req, {
               userId,
@@ -1866,6 +1918,13 @@ export async function teamsRoutes(app: FastifyInstance) {
         email,
         rawToken: created.rawToken,
         log: req.log,
+      });
+      await auditInviteDelivery(req, {
+        userId,
+        teamId,
+        inviteId: invite.id,
+        emailSent,
+        trigger: "create",
       });
 
       await createActivity(teamId, "invite_created", "invite", userId, invite.id, {
@@ -2902,6 +2961,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           rawToken: resent.rawToken,
           log: req.log,
         });
+        await auditInviteDelivery(req, { userId, teamId, inviteId, emailSent, trigger: "resend" });
         return reply.code(200).send({ invite: resent.invite, emailSent });
       } catch (err) {
         if (err instanceof WorkspaceInvitationError) {

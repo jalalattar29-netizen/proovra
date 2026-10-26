@@ -90,8 +90,24 @@ test("a code-less 401 / 403 / 404 / 400 / 405 / 413 / 415 is reported", async ()
   }
 });
 
-test("a typed 4xx refusal at any status is expected", async () => {
-  for (const [status, code] of [[401, "UNAUTHORIZED"], [403, "FORBIDDEN"], [404, "TEAM_NOT_FOUND"], [400, "INVALID_QUERY"], [429, "RATE_LIMITED"]] as const) {
+test("a typed BUSINESS 4xx refusal at any status is expected", async () => {
+  for (const [status, code] of [[401, "TOKEN_EXPIRED"], [403, "PERMISSION_REQUIRED"], [404, "TEAM_NOT_FOUND"], [400, "INVALID_QUERY"], [429, "RATE_LIMITED"]] as const) {
+    assert.equal(isExpectedBusinessRefusal(await refusal(status, { error: { code } })), true, `${status} ${code}`);
+  }
+});
+
+// Third re-audit N-7 — a code that never means a business refusal is
+// classified as a code-less answer of the same status; the business / auth
+// codes stay expected.
+test("ROUTE_NOT_FOUND 404, INTERNAL_SERVER_ERROR 500 and REQUEST_REFUSED 403 are reported; REQUEST_REFUSED 409 stays expected", async () => {
+  for (const [status, code] of [[404, "ROUTE_NOT_FOUND"], [500, "INTERNAL_SERVER_ERROR"], [403, "REQUEST_REFUSED"]] as const) {
+    assert.equal(isExpectedBusinessRefusal(await refusal(status, { error: { code, message: "Resource not found." } })), false, `${status} ${code}`);
+  }
+  assert.equal(isExpectedBusinessRefusal(await refusal(409, { error: { code: "REQUEST_REFUSED" } })), true);
+});
+
+test("NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401 and VALIDATION_ERROR 400 stay expected", async () => {
+  for (const [status, code] of [[404, "NOT_FOUND"], [403, "FORBIDDEN"], [401, "UNAUTHORIZED"], [400, "VALIDATION_ERROR"], [400, "INVALID_INPUT"], [409, "CONFLICT"]] as const) {
     assert.equal(isExpectedBusinessRefusal(await refusal(status, { error: { code } })), true, `${status} ${code}`);
   }
 });

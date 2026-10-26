@@ -23,6 +23,7 @@ import {
   legacyVocabularyViolation,
 } from "../services/collaboration-team/legacy-vocabulary.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { PrismaClient } from "@prisma/client";
 import {
   collaborationTeamRoleHasPermission,
   type Permission,
@@ -246,27 +247,40 @@ function handleServiceError(
   });
 }
 
-async function auditEvent(args: {
-  userId: string;
-  workspaceId: string;
-  action: string;
-  resourceType: string;
-  resourceId: string | null;
-  outcome: "success" | "failure" | "blocked";
-  requestId: string | null;
-  metadata?: Record<string, unknown>;
-}): Promise<void> {
-  await emitTenantAudit({
-    action: args.action,
-    outcome: args.outcome === "blocked" ? "denied" : args.outcome === "failure" ? "error" : "success",
-    sourceApp: "API",
-    actorUserId: args.userId,
-    workspaceId: args.workspaceId,
-    resourceType: args.resourceType,
-    resourceId: args.resourceId,
-    correlationId: args.requestId,
-    metadata: args.metadata ?? {},
-  });
+/**
+ * A success row is passed to the canonical service as its `auditTx` and
+ * written with `db` — the mutation's own transaction (members re-audit, third
+ * round, N3; members-and-access-model §6 "Audit commits with the change"): a
+ * refused insert rolls the change back. It used to be written here after the
+ * service had committed.
+ */
+async function auditEvent(
+  args: {
+    userId: string;
+    workspaceId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string | null;
+    outcome: "success" | "failure" | "blocked";
+    requestId: string | null;
+    metadata?: Record<string, unknown>;
+  },
+  db?: PrismaClient,
+): Promise<void> {
+  await emitTenantAudit(
+    {
+      action: args.action,
+      outcome: args.outcome === "blocked" ? "denied" : args.outcome === "failure" ? "error" : "success",
+      sourceApp: "API",
+      actorUserId: args.userId,
+      workspaceId: args.workspaceId,
+      resourceType: args.resourceType,
+      resourceId: args.resourceId,
+      correlationId: args.requestId,
+      metadata: args.metadata ?? {},
+    },
+    db,
+  );
 }
 
 /**
@@ -496,16 +510,20 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           name: parsed.data.name,
           description: parsed.data.description ?? null,
           teamType: parsed.data.teamType ?? null,
-        });
-        await auditEvent({
-          userId: ctx.userId,
-          workspaceId: ctx.workspaceId,
-          action: "collaboration_team.created",
-          resourceType: "collaboration_team",
-          resourceId: result.id,
-          outcome: "success",
-          requestId: req.id ?? null,
-          metadata: { name: parsed.data.name },
+          auditTx: (db, created) =>
+            auditEvent(
+              {
+                userId: ctx.userId,
+                workspaceId: ctx.workspaceId,
+                action: "collaboration_team.created",
+                resourceType: "collaboration_team",
+                resourceId: created.id,
+                outcome: "success",
+                requestId: req.id ?? null,
+                metadata: { name: parsed.data.name },
+              },
+              db,
+            ),
         });
         return reply.code(201).send({ team: { id: result.id } });
       } catch (err) {
@@ -609,15 +627,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             name: parsed.data.name,
             description: parsed.data.description,
             teamType: parsed.data.teamType,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.updated",
-            resourceType: "collaboration_team",
-            resourceId: req.params.teamId,
-            outcome: "success",
-            requestId: req.id ?? null,
+            auditTx: (db) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.updated",
+                  resourceType: "collaboration_team",
+                  resourceId: req.params.teamId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                },
+                db,
+              ),
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -784,15 +806,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           await archiveCollaborationTeam({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.archived",
-            resourceType: "collaboration_team",
-            resourceId: req.params.teamId,
-            outcome: "success",
-            requestId: req.id ?? null,
+            auditTx: (db) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.archived",
+                  resourceType: "collaboration_team",
+                  resourceId: req.params.teamId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                },
+                db,
+              ),
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -847,15 +873,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           await unarchiveCollaborationTeam({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.unarchived",
-            resourceType: "collaboration_team",
-            resourceId: req.params.teamId,
-            outcome: "success",
-            requestId: req.id ?? null,
+            auditTx: (db) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.unarchived",
+                  resourceType: "collaboration_team",
+                  resourceId: req.params.teamId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                },
+                db,
+              ),
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -950,25 +980,31 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
         // per-group lock (addExistingMember), one person at a time.
         for (const userId of Array.from(new Set(parsed.data.userIds))) {
           try {
-            const { id } = await addExistingMember({
+            await addExistingMember({
               teamId: req.params.teamId,
               actorUserId: ctx.userId,
               userIdToAdd: userId,
               role: parsed.data.role,
-            });
-            await auditEvent({
-              userId: ctx.userId,
-              workspaceId: ctx.workspaceId,
-              action: "collaboration_team.member.added",
-              resourceType: "collaboration_team_member",
-              resourceId: id,
-              outcome: "success",
-              requestId: req.id ?? null,
-              metadata: {
-                teamId: req.params.teamId,
-                role: parsed.data.role,
-                viaBulk: true,
-              },
+              // Per person, in that person's own transaction: a refused row
+              // fails that addition only, rolled back.
+              auditTx: (db, member) =>
+                auditEvent(
+                  {
+                    userId: ctx.userId,
+                    workspaceId: ctx.workspaceId,
+                    action: "collaboration_team.member.added",
+                    resourceType: "collaboration_team_member",
+                    resourceId: member.id,
+                    outcome: "success",
+                    requestId: req.id ?? null,
+                    metadata: {
+                      teamId: req.params.teamId,
+                      role: parsed.data.role,
+                      viaBulk: true,
+                    },
+                  },
+                  db,
+                ),
             });
             added.push(userId);
           } catch (err) {
@@ -1028,16 +1064,20 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             actorUserId: ctx.userId,
             userIdToAdd: parsed.data.userId,
             role: parsed.data.role,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.member.added",
-            resourceType: "collaboration_team_member",
-            resourceId: id,
-            outcome: "success",
-            requestId: req.id ?? null,
-            metadata: { teamId: req.params.teamId, role: parsed.data.role },
+            auditTx: (db, member) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.member.added",
+                  resourceType: "collaboration_team_member",
+                  resourceId: member.id,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                  metadata: { teamId: req.params.teamId, role: parsed.data.role },
+                },
+                db,
+              ),
           });
           return reply.code(201).send({ member: { id } });
         } catch (err) {
@@ -1082,6 +1122,22 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
                 requestId: req.id ?? null,
               },
             });
+        // Each change's row, written in that change's transaction (N3).
+        const memberAudit =
+          (action: string, metadata?: Record<string, unknown>) => (db: PrismaClient) =>
+            auditEvent(
+              {
+                userId: ctx.userId,
+                workspaceId: ctx.workspaceId,
+                action,
+                resourceType: "collaboration_team_member",
+                resourceId: req.params.memberId,
+                outcome: "success",
+                requestId: req.id ?? null,
+                ...(metadata ? { metadata } : {}),
+              },
+              db,
+            );
         try {
           // Phase 10 — billing write-gate (no quota for role/status changes).
           await assertSubscriptionActiveOrGraceAllowed({ workspaceId: ctx.workspaceId });
@@ -1091,16 +1147,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               actorUserId: ctx.userId,
               memberId: req.params.memberId,
               role: parsed.data.role,
-            });
-            await auditEvent({
-              userId: ctx.userId,
-              workspaceId: ctx.workspaceId,
-              action: "collaboration_team.member.role_changed",
-              resourceType: "collaboration_team_member",
-              resourceId: req.params.memberId,
-              outcome: "success",
-              requestId: req.id ?? null,
-              metadata: { newRole: parsed.data.role },
+              auditTx: memberAudit("collaboration_team.member.role_changed", { newRole: parsed.data.role }),
             });
           }
           if (parsed.data.status === "SUSPENDED") {
@@ -1109,15 +1156,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               actorUserId: ctx.userId,
               memberId: req.params.memberId,
               reason: parsed.data.reason,
-            });
-            await auditEvent({
-              userId: ctx.userId,
-              workspaceId: ctx.workspaceId,
-              action: "collaboration_team.member.suspended",
-              resourceType: "collaboration_team_member",
-              resourceId: req.params.memberId,
-              outcome: "success",
-              requestId: req.id ?? null,
+              auditTx: memberAudit("collaboration_team.member.suspended"),
             });
           }
           // WCR-15 — `REMOVED` used to fall through to `{ ok: true }` having
@@ -1129,15 +1168,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               teamId: req.params.teamId,
               actorUserId: ctx.userId,
               memberId: req.params.memberId,
-            });
-            await auditEvent({
-              userId: ctx.userId,
-              workspaceId: ctx.workspaceId,
-              action: "collaboration_team.member.removed",
-              resourceType: "collaboration_team_member",
-              resourceId: req.params.memberId,
-              outcome: "success",
-              requestId: req.id ?? null,
+              auditTx: memberAudit("collaboration_team.member.removed"),
             });
           }
           // WCR-15 — reinstatement. There was no path back from SUSPENDED
@@ -1148,15 +1179,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
               teamId: req.params.teamId,
               actorUserId: ctx.userId,
               memberId: req.params.memberId,
-            });
-            await auditEvent({
-              userId: ctx.userId,
-              workspaceId: ctx.workspaceId,
-              action: "collaboration_team.member.reinstated",
-              resourceType: "collaboration_team_member",
-              resourceId: req.params.memberId,
-              outcome: "success",
-              requestId: req.id ?? null,
+              auditTx: memberAudit("collaboration_team.member.reinstated"),
             });
           }
           return reply.send({ ok: true });
@@ -1197,15 +1220,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             memberId: req.params.memberId,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.member.removed",
-            resourceType: "collaboration_team_member",
-            resourceId: req.params.memberId,
-            outcome: "success",
-            requestId: req.id ?? null,
+            auditTx: (db) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.member.removed",
+                  resourceType: "collaboration_team_member",
+                  resourceId: req.params.memberId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                },
+                db,
+              ),
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -1311,15 +1338,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             inviteId: req.params.inviteId,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.invite.revoked",
-            resourceType: "collaboration_team_invite",
-            resourceId: req.params.inviteId,
-            outcome: "success",
-            requestId: req.id ?? null,
+            auditTx: (db) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.invite.revoked",
+                  resourceType: "collaboration_team_invite",
+                  resourceId: req.params.inviteId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                },
+                db,
+              ),
           });
           return reply.send({ ok: true });
         } catch (err) {
@@ -1384,19 +1415,23 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           const result = await acceptInvite({
             rawToken,
             actorUserId: userId,
-          });
-          await auditEvent({
-            userId,
-            workspaceId: result.workspaceId,
-            action: "collaboration_team.invite.accepted",
-            resourceType: "collaboration_team_member",
-            resourceId: result.memberId,
-            outcome: "success",
-            requestId: req.id ?? null,
-            metadata: {
-              teamId: result.teamId,
-              alreadyMember: result.alreadyMember,
-            },
+            auditTx: (db, accepted) =>
+              auditEvent(
+                {
+                  userId,
+                  workspaceId: accepted.workspaceId,
+                  action: "collaboration_team.invite.accepted",
+                  resourceType: "collaboration_team_member",
+                  resourceId: accepted.memberId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                  metadata: {
+                    teamId: accepted.teamId,
+                    alreadyMember: accepted.alreadyMember,
+                  },
+                },
+                db,
+              ),
           });
           return reply.send({
             teamId: result.teamId,
@@ -1859,20 +1894,24 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             priority: parsed.data.priority,
             dueAtUtc: parsed.data.dueAtUtc,
             note: parsed.data.note,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.assignment.created",
-            resourceType: "collaboration_team_assignment",
-            resourceId: result.id,
-            outcome: "success",
-            requestId: req.id ?? null,
-            metadata: {
-              teamId: req.params.teamId,
-              targetType: parsed.data.targetType,
-              targetId: parsed.data.targetId,
-            },
+            auditTx: (db, created) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.assignment.created",
+                  resourceType: "collaboration_team_assignment",
+                  resourceId: created.id,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                  metadata: {
+                    teamId: req.params.teamId,
+                    targetType: parsed.data.targetType,
+                    targetId: parsed.data.targetId,
+                  },
+                },
+                db,
+              ),
           });
           return reply.code(201).send({ assignment: { id: result.id } });
         } catch (err) {
@@ -1929,15 +1968,19 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
             assigneeUserId: parsed.data.assigneeUserId,
             dueAtUtc: parsed.data.dueAtUtc,
             note: parsed.data.note,
-          });
-          await auditEvent({
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.assignment.updated",
-            resourceType: "collaboration_team_assignment",
-            resourceId: req.params.assignmentId,
-            outcome: "success",
-            requestId: req.id ?? null,
+            auditTx: (db) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.assignment.updated",
+                  resourceType: "collaboration_team_assignment",
+                  resourceId: req.params.assignmentId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                },
+                db,
+              ),
           });
           return reply.send({ ok: true });
         } catch (err) {

@@ -148,7 +148,7 @@ describe("governance policy assignments + audit trail", () => {
     await openForm();
     fireEvent.click(screen.getByRole("button", { name: "Save assignment" }));
     await screen.findByText(
-      "Permission required. This needs the “Manage governance policies” permission in this workspace. A workspace owner or admin can grant it to you, or give you a delegated scope that includes it, in Security Center.",
+      "Permission required. This needs the “Manage governance policies” permission in this workspace. Someone who already holds it — for example the workspace owner — can grant it to you in Security Center.",
     );
   });
 

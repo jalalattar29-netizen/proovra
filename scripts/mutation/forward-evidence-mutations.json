@@ -7967,8 +7967,8 @@
     "aud": "LIFE-09",
     "name": "account closure skips the execution-time blocker check",
     "file": "services/api/src/services/identity/account-closure.service.ts",
-    "find": "    if (opts.closureRequestId) {\n      await tx.$queryRaw`",
-    "replace": "    if (opts.closureRequestId && Date.now() < 0) {\n      await tx.$queryRaw`",
+    "find": "      const { blockers } = await evaluateAccountClosurePreflight(userId);\n      if (blockers.length > 0) throw new AccountClosureBlockedError(blockers);\n    }",
+    "replace": "      const { blockers } = await evaluateAccountClosurePreflight(userId);\n      void blockers;\n    }",
     "tests": [
       {
         "cwd": "services/api",
@@ -9049,6 +9049,658 @@
           "--config",
           "vitest.integration.config.ts",
           "test/members-collaboration-vocabulary-normalise.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-B5-INCIDENT",
+    "aud": "REV-01",
+    "name": "incident assign decides placement without the placement lock",
+    "file": "services/api/src/services/observability/incident.service.ts",
+    "find": "        client,\n        { inTransaction: true },\n      ));",
+    "replace": "        client,\n      ));",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-B5-BULK",
+    "aud": "REV-01",
+    "name": "the bulk workflow sweep decides placement outside its write",
+    "file": "services/api/src/services/dashboard/bulk-actions.service.ts",
+    "find": "            tx,\n            { inTransaction: true },\n          );",
+    "replace": "            tx,\n          );",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-T2-ROLE",
+    "aud": "LIFE-05",
+    "name": "a legacy group role blocks leaving the workspace",
+    "file": "services/api/src/services/identity/standing-reach.ts",
+    "find": "        role: { notIn: [...COLLABORATION_TEAM_ROLES] },",
+    "replace": "        role: { in: [] },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-T2-STATUS",
+    "aud": "LIFE-05",
+    "name": "a legacy group status blocks releasing held work",
+    "file": "services/api/src/services/assignment/release-held-work.ts",
+    "find": "      where: { id: { in: [...touchedGroups] }, status: { in: [...COLLABORATION_TEAM_STATUSES] } },",
+    "replace": "      where: { id: { in: [...touchedGroups] } },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-assignee-authority-writers.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "T3-POLICY-FORM-GATE",
+    "aud": "DOM-09",
+    "name": "policy form gates on governance.policy.manage",
+    "file": "apps/web/components/governance/GovernancePolicyForm.tsx",
+    "find": "const POLICY_PERMISSION = \"governance.policy.author\" as const;",
+    "replace": "const POLICY_PERMISSION = \"governance.policy.manage\" as const;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/governance-policy-form-permission.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "BN2-INVITE-DELIVERY-AUDIT",
+    "aud": "AUD-01",
+    "name": "invite delivery audit drops emailSent",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "    metadata: { inviteId: params.inviteId, emailSent: params.emailSent, trigger: params.trigger },",
+    "replace": "    metadata: { inviteId: params.inviteId, trigger: params.trigger },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-invite-delivery-audit.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "BN3-PUT-BACK",
+    "aud": "CT-07",
+    "name": "Put back sends the wrong status",
+    "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
+    "find": "                  void update({ status: \"OPEN\" }, \"Marked open.\")",
+    "replace": "                  void update({ status: \"IN_PROGRESS\" }, \"Marked open.\")",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-team-task-put-back.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "RA3-N4-IRREVOCABLE",
+    "aud": "LIFE-09",
+    "name": "a committed closure is re-judged into BLOCKED",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "if (opts.closureRequestId && !accessAlreadyEnded) {",
+    "replace": "if (opts.closureRequestId) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-closure-irrevocable.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N4-HOLD-DEFERS",
+    "aud": "LIFE-09",
+    "name": "a hold placed after access ended lets anonymisation proceed",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "if (holds.length > 0) throw new AccountClosureDeferredError(holds);",
+    "replace": "void holds;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-closure-irrevocable.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N4-SESSIONS-IN-A",
+    "aud": "LIFE-09",
+    "name": "sessions are revoked outside the closing transaction",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "await revokeAllSessionsForUser({ userId, reason: \"ACCOUNT_CLOSED\" }, tx as never);",
+    "replace": "await revokeAllSessionsForUser({ userId, reason: \"ACCOUNT_CLOSED\" });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-closure-irrevocable.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N5-GRANT",
+    "aud": "ACC-01",
+    "name": "a case access grant decides its manager outside the lock",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "    await assertCaseAccessManagerTx(tx, {\n      caseId: input.caseId,\n      teamId: input.teamId,\n      userId: input.actorUserId,\n    });\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-access-manager-serialised.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N5-REVOKE",
+    "aud": "ACC-01",
+    "name": "a case access revoke decides its manager outside the lock",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "          await assertCaseAccessManagerTx(tx, {\n            caseId: id,\n            teamId: caseItem.teamId,\n            userId: ownerUserId,\n            allowOwnerOfUnscopedCase: true,\n          });\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-access-manager-serialised.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N5-TEAM-GRANT",
+    "aud": "ACC-01",
+    "name": "a Collaboration Team case grant decides its manager outside the lock",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "          await assertCaseAccessManagerTx(tx, { caseId: id, teamId: item.teamId, userId: actorUserId });\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-access-manager-serialised.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N5-TEAM-REVOKE",
+    "aud": "ACC-01",
+    "name": "a Collaboration Team case revoke decides its manager outside the lock",
+    "file": "services/api/src/routes/cases.routes.ts",
+    "find": "          await assertCaseAccessManagerTx(tx, { caseId: params.id, teamId: item.teamId, userId: actorUserId });\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-access-manager-serialised.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N5-UNLINK-SCOPE",
+    "aud": "DOM-13",
+    "name": "external-mapping unlink is keyed by the workspace the link was configured from",
+    "file": "services/api/src/routes/identity.routes.ts",
+    "find": "      organization: { workspaces: { some: { id: actingTeamId } } },\n      user: { teamMembers: { some: { teamId: actingTeamId } } },",
+    "replace": "      teamId: actingTeamId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-reaudit3.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-T1B-SCIM-USERS-SCOPE",
+    "aud": "DOM-13",
+    "name": "SCIM Users readers keyed by the token workspace",
+    "file": "services/api/src/services/access-control/scim.service.ts",
+    "find": "    organization: { workspaces: { some: { id: teamId } } },\n    user: { teamMembers: { some: { teamId } } },\n  } as const;",
+    "replace": "    teamId,\n  } as const;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-reaudit3.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-BN1-SUSPEND-RELEASES",
+    "aud": "LIFE-05",
+    "name": "the canonical suspend writer keeps held work assigned",
+    "file": "services/api/src/services/identity/membership-provisioning.service.ts",
+    "find": "  await releaseWorkOnSuspension(tx as never, {\n    teamId: suspended.teamId,\n    userId: suspended.userId,\n    actorUserId: input.actorUserId ?? null,\n  });\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-reaudit3.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-BN1-SUSPEND-SHARES",
+    "aud": "SEC-08",
+    "name": "a directory suspension keeps the creator owner links live",
+    "file": "services/api/src/services/identity/membership-provisioning.service.ts",
+    "find": "    creators: [{ teamId: suspended.teamId, userId: suspended.userId }],\n    reason: \"CREATOR_SUSPENDED\",",
+    "replace": "    creators: [],\n    reason: \"CREATOR_SUSPENDED\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-organization-identity-reaudit3.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N7-SERVER-ROUTE-NOT-FOUND",
+    "aud": "N-7",
+    "name": "unknown route answers the business NOT_FOUND",
+    "file": "services/api/src/http/not-found-handler.ts",
+    "find": "      code: \"ROUTE_NOT_FOUND\",",
+    "replace": "      code: \"NOT_FOUND\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/route-not-found-code.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "N7-WEB-ROUTE-NOT-FOUND-REPORTED",
+    "aud": "N-7",
+    "name": "web suppresses the unknown-route 404",
+    "file": "apps/web/lib/feedback/toSafeUserError.ts",
+    "find": "  // an unknown or removed ROUTE (the canonical not-found handler)\n  \"ROUTE_NOT_FOUND\",\n",
+    "replace": "  // an unknown or removed ROUTE (the canonical not-found handler)\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/sentry-expected-refusal-wiring.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "N7-WEB-BUSINESS-NOT-FOUND-EXPECTED",
+    "aud": "N-7",
+    "name": "web reports a record NOT_FOUND as an incident",
+    "file": "apps/web/lib/feedback/toSafeUserError.ts",
+    "find": "  // an unknown or removed ROUTE (the canonical not-found handler)\n  \"ROUTE_NOT_FOUND\",\n",
+    "replace": "  // an unknown or removed ROUTE (the canonical not-found handler)\n  \"ROUTE_NOT_FOUND\",\n  \"NOT_FOUND\",\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/sentry-expected-refusal-wiring.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "N7-WEB-SYNTH-401",
+    "aud": "N-7",
+    "name": "web suppresses the transport code-less 401",
+    "file": "apps/web/lib/feedback/toSafeUserError.ts",
+    "find": "  if (code === \"UNAUTHORIZED\" && status === 401 && !readString(e.body?.error?.code)) {",
+    "replace": "  if (false) {",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/sentry-expected-refusal-wiring.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "N7-MOBILE-ROUTE-NOT-FOUND-REPORTED",
+    "aud": "N-7",
+    "name": "mobile suppresses the unknown-route 404",
+    "file": "apps/mobile/src/sentry.ts",
+    "find": "  \"PARSE_ERROR\",\n  \"ROUTE_NOT_FOUND\",\n",
+    "replace": "  \"PARSE_ERROR\",\n",
+    "tests": [
+      {
+        "cwd": "apps/mobile",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "test/sentry-expected-refusal-wiring.test.mjs",
+          "test/sentry-generic-codes-parity.test.mjs"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "RA3-N1-OTS",
+    "aud": "ACC-03",
+    "name": "inbox OTS failure ignores restricted cases",
+    "file": "services/api/src/routes/me-inbox.routes.ts",
+    "find": "AND: [inboxEvidenceScope, inboxRecordVisible],\n                    // A failed proof",
+    "replace": "AND: [inboxEvidenceScope],\n                    // A failed proof",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N1-TSA",
+    "aud": "ACC-03",
+    "name": "inbox TSA failure ignores restricted cases",
+    "file": "services/api/src/routes/me-inbox.routes.ts",
+    "find": "AND: [inboxEvidenceScope, inboxRecordVisible],\n                    tsaStatus: \"FAILED\",",
+    "replace": "AND: [inboxEvidenceScope],\n                    tsaStatus: \"FAILED\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N1-MENTION",
+    "aud": "ACC-03",
+    "name": "inbox mention ignores restricted cases",
+    "file": "services/api/src/routes/me-inbox.routes.ts",
+    "find": "message: { thread: { evidence: inboxRecordVisible } },",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N1-ESC",
+    "aud": "ACC-03",
+    "name": "inbox escalation ignores restricted cases",
+    "file": "services/api/src/routes/me-inbox.routes.ts",
+    "find": "workflow: { evidence: inboxRecordVisible },\n                    OR: [",
+    "replace": "OR: [",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N2-BULK-AUDIT",
+    "aud": "SEC-13",
+    "name": "bulk evidence lifecycle writes no audit in its transaction",
+    "file": "services/api/src/routes/evidence.routes.ts",
+    "find": "                auditTx: (tx, written) =>\n                  auditEvidenceAction(req, {\n                    userId,",
+    "replace": "                auditTxOff: (tx: unknown, written: { teamId: string | null; productState: string }) =>\n                  auditEvidenceAction(req, {\n                    userId,",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N3-CREATE",
+    "aud": "AUD-01",
+    "name": "Collaboration Team create audits after commit",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, { id: team.id });\n    return team;\n  });\n\n  return { id: result.id };",
+    "replace": "    return team;\n  });\n  if (input.auditTx) await input.auditTx(client, { id: result.id });\n\n  return { id: result.id };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "RA3-N3-ASSIGN-UPD",
+    "aud": "AUD-01",
+    "name": "Collaboration Team task update commits without its audit",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);\n    return \"written\" as const;",
+    "replace": "    return \"written\" as const;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit3-findings.integration.test.ts"
         ],
         "integration": true
       }

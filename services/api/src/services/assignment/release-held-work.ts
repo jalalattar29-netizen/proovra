@@ -19,6 +19,7 @@
  * member leaves — by the Collaboration Team member removal and suspension.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { COLLABORATION_TEAM_STATUSES } from "@proovra/shared";
 
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 
@@ -137,10 +138,13 @@ export async function releaseTeamTasksTx(
       },
     });
   }
-  // The group's activity order is its row's `updatedAt` (CT-13).
+  // The group's activity order is its row's `updatedAt` (CT-13). A legacy
+  // group whose status has no canonical meaning is not touched (re-audit
+  // T-2): the vocabulary CHECK would refuse the write and with it the
+  // departure, and its ordering is cosmetic.
   if (touchedGroups.size > 0) {
     await tx.collaborationTeam.updateMany({
-      where: { id: { in: [...touchedGroups] } },
+      where: { id: { in: [...touchedGroups] }, status: { in: [...COLLABORATION_TEAM_STATUSES] } },
       data: { updatedAt: new Date() },
     });
   }

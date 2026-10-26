@@ -43,7 +43,8 @@ import {
   resolveWorkspaceSeatState,
   workspaceSeatsAdmit,
 } from "../billing/workspace-seats.service.js";
-import { endStandingReachForMembers } from "./standing-reach.js";
+import { endStandingReachForMembers, releaseWorkOnSuspension } from "./standing-reach.js";
+import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
 
 export type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -502,7 +503,18 @@ export async function revokeAllMembershipGrants(
   }
 }
 
-/** Suspend an operational membership (held role preserved for reactivation). */
+/**
+ * Suspend an operational membership (held role preserved for reactivation).
+ *
+ * Members re-audit 3, N1 — a suspended person cannot open the workspace, so
+ * the work they held (review workflows, open escalations, Collaboration Team
+ * tasks, Operations ownership and incidents, QC samples, evidence-request
+ * reviews, second reviews, SIU assignments) is released HERE, in the
+ * suspension's own transaction, by the canonical release the per-member
+ * engine uses. Every caller of this writer (the SCIM deactivation among them)
+ * therefore releases; none can forget. Rows are kept and unassigned; the
+ * release writes its own audit row.
+ */
 export async function suspendWorkspaceMembership(
   tx: TxClient,
   input: {
@@ -519,6 +531,19 @@ export async function suspendWorkspaceMembership(
       suspendedByUserId: input.actorUserId ?? null,
       suspensionReason: input.reason.slice(0, 400),
     },
+  });
+  await releaseWorkOnSuspension(tx as never, {
+    teamId: suspended.teamId,
+    userId: suspended.userId,
+    actorUserId: input.actorUserId ?? null,
+  });
+  // Members audit SEC-08 — a suspended creator's outward grants end now, as
+  // on an administrator's suspension (rbac.service.ts suspendMember); a
+  // directory suspension is the same transition.
+  await revokeCreatorShareGrantsTx(tx as never, {
+    creators: [{ teamId: suspended.teamId, userId: suspended.userId }],
+    reason: "CREATOR_SUSPENDED",
+    actorUserId: input.actorUserId ?? null,
   });
   // §4.4 — pointer hygiene at the suspension boundary, from the row the
   // update already returned.

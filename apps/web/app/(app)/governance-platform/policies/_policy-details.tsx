@@ -72,7 +72,7 @@ function writeFailure(err: unknown): string {
     const permission = e.details?.["permission"];
     const copy = permissionDenialCopy(
       denial,
-      typeof permission === "string" ? permission : "governance.policy.manage",
+      typeof permission === "string" ? permission : "governance.policy.assign",
     );
     return `${copy.title} ${copy.detail}`;
   }

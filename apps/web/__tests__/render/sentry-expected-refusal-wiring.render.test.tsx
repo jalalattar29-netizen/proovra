@@ -8,7 +8,11 @@
  * errors produced by the REAL `apiFetch` from real HTTP responses:
  *
  *   - `captureException(err)`: a typed 4xx refusal and a code-less 409/422 (second
- *     re-audit N-7) are not sent; a code-less 401/403/404/405/413/415 is;
+ *     re-audit N-7) are not sent; a code-less 401/403/404/405/413/415 is, and
+ *     so is a code that never means a business refusal (the canonical
+ *     unknown-route ROUTE_NOT_FOUND, INTERNAL_SERVER_ERROR … — third re-audit
+ *     N-7), while NOT_FOUND / FORBIDDEN / nested UNAUTHORIZED / VALIDATION_ERROR
+ *     stay expected;
  *   - `captureException(err)`: a 409 business refusal (typed, and code-less)
  *     never reaches `Sentry.captureException`; a 500 and a network failure do;
  *   - the `beforeSend` hook `initSentry` installs: drops an event whose
@@ -108,11 +112,47 @@ describe("AUD-05 — web: business refusals are not Sentry incidents; faults are
     expect(sentry.captured).toEqual([]);
   });
 
-  it("captureException: typed 4xx refusals (403, 404, 401, 429) are NOT sent", async () => {
+  it("captureException: typed business 4xx refusals (403, 404, 401, 400, 429) are NOT sent", async () => {
     captureException(await failure(403, { error: { code: "WORKSPACE_ACCESS_DENIED" } }));
     captureException(await failure(404, { error: { code: "TEAM_NOT_FOUND" } }));
-    captureException(await failure(401, { error: { code: "UNAUTHORIZED" } }));
+    captureException(await failure(401, { error: { code: "TOKEN_EXPIRED" } }));
+    captureException(await failure(403, { error: { code: "PERMISSION_REQUIRED" } }));
+    captureException(await failure(400, { code: "INVALID_QUERY" }));
     captureException(await failure(429, { error: { code: "RATE_LIMITED" } }));
+    expect(sentry.captured).toEqual([]);
+  });
+
+  // THIRD re-audit N-7 — codes that never mean a business refusal are sent,
+  // exactly as a code-less answer of the same status. Real server shapes: the
+  // canonical unknown-route 404 (http/not-found-handler.ts), the legacy-handler
+  // 500 (createErrorResponse(INTERNAL_SERVER_ERROR)), the untyped-legacy
+  // REQUEST_REFUSED.
+  it("captureException: the canonical ROUTE_NOT_FOUND 404, an INTERNAL_SERVER_ERROR 500 and a REQUEST_REFUSED 403 ARE sent", async () => {
+    const ts = "2026-10-26T00:00:00.000Z";
+    const sent: unknown[] = [];
+    const answers: Array<[number, unknown]> = [
+      [404, { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found.", requestId: "r1" } }],
+      [500, { error: { code: "INTERNAL_SERVER_ERROR", message: "Internal server error", requestId: "r2", timestamp: ts } }],
+      [403, { error: { code: "REQUEST_REFUSED", message: "Request refused.", requestId: "r3" } }],
+    ];
+    for (const [status, body] of answers) {
+      const err = await failure(status, body);
+      sent.push(err);
+      captureException(err);
+    }
+    expect(sentry.captured).toEqual(sent);
+  });
+
+  // ...while the business / auth codes stay expected: a missing or concealed
+  // record (NOT_FOUND), a scope / origin refusal (FORBIDDEN), the auth
+  // middleware's nested UNAUTHORIZED (indistinguishable from an expired
+  // session) and a validation answer (VALIDATION_ERROR).
+  it("captureException: NOT_FOUND 404, FORBIDDEN 403, nested UNAUTHORIZED 401 and VALIDATION_ERROR 400 are NOT sent", async () => {
+    const ts = "2026-10-26T00:00:00.000Z";
+    captureException(await failure(404, { error: { code: "NOT_FOUND", message: "Not found.", requestId: "r4" } }));
+    captureException(await failure(403, { error: { code: "FORBIDDEN", message: "Access denied", requestId: "r5", timestamp: ts } }));
+    captureException(await failure(401, { error: { code: "UNAUTHORIZED", message: "Authentication required", requestId: "r6", timestamp: ts } }));
+    captureException(await failure(400, { error: { code: "VALIDATION_ERROR", message: "Request validation failed", timestamp: ts } }));
     expect(sentry.captured).toEqual([]);
   });
 
@@ -166,5 +206,15 @@ describe("AUD-05 — web: business refusals are not Sentry incidents; faults are
     expect(beforeSend({ message: "plain error" }, { originalException: new Error("boom") })).not.toBeNull();
     const routeMissing = await failure(404, { message: "Route POST:/v1/teamz not found" });
     expect(beforeSend({ message: "unhandled rejection" }, { originalException: routeMissing })).not.toBeNull();
+    // Third re-audit N-7 — the canonical unknown-route 404 is kept; a record
+    // NOT_FOUND, a nested UNAUTHORIZED and a business 404 are dropped.
+    const canonical404 = await failure(404, { error: { code: "ROUTE_NOT_FOUND", message: "Resource not found." } });
+    const recordMissing = await failure(404, { error: { code: "NOT_FOUND", message: "Not found." } });
+    const authState = await failure(401, { error: { code: "UNAUTHORIZED", message: "Authentication required" } });
+    expect(beforeSend({ message: "unhandled rejection" }, { originalException: canonical404 })).not.toBeNull();
+    expect(beforeSend({ message: "unhandled rejection" }, { originalException: recordMissing })).toBeNull();
+    expect(beforeSend({ message: "unhandled rejection" }, { originalException: authState })).toBeNull();
+    const typed404 = await failure(404, { error: { code: "TEAM_NOT_FOUND" } });
+    expect(beforeSend({ message: "unhandled rejection" }, { originalException: typed404 })).toBeNull();
   });
 });

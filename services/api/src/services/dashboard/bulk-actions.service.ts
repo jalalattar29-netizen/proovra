@@ -27,6 +27,7 @@ import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
+import { withinAssignmentWrite } from "../assignment/assignment-write.js";
 
 /**
  * The permission operational work asks of its assignee — the one the operator
@@ -244,44 +245,52 @@ async function runOneItem(input: {
       // single route require, an unexpired ACTIVE membership, reach to the
       // case / evidence the workflow is about, and placement on PRO/TEAM —
       // and a refusal is recorded on that target's item.
-      const target = await c.operationalWorkflow.findFirst({
-        where: { id: input.targetId, teamId: input.teamId },
-        select: { evidenceId: true, caseId: true },
-      });
-      if (!target) throw new BulkActionError("workflow_not_found");
-      try {
-        await assertWorkAssigneeEligible(
-          {
-            workspaceId: input.teamId,
-            assigneeUserId: input.actor.assigneeUserId,
-            permission: OPERATIONS_ASSIGNEE_PERMISSION,
-            evidenceId: target.evidenceId,
-            caseId: target.caseId,
-          },
-          c,
-        );
-      } catch (err) {
-        if (err instanceof AssigneeEligibilityError) {
-          throw new BulkActionError(
-            err.reason === "NOT_PLACED" ? "assignee_not_placed" : "invalid_assignee",
-          );
-        }
-        throw err;
-      }
+      //
+      // Members re-audit B5 — the decision and the write are ONE transaction,
+      // so the placement the assignee relies on is share-locked until the
+      // assignment commits (an archive cannot slip between them).
+      const assigneeUserId = input.actor.assigneeUserId;
       const { assignWorkflow } = await import(
         "../observability/workflow.service.js"
       );
-      await assignWorkflow(
-        {
-          workflowId: input.targetId,
-          teamId: input.teamId,
-          assigneeUserId: input.actor.assigneeUserId,
-          actorUserId: input.actor.actorUserId,
-          ipAddress: input.actor.ipAddress,
-          userAgent: input.actor.userAgent,
-        },
-        c,
-      );
+      await withinAssignmentWrite(c, async (tx) => {
+        const target = await tx.operationalWorkflow.findFirst({
+          where: { id: input.targetId, teamId: input.teamId },
+          select: { evidenceId: true, caseId: true },
+        });
+        if (!target) throw new BulkActionError("workflow_not_found");
+        try {
+          await assertWorkAssigneeEligible(
+            {
+              workspaceId: input.teamId,
+              assigneeUserId,
+              permission: OPERATIONS_ASSIGNEE_PERMISSION,
+              evidenceId: target.evidenceId,
+              caseId: target.caseId,
+            },
+            tx,
+            { inTransaction: true },
+          );
+        } catch (err) {
+          if (err instanceof AssigneeEligibilityError) {
+            throw new BulkActionError(
+              err.reason === "NOT_PLACED" ? "assignee_not_placed" : "invalid_assignee",
+            );
+          }
+          throw err;
+        }
+        await assignWorkflow(
+          {
+            workflowId: input.targetId,
+            teamId: input.teamId,
+            assigneeUserId,
+            actorUserId: input.actor.actorUserId,
+            ipAddress: input.actor.ipAddress,
+            userAgent: input.actor.userAgent,
+          },
+          tx,
+        );
+      });
       return;
     }
     case "BULK_ESCALATE_WORKFLOWS": {

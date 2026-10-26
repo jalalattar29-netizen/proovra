@@ -385,19 +385,33 @@ async function resolveContributorSessionTarget(
   };
 }
 
-/** TARGET-scope derivation for an external identity mapping id. */
-async function resolveMappingTarget(
+/**
+ * Members audit DOM-13 / re-audit 3 N-5 (T-1a) — an external identity link is
+ * the ORGANIZATION's record, so its row's `team_id` (the workspace that
+ * configured it, or the directory token's) does NOT choose where it is
+ * administered. The acting workspace is the caller's own, already authorised
+ * by `resolveAuthorizedWorkspaceSubject`; the link must be one that workspace
+ * sees — its Organization's, for a person who holds a membership there (the
+ * same scope as the list and `unlinkExternalIdentity`). Anything else, a link
+ * of another Organization included, is the concealed 404 a non-existent id
+ * gets.
+ */
+async function resolveOrganizationMappingInWorkspace(
   reply: FastifyReply,
   mappingId: string,
-  declaredTeamId?: string | undefined,
-): Promise<{ teamId: string; mappingId: string; userId: string } | null> {
+  actingTeamId: string,
+): Promise<{ mappingId: string; userId: string } | null> {
   const row = await prisma.externalIdentityMapping.findFirst({
-    where: { id: mappingId },
-    select: { id: true, teamId: true, userId: true },
+    where: {
+      id: mappingId,
+      unlinkedAtUtc: null,
+      organization: { workspaces: { some: { id: actingTeamId } } },
+      user: { teamMembers: { some: { teamId: actingTeamId } } },
+    },
+    select: { id: true, userId: true },
   });
-  if (!row || !row.teamId) return notFound(reply);
-  if (declaredTeamId && declaredTeamId !== row.teamId) return notFound(reply);
-  return { teamId: row.teamId, mappingId: row.id, userId: row.userId };
+  if (!row) return notFound(reply);
+  return { mappingId: row.id, userId: row.userId };
 }
 
 // The managed-identity guard and the engine refusal mapping live in ONE module
@@ -1417,17 +1431,20 @@ export async function identityRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
       const body = DeclaredTeamId.parse(req.body ?? {});
-      const target = await resolveMappingTarget(reply, id, body.teamId);
-      if (!target) return;
-      const actor = await requireIdentityActor(
-        req, reply, target.teamId, "identity.external_mapping.manage",
-        { kind: "external_identity_mapping", id: target.mappingId },
+      // N-5 — authorised in the workspace the caller acts from (the
+      // canonical permission there), never in the row's configuring one.
+      const resolved = await resolveAuthorizedWorkspaceSubject(
+        req, reply, "identity.external_mapping.manage", body.teamId,
+        { kind: "external_identity_mapping", id },
       );
-      if (!actor) return;
-      if (!(await requireOrganizationIdentityAuthority(reply, { teamId: target.teamId, userId: actor.userId }))) return;
+      if (!resolved) return;
+      const { teamId, actor } = resolved;
+      const target = await resolveOrganizationMappingInWorkspace(reply, id, teamId);
+      if (!target) return;
+      if (!(await requireOrganizationIdentityAuthority(reply, { teamId, userId: actor.userId }))) return;
       const gate = await requireStepUpForSensitiveAction({
         req, reply,
-        teamId: target.teamId,
+        teamId,
         userId: actor.userId,
         purpose: "EXTERNAL_IDENTITY_UNLINK",
         resourceKind: "external_identity_mapping",
@@ -1436,7 +1453,7 @@ export async function identityRoutes(app: FastifyInstance) {
       if (gate.sent) return;
       try {
         const mapping = await unlinkExternalIdentity({
-          teamId: target.teamId,
+          teamId,
           mappingId: target.mappingId,
           actorUserId: actor.userId,
           ipAddress: requestIp(req),

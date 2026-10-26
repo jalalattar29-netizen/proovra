@@ -164,20 +164,59 @@ export function hasExplanationFor(error: unknown): boolean {
  *   - a code-less 401 / 403 / 404, any other code-less 4xx (400, 405, 413,
  *     415 …), every 5xx and every network failure → REPORTED.
  *
- * "Code-less" means the transport's placeholder, not a server code: the web
- * client (lib/api.ts) stamps `API_ERROR` on any body without a code, and
+ * THIRD RE-AUDIT N-7 — "code-less" also covers the codes that NEVER mean a
+ * business refusal: the transport's placeholders (`API_ERROR`, stamped by
+ * lib/api.ts on a body with no code; `NETWORK_ERROR`; `PARSE_ERROR`), the
+ * canonical unknown-route 404 `ROUTE_NOT_FOUND` (services/api
+ * http/not-found-handler.ts), the framework-shaped 405 / 413 / 415 codes, the
+ * untyped-legacy `REQUEST_REFUSED`, and the server-fault codes. Each is
+ * classified exactly as a code-less answer of the same status.
+ *
+ * Deliberately NOT on the list: `NOT_FOUND` (a missing or concealed record —
+ * anti-enumeration 404s use it), `FORBIDDEN`, `UNAUTHORIZED`,
+ * `VALIDATION_ERROR`, `INVALID_INPUT`, `INVALID_REQUEST`, `BAD_REQUEST` and
+ * `CONFLICT`. They are business or auth states: a client cannot tell an auth
+ * regression from an expired session, and the session flow already sends the
+ * user to sign in, so a server-typed `UNAUTHORIZED` stays expected.
+ *
+ * The native app keeps the SAME list (apps/mobile/src/sentry.ts
+ * `GENERIC_NON_BUSINESS_CODES`); apps/mobile/test/sentry-generic-codes-parity
+ * .test.mjs runs both classifiers over every code × status and fails on any
+ * disagreement.
+ *
+ * "Code-less" also means the transport's synthesized 401: lib/api.ts stamps
  * `UNAUTHORIZED` on a code-less 401. A server-typed 401 arrives in the nested
  * `{ error: { code } }` envelope, so as an `ApiError` carrying
  * `body.error.code`; the synthesized `UNAUTHORIZED` has no such envelope.
  */
 const CODELESS_EXPECTED_STATUSES: ReadonlySet<number> = new Set([409, 422]);
 
+export const GENERIC_NON_BUSINESS_CODES: ReadonlySet<string> = new Set([
+  // transport placeholders (the client synthesised them; no server code)
+  "API_ERROR",
+  "NETWORK_ERROR",
+  "PARSE_ERROR",
+  // an unknown or removed ROUTE (the canonical not-found handler)
+  "ROUTE_NOT_FOUND",
+  // framework / contract answers
+  "METHOD_NOT_ALLOWED",
+  "PAYLOAD_TOO_LARGE",
+  "UNSUPPORTED_MEDIA_TYPE",
+  // the central handler's answer to an untyped legacy thrower
+  "REQUEST_REFUSED",
+  // server faults
+  "INTERNAL_ERROR",
+  "INTERNAL_SERVER_ERROR",
+  "DATABASE_ERROR",
+  "SCHEMA_NOT_READY",
+]);
+
 function businessCode(error: unknown, status: number): string | undefined {
   const e = (error && typeof error === "object" ? error : {}) as ErrorLike & {
     body?: { error?: { code?: unknown } };
   };
   const code = readString(e.code)?.toUpperCase();
-  if (!code || code === "API_ERROR") return undefined;
+  if (!code || GENERIC_NON_BUSINESS_CODES.has(code)) return undefined;
   if (code === "UNAUTHORIZED" && status === 401 && !readString(e.body?.error?.code)) {
     return undefined;
   }
