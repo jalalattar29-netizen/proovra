@@ -195,6 +195,11 @@ vi.mock("../src/db.js", () => {
     $executeRaw: async () => 1,
     $queryRaw: async () => [],
     evidenceLegalHold: { count: async () => 0 },
+    // Members re-audit defect 4 — attaching to a case re-examines the record's
+    // creator grants; this matrix has none.
+    verificationShareToken: { findMany: async () => [] },
+    verificationPackage: { findMany: async () => [] },
+    externalReviewGrant: { findMany: async () => [] },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(client),
   };
   return { prisma: client };
