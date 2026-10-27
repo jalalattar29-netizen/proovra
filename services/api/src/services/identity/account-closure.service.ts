@@ -546,7 +546,11 @@ async function runClaimedClosure(req: { id: string; userId: string }): Promise<v
     const accessEnded = await prisma.user
       .findUnique({ where: { id: req.userId }, select: { providerUserId: true } })
       .then((u) => u?.providerUserId === `closed:${req.userId}`)
-      .catch(() => false);
+      .catch(() => null);
+    // Re-audit 5, R5-1 — when that question cannot be answered, A may well
+    // have committed: recording FAILED would strand it. The request stays
+    // PROCESSING and the reaper re-runs it; a re-run is safe either way.
+    if (accessEnded === null) return;
     if (accessEnded) {
       await recordAccountClosureWaiting({
         requestId: req.id,

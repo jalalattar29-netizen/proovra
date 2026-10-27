@@ -9968,5 +9968,27 @@
         "integration": true
       }
     ]
+  },
+  {
+    "id": "RA5-R5-1-UNKNOWN",
+    "aud": "LIFE-09",
+    "name": "an unanswerable 'did A commit?' lookup records FAILED",
+    "file": "services/api/src/services/identity/account-closure.service.ts",
+    "find": "    if (accessEnded === null) return;\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-reaudit4.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

@@ -249,6 +249,47 @@ describe("members re-audit 4 — closure waiting states, post-commit session eve
       await accountClosure.executeAccountClosure(userId);
       await awaitOneSessionsRevokedEvent(userId);
     });
+
+    it("R5-1: when B fails after A committed AND the 'did A commit?' lookup also fails, the request stays PROCESSING (never FAILED); the next pass completes it", async () => {
+      const t = await seedPersonalTenant(deps, "FREE");
+      const userId = t.owner.userId;
+      const req = await processingRequest(userId);
+
+      // Only the post-failure lookup selects providerUserId alone on the root
+      // client (phase A reads the user through its transaction client).
+      const realFindUnique = prisma.user.findUnique.bind(prisma.user);
+      let lookupsRefused = 0;
+      const spy = vi.spyOn(prisma.user, "findUnique").mockImplementation(((args: {
+        where: { id?: string };
+        select?: Record<string, unknown>;
+      }) => {
+        const keys = Object.keys(args.select ?? {});
+        if (args.where.id === userId && keys.length === 1 && keys[0] === "providerUserId") {
+          lookupsRefused += 1;
+          return Promise.reject(new Error("ra4 injected lookup failure"));
+        }
+        return realFindUnique(args as never);
+      }) as never);
+      try {
+        await withInjected("audit", `identity.account_closure_completed:${req.id}`, () => reaperPass(req.id));
+      } finally {
+        // Back to pass-through: `mockRestore` cannot reinstate a Prisma model
+        // delegate's method (later tests then find none).
+        spy.mockImplementation(realFindUnique as never);
+      }
+      expect(lookupsRefused).toBe(1);
+      const stillOpen = await request(req.id);
+      expect(stillOpen.status).toBe("PROCESSING");
+      expect(stillOpen.completedAtUtc).toBeNull();
+      expect(await audits("identity.account_closure_failed", req.id)).toBe(0);
+      expect((await userRow(userId)).providerUserId).toBe(`closed:${userId}`); // A committed
+
+      await reaperPass(req.id);
+      const done = await request(req.id);
+      expect(done.status).toBe("COMPLETED");
+      expect((await userRow(userId)).email).toBeNull();
+      expect(await audits("identity.account_closure_failed", req.id)).toBe(0);
+    });
   });
 
   describe("R4-6 — a hold placed after A defers visibly, audited once", () => {
