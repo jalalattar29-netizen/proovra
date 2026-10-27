@@ -8249,9 +8249,9 @@
   {
     "id": "MEM-B4-INCIDENT-EVIDENCE-REACH",
     "aud": "DECISION-5",
-    "name": "MEM-B4-INCIDENT-EVIDENCE-REACH",
-    "file": "services/api/src/routes/ops.routes.ts",
-    "find": "          evidenceId: condition?.relatedEvidenceId ?? null,",
+    "name": "incident assignment ignores the condition's related evidence in the writer",
+    "file": "services/api/src/services/observability/incident.service.ts",
+    "find": "          evidenceId: existing.relatedEvidenceId ?? null,",
     "replace": "          evidenceId: null,",
     "tests": [
       {

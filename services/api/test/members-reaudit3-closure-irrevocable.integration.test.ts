@@ -129,6 +129,21 @@ describe("members re-audit 3 — N4: a committed account closure is irrevocable,
     expect((await prisma.accountClosureRequest.findUniqueOrThrow({ where: { id: req.id } })).status).toBe("COMPLETED");
   });
 
+  it("the session revocation is written in phase A's transaction: when A fails after it, no revocation survives", async () => {
+    const t = await seedPersonalTenant(deps, "FREE");
+    const userId = t.owner.userId;
+    const req = await processingRequest(userId);
+
+    // The revocation row is written, then its own audit is refused: A aborts.
+    // Written on another connection, the row would outlive the rollback.
+    await withInjected("audit", `identity_security.session.revoke_all:${userId}`, async () => {
+      await expect(accountClosure.executeAccountClosure(userId, { closureRequestId: req.id })).rejects.toThrow();
+    });
+    expect(await accountClosedRevocations(userId)).toBe(0);
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: t.personalTeamId } })).closedAtUtc).toBeNull();
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).providerUserId).not.toBe(`closed:${userId}`);
+  });
+
   it("a hold placed after phase A committed neither BLOCKS the resumed closure nor lets it anonymise; after release the reaper completes it", async () => {
     const t = await seedPersonalTenant(deps, "FREE");
     const userId = t.owner.userId;

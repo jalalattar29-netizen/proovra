@@ -786,6 +786,12 @@ describe("the one assignee authority holds for every writer, and a departure rel
     const refused = await post(url, A().ownerToken, { teamId: A().teamId, assigneeUserId: outsider.id });
     expect(refused.statusCode, refused.body).toBe(400);
     expect(await operatorOf(restricted.id)).toBeNull();
+    // The writer itself decides, not only the route in front of it: every
+    // caller of assignIncident (platform console, bulk) gets the same answer.
+    await expect(
+      incidents.assignIncident({ incidentId: restricted.id, teamId: A().teamId, assigneeUserId: outsider.id, actorUserId: owner() }),
+    ).rejects.toMatchObject({ code: "invalid_assignee" });
+    expect(await operatorOf(restricted.id)).toBeNull();
     const ok = await post(url, A().ownerToken, { teamId: A().teamId, assigneeUserId: insider.id });
     expect(ok.statusCode, ok.body).toBe(200);
     expect(await operatorOf(restricted.id)).toBe(insider.id);

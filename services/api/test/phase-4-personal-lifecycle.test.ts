@@ -103,6 +103,7 @@ vi.mock(
     revokeAllSessionsForUser: async (input: unknown) => {
       H.sessionsRevoked.push(input);
     },
+    emitAllSessionsRevokedEvent: () => {},
   }),
 );
 
