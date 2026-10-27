@@ -91,10 +91,10 @@
     "COLUMN_TYPE_DECLARATION": 110,
     "INDEX_DECLARATION": 203,
     "FOREIGN_KEY_DECLARATION": 182,
-    "INDEX_NAME_CONVENTION": 271,
+    "INDEX_NAME_CONVENTION": 266,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 2,
-    "PARTIAL_UNIQUE_DECLARATION": 9,
+    "PARTIAL_UNIQUE_DECLARATION": 14,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
@@ -2296,12 +2296,6 @@
     {
       "table": "evidence_retention_policies",
       "sign": "*",
-      "object": "Renamed index evidence_retention_policies_team_name_status_uk to evidence_retention_policies_team_id_display_name_status_key",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "evidence_retention_policies",
-      "sign": "*",
       "object": "Renamed index evidence_retention_policies_team_scope_idx to evidence_retention_policies_team_id_scope_idx",
       "category": "INDEX_NAME_CONVENTION"
     },
@@ -2585,12 +2579,6 @@
       "table": "evidence_workflow_visibility_decisions",
       "sign": "*",
       "object": "Renamed index evidence_workflow_visibility_decisions_workflow_idx to evidence_workflow_visibility_decisions_workflow_instance_id_idx",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "external_identity_mappings",
-      "sign": "*",
-      "object": "Renamed index external_identity_mappings_provider_subject_uk to external_identity_mappings_provider_external_subject_id_key",
       "category": "INDEX_NAME_CONVENTION"
     },
     {
@@ -4586,18 +4574,6 @@
     {
       "table": "scim_groups",
       "sign": "*",
-      "object": "Renamed index scim_groups_team_display_status_uk to scim_groups_team_id_display_name_status_key",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "scim_groups",
-      "sign": "*",
-      "object": "Renamed index scim_groups_team_external_id_uk to scim_groups_team_id_external_id_key",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "scim_groups",
-      "sign": "*",
       "object": "Renamed index scim_groups_team_mapped_role_idx to scim_groups_team_id_mapped_role_idx",
       "category": "INDEX_NAME_CONVENTION"
     },
@@ -4749,12 +4725,6 @@
       "table": "sso_connections",
       "sign": "*",
       "object": "Renamed index sso_connections_team_provider_idx to sso_connections_team_id_provider_idx",
-      "category": "INDEX_NAME_CONVENTION"
-    },
-    {
-      "table": "sso_connections",
-      "sign": "*",
-      "object": "Renamed index sso_connections_team_provider_status_uk to sso_connections_team_id_provider_status_key",
       "category": "INDEX_NAME_CONVENTION"
     },
     {
@@ -5609,6 +5579,96 @@
       "predicate": "disclosure_profile IS NULL OR disclosure_profile = 'FULL_FORENSIC'",
       "owningMigration": "services/api/prisma/migrations/20281006000000_verification_package_profile_rows/migration.sql",
       "reason": "One sealed package per disclosure profile per report version. This key (the primary profile, or a legacy NULL row) and its sibling verification_packages_external_version_key (same columns, WHERE disclosure_profile = 'EXTERNAL_DISCLOSURE') replace the retired verification_packages_evidence_id_version_key; Prisma reads both as the same undeclared unique on (evidence_id, version), so this one entry registers the pair. Package-id reservation relies on the DATABASE to enforce them (point5 report-package-recovery integration suite). Prisma cannot express a partial unique index."
+    },
+    {
+      "table": "evidence_retention_policies",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, display_name)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "evidence_retention_policies_team_name_active_uk",
+      "columns": [
+        "team_id",
+        "display_name"
+      ],
+      "unique": true,
+      "predicate": "status = 'ACTIVE'",
+      "owningMigration": "services/api/prisma/migrations/20281026000200_live_status_unique_keys/migration.sql",
+      "reason": "Members audit DOM-11: one LIVE row per name, any number of retired ones. The status-inclusive key allowed only one retired row per name, so a second retirement collided; the key is now PARTIAL over the live status. Prisma cannot express a partial unique index.",
+      "createdBy": "20281026000200_live_status_unique_keys",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse a second retired row of the same name."
+    },
+    {
+      "table": "scim_groups",
+      "sign": "-",
+      "object": "Removed unique index on columns (team_id, display_name)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "scim_groups_team_display_active_uk",
+      "columns": [
+        "team_id",
+        "display_name"
+      ],
+      "unique": true,
+      "predicate": "status = 'ACTIVE'",
+      "owningMigration": "services/api/prisma/migrations/20281026000200_live_status_unique_keys/migration.sql",
+      "reason": "Members audit DOM-11: one LIVE row per name, any number of retired ones. The status-inclusive key allowed only one retired row per name, so a second retirement collided; the key is now PARTIAL over the live status. Prisma cannot express a partial unique index.",
+      "createdBy": "20281026000200_live_status_unique_keys",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse a second retired row of the same name."
+    },
+    {
+      "table": "scim_groups",
+      "sign": "-",
+      "object": "Removed unique index on columns (organization_id, external_id)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "scim_groups_org_external_id_live_uk",
+      "columns": [
+        "organization_id",
+        "external_id"
+      ],
+      "unique": true,
+      "predicate": "status = 'ACTIVE' AND external_id IS NOT NULL",
+      "owningMigration": "services/api/prisma/migrations/20281026000700_organization_scoped_identity/migration.sql",
+      "reason": "Members audit DOM-13: SSO/SCIM are Organization-scoped, with no duplicate live provider or directory object per Organization; retired rows keep their history. Prisma cannot express a partial unique index.",
+      "createdBy": "20281026000700_organization_scoped_identity",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse a second retired row of the same name."
+    },
+    {
+      "table": "scim_group_workspace_projections",
+      "sign": "-",
+      "object": "Removed unique index on columns (scim_group_id, workspace_id)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "scim_group_workspace_projections_live_uk",
+      "columns": [
+        "scim_group_id",
+        "workspace_id"
+      ],
+      "unique": true,
+      "predicate": "status = 'ACTIVE'",
+      "owningMigration": "services/api/prisma/migrations/20281026000700_organization_scoped_identity/migration.sql",
+      "reason": "Members audit DOM-13: SSO/SCIM are Organization-scoped, with no duplicate live provider or directory object per Organization; retired rows keep their history. Prisma cannot express a partial unique index.",
+      "createdBy": "20281026000700_organization_scoped_identity",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse a second retired row of the same name."
+    },
+    {
+      "table": "sso_connections",
+      "sign": "-",
+      "object": "Removed unique index on columns (organization_id, provider)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "sso_connections_org_provider_live_uk",
+      "columns": [
+        "organization_id",
+        "provider"
+      ],
+      "unique": true,
+      "predicate": "status IN ('ACTIVE', 'SUSPENDED')",
+      "owningMigration": "services/api/prisma/migrations/20281026000700_organization_scoped_identity/migration.sql",
+      "reason": "Members audit DOM-13: SSO/SCIM are Organization-scoped, with no duplicate live provider or directory object per Organization; retired rows keep their history. Prisma cannot express a partial unique index.",
+      "createdBy": "20281026000700_organization_scoped_identity",
+      "prismaExpressible": false,
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unconditional unique key would refuse a second retired row of the same name."
     }
   ]
 }

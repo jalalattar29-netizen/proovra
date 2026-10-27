@@ -416,6 +416,9 @@ export function CollaborationSettingsSection({
         onConfirm={() => void runPending()}
         onCancel={() => setPending(null)}
       />
+      {/* The verification sheet `stepUp.run` waits on; without it a challenged
+          archive or delete would wait on a prompt nobody can see. */}
+      <ChallengeStepUpSheet stepUp={stepUp} />
     </>
   );
 }

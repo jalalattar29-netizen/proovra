@@ -6600,6 +6600,7 @@ model ExternalIdentityMapping {
 
   @@unique([organizationId, provider, externalSubjectId], map: "external_identity_mappings_org_provider_subject_uk")
   @@index([teamId, userId])
+  @@index([organizationId, userId], map: "external_identity_mappings_organization_user_idx")
   @@index([userId])
   @@index([unlinkedAtUtc])
   @@map("external_identity_mappings")
@@ -9218,7 +9219,7 @@ model SsoConnection {
   outageDetectedAtUtc     DateTime? @map("outage_detected_at_utc") @db.Timestamptz(6)
   outageClearedAtUtc      DateTime? @map("outage_cleared_at_utc") @db.Timestamptz(6)
 
-  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team      Team @relation(fields: [teamId], references: [id], onDelete: Restrict)
   createdBy User @relation("SsoConnectionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   /// Phase 26.5 — replay-protection back-relation.
@@ -9231,7 +9232,7 @@ model SsoConnection {
   // Members audit DOM-11 — one ACTIVE connection per provider: a partial unique
   // index (WHERE status = 'ACTIVE') in migration 20281026000200.
   @@index([teamId, status])
-  @@index([organizationId, status])
+  @@index([organizationId, status], map: "sso_connections_organization_status_idx")
   @@index([teamId, provider])
   @@index([revokedAtUtc])
   @@index([outageDetectedAtUtc])
@@ -9283,7 +9284,7 @@ model ScimProvisioningToken {
   createdBy User @relation("ScimProvisioningTokenCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([teamId, status])
-  @@index([organizationId, status])
+  @@index([organizationId, status], map: "scim_provisioning_tokens_organization_status_idx")
   @@index([teamId, createdAt(sort: Desc)])
   @@index([expiresAtUtc])
   @@map("scim_provisioning_tokens")
@@ -9480,6 +9481,7 @@ model SsoCallbackAttempt {
   ssoConnection SsoConnection @relation(fields: [ssoConnectionId], references: [id], onDelete: Cascade)
 
   @@index([teamId, status])
+  @@index([organizationId, status], map: "sso_callback_attempts_organization_status_idx")
   @@index([ssoConnectionId, status])
   @@index([expiresAtUtc])
   @@index([replayDetectedAtUtc])
@@ -9530,7 +9532,7 @@ model ScimGroup {
 
   // Members audit DOM-13 — one live group per (organization, externalId):
   // a partial unique index in raw SQL (scim_groups_org_external_id_live_uk).
-  @@index([organizationId, status])
+  @@index([organizationId, status], map: "scim_groups_organization_status_idx")
   // Members audit DOM-11 — one ACTIVE row per name: a partial unique index
   // (WHERE status = 'ACTIVE') in migration 20281026000200, not expressible here.
   @@index([teamId, status])

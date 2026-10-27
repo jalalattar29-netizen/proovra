@@ -22,7 +22,6 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { resolveCaseRecordAccess } from "./case-permission.service.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,

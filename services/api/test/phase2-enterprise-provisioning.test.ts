@@ -49,7 +49,7 @@ const { emitOrgAuditEventMock, appendPlatformAuditLogMock, sendEmailMock, refres
     // Members re-audit ENT-05 / defect 14 — the grant persists seat posture
     // through the ONE canonical writer, after commit (proven against
     // PostgreSQL in org-seats-canonical-projection.integration.test.ts).
-    refreshTeamSeatStateMock: vi.fn(async (_teamId: string) => null),
+    refreshTeamSeatStateMock: vi.fn<(teamId: string) => Promise<null>>(async () => null),
     emitOrgAuditEventMock: vi.fn(async () => undefined),
     appendPlatformAuditLogMock: vi.fn(async () => undefined),
     // Macro-Wave A2 — email TRANSPORT mock (the delivery chain writers stay

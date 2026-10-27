@@ -106,7 +106,7 @@ describe("ENT-05 / N-6 — org billing rollup + seats CSV use the seat authority
       headers: { authorization: `Bearer ${token}` },
     });
     expect(res.statusCode, res.body).toBe(200);
-    const lines = res.body.replace(/^﻿/, "").trim().split(/\r?\n/);
+    const lines = res.body.replace(/^\uFEFF/, "").trim().split(/\r?\n/);
     expect(lines).toHaveLength(2);
     const header = lines[0]!.split(",");
     const cells = lines[1]!.split(",");

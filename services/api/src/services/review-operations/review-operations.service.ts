@@ -55,13 +55,11 @@ import {
   resolveOpenReviewEscalation,
 } from "../reviewer-ops/escalation-engine.service.js";
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
-import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
-import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
