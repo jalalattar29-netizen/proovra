@@ -53,6 +53,12 @@ import type { FastifyInstance } from "fastify";
 export type IntegrationHarness = {
   app: FastifyInstance;
   fixtures: SeededFixtures;
+  /**
+   * Resolves once every route handler started so far has finished. A refusal's
+   * response can be sent while its handler is still running; a test asserting
+   * that the refusal changed nothing awaits this before it reads the database.
+   */
+  handlersSettled: () => Promise<void>;
   cleanup: () => Promise<void>;
 };
 
@@ -390,9 +396,16 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
   const { buildServer } = await import("../src/server.js");
   const { prisma } = await import("../src/db.js");
 
+  const inFlightHandlers = new Set<Promise<unknown>>();
   let app: FastifyInstance;
   try {
-    app = await buildServer();
+    app = await buildServer({
+      onHandlerPromise: (p) => {
+        inFlightHandlers.add(p);
+        const done = () => inFlightHandlers.delete(p);
+        p.then(done, done);
+      },
+    });
     await app.ready();
   } catch (err) {
     // Boot failed — restore the environment and release the container rather
@@ -420,6 +433,9 @@ export async function bootIntegrationHarness(): Promise<IntegrationHarness> {
   return {
     app,
     fixtures,
+    handlersSettled: async () => {
+      while (inFlightHandlers.size > 0) await Promise.allSettled([...inFlightHandlers]);
+    },
     cleanup: async () => {
       let poolLeak: string | null = null;
       try {

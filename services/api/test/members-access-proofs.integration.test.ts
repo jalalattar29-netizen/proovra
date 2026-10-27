@@ -215,6 +215,9 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
     const refused = await del(caseId, admin.token);
     expect(refused.statusCode, refused.body).toBe(401);
     expect((refused.json() as { error: { code: string } }).error.code).toBe("STEP_UP_REQUIRED");
+    // The 401 can be on the wire while the handler is still running: wait for
+    // the handler itself before asserting the refusal changed nothing.
+    await h.handlersSettled();
     expect(await caseExists(caseId)).toBe(true);
     expect(await prisma.caseEvidenceLink.count({ where: { caseId } })).toBe(1);
 

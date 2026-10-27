@@ -580,6 +580,9 @@ describe("Members re-audit D1a — membership concurrency and governed refusals 
       expect(refused.statusCode, refused.body).toBe(401);
       expect(errorCode(refused)).toBe("STEP_UP_REQUIRED");
     }
+    // The 401 can be on the wire while the handler is still running: wait for
+    // the handler itself before asserting the refusal changed nothing.
+    await h.handlersSettled();
     expect(await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { legalEmail: true, logoUrl: true } })).toEqual(before);
 
     const ok = await h.app.inject({

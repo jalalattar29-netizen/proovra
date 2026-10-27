@@ -539,7 +539,16 @@ function readPrismaDiagnostic(
  * `logStream` (tests only) receives every serialized log line, so a test can
  * prove what the request log writes (UC-SEC-003). Production passes nothing.
  */
-export type BuildServerOptions = { logStream?: { write(msg: string): void } };
+export type BuildServerOptions = {
+  logStream?: { write(msg: string): void };
+  /**
+   * Test seam (off unless passed): handed the promise each async route handler
+   * returns. A handler's reply can be on the wire while the handler is still
+   * running, so a test that asserts "this refusal changed nothing" must wait for
+   * the handler itself, not only for the response. Production never passes it.
+   */
+  onHandlerPromise?: (settled: Promise<unknown>) => void;
+};
 
 export async function buildServer(options: BuildServerOptions = {}) {
   initSentry();
@@ -599,6 +608,18 @@ export async function buildServer(options: BuildServerOptions = {}) {
     genReqId: () => randomUUID(),
     disableRequestLogging: true,
   });
+
+  if (options.onHandlerPromise) {
+    const track = options.onHandlerPromise;
+    app.addHook("onRoute", (route) => {
+      const handler = route.handler;
+      route.handler = function (this: unknown, req, reply) {
+        const result = (handler as (...a: unknown[]) => unknown).call(this, req, reply);
+        if (result && typeof (result as Promise<unknown>).then === "function") track(result as Promise<unknown>);
+        return result;
+      } as typeof handler;
+    });
+  }
 
   await app.register(cors, {
     credentials: true,

@@ -382,6 +382,9 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
     const refused = await h.app.inject({ method: "DELETE", url, headers });
     expect(refused.statusCode, refused.body).toBe(401);
     expect(errorCode(refused)).toBe("STEP_UP_REQUIRED");
+    // The 401 can be on the wire while the handler is still running: wait for
+    // the handler itself before asserting the refusal changed nothing.
+    await h.handlersSettled();
     expect(await prisma.collaborationTeam.findUnique({ where: { id: teamId } })).not.toBeNull();
 
     // A challenge approved for ANOTHER group does not delete this one.
@@ -402,6 +405,7 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
       },
     });
     expect(wrong.statusCode).toBe(401);
+    await h.handlersSettled();
     expect(await prisma.collaborationTeam.findUnique({ where: { id: teamId } })).not.toBeNull();
 
     const ok = await h.app.inject({
