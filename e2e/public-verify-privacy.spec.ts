@@ -315,6 +315,6 @@ test.describe("public verify privacy @critical", () => {
     const res = await request.post(`${API_BASE}/v1/auth/guest`, { data: {} });
     expect(res.status()).toBe(404);
     const body = (await res.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe("NOT_FOUND");
+    expect(body.error?.code).toBe("ROUTE_NOT_FOUND");
   });
 });

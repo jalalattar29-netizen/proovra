@@ -245,7 +245,7 @@ let sessionCounter = 0;
  * product replaced anonymous capture with email/password accounts — and the
  * whole suite had been failing on its absence:
  *
- *   Error: Guest auth failed (HTTP 404): {"error":{"code":"NOT_FOUND",…}}
+ *   Error: Guest auth failed (HTTP 404): {"error":{"code":"ROUTE_NOT_FOUND",…}}
  *
  * Measured on the first run of this workflow that was readable at all (the
  * project selection had been collecting 1,033 tests instead of 254, and the
