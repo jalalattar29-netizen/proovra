@@ -241,13 +241,26 @@ test("TemporaryElevationSchema is strict (rejects unknown keys)", () => {
 // SSO catalog
 // -----------------------------------------------------------------------------
 
-test("SSO_CONNECTION_STATUSES catalog (PENDING, ACTIVE, DISABLED, REVOKED)", () => {
+test("SSO_CONNECTION_STATUSES catalog (PENDING, ACTIVE, DISABLED, REVOKED, SUSPENDED)", () => {
   assert.deepEqual([...SSO_CONNECTION_STATUSES].sort(), [
     "ACTIVE",
     "DISABLED",
     "PENDING",
     "REVOKED",
+    "SUSPENDED",
   ]);
+});
+
+// DOM-13: SUSPENDED is written only by Organization suspension. No administrator
+// transition leads into it, and its only way out is retirement (REVOKED).
+test("SUSPENDED SSO connections can only be retired, never re-armed or entered by an admin", () => {
+  for (const from of ["PENDING", "ACTIVE", "DISABLED", "REVOKED"]) {
+    assert.equal(isAllowedSsoConnectionTransition(from, "SUSPENDED"), false, from);
+  }
+  for (const to of ["PENDING", "ACTIVE", "DISABLED"]) {
+    assert.equal(isAllowedSsoConnectionTransition("SUSPENDED", to), false, to);
+  }
+  assert.equal(isAllowedSsoConnectionTransition("SUSPENDED", "REVOKED"), true);
 });
 
 test("SSO_PROVIDERS includes the brief's targets", () => {
