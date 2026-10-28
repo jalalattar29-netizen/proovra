@@ -28788,8 +28788,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#user.update@333",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:333",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#user.update@334",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:334",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
@@ -28821,8 +28821,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.update@390",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:390",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.update@394",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:394",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
@@ -28854,8 +28854,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.upsert@188",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:188",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.upsert@189",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:189",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "linkProviderIdentity",
       "kind": "DATABASE",
@@ -54885,11 +54885,13 @@
         "POST /v1/auth/password-reset/confirm",
         "POST /v1/identity-security/passkeys/registration/verify",
         "POST /v1/identity-security/password",
-        "POST /v1/identity/mfa/enroll/verify"
+        "POST /v1/identity/mfa/enroll/verify",
+        "POST /v1/identity/password"
       ],
       "entryJobs": [],
       "entryModules": [
         "MODULE services/api/src/routes/auth.routes.ts",
+        "MODULE services/api/src/routes/identity-links.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
         "MODULE services/api/src/routes/passkey.routes.ts"
@@ -99443,7 +99445,7 @@
       "method": "DELETE",
       "path": "/v1/identity/links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:345",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:349",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -118914,7 +118916,7 @@
       "method": "GET",
       "path": "/v1/identity/links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:224",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:225",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163551,7 +163553,7 @@
       "method": "POST",
       "path": "/v1/identity/links/apple",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:281",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:282",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163618,7 +163620,7 @@
       "method": "POST",
       "path": "/v1/identity/links/google",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:270",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:271",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -165236,7 +165238,7 @@
       "method": "POST",
       "path": "/v1/identity/password",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:299",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:300",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -165287,6 +165289,7 @@
         "adminAuditLog",
         "mfaFactor",
         "securityEvent",
+        "stepUpChallenge",
         "user"
       ],
       "tenantBindingResolved": true,
