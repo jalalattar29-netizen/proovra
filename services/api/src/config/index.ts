@@ -34,6 +34,10 @@ import {
   type ObjectLockPostureViolation,
 } from "@proovra/shared";
 import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
+import {
+  inspectWebauthnConfig,
+  type WebauthnConfigIssue,
+} from "../services/identity-security/webauthn-config.js";
 
 const PROD = (): boolean => process.env.NODE_ENV === "production";
 /**
@@ -238,6 +242,10 @@ export type StartupConfigViolation = {
     | "jwt_secret_too_short"
     | "jwt_secret_placeholder"
     | "jwt_secret_low_entropy"
+    // WebAuthn relying party — a config the canonical parser refuses. Passkey
+    // callers would treat it as "passkeys unavailable", silently moving every
+    // passkey holder's step-up to a weaker authenticator.
+    | WebauthnConfigIssue
     // The independent Bitcoin verifier is WORKER code. Its configuration and
     // credentials must never reach the API — and they do whenever an operator
     // puts them in the shared .env, because the compose env_file injects every
@@ -535,6 +543,16 @@ export function collectStartupViolations(): StartupConfigViolation[] {
     }
   }
 
+  // WEBAUTHN RELYING PARTY (2026-10-28). The same parser registration and
+  // assertion use, so boot refuses exactly the configs a ceremony would. Every
+  // deployed environment, like the JWT strength check: the documented default
+  // (the host of APP_BASE_URL, else app.proovra.com) always parses, so only a
+  // value someone set — and set wrong — can reach this.
+  if (SECRETS_REQUIRED()) {
+    const webauthn = inspectWebauthnConfig(process.env);
+    if (!webauthn.ok) out.push({ envName: webauthn.envName, reason: webauthn.issue });
+  }
+
   // Phase 32.7 — Stripe secret-key shape validation.
   //
   // STRIPE_SECRET_KEY must start with `sk_live_` (production) or
@@ -606,6 +624,23 @@ export function runStartupConfigValidation(log: {
       log.info(
         { pdfSigningEnabled: true },
         "phase_a2.startup.pdf_signing_enabled",
+      );
+    }
+  }
+
+  // The relying party this process will bind passkeys to, and whether each
+  // half was set or derived — public host names only. A derived RP id moves
+  // with APP_BASE_URL, and moving it orphans every enrolled passkey.
+  {
+    const webauthn = inspectWebauthnConfig(process.env);
+    if (webauthn.ok) {
+      log.info(
+        {
+          webauthnRpId: webauthn.config.rpID,
+          webauthnOrigins: webauthn.config.origins,
+          webauthnBasis: webauthn.basis,
+        },
+        "identity.startup.webauthn_relying_party",
       );
     }
   }

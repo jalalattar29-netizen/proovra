@@ -88,8 +88,23 @@ function databaseWith(present: {
   threeDecisions?: boolean;
   captureClientAttempt?: boolean;
   disclosurePolicy?: boolean;
+  // 20281028000000 — team archive and step-up assurance, object by object.
+  teamArchiveStepUp?: StepUpState;
 }) {
   return async (sql: string): Promise<boolean> => {
+    // 20281028000000 — matched FIRST: its column probes name tables no other
+    // matcher knows, and its CHECK probe must not fall through to anything.
+    const stepUp = present.teamArchiveStepUp ?? {};
+    if (sql.includes("typname = 'MfaFactorKind'")) return stepUp.passkeyEnum === true;
+    if (sql.includes("mfa_factors_kind_payload_chk")) return stepUp.passkeyCheck === true;
+    if (sql.includes("indisunique") && sql.includes("'mfa_webauthn_credentials'")) {
+      return sql.includes("'credential_id'") ? stepUp.credentialIdUnique === true : stepUp.factorIdUnique === true;
+    }
+    if (sql.includes("information_schema.tables") && sql.includes("'mfa_webauthn_credentials'")) {
+      return stepUp.credentialTable === true;
+    }
+    const stepUpColumn = /table_name = '(step_up_challenges|organization_security_policies|authenticated_sessions|collaboration_teams)'\s+AND column_name = '(\w+)'/.exec(sql);
+    if (stepUpColumn) return (stepUp.columns ?? []).includes(`${stepUpColumn[1]}.${stepUpColumn[2]}`);
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
     if (sql.includes("typname = 'IncidentScope'")) return present.incidentScopeType === true;
     if (sql.includes("column_name = 'scope'")) return present.scopeColumn === true;
@@ -205,7 +220,45 @@ function databaseWith(present: {
   };
 }
 
+type StepUpState = {
+  passkeyEnum?: boolean;
+  passkeyCheck?: boolean;
+  credentialTable?: boolean;
+  credentialIdUnique?: boolean;
+  factorIdUnique?: boolean;
+  /** present columns, as "table.column" */
+  columns?: string[];
+};
+
+const STEP_UP_COLUMNS = [
+  "step_up_challenges.method",
+  "step_up_challenges.sso_connection_id",
+  "step_up_challenges.authn_context",
+  "step_up_challenges.webauthn_challenge",
+  "step_up_challenges.handoff_token_hash",
+  "step_up_challenges.handoff_used_at_utc",
+  "organization_security_policies.step_up_assurance",
+  "organization_security_policies.step_up_sms_allowed",
+  "organization_security_policies.idp_step_up_accepted_contexts",
+  "organization_security_policies.idp_step_up_max_age_seconds",
+  "authenticated_sessions.auth_method",
+  "authenticated_sessions.authn_context",
+  "authenticated_sessions.idp_auth_at_utc",
+  "collaboration_teams.archived_by_user_id",
+  "collaboration_teams.archive_reason",
+];
+
+const STEP_UP_APPLIED: StepUpState = {
+  passkeyEnum: true,
+  passkeyCheck: true,
+  credentialTable: true,
+  credentialIdUnique: true,
+  factorIdUnique: true,
+  columns: STEP_UP_COLUMNS,
+};
+
 const FULLY_MIGRATED = {
+  teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
   scopeColumn: true,
@@ -475,6 +528,86 @@ describe("runtime schema requirements — output and commercial tables", () => {
     );
     expect(result.ok).toBe(false);
     expect(describeRuntimeSchemaFailure(result)).toContain("evidence_id");
+  });
+});
+
+/**
+ * 20281028000000 — TEAM ARCHIVE AND STEP-UP ASSURANCE.
+ *
+ * The release went out with this migration undeclared: the gate passed against
+ * the previous schema and the only guard left was the worker's migration-head
+ * check, which compares LEDGER rows. A ledger row proves a migration was
+ * recorded, not that its objects exist — so each case below is a database the
+ * ledger would call current and the release cannot run against.
+ */
+describe("runtime schema requirements — team archive and step-up assurance (20281028000000)", () => {
+  const MIGRATION = "20281028000000_team_archive_step_up_assurance";
+
+  it("none of its objects present is REFUSED, every one named, the migration named", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, teamArchiveStepUp: {} }));
+    expect(result.ok).toBe(false);
+    expect(result.indeterminate).toEqual([]);
+    expect(result.missing.map((m) => m.id).sort()).toEqual(
+      [
+        "mfa_factor_kind.passkey",
+        "mfa_factors_kind_payload_chk.passkey",
+        "mfa_webauthn_credentials.table",
+        "mfa_webauthn_credentials.credential_id_unique",
+        "mfa_webauthn_credentials.factor_id_unique",
+        ...STEP_UP_COLUMNS,
+      ].sort(),
+    );
+    expect(result.missing.every((m) => m.suppliedBy === MIGRATION)).toBe(true);
+    const reason = describeRuntimeSchemaFailure(result);
+    expect(reason).toContain(MIGRATION);
+    expect(reason).toContain('column public."authenticated_sessions"."auth_method" must exist');
+  });
+
+  it("the enum value added but the CHECK not widened is REFUSED — enrolment would be rejected", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, teamArchiveStepUp: { ...STEP_UP_APPLIED, passkeyCheck: false } }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(["mfa_factors_kind_payload_chk.passkey"]);
+  });
+
+  it("ONE session column absent is REFUSED, and only that column is reported", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({
+        ...FULLY_MIGRATED,
+        teamArchiveStepUp: {
+          ...STEP_UP_APPLIED,
+          columns: STEP_UP_COLUMNS.filter((c) => c !== "authenticated_sessions.auth_method"),
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(["authenticated_sessions.auth_method"]);
+  });
+
+  it("the credential table WITHOUT its unique credential_id is REFUSED", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, teamArchiveStepUp: { ...STEP_UP_APPLIED, credentialIdUnique: false } }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(["mfa_webauthn_credentials.credential_id_unique"]);
+  });
+
+  it("the CHECK is asserted by its definition, not its name — the pre-widening constraint has the same name", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const seen: string[] = [];
+    await checkRuntimeSchemaRequirements(async (sql) => {
+      seen.push(sql);
+      return true;
+    });
+    const check = seen.find((sql) => sql.includes("mfa_factors_kind_payload_chk"));
+    expect(check).toBeDefined();
+    expect(check).toContain("pg_get_constraintdef");
+    expect(check).toContain("PASSKEY");
   });
 });
 

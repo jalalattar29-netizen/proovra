@@ -38,7 +38,7 @@
 /**
  * @typedef {{
  *   id: string,
- *   kind: "enum_type" | "enum_value" | "column" | "index" | "table",
+ *   kind: "enum_type" | "enum_value" | "column" | "index" | "table" | "constraint",
  *   detail: string,
  *   requiredBy: string,
  *   suppliedBy: string,
@@ -387,7 +387,150 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "the direct-capture open writes and replays a client attempt id so a retried open returns the same session; every capture-session read selects it",
     suppliedBy: "20281015120000_capture_session_client_attempt",
   },
+
+  /**
+   * TEAM ARCHIVE AND STEP-UP ASSURANCE (`20281028000000`).
+   *
+   * Released without a declaration here, so the gate passed against the
+   * previous schema and the only guard was the worker's migration-head check —
+   * which proves the LEDGER row, not the objects. The columns below are mapped
+   * by models Prisma reads WHOLE (no `select`), so a single absent column fails
+   * every read of that model, not just the new feature: the session row on
+   * authenticated requests, the Organization security policy, every
+   * Collaboration Team read. The enum value, the widened CHECK and the
+   * credential table are what passkey enrolment and assertion write and read.
+   */
+  {
+    id: "mfa_factor_kind.passkey",
+    kind: "enum_value",
+    detail: 'enum "MfaFactorKind" must contain PASSKEY',
+    requiredBy:
+      "a passkey is an MFA factor row; enrolment writes it and every factor read decodes it — an image that knows PASSKEY against a database that does not fails both",
+    suppliedBy: "20281028000000_team_archive_step_up_assurance",
+  },
+  {
+    id: "mfa_factors_kind_payload_chk.passkey",
+    kind: "constraint",
+    detail: 'check "mfa_factors_kind_payload_chk" on public."mfa_factors" must admit kind PASSKEY',
+    requiredBy:
+      "the pre-widening CHECK admits only TOTP and SMS/WHATSAPP payloads, so with the enum value alone every passkey enrolment is rejected by the database",
+    suppliedBy: "20281028000000_team_archive_step_up_assurance",
+  },
+  {
+    id: "mfa_webauthn_credentials.table",
+    kind: "table",
+    detail: 'table public."mfa_webauthn_credentials" must exist',
+    requiredBy: "the public key, counter and credential id of every passkey; registration writes it and every assertion reads it",
+    suppliedBy: "20281028000000_team_archive_step_up_assurance",
+  },
+  {
+    id: "mfa_webauthn_credentials.credential_id_unique",
+    kind: "index",
+    detail: 'a unique index on public."mfa_webauthn_credentials"("credential_id") must exist',
+    requiredBy:
+      "an assertion resolves its credential by credential_id; without uniqueness one authenticator id could resolve to two factors",
+    suppliedBy: "20281028000000_team_archive_step_up_assurance",
+  },
+  {
+    id: "mfa_webauthn_credentials.factor_id_unique",
+    kind: "index",
+    detail: 'a unique index on public."mfa_webauthn_credentials"("factor_id") must exist',
+    requiredBy: "a passkey factor owns exactly one credential (the one-to-one relation Prisma upserts and reads through)",
+    suppliedBy: "20281028000000_team_archive_step_up_assurance",
+  },
+  ...[
+    "method",
+    "sso_connection_id",
+    "authn_context",
+    "webauthn_challenge",
+    "handoff_token_hash",
+    "handoff_used_at_utc",
+  ].map((column) =>
+    stepUpColumn(
+      "step_up_challenges",
+      column,
+      "every step-up challenge is read and written as a whole row; without it no step-up can be issued or answered, team archive included",
+    ),
+  ),
+  ...[
+    "step_up_assurance",
+    "step_up_sms_allowed",
+    "idp_step_up_accepted_contexts",
+    "idp_step_up_max_age_seconds",
+  ].map((column) =>
+    stepUpColumn(
+      "organization_security_policies",
+      column,
+      "the Organization security policy is read as a whole row wherever it is evaluated; its absence fails policy reads, not just step-up",
+    ),
+  ),
+  ...["auth_method", "authn_context", "idp_auth_at_utc"].map((column) =>
+    stepUpColumn(
+      "authenticated_sessions",
+      column,
+      "the session row is read as a whole row when a session is resolved; its absence fails signed-in requests",
+    ),
+  ),
+  ...["archived_by_user_id", "archive_reason"].map((column) =>
+    stepUpColumn(
+      "collaboration_teams",
+      column,
+      "every Collaboration Team read selects the whole row; its absence fails team reads, not just archive",
+    ),
+  ),
 ]);
+
+/**
+ * One 20281028000000 column requirement. Its probe is `columnProbe` below,
+ * keyed by the same id.
+ *
+ * @param {string} table
+ * @param {string} column
+ * @param {string} requiredBy
+ * @returns {RuntimeSchemaRequirement}
+ */
+function stepUpColumn(table, column, requiredBy) {
+  return {
+    id: `${table}.${column}`,
+    kind: "column",
+    detail: `column public."${table}"."${column}" must exist`,
+    requiredBy,
+    suppliedBy: "20281028000000_team_archive_step_up_assurance",
+  };
+}
+
+/** The same catalog read every hand-written column probe above makes. */
+function columnProbe(table, column) {
+  return `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = '${table}'
+       AND column_name = '${column}'
+     LIMIT 1`;
+}
+
+/**
+ * A unique index whose single column is `column` — asserted through pg_index,
+ * like the idempotency key above, because the property is the uniqueness, not
+ * the name a generator chose.
+ */
+function singleColumnUniqueProbe(table, column) {
+  return `
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class t ON t.oid = i.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      JOIN pg_attribute a
+        ON a.attrelid = t.oid
+       AND a.attnum = i.indkey[0]
+     WHERE n.nspname = 'public'
+       AND t.relname = '${table}'
+       AND i.indisunique
+       AND i.indnatts = 1
+       AND a.attname = '${column}'
+     LIMIT 1`;
+}
 
 /**
  * The catalog probes, one per requirement id.
@@ -660,6 +803,48 @@ const PROBES = Object.freeze({
        AND table_name = 'capture_sessions'
        AND column_name = 'client_attempt_id'
      LIMIT 1`,
+
+  // 20281028000000 — team archive and step-up assurance.
+  "mfa_factor_kind.passkey": `
+    SELECT 1
+      FROM pg_type t
+      JOIN pg_enum e ON e.enumtypid = t.oid
+     WHERE t.typname = 'MfaFactorKind'
+       AND e.enumlabel = 'PASSKEY'
+     LIMIT 1`,
+  /*
+   * The CHECK is asserted by its DEFINITION, not its name: the pre-widening
+   * constraint has the same name and is exactly what must be refused. The
+   * migration compares `"kind"::text = 'PASSKEY'`, so the definition names the
+   * label as a string literal.
+   */
+  "mfa_factors_kind_payload_chk.passkey": `
+    SELECT 1
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = 'mfa_factors'
+       AND c.conname = 'mfa_factors_kind_payload_chk'
+       AND c.contype = 'c'
+       AND pg_get_constraintdef(c.oid) LIKE '%''PASSKEY''%'
+     LIMIT 1`,
+  "mfa_webauthn_credentials.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'mfa_webauthn_credentials'
+     LIMIT 1`,
+  "mfa_webauthn_credentials.credential_id_unique": singleColumnUniqueProbe("mfa_webauthn_credentials", "credential_id"),
+  "mfa_webauthn_credentials.factor_id_unique": singleColumnUniqueProbe("mfa_webauthn_credentials", "factor_id"),
+  ...Object.fromEntries(
+    RUNTIME_SCHEMA_REQUIREMENTS.filter(
+      (r) => r.kind === "column" && r.suppliedBy === "20281028000000_team_archive_step_up_assurance",
+    ).map((r) => {
+      const [table, column] = r.id.split(".");
+      return [r.id, columnProbe(table, column)];
+    }),
+  ),
 });
 
 /**

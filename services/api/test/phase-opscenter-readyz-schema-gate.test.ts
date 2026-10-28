@@ -268,6 +268,39 @@ describe("/readyz — required-schema gate (Operations Center migrations)", () =
     await app.close();
   });
 
+  it("WEBAUTHN — in production a relying-party config the parser refuses fails readiness, bounded", async () => {
+    // The real collector, not a spy: the case is that a malformed WebAuthn
+    // value reaches /readyz through the one production-violation contract.
+    const prev = { ...process.env };
+    process.env = {
+      ...prev,
+      NODE_ENV: "production",
+      DATABASE_URL: "postgresql://probe:probe@127.0.0.1:1/probe",
+      AUTH_JWT_SECRET: "u8Jq2Zr7Kx0bP4mW1sVd9TgHc6NeLfYa3RoXiE5k",
+      IDENTITY_SECURITY_HASH_SECRET: "k".repeat(40),
+      SIGNING_PRIVATE_KEY_PATH: "/run/signing/key.pem",
+      PDF_SIGNING_ENABLED: "true",
+      S3_OBJECT_LOCK_ENABLED: "true",
+      S3_OBJECT_LOCK_MODE: "COMPLIANCE",
+      WEBAUTHN_RP_ID: "proovra.com",
+      WEBAUTHN_ORIGINS: "https://app.proovra.com",
+    };
+    const app = await buildApp();
+    try {
+      const good = await app.inject({ method: "GET", url: "/readyz" });
+      expect(good.json().reason).not.toBe("production_config_violations");
+
+      process.env.WEBAUTHN_ORIGINS = "https://app.attacker-controlled.example";
+      const bad = await app.inject({ method: "GET", url: "/readyz" });
+      expect(bad.statusCode).toBe(503);
+      expect(bad.json()).toEqual({ status: "degraded", reason: "production_config_violations" });
+      expect(bad.body).not.toContain("attacker");
+    } finally {
+      process.env = prev;
+      await app.close();
+    }
+  });
+
   it("/healthz stays a pure liveness probe — no schema dependency", async () => {
     H.scheduleTableMissing = true;
     H.dbUnreachable = true;
