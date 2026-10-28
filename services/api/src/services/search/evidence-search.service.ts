@@ -59,6 +59,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordSearchAudit } from "./search-audit.service.js";
+import { searchDocumentReachWhere } from "./search-reach.js";
 import {
   type EmbeddingProvider,
   isSemanticReadyAtRuntime,
@@ -217,6 +218,16 @@ export async function executeSearch(
   // unknown actor capability falls through to "non-reviewer".
   if (!input.isReviewerCapable) {
     where.reviewerRestricted = false;
+  }
+  // Case reach — a restricted Case the actor is not on, and the Evidence it
+  // hides, never match (search-reach.ts). Part of the WHERE, so no count,
+  // facet or page length can reveal them either.
+  const reach = await searchDocumentReachWhere(client, filter.teamId, input.actorUserId);
+  if (reach.AND) {
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      ...(reach.AND as prismaPkg.Prisma.EvidenceSearchDocumentWhereInput[]),
+    ];
   }
 
   // Free-text query — Postgres `to_tsvector('simple', body) @@

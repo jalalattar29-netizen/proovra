@@ -179,6 +179,9 @@ describe("Phase E — atomic audit and lifecycle notices (live PostgreSQL)", () 
   });
 
   it("suspend then restore: two notices, two audit transitions", async () => {
+    // A reinstatement takes a seat back (members experience): it is admitted
+    // only on a plan that admits members, so the workspace is on one here.
+    await prisma.team.updateMany({ where: { id: A().teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } });
     const m = await person(A().teamId, "MEMBER");
     await rbac.suspendMember({ teamId: A().teamId, teamMemberId: m.memberId!, actorUserId: A().ownerUserId });
     await rbac.restoreMember({ teamId: A().teamId, teamMemberId: m.memberId!, actorUserId: A().ownerUserId });

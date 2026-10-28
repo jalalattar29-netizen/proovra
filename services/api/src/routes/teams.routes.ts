@@ -106,6 +106,8 @@ import {
   WORKSPACE_LIFECYCLE_ERROR_CODES,
 } from "@proovra/shared";
 import { resolveWorkspaceKind } from "../services/identity/workspace-kind.js";
+import { caseVisibleToWhere, OPEN_CASE_STATUSES } from "../services/cases/case-visibility.js";
+import { resolveCollaborationEntitlement } from "../services/collaboration-team/collaboration-entitlement.service.js";
 import { accessibleWorkspaceIdsFor } from "../services/access/record-reach.js";
 import { explainMemberAccess } from "../services/access/access-explanation.service.js";
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
@@ -699,8 +701,11 @@ export async function teamsRoutes(app: FastifyInstance) {
         // visible there. Hoisting it to a variable hides it, and this route
         // then reads as tenant-UNBOUND — a stricter query reported as a weaker
         // one, which is the false finding that instrument exists to avoid.
+        // Members experience — only the Cases THIS caller can see; a count
+        // that includes restricted Cases they are not on discloses that those
+        // Cases exist (case-visibility.ts).
         const caseCount = await prisma.case.count({
-          where: { AND: [await workspaceCaseWhere(team.id, prisma)] },
+          where: { AND: [await workspaceCaseWhere(team.id, prisma), caseVisibleToWhere(userId)] },
         });
 
         return {
@@ -851,9 +856,56 @@ export async function teamsRoutes(app: FastifyInstance) {
       const countOf = (status: prismaPkg.TeamMemberStatus) =>
         statusCounts.find((r) => r.status === status)?._count._all ?? 0;
 
-      const caseCount = await prisma.case.count({
-        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
-      });
+      /*
+       * MEMBERS EXPERIENCE (2026-10-27) — TWO CASE FIGURES, EACH WITH ONE MEANING.
+       *
+       * "Cases in this workspace" counted every Case row, restricted ones the
+       * caller is not on included and every lifecycle state included, beside a
+       * link reading "Open Cases". The count disclosed that restricted Cases
+       * exist, and the label promised a subset the number was not.
+       *
+       *   caseCount      Cases this caller can see, any status.
+       *   openCaseCount  the same, still being worked: OPEN, INVESTIGATING or
+       *                  ON_HOLD — not RESOLVED, CLOSED or ARCHIVED.
+       *
+       * Both apply `caseVisibleToWhere`, the rule the Cases list applies.
+       */
+      const [caseCount, openCaseCount] = await Promise.all([
+        prisma.case.count({
+          where: { AND: [await workspaceCaseWhere(teamId, prisma), caseVisibleToWhere(userId)] },
+        }),
+        prisma.case.count({
+          where: {
+            AND: [
+              await workspaceCaseWhere(teamId, prisma),
+              caseVisibleToWhere(userId),
+              { status: { in: [...OPEN_CASE_STATUSES] } },
+            ],
+          },
+        }),
+      ]);
+      /*
+       * THE COLLABORATION TEAM ALLOWANCE, from the one commercial projection.
+       *
+       * Members & Access showed "Seats available: No limit — capacity is set
+       * per Collaboration Team": true (PRO and TEAM have no Workspace-wide
+       * ceiling) and useless. What a PRO or TEAM owner can grow is the number
+       * of Teams and the people in each, so the page shows active Teams
+       * against the plan's or contract's limit — the figures
+       * `resolveCollaborationEntitlement` computes for the create gate. A
+       * failed read is `null`, rendered as unknown, never as zero.
+       */
+      const collaborationTeams = await resolveCollaborationEntitlement(teamId, {
+        canViewAllTeams: false,
+      })
+        .then((e) => ({
+          featureIncluded: e.featureIncluded,
+          active: e.collaborationTeams.used,
+          limit: e.collaborationTeams.limit,
+          limitSource: e.collaborationTeams.source,
+          membersPerTeam: e.collaborationTeamMembers.limit,
+        }))
+        .catch(() => null);
 
       // §9.7 — explicit WORKSPACE subject (existing-workspace seat display).
       // COMMERCIAL TRUTH CLOSURE (2026-09-08) — the effective plan this route
@@ -986,6 +1038,8 @@ export async function teamsRoutes(app: FastifyInstance) {
           },
           pendingInviteCount,
           caseCount,
+          openCaseCount,
+          collaborationTeams,
           seatLimit: effectiveSeatLimit,
           seatUsed: workspaceUsage.teamMemberCount,
           // `null` = no workspace-wide ceiling (members audit ENT-04).

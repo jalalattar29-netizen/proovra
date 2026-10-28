@@ -422,8 +422,16 @@ export async function revokeWorkspaceInvitation(
   if (existing.revokedAt) return projectInvitation(existing);
 
   return client.$transaction(async (tx) => {
-    const updated = await tx.teamInvite.update({
-      where: { id: existing.id },
+    /*
+     * CONDITIONAL, so a revoke cannot overwrite an acceptance that committed
+     * after the read above (members experience audit, 2026-10-27). The
+     * unconditional update stamped `revokedAt` on an already-accepted
+     * invitation and reported success: the administrator believed access was
+     * withheld while the person was a member. Only a still-pending row is
+     * revoked; anything else is re-read and answered for what it now is.
+     */
+    const claimed = await tx.teamInvite.updateMany({
+      where: { id: existing.id, teamId: input.workspaceId, acceptedAt: null, revokedAt: null },
       data: {
         revokedAt: new Date(),
         revokedByUserId: input.actorUserId,
@@ -432,6 +440,18 @@ export async function revokeWorkspaceInvitation(
         tokenHash: hashToken(`revoked:${existing.id}:${randomBytes(16).toString("hex")}`),
       },
     });
+    const updated = await tx.teamInvite.findUniqueOrThrow({ where: { id: existing.id } });
+    if (claimed.count === 0) {
+      if (updated.acceptedAt) {
+        throw new WorkspaceInvitationError(
+          "INVITE_NOT_PENDING",
+          "This invitation was already accepted. Remove the member instead.",
+          409,
+        );
+      }
+      // A concurrent revoke won: the outcome the caller asked for, once.
+      return projectInvitation(updated);
+    }
     const projected = projectInvitation(updated);
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
     return projected;

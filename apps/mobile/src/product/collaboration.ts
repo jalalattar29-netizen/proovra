@@ -358,7 +358,7 @@ export function parseCollaborationEntitlement(payload: unknown): CollaborationEn
 }
 
 /** The web's single plan-locked sentence (lib/feedback/team-entitlement-copy.ts:19). */
-export const TEAMS_PLAN_LOCKED_COPY = "Teams are available on Pro, Team, and Enterprise plans.";
+export const TEAMS_PLAN_LOCKED_COPY = "Collaboration Teams are available on Pro, Team, and Enterprise plans.";
 
 /**
  * Members audit CT-16 — what a refused Collaboration Teams read MEANS.
@@ -1090,4 +1090,14 @@ export function buildCreateAssignmentBody(input: {
     dueAtUtc: input.dueAtUtc,
     note: input.note.trim() ? input.note.trim() : null,
   };
+}
+
+/**
+ * Members experience F — Team tasks (Create assignment) are the plan's
+ * REVIEW_TASKS_AND_QUEUES capability (TEAM and above); PRO keeps Collaboration
+ * Teams for case access and refuses every assignment. Read from the server's
+ * envelope projection; anything but `true` offers nothing.
+ */
+export function teamTasksIncluded(envelope: unknown): boolean {
+  return obj(obj(envelope).planFeatures).reviewQueuesIncluded === true;
 }

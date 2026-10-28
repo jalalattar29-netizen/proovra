@@ -478,7 +478,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   },
   TEAM_PLAN_REQUIRED: {
     title: "Teams aren't included in your plan",
-    message: "Teams are available on Pro, Team, and Enterprise plans.",
+    message: "Collaboration Teams are available on Pro, Team, and Enterprise plans.",
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",

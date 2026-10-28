@@ -56,6 +56,14 @@ import {
 // the same transaction (members audit MEM-01 / ACC-08). Suspension keeps it —
 // inert while the membership is not ACTIVE, back with a restore.
 import { endStandingReach, releaseWorkOnSuspension } from "./standing-reach.js";
+import {
+  resolveWorkspaceSeatState,
+  workspaceSeatsAdmit,
+} from "../billing/workspace-seats.service.js";
+import {
+  BillingLimitError,
+  lockAndAssertCollaborationTeamMemberCapacity,
+} from "../collaboration-team/billing-guards.js";
 
 // -----------------------------------------------------------------------------
 // Error surface
@@ -85,7 +93,13 @@ export type RbacErrorCode =
   // requested role is not below the actor's own.
   | "rank_insufficient"
   // Members audit LIFE-15 — the OWNER cannot leave the workspace they own.
-  | "owner_cannot_leave";
+  | "owner_cannot_leave"
+  // Members experience (2026-10-27) — reinstating a suspended member takes a
+  // seat back, and the Collaboration Team positions they still hold. A
+  // contract with no seat left, or a group that refilled while they were
+  // suspended, refuses the reinstatement instead of exceeding either.
+  | "workspace_seat_limit_reached"
+  | "collaboration_team_capacity_reached";
 
 export class RbacError extends Error {
   readonly code: RbacErrorCode;
@@ -564,6 +578,7 @@ export async function restoreMember(
     ) {
       throw new RbacError("invalid_status_transition");
     }
+    await assertReinstatementFitsCapacityTx(tx, input.teamId, target.userId);
     const updated = await tx.teamMember.update({
       where: { id: target.id },
       data: {
@@ -605,6 +620,53 @@ export async function restoreMember(
   });
   await settleLifecycleNotice(client, noticeId, input.noticeSink);
   return updated;
+}
+
+/**
+ * A REINSTATEMENT IS A JOIN (members experience audit, 2026-10-27).
+ *
+ * Suspension ends a member's effective presence without deleting their rows:
+ * the seat they held is free, and their Collaboration Team positions stop
+ * counting (`effectiveGroupMemberWhere`). Reinstating them takes both back.
+ * The SCIM reactivation path already asked for the seat; the manual restore
+ * asked for nothing, so a full Enterprise contract went over its seat count
+ * and a PRO group that refilled to 5 in the meantime came back holding 6.
+ *
+ * Asked here under the same locks every other joiner takes — the
+ * per-workspace seat lock invitation acceptance uses, and the per-group lock
+ * of `lockAndAssertCollaborationTeamMemberCapacity` — before the status
+ * changes, while the member is still uncounted.
+ */
+async function assertReinstatementFitsCapacityTx(
+  tx: PrismaClient,
+  workspaceId: string,
+  userId: string,
+): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`}))`;
+  const seats = await resolveWorkspaceSeatState(workspaceId, tx);
+  if (!workspaceSeatsAdmit(seats)) throw new RbacError("workspace_seat_limit_reached");
+  const groups = await tx.collaborationTeamMember.findMany({
+    where: {
+      userId,
+      status: "ACTIVE",
+      team: { workspaceId, status: "ACTIVE", archivedAtUtc: null },
+    },
+    select: { teamId: true },
+    orderBy: { teamId: "asc" },
+  });
+  for (const { teamId } of groups) {
+    try {
+      await lockAndAssertCollaborationTeamMemberCapacity(tx, {
+        teamId,
+        addingUserIds: [userId],
+      });
+    } catch (err) {
+      if (err instanceof BillingLimitError) {
+        throw new RbacError("collaboration_team_capacity_reached");
+      }
+      throw err;
+    }
+  }
 }
 
 /**

@@ -78,6 +78,7 @@ import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 // path with every other rate-limited route, so a workspace rebuild cannot be
 // throttled by a second, differently-behaved implementation.
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { searchDocumentReachWhere } from "../services/search/search-reach.js";
 
 function readUserAgent(req: FastifyRequest): string | null {
   const ua = req.headers["user-agent"];
@@ -824,6 +825,8 @@ export async function searchRoutes(app: FastifyInstance) {
             teamId: q.teamId,
             // Non-reviewer actors never see reviewer-restricted rows.
             ...(actor.isReviewerCapable ? {} : { reviewerRestricted: false }),
+            // Nor a restricted Case they are not on, or its Evidence.
+            ...(await searchDocumentReachWhere(prisma, q.teamId, actor.userId)),
             OR: [
               { title: { contains: q.q, mode: "insensitive" } },
               { searchableText: { contains: q.q, mode: "insensitive" } },
@@ -1206,6 +1209,7 @@ export async function searchRoutes(app: FastifyInstance) {
         const probeWhere: prismaPkg.Prisma.EvidenceSearchDocumentWhereInput = {
           teamId,
           ...(actor.isReviewerCapable ? {} : { reviewerRestricted: false }),
+          ...(await searchDocumentReachWhere(prisma, teamId, actor.userId)),
           OR: [
             { title: { contains: q, mode: "insensitive" } },
             { subtitle: { contains: q, mode: "insensitive" } },

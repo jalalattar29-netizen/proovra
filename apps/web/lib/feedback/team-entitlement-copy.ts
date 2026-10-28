@@ -17,7 +17,7 @@
  * TEAM_PLAN_REQUIRED CODE_MAP entry.
  */
 export const TEAMS_PLAN_LOCKED_COPY =
-  "Teams are available on Pro, Team, and Enterprise plans.";
+  "Collaboration Teams are available on Pro, Team, and Enterprise plans.";
 
 /**
  * Build the honest at-cap message from the server's TEAM_LIMIT_REACHED

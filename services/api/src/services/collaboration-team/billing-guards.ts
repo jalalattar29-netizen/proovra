@@ -380,7 +380,7 @@ export async function assertCanCreateCollaborationTeam(
     // them so the UI can render the upgrade target without hardcoding it.
     throwBillingError({
       code: "TEAM_PLAN_REQUIRED",
-      message: "Teams are available on Pro, Team, and Enterprise plans.",
+      message: "Collaboration Teams are available on Pro, Team, and Enterprise plans.",
       details: {
         plan,
         maxCollaborationTeamsPerWorkspace,

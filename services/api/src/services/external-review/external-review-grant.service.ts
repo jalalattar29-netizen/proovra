@@ -44,6 +44,10 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  caseVisibleToWhere,
+  evidenceVisibleThroughCasesWhere,
+} from "../cases/case-visibility.js";
 // Phase O1.5E — bounded external.review.notify span. NEVER reviewer
 // email, name, or token in attributes — bounded scope only.
 import {
@@ -238,37 +242,60 @@ export function externalReviewTargetBelongsToTeam(
   client: PrismaClient,
   teamId: string,
   target: { kind: IssueGrantInput["scopeKind"]; id: string },
+  actorUserId: string,
 ): Promise<boolean> {
   return scopeTargetBelongsToTeam(client, teamId, target.kind, {
     evidenceId: target.kind === "EVIDENCE" ? target.id : null,
     caseId: target.kind === "CASE" ? target.id : null,
     packageId: target.kind === "PACKAGE" ? target.id : null,
-  });
+  }, actorUserId);
 }
 
+/**
+ * The subject must belong to the issuing workspace AND be within the
+ * ISSUER's Case reach (members experience audit, 2026-10-27).
+ *
+ * Workspace membership alone never reaches a restricted Case. A member left
+ * off its access list is refused the Case, its Evidence and its packages
+ * with a concealed 404 everywhere else — and could still mint an outsider a
+ * token for any of them by naming its id here, because this compared the
+ * workspace only. The reach clauses are `case-visibility.ts`'s, the rule
+ * every list and detail read applies. An unreachable subject is the same
+ * `invalid_scope` as a foreign or missing one, so the refusal reveals
+ * nothing about which restricted records exist.
+ */
 async function scopeTargetBelongsToTeam(
   client: PrismaClient,
   teamId: string,
   scopeKind: IssueGrantInput["scopeKind"],
   ids: { evidenceId: string | null; caseId: string | null; packageId: string | null },
+  actorUserId: string,
 ): Promise<boolean> {
   if (scopeKind === "EVIDENCE" && ids.evidenceId) {
     const row = await client.evidence.findFirst({
-      where: { id: ids.evidenceId, teamId, deletedAt: null },
+      where: {
+        id: ids.evidenceId,
+        teamId,
+        deletedAt: null,
+        ...evidenceVisibleThroughCasesWhere(actorUserId),
+      },
       select: { id: true },
     });
     return row !== null;
   }
   if (scopeKind === "CASE" && ids.caseId) {
     const row = await client.case.findFirst({
-      where: { id: ids.caseId, teamId },
+      where: { AND: [{ id: ids.caseId, teamId }, caseVisibleToWhere(actorUserId)] },
       select: { id: true },
     });
     return row !== null;
   }
   if (scopeKind === "PACKAGE" && ids.packageId) {
     const row = await client.verificationPackage.findFirst({
-      where: publishedPackageWhere({ id: ids.packageId, evidence: { teamId, deletedAt: null } }),
+      where: publishedPackageWhere({
+        id: ids.packageId,
+        evidence: { teamId, deletedAt: null, ...evidenceVisibleThroughCasesWhere(actorUserId) },
+      }),
       select: { id: true },
     });
     return row !== null;
@@ -303,7 +330,7 @@ async function issueExternalReviewGrantInner(
     evidenceId,
     caseId,
     packageId,
-  }))) {
+  }, input.invitedByUserId))) {
     return { ok: false, reason: "invalid_scope" };
   }
 

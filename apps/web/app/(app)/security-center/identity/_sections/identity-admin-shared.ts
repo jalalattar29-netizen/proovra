@@ -49,6 +49,10 @@ const CODE_COPY: Record<string, string> = {
     "The identity-ownership check could not run, so the change was refused. Retry shortly.",
   last_administrator_protected:
     "This would leave the workspace with no active administrator. Promote another member first.",
+  workspace_seat_limit_reached:
+    "Every seat on this workspace's contract is in use, so this member can't be reinstated. Free a seat or extend the contract first.",
+  collaboration_team_capacity_reached:
+    "A Collaboration Team this member belongs to is now full on your plan. Make room in that team before reinstating them.",
   member_owner_immutable:
     "The workspace owner cannot be suspended, revoked, or demoted here. Transfer ownership first.",
   role_transition_to_owner_forbidden:
@@ -93,6 +97,8 @@ const CODE_COPY: Record<string, string> = {
 const BLOCKED_CODES = new Set([
   "managed_identity_readonly",
   "last_administrator_protected",
+  "workspace_seat_limit_reached",
+  "collaboration_team_capacity_reached",
   "member_owner_immutable",
   "role_transition_to_owner_forbidden",
   "self_action_forbidden",

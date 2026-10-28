@@ -36,7 +36,11 @@ vi.mock("../src/services/identity/identity-mode.service.js", () => ({
     if (M.setThrows) throw M.setThrows;
   },
 }));
-vi.mock("../src/services/billing/commercial-context.service.js", () => ({
+vi.mock("../src/services/billing/commercial-context.service.js", async (importOriginal) => ({
+  // The module's constants stay real: membership code now reaches the
+  // Collaboration Team capacity guard (reinstatement), which reads them at
+  // import. Only the context resolver is observed here.
+  ...(await importOriginal<Record<string, unknown>>()),
   resolveCommercialContext: async () => {
     M.seatCalls += 1;
     return { seats: M.seat };

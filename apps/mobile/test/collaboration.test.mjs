@@ -152,7 +152,7 @@ test("a refusal is explained from the dimension the server named", () => {
     canCreateCollaborationTeam: false,
     featureIncluded: false,
   });
-  assert.equal(mod.createDisabledReason(locked), "Teams are available on Pro, Team, and Enterprise plans.");
+  assert.equal(mod.createDisabledReason(locked), "Collaboration Teams are available on Pro, Team, and Enterprise plans.");
   const restricted = mod.parseCollaborationEntitlement({ canCreateCollaborationTeam: false, featureIncluded: true, mutationsAllowed: false });
   assert.match(mod.createDisabledReason(restricted), /billing needs attention/);
 

@@ -80,7 +80,7 @@ export async function inviteCrossOrgReview(
   const prisma = input.prisma ?? defaultPrisma;
   // D17 — the subject must be a record of the inviting workspace, checked
   // with the rule the portal invitation is later issued under.
-  if (input.subject && !(await externalReviewTargetBelongsToTeam(prisma, input.teamId, input.subject))) {
+  if (input.subject && !(await externalReviewTargetBelongsToTeam(prisma, input.teamId, input.subject, input.createdByUserId))) {
     return { ok: false, denial: "SUBJECT_NOT_IN_WORKSPACE" };
   }
   const row = await prisma.crossOrgReviewGrant.create({

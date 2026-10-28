@@ -94,6 +94,6 @@ test("the plan's group capacity is shown, with Upgrade at the limit (PlanLimitBa
   r.unmount();
   routes["/v1/collaboration-teams/entitlement"] = () => ({ canCreateCollaborationTeam: false, featureIncluded: false, plan: "FREE", collaborationTeams: { used: 0, limit: 0 } });
   r = await render();
-  assert.ok(r.hasText("Teams are available on Pro, Team, and Enterprise plans. Existing Teams and their data remain accessible."));
+  assert.ok(r.hasText("Collaboration Teams are available on Pro, Team, and Enterprise plans. Existing Teams and their data remain accessible."));
   assert.equal(r.byLabel("Upgrade plan").length, 1);
 });

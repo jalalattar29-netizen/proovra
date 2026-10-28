@@ -63,6 +63,8 @@ export function rbacErrorStatus(code: string): number {
     case "capability_already_active":
     case "delegated_scope_already_active":
     case "owner_cannot_leave":
+    case "workspace_seat_limit_reached":
+    case "collaboration_team_capacity_reached":
       return 409;
     default:
       return 400;

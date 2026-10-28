@@ -95,6 +95,13 @@ function teamGrantReaches(callerUserId: string): Prisma.CaseCollaborationTeamAcc
   };
 }
 
+/**
+ * A Case still being worked. RESOLVED, CLOSED and ARCHIVED are finished; the
+ * Members & Access "Open cases" figure counts the rest, and nothing else
+ * defines "open" differently.
+ */
+export const OPEN_CASE_STATUSES = ["OPEN", "INVESTIGATING", "ON_HOLD"] as const;
+
 export function caseVisibleToWhere(callerUserId: string | null | undefined): Prisma.CaseWhereInput {
   return callerUserId
     ? {
