@@ -140,14 +140,42 @@ export function classifyRefusal(err) {
   };
 }
 
+/**
+ * What the header lines may print — every one ALLOWLISTED, never echoed from
+ * the environment as-is: the mode as one of its four meanings, the secret name
+ * only when it is the default, the region only when it has a region's shape.
+ *
+ * @param {NodeJS.ProcessEnv} env
+ */
+export function describeConfiguration(env) {
+  const explicit = (env.AWS_SECRETS_MODE ?? "").trim().toLowerCase();
+  const legacy = (env.AWS_SECRETS_ENABLED ?? "").trim().toLowerCase() === "true";
+  const mode = explicit
+    ? ["required", "optional", "disabled"].includes(explicit)
+      ? explicit
+      : "<invalid AWS_SECRETS_MODE: the services refuse to start>"
+    : legacy
+      ? "optional (legacy AWS_SECRETS_ENABLED)"
+      : "disabled";
+  const secretName = (env.AWS_SECRET_NAME ?? "").trim() || DEFAULT_SECRET_NAME;
+  const region = (env.AWS_SECRETS_REGION ?? "").trim() || (env.AWS_REGION ?? "").trim() || "us-east-1";
+  return {
+    secretName,
+    region,
+    printable: {
+      mode,
+      secretName: secretName === DEFAULT_SECRET_NAME ? secretName : "<non-default name>",
+      region: /^[a-z]{2}(-[a-z]+)+-\d$/.test(region) ? region : "<non-standard region>",
+    },
+  };
+}
+
+const DEFAULT_SECRET_NAME = "proovra/prod/app-secrets";
+
 async function main() {
-  const secretName = (process.env.AWS_SECRET_NAME ?? "").trim() || "proovra/prod/app-secrets";
-  const region =
-    (process.env.AWS_SECRETS_REGION ?? "").trim() || (process.env.AWS_REGION ?? "").trim() || "us-east-1";
-  const mode = (process.env.AWS_SECRETS_MODE ?? "").trim().toLowerCase() ||
-    ((process.env.AWS_SECRETS_ENABLED ?? "").trim().toLowerCase() === "true" ? "optional (legacy AWS_SECRETS_ENABLED)" : "disabled");
-  console.log(`declared mode:        ${mode}`);
-  console.log(`secret / region:      ${secretName} / ${region}`);
+  const { secretName, region, printable } = describeConfiguration(process.env);
+  console.log(`declared mode:        ${printable.mode}`);
+  console.log(`secret / region:      ${printable.secretName} / ${printable.region}`);
   console.log(`credential category:  ${credentialChainCategory(process.env)}`);
 
   let secretString;

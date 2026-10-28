@@ -136,6 +136,46 @@ describe("credentialChainCategory — names only, in the SDK chain's order", () 
   });
 });
 
+describe("describeConfiguration — header lines are allowlisted, never echoed", () => {
+  it("prints the mode, default name and a region-shaped region as they are", async () => {
+    const { describeConfiguration } = (await load()) as unknown as {
+      describeConfiguration: (env: Record<string, string | undefined>) => { printable: Record<string, string> };
+    };
+    expect(describeConfiguration({ AWS_SECRETS_ENABLED: "true", AWS_SECRETS_REGION: "us-east-1" }).printable).toEqual({
+      mode: "optional (legacy AWS_SECRETS_ENABLED)",
+      secretName: "proovra/prod/app-secrets",
+      region: "us-east-1",
+    });
+  });
+
+  it("anything else is a placeholder", async () => {
+    const { describeConfiguration } = (await load()) as unknown as {
+      describeConfiguration: (env: Record<string, string | undefined>) => { printable: Record<string, string> };
+    };
+    const printable = describeConfiguration({
+      AWS_SECRETS_MODE: "required-LEAK-xyz",
+      AWS_SECRET_NAME: "acct-LEAK/custom",
+      AWS_SECRETS_REGION: "https://LEAK.example",
+    }).printable;
+    expect(JSON.stringify(printable)).not.toContain("LEAK");
+    expect(printable.secretName).toBe("<non-default name>");
+    expect(printable.region).toBe("<non-standard region>");
+  });
+});
+
+describe("the script is read-only by construction", () => {
+  it("issues exactly one AWS command, GetSecretValue, and has no write, spawn or env-mutation path", () => {
+    const code = readFileSync(SCRIPT, "utf8").replace(/^\s*(\/\/|\*|\/\*).*$/gm, "");
+    expect([...code.matchAll(/\b([A-Z][A-Za-z]+Command)\b/g)].map((m) => m[1])).toEqual([
+      "GetSecretValueCommand",
+      "GetSecretValueCommand",
+    ]);
+    expect(code).not.toMatch(
+      /writeFile|appendFile|mkdir|unlink|rmSync|child_process|spawn|execSync|fetch\(|process\.env(\.[A-Z_]+|\[[^\]]+\])\s*=[^=]|delete process\.env/,
+    );
+  });
+});
+
 describe("the script never prints a value", () => {
   it("no output line interpolates a stored or environment value", () => {
     const src = readFileSync(SCRIPT, "utf8");

@@ -105,6 +105,24 @@ function mount(canManage = true, onChange?: (list: unknown) => void) {
 function reasonOf(button: HTMLElement) {
   return document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent;
 }
+/**
+ * Open the create form the way the create test does, for every case that
+ * needs it: "Add destination" is DISABLED until the list has loaded, so a
+ * click before then is ignored, and the form is a render after the click. The
+ * cancel case did neither and failed on a loaded runner (main ci, 2026-10-28:
+ * `Unable to find role="form"`), reproduced locally by delaying the list
+ * read by 1.5 s.
+ */
+async function openCreateForm() {
+  const add = await screen.findByRole("button", { name: "Add destination" }, { timeout: 5000 });
+  await waitFor(
+    () => expect(add.hasAttribute("disabled") || add.getAttribute("aria-disabled") === "true").toBe(false),
+    { timeout: 5000 },
+  );
+  fireEvent.click(add);
+  const form = await screen.findByRole("form", { name: "Add a webhook destination" }, { timeout: 5000 });
+  return { add, form };
+}
 function readsAfter(index: number) {
   return mocks.fetch.mock.calls.slice(index + 1).filter(([p, init]) => p === LIST && (init?.method ?? "GET") === "GET").length;
 }
@@ -191,11 +209,7 @@ describe("automation webhook destinations", () => {
       return defaultReply(path, init);
     });
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Add destination" }));
-    // Awaited for the same reason as above: the disclosure is a render away.
-    const form = await screen.findByRole("form", {
-      name: "Add a webhook destination",
-    });
+    const { form } = await openCreateForm();
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "Local" } });
     fireEvent.change(within(form).getByLabelText("Destination URL"), { target: { value: "https://localhost/in" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add destination" }));
@@ -206,12 +220,7 @@ describe("automation webhook destinations", () => {
 
   it("cancelling the create form makes no write and returns focus to Add", async () => {
     mount();
-    const add = await screen.findByRole("button", { name: "Add destination" });
-    fireEvent.click(add);
-    // The disclosure is a render away — see the note on the create test.
-    const createForm = await screen.findByRole("form", {
-      name: "Add a webhook destination",
-    });
+    const { add, form: createForm } = await openCreateForm();
     fireEvent.click(within(createForm).getByRole("button", { name: "Cancel" }));
     // Closing the form and returning focus are a render away too: wait for the
     // settled state (the note on the next test) rather than read eagerly.
@@ -245,10 +254,7 @@ describe("automation webhook destinations", () => {
     await waitFor(() => expect(reasonOf(enable)).toBe(VIEW_ONLY));
     cleanup();
     mount(true);
-    fireEvent.click(await screen.findByRole("button", { name: "Add destination" }));
-    const submit = within(
-      await screen.findByRole("form", { name: "Add a webhook destination" }),
-    ).getByRole("button", { name: "Add destination" });
+    const submit = within((await openCreateForm()).form).getByRole("button", { name: "Add destination" });
     await waitFor(() =>
       expect(reasonOf(submit)).toBe("Enter a name of 1 to 120 characters."),
     );
