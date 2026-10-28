@@ -111,7 +111,7 @@ vi.mock("../../lib/api", () => ({
       };
     }
     if (path.endsWith("/entitlement")) {
-      return { plan: "TEAM", collaborationTeams: { limit: 10, used: 1 }, collaborationTeamMembers: { limit: 10, used: 2 } };
+      return { plan: "TEAM", mutationsAllowed: true, collaborationTeams: { limit: 10, used: 1 }, collaborationTeamMembers: { limit: 10, used: 2 } };
     }
     if (path.includes("/disposability")) return { disposition: { disposable: false, blockers: ["ACTIVITY"] } };
     if (path.includes("/activity")) return { items: [], nextCursor: null };
@@ -157,6 +157,8 @@ function envelope(): unknown {
     activeSpace: { type: "ORGANIZATION", id: WORKSPACE_ID, displayName: "Meridian Legal", roleLabel: "Member" },
     personalSpace: { id: "p-1", displayName: "Personal", available: true },
     plan: { tier: "TEAM", features: {} },
+    // TEAM sells Team tasks; Create assignment is offered only where it is.
+    planFeatures: { teamCollaborationIncluded: true, reviewQueuesIncluded: true, reviewerOperationsIncluded: true },
   };
 }
 

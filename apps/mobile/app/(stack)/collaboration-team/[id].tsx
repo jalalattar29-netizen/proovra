@@ -30,6 +30,7 @@ import {
   teamAtCapacity,
   COLLABORATION_ENTITLEMENT_PATH,
   type CollaborationTeamDetail,
+  teamTasksIncluded,
 } from "../../../src/product/collaboration";
 import { humanizeEnum } from "../../../src/product/domain-display";
 import { theme } from "../../../src/theme/theme";
@@ -46,6 +47,7 @@ import {
   ProovraLoadingState,
 } from "../../../src/ui";
 import { TeamDiscussion } from "../../../src/ui/team-discussion";
+import { usePlatformContext } from "../../../src/product/platform-context";
 import { CreateAssignmentSheet } from "../../../src/ui/create-assignment";
 import { collaborationTeamRoleHasPermission } from "@proovra/shared";
 import { CollaborationWorkSection } from "../../../src/ui/collaboration-work";
@@ -58,6 +60,7 @@ type Phase = "loading" | "ready" | "error" | "notfound" | "unavailable";
 export default function CollaborationTeamDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
+  const platform = usePlatformContext();
   const id = params.id ?? "";
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<SafeError | null>(null);
@@ -207,11 +210,16 @@ export default function CollaborationTeamDetailScreen() {
         /collaboration-teams/:teamId/collaboration route now lands.
       */}
       {/* The group's conversation is its COMMENTS (web DiscussionTab), not the evidence thread system. */}
-      <TeamDiscussion teamId={String(id)} canModerate={discussionAccess.canModerate} viaWorkspaceGovernance={discussionAccess.viaWorkspaceGovernance} />
+      <TeamDiscussion teamId={String(id)} canModerate={discussionAccess.canModerate} viaWorkspaceGovernance={discussionAccess.viaWorkspaceGovernance} archived={t.status === "ARCHIVED"} />
 
       {/* The group's operational assignments — every filter server-side. */}
-      {/* Create assignment: the web's canAssign — a live group and the team.assignment.create permission. */}
-      {t.status !== "ARCHIVED" && collaborationTeamRoleHasPermission(t.viewerRole as never, "team.assignment.create") ? (
+      {/* Create assignment: the web's canAssign — a live group, a workspace whose
+          billing permits growth, a plan that includes Team tasks, and the
+          team.assignment.create permission. */}
+      {t.status !== "ARCHIVED" &&
+      entitlement?.mutationsAllowed === true &&
+      teamTasksIncluded(platform.envelope) &&
+      collaborationTeamRoleHasPermission(t.viewerRole as never, "team.assignment.create") ? (
         <ProovraButton label="Create assignment" variant="secondary" fullWidth={false} onPress={() => setAssigning(true)} />
       ) : null}
       <CreateAssignmentSheet

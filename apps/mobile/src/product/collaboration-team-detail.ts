@@ -53,7 +53,7 @@ export function isTeamId(id: string): boolean {
   return UUID_RE.test(id);
 }
 export const NOT_A_TEAM_MESSAGE =
-  "That address isn't a team. Open a team from the Teams list to see its members, work and discussion.";
+  "That address isn't a team. Open a team from the Collaboration Teams list to see its members, work and discussion.";
 
 /** Title-case the template enum (page.tsx templateLabel). */
 export function templateLabel(type: string): string {

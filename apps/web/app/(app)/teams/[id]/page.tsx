@@ -48,6 +48,7 @@ import { MemberRemovalDialog } from "./components/MemberRemovalDialog";
 import { TeamPermissionMatrix } from "./components/TeamPermissionMatrix";
 import { DangerConfirmModal } from "./components/DangerConfirmModal";
 import {
+  describeCollaborationTeamsKpi,
   describeWorkspaceLifecycle,
   type WorkspaceLifecyclePolicy,
 } from "@proovra/shared";
@@ -62,6 +63,7 @@ import {
 // PageRouteGate, matching the gated list page at /teams (routeId
 // `admin.teams`, capability TEAM_VIEW).
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
+import { workspaceLifecycleDestination } from "../../../../lib/members/workspaceLifecycleDestination";
 
 type TeamMemberUser = {
   id?: string;
@@ -138,7 +140,21 @@ type TeamStats = {
   /** The server's counts by membership state (members audit MEM-02). */
   memberCounts?: { active: number; suspended: number; removed: number; unassigned?: number };
   pendingInviteCount: number;
+  /** Cases THIS viewer can see, any status. */
   caseCount: number;
+  /** The same, still being worked (OPEN, INVESTIGATING, ON_HOLD). */
+  openCaseCount?: number;
+  /**
+   * Active Collaboration Teams against the plan's or contract's limit — the
+   * create gate's own figures. `null`/absent = unknown, never zero.
+   */
+  collaborationTeams?: {
+    featureIncluded: boolean;
+    active: number;
+    limit: number;
+    limitSource: string;
+    membersPerTeam: number;
+  } | null;
   /**
    * The SERVER's seat projection — the same numbers the invitation gate
    * enforces. Optional on the wire so a degraded response is representable;
@@ -571,10 +587,23 @@ function TeamDetailPageBody() {
 
   const seatLimit = team?.stats?.seatLimit ?? null;
   const seatUsed = team?.stats?.seatUsed ?? null;
-  // Members audit ENT-04 — the server sends `seatLimit: null` when nothing
-  // bounds the workspace as a whole; capacity is then per Collaboration Team.
-  // Distinct from UNKNOWN (no stats at all), which still renders an em dash.
-  const noWorkspaceCeiling = team?.stats != null && team.stats.seatLimit === null;
+  /*
+   * MEMBERS EXPERIENCE B (2026-10-27) — the "Seats available" card is gone.
+   *
+   * On PRO and TEAM it read "No limit · Capacity is set per Collaboration
+   * Team": derived truthfully from the absence of a Workspace-wide ceiling,
+   * and of no use to anyone deciding what to do next. On FREE and PAYG the
+   * server's ceiling is 0, so it read "0 · 0 of 0 used" in red beside a
+   * banner promising that invitations could still be sent — which those
+   * plans refuse. What a self-serve owner can grow is Collaboration Teams,
+   * so that is the third card. An Enterprise contract seat count is real;
+   * it is stated in the Workspace overview and the full-seats banner below.
+   */
+  const collaborationTeams = team?.stats?.collaborationTeams ?? null;
+  // The plan admits nobody but the owner: no invitation control is offered.
+  const collaborationNotIncluded = collaborationTeams?.featureIncluded === false;
+  const collaborationTeamsKpi = describeCollaborationTeamsKpi(collaborationTeams);
+  const lifecycleDestination = workspaceLifecycleDestination(team?.lifecycle, teamId ?? "");
   const seatsAvailable =
     typeof team?.stats?.seatAvailable === "number"
       ? team.stats.seatAvailable
@@ -1237,7 +1266,9 @@ function TeamDetailPageBody() {
             >
               Role permissions
             </button>
-            {canManageTeam ? (
+            {/* A plan that admits nobody but the owner offers no invitation:
+                the server refuses it (402), so the control would only lead there. */}
+            {canManageTeam && !collaborationNotIncluded ? (
               <button
                 type="button"
                 className="app-primary-action"
@@ -1327,38 +1358,30 @@ function TeamDetailPageBody() {
           <li>
             <div
               className="app-metric-card"
-              data-app-metric-tone={
-                seatsAvailable === 0
-                  ? "danger"
-                  : seatsAvailable === null
-                    ? "neutral"
-                    : "info"
-              }
+              data-app-metric-tone={collaborationTeamsKpi.tone}
+              data-testid="people-collaboration-teams-kpi"
             >
-              <span className="app-metric-card__value">
-                {noWorkspaceCeiling ? "No limit" : seatsAvailable === null ? "—" : seatsAvailable}
-              </span>
-              <span className="app-metric-card__label">Seats available</span>
-              <span className="app-metric-card__meta">
-                {noWorkspaceCeiling
-                  ? "Capacity is set per Collaboration Team"
-                  : seatLimit === null
-                    ? "Capacity unavailable"
-                    : `${seatUsed ?? activeMemberCount ?? "—"} of ${seatLimit} used`}
-              </span>
+              <span className="app-metric-card__value">{collaborationTeamsKpi.value}</span>
+              <span className="app-metric-card__label">Collaboration Teams</span>
+              <span className="app-metric-card__meta">{collaborationTeamsKpi.meta}</span>
             </div>
           </li>
           <li>
-            <div className="app-metric-card" data-app-metric-tone="accent">
+            {/*
+              OPEN CASES — one meaning, stated on the card: Cases this viewer
+              can access that are still being worked. It was "Cases in this
+              workspace", counting restricted Cases the viewer is not on and
+              every lifecycle state, beside a link reading "Open Cases".
+            */}
+            <div className="app-metric-card" data-app-metric-tone="accent" data-testid="people-open-cases-kpi">
               <span className="app-metric-card__value">
-                {typeof team?.stats?.caseCount === "number" ? team.stats.caseCount : "—"}
+                {typeof team?.stats?.openCaseCount === "number" ? team.stats.openCaseCount : "—"}
               </span>
-              <span className="app-metric-card__label">
-                Cases in this workspace
-              </span>
+              <span className="app-metric-card__label">Open cases</span>
               <span className="app-metric-card__meta">
+                Not resolved, closed or archived ·{" "}
                 <Link href="/cases" className="app-table__link">
-                  Open Cases
+                  View cases
                 </Link>
               </span>
             </div>
@@ -1366,8 +1389,11 @@ function TeamDetailPageBody() {
         </ul>
 
         {/* A seat-full workspace says so once, here, rather than letting the
-            operator discover it from a refusal after composing an invitation. */}
-        {seatsAvailable === 0 ? (
+            operator discover it from a refusal after composing an invitation.
+            Only a CONTRACT seat count can fill: a plan that admits nobody but
+            the owner has a ceiling of 0 and is not "full" — it does not
+            include members at all, and invitations to it are refused. */}
+        {seatLimit !== null && seatLimit > 0 && seatsAvailable === 0 ? (
           <div className="app-panel" data-testid="people-seats-full">
             <div className="app-panel__body">
               <strong>Every seat is in use.</strong>{" "}
@@ -1667,7 +1693,11 @@ function TeamDetailPageBody() {
           Workspace's own Lifecycle page. This page only says where that lives.
         */}
         {isOwner && teamId && team?.lifecycle ? (
-          <div className="app-panel" data-testid="people-lifecycle-pointer">
+          <div
+            className="app-panel"
+            data-testid="people-lifecycle-pointer"
+            data-workspace-lifecycle-kind={team.lifecycle.kind}
+          >
             <div className="app-panel__head">
               <h2 className="app-panel__title">Workspace lifecycle</h2>
             </div>
@@ -1675,13 +1705,19 @@ function TeamDetailPageBody() {
               <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
                 {describeWorkspaceLifecycle(team.lifecycle).explanation}
               </p>
-              <Link
-                href={`/teams/${teamId}/lifecycle`}
-                className="app-secondary-action"
-                data-testid="people-lifecycle-link"
-              >
-                Open workspace lifecycle
-              </Link>
+              {/* Straight to where the lifecycle is controlled — a Personal
+                  Workspace's is its account's closure; no forwarding page. An
+                  Organization Workspace ends through offboarding, not here. */}
+              {lifecycleDestination.kind !== "NONE" ? (
+                <Link
+                  href={lifecycleDestination.href}
+                  className="app-secondary-action"
+                  data-testid="people-lifecycle-link"
+                  data-lifecycle-destination={lifecycleDestination.kind}
+                >
+                  {lifecycleDestination.label}
+                </Link>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -1698,7 +1734,7 @@ function TeamDetailPageBody() {
             they wonder where the link is. There is no SMS path and no copyable
             link, so neither is offered.
           */}
-          {canManageTeam ? (
+          {canManageTeam && !collaborationNotIncluded ? (
             <div className="app-panel" data-testid="people-rail-invite">
               <div className="app-panel__head">
                 <h2 className="app-panel__title">Invite people</h2>

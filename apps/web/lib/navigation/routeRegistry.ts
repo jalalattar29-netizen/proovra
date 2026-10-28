@@ -1376,12 +1376,13 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
   {
     id: "workspace.collaboration_teams",
     href: "/collaboration-teams",
-    // Owner decision 2026-10-25 (members audit): the page is "Teams" and the
-    // object is a "Collaboration Team". "Team" never names a workspace in the
-    // product — the legacy `Team` model is an implementation name only — so
-    // the short label is unambiguous beside "Members & Access": one decides who
-    // can reach the workspace, the other groups them for case access and work.
-    label: "Teams",
+    // Members experience (2026-10-27) supersedes the 2026-10-25 short label
+    // "Teams". The bare word sat in the sidebar beside "Workspaces" — which
+    // the legacy `Team` model backs — and read as a name for a Workspace. The
+    // navigation item, page title, breadcrumb and palette all say
+    // "Collaboration Teams", the object every dialog already names, and the
+    // item sits directly after "Members & Access" in Governance.
+    label: "Collaboration Teams",
     description: "Group workspace members to control case access and coordinate work.",
     domain: "PERSONAL_WORKSPACE",
     requiredCapabilities: [],

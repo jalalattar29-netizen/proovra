@@ -64,7 +64,15 @@ export default function WorkspaceLifecycleScreen() {
   }, [load]);
 
   const policy = overview?.lifecycle ?? null;
-  const copy = policy ? describeWorkspaceLifecycle(policy) : null;
+  const viewerIsOwner = overview ? isWorkspaceOwner(overview) : false;
+  const copy = policy ? describeWorkspaceLifecycle(policy, { isOwner: viewerIsOwner }) : null;
+  // Members experience D — a Personal Workspace has no lifecycle of its own.
+  // Its owner is taken straight to account closure instead of a screen that
+  // only forwards there; the history entry is replaced so Back does not bounce.
+  const redirectsPersonalOwner = policy?.kind === "PERSONAL" && viewerIsOwner;
+  useEffect(() => {
+    if (redirectsPersonalOwner) router.replace("/settings/privacy" as never);
+  }, [redirectsPersonalOwner, router]);
 
   return (
     <ProovraScreen shell testID="settings-workspace-lifecycle">
@@ -79,7 +87,7 @@ export default function WorkspaceLifecycleScreen() {
 
       {error ? (
         <ProovraErrorState message={error.message} requestId={error.requestId} onRetry={() => void load()} />
-      ) : !overview ? (
+      ) : !overview || redirectsPersonalOwner ? (
         <ProovraLoadingState />
       ) : !policy || !copy ? (
         <ProovraCard testID="workspace-lifecycle-unknown">
@@ -100,7 +108,9 @@ export default function WorkspaceLifecycleScreen() {
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 {copy.explanation}
               </ProovraText>
-              {policy.nextAction === "CLOSE_ACCOUNT" ? (
+              {/* Only the owner closes the account a Personal Workspace ends
+                  with; a collaborator is never offered their own closure. */}
+              {policy.nextAction === "CLOSE_ACCOUNT" && viewerIsOwner ? (
                 <ProovraButton
                   label="Go to Close account"
                   variant="secondary"

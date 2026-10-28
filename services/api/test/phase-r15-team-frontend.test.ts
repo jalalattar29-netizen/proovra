@@ -190,10 +190,10 @@ describe("Phase R15 — Stage 3: route registry", () => {
     expect(block).toMatch(/requiredActiveSpace:\s*"PERSONAL_OR_ORG"/);
     expect(block).not.toMatch(/requiredActiveSpace:\s*"ORGANIZATION_ONLY"/);
     expect(block).toMatch(/sidebarEligible:\s*true/);
-    // Owner decision 2026-10-25 (members audit): the page is "Teams" and its
-    // object a "Collaboration Team"; "Team" never names a workspace in the
-    // product. The canonical description is asserted with it.
-    expect(block).toMatch(/label:\s*"Teams"/);
+    // Members experience A (2026-10-27) supersedes the 2026-10-25 short label:
+    // the item is "Collaboration Teams" — a bare "Teams" read as a name for a
+    // Workspace. The canonical description is asserted with it.
+    expect(block).toMatch(/label:\s*"Collaboration Teams"/);
     expect(block).toMatch(/Group workspace members to control case access and coordinate work\./);
   });
 

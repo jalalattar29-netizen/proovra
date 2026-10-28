@@ -293,7 +293,7 @@ function renderStateContent({
           message="The invitation link is malformed, never existed, or has been removed. Ask the team lead for a fresh invite."
           supportReference={requestId}
           actions={[
-            { label: "Back to Teams", href: "/collaboration-teams", variant: "primary" },
+            { label: "Back to Collaboration Teams", href: "/collaboration-teams", variant: "primary" },
             { label: "Return to dashboard", href: "/home", variant: "secondary" },
           ]}
         />
@@ -309,7 +309,7 @@ function renderStateContent({
           message="This invitation has expired. The team lead can issue a new invite for you."
           supportReference={requestId}
           actions={[
-            { label: "Back to Teams", href: "/collaboration-teams", variant: "primary" },
+            { label: "Back to Collaboration Teams", href: "/collaboration-teams", variant: "primary" },
             { label: "Return to dashboard", href: "/home", variant: "secondary" },
           ]}
         />
@@ -325,7 +325,7 @@ function renderStateContent({
           message="This invitation has been revoked. If this was unexpected, contact the team lead."
           supportReference={requestId}
           actions={[
-            { label: "Back to Teams", href: "/collaboration-teams", variant: "primary" },
+            { label: "Back to Collaboration Teams", href: "/collaboration-teams", variant: "primary" },
             { label: "Return to dashboard", href: "/home", variant: "secondary" },
           ]}
         />
@@ -415,7 +415,7 @@ function renderStateContent({
                 href="/collaboration-teams"
                 className="app-secondary-action"
               >
-                Back to Teams
+                Back to Collaboration Teams
               </Link>
             </>
           }
@@ -449,7 +449,7 @@ function renderStateContent({
                 href="/collaboration-teams"
                 className="app-secondary-action"
               >
-                Back to Teams
+                Back to Collaboration Teams
               </Link>
             </>
           }
@@ -466,7 +466,7 @@ function renderStateContent({
           requestId={requestId}
           actions={
             <Link href="/collaboration-teams" className="app-secondary-action">
-              Back to Teams
+              Back to Collaboration Teams
             </Link>
           }
         />

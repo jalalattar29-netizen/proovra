@@ -10,18 +10,24 @@
  */
 
 import Link from "next/link";
+import { useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { useAuth } from "../../../../providers";
 import { WorkspaceLifecycleSection } from "../../../settings/_sections/WorkspaceLifecycleSection";
+import { ACCOUNT_CLOSURE_HREF } from "../../../../../lib/members/workspaceLifecycleDestination";
 
 function WorkspaceLifecyclePageBody() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const workspaceId = params?.id ?? null;
+  const redirectToAccountClosure = useCallback(
+    () => router.replace(ACCOUNT_CLOSURE_HREF),
+    [router],
+  );
 
   return (
     <PageShell
@@ -42,7 +48,11 @@ function WorkspaceLifecyclePageBody() {
       <WorkspaceLifecycleSection
         workspaceId={workspaceId}
         currentUserId={user?.id ?? null}
-        onOpenPrivacy={() => router.push("/settings#privacy")}
+        onOpenPrivacy={() => router.push(ACCOUNT_CLOSURE_HREF)}
+        // A Personal Workspace has no lifecycle of its own: an old bookmark
+        // of this URL lands its owner on account closure, replacing the
+        // history entry so Back does not bounce through an empty page.
+        onPersonalWorkspaceOwner={redirectToAccountClosure}
       />
     </PageShell>
   );

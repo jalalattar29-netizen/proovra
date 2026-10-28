@@ -41,6 +41,7 @@ import {
 } from "../../../../lib/api/collaboration-teams";
 import { collaborationTeamRoleHasPermission } from "@proovra/shared";
 import { useCan, usePlanFeature, usePlatformContext } from "../../../../lib/platform-context";
+import { useCanOpenRoute } from "../../../../lib/navigation/useRouteDestination";
 import { PlanLimitBadge } from "../../../../components/billing/PlanLimitBadge";
 import { OverviewTab } from "./_tabs/OverviewTab";
 import { MembersTab } from "./_tabs/MembersTab";
@@ -325,9 +326,27 @@ function TeamDetail() {
   const [createAssignmentOpen, setCreateAssignmentOpen] = useState(false);
   const [assignmentReloadToken, setAssignmentReloadToken] = useState(0);
 
+  /*
+   * MEMBERS EXPERIENCE F (2026-10-27) — THE LINK OBEYS ITS DESTINATION'S GATES.
+   *
+   * The two conditions above were necessary and not sufficient. The console
+   * is an Enterprise-tier surface (`SurfaceGate`, review/layout.tsx) on an
+   * Organization-only registry route (`workspace.review_external`). A TEAM
+   * owner on their Personal Workspace held the role AND the PRO+ entitlement,
+   * saw "External reviewers", and landed on the not-found page.
+   *
+   * `useCanOpenRoute` evaluates both gates from the same envelope they read,
+   * so the link renders exactly when the console opens. Below Enterprise,
+   * external review is reached where a grant has a real subject — a Case's
+   * report sharing — not from a group header.
+   */
   const externalReviewIncluded = usePlanFeature("externalReviewIncluded");
+  const teamTasksIncluded = usePlanFeature("reviewQueuesIncluded");
+  const canOpenExternalReviewConsole = useCanOpenRoute("workspace.review_external");
   const canManageExternalReviewers =
-    useCan("REVIEWER_OPS_VIEW") && externalReviewIncluded === true;
+    useCan("REVIEWER_OPS_VIEW") &&
+    externalReviewIncluded === true &&
+    canOpenExternalReviewConsole;
 
   if (loading && !team) {
     return (
@@ -406,7 +425,7 @@ function TeamDetail() {
             </p>
           ) : null}
           <Link href="/collaboration-teams" className="app-secondary-action">
-            Back to Teams
+            Back to Collaboration Teams
           </Link>
         </div>
       </PageShell>
@@ -436,11 +455,25 @@ function TeamDetail() {
   const canManage =
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.update_settings");
+  /*
+   * MEMBERS EXPERIENCE F — every hero action obeys the gate its submit meets.
+   *
+   * A billing restriction (downgrade, lapsed payment) keeps the group readable
+   * and stops growth; the list page already said so and this page offered
+   * Add people and Create assignment anyway. And Team tasks are a TEAM-plan
+   * capability (REVIEW_TASKS_AND_QUEUES, `assertTeamTaskCapability`): on PRO
+   * every assignment submit answered 403, after the form had been filled in.
+   * Unknown answers (`null`) offer nothing.
+   */
+  const growthAllowed = headerEntitlement?.mutationsAllowed === true;
   const canInvite =
     !isArchived &&
+    growthAllowed &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.member.invite");
   const canAssign =
     !isArchived &&
+    growthAllowed &&
+    teamTasksIncluded === true &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.create");
   /** CT-07 — moving somebody else's task is the server's `team.assignment.reassign`. */
   const canSupervise =
@@ -773,27 +806,33 @@ function TeamDetail() {
               panels, three of which did nothing. What survived is the
               discussion, and it is a tab on this page — so the header opens
               that tab rather than a page which now only redirects back here.
-            */}
-            <button
-              type="button"
-              onClick={() => goTab("discussion")}
-              data-testid="collaboration-hub-link"
-              /*
-                THE CANONICAL SECONDARY, not the shell glass button.
 
-                `home-exec-action` is a translucent overlay treatment built for
-                the Home executive banner — 16% white on a dark ground. Beside
-                "Add people", which is the canonical `app-primary-action`, it
-                read as unfinished rather than as the second action: the eye
-                could not tell a real control from a decorative one. The
-                canonical secondary is a solid light surface with dark-neutral
-                label text, which is exactly the contrast this dark header needs
-                and the same treatment every other polished surface uses.
-              */
-              className="app-secondary-action"
-            >
-              Discussion
-            </button>
+              A workspace GOVERNOR reading a group they are not in is not offered
+              it: the tab is hidden for them (the comments endpoints do not grant
+              governor read), so the button would open a blocked panel.
+            */}
+            {!team.viaWorkspaceGovernance ? (
+              <button
+                type="button"
+                onClick={() => goTab("discussion")}
+                data-testid="collaboration-hub-link"
+                /*
+                  THE CANONICAL SECONDARY, not the shell glass button.
+
+                  `home-exec-action` is a translucent overlay treatment built for
+                  the Home executive banner — 16% white on a dark ground. Beside
+                  "Add people", which is the canonical `app-primary-action`, it
+                  read as unfinished rather than as the second action: the eye
+                  could not tell a real control from a decorative one. The
+                  canonical secondary is a solid light surface with dark-neutral
+                  label text, which is exactly the contrast this dark header needs
+                  and the same treatment every other polished surface uses.
+                */
+                className="app-secondary-action"
+              >
+                Discussion
+              </button>
+            ) : null}
             {canManageExternalReviewers ? (
               <Link
                 href="/review/external"

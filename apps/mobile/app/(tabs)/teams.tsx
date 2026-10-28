@@ -231,7 +231,7 @@ export default function CollaborationScreen() {
   return (
     <ProovraShell>
       <ProovraPageHeader
-        title="Teams"
+        title="Collaboration Teams"
         subtitle="Group workspace members to control case access and coordinate work."
         secondaryActions={
           <ProovraButton

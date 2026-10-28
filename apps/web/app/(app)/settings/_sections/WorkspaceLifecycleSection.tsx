@@ -48,11 +48,19 @@ export function WorkspaceLifecycleSection({
   workspaceId,
   currentUserId,
   onOpenPrivacy,
+  onPersonalWorkspaceOwner,
 }: {
   workspaceId: string | null;
   currentUserId: string | null;
   /** Opens Settings → Privacy & data, where the account is closed. */
   onOpenPrivacy: () => void;
+  /**
+   * Members experience D — a standalone lifecycle page passes this to send a
+   * Personal Workspace's OWNER straight to account closure instead of
+   * rendering a page whose only content is a button there. Called once the
+   * server has answered: an unreadable or foreign Workspace never redirects.
+   */
+  onPersonalWorkspaceOwner?: () => void;
 }) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [notice, setNotice] = useState<string | null>(null);
@@ -87,7 +95,16 @@ export function WorkspaceLifecycleSection({
     void load();
   }, [load]);
 
-  if (state.status === "loading") {
+  const redirectsPersonalOwner =
+    onPersonalWorkspaceOwner !== undefined &&
+    state.status === "ready" &&
+    state.workspace.lifecycle?.kind === "PERSONAL" &&
+    state.workspace.canManageWorkspace === true;
+  useEffect(() => {
+    if (redirectsPersonalOwner) onPersonalWorkspaceOwner?.();
+  }, [redirectsPersonalOwner, onPersonalWorkspaceOwner]);
+
+  if (state.status === "loading" || redirectsPersonalOwner) {
     return (
       <p role="status" className="app-table__muted" data-workspace-lifecycle-loading>
         Loading this workspace&rsquo;s lifecycle…
@@ -123,8 +140,8 @@ export function WorkspaceLifecycleSection({
       </p>
     );
   }
-  const copy = describeWorkspaceLifecycle(policy);
   const isOwner = workspace.canManageWorkspace === true;
+  const copy = describeWorkspaceLifecycle(policy, { isOwner });
 
   return (
     <div
@@ -149,7 +166,9 @@ export function WorkspaceLifecycleSection({
           <p className="app-table__muted" style={{ margin: "0 0 10px" }}>
             {copy.explanation}
           </p>
-          {policy.nextAction === "CLOSE_ACCOUNT" ? (
+          {/* Only the owner closes the account a Personal Workspace ends with;
+              a collaborator is never offered their OWN account's closure. */}
+          {policy.nextAction === "CLOSE_ACCOUNT" && isOwner ? (
             <button
               type="button"
               className="app-secondary-action"

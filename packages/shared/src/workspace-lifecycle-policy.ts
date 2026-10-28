@@ -112,12 +112,28 @@ export function resolveWorkspaceLifecyclePolicy(
  * Customer copy for each kind's lifecycle. The words "team" and "delete" do
  * not appear: the object is a Workspace and nothing deletes it.
  */
-export function describeWorkspaceLifecycle(policy: WorkspaceLifecyclePolicy): {
+export function describeWorkspaceLifecycle(
+  policy: WorkspaceLifecyclePolicy,
+  /**
+   * Whose eyes. A Personal Workspace's copy speaks to its OWNER ("your
+   * account"); anyone else who can read the policy — a collaborator in a PRO
+   * or TEAM owner's Workspace — is told whose account it ends with, and is
+   * never pointed at closing their own.
+   */
+  viewer: { isOwner: boolean } = { isOwner: true },
+): {
   title: string;
   explanation: string;
 } {
   switch (policy.kind) {
     case "PERSONAL":
+      if (!viewer.isOwner) {
+        return {
+          title: "Personal Workspace",
+          explanation:
+            "This Personal Workspace belongs to its owner's account and closes only when the owner closes that account. Evidence stays governed by retention and legal-hold rules.",
+        };
+      }
       return {
         title: "Your Personal Workspace",
         explanation:

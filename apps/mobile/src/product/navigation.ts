@@ -120,11 +120,6 @@ export const NATIVE_NAV_ROUTES: readonly NativeNavRoute[] = [
     requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "WORKSPACE", icon: "search",
   },
   {
-    id: "workspace.collaboration_teams", webHref: "/collaboration-teams", href: "/teams", label: "Teams",
-    domain: "PERSONAL_WORKSPACE", requiredCapabilities: [], navPlanFeature: "teamCollaborationIncluded",
-    requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "WORKSPACE", icon: "users",
-  },
-  {
     id: "workspace.reports", webHref: "/reports", href: "/reports", label: "Reports",
     domain: "PERSONAL_WORKSPACE", requiredCapabilities: ["REPORTS_VIEW"],
     requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "OUTPUTS", icon: "file-text",
@@ -136,6 +131,12 @@ export const NATIVE_NAV_ROUTES: readonly NativeNavRoute[] = [
     id: "workspace.people", webHref: "/people", href: "/workspace-people", label: "Members & Access",
     domain: "ACCOUNT", requiredCapabilities: ["TEAM_VIEW"], navPlanFeature: "teamCollaborationIncluded",
     requiredActiveSpace: "NONE", fallbackBehavior: "LOAD", group: "GOVERNANCE", icon: "archive",
+  },
+  {
+    // Directly after Members & Access, in the same group — the web order.
+    id: "workspace.collaboration_teams", webHref: "/collaboration-teams", href: "/teams", label: "Collaboration Teams",
+    domain: "PERSONAL_WORKSPACE", requiredCapabilities: [], navPlanFeature: "teamCollaborationIncluded",
+    requiredActiveSpace: "PERSONAL_OR_ORG", fallbackBehavior: "DEGRADED", group: "GOVERNANCE", icon: "users",
   },
   {
     id: "account.billing", webHref: "/billing", href: "/billing", label: "Billing & plan",

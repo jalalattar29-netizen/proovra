@@ -83,6 +83,7 @@ export * from "./legacy-workspace-vocabulary.js";
 // The ONE authority for how each Workspace kind ends (no self-service hard
 // delete for any kind). The API refuses and projects from it; clients render.
 export * from "./workspace-lifecycle-policy.js";
+export * from "./collaboration-teams-kpi.js";
 
 // PROOVRA Phase 3 — Canonical denial vocabulary (Stage 3).
 // See docs/architecture/architecture-invariants.md (INV-9).

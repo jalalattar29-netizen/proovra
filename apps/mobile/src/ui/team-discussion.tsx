@@ -23,7 +23,18 @@ import {
 } from "../product/collaboration";
 import { ProovraButton, ProovraCard, ProovraFormField, ProovraInput, ProovraSection, ProovraText } from "./index";
 
-export function TeamDiscussion({ teamId, canModerate, viaWorkspaceGovernance }: { teamId: string; canModerate: boolean; viaWorkspaceGovernance: boolean }) {
+export function TeamDiscussion({
+  teamId,
+  canModerate,
+  viaWorkspaceGovernance,
+  archived = false,
+}: {
+  teamId: string;
+  canModerate: boolean;
+  viaWorkspaceGovernance: boolean;
+  /** An archived team's discussion is a read-only record (the server refuses writes). */
+  archived?: boolean;
+}) {
   const { user } = useAuth();
   const viewerId = (user as { id?: string } | null)?.id ?? null;
   const { addToast } = useToast();
@@ -116,6 +127,11 @@ export function TeamDiscussion({ teamId, canModerate, viaWorkspaceGovernance }: 
     <ProovraSection title={COPY.title}>
       <View style={{ gap: theme.space.s3 }} testID="team-discussion">
         <ProovraText variant="label" color={theme.color.ink.muted}>{COPY.visibility}</ProovraText>
+        {archived ? (
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="team-discussion-archived">
+            This team is archived. Its discussion is kept as a read-only record.
+          </ProovraText>
+        ) : (
         <ProovraCard>
           <View style={{ gap: theme.space.s2 }}>
             <ProovraFormField label="Write a comment for the team">
@@ -124,6 +140,7 @@ export function TeamDiscussion({ teamId, canModerate, viaWorkspaceGovernance }: 
             <ProovraButton label={busy ? COPY.posting : COPY.post} accessibilityLabel={COPY.post} fullWidth={false} disabled={!body.trim() || busy} onPress={() => void post()} />
           </View>
         </ProovraCard>
+        )}
 
         {loadError ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{loadError}</ProovraText> : null}
         {items !== null && items.length === 0 && !loadError ? (
@@ -153,7 +170,7 @@ export function TeamDiscussion({ teamId, canModerate, viaWorkspaceGovernance }: 
                 ) : (
                   <ProovraText variant="bodySm">{c.body}</ProovraText>
                 )}
-                {!isEditing && (mine || canModerate) ? (
+                {!isEditing && !archived && (mine || canModerate) ? (
                   <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
                     <ProovraButton label="Edit" accessibilityLabel={`Edit comment ${c.id}`} variant="ghost" fullWidth={false} onPress={() => setEditing({ id: c.id, draft: c.body })} />
                     <ProovraButton label="Delete" accessibilityLabel={`Delete comment ${c.id}`} variant="ghost" fullWidth={false} onPress={() => remove(c)} />

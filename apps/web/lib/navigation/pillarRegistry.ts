@@ -370,13 +370,12 @@ export const PILLAR_FOR_ROUTE_ID: ReadonlyMap<string, ProovraPillar> = new Map([
   ["workspace.exchange", "ADMIN"],
   ["workspace.executive", "ADMIN"],
   ["workspace.packaging", "ADMIN"],
-  // Phase 5 / 6 / 7 — Collaboration Teams (the constitutional Team
-  // product). Lives under CASES pillar because Team work is daily
-  // case/evidence collaboration, NOT a new pillar (constitutional
-  // rule 4-9: Team is NOT a workspace, Team is core collaboration).
-  ["workspace.collaboration_teams", "CASES"],
-  ["workspace.collaboration_team_detail", "CASES"],
-  ["workspace.collaboration_team_hub", "CASES"],
+  // Collaboration Teams share Members & Access's pillar: the two govern the
+  // Workspace's people (who can reach it, and how they are grouped). A
+  // Collaboration Team is never a Workspace.
+  ["workspace.collaboration_teams", "ADMIN"],
+  ["workspace.collaboration_team_detail", "ADMIN"],
+  ["workspace.collaboration_team_hub", "ADMIN"],
   // Accept-invite landing — ACCOUNT-tier, so ADMIN.
   ["workspace.collaboration_team_invite_accept", "ADMIN"],
 

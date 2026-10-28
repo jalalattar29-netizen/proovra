@@ -55,7 +55,12 @@ function readWeb(rel: string): string {
 }
 
 const RESOLVER_SRC = readWeb("lib/navigation/routeAccessResolver.ts");
-const PAGE_GATE_SRC = readWeb("components/navigation/PageRouteGate.tsx");
+// The gate plus the helper that builds its access input (members experience
+// F): the links to a gated page evaluate the same input, built once.
+const PAGE_GATE_SRC = [
+  readWeb("components/navigation/PageRouteGate.tsx"),
+  readWeb("lib/navigation/useRouteDestination.ts"),
+].join("\n");
 const PLATFORM_CTX_SRC = readApi(
   "src/services/platform-context/platform-context.service.ts",
 );

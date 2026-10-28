@@ -131,6 +131,7 @@ vi.mock("../../lib/api", () => ({
     if (path.endsWith("/entitlement")) {
       return {
         plan: "TEAM",
+        mutationsAllowed: true,
         collaborationTeams: { limit: 10, used: 1 },
         collaborationTeamMembers: { limit: 10, used: 1 },
       };
@@ -203,6 +204,8 @@ function envelope(): unknown {
     },
     personalSpace: { id: "p-1", displayName: "Personal", available: true },
     plan: { tier: "TEAM", features: {} },
+    // TEAM sells Team tasks; Create assignment is offered only where it is.
+    planFeatures: { teamCollaborationIncluded: true, reviewQueuesIncluded: true, reviewerOperationsIncluded: true },
   };
 }
 

@@ -1,7 +1,7 @@
 /**
  * PROOVRA Phase 6 — Teams overview page.
  *
- * Route: `/collaboration-teams` (sidebar label "Teams")
+ * Route: `/collaboration-teams` (sidebar label "Collaboration Teams")
  *
  * Lists every Collaboration Team the active user can see inside the
  * active workspace. Personal users see this page (constitutional
@@ -35,7 +35,17 @@ import Link from "next/link";
 // the route has exactly one definition — the locator is what makes renaming it
 // a one-file change if that ever becomes worth doing.
 import { WORKSPACE_PEOPLE_PATH } from "../../../lib/navigation/workspacePeopleLocator";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useUrlFilterSync } from "../../../lib/use-url-filter-sync";
+import {
+  DEFAULT_TEAMS_LIST_FILTERS,
+  teamsFiltersActive,
+  teamsFiltersFromSearch,
+  teamsFiltersToSearch,
+  type TeamsSortKey,
+  type TeamsStatusFilter,
+  type TeamsTypeFilter,
+} from "../../../lib/collaboration/teamsListFilters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -69,7 +79,6 @@ import type { WorkspacePlan } from "../../../lib/platform-context/types";
 import {
   COLLABORATION_TEAM_TYPES,
   type CollaborationTeamType,
-  type CollaborationTeamStatus,
 } from "@proovra/shared";
 
 export default function TeamsOverviewPage() {
@@ -85,9 +94,9 @@ export default function TeamsOverviewPage() {
 // parameter (members audit CT-13); none of them is applied in the browser.
 // =============================================================================
 
-type StatusFilter = "ALL" | CollaborationTeamStatus;
-type TypeFilter = "ALL" | CollaborationTeamType;
-type SortKey = "ACTIVITY_DESC" | "ACTIVITY_ASC" | "NAME_ASC";
+type StatusFilter = TeamsStatusFilter;
+type TypeFilter = TeamsTypeFilter;
+type SortKey = TeamsSortKey;
 
 const TEAM_TYPE_LABELS: Record<CollaborationTeamType, string> = {
   GENERAL: "General",
@@ -137,10 +146,24 @@ function TeamsOverview() {
    * holding the workspace governance capability and degrades silently
    * otherwise, so this is a request, not a claim.
    */
-  const [scope, setScope] = useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
+  /*
+   * MEMBERS EXPERIENCE E — the filters arrive from the URL and are written back
+   * to it (`teamsListFilters.ts`), the app's list convention: a reload, a
+   * shared link or Back from a Team restores exactly this list.
+   */
+  const searchParams = useSearchParams();
+  const [initialFilters] = useState(() =>
+    teamsFiltersFromSearch(searchParams?.toString() ?? ""),
+  );
+  const [scope, setScope] = useState<"PARTICIPATING" | "ALL">(
+    initialFilters.scope ?? "PARTICIPATING",
+  );
   const [canGovern, setCanGovern] = useState(false);
-  /** Applied once — the governor default must not fight a later choice. */
-  const governorDefaultApplied = useRef(false);
+  /**
+   * Applied once — the governor default must not fight a later choice. A
+   * scope stated in the URL IS that choice, so it is never overridden.
+   */
+  const governorDefaultApplied = useRef(initialFilters.scope !== null);
   const [grantedScope, setGrantedScope] =
     useState<"PARTICIPATING" | "ALL">("PARTICIPATING");
   /**
@@ -154,10 +177,31 @@ function TeamsOverview() {
 
   // List control state. Each value is sent to the server by `refresh` below;
   // a change re-fetches from the first page (CT-13).
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
-  const [sortKey, setSortKey] = useState<SortKey>("ACTIVITY_DESC");
+  const [search, setSearch] = useState(initialFilters.search);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialFilters.status);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialFilters.type);
+  const [sortKey, setSortKey] = useState<SortKey>(initialFilters.sort);
+  // The scope is written only once the server has granted the workspace
+  // view — a participant's URL never claims a view they cannot have.
+  useUrlFilterSync(
+    "/collaboration-teams",
+    teamsFiltersToSearch({
+      search,
+      status: statusFilter,
+      type: typeFilter,
+      sort: sortKey,
+      scope: canGovern ? scope : null,
+    }),
+  );
+  /**
+   * The filters a request was issued under. "Load more" appends to the list
+   * on screen, so a page fetched for the PREVIOUS filters must be dropped if
+   * they changed while it was in flight — otherwise its rows join a list
+   * they do not match.
+   */
+  const filterKey = JSON.stringify([search, statusFilter, typeFilter, sortKey, scope]);
+  const filterKeyRef = useRef(filterKey);
+  filterKeyRef.current = filterKey;
 
   /**
    * WCR-05 / WCR-06 — EVERY NUMBER AND EVERY AFFORDANCE BELOW IS THE SERVER'S.
@@ -327,12 +371,18 @@ function TeamsOverview() {
    * under workspace B's header for the duration of a network round trip. An
    * empty list with a loading state is honest; the wrong tenant's list is not.
    */
+  const renderedWorkspaceId = useRef(activeWorkspaceId);
   useEffect(() => {
+    // Only a real switch resets the view: on arrival the scope came from the
+    // URL and must survive.
+    if (renderedWorkspaceId.current === activeWorkspaceId) return;
+    renderedWorkspaceId.current = activeWorkspaceId;
     setTeams([]);
     setEntitlement(null);
     setNextCursor(null);
     setScope("PARTICIPATING");
     setCanGovern(false);
+    governorDefaultApplied.current = false;
   }, [activeWorkspaceId]);
 
   // Members audit CT-13 — search, status, type and order are all applied by
@@ -340,10 +390,18 @@ function TeamsOverview() {
   // filtering here would act on one page and present it as the whole list.
   const visibleTeams = teams;
 
-  const controlsActive =
-    search.trim().length > 0 ||
-    statusFilter !== "ALL" ||
-    typeFilter !== "ALL";
+  const controlsActive = teamsFiltersActive({
+    search,
+    status: statusFilter,
+    type: typeFilter,
+    sort: sortKey,
+  });
+  const clearFilters = () => {
+    setSearch(DEFAULT_TEAMS_LIST_FILTERS.search);
+    setStatusFilter(DEFAULT_TEAMS_LIST_FILTERS.status);
+    setTypeFilter(DEFAULT_TEAMS_LIST_FILTERS.type);
+    setSortKey(DEFAULT_TEAMS_LIST_FILTERS.sort);
+  };
 
   const header = (
     <div className="app-page-header" data-testid="collaboration-teams-header">
@@ -352,7 +410,7 @@ function TeamsOverview() {
           <TeamsGlyph />
         </span>
         <div className="app-page-header__text">
-          <h1 className="app-page-header__title">Teams</h1>
+          <h1 className="app-page-header__title">Collaboration Teams</h1>
           <p className="app-page-header__subtitle">
             {/*
               The counterpart sentence to Members &amp; Access (owner decision
@@ -428,7 +486,17 @@ function TeamsOverview() {
 
   return (
     <PageShell data-testid="collaboration-teams-overview" header={header}>
-      {loading ? (
+      {/*
+        THE FULL LOADING STATE IS FOR THE FIRST PAINT ONLY (members experience E).
+
+        Every load replaced the page with it — a filter change, each debounced
+        search keystroke, and "Load more". The toolbar unmounted under the
+        operator's cursor (the search box lost focus mid-word), the rows they
+        were reading vanished, and the button's own "Loading…" could never be
+        seen. Once there are rows, they stay while the next answer is fetched;
+        the list says it is updating.
+      */}
+      {loading && teams.length === 0 ? (
         <LoadingState />
       ) : error ? (
         <ErrorState
@@ -573,6 +641,8 @@ function TeamsOverview() {
             onTypeFilter={setTypeFilter}
             sortKey={sortKey}
             onSort={setSortKey}
+            filtersActive={controlsActive}
+            onClear={clearFilters}
           />
           {visibleTeams.length === 0 ? (
             /*
@@ -591,12 +661,15 @@ function TeamsOverview() {
               "nothing matches what you asked for" from "nothing exists".
             */
             <NoMatchesState onReset={() => {
-              setSearch("");
-              setStatusFilter("ALL");
-              setTypeFilter("ALL");
+              clearFilters();
             }} controlsActive={controlsActive} onCreate={() => setCreateOpen(true)} />
           ) : (
             <>
+              {loading ? (
+                <p className="app-table__muted" role="status" data-testid="teams-updating" style={{ margin: "0 0 8px" }}>
+                  Updating…
+                </p>
+              ) : null}
               <TeamsTable teams={visibleTeams} />
               {nextCursor ? (
                 <div className="app-table-footer">
@@ -604,7 +677,14 @@ function TeamsOverview() {
                     type="button"
                     className="app-secondary-action"
                     disabled={loading}
-                    onClick={() => void refresh({ cursor: nextCursor, append: true })}
+                    onClick={() => {
+                      const issuedUnder = filterKeyRef.current;
+                      void refresh({
+                        cursor: nextCursor,
+                        append: true,
+                        isStale: () => filterKeyRef.current !== issuedUnder,
+                      });
+                    }}
                     data-testid="teams-load-more"
                   >
                     {loading ? "Loading…" : "Load more"}
@@ -645,6 +725,8 @@ function TeamsToolbar({
   onTypeFilter,
   sortKey,
   onSort,
+  filtersActive,
+  onClear,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -657,6 +739,9 @@ function TeamsToolbar({
   onTypeFilter: (v: TypeFilter) => void;
   sortKey: SortKey;
   onSort: (v: SortKey) => void;
+  /** Something differs from the defaults — offer to clear it. */
+  filtersActive: boolean;
+  onClear: () => void;
 }) {
   const statusOptions = [
     { value: "ALL", label: "All statuses" },
@@ -679,37 +764,54 @@ function TeamsToolbar({
   ] as const;
 
   return (
-    // §1 — reuse the EXACT Cases filter-bar styling: the `.cases-toolbar`
-    // row, the translucent `.cases-segments` control tray (background /
-    // border / radius / height / spacing / hover / active / typography /
-    // transitions / focus all inherited from the approved Cases page), and
-    // the `.cases-search-field` + `.cases-filter-search` search. No new /
-    // duplicate styles are introduced.
-    <div className="cases-toolbar" data-testid="teams-toolbar">
-      {/*
-        A FILTER GROUP, not a segmented chip tray — the same correction the
-        Work tab needed. `.cases-segments` caps itself at `max-content` and
-        scrolls internally, which squeezes real dropdowns.
-      */}
-      <div
-        className="app-filter-group"
-        role="group"
-        aria-label="Filter teams"
-      >
-        {/*
-          WHICH TEAMS — a normal filter, not a segmented security toggle.
+    /*
+      ONE COHERENT FILTER TOOLBAR (members experience E).
 
-          This was a prominent two-button tray above the toolbar reading
-          "Teams I'm in" / "All Teams in this workspace", which asked the
-          operator to understand a view-scope decision the product can make for
-          them: a governor's default is the workspace they govern. It survives
-          as an ordinary filter beside status and type because narrowing to
-          one's own teams is a genuine daily need — it is simply not a headline
-          control, and it appears only for callers the SERVER has already
-          authorised for the workspace view.
+      The search sat at the far end of a `.cases-toolbar` and the selectors
+      wrapped in their own group, so at most widths they broke onto separate,
+      unrelated-looking lines. The canonical list toolbar puts search first,
+      flexing, and every selector after it at a width that holds its longest
+      value; it decides the stacking from the toolbar's own width (search on
+      its own row, then selectors sharing rows), never from content.
+
+      Every value is still a SERVER query parameter (CT-13) and is mirrored in
+      the URL (`teamsListFilters.ts`).
+    */
+    <div
+      className="app-list-toolbar app-list-toolbar--many"
+      data-testid="teams-toolbar"
+      role="search"
+      aria-label="Filter teams"
+    >
+      <div className="app-list-toolbar__row">
+        <div className="app-search-field">
+          <span className="app-search-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            className="app-search-input"
+            placeholder="Search teams…"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            aria-label="Search teams by name or description"
+            data-testid="teams-search-input"
+          />
+        </div>
+        {/*
+          WHICH TEAMS — an ordinary filter, offered only to callers the SERVER
+          has already authorised for the workspace view; a governor's default
+          is the workspace they govern.
         */}
         {scope && onScope ? (
-          <div style={{ width: 190 }} data-testid="teams-scope-filter">
+          <div
+            className="app-list-toolbar__control"
+            style={{ "--app-list-toolbar-control": "190px" } as React.CSSProperties}
+            data-testid="teams-scope-filter"
+          >
             <AppListbox<"PARTICIPATING" | "ALL">
               value={scope}
               options={[
@@ -721,7 +823,11 @@ function TeamsToolbar({
             />
           </div>
         ) : null}
-        <div style={{ width: 168 }}>
+        <div
+          className="app-list-toolbar__control"
+          style={{ "--app-list-toolbar-control": "160px" } as React.CSSProperties}
+          data-testid="teams-status-filter"
+        >
           <AppListbox<StatusFilter>
             value={statusFilter}
             options={statusOptions.map((o) => ({ ...o }))}
@@ -729,7 +835,11 @@ function TeamsToolbar({
             ariaLabel="Filter by status"
           />
         </div>
-        <div style={{ width: 180 }}>
+        <div
+          className="app-list-toolbar__control"
+          style={{ "--app-list-toolbar-control": "170px" } as React.CSSProperties}
+          data-testid="teams-type-filter"
+        >
           <AppListbox<TypeFilter>
             value={typeFilter}
             options={typeOptions}
@@ -737,7 +847,11 @@ function TeamsToolbar({
             ariaLabel="Filter by team type"
           />
         </div>
-        <div style={{ width: 210 }}>
+        <div
+          className="app-list-toolbar__control"
+          style={{ "--app-list-toolbar-control": "210px" } as React.CSSProperties}
+          data-testid="teams-sort-filter"
+        >
           <AppListbox<SortKey>
             value={sortKey}
             options={sortOptions.map((o) => ({ ...o }))}
@@ -745,26 +859,16 @@ function TeamsToolbar({
             ariaLabel="Sort teams"
           />
         </div>
-      </div>
-
-      <div className="cases-toolbar-right">
-        <div className="cases-search-field">
-          <span className="cases-search-icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-          </span>
-          <input
-            type="search"
-            className="cases-filter-search"
-            placeholder="Search teams…"
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            aria-label="Search teams by name or description"
-            data-testid="teams-search-input"
-          />
-        </div>
+        {filtersActive ? (
+          <button
+            type="button"
+            className="app-ghost-action app-list-toolbar__reset"
+            onClick={onClear}
+            data-testid="teams-clear-filters"
+          >
+            Clear filters
+          </button>
+        ) : null}
       </div>
     </div>
   );

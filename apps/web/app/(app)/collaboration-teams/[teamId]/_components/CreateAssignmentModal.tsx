@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
+import { usePlanFeature } from "../../../../../lib/platform-context";
 import {
   AppSearchSelect,
   type AppSearchSelectOption,
@@ -149,7 +150,16 @@ export function CreateAssignmentModal({
     }
   };
 
-  const targetTypeOptions = COLLABORATION_TEAM_ASSIGNMENT_TARGETS.map((t) => ({
+  /*
+   * A REVIEW target is a review ASSIGNMENT — assigning someone else's review
+   * work — which the server refuses without reviewer operations (TEAM and
+   * above; `assertTeamTaskCapability`). It is not offered where it would
+   * only be refused.
+   */
+  const reviewAssignmentsIncluded = usePlanFeature("reviewerOperationsIncluded") === true;
+  const targetTypeOptions = COLLABORATION_TEAM_ASSIGNMENT_TARGETS.filter(
+    (t) => t !== "REVIEW" || reviewAssignmentsIncluded,
+  ).map((t) => ({
     value: t,
     label: targetLabel(t),
   }));

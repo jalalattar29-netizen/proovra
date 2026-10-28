@@ -1877,6 +1877,72 @@ textarea.app-form-input {
   gap: 10px;
   min-width: 0;
 }
+/* A LIST TOOLBAR — search plus the list's selectors, as ONE row.
+
+   Members & Access put its search on one line and "All statuses" on the next,
+   leaving an empty column; Collaboration Teams separated its search from its
+   status, type and sort selectors. A wrapping flex row decides its own line
+   breaks from content widths, which is where those visually random breaks came
+   from. This decides them from the space the TOOLBAR has (a container query,
+   not the viewport — the same list sits beside a rail on one page and alone on
+   another):
+
+     wide     search flexes; every selector keeps its stated width, one row
+     medium   search takes its own row; the selectors share the next one
+     narrow   search on its own row; selectors two to a row, full width
+
+   A selector's width is set where it is used (`--app-list-toolbar-control`),
+   so a long selected value ("Last activity (newest)") is never truncated.
+   Controls inside are the canonical ones — `.app-search-field`, AppListbox —
+   so focus, disabled and error states are theirs, not restyled here. */
+.app-list-toolbar {
+  container-type: inline-size;
+  min-width: 0;
+}
+.app-list-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-list-toolbar__row > .app-search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+.app-list-toolbar__control {
+  flex: 0 0 var(--app-list-toolbar-control, 180px);
+  min-width: 0;
+}
+.app-list-toolbar__reset {
+  flex: 0 0 auto;
+}
+@container (max-width: 760px) {
+  .app-list-toolbar--many .app-list-toolbar__row {
+    flex-wrap: wrap;
+  }
+  .app-list-toolbar--many .app-list-toolbar__row > .app-search-field {
+    flex-basis: 100%;
+  }
+  .app-list-toolbar--many .app-list-toolbar__control {
+    flex: 1 1 0;
+    min-width: 150px;
+  }
+}
+@container (max-width: 420px) {
+  .app-list-toolbar__row {
+    flex-wrap: wrap;
+  }
+  .app-list-toolbar__row > .app-search-field {
+    flex-basis: 100%;
+  }
+  /* Two to a row; flex-grow lets an odd last one, or a lone one, fill its row. */
+  .app-list-toolbar__control {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+  }
+}
+
 /* A `.app-filter-group .app-checkbox` chip treatment used to live here, for
    the Work tab's "Overdue only" toggle. That control is gone and no filter
    group contains a checkbox any more, so the rules went with it rather than

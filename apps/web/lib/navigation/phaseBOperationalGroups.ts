@@ -137,15 +137,8 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // Phase 3A — Reviewer-tier redaction projects surface; sits
       // alongside the reviewer admin surfaces above.
       "workspace.review_redaction",
-      // Phase 5 / 6 — Collaboration Teams. The Team product is core
-      // collaboration (constitutional rule 4-7) — it lives in WORKSPACE,
-      // not in a separate Team-Workspace group (Team is NOT a workspace
-      // per the constitution). Detail + invite-accept surfaces are deep
-      // links so they live in secondary.
-      "workspace.collaboration_teams",
-      "workspace.collaboration_team_detail",
-      "workspace.collaboration_team_hub",
-      "workspace.collaboration_team_invite_accept",
+      // Collaboration Teams live in GOVERNANCE, directly after Members &
+      // Access (members experience, 2026-10-27) — see that group below.
     ],
   },
 
@@ -167,11 +160,24 @@ export const PHASE_B_OPERATIONAL_GROUPS: ReadonlyArray<{
       // multi-user workspace and the only canonical workspace-invitation
       // surface; it sat behind no door at all before this.
       "workspace.people",
+      // Collaboration Teams — IMMEDIATELY after Members & Access. The two are
+      // halves of one model: Members & Access decides WHO can reach the
+      // Workspace, Collaboration Teams decides HOW those members are grouped
+      // for case access and work. Rendered apart (Teams under Workspace,
+      // Members under Governance) they read as unrelated products. A
+      // Collaboration Team is never a Workspace.
+      "workspace.collaboration_teams",
       // The authenticated Trust Hub (`workspace.trust`) was removed
       // 2026-07-15 — the public Trust Center (`/trust`) is the canonical
       // trust portal; no in-app trust nav entry remains here.
     ],
     secondary: [
+      // Collaboration Team deep links (detail, the retired hub redirect, the
+      // invitation acceptance) share their list's group, so the breadcrumb
+      // names one section for the whole family.
+      "workspace.collaboration_team_detail",
+      "workspace.collaboration_team_hub",
+      "workspace.collaboration_team_invite_accept",
       // Trust & Compliance documentation gate (`workspace.trust_center`) —
       // classified under GOVERNANCE for grouping completeness. It is
       // NON-navigational (sidebarEligible/commandPaletteVisible/allToolsVisible

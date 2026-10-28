@@ -364,10 +364,15 @@ describe("Phase 32.8 Foundation cleanup — reviewer/governance gate cleanup", (
     // re-derive tenant / role / plan on the client) now lives on
     // PageRouteGate, which is what these pages actually mount.
     const gate = stripComments(readWeb("components/navigation/PageRouteGate.tsx"));
+    // The gate's access input is built by the one helper the links to a gated
+    // page also use (members experience F), so it is read with it.
+    const input = stripComments(readWeb("lib/navigation/useRouteDestination.ts"));
     expect(gate).toMatch(/usePlatformContext/);
     expect(gate).toMatch(/resolveRouteAccess/);
+    expect(gate).toMatch(/routeAccessInputFromEnvelope\(route, envelope/);
     // Capabilities come from the envelope — no local capability fetch.
-    expect(gate).toMatch(/capabilities:\s*envelope\?\.capabilities/);
+    expect(input).toMatch(/capabilities:\s*envelope\?\.capabilities/);
+    expect(input).not.toMatch(/apiFetch|fetch\(/);
     expect(gate).not.toMatch(/ActiveWorkspaceState/);
   });
 

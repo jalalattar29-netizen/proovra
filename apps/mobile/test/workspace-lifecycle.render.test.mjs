@@ -86,16 +86,26 @@ const noDelete = (r) => {
   assert.equal(requests.filter((q) => q.method === "DELETE").length, 0, "a DELETE was sent");
 };
 
-test("PERSONAL: explains account closure and routes to Close account; no close, transfer or delete", async () => {
+test("PERSONAL owner: no forwarding screen — straight to account closure (members experience D)", async () => {
   Object.assign(detail, { lifecycle: POLICY.PERSONAL });
   const r = await render();
-  assert.ok(r.hasText("Your Personal Workspace"));
-  assert.ok(r.texts().some((t) => t.includes("closes only when you close your account")));
+  // A Personal Workspace has no lifecycle of its own: its owner lands on
+  // Settings → Privacy, the history entry REPLACED so Back does not bounce.
+  assert.equal(M.calls.replace.at(-1), "/settings/privacy");
+  assert.equal(r.byLabel("Go to Close account").length, 0);
   noDelete(r);
   assert.equal(r.byLabel("Close this workspace…").length, 0);
   assert.equal(requests.filter((q) => q.path.includes("eligible=ownership_transfer")).length, 0, "transfer candidates were read");
-  await r.press("Go to Close account");
-  assert.equal(M.calls.push.at(-1), "/settings/privacy");
+  r.unmount();
+});
+
+test("PERSONAL, a collaborator: stays, says whose account it ends with, offers no account closure", async () => {
+  Object.assign(detail, { lifecycle: POLICY.PERSONAL, canManageWorkspace: false, currentUserRole: "MEMBER" });
+  const r = await render();
+  assert.equal(M.calls.replace.length, 0);
+  assert.ok(r.texts().some((t) => t.includes("belongs to its owner's account")));
+  assert.equal(r.byLabel("Go to Close account").length, 0);
+  assert.equal(r.hasText("Your Personal Workspace"), false);
   r.unmount();
 });
 

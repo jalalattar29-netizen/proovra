@@ -55,7 +55,7 @@ import { RolePermissionsSheet } from "../../src/ui/role-permissions-sheet";
 import { useAuth } from "../../src/auth-context";
 import { MemberRemovalSheet } from "../../src/ui/member-removal";
 import { ExternalCollaboratorsCard } from "../../src/ui/external-collaborators";
-import { describeWorkspaceLifecycle } from "@proovra/shared";
+import { describeCollaborationTeamsKpi, describeWorkspaceLifecycle } from "@proovra/shared";
 import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
   INVITABLE_ROLES,
@@ -411,9 +411,13 @@ export default function WorkspacePeopleScreen() {
     invites,
     serverCount: overview?.pendingInviteCount,
   });
-  // The server's count — never the length of a page the screen happened to load.
-  const caseCount = overview?.caseCount ?? 0;
-  const activeMemberCount = overview?.seats.memberCount ?? 0;
+  // The server's counts — never the length of a page the screen happened to
+  // load, and never 0 for a figure the server did not send (members
+  // experience: unknown renders "—", as on the web).
+  const openCaseCount = overview?.openCaseCount ?? null;
+  const activeMemberCount = overview?.seats.activeMemberCount ?? null;
+  const collaborationTeamsKpi = describeCollaborationTeamsKpi(overview?.collaborationTeams ?? null);
+  const collaborationNotIncluded = overview?.collaborationTeams?.featureIncluded === false;
 
   const header = (subtitle: string | undefined, withActions: boolean) => (
     <ProovraPageHeader
@@ -430,7 +434,7 @@ export default function WorkspacePeopleScreen() {
         </>
       }
       primaryAction={
-        withActions && canManage ? (
+        withActions && canManage && !collaborationNotIncluded ? (
           <ProovraButton label="Invite person" fullWidth={false} onPress={() => setInviteOpen(true)} />
         ) : undefined
       }
@@ -478,26 +482,22 @@ export default function WorkspacePeopleScreen() {
               from the SERVER's projection, never counted from the rows. */}
           <ProovraKpiGrid
             items={[
-              { key: "active", label: "Active members", value: String(activeMemberCount), caption: "With access to this workspace", tone: "verified" },
+              { key: "active", label: "Active members", value: activeMemberCount === null ? "—" : String(activeMemberCount), caption: "With access to this workspace", tone: "verified" },
               { key: "pending", label: "Pending invitations", value: pendingCount === null ? "—" : String(pendingCount), caption: "Sent, not yet accepted", tone: "pending" },
               {
-                key: "seats",
-                label: "Seats available",
-                // Members audit ENT-04 — `seatLimit: null` from a loaded
-                // overview means no workspace-wide ceiling, not "unknown".
-                value: seats && seats.seatLimit === null ? "No limit" : available === null ? "—" : String(available),
-                caption: !seats
-                  ? "Capacity unavailable"
-                  : seats.seatLimit === null
-                    ? "Capacity is set per Collaboration Team"
-                    : `${seats.seatUsed ?? activeMemberCount} of ${seats.seatLimit} used`,
-                tone: available === 0 ? "risk" : available === null ? "neutral" : "info",
+                // Members experience B — active Collaboration Teams against the
+                // gate's limit, worded by the same shared module as the web.
+                key: "collaboration-teams",
+                label: "Collaboration Teams",
+                value: collaborationTeamsKpi.value,
+                caption: collaborationTeamsKpi.meta,
+                tone: collaborationTeamsKpi.tone === "warning" ? "pending" : collaborationTeamsKpi.tone,
               },
               {
                 key: "cases",
-                label: "Cases in this workspace",
-                value: String(caseCount),
-                caption: "Open Cases",
+                label: "Open cases",
+                value: openCaseCount === null ? "—" : String(openCaseCount),
+                caption: "Not resolved, closed or archived",
                 tone: "governance",
                 onPress: () => router.push("/cases" as never),
               },
@@ -506,7 +506,7 @@ export default function WorkspacePeopleScreen() {
 
           {/* A seat-full workspace says so once, here, rather than letting the
               operator discover it from a refusal. */}
-          {available === 0 ? (
+          {seats && seats.seatLimit !== null && seats.seatLimit > 0 && available === 0 ? (
             <ProovraCard testID="people-seats-full">
               <ProovraText variant="bodySm" weight="semibold">
                 Every seat is in use.
@@ -552,7 +552,7 @@ export default function WorkspacePeopleScreen() {
                 title="Nobody has access to this workspace yet"
                 purpose="Invite a colleague to give them access to this workspace's evidence, cases and reports."
                 action={
-                  canManage ? <ProovraButton label="Invite person" fullWidth={false} onPress={() => setInviteOpen(true)} /> : undefined
+                  canManage && !collaborationNotIncluded ? <ProovraButton label="Invite person" fullWidth={false} onPress={() => setInviteOpen(true)} /> : undefined
                 }
               />
             ) : (
@@ -725,18 +725,33 @@ export default function WorkspacePeopleScreen() {
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 {describeWorkspaceLifecycle(overview.lifecycle).explanation}
               </ProovraText>
-              <ProovraButton
-                label="Open workspace lifecycle"
-                variant="secondary"
-                fullWidth={false}
-                onPress={() => router.push("/settings/workspace-lifecycle" as never)}
-              />
+              {/* Members experience D — straight to where the lifecycle is
+                  controlled: a Personal Workspace closes with its account
+                  (Settings → Privacy & data); an owned Workspace has real
+                  closure and transfer controls; an Organization Workspace
+                  ends through offboarding and offers nothing here. */}
+              {overview.lifecycle.kind === "PERSONAL" ? (
+                <ProovraButton
+                  label="Close account"
+                  variant="secondary"
+                  fullWidth={false}
+                  onPress={() => router.push("/settings/privacy" as never)}
+                />
+              ) : overview.lifecycle.kind === "OWNED" ? (
+                <ProovraButton
+                  label="Manage workspace lifecycle"
+                  variant="secondary"
+                  fullWidth={false}
+                  onPress={() => router.push("/settings/workspace-lifecycle" as never)}
+                />
+              ) : null}
             </ProovraCard>
           ) : null}
 
           {/* ---- THE RAIL ---- */}
 
-          {canManage ? (
+          {/* A plan that admits nobody but the owner offers no invitation (402). */}
+          {canManage && !collaborationNotIncluded ? (
             <ProovraCard testID="people-rail-invite">
               <ProovraText variant="h3" weight="semibold">
                 Invite people
@@ -879,7 +894,10 @@ export default function WorkspacePeopleScreen() {
               still ? "The removal was accepted, but the reloaded list still shows this person. Reload the page before trying again." : "Member removed",
               still ? "error" : "success",
             );
-            if (!still) setOverview((prev) => (prev ? { ...prev, seats: { ...prev.seats, memberCount: Math.max(0, prev.seats.memberCount - 1) } } : prev));
+            if (!still) {
+              // The figures are the server's; re-read them rather than guess.
+              void load();
+            }
           }}
         />
       ) : null}

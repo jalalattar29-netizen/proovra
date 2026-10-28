@@ -29,6 +29,7 @@ import { severityTone } from "../../../../components/ui/StatusBadge";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
+import { useCanOpenRoute } from "../../../../lib/navigation/useRouteDestination";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
 import { formatUserDateTime } from "../../../../lib/date";
@@ -207,6 +208,9 @@ function ReviewerIntelligenceConsolePageInner() {
   // never disagree with the destination.
   const healthDestination = useHealthDestination();
   const canDiagnostics = Boolean(healthDestination);
+  // The empty state offers the External Review console only to an actor that
+  // console's own gates admit — never a link to a denial or a not-found page.
+  const canOpenExternalReview = useCanOpenRoute("workspace.review_external");
   const [data, setData] = useState<ConsoleResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Wave 2 Phase 4 — capture the underlying fetch error so the classifier
@@ -588,14 +592,16 @@ useEffect(() => {
                   <OperationalEmptyState
                     classification={classification}
                     reason={reason}
-                    nextAction={{
-                      label: "Invite external reviewer",
-                      href: "/review/external",
-                    }}
-                    adminAction={{
-                      label: "Open external review settings",
-                      href: "/review/external",
-                    }}
+                    nextAction={
+                      canOpenExternalReview
+                        ? { label: "Invite external reviewer", href: "/review/external" }
+                        : undefined
+                    }
+                    adminAction={
+                      canOpenExternalReview
+                        ? { label: "Open external review settings", href: "/review/external" }
+                        : undefined
+                    }
                     diagnosticsLink={healthDestination?.href}
                     diagnosticsLabel={healthDestination?.label}
                     isAdmin={canDiagnostics}

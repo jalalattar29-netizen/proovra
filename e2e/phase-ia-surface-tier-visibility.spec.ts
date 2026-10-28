@@ -336,16 +336,16 @@ test.describe("Phase IA-surface-tier — normal user cannot SEE hidden surfaces"
       "Search",
       "Reports",
       /*
-       * "Teams" and "Members & Access" (members audit, 2026-10-25).
+       * "Collaboration Teams" and "Members & Access" (members experience,
+       * 2026-10-27; supersedes the 2026-10-25 short label "Teams").
        *
-       * The Collaboration Teams surface is titled "Teams" (one Team is a
-       * "Collaboration Team"), and the workspace roster is "Members &
-       * Access" — never "People". Both canonical labels live in the route
-       * registry and are pinned by `members-and-access-ia.test.ts`; this
-       * asserts the rendered sidebar carries them.
+       * The workspace roster is "Members & Access" — never "People" — and
+       * the grouping surface is "Collaboration Teams", directly after it in
+       * Governance (order asserted below). The canonical labels live in the
+       * route registry and are pinned by `members-collaboration-navigation`.
        */
-      "Teams",
       "Members & Access",
+      "Collaboration Teams",
       "Notifications",
       "Billing",
     ]) {
@@ -356,6 +356,13 @@ test.describe("Phase IA-surface-tier — normal user cannot SEE hidden surfaces"
         })
         .toContain(expected);
     }
+    // Directly after Members & Access, with nothing between them.
+    const text = await fullSidebarText(page);
+    const members = text.indexOf("Members & Access");
+    const teams = text.indexOf("Collaboration Teams");
+    expect(members).toBeGreaterThanOrEqual(0);
+    expect(teams).toBeGreaterThan(members);
+    expect(text.slice(members + "Members & Access".length, teams).trim()).toBe("");
   });
 });
 

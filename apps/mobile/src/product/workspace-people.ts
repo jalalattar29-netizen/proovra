@@ -31,7 +31,7 @@
  * Pure: no React, no react-native, no fetch.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
-import type { WorkspaceLifecyclePolicy } from "@proovra/shared";
+import type { CollaborationTeamsStat, WorkspaceLifecyclePolicy } from "@proovra/shared";
 
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -98,7 +98,10 @@ export function buildWorkspaceInviteResendPath(teamId: string, inviteId: string)
 // ---------------------------------------------------------------------------
 
 export interface WorkspaceSeats {
-  memberCount: number;
+  /** Every membership row, from the server; null when it did not say. */
+  memberCount: number | null;
+  /** ACTIVE members (stats.memberCounts.active) — the web's figure; null = unknown. */
+  activeMemberCount: number | null;
   seatLimit: number | null;
   seatUsed: number | null;
   seatAvailable: number | null;
@@ -120,6 +123,10 @@ export interface WorkspaceOverview {
   /** stats.pendingInviteCount / stats.caseCount (teams.routes.ts:211-214). */
   pendingInviteCount: number | null;
   caseCount: number | null;
+  /** Cases the viewer can see that are still being worked; null = unknown. */
+  openCaseCount: number | null;
+  /** Active Collaboration Teams against the gate's limit; null = unknown. */
+  collaborationTeams: CollaborationTeamsStat | null;
   effectivePlan: string | null;
   currentUserRole: string | null;
   canManageMembers: boolean;
@@ -152,6 +159,8 @@ export function parseWorkspaceOverview(payload: unknown): WorkspaceOverview {
     ownerLabel: owner ? str(ownerUser.displayName)?.trim() || str(ownerUser.email)?.trim() || null : null,
     pendingInviteCount: num(stats.pendingInviteCount),
     caseCount: num(stats.caseCount),
+    openCaseCount: num(stats.openCaseCount),
+    collaborationTeams: parseCollaborationTeamsStat(stats.collaborationTeams),
     // The web normalises the plan label (normalizePlanLabel) and never invents one.
     effectivePlan: str(d.effectivePlan)?.trim().toUpperCase() || null,
     currentUserRole: str(d.currentUserRole),
@@ -159,7 +168,8 @@ export function parseWorkspaceOverview(payload: unknown): WorkspaceOverview {
     canManageWorkspace: d.canManageWorkspace === true,
     seats: {
       // The server's count, never the length of the page it happened to send.
-      memberCount: num(stats.memberCount) ?? 0,
+      memberCount: num(stats.memberCount),
+      activeMemberCount: num(obj(stats.memberCounts).active) ?? null,
       seatLimit: num(stats.seatLimit),
       seatUsed: num(stats.seatUsed),
       seatAvailable: num(stats.seatAvailable),
@@ -168,6 +178,23 @@ export function parseWorkspaceOverview(payload: unknown): WorkspaceOverview {
     },
     hasMoreMembers: page.hasMore === true,
     lifecycle: parseLifecycle(d.lifecycle),
+  };
+}
+
+function parseCollaborationTeamsStat(value: unknown): CollaborationTeamsStat | null {
+  const c = obj(value);
+  const active = num(c.active);
+  const limit = num(c.limit);
+  const membersPerTeam = num(c.membersPerTeam);
+  if (typeof c.featureIncluded !== "boolean" || active === null || limit === null || membersPerTeam === null) {
+    return null;
+  }
+  return {
+    featureIncluded: c.featureIncluded,
+    active,
+    limit,
+    limitSource: str(c.limitSource) ?? "PLAN_CATALOG",
+    membersPerTeam,
   };
 }
 

@@ -78,6 +78,7 @@ function DiscussionPanel({
   >({});
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const writable = team.status === "ACTIVE";
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -132,58 +133,67 @@ function DiscussionPanel({
           <code style={inlineCode}>@handle</code> for a specific member.
         </p>
 
-        <form
-          onSubmit={onSubmit}
-          data-testid="comment-create-form"
-          className="app-inner-surface"
-          style={{ padding: "1rem", marginBottom: "1.25rem" }}
-        >
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <span className="app-avatar" aria-hidden>
-              You
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                maxLength={4000}
-                rows={3}
-                placeholder="Write a comment for the team…"
-                data-testid="comment-body-input"
-                className="app-form-input"
-                aria-label="Write a comment for the team"
-                aria-describedby="comment-mention-hint"
-              />
-              <p
-                className="app-field-help"
-                id="comment-mention-hint"
-                data-testid="comment-mention-hint"
-              >
-                Mention teammates with{" "}
-                <code style={inlineCode}>@handle</code> to notify them directly.
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: "0.75rem",
-                  flexWrap: "wrap",
-                }}
-              >
-                <button
-                  type="submit"
-                  disabled={!body.trim() || busy}
-                  className="app-primary-action"
-                  data-testid="comment-submit"
+        {/* An archived team's discussion is a record: the server refuses
+            new, edited and deleted comments (`requireActiveTeam`), so none
+            is offered — the history stays readable. */}
+        {!writable ? (
+          <p className="app-table__muted" data-testid="comment-archived-notice" style={{ marginBottom: "1.25rem" }}>
+            This team is archived. Its discussion is kept as a read-only record.
+          </p>
+        ) : (
+          <form
+            onSubmit={onSubmit}
+            data-testid="comment-create-form"
+            className="app-inner-surface"
+            style={{ padding: "1rem", marginBottom: "1.25rem" }}
+          >
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span className="app-avatar" aria-hidden>
+                You
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  maxLength={4000}
+                  rows={3}
+                  placeholder="Write a comment for the team…"
+                  data-testid="comment-body-input"
+                  className="app-form-input"
+                  aria-label="Write a comment for the team"
+                  aria-describedby="comment-mention-hint"
+                />
+                <p
+                  className="app-field-help"
+                  id="comment-mention-hint"
+                  data-testid="comment-mention-hint"
                 >
-                  {busy ? "Posting…" : "Post comment"}
-                </button>
+                  Mention teammates with{" "}
+                  <code style={inlineCode}>@handle</code> to notify them directly.
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: "0.75rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="submit"
+                    disabled={!body.trim() || busy}
+                    className="app-primary-action"
+                    data-testid="comment-submit"
+                  >
+                    {busy ? "Posting…" : "Post comment"}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
+        )}
 
         {loading ? (
           <p style={{ color: "#5F6878" }}>Loading comments…</p>
@@ -215,6 +225,7 @@ function DiscussionPanel({
                 directory={directory}
                 teamId={team.id}
                 canModerate={team.viewerCapabilities?.canModerateComments === true}
+                writable={writable}
                 onRefresh={refresh}
                 onError={onError}
               />
@@ -231,6 +242,7 @@ function CommentRow({
   directory,
   teamId,
   canModerate,
+  writable,
   onRefresh,
   onError,
 }: {
@@ -239,6 +251,8 @@ function CommentRow({
   teamId: string;
   /** SERVER-projected comment-moderation authority (viewerCapabilities). */
   canModerate: boolean;
+  /** False on an archived team — the server refuses edits and deletes. */
+  writable: boolean;
   onRefresh: () => Promise<void>;
   onError: (err: unknown) => void;
 }) {
@@ -356,7 +370,7 @@ function CommentRow({
               {renderBodyWithMentions(comment.body)}
             </p>
           )}
-          {!editing && (canModerate || isAuthor) ? (
+          {!editing && writable && (canModerate || isAuthor) ? (
             <div style={{ display: "flex", gap: 4, marginLeft: -6 }}>
               <button
                 type="button"

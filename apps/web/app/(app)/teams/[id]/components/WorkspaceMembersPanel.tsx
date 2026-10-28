@@ -315,45 +315,55 @@ export const WorkspaceMembersPanel = forwardRef<
   return (
     <div className="app-panel" data-testid="people-roster">
       <StepUpModal control={stepUp} />
+      {/*
+        ONE TOOLBAR ROW (members experience C). The search sat on one line and
+        "All statuses" fell to the next, leaving an empty column beside the
+        title. The canonical list toolbar keeps them on one row beside the
+        title, the search taking the width; it stacks only when the panel
+        itself is too narrow (at phone width the toolbar takes its own row and
+        both controls go full width).
+      */}
       <div className="app-panel__head app-panel__head-row" style={{ flexWrap: "wrap", gap: 8 }}>
         <h2 className="app-panel__title">Members</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", minWidth: 0 }}>
-          <div className="app-search-field">
-            <span className="app-search-icon" aria-hidden="true">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </span>
-            {/* D45 — the server searches addresses only for ADMIN+ (the people
-                who may see them), so the box only promises what it will do. */}
-            <input
-              type="search"
-              className="app-search-input"
-              placeholder={canManageTeam ? "Search by name or email" : "Search by name"}
-              aria-label="Search members"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              data-testid="people-search"
-            />
-          </div>
-          <div style={{ minWidth: 150 }}>
-            <AppListbox
-              value={status}
-              options={STATUS_FILTERS.map((o) => ({ value: o.value, label: o.label }))}
-              onChange={(v) => setStatus(v as StatusFilter)}
-              ariaLabel="Filter members by status"
-              id="people-status-filter"
-            />
+        <div className="app-list-toolbar" style={{ flex: "1 1 360px" }} data-testid="people-toolbar">
+          <div className="app-list-toolbar__row">
+            <div className="app-search-field">
+              <span className="app-search-icon" aria-hidden="true">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </span>
+              {/* D45 — the server searches addresses only for ADMIN+ (the people
+                  who may see them), so the box only promises what it will do. */}
+              <input
+                type="search"
+                className="app-search-input"
+                placeholder={canManageTeam ? "Search by name or email" : "Search by name"}
+                aria-label="Search members"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                data-testid="people-search"
+              />
+            </div>
+            <div className="app-list-toolbar__control" data-testid="people-status-control">
+              <AppListbox
+                value={status}
+                options={STATUS_FILTERS.map((o) => ({ value: o.value, label: o.label }))}
+                onChange={(v) => setStatus(v as StatusFilter)}
+                ariaLabel="Filter members by status"
+                id="people-status-filter"
+              />
+            </div>
           </div>
         </div>
       </div>

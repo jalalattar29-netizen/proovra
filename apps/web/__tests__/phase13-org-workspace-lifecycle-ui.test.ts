@@ -369,9 +369,17 @@ test("transfer workspace ownership: owner-only, and never offers an ineligible t
     !team.includes("<WorkspaceOwnershipTransferCard"),
     "Members & Access still mounts a lifecycle card",
   );
+  // Members experience D — the link goes where the lifecycle is controlled:
+  // an OWNED Workspace's own lifecycle page (closure, transfer); a Personal
+  // Workspace's account closure. Behaviour is proven in
+  // render/members-access-experience.render.test.tsx.
   assert.ok(
-    team.includes("href={`/teams/${teamId}/lifecycle`}"),
-    "Members & Access does not point at this workspace's own lifecycle page",
+    team.includes("workspaceLifecycleDestination(team?.lifecycle"),
+    "Members & Access does not take its lifecycle destination from the policy",
+  );
+  assert.match(
+    read("lib/members/workspaceLifecycleDestination.ts"),
+    /case "OWNED":[\s\S]*?\/teams\/\$\{encodeURIComponent\(workspaceId\)\}\/lifecycle/,
   );
 
   const page = read(LIFECYCLE_SECTION);

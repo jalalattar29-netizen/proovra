@@ -4,7 +4,8 @@
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadWithProviders, renderInProviders, React, act } from "./support/render.mjs";
+import { loadModule, renderInProviders, React, act } from "./support/render.mjs";
+import { platformContextEnvelope, signIn, authMe } from "./support/authenticated.mjs";
 
 const h = React.createElement;
 let Screen;
@@ -20,15 +21,21 @@ const TEAM = (over = {}) => ({
 });
 
 before(async () => {
-  Screen = await loadWithProviders("app/(stack)/collaboration-team/[id].tsx");
+  // Signed in: the plan facts come from the platform context, which is read
+  // only for an authenticated session.
+  Screen = await loadModule("app/(stack)/collaboration-team/[id].tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
 });
 beforeEach(() => {
   requests = [];
   created = 0;
   globalThis.__EXPO_PARAMS__ = { id: "t1" };
   routes = {
+    "/v1/auth/me": () => authMe(),
     "/v1/collaboration-teams/t1": () => TEAM(),
-    "/v1/collaboration-teams/entitlement": () => ({}),
+    // TEAM: Team tasks are sold and growth is allowed — the two facts Create
+    // assignment now requires besides the group permission (members experience F).
+    "/v1/collaboration-teams/entitlement": () => ({ plan: "TEAM", featureIncluded: true, mutationsAllowed: true }),
+    "/v1/platform/context": () => platformContextEnvelope({ planFeatures: { teamCollaborationIncluded: true, reviewQueuesIncluded: true } }),
     "/v1/collaboration-teams/t1/comments": () => ({ items: [], directory: {} }),
     "/v1/collaboration-teams/t1/assignable-targets": () => ({ targets: [{ id: "case-9", label: "Leaking roof", sublabel: "#c0ffee00", status: "OPEN" }] }),
     "/v1/collaboration-teams/t1/assignments": (method) => {
@@ -53,6 +60,7 @@ const settle = async (ms = 0) => {
   for (let i = 0; i < 6; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, ms)); });
 };
 const render = async () => {
+  await signIn(Screen);
   const r = await renderInProviders(Screen, h(Screen.default, {}));
   await settle();
   return r;
@@ -82,6 +90,20 @@ test("a LEAD creates an assignment from the server's assignable records", async 
   assert.equal(post.body.dueAtUtc, new Date(2026, 9, 1, 17, 0).toISOString(), "the local due time was not sent as that instant");
   const after = requests.filter((q) => q.path.startsWith("/v1/collaboration-teams/t1/assignments") && q.method === "GET").length;
   assert.ok(after > before, "the work list was not reloaded after the create");
+});
+
+test("PRO (Team tasks not sold) offers no create, whatever the group role", async () => {
+  routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { teamCollaborationIncluded: true, reviewQueuesIncluded: false } });
+  const r = await render();
+  assert.equal(r.byLabel("Create assignment").length, 0, "PRO was offered a create every submit refuses");
+  r.unmount();
+});
+
+test("a billing restriction offers no create", async () => {
+  routes["/v1/collaboration-teams/entitlement"] = () => ({ plan: "TEAM", featureIncluded: true, mutationsAllowed: false });
+  const r = await render();
+  assert.equal(r.byLabel("Create assignment").length, 0);
+  r.unmount();
 });
 
 test("no permission, or an archived group, offers no create", async () => {

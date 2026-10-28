@@ -43,7 +43,18 @@ beforeEach(async () => {
     canManageMembers: true,
     canManageWorkspace: false,
     effectivePlan: "team",
-    stats: { memberCount: 2, pendingInviteCount: 1, caseCount: 1, seatLimit: 2, seatUsed: 2, seatAvailable: 0 },
+    stats: {
+      memberCount: 2,
+      memberCounts: { active: 2, suspended: 0, removed: 0, unassigned: 0 },
+      pendingInviteCount: 1,
+      caseCount: 3,
+      openCaseCount: 1,
+      // An Enterprise-style contract seat count, full — the one ceiling that can fill.
+      seatLimit: 2,
+      seatUsed: 2,
+      seatAvailable: 0,
+      collaborationTeams: { featureIncluded: true, active: 1, limit: 5, limitSource: "PLAN_CATALOG", membersPerTeam: 10 },
+    },
     memberPage: { total: 2, returned: 2, hasMore: false, endpoint: "/v1/teams/team-1/members" },
     members: [member("m-own", "u-own", "OWNER", "Olivia Owner"), member("m-self", "user-1", "ADMIN", "Test Operator")],
   };
@@ -105,12 +116,16 @@ test("the header, summary figures and seat-full notice come from the server's pr
   assert.ok(r.texts().some((t) => t.includes("TEAM plan")));
   assert.equal(r.byLabel("Active members: 2").length, 1);
   assert.equal(r.byLabel("Pending invitations: 1").length, 1);
-  assert.equal(r.byLabel("Seats available: 0").length, 1);
-  assert.ok(r.hasText("2 of 2 used"));
+  // Members experience B — no "Seats available" card; Collaboration Teams
+  // against the plan limit, worded by the module the web uses.
+  assert.equal(r.byLabel("Seats available: 0").length, 0);
+  assert.equal(r.byLabel("Collaboration Teams: 1 of 5").length, 1);
+  assert.ok(r.texts().some((t) => t.includes("up to 10 members per Team, owner not counted")));
   assert.ok(r.hasText("Every seat is in use."));
   await r.press("Review plan and seats");
   assert.equal(M.calls.push.at(-1), "/billing");
-  await r.press("Cases in this workspace: 1");
+  // Open cases — the server's open, visible count, not every Case row.
+  await r.press("Open cases: 1");
   assert.equal(M.calls.push.at(-1), "/cases");
   r.unmount();
 });
@@ -157,7 +172,7 @@ test("People offers no case linking, and asks for no case list", async () => {
 // Workspace lifecycle (workspace-lifecycle.render.test.mjs proves them there).
 // The People screen manages people: for the owner it only points at the
 // lifecycle screen, and it offers no delete control at all.
-test("People has no lifecycle controls; the owner gets a pointer to Workspace lifecycle", async () => {
+test("People has no lifecycle controls; a Personal owner goes straight to Close account", async () => {
   Object.assign(detail, {
     currentUserRole: "OWNER",
     canManageWorkspace: true,
@@ -169,8 +184,42 @@ test("People has no lifecycle controls; the owner gets a pointer to Workspace li
   assert.equal(r.byLabel("Transfer ownership…").length, 0);
   assert.equal(requests.filter((q) => q.path === "/v1/teams/team-1/closure").length, 0, "People read closure state");
   assert.ok(r.texts().some((t) => t.includes("closes only when you close your account")));
-  await r.press("Open workspace lifecycle");
-  assert.equal(M.calls.push.at(-1), "/settings/workspace-lifecycle");
+  // Members experience D — no forwarding screen: account closure, directly.
+  assert.equal(r.byLabel("Open workspace lifecycle").length, 0);
+  await r.press("Close account");
+  assert.equal(M.calls.push.at(-1), "/settings/privacy");
   assert.equal(requests.filter((q) => q.method === "DELETE" && q.path === "/v1/teams/team-1").length, 0);
+  r.unmount();
+});
+
+test("unknown figures read —, never 0 (members experience B)", async () => {
+  Object.assign(detail, { stats: { pendingInviteCount: 1 } });
+  const r = await render();
+  assert.equal(r.byLabel("Active members: —").length, 1);
+  assert.equal(r.byLabel("Open cases: —").length, 1);
+  assert.equal(r.byLabel("Collaboration Teams: —").length, 1);
+  r.unmount();
+});
+
+test("FREE: Collaboration Teams are not included and no invitation is offered", async () => {
+  Object.assign(detail, {
+    stats: { ...detail.stats, seatLimit: 0, seatUsed: 0, seatAvailable: 0, collaborationTeams: { featureIncluded: false, active: 0, limit: 0, limitSource: "PLAN_CATALOG", membersPerTeam: 0 } },
+  });
+  const r = await render();
+  assert.equal(r.byLabel("Collaboration Teams: Not included").length, 1);
+  assert.equal(r.byLabel("Invite person").length, 0);
+  assert.equal(r.hasText("Every seat is in use."), false);
+  r.unmount();
+});
+
+test("an Organization Workspace owner gets no account-closure route from People", async () => {
+  Object.assign(detail, {
+    currentUserRole: "OWNER",
+    canManageWorkspace: true,
+    lifecycle: { kind: "ORGANIZATION", endPath: "ORGANIZATION_OFFBOARDING", deletable: false, closable: false, transferable: false, nextAction: "ORGANIZATION_OFFBOARDING" },
+  });
+  const r = await render();
+  assert.equal(r.byLabel("Close account").length, 0);
+  assert.equal(r.byLabel("Manage workspace lifecycle").length, 0);
   r.unmount();
 });
