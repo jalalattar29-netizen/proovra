@@ -26,12 +26,8 @@ import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
-import {
-  StepUpVerify,
-  extractStepUp,
-  type StepUpMethods,
-  type StepUpProof,
-} from "../../app/(app)/security-center/components/PersonalSecuritySections";
+import { usePlatformContext } from "../../lib/platform-context";
+import { StepUpModal, useStepUpAction } from "./StepUpModal";
 
 export type PasskeyRow = {
   id: string;
@@ -108,7 +104,6 @@ function kindOf(p: PasskeyRow): string {
   return "Passkey";
 }
 
-type Pending = { kind: "add"; label: string } | { kind: "remove"; passkey: PasskeyRow };
 
 export function PasskeysCard() {
   const { confirm } = useConfirmAction();
@@ -119,9 +114,14 @@ export function PasskeysCard() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [quiet, setQuiet] = useState<string | null>(null);
-  const [stepUpFor, setStepUpFor] = useState<Pending | null>(null);
-  const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
-  const [stepUpMsg, setStepUpMsg] = useState("");
+  /*
+   * Binding or removing a passkey is answered by the STRONGEST authenticator
+   * the person already holds (closure audit N-2) — the same step-up dialog the
+   * archive of a Collaboration Team uses, resolved against the workspace the
+   * person is in. A password alone never binds a passkey.
+   */
+  const { activeWorkspaceId } = usePlatformContext();
+  const stepUp = useStepUpAction({ teamId: activeWorkspaceId });
 
   const reload = useCallback(async () => {
     setLoadError(null);
@@ -143,13 +143,10 @@ export function PasskeysCard() {
     setQuiet(null);
   };
 
-  /** A step-up denial re-opens the prompt; anything else is reported. */
-  const surfaceOrStepUp = (err: unknown, pending: Pending, fallback: string) => {
-    const su = extractStepUp(err);
-    if (su) {
-      setStepUpFor(pending);
-      setStepUpMethods(su.methods);
-      setStepUpMsg(su.message);
+  /** A cancelled step-up changes nothing; anything else is reported. */
+  const surface = (err: unknown, fallback: string) => {
+    if ((err as { code?: string })?.code === "STEP_UP_CANCEL") {
+      setQuiet("Nothing was changed.");
       return;
     }
     if (errorCode(err) === "rate_limited") {
@@ -160,28 +157,34 @@ export function PasskeysCard() {
   };
 
   const addPasskey = useCallback(
-    async (name: string, proof?: StepUpProof) => {
+    async (name: string) => {
       resetMessages();
       const trimmed = name.trim();
       if (trimmed.length === 0) {
         setError("Give the passkey a name first.");
         return;
       }
+      if (!activeWorkspaceId) {
+        setError("Open a workspace first, then add the passkey.");
+        return;
+      }
       setBusy(true);
       try {
         let begun: { options: Record<string, unknown>; ticket: string };
         try {
-          begun = (await apiFetch("/v1/identity-security/passkeys/registration/options", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(proof ? { stepUp: proof } : {}),
-          })) as { options: Record<string, unknown>; ticket: string };
+          begun = await stepUp.runStepUpAction(
+            async (headers) =>
+              (await apiFetch("/v1/identity-security/passkeys/registration/options", {
+                method: "POST",
+                headers: { "content-type": "application/json", ...(headers ?? {}) },
+                body: JSON.stringify({ workspaceId: activeWorkspaceId }),
+              })) as { options: Record<string, unknown>; ticket: string },
+            { teamId: activeWorkspaceId },
+          );
         } catch (err) {
-          surfaceOrStepUp(err, { kind: "add", label: trimmed }, "A passkey could not be added right now.");
+          surface(err, "A passkey could not be added right now.");
           return;
         }
-        setStepUpFor(null);
-        setStepUpMsg("");
 
         const created = await createPasskeyCredential(begun.options);
         if (created.status !== "ok") {
@@ -220,12 +223,12 @@ export function PasskeysCard() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reload],
+    [reload, activeWorkspaceId, stepUp],
   );
 
   const removePasskey = useCallback(
-    async (passkey: PasskeyRow, proof?: StepUpProof) => {
-      if (!proof) {
+    async (passkey: PasskeyRow) => {
+      {
         const ok = await confirm({
           title: `Remove “${passkey.label}”?`,
           description:
@@ -237,25 +240,31 @@ export function PasskeysCard() {
         if (!ok) return;
       }
       resetMessages();
+      if (!activeWorkspaceId) {
+        setError("Open a workspace first, then remove the passkey.");
+        return;
+      }
       setBusy(true);
       try {
-        await apiFetch(`/v1/identity-security/passkeys/${encodeURIComponent(passkey.id)}`, {
-          method: "DELETE",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(proof ? { stepUp: proof } : {}),
-        });
-        setStepUpFor(null);
-        setStepUpMsg("");
+        await stepUp.runStepUpAction(
+          async (headers) =>
+            apiFetch(`/v1/identity-security/passkeys/${encodeURIComponent(passkey.id)}`, {
+              method: "DELETE",
+              headers: { "content-type": "application/json", ...(headers ?? {}) },
+              body: JSON.stringify({ workspaceId: activeWorkspaceId }),
+            }),
+          { teamId: activeWorkspaceId },
+        );
         setNotice(`Passkey “${passkey.label}” removed.`);
         await reload();
       } catch (err) {
-        surfaceOrStepUp(err, { kind: "remove", passkey }, "The passkey could not be removed.");
+        surface(err, "The passkey could not be removed.");
       } finally {
         setBusy(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [confirm, reload],
+    [confirm, reload, activeWorkspaceId, stepUp],
   );
 
   return (
@@ -361,26 +370,7 @@ export function PasskeysCard() {
           </div>
         </form>
 
-        {stepUpFor ? (
-          <StepUpVerify
-            title={
-              stepUpFor.kind === "add"
-                ? "Adding a passkey is a sensitive change. Confirm it's you to continue."
-                : "Removing a passkey is a sensitive change. Confirm it's you to continue."
-            }
-            methods={stepUpMethods}
-            initialError={stepUpMsg}
-            busy={busy}
-            onSubmit={(proof) => {
-              if (stepUpFor.kind === "add") void addPasskey(stepUpFor.label, proof);
-              else void removePasskey(stepUpFor.passkey, proof);
-            }}
-            onCancel={() => {
-              setStepUpFor(null);
-              setStepUpMsg("");
-            }}
-          />
-        ) : null}
+        <StepUpModal control={stepUp} />
 
         <div aria-live="polite">
           {notice ? (

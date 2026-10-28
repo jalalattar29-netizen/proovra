@@ -146,7 +146,7 @@ export function ArchiveTeamDialog({
                 <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
                   <li data-testid="archive-impact-members">
                     {plural(impact.acceptedMembers, "member", "members")} lose access through this
-                    team
+                    Collaboration Team
                   </li>
                   <li data-testid="archive-impact-cases">
                     {plural(impact.caseGrants, "Case grant", "Case grants")} stop applying
@@ -185,7 +185,7 @@ export function ArchiveTeamDialog({
 
               <p style={{ marginTop: 12, fontSize: 13 }} data-testid="archive-impact-restore">
                 {impact.restore.requestable
-                  ? "A Lead can restore this team later. Restoring checks your plan, how many active Collaboration Teams you have, and the team's member capacity at that time."
+                  ? "A Lead of this Collaboration Team can restore it later. Restoring checks your plan, how many active Collaboration Teams you have, and the team's member capacity at that time."
                   : "This team cannot be restored after archiving."}
               </p>
 

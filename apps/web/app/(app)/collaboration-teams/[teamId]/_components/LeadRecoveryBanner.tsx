@@ -11,13 +11,14 @@
  * administrator.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import {
   type CollaborationTeamDetail,
+  listTeamMembers,
   recoverTeamLead,
 } from "../../../../../lib/api/collaboration-teams";
 
@@ -34,12 +35,29 @@ export function LeadRecoveryBanner({
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const candidates = team.members
-    .filter((m) => m.status === "ACTIVE")
-    .map((m) => ({
-      value: m.userId,
-      label: m.user.displayName || [m.user.firstName, m.user.lastName].filter(Boolean).join(" ") || m.user.email || "Member",
-    }));
+  // Every ACTIVE member, paged from the server — the detail payload's member
+  // list is a 25-row preview, so a larger group's members would be missing.
+  const [candidates, setCandidates] = useState<Array<{ value: string; label: string }>>([]);
+  useEffect(() => {
+    if (!team.viaWorkspaceGovernance) return;
+    let cancelled = false;
+    void (async () => {
+      const rows: Array<{ value: string; label: string }> = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 20; page += 1) {
+        const res = await listTeamMembers(team.id, { status: "ACTIVE", limit: 100, cursor });
+        for (const m of res.members) rows.push({ value: m.userId, label: m.displayName || "Member" });
+        cursor = res.nextCursor;
+        if (!cursor) break;
+      }
+      if (!cancelled) setCandidates(rows);
+    })().catch(() => {
+      if (!cancelled) setCandidates([]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [team.id, team.viaWorkspaceGovernance]);
   const options = [
     ...(viewerUserId ? [{ value: viewerUserId, label: "Me" }] : []),
     ...candidates.filter((c) => c.value !== viewerUserId),

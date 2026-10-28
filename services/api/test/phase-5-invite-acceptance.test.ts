@@ -130,6 +130,16 @@ vi.mock("../src/services/enterprise-provisioning.service.js", () => ({
  * seat answer is stubbed to "room available" and the seat rule itself is
  * asserted where it lives, in `p2-invitation-coherence`.
  */
+/**
+ * THE LIFECYCLE ADAPTER, STUBBED to "active" for the same reason: the
+ * restricted-workspace refusal (closure audit N-3) is proven against a real
+ * database in members-ledger-closure.integration.test.ts.
+ */
+vi.mock("../src/services/collaboration-team/billing-guards.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  assertSubscriptionActiveOrGraceAllowed: async () => ({ plan: "TEAM", status: "ACTIVE", inGracePeriod: false }),
+}));
+
 vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
   resolveWorkspaceSeatState: async () => ({

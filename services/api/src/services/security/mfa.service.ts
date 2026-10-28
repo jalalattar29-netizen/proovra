@@ -350,6 +350,16 @@ export async function verifyAndActivateEnrollment(input: {
   } catch {
     /* never blocks a completed enrolment */
   }
+  // Closure audit N-6 — no elevation proven under the old credentials is
+  // spent after them. The challenge table's one writer does it.
+  try {
+    const { cancelOutstandingStepUpChallenges } = await import(
+      "../identity-security/step-up.service.js"
+    );
+    await cancelOutstandingStepUpChallenges(input.userId);
+  } catch {
+    /* never blocks the security change itself */
+  }
 
   return { ok: true, factorId: factor.id, recoveryCodes };
 }
@@ -440,6 +450,16 @@ export async function revokeFactor(input: {
       reason: input.reason ?? "user_revoked",
     },
   });
+  // Closure audit N-6 — no elevation proven under the old credentials is
+  // spent after them. The challenge table's one writer does it.
+  try {
+    const { cancelOutstandingStepUpChallenges } = await import(
+      "../identity-security/step-up.service.js"
+    );
+    await cancelOutstandingStepUpChallenges(input.userId);
+  } catch {
+    /* never blocks the security change itself */
+  }
   return { ok: true };
 }
 

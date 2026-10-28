@@ -23,6 +23,7 @@ import {
   parseExternalFlowDeepLink,
   resolveMobileDeepLink,
 } from "./deep-link";
+import { stepUpReturnRoute } from "./product/challenge-step-up";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
 
 function hasActiveWork(): boolean {
@@ -58,6 +59,14 @@ export function DeepLinkGate() {
     // checked before the session branch because they are valid precisely WHEN
     // there is no session. The token stays opaque; the destination screen proves
     // it with its own API call, exactly as the Web routes do.
+    // The step-up handoff's return (proovra://step-up/complete) carries nothing
+    // to resolve: the verdict is read from the server by the open dialog.
+    const stepUpReturn = stepUpReturnRoute(url);
+    if (stepUpReturn) {
+      router.push(stepUpReturn as never);
+      return;
+    }
+
     const credential = parseCredentialDeepLink(url);
     if (credential) {
       router.push(credential.route as never);

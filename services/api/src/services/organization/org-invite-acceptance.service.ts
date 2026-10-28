@@ -24,6 +24,10 @@
  * moved verbatim from the route.
  */
 
+import {
+  BillingLimitError,
+  assertSubscriptionActiveOrGraceAllowed,
+} from "../collaboration-team/billing-guards.js";
 import { prisma } from "../../db.js";
 import {
   grantOrganizationMembership,
@@ -320,6 +324,25 @@ async function runAcceptance(
      */
     const refusedAssignments: Array<{ teamId: string; reason: string }> = [];
     for (const assignment of parsedAssignments.assignments) {
+      /*
+       * GROWTH FOLLOWS THE SUBSCRIPTION LIFECYCLE (closure audit N-3, members
+       * ledger M6). The workspace-invitation path refuses a restricted
+       * workspace; this one seated people into it. Same canonical adapter;
+       * the refusal is recorded like a full workspace, and the Organization
+       * membership itself still commits.
+       */
+      try {
+        await assertSubscriptionActiveOrGraceAllowed(
+          { workspaceId: assignment.teamId },
+          tx as unknown as Parameters<typeof assertSubscriptionActiveOrGraceAllowed>[1],
+        );
+      } catch (err) {
+        if (err instanceof BillingLimitError) {
+          refusedAssignments.push({ teamId: assignment.teamId, reason: err.code });
+          continue;
+        }
+        throw err;
+      }
       const granted = await grantWorkspaceMembership(tx, {
         organizationId: invite.organizationId,
         userId,

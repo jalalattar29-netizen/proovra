@@ -306,7 +306,7 @@ describe("Phase C — collaboration capacity", () => {
     ).toBe("TEAM_MEMBER_LIMIT_REACHED");
     expect((await prisma.collaborationTeam.findUniqueOrThrow({ where: { id: teamId } })).status).toBe("ARCHIVED");
     await plan("TEAM");
-    await expect(ct.unarchiveCollaborationTeam({ teamId, actorUserId: owner() })).resolves.toBeUndefined();
+    await expect(ct.unarchiveCollaborationTeam({ teamId, actorUserId: owner() })).resolves.toEqual({ changed: true });
   });
 
   it("every writer that grows a group takes the same per-group lock", async () => {

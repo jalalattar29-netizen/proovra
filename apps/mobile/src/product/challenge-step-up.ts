@@ -47,6 +47,21 @@ export const CHALLENGE_METHODS: ReadonlyArray<ChallengeMethod> = [
 /** Where the system browser returns when the handoff page is done. */
 export const STEP_UP_RETURN_URL = "proovra://step-up/complete";
 
+/**
+ * The in-app landing for that return. `openAuthSessionAsync` normally captures
+ * the redirect itself; when the OS delivers it as an ordinary link instead (the
+ * browser session was backgrounded, or the page was finished in another app),
+ * it must land on the calm completion screen, not fall through to the tenant
+ * resolve gate as an unknown resource.
+ */
+export const STEP_UP_COMPLETE_ROUTE = "/(stack)/step-up/complete";
+
+export function stepUpReturnRoute(url: string): string | null {
+  return url === STEP_UP_RETURN_URL || url.startsWith(STEP_UP_RETURN_URL + "?") || url.startsWith(STEP_UP_RETURN_URL + "#")
+    ? STEP_UP_COMPLETE_ROUTE
+    : null;
+}
+
 export function stepUpStatusPath(challengeId: string, teamId: string): string {
   return `/v1/identity-security/step-up/${encodeURIComponent(challengeId)}/status?teamId=${encodeURIComponent(teamId)}`;
 }
@@ -152,6 +167,9 @@ export const PURPOSE_LABEL: Readonly<Record<string, string>> = {
   // Members audit SEC-03 / ROLE-05 — irreversible deletes and published identity.
   CASE_DELETE: "Delete this case",
   COLLABORATION_TEAM_ARCHIVE: "Archive this Collaboration Team",
+  PASSKEY_REGISTER: "Add a passkey or security key",
+  PASSKEY_REMOVE: "Remove a passkey or security key",
+  ORG_SECURITY_POLICY_UPDATE: "Change the organization security policy",
   WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
 };
 

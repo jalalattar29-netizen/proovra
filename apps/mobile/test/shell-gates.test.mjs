@@ -236,7 +236,7 @@ const UNSHELLED_SCREENS = [
   "auth", "register", "forgot-password", "reset-password", "verify-email", "mfa", "mfa-recovery-verify",
   "legal-acceptance", "legal/index", "legal/[slug]", "intake/[token]", "intake/capture", "invite/[token]",
   "org-invite/[token]", "portal/index", "portal/[token]", "portal/accept/[grantId]", "portal/work/[workflowId]",
-  "capture", "continuous-capture", "screen-capture", "support",
+  "capture", "continuous-capture", "screen-capture", "support", "step-up/complete",
 ];
 
 test("RC-10: every authenticated stack screen renders inside the shell — in EVERY state", async () => {

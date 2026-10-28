@@ -941,7 +941,7 @@ function TeamDetail() {
           }}
         >
           <span>
-            <strong>This team is archived.</strong> Its members, work and
+            <strong>This Collaboration Team is archived.</strong> Its members, work and
             history stay readable, but changes are disabled.
             {canArchive ? " Restore it to make changes." : ""}
           </span>

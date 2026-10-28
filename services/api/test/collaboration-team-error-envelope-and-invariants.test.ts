@@ -128,7 +128,10 @@ describe("collaboration team domain errors use the canonical envelope", () => {
 
   it("puts the archived-lifecycle message INSIDE error, where the client reads it", () => {
     const guard = AUTHZ.slice(
-      AUTHZ.indexOf("options.requireActiveTeam"),
+      // The archived refusal is answered LAST (closure N-5: a hidden or
+      // foreign group stays a non-enumerating 404), so the guard is the
+      // refusal helper rather than an early check.
+      AUTHZ.indexOf("const archivedRefusal"),
       AUTHZ.indexOf("options.requireGroupMembership === false"),
     );
     expect(guard).toContain('code: "collaboration_team_archived"');

@@ -32,6 +32,7 @@ import {
   STEP_UP_TTL_DEFAULT_SECONDS,
   STEP_UP_TTL_MAX_SECONDS,
   STEP_UP_ASSURANCE_LEVELS,
+  isLadderStepUpPurpose,
   purposeSatisfies,
   stepUpFactorKindsAllowed,
   stepUpFactorKindsFor,
@@ -295,14 +296,26 @@ export async function startStepUpChallenge(
   );
   // A named channel NARROWS among what the person holds; it never introduces
   // a kind the policy or the person does not have.
+  //
+  // STRONGEST ONLY on a ladder purpose (closure audit N-1): the first rung the
+  // person holds answers, and a client cannot ask for a weaker one — someone
+  // holding a passkey is never offered a phone code, and an Enterprise member
+  // with an IdP link is never let off the forced reauthentication. With no
+  // valid rung left, the remedy is account recovery, not a weaker factor.
+  const ladder = isLadderStepUpPurpose(input.purpose);
+  const strongest = available.kinds[0] ?? null;
   const requested = input.channel ?? null;
-  const chosenKind: StepUpFactorKind | null =
-    requested !== null
+  const chosenKind: StepUpFactorKind | null = ladder
+    ? requested === null || requested === strongest
+      ? strongest
+      : null
+    : requested !== null
       ? available.kinds.includes(requested)
         ? requested
         : null
-      : (available.kinds[0] ?? null);
+      : strongest;
   if (chosenKind === null) throw new StepUpError("enrollment_required", allowedKinds);
+  if (ladder) available.kinds = [chosenKind];
 
   if (chosenKind === "PASSKEY" || chosenKind === "IDP_REAUTH") {
     return startLadderChallenge(
@@ -1020,6 +1033,29 @@ export async function consumeApprovedChallenge(
   if (row.resourceKind !== expectedResourceKind) {
     throw new StepUpError("challenge_resource_mismatch");
   }
+  /*
+   * THE POLICY AT SPEND TIME (closure audit N-4). An approval minted before an
+   * Organization tightened its step-up policy (PHISHING_RESISTANT, SMS off, a
+   * narrower list of accepted IdP contexts) must not outlive the change: the
+   * kind that answered, and an IdP approval's asserted context, are re-judged
+   * against the policy in force now.
+   */
+  if (row.method != null) {
+    const policyNow = await resolveStepUpOrganizationPolicy(input.teamId, client);
+    const allowedNow = stepUpFactorKindsAllowed(input.purpose, policyNow);
+    if (!allowedNow.includes(row.method as StepUpFactorKind)) {
+      throw new StepUpError("challenge_not_found");
+    }
+    if (
+      row.method === "IDP_REAUTH" &&
+      policyNow &&
+      policyNow.acceptedContexts.length > 0 &&
+      !policyNow.acceptedContexts.includes(row.authnContext ?? "")
+    ) {
+      throw new StepUpError("challenge_not_found");
+    }
+  }
+
   // Atomic consume: only one consumer wins.
   const result = await client.stepUpChallenge.updateMany({
     where: {
@@ -1244,6 +1280,30 @@ export async function approveIdpChallenge(
     { factorId: null, factorGeneration: null, authnContext: input.authnContext.slice(0, 256) },
     client,
   );
+}
+
+/**
+ * A SECURITY CHANGE ENDS EVERY OUTSTANDING ELEVATION (closure audit N-6).
+ *
+ * A password change, or binding / removing a factor, changes who can prove
+ * they are this person. Approvals and challenges minted before it are
+ * cancelled — not left to expire — so nothing proven under the old
+ * credentials is spent after it.
+ */
+export async function cancelOutstandingStepUpChallenges(
+  userId: string,
+  client: Pick<PrismaClient, "stepUpChallenge"> = defaultPrisma,
+): Promise<number> {
+  const res = await client.stepUpChallenge.updateMany({
+    where: {
+      initiatedByUserId: userId,
+      status: {
+        in: [prismaPkg.StepUpChallengeStatus.PENDING, prismaPkg.StepUpChallengeStatus.APPROVED],
+      },
+    },
+    data: { status: prismaPkg.StepUpChallengeStatus.CANCELLED },
+  });
+  return res.count;
 }
 
 /**

@@ -100,7 +100,7 @@ test("archive: impact preview, exact name, then the challenge; nothing archived 
   assert.equal(r.hasText("Delete this group"), false, "no delete action remains");
   await r.press("Archive Collaboration Team");
   await settle();
-  assert.ok(r.hasText("2 members lose access through this team"));
+  assert.ok(r.hasText("2 members lose access through this Collaboration Team"));
   assert.ok(r.hasText("4 open tasks will be cancelled"));
 
   // A wrong-case name does not arm the action.

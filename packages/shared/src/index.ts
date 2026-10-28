@@ -1309,6 +1309,7 @@ export {
   PHONE_DELIVERED_STEP_UP_KINDS,
   STEP_UP_ASSURANCE_LEVELS,
   stepUpFactorKindsAllowed,
+  isLadderStepUpPurpose,
   stepUpMethodCategory,
   STEP_UP_PURPOSE_FACTOR_POLICY,
   stepUpFactorKindsFor,

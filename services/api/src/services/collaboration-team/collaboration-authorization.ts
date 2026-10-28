@@ -277,7 +277,14 @@ export async function authorizeCollaborationTeam(
     return refuse(reply);
   }
 
-  if (options.requireActiveTeam && team.status !== "ACTIVE") {
+  /*
+   * AN ARCHIVED TEAM IS NAMED ONLY TO SOMEONE WHO MAY SEE IT (closure audit
+   * N-5). The archived refusal used to come before the group checks, so a
+   * same-workspace non-member learned a hidden group existed and was archived
+   * (409 instead of the opaque 404). It is now the LAST check, applied only to
+   * a caller the binding would otherwise admit.
+   */
+  const archivedRefusal = (): null => {
     /*
      * THE MESSAGE BELONGS INSIDE `error`.
      *
@@ -295,10 +302,12 @@ export async function authorizeCollaborationTeam(
       },
     });
     return null;
-  }
+  };
+  const activeOrRefuse = <T,>(binding: T): T | null =>
+    options.requireActiveTeam && team.status !== "ACTIVE" ? archivedRefusal() : binding;
 
   if (options.requireGroupMembership === false) {
-    return { workspace, team, groupRole: null, viaWorkspaceGovernance: false };
+    return activeOrRefuse({ workspace, team, groupRole: null, viaWorkspaceGovernance: false });
   }
 
   const member = await client.collaborationTeamMember.findFirst({
@@ -345,12 +354,12 @@ export async function authorizeCollaborationTeam(
       ) {
         return refuse(reply);
       }
-      return {
+      return activeOrRefuse({
         workspace,
         team,
         groupRole: null,
         viaWorkspaceGovernance: true,
-      };
+      });
     }
     return refuse(reply);
   }
@@ -363,5 +372,5 @@ export async function authorizeCollaborationTeam(
     return refuse(reply);
   }
 
-  return { workspace, team, groupRole, viaWorkspaceGovernance: false };
+  return activeOrRefuse({ workspace, team, groupRole, viaWorkspaceGovernance: false });
 }

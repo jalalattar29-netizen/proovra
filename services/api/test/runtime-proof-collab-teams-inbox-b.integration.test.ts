@@ -612,7 +612,16 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
         headers: { [STEP]: crossChallenge },
       });
       expect(cross.statusCode, cross.body).toBe(400);
-      expect(cross.json()).toEqual({ error: { code: "grant_issue_denied", reason: "invalid_scope" } });
+      // Canonical envelope (members ledger X6): code, the bounded reason, a
+      // message and the request id — nothing about the foreign record.
+      expect(cross.json()).toEqual({
+        error: {
+          code: "grant_issue_denied",
+          reason: "invalid_scope",
+          message: "The grant could not be issued for that subject.",
+          requestId: expect.any(String),
+        },
+      });
       expect(await grantRows(a.teamId, crossEmail)).toHaveLength(0);
     });
   });

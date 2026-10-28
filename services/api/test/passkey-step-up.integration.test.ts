@@ -23,6 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { SoftAuthenticator } from "./helpers/soft-authenticator.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 type Person = { id: string; token: string };
@@ -45,6 +46,9 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
   let legalVersions: Record<string, string>;
   let rpId: string;
   let origin: string;
+  let ceremony: ReturnType<typeof createStepUpCeremony>;
+  /** Each person's enrolled passkey: once held, it is the rung that answers. */
+  const passkeyOf = new Map<string, SoftAuthenticator>();
   const teamId = () => h.fixtures.teamA.teamId;
 
   // The harness's APP_BASE_URL is an IP origin (http://127.0.0.1:…), which
@@ -66,6 +70,10 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
     const config = resolveWebauthnConfig();
     rpId = config.rpID;
     origin = config.origins[0] as string;
+    ceremony = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
   }, 900_000);
 
   afterAll(async () => {
@@ -81,7 +89,35 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
   const post = (url: string, payload: unknown, token?: string) =>
     h.app.inject({ method: "POST", url, payload: payload as never, headers: headers(token) });
   const json = (res: { body: string }) => JSON.parse(res.body) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- response bodies are asserted field by field
-  const passwordProof = { stepUp: { method: "password", currentPassword: PASSWORD } };
+  /**
+   * CLOSURE AUDIT N-2 — a passkey is bound and removed only behind the LADDER
+   * step-up: the strongest rung the person already holds answers. Before their
+   * first passkey that is their authenticator app (the real TOTP ceremony);
+   * once they hold a passkey, only the passkey can.
+   */
+  async function approved(p: Person, purpose: string, resourceKind: string, resourceId: string) {
+    const auth = passkeyOf.get(p.id);
+    if (!auth) {
+      return ceremony.approvedHeader({ token: p.token, userId: p.id, teamId: teamId(), purpose, resourceKind, resourceId });
+    }
+    const started = await post(
+      "/v1/identity-security/step-up/start",
+      { teamId: teamId(), purpose, resourceKind, resourceId },
+      p.token,
+    );
+    expect(started.statusCode, started.body).toBe(200);
+    const body = json(started);
+    expect(body.method).toBe("PASSKEY");
+    const checked = await post(
+      "/v1/identity-security/step-up/check",
+      { teamId: teamId(), challengeId: body.challenge.id, assertion: auth.assert(body.passkeyOptions) },
+      p.token,
+    );
+    expect(checked.statusCode, checked.body).toBe(200);
+    return { "x-proovra-step-up-challenge-id": body.challenge.id as string };
+  }
+
+  const withHeaders = (token: string, extra: Record<string, string>) => ({ ...headers(token), ...extra });
 
   async function person(): Promise<Person> {
     const email = `pk-${tag()}@test.proovra.local`;
@@ -107,9 +143,25 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
   }
 
   async function registrationOptions(p: Person) {
-    const res = await post("/v1/identity-security/passkeys/registration/options", passwordProof, p.token);
+    const header = await approved(p, "PASSKEY_REGISTER", "user", p.id);
+    const res = await h.app.inject({
+      method: "POST",
+      url: "/v1/identity-security/passkeys/registration/options",
+      headers: withHeaders(p.token, header),
+      payload: { workspaceId: teamId() },
+    });
     expect(res.statusCode, res.body).toBe(200);
     return json(res) as { options: RegistrationOptions; ticket: string };
+  }
+
+  async function removeWithStepUp(p: Person, factorId: string) {
+    const header = await approved(p, "PASSKEY_REMOVE", "mfa_factor", factorId);
+    return h.app.inject({
+      method: "DELETE",
+      url: `/v1/identity-security/passkeys/${factorId}`,
+      headers: withHeaders(p.token, header),
+      payload: { workspaceId: teamId() },
+    });
   }
 
   async function enrol(p: Person, label = "Test key"): Promise<{ auth: SoftAuthenticator; factorId: string }> {
@@ -121,6 +173,7 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
       p.token,
     );
     expect(res.statusCode, res.body).toBe(201);
+    passkeyOf.set(p.id, auth);
     return { auth, factorId: json(res).passkey.id as string };
   }
 
@@ -149,18 +202,35 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
 
   // ===========================================================================
   describe("ENROL", () => {
-    it("registration options require the account step-up (none / wrong password refused)", async () => {
+    it("registration needs the LADDER step-up: none, a password, or an approval for another purpose is refused", async () => {
       const p = await person();
-      const none = await post("/v1/identity-security/passkeys/registration/options", {}, p.token);
+      const none = await post("/v1/identity-security/passkeys/registration/options", { workspaceId: teamId() }, p.token);
       expect(none.statusCode).toBe(401);
       expect(json(none).error.code).toBe("STEP_UP_REQUIRED");
-      const wrong = await post(
+      expect(json(none).error.details.purpose).toBe("PASSKEY_REGISTER");
+      // A password is not a step-up here at all (closure audit N-2).
+      const password = await post(
         "/v1/identity-security/passkeys/registration/options",
-        { stepUp: { method: "password", currentPassword: "not-the-password" } },
+        { workspaceId: teamId(), stepUp: { method: "password", currentPassword: PASSWORD } },
         p.token,
       );
-      expect(wrong.statusCode).toBe(401);
-      expect(json(wrong).error.code).toBe("STEP_UP_INVALID");
+      expect(password.statusCode).toBe(400);
+      // An approval for another operation does not bind a passkey.
+      const other = await approved(p, "CASE_DELETE", "user", p.id);
+      const wrongPurpose = await h.app.inject({
+        method: "POST",
+        url: "/v1/identity-security/passkeys/registration/options",
+        headers: withHeaders(p.token, other),
+        payload: { workspaceId: teamId() },
+      });
+      expect(wrongPurpose.statusCode).toBe(401);
+      // A workspace the person is not in is concealed.
+      const foreignWs = await post(
+        "/v1/identity-security/passkeys/registration/options",
+        { workspaceId: h.fixtures.teamB.teamId },
+        p.token,
+      );
+      expect(foreignWs.statusCode).toBe(404);
       const ok = await registrationOptions(p);
       expect(ok.options.challenge).toMatch(/^[A-Za-z0-9_-]{43}$/);
       expect(ok.options.authenticatorSelection?.userVerification).toBe("required");
@@ -236,7 +306,7 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
       expect(await prisma.mfaFactor.count({ where: { userId: p.id, kind: "PASSKEY" } })).toBe(1);
     });
 
-    it("revocation needs the account step-up and refuses another person's passkey uniformly", async () => {
+    it("revocation needs the ladder step-up (the passkey itself answers) and refuses another person's passkey uniformly", async () => {
       const p = await person();
       const other = await person();
       const { factorId } = await enrol(p);
@@ -244,22 +314,21 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
         method: "DELETE",
         url: `/v1/identity-security/passkeys/${factorId}`,
         headers: headers(p.token),
-        payload: {},
+        payload: { workspaceId: teamId() },
       });
       expect(noProof.statusCode).toBe(401);
-      const foreign = await h.app.inject({
-        method: "DELETE",
-        url: `/v1/identity-security/passkeys/${factorId}`,
-        headers: headers(other.token),
-        payload: passwordProof,
-      });
+      expect(json(noProof).error.details.purpose).toBe("PASSKEY_REMOVE");
+      // The strongest rung p holds is now the passkey: a TOTP code no longer answers.
+      const totpAttempt = await post(
+        "/v1/identity-security/step-up/start",
+        { teamId: teamId(), purpose: "PASSKEY_REMOVE", resourceKind: "mfa_factor", resourceId: factorId, channel: "TOTP" },
+        p.token,
+      );
+      expect(totpAttempt.statusCode).toBe(403);
+      expect(json(totpAttempt).error.code).toBe("STEP_UP_ENROLLMENT_REQUIRED");
+      const foreign = await removeWithStepUp(other, factorId);
       expect(foreign.statusCode).toBe(404);
-      const unknown = await h.app.inject({
-        method: "DELETE",
-        url: `/v1/identity-security/passkeys/${randomUUID()}`,
-        headers: headers(other.token),
-        payload: passwordProof,
-      });
+      const unknown = await removeWithStepUp(other, randomUUID());
       expect(unknown.statusCode).toBe(404);
       expect(json(foreign)).toMatchObject({ error: { code: json(unknown).error.code } });
       const before = await prisma.mfaFactor.findUniqueOrThrow({ where: { id: factorId } });
@@ -346,12 +415,7 @@ describe("passkey step-up (live PostgreSQL, software authenticator)", () => {
       const started = await start(p, { resourceId });
       expect((await check(p, started.challenge.id, auth.assert(started.passkeyOptions!))).statusCode).toBe(200);
 
-      const revoke = await h.app.inject({
-        method: "DELETE",
-        url: `/v1/identity-security/passkeys/${factorId}`,
-        headers: headers(p.token),
-        payload: passwordProof,
-      });
+      const revoke = await removeWithStepUp(p, factorId);
       expect(revoke.statusCode, revoke.body).toBe(200);
       const factor = await prisma.mfaFactor.findUniqueOrThrow({ where: { id: factorId } });
       expect(factor).toMatchObject({ status: "REVOKED", revokedReason: "user_revoked", generation: 2 });

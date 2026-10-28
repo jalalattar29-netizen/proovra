@@ -328,6 +328,12 @@ export async function seedOrganizationTenant(
     billingStatus?: "ACTIVE" | "PAST_DUE" | "CANCELED" | "INACTIVE";
     /** Account plan of the org owner. Used to prove the org plan is NOT derived from it. */
     ownerAccountPlan?: CanonicalPlan;
+    /**
+     * The contract's Collaboration Team figures (members ledger M5: an ACTIVE
+     * contract that states none grants none). Stated by default, as a signed
+     * contract would; `null` seeds a contract SILENT on them.
+     */
+    contractCollaboration?: { teams: number; membersPerTeam: number } | null;
   } = {},
 ): Promise<OrganizationTenant> {
   const owner = await seedUser(deps, "ent-owner");
@@ -383,6 +389,12 @@ export async function seedOrganizationTenant(
     data: {
       organizationId: org.id,
       status: opts.contractStatus ?? "ACTIVE",
+      ...(opts.contractCollaboration === null
+        ? {}
+        : {
+            collaborationTeamsMax: opts.contractCollaboration?.teams ?? 25,
+            collaborationTeamMembersMax: opts.contractCollaboration?.membersPerTeam ?? 100,
+          }),
       ...(opts.contractEndsAtUtc !== undefined
         ? { endsAtUtc: opts.contractEndsAtUtc }
         : {}),

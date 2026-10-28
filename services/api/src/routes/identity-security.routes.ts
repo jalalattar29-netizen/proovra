@@ -59,6 +59,7 @@ import {
 import {
   StepUpError,
   answerPasskeyHandoff,
+  cancelOutstandingStepUpChallenges,
   checkStepUpChallenge,
   loadHandoffChallenge,
   passkeyOptionsForChallenge,
@@ -1188,6 +1189,9 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       // Optional fan-out: revoke every other session for this user.
       // The current session stays valid so the caller doesn't get
       // logged out of the page they used to change the password.
+      // Closure audit N-6 — every outstanding step-up of this person ends
+      // with the old password, the current session's included.
+      await cancelOutstandingStepUpChallenges(userId);
       let revokedOtherSessions = 0;
       if (body.revokeOtherSessions) {
         const currentHash =

@@ -20,6 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 type Prisma = (typeof import("../src/db.js"))["prisma"];
 type Person = { id: string; email: string; token: string };
@@ -29,6 +30,7 @@ const WS = "x-proovra-workspace-id";
 
 describe("members re-audit 3 — inbox reach, bulk lifecycle audit, Collaboration Team audit atomicity (live PostgreSQL)", () => {
   let h: IntegrationHarness;
+  let ceremony: ReturnType<typeof createStepUpCeremony>;
   let prisma: Prisma;
   let signJwt: typeof import("../src/services/jwt.js").signJwt;
   let legalVersions: Record<string, string>;
@@ -38,6 +40,10 @@ describe("members re-audit 3 — inbox reach, bulk lifecycle audit, Collaboratio
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
+    ceremony = createStepUpCeremony({
+      prisma: (await import("../src/db.js")).prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
     ({ prisma } = await import("../src/db.js"));
     ({ signJwt } = await import("../src/services/jwt.js"));
     ({ REQUIRED_LEGAL_VERSIONS: legalVersions } = (await import("../src/legal/legal-versioning.js")) as never);
@@ -345,6 +351,27 @@ describe("members re-audit 3 — inbox reach, bulk lifecycle audit, Collaboratio
     }
     const teamRow = (id: string) =>
       prisma.collaborationTeam.findUniqueOrThrow({ where: { id }, select: { name: true, status: true } });
+    /**
+     * Archive is "Archive Collaboration Team" (2026-10-28): the exact name and
+     * a recent step-up bound to this group — the real authenticator-app
+     * ceremony, one fresh approval per attempt.
+     */
+    async function archiveRequest(id: string) {
+      const header = await ceremony.approvedHeader({
+        token: owner(),
+        userId: A().ownerUserId,
+        teamId: A().teamId,
+        purpose: "COLLABORATION_TEAM_ARCHIVE",
+        resourceKind: "collaboration_team",
+        resourceId: id,
+      });
+      return h.app.inject({
+        method: "POST",
+        url: `${base}/${id}/archive`,
+        headers: { ...bearer(owner()), [WS]: A().teamId, ...header },
+        payload: { confirmName: (await teamRow(id)).name },
+      });
+    }
     const memberRow = (id: string) =>
       prisma.collaborationTeamMember.findUniqueOrThrow({ where: { id }, select: { role: true, status: true } });
     async function addMember(teamId: string) {
@@ -377,9 +404,9 @@ describe("members re-audit 3 — inbox reach, bulk lifecycle audit, Collaboratio
       expect((await teamRow(id)).name).toBe("ra3 renamed");
       expect(await audits("collaboration_team.updated", id)).toBe(1);
 
-      failed(await withAuditRefused("collaboration_team.archived", id, () => send("POST", `${base}/${id}/archive`, owner(), {})));
+      failed(await withAuditRefused("collaboration_team.archived", id, () => archiveRequest(id)));
       expect((await teamRow(id)).status).toBe("ACTIVE");
-      const arc = await send("POST", `${base}/${id}/archive`, owner(), {});
+      const arc = await archiveRequest(id);
       expect(arc.statusCode, arc.body).toBe(200);
       expect((await teamRow(id)).status).toBe("ARCHIVED");
       expect(await audits("collaboration_team.archived", id)).toBe(1);

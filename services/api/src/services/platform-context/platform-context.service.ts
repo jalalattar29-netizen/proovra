@@ -41,10 +41,15 @@ import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import {
   workspaceIncludesExternalReview,
-  workspaceIncludesReviewCapability,
   workspaceIncludesReviewerOperations,
 } from "../billing-enforcement.service.js";
-import { resolveWorkspaceCollaborationLimits } from "../billing/workspace-seats.service.js";
+import { collaborationLimitsFor } from "../billing/workspace-seats.service.js";
+import {
+  NO_CONTRACT_LIMITS,
+  resolveEffectiveReviewCapabilities,
+  resolveEnterpriseContractLimits,
+} from "../billing/enterprise-contract-limits.js";
+import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
 // ATTENTION ARCHITECTURE (2026-08-22) — the canonical answer to "is this an Enterprise
 // customer?", replacing a `billingPlan === "ENTERPRISE"` string comparison.
@@ -663,19 +668,26 @@ export async function buildPlatformContext(
     maxInvitesPer24h: 0,
   };
   let reviewQueuesIncluded = false;
-  if (workspace.id) {
+  /*
+   * CHEAPLY, ON THE BOOT PATH (closure verification, 2026-10-28). The full
+   * commercial context runs usage and storage aggregates this projection
+   * never reads (see `resolveCommercialPlan` above), and routing these limits
+   * through it made every first paint wait on them. The plan is already
+   * resolved; only an ENTERPRISE workspace needs its contract, read once and
+   * projected by the same fail-closed `resolveEnterpriseContractLimits`.
+   */
+  if (workspace.id && workspace.plan) {
     try {
-      collaborationLimits = await resolveWorkspaceCollaborationLimits(workspace.id);
+      const plan = workspace.plan as Parameters<typeof collaborationLimitsFor>[0]["plan"];
+      const contractLimits =
+        plan === "ENTERPRISE" && workspace.organizationId
+          ? resolveEnterpriseContractLimits(await resolveEnterpriseContract(workspace.organizationId))
+          : NO_CONTRACT_LIMITS;
+      collaborationLimits = collaborationLimitsFor({ plan, contractLimits });
+      reviewQueuesIncluded =
+        resolveEffectiveReviewCapabilities({ plan, contract: contractLimits }).REVIEW_TASKS_AND_QUEUES === true;
     } catch {
       // stays closed
-    }
-    try {
-      reviewQueuesIncluded = await workspaceIncludesReviewCapability(
-        workspace.id,
-        "REVIEW_TASKS_AND_QUEUES",
-      );
-    } catch {
-      reviewQueuesIncluded = false;
     }
   }
 

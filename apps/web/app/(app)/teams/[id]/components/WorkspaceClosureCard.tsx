@@ -234,7 +234,8 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
 
   if (state === null) return null;
 
-  const req = state.request;
+  // An answer without a request field is "no request", never a crash.
+  const req = state.request ?? null;
   const open =
     req !== null &&
     ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(

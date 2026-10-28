@@ -13,11 +13,17 @@
  *   M9   account closure never closes an Organization Workspace;
  *   M13  a lapsed invitation at another role does not block a re-invite;
  *   M14b concurrent invitations cannot pass the pending ceiling together.
+ *
+ * And the closure audit's findings on that work:
+ *   N-3  an Organization invite seats nobody in a restricted workspace;
+ *   N-4  an approval does not outlive a tightened Organization step-up policy;
+ *   N-6  a password change cancels every outstanding step-up.
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 import {
   seedOrganizationTenant,
   seedPersonalTenant,
@@ -37,6 +43,8 @@ describe("Members ledger closure (live PostgreSQL)", () => {
   let preflight: typeof import("../src/services/identity/account-lifecycle-preflight.service.js");
   let seats: typeof import("../src/services/billing/workspace-seats.service.js");
   let entitlement: typeof import("../src/services/collaboration-team/collaboration-entitlement.service.js");
+  let stepUpSvc: typeof import("../src/services/identity-security/step-up.service.js");
+  let ceremony: ReturnType<typeof createStepUpCeremony>;
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -48,6 +56,11 @@ describe("Members ledger closure (live PostgreSQL)", () => {
     preflight = await import("../src/services/identity/account-lifecycle-preflight.service.js");
     seats = await import("../src/services/billing/workspace-seats.service.js");
     entitlement = await import("../src/services/collaboration-team/collaboration-entitlement.service.js");
+    stepUpSvc = await import("../src/services/identity-security/step-up.service.js");
+    ceremony = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
     const { signJwt } = await import("../src/services/jwt.js");
     const secret = process.env.AUTH_JWT_SECRET!;
     deps = {
@@ -151,7 +164,7 @@ describe("Members ledger closure (live PostgreSQL)", () => {
 
   // ---------------------------------------------------------------------------
   it("M5/M8 — a contract silent on Collaboration Teams grants none; the projection's ceilings are the gate's", async () => {
-    const org = await seedOrganizationTenant(deps, { billingPlan: "ENTERPRISE" });
+    const org = await seedOrganizationTenant(deps, { billingPlan: "ENTERPRISE", contractCollaboration: null });
     const limits = await seats.resolveWorkspaceCollaborationLimits(org.workspaceId);
     expect(limits.maxCollaborationTeamsPerWorkspace).toBe(0);
     expect(limits.maxAcceptedMembersPerCollaborationTeam).toBe(0);
@@ -242,5 +255,140 @@ describe("Members ledger closure (live PostgreSQL)", () => {
       where: { teamId: t.personalTeamId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
     });
     expect(pending).toBe(allowance.maxPending);
+  });
+
+  // ---------------------------------------------------------------------------
+  it("N-4 — an approval minted under STANDARD is not spendable once the Organization requires PHISHING_RESISTANT", async () => {
+    const org = await seedOrganizationTenant(deps, { billingPlan: "ENTERPRISE" });
+    const resourceId = randomUUID();
+    const header = await ceremony.approvedHeader({
+      token: org.owner.token,
+      userId: org.owner.userId,
+      teamId: org.workspaceId,
+      purpose: "COLLABORATION_TEAM_ARCHIVE",
+      resourceKind: "collaboration_team",
+      resourceId,
+    });
+    const challengeId = header["x-proovra-step-up-challenge-id"]!;
+    const row = await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id: challengeId } });
+    expect(row).toMatchObject({ status: "APPROVED", method: "TOTP" });
+    const spend = () =>
+      stepUpSvc.consumeApprovedChallenge({
+        teamId: org.workspaceId,
+        userId: org.owner.userId,
+        challengeId,
+        purpose: "COLLABORATION_TEAM_ARCHIVE",
+        resourceKind: "collaboration_team",
+        resourceId,
+        sessionIdHash: row.sessionIdHash,
+      });
+    await prisma.organizationSecurityPolicy.update({
+      where: { organizationId: org.organizationId },
+      data: { stepUpAssurance: "PHISHING_RESISTANT" },
+    });
+    await expect(spend()).rejects.toMatchObject({ code: "challenge_not_found" });
+    // Positive control: under the policy it was minted for, it is spendable.
+    await prisma.organizationSecurityPolicy.update({
+      where: { organizationId: org.organizationId },
+      data: { stepUpAssurance: "STANDARD" },
+    });
+    expect((await spend()).status).toBe("CANCELLED");
+  });
+
+  // ---------------------------------------------------------------------------
+  it("N-6 — a password change cancels every outstanding step-up of that person", async () => {
+    const { hashPassword } = await import("../src/services/email-password-auth.service.js");
+    const { signJwt } = await import("../src/services/jwt.js");
+    const email = `n6-${tag()}@test.proovra.local`;
+    const password = "N6-Password-Change-1!";
+    const user = await prisma.user.create({
+      data: { email, provider: "EMAIL", providerUserId: email, passwordHash: hashPassword(password) },
+      select: { id: true },
+    });
+    const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");
+    await prisma.userLegalAcceptance.createMany({
+      data: Object.entries(REQUIRED_LEGAL_VERSIONS as Record<string, string>).map(([policyKey, policyVersion]) => ({
+        userId: user.id,
+        policyKey,
+        policyVersion,
+        source: "integration-harness",
+      })),
+    });
+    const A = h.fixtures.teamA;
+    await prisma.teamMember.create({ data: { teamId: A.teamId, userId: user.id, role: "MEMBER", status: "ACTIVE" } });
+    const token = signJwt(
+      { sub: user.id, provider: "EMAIL", email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
+      process.env.AUTH_JWT_SECRET!,
+      3600,
+    );
+    const header = await ceremony.approvedHeader({
+      token,
+      userId: user.id,
+      teamId: A.teamId,
+      purpose: "COLLABORATION_TEAM_ARCHIVE",
+      resourceKind: "collaboration_team",
+      resourceId: randomUUID(),
+    });
+    const id = header["x-proovra-step-up-challenge-id"]!;
+    expect((await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } })).status).toBe("APPROVED");
+    const changed = await h.app.inject({
+      method: "POST",
+      url: "/v1/identity-security/password",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { currentPassword: password, newPassword: "N6-Password-Changed-2!" },
+    });
+    expect(changed.statusCode, changed.body).toBeLessThan(300);
+    expect((await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } })).status).toBe("CANCELLED");
+  });
+
+  // ---------------------------------------------------------------------------
+  it("N-3 — an Organization invite seats nobody in a workspace whose subscription restricts growth", async () => {
+    const org = await seedOrganizationTenant(deps, { billingPlan: "TEAM" });
+    // The lifecycle is read from the workspace's Subscription rows by the one
+    // canonical reader, so the restriction is a real cancelled subscription.
+    const past = new Date(Date.now() - 60 * 86_400_000);
+    const cancelled = await prisma.subscription.updateMany({
+      where: { teamId: org.workspaceId },
+      data: { status: "CANCELED", canceledAtUtc: past, currentPeriodEnd: past },
+    });
+    if (cancelled.count === 0) {
+      await prisma.subscription.create({
+        data: {
+          userId: org.owner.userId,
+          teamId: org.workspaceId,
+          provider: "STRIPE",
+          providerSubId: `n3-${tag()}`,
+          status: "CANCELED",
+          plan: "TEAM",
+          canceledAtUtc: past,
+          currentPeriodEnd: past,
+        },
+      });
+    }
+    const guards = await import("../src/services/collaboration-team/billing-guards.js");
+    // The setup really is a restricted lifecycle, by the canonical adapter.
+    expect(await codeOf(guards.assertSubscriptionActiveOrGraceAllowed({ workspaceId: org.workspaceId }))).toBe(
+      "SUBSCRIPTION_INACTIVE",
+    );
+    const invitee = await seedUser(deps, `n3-${tag()}`);
+    const { createHash } = await import("node:crypto");
+    const raw = randomUUID();
+    await prisma.organizationInvite.create({
+      data: {
+        organizationId: org.organizationId,
+        email: invitee.email,
+        role: "ORG_MEMBER",
+        tokenHash: createHash("sha256").update(raw).digest("hex"),
+        invitedByUserId: org.owner.userId,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        workspaceAssignments: [{ teamId: org.workspaceId, role: "MEMBER" }],
+      } as never,
+    });
+    const { acceptOrganizationInvite } = await import("../src/services/organization/org-invite-acceptance.service.js");
+    await acceptOrganizationInvite({ tokenHash: createHash("sha256").update(raw).digest("hex"), userId: invitee.userId });
+    const seated = await prisma.teamMember.findFirst({
+      where: { teamId: org.workspaceId, userId: invitee.userId, status: "ACTIVE" },
+    });
+    expect(seated).toBeNull();
   });
 });

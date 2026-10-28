@@ -367,7 +367,7 @@ test("archive impact is said in words, and archive never claims to delete", () =
     restoreRequestable: true,
   });
   assert.deepEqual(copy.affected, [
-    "1 member lose access through this team",
+    "1 member lose access through this Collaboration Team",
     "2 Case grants stop applying",
     "0 open tasks will be cancelled",
     "3 pending invitations will be revoked",

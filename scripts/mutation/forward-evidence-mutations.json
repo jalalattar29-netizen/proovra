@@ -10925,5 +10925,149 @@
         ]
       }
     ]
+  },
+  {
+    "id": "MEX-CA-STRONGEST-ONLY",
+    "aud": "MEX-CA",
+    "name": "a ladder purpose lets the client choose a weaker authenticator",
+    "file": "services/api/src/services/identity-security/step-up.service.ts",
+    "find": "  const ladder = isLadderStepUpPurpose(input.purpose);",
+    "replace": "  const ladder = false && isLadderStepUpPurpose(input.purpose);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/step-up-idp-reauth.integration.test.ts",
+          "-t",
+          "(f)"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-POLICY-AT-SPEND",
+    "aud": "MEX-CA",
+    "name": "an approval outlives a tightened Organization step-up policy",
+    "file": "services/api/src/services/identity-security/step-up.service.ts",
+    "find": "    if (!allowedNow.includes(row.method as StepUpFactorKind)) {",
+    "replace": "    if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "N-4"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-PASSKEY-ENROL-LADDER",
+    "aud": "MEX-CA",
+    "name": "a passkey is bound without the ladder step-up",
+    "file": "services/api/src/routes/passkey.routes.ts",
+    "find": "      const gate = await requireStepUpForSensitiveAction({\n        req,\n        reply,\n        teamId: body.workspaceId,\n        userId,\n        purpose: \"PASSKEY_REGISTER\",",
+    "replace": "      const gate = { sent: false } as { sent: boolean }; void ({\n        req,\n        reply,\n        teamId: body.workspaceId,\n        userId,\n        purpose: \"PASSKEY_REGISTER\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/passkey-step-up.integration.test.ts",
+          "-t",
+          "registration needs the LADDER"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-ORG-INVITE-LIFECYCLE",
+    "aud": "MEX-CA",
+    "name": "an Organization invite seats people in a restricted workspace",
+    "file": "services/api/src/services/organization/org-invite-acceptance.service.ts",
+    "find": "          refusedAssignments.push({ teamId: assignment.teamId, reason: err.code });\n          continue;",
+    "replace": "          void err;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "N-3"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-ARCHIVED-NONENUM",
+    "aud": "MEX-CA",
+    "name": "a non-member learns a hidden group is archived (409 before the group checks)",
+    "file": "services/api/src/services/collaboration-team/collaboration-authorization.ts",
+    "find": "  if (options.requireGroupMembership === false) {",
+    "replace": "  if (options.requireActiveTeam && team.status !== \"ACTIVE\") return archivedRefusal();\n  if (options.requireGroupMembership === false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "2b."
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-PASSWORD-CANCELS",
+    "aud": "MEX-CA",
+    "name": "a password change leaves outstanding step-ups spendable",
+    "file": "services/api/src/routes/identity-security.routes.ts",
+    "find": "      // with the old password, the current session's included.\n      await cancelOutstandingStepUpChallenges(userId);",
+    "replace": "      // with the old password, the current session's included.",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "N-6"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

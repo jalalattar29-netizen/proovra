@@ -118,6 +118,11 @@ export const STEP_UP_PURPOSES = [
   // reach through it. Answered by the strongest authenticator held
   // (STEP_UP_PURPOSE_FACTOR_POLICY below).
   "COLLABORATION_TEAM_ARCHIVE",
+  // 2026-10-28 (closure audit N-2) — binding or removing a passkey changes
+  // what answers every ladder purpose, so it is answered by the strongest
+  // authenticator already held, never by a password or a young session.
+  "PASSKEY_REGISTER",
+  "PASSKEY_REMOVE",
   // Members re-audit ROLE-05 — the workspace's legal contact and logo appear
   // on what the workspace publishes.
   "WORKSPACE_IDENTITY_UPDATE",
@@ -383,9 +388,24 @@ export const PHONE_DELIVERED_STEP_UP_KINDS: ReadonlyArray<StepUpFactorKind> = Ob
 export const STEP_UP_ASSURANCE_LEVELS = ["STANDARD", "PHISHING_RESISTANT"] as const;
 export type StepUpAssuranceLevel = (typeof STEP_UP_ASSURANCE_LEVELS)[number];
 
+/**
+ * Purposes answered by the STRONGEST authenticator the person holds (the
+ * ladder, strongest first, policy-narrowed; the start picks the first rung
+ * held and a client cannot choose a weaker one). Changing the Organization's
+ * own step-up policy is on it too (closure audit N-10): weakening what
+ * archives a team must not need less than archiving does.
+ */
 const LADDER_PURPOSES: ReadonlySet<StepUpPurpose> = new Set<StepUpPurpose>([
   "COLLABORATION_TEAM_ARCHIVE",
+  "PASSKEY_REGISTER",
+  "PASSKEY_REMOVE",
+  "ORG_SECURITY_POLICY_UPDATE",
 ]);
+
+/** Whether this purpose is answered by the strongest authenticator held. */
+export function isLadderStepUpPurpose(purpose: StepUpPurpose): boolean {
+  return LADDER_PURPOSES.has(purpose);
+}
 
 export const STEP_UP_PURPOSE_FACTOR_POLICY: Readonly<
   Record<StepUpPurpose, ReadonlyArray<StepUpFactorKind>>

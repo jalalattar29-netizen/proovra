@@ -613,6 +613,9 @@ const PURPOSE_LABEL: Record<string, string> = {
   // Members audit SEC-03 / ROLE-05 — irreversible deletes and published identity.
   CASE_DELETE: "Delete this case",
   COLLABORATION_TEAM_ARCHIVE: "Archive this Collaboration Team",
+  PASSKEY_REGISTER: "Add a passkey or security key",
+  PASSKEY_REMOVE: "Remove a passkey or security key",
+  ORG_SECURITY_POLICY_UPDATE: "Change the organization security policy",
   WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
 };
 

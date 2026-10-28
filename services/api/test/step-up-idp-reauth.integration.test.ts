@@ -18,7 +18,7 @@
  *   (e) an Enterprise member with NO phone and NO authenticator app completes
  *       step-up through the IdP (never forced to enrol a phone);
  *   (f) PHISHING_RESISTANT with SMS-only enrolment → STEP_UP_ENROLLMENT_REQUIRED;
- *       stepUpSmsAllowed=false removes SMS from availableMethods;
+ *       the strongest rung answers; stepUpSmsAllowed=false removes SMS;
  *   (g) a SCIM-provisioned member with no factors and no SSO link →
  *       STEP_UP_ENROLLMENT_REQUIRED (SCIM never authenticates);
  *   (h) after the IdP link is removed, or the connection deactivated, an
@@ -149,13 +149,13 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
     });
   }
 
-  async function start(token: string) {
+  async function start(token: string, extra: Record<string, unknown> = {}) {
     await freshWindow();
     const res = await h.app.inject({
       method: "POST",
       url: "/v1/identity-security/step-up/start",
       headers: auth(token),
-      payload: { teamId, purpose: PURPOSE, ...RESOURCE },
+      payload: { teamId, purpose: PURPOSE, ...RESOURCE, ...extra },
     });
     return { res, json: JSON.parse(res.body) as Json };
   }
@@ -756,22 +756,29 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
     expect(res.json.error.code).toBe("STEP_UP_ENROLLMENT_REQUIRED");
   });
 
-  it("(f) stepUpSmsAllowed=false removes SMS from availableMethods", async () => {
+  it("(f) the strongest rung answers, and stepUpSmsAllowed=false removes SMS from the ladder", async () => {
+    // Holding an authenticator app AND a phone: the app answers; SMS is never
+    // offered beside it on a ladder purpose (closure audit N-1).
     const both = await createMember("totp-sms");
     await addTotp(both.id);
     await addSms(both.id);
     await setPolicy({ sms: true, contexts: [X509] });
-    const allowed = await start(both.token);
-    expect(allowed.res.statusCode, allowed.res.body).toBe(200);
-    expect(allowed.json.availableMethods).toEqual(["TOTP", "SMS"]);
-    await setPolicy({ sms: false, contexts: [X509] });
-    const narrowed = await start(both.token);
-    expect(narrowed.res.statusCode, narrowed.res.body).toBe(200);
-    expect(narrowed.json.method).toBe("TOTP");
-    expect(narrowed.json.availableMethods).toEqual(["TOTP"]);
+    const strongest = await start(both.token);
+    expect(strongest.res.statusCode, strongest.res.body).toBe(200);
+    expect(strongest.json.method).toBe("TOTP");
+    expect(strongest.json.availableMethods).toEqual(["TOTP"]);
+    const downgrade = await start(both.token, { channel: "SMS" });
+    expect(downgrade.res.statusCode).toBe(403);
+    expect(downgrade.json.error.code).toBe("STEP_UP_ENROLLMENT_REQUIRED");
 
+    // A phone is the strongest rung only where nothing stronger is held — and
+    // only while the Organization allows SMS.
     const smsOnly = await createMember("sms-only-std");
     await addSms(smsOnly.id);
+    const allowed = await start(smsOnly.token);
+    expect(allowed.res.statusCode, allowed.res.body).toBe(200);
+    expect(allowed.json.method).toBe("SMS");
+    await setPolicy({ sms: false, contexts: [X509] });
     const refused = await start(smsOnly.token);
     expect(refused.res.statusCode).toBe(403);
     expect(refused.json.error.code).toBe("STEP_UP_ENROLLMENT_REQUIRED");

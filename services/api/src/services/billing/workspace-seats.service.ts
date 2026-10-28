@@ -244,33 +244,59 @@ export function invitationCeilingsFor(seats: WorkspaceSeatState): {
  * projection this seat state already carries, and the invitation ceilings
  * above — resolved once, so a projection cannot disagree with a refusal.
  */
-export async function resolveWorkspaceCollaborationLimits(
-  workspaceId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<{
+export type WorkspaceCollaborationLimits = {
   maxCollaborationTeamsPerWorkspace: number;
   maxAcceptedMembersPerCollaborationTeam: number;
   maxAdditionalWorkspaceMembers: number | null;
   maxPendingInvitesPerTeam: number;
   maxInvitesPer24h: number;
-}> {
-  const seats = await resolveWorkspaceSeatState(workspaceId, client);
-  const teams = resolveEffectiveCollaborationTeamLimit({
-    plan: seats.plan,
-    contract: seats.contractLimits,
+};
+
+/**
+ * The same limits, PURE: a plan and the status-checked contract limits in,
+ * the numbers out — the seat ceiling from `resolveWorkspaceMemberCeiling`,
+ * the collaboration limits from the contract-first resolvers, the invitation
+ * ceilings from `invitationCeilingsFor`. Both the seat-state path and the
+ * hot boot-path projection call this, so they cannot disagree.
+ */
+export function collaborationLimitsFor(input: {
+  plan: PlanType;
+  contractLimits: EnterpriseContractLimits;
+}): WorkspaceCollaborationLimits {
+  const { plan, contractLimits } = input;
+  const ceiling = resolveWorkspaceMemberCeiling({
+    plan,
+    contractSeats:
+      contractLimits.contractGovernsCapability && contractLimits.seats !== null
+        ? contractLimits.seats
+        : null,
+    contractGoverns: contractLimits.contractGovernsCapability,
   });
-  const members = resolveEffectiveCollaborationMemberLimit({
-    plan: seats.plan,
-    contract: seats.contractLimits,
+  const ceilings = invitationCeilingsFor({
+    plan,
+    used: 0,
+    limit: ceiling.limit,
+    remaining: ceiling.limit,
+    featureIncluded: ceiling.included,
+    overLimit: false,
+    source: ceiling.source,
+    contractLimits,
   });
-  const ceilings = invitationCeilingsFor(seats);
   return {
-    maxCollaborationTeamsPerWorkspace: Math.max(0, teams),
-    maxAcceptedMembersPerCollaborationTeam: Math.max(0, members),
-    maxAdditionalWorkspaceMembers: seats.featureIncluded ? seats.limit : 0,
+    maxCollaborationTeamsPerWorkspace: Math.max(0, resolveEffectiveCollaborationTeamLimit({ plan, contract: contractLimits })),
+    maxAcceptedMembersPerCollaborationTeam: Math.max(0, resolveEffectiveCollaborationMemberLimit({ plan, contract: contractLimits })),
+    maxAdditionalWorkspaceMembers: ceiling.included ? ceiling.limit : 0,
     maxPendingInvitesPerTeam: ceilings.maxPending,
     maxInvitesPer24h: ceilings.maxPer24h,
   };
+}
+
+export async function resolveWorkspaceCollaborationLimits(
+  workspaceId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<WorkspaceCollaborationLimits> {
+  const seats = await resolveWorkspaceSeatState(workspaceId, client);
+  return collaborationLimitsFor({ plan: seats.plan, contractLimits: seats.contractLimits });
 }
 
 export async function resolveWorkspaceInvitationAllowance(

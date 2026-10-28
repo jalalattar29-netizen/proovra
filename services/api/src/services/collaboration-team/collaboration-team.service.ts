@@ -1923,6 +1923,12 @@ export async function recoverCollaborationTeamLead(
   if (team.status !== "ACTIVE") throw E.archived();
 
   return client.$transaction(async (tx) => {
+    // Serialised with an archive (which locks the row FOR UPDATE): a lead is
+    // never appointed on a group archived in between (closure audit N-8).
+    const locked = await tx.$queryRaw<Array<{ status: string }>>`
+      SELECT "status" FROM "collaboration_teams" WHERE "id" = ${input.teamId}::uuid FOR SHARE
+    `;
+    if (locked[0]?.status !== "ACTIVE") throw E.archived();
     await lockCollaborationTeamMembership(tx, input.teamId);
     const leads = await tx.collaborationTeamMember.count({
       where: validLeadWhere(input.teamId, team.workspaceId),
@@ -1954,7 +1960,8 @@ export async function recoverCollaborationTeamLead(
         previousRole = prior.role;
         await tx.collaborationTeamMember.update({
           where: { id: prior.id },
-          data: { role: "LEAD", status: "ACTIVE", suspendedAt: null },
+          // A returning row is a fresh appointment: no stale removal state.
+          data: { role: "LEAD", status: "ACTIVE", suspendedAt: null, removedAt: null, statusReason: null },
         });
         memberId = prior.id;
       } else {

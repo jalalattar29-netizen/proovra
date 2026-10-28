@@ -850,7 +850,7 @@ export function describeArchiveImpact(impact: TeamArchiveImpact): {
 } {
   return {
     affected: [
-      `${plural(impact.acceptedMembers, "member", "members")} lose access through this team`,
+      `${plural(impact.acceptedMembers, "member", "members")} lose access through this Collaboration Team`,
       `${plural(impact.caseGrants, "Case grant", "Case grants")} stop applying`,
       `${plural(impact.openAssignments, "open task", "open tasks")} will be cancelled`,
       `${plural(impact.pendingInvites, "pending invitation", "pending invitations")} will be revoked`,
@@ -858,7 +858,7 @@ export function describeArchiveImpact(impact: TeamArchiveImpact): {
     unavailable: impact.unavailable.map((k) => ARCHIVE_UNAVAILABLE_COPY[k] ?? k),
     preserved: impact.preserved.map((k) => ARCHIVE_PRESERVED_COPY[k] ?? k),
     restore: impact.restoreRequestable
-      ? "A Lead can restore this team later. Restoring checks your plan, how many active Collaboration Teams you have, and the team's member capacity at that time."
+      ? "A Lead of this Collaboration Team can restore it later. Restoring checks your plan, how many active Collaboration Teams you have, and the team's member capacity at that time."
       : "This team cannot be restored after archiving.",
   };
 }

@@ -35,7 +35,12 @@ import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import { resolveCapabilities } from "./capability-registry.js";
 import { workspaceIncludesReviewerOperations } from "../billing-enforcement.service.js";
-import { resolveWorkspaceCollaborationLimits } from "../billing/workspace-seats.service.js";
+import { collaborationLimitsFor } from "../billing/workspace-seats.service.js";
+import {
+  NO_CONTRACT_LIMITS,
+  resolveEnterpriseContractLimits,
+} from "../billing/enterprise-contract-limits.js";
+import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
 import {
   isWorkspaceRole,
   type CapabilityKey,
@@ -104,7 +109,7 @@ export async function resolveMemberWorkspaceCapabilities(input: {
   const [team, membership] = await Promise.all([
     prisma.team.findUnique({
       where: { id: input.teamId },
-      select: { id: true, isPersonal: true, workspaceKind: true, billingPlan: true, ...ACTIVE_MEMBER_COUNT_SELECT },
+      select: { id: true, isPersonal: true, workspaceKind: true, billingPlan: true, organizationId: true, ...ACTIVE_MEMBER_COUNT_SELECT },
     }),
     prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: input.teamId, userId: input.userId } },
@@ -145,9 +150,13 @@ export async function resolveMemberWorkspaceCapabilities(input: {
   }
   let collaborationIncluded = false;
   try {
+    const p = (plan ?? "FREE") as Parameters<typeof collaborationLimitsFor>[0]["plan"];
+    const contractLimits =
+      p === "ENTERPRISE" && team.organizationId
+        ? resolveEnterpriseContractLimits(await resolveEnterpriseContract(team.organizationId))
+        : NO_CONTRACT_LIMITS;
     collaborationIncluded =
-      (await resolveWorkspaceCollaborationLimits(team.id))
-        .maxCollaborationTeamsPerWorkspace > 0;
+      collaborationLimitsFor({ plan: p, contractLimits }).maxCollaborationTeamsPerWorkspace > 0;
   } catch {
     collaborationIncluded = false;
   }

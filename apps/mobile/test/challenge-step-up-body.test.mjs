@@ -22,3 +22,11 @@ test("an absent resource is omitted, never sent as null", () => {
     teamId: "team-1", purpose: "X", resourceKind: "EVIDENCE", resourceId: "e1", channel: "EMAIL", handoff: true,
   });
 });
+
+test("the handoff's return link lands on the completion screen, and nothing else does", () => {
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete"), "/(stack)/step-up/complete");
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/complete?result=approved"), "/(stack)/step-up/complete");
+  assert.equal(P.stepUpReturnRoute("proovra://step-up/completed"), null);
+  assert.equal(P.stepUpReturnRoute("https://evil.example/step-up/complete"), null);
+  assert.equal(P.stepUpReturnRoute("proovra://cases/abc"), null);
+});

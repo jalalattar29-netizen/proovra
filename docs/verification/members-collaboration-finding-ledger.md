@@ -28,11 +28,11 @@ surfaces: W web, Mo mobile, A API, Wk worker.
 
 | Disposition | Count |
 |---|---|
-| FIXED | 69 |
-| NOT_APPLICABLE (with proof) | 6 |
+| FIXED | 79 |
+| NOT_APPLICABLE (with proof) | 7 |
 | DUPLICATE / SUPERSEDED | 5 |
 | OPEN (in scope) | **0** |
-| **Total** | **80** |
+| **Total** | **91** |
 
 ## A–F — the brief's defects (E1)
 
@@ -70,7 +70,7 @@ surfaces: W web, Mo mobile, A API, Wk worker.
 | M3 | High | `teams.routes.ts` caseCount without visibility/status | all · VIEWER | revealed restricted Cases; mislabelled | FIXED E1 — visible + open counts | `members-experience` STATS | MEX-STATS-VISIBLE, MEX-STATS-OPEN-VISIBLE |
 | M4 | Med | `platform-context.service.ts` envelope from raw catalog | E (suspended/terminated contract) · W Mo | navigation and limits promised what every request refused | FIXED E2 — `resolveWorkspaceCollaborationLimits` (contract-aware) + `REVIEW_TASKS_AND_QUEUES` authority; capability map too | point7 client-authority test; ledger M5/M8 | MEX-L-SILENT-CONTRACT |
 | M5 | Med | `enterprise-contract-limits.ts` silence → 1000/500 | E · Or | placeholder capacity nobody signed | FIXED E2 — silence grants none (ENTERPRISE_CONTRACT_REQUIRED); operator readiness query in the deployment plan | ledger M5; `phase-teams-entitlement-alignment` | MEX-L-SILENT-CONTRACT |
-| M6 | Med | invitation create/resend/accept never consulted the subscription lifecycle | restricted P T E · A | invites accepted while the projection said growth was refused | FIXED E2 — `assertInvitationLifecycleAllows` (canonical adapter) on create, resend and accept | `workspace-invitation-lifecycle-gate.test.ts` (refused with the lifecycle code, no write) | MEX-L-INVITE-LIFECYCLE |
+| M6 | Med | invitation create/resend/accept never consulted the subscription lifecycle (the Organization-invite path completed in CA-N3) | restricted P T E · A | invites accepted while the projection said growth was refused | FIXED E2 — `assertInvitationLifecycleAllows` (canonical adapter) on create, resend and accept | `workspace-invitation-lifecycle-gate.test.ts` (refused with the lifecycle code, no write) | MEX-L-INVITE-LIFECYCLE |
 | M7 | Med | revoke raced accept | all · A | "revoked" an accepted invite | FIXED E1 — conditional `updateMany` | `members-experience` REVOKE | MEX-REVOKE-RACE |
 | M8 | Med | projection used `caps.maxPendingInvitesPerTeam` | E · A W Mo | told 1000 pending allowed, refused at seats | FIXED E2 — projection reads `resolveWorkspaceInvitationAllowance` | ledger M5/M8 | — |
 | M9 | Med | `account-lifecycle-preflight.service.ts` | E · Or · solo owner | account closure archived a customer Organization | FIXED E2 — blocker `ORGANIZATION_OFFBOARDING_REQUIRED`; web copy | ledger M9 | MEX-L-ORG-CLOSURE |
@@ -147,6 +147,25 @@ surfaces: W web, Mo mobile, A API, Wk worker.
 | N7 | Low | `/step-up/idp/done` was an orphan route (no API, no token) | FIXED E2 — folded into `/step-up/idp?result=` | IdP pages render (9); product manifest |
 | N8 | — | Playwright journey for the archive surface missing | FIXED E2 — `e2e/collaboration-team-archive-journey.spec.ts` (runs in CI; local E2E is unsafe with live credentials) | CI playwright-e2e |
 | N9 | — | visual browser verification | NOT_APPLICABLE locally — the local stack inherits live credentials; render tests + CI Playwright are the evidence | — |
+
+## CA — independent closure audit at `a811060a0` (fixed in E3)
+
+E3 = the closure-fix commit that follows `a811060a0` (SHA in the delivery report).
+
+| ID | Sev | Evidence | Disposition | Proof | Mutation |
+|---|---|---|---|---|---|
+| CA-N2 | High | `passkey.routes.ts` enrolment behind `verifyAccountStepUp` (password, or a session under 10 min) — the passkey then answered every archive | FIXED E3 — enrolment and removal are ladder purposes (`PASSKEY_REGISTER` / `PASSKEY_REMOVE`): the strongest authenticator held answers, bound to the person/factor and an ACTIVE-member workspace; web card moved to the one step-up dialog | `passkey-step-up.integration.test.ts` "registration needs the LADDER", revocation; `passkeys-settings-card.render.test.tsx` (6) | MEX-CA-PASSKEY-ENROL-LADDER |
+| CA-N1 | Med | `step-up.service.ts` start honoured any held `channel` | FIXED E3 — on a ladder purpose only the strongest held rung answers; a weaker `channel` is refused (`STEP_UP_ENROLLMENT_REQUIRED`); the response offers no weaker method | idp integration (f); passkey revocation (TOTP refused once a passkey is held) | MEX-CA-STRONGEST-ONLY |
+| CA-N3 | Med | `org-invite-acceptance.service.ts` seated people without the lifecycle check (M6 incomplete) | FIXED E3 — canonical lifecycle adapter per workspace assignment; refused like a full workspace | ledger N-3 | MEX-CA-ORG-INVITE-LIFECYCLE |
+| CA-N4 | Low | approval spendable after the Organization tightened its policy | FIXED E3 — `consumeApprovedChallenge` re-judges the answering kind and an IdP context against the policy in force | ledger N-4 | MEX-CA-POLICY-AT-SPEND |
+| CA-N5 | Low | binding returned 409 archived before group checks | FIXED E3 — the archived refusal is the last check, only for a caller the binding would admit | archive integration 2b | MEX-CA-ARCHIVED-NONENUM |
+| CA-N6 | Low | password change / factor change left approvals spendable | FIXED E3 — `cancelOutstandingStepUpChallenges` on password change (both routes), TOTP activation and revocation, passkey bind and removal | ledger N-6 | MEX-CA-PASSWORD-CANCELS |
+| CA-N7 | Low | "This team is archived", "through this team", file name | FIXED E3 — Collaboration Team wording; the test file keeps its historical name (renaming would read as a deleted product test to the governance gate), and says so in its header | render tests | — |
+| CA-N8 | Low | lead recovery not serialised with archive; stale removal fields on reuse | FIXED E3 — `FOR SHARE` re-check of ACTIVE in the transaction; `removedAt`/`statusReason` cleared | ledger X5 | — |
+| CA-N9 | Note | a failed archive after a successful step-up spends the approval | NOT_APPLICABLE — fails safe (nothing changes; the person is asked again); spending the approval before the mutation is what makes it single-use | — | — |
+| CA-N10 | Low | `ORG_SECURITY_POLICY_UPDATE` answered by a phone code | FIXED E3 — on the ladder: weakening what archives needs no less than archiving | idp policy PATCH integration | — |
+| CA-X4 | Low | Lead recovery picker built from the 25-row preview | FIXED E3 — paged roster | web render suite | — |
+| CA-LEDGER | Low | ledger totals mis-stated | FIXED E3 — recounted below | — | — |
 
 ## Areas 1–12 coverage
 

@@ -22,7 +22,6 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
-import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 type Prisma = import("@prisma/client").PrismaClient;
 const WS = "x-proovra-workspace-id";
@@ -32,7 +31,6 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
   let prisma: Prisma;
   let ct: typeof import("../src/services/collaboration-team/collaboration-team.service.js");
   let invitations: typeof import("../src/services/identity/workspace-invitation.service.js");
-  let stepUp: ReturnType<typeof createStepUpCeremony>;
   let legalVersions: Record<string, string>;
   let orgA: string;
   const A = () => h.fixtures.teamA;
@@ -45,10 +43,6 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
     ct = await import("../src/services/collaboration-team/collaboration-team.service.js");
     invitations = await import("../src/services/identity/workspace-invitation.service.js");
     legalVersions = (await import("../src/legal/legal-versioning.js")).REQUIRED_LEGAL_VERSIONS as Record<string, string>;
-    stepUp = createStepUpCeremony({
-      prisma,
-      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
-    });
     orgA = (await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } })).organizationId;
     // TEAM includes Collaboration Teams and Team tasks; workspace B stays on
     // the harness default (FREE), which includes neither.

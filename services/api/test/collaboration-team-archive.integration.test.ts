@@ -173,6 +173,32 @@ describe("Archive Collaboration Team — Section G (live PostgreSQL)", () => {
     expect(await status(g.id)).toBe("ACTIVE");
   });
 
+  it("2b. an archived group is named only to someone who may see it: a non-member gets the opaque 404, not 409", async () => {
+    const g = await group();
+    expect((await archive(g.id, g.name, await approved(g.id))).statusCode).toBe(200);
+    // A workspace MEMBER who holds the workspace permission but is not in the
+    // group: the only gate left is visibility, and it must not say "archived"
+    // about a group this person cannot see.
+    const outsider = await h.app.inject({
+      method: "POST",
+      url: `/v1/collaboration-teams/${g.id}/archive`,
+      headers: { ...bearer(A().memberToken), [WS]: A().teamId },
+      payload: { confirmName: g.name },
+    });
+    const missing = await h.app.inject({
+      method: "POST",
+      url: `/v1/collaboration-teams/${randomUUID()}/archive`,
+      headers: { ...bearer(A().memberToken), [WS]: A().teamId },
+      payload: { confirmName: g.name },
+    });
+    expect(outsider.statusCode).toBe(404);
+    expect(outsider.json()).toEqual(missing.json());
+    // The Lead, who may see it, is told it is archived.
+    const lead = await archive(g.id, g.name);
+    expect(lead.statusCode).toBe(409);
+    expect(errorCode(lead)).toBe("collaboration_team_archived");
+  });
+
   // 3 / 11 — no mutation before step-up; a failed or expired step-up mutates nothing
   it("3/11. no archive, access or work mutation happens before a successful step-up", async () => {
     const g = await group();

@@ -71,6 +71,7 @@ import {
   hashSessionId,
   revokeAllSessionsForUser,
 } from "../services/identity-security/session-revocation.service.js";
+import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -1277,6 +1278,9 @@ export async function authRoutes(app: FastifyInstance) {
       reason: "PASSWORD_CHANGED",
       actorUserId: res.userId,
     });
+    // Closure audit N-6 — and no step-up approved under the old password is
+    // spent after it.
+    await cancelOutstandingStepUpChallenges(res.userId);
 
     auditAuthEvent(req, {
       userId: null,
