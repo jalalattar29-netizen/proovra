@@ -142,6 +142,26 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup -S app && adduser -S app -G app
 
+# THE PINNED PACKAGE MANAGER, BAKED IN (Production incident, 2026-10-28).
+# This image documents `pnpm prisma:migrate`, `pnpm deploy:safe`, … as runtime
+# operator commands, but carried no pnpm: the first `pnpm` in a container made
+# Corepack download it from the registry, unpinned by anything in the image (no
+# root package.json reaches this stage). The version is installed here from the
+# root `packageManager` field — the one pin the build already uses — into a
+# shared COREPACK_HOME the `app` user can read, and the runtime then forbids
+# Corepack from downloading at all, so a missing pnpm fails loudly instead of
+# fetching one.
+ENV COREPACK_HOME=/usr/local/share/corepack
+COPY package.json /tmp/corepack-pin/package.json
+RUN cd /tmp/corepack-pin && corepack install && rm -rf /tmp/corepack-pin \
+    && chmod -R a+rX "$COREPACK_HOME"
+ENV COREPACK_ENABLE_NETWORK=0
+# The hoisted install keeps every CLI in /app/node_modules/.bin, which no
+# workspace directory has of its own, so `pnpm exec prisma` from
+# /app/services/api answered `Command "prisma" not found`. APPENDED, never
+# prepended: a package binary must not shadow a system one.
+ENV PATH=$PATH:/app/node_modules/.bin
+
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=build /app/node_modules/.prisma /app/node_modules/.prisma
 

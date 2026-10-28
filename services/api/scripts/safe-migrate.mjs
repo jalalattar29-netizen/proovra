@@ -47,6 +47,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,17 +56,38 @@ import { fileURLToPath } from "node:url";
 // from the caller's cwd.
 //
 // prisma, prisma.config.ts and the schema are dependencies of the `proovra-api`
-// workspace (services/api), NOT of the repository root. `pnpm exec prisma`
-// resolves the CLI from the package whose directory it runs in, so invoking
-// this wrapper from the repository root (e.g. the UC-1 Windows acceptance
-// harness runs `node services/api/scripts/safe-migrate.mjs deploy` from the
-// repo root) previously failed with `Command "prisma" not found`. Pinning the
-// prisma spawn to this directory makes the wrapper cwd-invariant: it resolves
-// and runs the API-local Prisma CLI whether called from the repo root or from
-// services/api. This is the ONE canonical migration path — nothing else runs
-// prisma migrate — so pinning it here keeps every caller correct at once.
+// workspace (services/api), NOT of the repository root. Invoking this wrapper
+// from the repository root (e.g. the UC-1 Windows acceptance harness runs
+// `node services/api/scripts/safe-migrate.mjs deploy` from the repo root)
+// previously failed with `Command "prisma" not found`. Pinning the prisma
+// spawn to this directory makes the wrapper cwd-invariant. This is the ONE
+// canonical migration path — nothing else runs prisma migrate — so pinning it
+// here keeps every caller correct at once.
 // ---------------------------------------------------------------------------
 const API_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+// ---------------------------------------------------------------------------
+// THE PRISMA CLI — resolved the way Node resolves any dependency of
+// proovra-api, then run with THIS node binary. No package manager, no PATH.
+//
+// Production incident (2026-10-28): the wrapper spawned `pnpm exec prisma`.
+// The release image installs with `--node-linker=hoisted`, so the CLI lives at
+// /app/node_modules/.bin/prisma and services/api has no node_modules/.bin;
+// the image PATH does not carry /app/node_modules/.bin either. `pnpm exec`
+// answered `Command "prisma" not found` (ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL)
+// and the documented migration path could not run from the release image.
+// It also made the runtime image download pnpm through Corepack. Node module
+// resolution from API_ROOT finds the lockfile-pinned CLI under both the
+// hoisted image layout and pnpm's isolated layout in a developer checkout.
+// ---------------------------------------------------------------------------
+function resolvePrismaCli() {
+  const requireFromApi = createRequire(resolve(API_ROOT, "package.json"));
+  const manifestPath = requireFromApi.resolve("prisma/package.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.prisma;
+  if (!bin) throw new Error(`prisma@${manifest.version} declares no 'prisma' bin`);
+  return { cliPath: resolve(dirname(manifestPath), bin), version: manifest.version };
+}
 // Phase 2.5D — single source of truth for host classification.
 // Both this wrapper AND the in-process prisma.config.ts hook
 // import from this module so a policy change in one place updates
@@ -243,12 +265,40 @@ if (classification !== "local") {
 // line — we forward stdio, preserve the exit code, and never mutate
 // arguments after the classification check.
 // ---------------------------------------------------------------------------
-const result = spawnSync("pnpm", ["exec", "prisma", "migrate", ...filteredArgs], {
-  // Run in the proovra-api workspace directory so `pnpm exec prisma` resolves
-  // the API-local Prisma CLI regardless of the caller's cwd (see API_ROOT).
+let prismaCli;
+try {
+  prismaCli = resolvePrismaCli();
+} catch (err) {
+  process.stderr.write(
+    `\n[safe-migrate] REFUSED: the Prisma CLI cannot be resolved from ${API_ROOT}\n` +
+      `  (${err instanceof Error ? err.message : String(err)}).\n` +
+      `  It is a dependency of proovra-api; install dependencies before migrating.\n\n`,
+  );
+  process.exit(12);
+}
+process.stderr.write(`[safe-migrate] prisma CLI: ${prismaCli.version} (${prismaCli.cliPath})\n`);
+
+const result = spawnSync(process.execPath, [prismaCli.cliPath, "migrate", ...filteredArgs], {
+  // Run in the proovra-api workspace directory so prisma.config.ts and the
+  // schema load regardless of the caller's cwd (see API_ROOT).
   cwd: API_ROOT,
   stdio: "inherit",
-  shell: process.platform === "win32",
+  env: {
+    ...process.env,
+    // THE HAND-OFF to the in-process hook in prisma.config.ts. This wrapper
+    // consumes `--allow-remote` (it is not forwarded to prisma), so without
+    // this the hook saw MIGRATE_ALLOW_REMOTE=1 but no flag and refused every
+    // approved remote migration (`missing_flag_--allow-remote`). It is set
+    // only on the child, and only here — after the host policy, the
+    // dual remote acknowledgement and the backup acknowledgement above have
+    // all passed. It stands in for the flag alone: the hook still requires
+    // MIGRATE_ALLOW_REMOTE=1 for a remote host. PRISMA_BYPASS_SAFETY is never
+    // set by this wrapper.
+    SAFE_MIGRATE_WRAPPER_OK: "1",
+  },
 });
 
+if (result.error) {
+  process.stderr.write(`[safe-migrate] prisma could not be started: ${result.error.message}\n`);
+}
 process.exit(result.status ?? 1);
