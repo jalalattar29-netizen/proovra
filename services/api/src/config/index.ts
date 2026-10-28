@@ -33,7 +33,7 @@ import {
   objectLockPostureViolations,
   type ObjectLockPostureViolation,
 } from "@proovra/shared";
-import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
+import { developmentSurfacesAllowed, resolveDeploymentEnvironment } from "@proovra/shared-runtime";
 import {
   inspectWebauthnConfig,
   type WebauthnConfigIssue,
@@ -50,6 +50,11 @@ const PROD = (): boolean => process.env.NODE_ENV === "production";
  * PROD().
  */
 const SECRETS_REQUIRED = (): boolean => !developmentSurfacesAllowed();
+/** The production rule: everything but an unambiguous staging, development or test environment. */
+const webauthnExplicitRequired = (): boolean => {
+  const d = resolveDeploymentEnvironment(process.env);
+  return d.ambiguous || d.kind === null || d.kind === "production";
+};
 
 export type HashSecretName =
   | "COMMUNICATIONS_RECIPIENT_HASH_SECRET"
@@ -246,6 +251,9 @@ export type StartupConfigViolation = {
     // callers would treat it as "passkeys unavailable", silently moving every
     // passkey holder's step-up to a weaker authenticator.
     | WebauthnConfigIssue
+    // Production must SET its relying party; deriving it from APP_BASE_URL
+    // would let a URL change orphan every enrolled passkey.
+    | "webauthn_rp_not_explicit"
     // The independent Bitcoin verifier is WORKER code. Its configuration and
     // credentials must never reach the API — and they do whenever an operator
     // puts them in the shared .env, because the compose env_file injects every
@@ -544,13 +552,26 @@ export function collectStartupViolations(): StartupConfigViolation[] {
   }
 
   // WEBAUTHN RELYING PARTY (2026-10-28). The same parser registration and
-  // assertion use, so boot refuses exactly the configs a ceremony would. Every
-  // deployed environment, like the JWT strength check: the documented default
-  // (the host of APP_BASE_URL, else app.proovra.com) always parses, so only a
-  // value someone set — and set wrong — can reach this.
+  // assertion use, so boot refuses exactly the configs a ceremony would — in
+  // every deployed environment, like the JWT strength check.
   if (SECRETS_REQUIRED()) {
     const webauthn = inspectWebauthnConfig(process.env);
     if (!webauthn.ok) out.push({ envName: webauthn.envName, reason: webauthn.issue });
+  }
+  // …and PRODUCTION STATES ITS RELYING PARTY. The RP id is part of every
+  // enrolled passkey: one derived from APP_BASE_URL moves when that URL does
+  // and orphans them all, so Production may not rely on the derivation
+  // (decision 2026-10-28: RP proovra.com, origin https://app.proovra.com).
+  // Judged wherever the environment is not an unambiguous staging,
+  // development or test one — an undeclared or ambiguous process is held to
+  // the production rule. Fixtures that boot as production (the CI full stack)
+  // state their own RP; the requirement is not relaxed for them.
+  if (webauthnExplicitRequired()) {
+    for (const name of ["WEBAUTHN_RP_ID", "WEBAUTHN_ORIGINS"] as const) {
+      if ((process.env[name] ?? "").trim().length === 0) {
+        out.push({ envName: name, reason: "webauthn_rp_not_explicit" });
+      }
+    }
   }
 
   // Phase 32.7 — Stripe secret-key shape validation.

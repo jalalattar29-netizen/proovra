@@ -60,6 +60,11 @@ jobs:
       PDF_SIGNING_P12_PASSWORD: ci-only-ephemeral
       # F-08 — the CI stack has no reverse proxy in front of the API.
       API_TRUST_PROXY_MODE: "off"
+      # The stack's own relying party — Production must state one, so the
+      # production-mode fixture does too (localhost: the WebAuthn secure-context
+      # exception).
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_ORIGINS: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
         with:

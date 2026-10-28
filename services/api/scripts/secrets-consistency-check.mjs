@@ -188,6 +188,9 @@ async function main() {
   process.exit(result.changesOnRestart ? 3 : 0);
 }
 
-if (process.argv[1]?.endsWith("secrets-consistency-check.mjs")) {
+// Run as a file, or from stdin (`git show <sha>:<this path> | docker exec -i
+// proovra-api node --input-type=module -`) on an image that predates it.
+const entry = process.argv[1] ?? "-";
+if (entry === "-" || entry.endsWith("secrets-consistency-check.mjs")) {
   await main();
 }

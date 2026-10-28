@@ -11,6 +11,9 @@
  * What this does NOT prove: that a browser completes a ceremony against this
  * RP. It proves which RP id and which exact origins the verifier is handed.
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { collectStartupViolations } from "../src/config/index.js";
@@ -107,8 +110,42 @@ describe("collectStartupViolations — WebAuthn", () => {
     expect(violationsUnder({ ...CLEAN_PRODUCTION, ...DECISION })).toEqual([]);
   });
 
-  it("production with neither value set: the documented default parses, so nothing is refused", () => {
-    expect(violationsUnder(CLEAN_PRODUCTION)).toEqual([]);
+  it("production must STATE its relying party: an unset RP id or origin list is refused, by name", () => {
+    // The derivation from APP_BASE_URL still parses — it is refused because
+    // a derived RP id moves with that URL and orphans every enrolled passkey.
+    expect(violationsUnder(CLEAN_PRODUCTION)).toEqual([
+      { envName: "WEBAUTHN_RP_ID", reason: "webauthn_rp_not_explicit" },
+      { envName: "WEBAUTHN_ORIGINS", reason: "webauthn_rp_not_explicit" },
+    ]);
+    expect(violationsUnder({ ...CLEAN_PRODUCTION, WEBAUTHN_RP_ID: "proovra.com" })).toEqual([
+      { envName: "WEBAUTHN_ORIGINS", reason: "webauthn_rp_not_explicit" },
+    ]);
+  });
+
+  it("an UNDECLARED environment is held to the production rule (NODE_ENV unset, nothing declared)", () => {
+    const undeclared: Record<string, string | undefined> = { ...CLEAN_PRODUCTION, NODE_ENV: undefined };
+    expect(violationsUnder(undeclared).map((v) => v.reason)).toContain("webauthn_rp_not_explicit");
+  });
+
+  it("a declared staging environment may derive its RP (the requirement is Production's)", () => {
+    expect(violationsUnder({ ...CLEAN_PRODUCTION, PROOVRA_ENV: "staging" })).toEqual([]);
+  });
+
+  it("the CI full stack, which boots as production, states its own RP — and passes the same rule", () => {
+    const ci = readFileSync(fileURLToPath(new URL("../../../.github/workflows/ci.yml", import.meta.url)), "utf8");
+    const value = (name: string) => new RegExp(`^\\s*${name}:\\s*(\\S+)\\s*$`, "m").exec(ci)?.[1];
+    const rp = value("WEBAUTHN_RP_ID");
+    const origins = value("WEBAUTHN_ORIGINS");
+    expect(rp).toBeDefined();
+    expect(origins).toBeDefined();
+    expect(violationsUnder({ ...CLEAN_PRODUCTION, WEBAUTHN_RP_ID: rp, WEBAUTHN_ORIGINS: origins })).toEqual([]);
+    // …and the compose file passes them through rather than defaulting them.
+    const compose = readFileSync(
+      fileURLToPath(new URL("../../../infra/docker/docker-compose.full.yml", import.meta.url)),
+      "utf8",
+    );
+    expect(compose).toMatch(/^\s*WEBAUTHN_RP_ID: \$\{WEBAUTHN_RP_ID\}$/m);
+    expect(compose).toMatch(/^\s*WEBAUTHN_ORIGINS: \$\{WEBAUTHN_ORIGINS\}$/m);
   });
 
   it("production with a malformed value: exactly one violation, name and code only — never the value", () => {
@@ -118,7 +155,7 @@ describe("collectStartupViolations — WebAuthn", () => {
     expect(JSON.stringify(violations)).not.toContain("attacker");
   });
 
-  it("staging is a deployed environment and is judged the same way", () => {
+  it("staging is a deployed environment: a MALFORMED value is refused there too", () => {
     expect(
       violationsUnder({ ...CLEAN_PRODUCTION, PROOVRA_ENV: "staging", ...DECISION, WEBAUTHN_RP_ID: "https://x" }),
     ).toEqual([{ envName: "WEBAUTHN_RP_ID", reason: "webauthn_rp_not_host" }]);

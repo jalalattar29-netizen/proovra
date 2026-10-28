@@ -138,6 +138,12 @@ services:
       # Both are passed through rather than defaulted: a stack that silently
       # invents its own JWT secret is worse than one that refuses to start.
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      # A production process must STATE its WebAuthn relying party (the RP id
+      # is part of every enrolled passkey). Passed through, never defaulted:
+      # the stack states its own, local, RP rather than the requirement
+      # bending for a fixture.
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID}
+      WEBAUTHN_ORIGINS: ${WEBAUTHN_ORIGINS}
       # THE SECRET THE AUTH PATH NEEDS WHETHER OR NOT THE FEATURE IS ON.
       #
       # `collectStartupViolations` requires this only when
