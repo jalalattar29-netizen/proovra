@@ -28,11 +28,11 @@ surfaces: W web, Mo mobile, A API, Wk worker.
 
 | Disposition | Count |
 |---|---|
-| FIXED | 80 |
+| FIXED | 81 |
 | NOT_APPLICABLE (with proof) | 7 |
 | DUPLICATE / SUPERSEDED | 5 |
 | OPEN (in scope) | **0** |
-| **Total** | **92** |
+| **Total** | **93** |
 
 ## A–F — the brief's defects (E1)
 
@@ -166,6 +166,7 @@ E3 = the closure-fix commit that follows `a811060a0` (SHA in the delivery report
 | CA-N10 | Low | `ORG_SECURITY_POLICY_UPDATE` answered by a phone code | FIXED E3 — on the ladder: weakening what archives needs no less than archiving | idp policy PATCH integration | — |
 | CA-X4 | Low | member pickers built from the 25-row detail preview: Lead recovery, and (closure reconciliation) the Work tab's assignee filter, row assignee and reassign picker | FIXED E3 — one paged ACTIVE-roster reader (`team-roster.ts` `useActiveTeamRoster`) used by the create dialog, the Work tab and the reassign picker; the reassign picker also leaves out VIEWERs, whom the server refuses; Lead recovery pages the same endpoint | `collaboration-team-work-roster.render.test.tsx` (member 30 of 30 named, filterable, reassignable; VIEWER not offered); web render suite | MEX-CA-X4-WORK-ROSTER, MEX-CA-X4-REASSIGN-VIEWER |
 | CA-R1 | Low | (closure reconciliation of `2daf9ade0`) the boot projection derived collaboration limits and the review-queue flag from `workspace.plan` even when the canonical plan resolution had degraded — the raw billing column, so a lapsed PRO could be advertised PRO limits (server enforcement unaffected) | FIXED E3 — the cheap limits run only when `resolveCommercialPlan` returned on this request; otherwise they stay closed | structural pin in `collaboration-team-error-envelope-and-invariants.test.ts` (the degraded branch is a thrown resolver the unit suite cannot provoke through ESM) | MEX-CA-PROJECTION-RESOLVED-PLAN |
+| CA-T1 | Low | (feature CI on `529db16dc`) `evidence-location-state.integration.test.ts` read the published package by evidence + version only; a report version publishes FULL_FORENSIC and EXTERNAL_DISCLOSURE at the same version, so the read could return the external projection (`locationState` = `[withheld]`) and fail intermittently — a test-fidelity defect, product behaviour correct | FIXED E3 — both reads pin `disclosureProfile: "FULL_FORENSIC"` | the file, 12/12 on the Linux runner | — (test-only) |
 | CA-LEDGER | Low | ledger totals mis-stated | FIXED E3 — recounted below | — | — |
 
 ## Areas 1–12 coverage

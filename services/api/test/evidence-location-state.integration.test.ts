@@ -331,8 +331,11 @@ describe("canonical evidence location state (Postgres + Redis + MinIO, real work
       }
     }
 
+    // A report version publishes BOTH profiles at the same version; the
+    // assertions below read the full package, so the profile is pinned (an
+    // unpinned read returned the external projection nondeterministically).
     async function packageEntries(evidenceId: string, version: number) {
-      const pkg = await prisma.verificationPackage.findFirstOrThrow({ where: { evidenceId, version } as never });
+      const pkg = await prisma.verificationPackage.findFirstOrThrow({ where: { evidenceId, version, disclosureProfile: "FULL_FORENSIC" } as never });
       const zip = (await workerStorage.getObjectStream({ bucket: pkg.storageBucket!, key: pkg.storageKey! })) as AsyncIterable<Buffer>;
       const chunks: Buffer[] = [];
       for await (const c of zip) chunks.push(Buffer.from(c));
@@ -367,7 +370,7 @@ describe("canonical evidence location state (Postgres + Redis + MinIO, real work
       expect(vm1.meta.captureContext).toBeNull();
 
       // The package states it in case metadata; no capture-context.json, no map.
-      const pkgRow = await prisma.verificationPackage.findFirstOrThrow({ where: { evidenceId: id, state: "PUBLISHED" } as never, orderBy: { version: "asc" } });
+      const pkgRow = await prisma.verificationPackage.findFirstOrThrow({ where: { evidenceId: id, state: "PUBLISHED", disclosureProfile: "FULL_FORENSIC" } as never, orderBy: { version: "asc" } });
       const entries = await packageEntries(id, pkgRow.version);
       const caseMeta = JSON.parse(entries.get("case-metadata.json")!.toString("utf8"));
       expect(caseMeta.locationState).toMatchObject({ state: "NOT_SHARED", label: "Location not shared" });
