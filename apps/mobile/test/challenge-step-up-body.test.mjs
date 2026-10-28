@@ -15,8 +15,10 @@ before(async () => {
 
 test("an absent resource is omitted, never sent as null", () => {
   const body = P.buildStartBody("team-1", { purpose: "SENSITIVE_ACTION", resourceKind: null, resourceId: null });
-  assert.deepEqual(body, { teamId: "team-1", purpose: "SENSITIVE_ACTION" });
+  // The app always asks for a system-browser handoff (passkey / IdP); the
+  // server ignores it for the code kinds.
+  assert.deepEqual(body, { teamId: "team-1", purpose: "SENSITIVE_ACTION", handoff: true });
   assert.deepEqual(P.buildStartBody("team-1", { purpose: "X", resourceKind: "EVIDENCE", resourceId: "e1" }, "EMAIL"), {
-    teamId: "team-1", purpose: "X", resourceKind: "EVIDENCE", resourceId: "e1", channel: "EMAIL",
+    teamId: "team-1", purpose: "X", resourceKind: "EVIDENCE", resourceId: "e1", channel: "EMAIL", handoff: true,
   });
 });

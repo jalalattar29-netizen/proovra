@@ -1295,6 +1295,7 @@ export type {
   SessionRevocationReason,
   StepUpChallengeStatus,
   StepUpFactorKind,
+  StepUpAssuranceLevel,
   StepUpPurpose,
   TrustedDeviceStatus,
 } from "./identity-security.js";
@@ -1302,6 +1303,13 @@ export type {
 export {
   // PV-STEPUP-001 — the per-purpose step-up factor policy.
   STEP_UP_FACTOR_KINDS,
+  STEP_UP_CODE_FACTOR_KINDS,
+  STEP_UP_AUTHENTICATOR_LADDER,
+  PHISHING_RESISTANT_STEP_UP_KINDS,
+  PHONE_DELIVERED_STEP_UP_KINDS,
+  STEP_UP_ASSURANCE_LEVELS,
+  stepUpFactorKindsAllowed,
+  stepUpMethodCategory,
   STEP_UP_PURPOSE_FACTOR_POLICY,
   stepUpFactorKindsFor,
   MFA_POLICY_LEVELS,

@@ -53,6 +53,8 @@ import {
 } from "./commercial-context.service.js";
 import {
   NO_CONTRACT_LIMITS,
+  resolveEffectiveCollaborationMemberLimit,
+  resolveEffectiveCollaborationTeamLimit,
   resolveEnterpriseContractLimits,
   type EnterpriseContractLimits,
 } from "./enterprise-contract-limits.js";
@@ -215,12 +217,67 @@ export type WorkspaceInvitationAllowance = {
  * revocation included, because it is an abuse rate limit rather than a
  * capacity measure — revoking a burst must not buy another burst.
  */
+export function invitationCeilingsFor(seats: WorkspaceSeatState): {
+  maxPending: number;
+  maxPer24h: number;
+} {
+  const caps = getPlanCapabilities(seats.plan);
+  const contractGoverned = seats.source === "ENTERPRISE_CONTRACT" && seats.limit !== null;
+  return {
+    maxPending: contractGoverned
+      ? Math.max(0, seats.limit ?? 0)
+      : caps.maxPendingInvitesPerTeam,
+    maxPer24h: contractGoverned
+      ? Math.max(0, seats.limit ?? 0) * 4
+      : caps.maxInvitesPer24h,
+  };
+}
+
+/**
+ * THE COLLABORATION LIMITS A SURFACE MAY RENDER (members ledger M4/C8).
+ *
+ * The platform envelope projected these from the bare catalog row, so a
+ * SUSPENDED or TERMINATED Enterprise contract kept "Collaboration Teams: 1000"
+ * in navigation and on the page while every create answered
+ * ENTERPRISE_CONTRACT_REQUIRED. These are the numbers the gates enforce —
+ * `resolveEffectiveCollaboration*Limit` over the status-checked contract
+ * projection this seat state already carries, and the invitation ceilings
+ * above — resolved once, so a projection cannot disagree with a refusal.
+ */
+export async function resolveWorkspaceCollaborationLimits(
+  workspaceId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  maxCollaborationTeamsPerWorkspace: number;
+  maxAcceptedMembersPerCollaborationTeam: number;
+  maxAdditionalWorkspaceMembers: number | null;
+  maxPendingInvitesPerTeam: number;
+  maxInvitesPer24h: number;
+}> {
+  const seats = await resolveWorkspaceSeatState(workspaceId, client);
+  const teams = resolveEffectiveCollaborationTeamLimit({
+    plan: seats.plan,
+    contract: seats.contractLimits,
+  });
+  const members = resolveEffectiveCollaborationMemberLimit({
+    plan: seats.plan,
+    contract: seats.contractLimits,
+  });
+  const ceilings = invitationCeilingsFor(seats);
+  return {
+    maxCollaborationTeamsPerWorkspace: Math.max(0, teams),
+    maxAcceptedMembersPerCollaborationTeam: Math.max(0, members),
+    maxAdditionalWorkspaceMembers: seats.featureIncluded ? seats.limit : 0,
+    maxPendingInvitesPerTeam: ceilings.maxPending,
+    maxInvitesPer24h: ceilings.maxPer24h,
+  };
+}
+
 export async function resolveWorkspaceInvitationAllowance(
   workspaceId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<WorkspaceInvitationAllowance> {
   const seats = await resolveWorkspaceSeatState(workspaceId, client);
-  const caps = getPlanCapabilities(seats.plan);
 
   const now = new Date();
   const [pending, sentLast24h] = await Promise.all([
@@ -251,13 +308,7 @@ export async function resolveWorkspaceInvitationAllowance(
    * contracted organization is never told it may hold more pending
    * invitations than it has seats to give.
    */
-  const contractGoverned = seats.source === "ENTERPRISE_CONTRACT" && seats.limit !== null;
-  const maxPending = contractGoverned
-    ? Math.max(0, seats.limit ?? 0)
-    : caps.maxPendingInvitesPerTeam;
-  const maxPer24h = contractGoverned
-    ? Math.max(0, seats.limit ?? 0) * 4
-    : caps.maxInvitesPer24h;
+  const { maxPending, maxPer24h } = invitationCeilingsFor(seats);
 
   return {
     plan: seats.plan,

@@ -85,7 +85,7 @@ describe("Phase G3 — step-up modal infrastructure", () => {
 
   it("forwards the x-proovra-step-up-challenge-id header on retry", () => {
     expect(STEP_UP_MODAL).toMatch(
-      /"x-proovra-step-up-challenge-id":\s*state\.challengeId/,
+      /"x-proovra-step-up-challenge-id":\s*challengeId/,
     );
   });
 

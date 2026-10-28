@@ -1,24 +1,16 @@
 /**
- * COLLABORATION TEAM LIFECYCLE — archive frees capacity, delete cannot destroy
- * evidence.
+ * COLLABORATION TEAM LIFECYCLE — archive is the one retirement, and nothing
+ * reaches evidence (2026-10-28).
  *
- * ===========================================================================
- * THE TWO CONCEPTS, AND WHY THEY MUST STAY APART
- * ===========================================================================
- *   ARCHIVE  retires a group that has done real work. Its history survives,
- *            and it stops consuming an ACTIVE capacity slot.
- *   DELETE   removes a group that never did any — the accidental-creation
- *            case, tidied away without ceremony.
+ * A Collaboration Team is never customer-deleted. Archive preserves the row
+ * and every record of who was in it and what they did, and frees one active
+ * slot; Restore re-checks everything that admits a group. The behaviour is
+ * proven against PostgreSQL in collaboration-team-archive.integration.test.ts;
+ * this file keeps the STRUCTURAL guarantees: no hard-delete path is exported,
+ * the provenance columns exist, and nothing cascading from a team could ever
+ * reach evidence, cases or workspace membership.
  *
- * Because ARCHIVED already consumes no capacity, nobody ever needs to delete
- * history to free a slot. That is what stops DELETE becoming a commercial
- * workaround, and it is asserted below rather than assumed.
- *
- * THE SAFETY PROPERTY that matters most is structural: a Collaboration Team
- * owns no Evidence and no Case. `CollaborationTeamAssignment.targetId` is a
- * bare UUID with NO foreign key to either, so nothing that cascades from
- * `collaboration_teams` can reach them. That is proven from the schema, not
- * from prose.
+ * (The file keeps its name from the delete lifecycle it used to cover.)
  */
 
 import { readFileSync } from "node:fs";
@@ -33,40 +25,6 @@ const SCHEMA = readFileSync(
   "utf8",
 );
 
-/** Zero history unless a count is overridden. */
-function makeClient(counts: Partial<Record<string, number>> = {}) {
-  const deleted: string[] = [];
-  const client: Record<string, unknown> = {
-    $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> =>
-      fn(client),
-    collaborationTeam: {
-      findUnique: async () => ({
-        id: "team-1",
-        workspaceId: "ws-1",
-        status: "ACTIVE",
-      }),
-      delete: async (a: { where: { id: string } }) => {
-        deleted.push(a.where.id);
-        return {};
-      },
-    },
-    collaborationTeamMember: {
-      findFirst: async () => ({ role: "LEAD" }),
-    },
-    collaborationTeamAssignment: {
-      count: async () => counts.assignments ?? 0,
-    },
-    collaborationTeamComment: { count: async () => counts.comments ?? 0 },
-    collaborationTeamAccessReview: {
-      count: async () => counts.accessReviews ?? 0,
-    },
-    collaborationTeamGuest: { count: async () => counts.guests ?? 0 },
-    collaborationTeamActivity: { count: async () => counts.activity ?? 0 },
-    caseCollaborationTeamAccess: { count: async () => counts.caseAccess ?? 0 },
-  };
-  return { client: client as never, deleted };
-}
-
 vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
   emitTenantAudit: async () => undefined,
 }));
@@ -75,138 +33,24 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
 // this module times out under a loaded full-suite run.
 import * as collaborationTeamService from "../src/services/collaboration-team/collaboration-team.service.js";
 
-async function load() {
-  return collaborationTeamService;
-}
+describe("no customer hard-delete exists", () => {
+  it("the service exports archive and restore, and no delete or disposability", () => {
+    const exported = Object.keys(collaborationTeamService);
+    expect(exported).toContain("archiveCollaborationTeam");
+    expect(exported).toContain("unarchiveCollaborationTeam");
+    expect(exported).toContain("assessCollaborationTeamArchiveImpact");
+    for (const gone of ["deleteCollaborationTeam", "assessCollaborationTeamDisposability"]) {
+      expect(exported, gone).not.toContain(gone);
+    }
+  });
 
-const ACTOR = "22222222-2222-4222-8222-222222222222";
-
-describe("disposability — what makes a group safe to delete", () => {
-  it("a group with no operational record is disposable", async () => {
-    const { assessCollaborationTeamDisposability } = await load();
-    const { client } = makeClient();
-    const res = await assessCollaborationTeamDisposability(
-      { teamId: "team-1", actorUserId: ACTOR },
-      client,
+  it("the archived row keeps who archived it and why", () => {
+    const teamModel = SCHEMA.slice(
+      SCHEMA.indexOf("model CollaborationTeam {"),
+      SCHEMA.indexOf("@@map(\"collaboration_teams\")"),
     );
-    expect(res.disposable).toBe(true);
-    expect(res.blockers).toEqual([]);
-  });
-
-  // Each of these is history an evidence platform exists to keep.
-  for (const kind of [
-    "assignments",
-    "comments",
-    "accessReviews",
-    "guests",
-    "activity",
-    "caseAccess",
-  ]) {
-    it(`${kind} alone makes it non-disposable`, async () => {
-      const { assessCollaborationTeamDisposability } = await load();
-      const { client } = makeClient({ [kind]: 3 });
-      const res = await assessCollaborationTeamDisposability(
-        { teamId: "team-1", actorUserId: ACTOR },
-        client,
-      );
-      expect(res.disposable).toBe(false);
-      // And it says WHICH history, so the refusal is actionable.
-      expect(res.blockers.some((b) => b.count === 3)).toBe(true);
-    });
-  }
-
-  it("members and pending invites are NOT blockers", async () => {
-    /*
-     * Adding people is how a group gets created. A group with three members and
-     * no work is still an accident somebody wants tidied away, and requiring
-     * them to be removed by hand first is the bureaucracy §15.26 forbids. Group
-     * membership confers no access and survives nowhere else.
-     */
-    const { assessCollaborationTeamDisposability } = await load();
-    const { client } = makeClient();
-    const res = await assessCollaborationTeamDisposability(
-      { teamId: "team-1", actorUserId: ACTOR },
-      client,
-    );
-    expect(res.disposable).toBe(true);
-  });
-});
-
-describe("delete — admitted only for a disposable group", () => {
-  it("an empty group is deleted", async () => {
-    const { deleteCollaborationTeam } = await load();
-    const { client, deleted } = makeClient();
-    await deleteCollaborationTeam(
-      { teamId: "team-1", actorUserId: ACTOR },
-      client,
-    );
-    expect(deleted).toEqual(["team-1"]);
-  });
-
-  it("a history-bearing group is REFUSED, and the row survives", async () => {
-    const { deleteCollaborationTeam } = await load();
-    const { client, deleted } = makeClient({ assignments: 2 });
-    await expect(
-      deleteCollaborationTeam({ teamId: "team-1", actorUserId: ACTOR }, client),
-    ).rejects.toMatchObject({ code: "TEAM_NOT_DISPOSABLE", httpStatus: 409 });
-    // THE ASSERTION THAT MATTERS: nothing was deleted.
-    expect(deleted).toEqual([]);
-  });
-
-  it("the refusal names the history that blocks it", async () => {
-    const { deleteCollaborationTeam } = await load();
-    const { client } = makeClient({ comments: 5 });
-    await expect(
-      deleteCollaborationTeam({ teamId: "team-1", actorUserId: ACTOR }, client),
-    ).rejects.toMatchObject({
-      details: { blockers: [{ kind: "discussion", count: 5 }] },
-    });
-  });
-
-  it("disposability is re-checked INSIDE the transaction", async () => {
-    /*
-     * Checking outside it would be a read-then-write race: an assignment or a
-     * comment landing between the check and the delete would be destroyed by a
-     * decision made before it existed. The double records call order, so this
-     * fails if the assessment is ever hoisted out.
-     */
-    const order: string[] = [];
-    const { client } = makeClient();
-    // Untyped on purpose: this reaches into the double to record call order,
-    // and every hop goes through `unknown` so tsc is not asked to believe a
-    // Record is a function.
-    const inner = client as unknown as Record<string, never>;
-    const realTx = inner["$transaction"] as unknown as (
-      fn: (tx: unknown) => unknown,
-    ) => unknown;
-    inner["$transaction"] = ((fn: (tx: unknown) => unknown) => {
-      order.push("tx:begin");
-      return realTx(fn);
-    }) as never;
-    const assignments = inner["collaborationTeamAssignment"] as unknown as {
-      count: () => Promise<number>;
-    };
-    const realCount = assignments.count;
-    assignments.count = (async () => {
-      order.push("assess");
-      return realCount();
-    }) as never;
-    const teamDelegate = inner["collaborationTeam"] as unknown as {
-      delete: (a: unknown) => unknown;
-    };
-    const realDelete = teamDelegate.delete;
-    teamDelegate.delete = ((a: unknown) => {
-      order.push("delete");
-      return realDelete(a);
-    }) as never;
-
-    const { deleteCollaborationTeam } = await load();
-    await deleteCollaborationTeam(
-      { teamId: "team-1", actorUserId: ACTOR },
-      client,
-    );
-    expect(order.indexOf("tx:begin")).toBeLessThan(order.indexOf("assess"));
-    expect(order.indexOf("assess")).toBeLessThan(order.indexOf("delete"));
+    expect(teamModel).toMatch(/archivedByUserId\s+String\?/);
+    expect(teamModel).toMatch(/archiveReason\s+String\?/);
   });
 });
 

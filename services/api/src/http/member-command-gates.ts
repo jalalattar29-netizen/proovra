@@ -65,6 +65,7 @@ export function rbacErrorStatus(code: string): number {
     case "owner_cannot_leave":
     case "workspace_seat_limit_reached":
     case "collaboration_team_capacity_reached":
+    case "workspace_seat_contention":
       return 409;
     default:
       return 400;

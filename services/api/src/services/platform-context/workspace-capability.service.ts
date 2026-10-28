@@ -35,6 +35,7 @@ import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import { resolveCapabilities } from "./capability-registry.js";
 import { workspaceIncludesReviewerOperations } from "../billing-enforcement.service.js";
+import { resolveWorkspaceCollaborationLimits } from "../billing/workspace-seats.service.js";
 import {
   isWorkspaceRole,
   type CapabilityKey,
@@ -142,6 +143,14 @@ export async function resolveMemberWorkspaceCapabilities(input: {
   } catch {
     reviewerOperationsIncluded = false;
   }
+  let collaborationIncluded = false;
+  try {
+    collaborationIncluded =
+      (await resolveWorkspaceCollaborationLimits(team.id))
+        .maxCollaborationTeamsPerWorkspace > 0;
+  } catch {
+    collaborationIncluded = false;
+  }
   const capabilities = resolveCapabilities({
     scope: legacyScopeFromKind(workspaceKind),
     role,
@@ -150,9 +159,8 @@ export async function resolveMemberWorkspaceCapabilities(input: {
     workspaceKind,
     packageProducesOperationalConditions: planProducesOperationalConditions(plan),
     memberCount: activeMemberCount,
-    collaborationIncluded:
-      getPlanCapabilities((plan ?? "FREE") as Parameters<typeof getPlanCapabilities>[0])
-        .maxCollaborationTeamsPerWorkspace > 0,
+    // Members ledger M4 — the contract-aware limit the create gate enforces.
+    collaborationIncluded,
     reviewerOperationsIncluded,
   }) as Record<CapabilityKey, boolean>;
 

@@ -332,34 +332,62 @@ test("a cleared description is sent as empty, because clearing is an edit", () =
   );
 });
 
-test("an absent disposability answer means NOT disposable", () => {
-  // Defaulting to yes on a permanent delete would be the client deciding a
-  // destructive question the server owns.
-  assert.equal(mod.parseTeamDisposability({}).disposable, false);
-  assert.equal(mod.parseTeamDisposability(null).disposable, false);
+test("archive impact: a malformed or missing preview is no preview (no destructive control)", () => {
+  assert.equal(mod.parseTeamArchiveImpact({}), null);
+  assert.equal(mod.parseTeamArchiveImpact(null), null);
   assert.equal(
-    mod.parseTeamDisposability({ disposition: { disposable: true, blockers: [] } }).disposable,
-    true,
+    mod.parseTeamArchiveImpact({ impact: { teamName: "X", acceptedMembers: -1, caseGrants: 0, openAssignments: 0, pendingInvites: 0 } }),
+    null,
   );
-});
-
-test("blockers are read whether they are strings or objects", () => {
-  const d = mod.parseTeamDisposability({
-    disposition: {
-      disposable: false,
-      blockers: ["It has messages.", { message: "It has work." }, { code: "HAS_HISTORY" }, null],
+  const ok = mod.parseTeamArchiveImpact({
+    impact: {
+      teamName: "Claims",
+      acceptedMembers: 3,
+      caseGrants: 1,
+      openAssignments: 2,
+      pendingInvites: 0,
+      unavailable: ["new_tasks"],
+      preserved: ["team_record"],
+      restore: { requestable: true },
     },
   });
-  assert.deepEqual(d.blockers, ["It has messages.", "It has work.", "HAS_HISTORY"]);
+  assert.equal(ok.teamName, "Claims");
+  assert.equal(ok.restoreRequestable, true);
 });
 
-test("delete and archive say different things, and delete says why", () => {
-  assert.match(mod.DELETE_TEAM_CONSEQUENCE, /cannot be undone/i);
-  // Archiving already frees the slot, so deletion is never the route to more
-  // capacity — the surface says so rather than letting a user discover it.
-  assert.match(mod.DELETE_TEAM_CONSEQUENCE, /frees the plan slot/i);
-  assert.match(mod.ARCHIVE_TEAM_CONSEQUENCE, /kept/i);
-  assert.match(mod.ARCHIVE_TEAM_CONSEQUENCE, /reopened/i);
+test("archive impact is said in words, and archive never claims to delete", () => {
+  const copy = mod.describeArchiveImpact({
+    teamName: "Claims",
+    acceptedMembers: 1,
+    caseGrants: 2,
+    openAssignments: 0,
+    pendingInvites: 3,
+    unavailable: ["case_access_through_team"],
+    preserved: ["membership_history"],
+    restoreRequestable: true,
+  });
+  assert.deepEqual(copy.affected, [
+    "1 member lose access through this team",
+    "2 Case grants stop applying",
+    "0 open tasks will be cancelled",
+    "3 pending invitations will be revoked",
+  ]);
+  assert.deepEqual(copy.unavailable, ["Access to Cases granted to this Collaboration Team"]);
+  assert.deepEqual(copy.preserved, ["Who was a member, and their roles"]);
+  assert.equal(mod.ARCHIVE_TEAM_ACTION, "Archive Collaboration Team");
+  assert.match(mod.ARCHIVE_TEAM_CONSEQUENCE, /never deleted/i);
+  assert.equal(mod.DELETE_TEAM_CONSEQUENCE, undefined);
+});
+
+test("the archive confirmation is the exact name", () => {
+  assert.equal(mod.archiveConfirmationMatches("Claims", "Claims"), true);
+  assert.equal(mod.archiveConfirmationMatches("claims", "Claims"), false);
+  assert.equal(mod.archiveConfirmationMatches("Claims ", "Claims"), false);
+  assert.deepEqual(mod.buildTeamArchiveBody({ confirmName: "Claims", reason: "  " }), { confirmName: "Claims" });
+  assert.deepEqual(mod.buildTeamArchiveBody({ confirmName: "Claims", reason: " done " }), {
+    confirmName: "Claims",
+    reason: "done",
+  });
 });
 
 test("only a LEAD administers the group", () => {
@@ -372,7 +400,8 @@ test("the settings paths are the canonical ones", () => {
   assert.equal(mod.buildCollaborationTeamPath("t1"), "/v1/collaboration-teams/t1");
   assert.equal(mod.buildTeamArchivePath("t1"), "/v1/collaboration-teams/t1/archive");
   assert.equal(mod.buildTeamUnarchivePath("t1"), "/v1/collaboration-teams/t1/unarchive");
-  assert.equal(mod.buildTeamDisposabilityPath("t1"), "/v1/collaboration-teams/t1/disposability");
+  assert.equal(mod.buildTeamArchiveImpactPath("t1"), "/v1/collaboration-teams/t1/archive-impact");
+  assert.equal(mod.buildTeamDisposabilityPath, undefined, "no delete path remains");
   assert.equal(mod.buildTeamActivityPath("t1"), "/v1/collaboration-teams/t1/activity?limit=25");
 });
 
@@ -384,14 +413,6 @@ test("a history row with no id is dropped rather than rendered", () => {
   assert.equal(page.items.length, 1);
   assert.equal(mod.teamActivityLabel(page.items[0].eventType), "Team member added");
   assert.equal(page.nextCursor, "c1");
-});
-
-test("disposability blockers are the server's { kind, count }, said in words", () => {
-  const d = mod.parseTeamDisposability({
-    disposition: { disposable: false, blockers: [{ kind: "assignments", count: 3 }, { kind: "discussion", count: 1 }, { kind: "activity", count: 12 }] },
-  });
-  assert.equal(d.disposable, false);
-  assert.deepEqual(d.blockers, ["3 assignments", "1 discussion comment", "12 activity entries"], "every blocker was dropped");
 });
 
 test("the entitlement is read at the server's keys (collaborationTeams, featureIncluded, plan)", () => {

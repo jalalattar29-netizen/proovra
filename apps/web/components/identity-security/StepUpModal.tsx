@@ -48,6 +48,7 @@ import {
 } from "react";
 
 import { apiFetch } from "../../lib/api";
+import { getPasskeyAssertion } from "../../lib/identity/webauthn";
 
 export type StepUpRequiredDetails = {
   purpose: string;
@@ -120,6 +121,17 @@ type ModalState =
       method: StepUpMethod;
       /** A switch to the other factor was refused; shown beside the form. */
       notice: string | null;
+      /**
+       * 2026-10-28 — the authenticator ladder: every kind this person may
+       * answer with (strongest first, policy-narrowed by the server), the
+       * WebAuthn options for a passkey, and the system-browser URL for an
+       * Organization sign-in.
+       */
+      availableMethods: StepUpMethod[];
+      passkeyOptions: Record<string, unknown> | null;
+      handoffUrl: string | null;
+      /** A passkey ceremony or IdP window is in progress. */
+      working: boolean;
     }
   | { kind: "enrollment_required" }
   | {
@@ -130,7 +142,26 @@ type ModalState =
     }
   | { kind: "retrying" };
 
-export type StepUpMethod = "TOTP" | "SMS" | "WHATSAPP";
+export type StepUpMethod = "PASSKEY" | "IDP_REAUTH" | "TOTP" | "SMS" | "WHATSAPP";
+
+const METHOD_SWITCH_LABEL: Record<StepUpMethod, string> = {
+  PASSKEY: "Use a passkey or security key instead",
+  IDP_REAUTH: "Use your organization's sign-in instead",
+  TOTP: "Use an authenticator app instead",
+  SMS: "Use a text message instead",
+  WHATSAPP: "Use WhatsApp instead",
+};
+
+const METHOD_MISSING_NOTICE: Record<StepUpMethod, string> = {
+  PASSKEY: "This account has no passkey or security key set up.",
+  IDP_REAUTH: "Your organization's sign-in can't be used for this.",
+  TOTP: "This account has no authenticator app set up.",
+  SMS: "This account has no verified phone set up.",
+  WHATSAPP: "This account has no verified phone set up.",
+};
+
+/** The message the IdP completion page posts to its opener. */
+const IDP_MESSAGE_TYPE = "proovra-step-up-idp";
 
 export function useStepUpAction({
   teamId,
@@ -145,6 +176,44 @@ export function useStepUpAction({
 
   const closeIdle = useCallback(() => {
     setState({ kind: "idle" });
+  }, []);
+
+  /**
+   * Retry the original action exactly once with the challenge id in the
+   * header. The middleware consumes it atomically.
+   */
+  const retryWithChallenge = useCallback(async (challengeId: string) => {
+    setState({ kind: "retrying" });
+    const onSuccess = onSuccessRef.current;
+    const onFail = onFailureRef.current;
+    const action = pendingActionRef.current;
+    if (!action) {
+      setState({ kind: "idle" });
+      return;
+    }
+    try {
+      const value = await action({
+        "x-proovra-step-up-challenge-id": challengeId,
+      });
+      pendingActionRef.current = null;
+      onSuccessRef.current = null;
+      onFailureRef.current = null;
+      setState({ kind: "idle" });
+      if (onSuccess) onSuccess(value);
+    } catch (err) {
+      pendingActionRef.current = null;
+      onSuccessRef.current = null;
+      onFailureRef.current = null;
+      setState({
+        kind: "failed",
+        reason:
+          toSafeUserError(err, { message: "Action failed after step-up." }).message,
+        // The elevation was spent on this attempt; there is nothing to
+        // restart from inside the modal.
+        restart: null,
+      });
+      if (onFail) onFail(err);
+    }
   }, []);
 
   const runStepUpAction = useCallback(
@@ -242,10 +311,19 @@ export function useStepUpAction({
             }),
           },
         )) as {
-          challenge: { id: string };
+          challenge: { id: string; status?: string };
           method?: StepUpMethod;
           destinationMask?: string | null;
+          availableMethods?: StepUpMethod[];
+          passkeyOptions?: Record<string, unknown> | null;
+          handoffUrl?: string | null;
         };
+        // A recent, sufficient Organization sign-in in THIS session can
+        // satisfy the step-up outright: the server returns it approved.
+        if (json.challenge.status === "APPROVED") {
+          await retryWithChallenge(json.challenge.id);
+          return;
+        }
         setState({
           kind: "verifying",
           details: from.details,
@@ -257,6 +335,12 @@ export function useStepUpAction({
               ? json.destinationMask
               : null,
           notice: null,
+          availableMethods: Array.isArray(json.availableMethods)
+            ? json.availableMethods
+            : [],
+          passkeyOptions: json.passkeyOptions ?? null,
+          handoffUrl: json.handoffUrl ?? null,
+          working: false,
         });
       } catch (err) {
         const e = err as ApiErrorLike;
@@ -271,9 +355,7 @@ export function useStepUpAction({
           setState({
             ...previous,
             notice: enrollment
-              ? preferred === "TOTP"
-                ? "This account has no authenticator app set up."
-                : "This account has no verified phone set up."
+              ? METHOD_MISSING_NOTICE[preferred ?? previous.method]
               : toSafeUserError(e, {
                   message: "Could not switch verification method.",
                 }).message,
@@ -293,7 +375,7 @@ export function useStepUpAction({
         });
       }
     },
-    [state, teamId],
+    [state, teamId, retryWithChallenge],
   );
 
   /** Start over after a refusal that another attempt can overcome. */
@@ -360,42 +442,130 @@ export function useStepUpAction({
         setState(rejected);
         return;
       }
-      // Retry the original action exactly once with the challenge
-      // id in the header. The middleware consumes it atomically.
-      setState({ kind: "retrying" });
-      const onSuccess = onSuccessRef.current;
-      const onFail = onFailureRef.current;
-      const action = pendingActionRef.current;
-      if (!action) {
-        setState({ kind: "idle" });
+      await retryWithChallenge(state.challengeId);
+    },
+    [state, retryWithChallenge],
+  );
+
+  /**
+   * 2026-10-28 — answer a PASSKEY challenge: the browser asks the
+   * authenticator to sign the server's challenge (user verification
+   * required), and the assertion is checked server-side. Cancelling the
+   * system prompt changes nothing and leaves the challenge to try again.
+   */
+  const verifyPasskey = useCallback(async () => {
+    if (state.kind !== "verifying" || state.method !== "PASSKEY" || !state.passkeyOptions) {
+      return;
+    }
+    const current = state;
+    const restartFrom = { details: current.details, teamId: current.teamId };
+    setState({ ...current, working: true, notice: null });
+    const result = await getPasskeyAssertion(current.passkeyOptions as Record<string, unknown>);
+    if (result.status === "cancelled") {
+      setState({
+        ...current,
+        working: false,
+        notice: "The passkey prompt was closed. Try again, or use another method.",
+      });
+      return;
+    }
+    if (result.status !== "ok") {
+      setState({
+        ...current,
+        working: false,
+        notice:
+          result.status === "unsupported"
+            ? "This browser can't use passkeys. Use another method."
+            : "The passkey couldn't be used. Try again, or use another method.",
+      });
+      return;
+    }
+    try {
+      const json = (await apiFetch("/v1/identity-security/step-up/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamId: current.teamId,
+          challengeId: current.challengeId,
+          assertion: result.assertion,
+        }),
+      })) as { status: string };
+      if (json.status !== "approved") throw new Error("not approved");
+    } catch {
+      setState({
+        kind: "failed",
+        reason: "That passkey was not accepted. Start again to try once more.",
+        restart: restartFrom,
+      });
+      return;
+    }
+    await retryWithChallenge(current.challengeId);
+  }, [state, retryWithChallenge]);
+
+  /**
+   * 2026-10-28 — answer an IDP_REAUTH challenge: the Organization's own
+   * sign-in runs in a popup (forced, assurance-checked by the server). The
+   * popup's completion page posts back to this window; the challenge's
+   * status is then read from the server, which is the only authority on
+   * whether it was approved. A blocked popup falls back to a link and a
+   * "check again" button.
+   */
+  const startIdpReauth = useCallback(() => {
+    if (state.kind !== "verifying" || state.method !== "IDP_REAUTH" || !state.handoffUrl) {
+      return;
+    }
+    const current = state;
+    const url = state.handoffUrl;
+    const popup = window.open(url, "proovra-idp-step-up", "popup,width=520,height=720");
+    setState({
+      ...current,
+      working: true,
+      notice: popup
+        ? null
+        : "Your browser blocked the sign-in window. Use the link below, then choose “Check again”.",
+    });
+  }, [state]);
+
+  const checkIdpStatus = useCallback(async () => {
+    if (state.kind !== "verifying" || state.method !== "IDP_REAUTH") return;
+    const current = state;
+    try {
+      const json = (await apiFetch(
+        `/v1/identity-security/step-up/${encodeURIComponent(current.challengeId)}/status?teamId=${encodeURIComponent(current.teamId ?? "")}`,
+      )) as { status: string };
+      if (json.status === "APPROVED") {
+        await retryWithChallenge(current.challengeId);
         return;
       }
-      try {
-        const value = await action({
-          "x-proovra-step-up-challenge-id": state.challengeId,
-        });
-        pendingActionRef.current = null;
-        onSuccessRef.current = null;
-        onFailureRef.current = null;
-        setState({ kind: "idle" });
-        if (onSuccess) onSuccess(value);
-      } catch (err) {
-        pendingActionRef.current = null;
-        onSuccessRef.current = null;
-        onFailureRef.current = null;
-        setState({
-          kind: "failed",
-          reason:
-            toSafeUserError(err, { message: "Action failed after step-up." }).message,
-          // The elevation was spent on this attempt; there is nothing to
-          // restart from inside the modal.
-          restart: null,
-        });
-        if (onFail) onFail(err);
-      }
-    },
-    [state],
-  );
+      setState({
+        ...current,
+        working: false,
+        notice:
+          json.status === "PENDING"
+            ? "Sign-in isn't finished yet. Complete it in the sign-in window, then check again."
+            : "Your organization's sign-in didn't confirm it's you. Start again to retry.",
+      });
+    } catch {
+      setState({
+        ...current,
+        working: false,
+        notice: "Couldn't check the sign-in. Try again.",
+      });
+    }
+  }, [state, retryWithChallenge]);
+
+  useEffect(() => {
+    if (state.kind !== "verifying" || state.method !== "IDP_REAUTH") return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      const data = e.data as { type?: string } | null;
+      if (data?.type !== IDP_MESSAGE_TYPE) return;
+      void checkIdpStatus();
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [state, checkIdpStatus]);
+
 
   return useMemo(
     () => ({
@@ -406,6 +576,9 @@ export function useStepUpAction({
       startChallenge,
       restart,
       verifyAndRetry,
+      verifyPasskey,
+      startIdpReauth,
+      checkIdpStatus,
     }),
     [
       state,
@@ -415,6 +588,9 @@ export function useStepUpAction({
       startChallenge,
       restart,
       verifyAndRetry,
+      verifyPasskey,
+      startIdpReauth,
+      checkIdpStatus,
     ],
   );
 }
@@ -436,7 +612,7 @@ const PURPOSE_LABEL: Record<string, string> = {
   DEPARTMENT_MEMBERSHIP_REVOKE: "Revoke this department membership",
   // Members audit SEC-03 / ROLE-05 — irreversible deletes and published identity.
   CASE_DELETE: "Delete this case",
-  COLLABORATION_TEAM_DELETE: "Delete this Collaboration Team",
+  COLLABORATION_TEAM_ARCHIVE: "Archive this Collaboration Team",
   WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
 };
 
@@ -445,7 +621,16 @@ export function StepUpModal({
 }: {
   control: ReturnType<typeof useStepUpAction>;
 }) {
-  const { state, cancel, startChallenge, restart, verifyAndRetry } = control;
+  const {
+    state,
+    cancel,
+    startChallenge,
+    restart,
+    verifyAndRetry,
+    verifyPasskey,
+    startIdpReauth,
+    checkIdpStatus,
+  } = control;
   const [code, setCode] = useState("");
   const codeRef = useRef<HTMLInputElement | null>(null);
   /**
@@ -466,7 +651,7 @@ export function StepUpModal({
         startedRef.current = true;
         void startChallenge();
       }
-    } else if (state.kind === "verifying") {
+    } else if (state.kind === "verifying" && isCodeMethod(state.method)) {
       setTimeout(() => codeRef.current?.focus(), 0);
     }
     // Re-armed on every exit from `starting`, so "Start again" after a
@@ -532,8 +717,8 @@ export function StepUpModal({
               lineHeight: 1.5,
             }}
           >
-            This action requires an additional step-up confirmation. The action
-            will only proceed after you verify a one-time code.
+            This action requires an additional step-up confirmation. Nothing
+            happens until you confirm it&apos;s you.
           </p>
         </header>
 
@@ -574,13 +759,18 @@ export function StepUpModal({
         {state.kind === "enrollment_required" ? (
           <div data-step-up-enrollment-required>
             <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
-              This action needs a verified second factor — an authenticator
-              app or a verified phone — and this account has neither yet. Set
-              one up under{" "}
+              This action needs a verified way to confirm it&apos;s you — a
+              passkey or security key, your organization&apos;s sign-in, an
+              authenticator app, or (where allowed) a verified phone — and this
+              account has none it can use here. Set one up under{" "}
               <a href="/settings#security" data-step-up-enroll-link>
                 Settings → Security
               </a>
-              , then start this action again.
+              , then start this action again. Lost every factor?{" "}
+              <a href="/auth/mfa-challenge" data-step-up-recovery-link>
+                Use account recovery
+              </a>
+              .
             </p>
             <div style={actionsRow}>
               <button
@@ -595,7 +785,81 @@ export function StepUpModal({
           </div>
         ) : null}
 
-        {state.kind === "verifying" ? (
+        {state.kind === "verifying" && state.method === "PASSKEY" ? (
+          <div data-step-up-form="passkey">
+            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+              Use your passkey or security key to confirm it&apos;s you.
+            </p>
+            {state.notice ? (
+              <p role="status" data-step-up-switch-notice style={noticeStyle}>
+                {state.notice}
+              </p>
+            ) : null}
+            <MethodSwitches state={state} onSwitch={(m) => void startChallenge(m)} />
+            <div style={actionsRow}>
+              <button type="button" onClick={cancel} data-step-up-cancel style={secondaryButtonStyle}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-step-up-passkey
+                style={primaryButtonStyle}
+                disabled={state.working}
+                onClick={() => void verifyPasskey()}
+              >
+                {state.working ? "Waiting for your passkey…" : "Use passkey"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {state.kind === "verifying" && state.method === "IDP_REAUTH" ? (
+          <div data-step-up-form="idp">
+            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+              Sign in again with your organization to confirm it&apos;s you. A
+              sign-in window will open.
+            </p>
+            {state.notice ? (
+              <p role="status" data-step-up-switch-notice style={noticeStyle}>
+                {state.notice}
+              </p>
+            ) : null}
+            {state.working && state.handoffUrl ? (
+              <p style={noticeStyle}>
+                <a href={state.handoffUrl} target="_blank" rel="noopener" data-step-up-idp-link>
+                  Open your organization&apos;s sign-in
+                </a>
+              </p>
+            ) : null}
+            <MethodSwitches state={state} onSwitch={(m) => void startChallenge(m)} />
+            <div style={actionsRow}>
+              <button type="button" onClick={cancel} data-step-up-cancel style={secondaryButtonStyle}>
+                Cancel
+              </button>
+              {state.working ? (
+                <button
+                  type="button"
+                  data-step-up-idp-check
+                  style={primaryButtonStyle}
+                  onClick={() => void checkIdpStatus()}
+                >
+                  Check again
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-step-up-idp-start
+                  style={primaryButtonStyle}
+                  onClick={startIdpReauth}
+                >
+                  Continue to sign-in
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+
+        {state.kind === "verifying" && isCodeMethod(state.method) ? (
           <form
             data-step-up-form="code"
             onSubmit={(e) => {
@@ -646,18 +910,7 @@ export function StepUpModal({
                 {state.notice}
               </p>
             ) : null}
-            <button
-              type="button"
-              data-step-up-switch
-              onClick={() =>
-                void startChallenge(state.method === "TOTP" ? "SMS" : "TOTP")
-              }
-              style={switchButtonStyle}
-            >
-              {state.method === "TOTP"
-                ? "Use a text message instead"
-                : "Use an authenticator app instead"}
-            </button>
+            <MethodSwitches state={state} onSwitch={(m) => void startChallenge(m)} />
             <div style={actionsRow}>
               <button
                 type="button"
@@ -722,6 +975,48 @@ export function StepUpModal({
     </div>
   );
 }
+
+function isCodeMethod(method: StepUpMethod): boolean {
+  return method === "TOTP" || method === "SMS" || method === "WHATSAPP";
+}
+
+/**
+ * "Use another method" — only the kinds the server says this person may use
+ * here (policy-narrowed, strongest first). Before the ladder the switch was a
+ * fixed TOTP <-> SMS toggle; an account the server reports nothing else for
+ * gets the toggle it had, so older responses keep working.
+ */
+function MethodSwitches({
+  state,
+  onSwitch,
+}: {
+  state: { method: StepUpMethod; availableMethods: StepUpMethod[] };
+  onSwitch: (method: StepUpMethod) => void;
+}) {
+  const others =
+    state.availableMethods.length > 0
+      ? state.availableMethods.filter((m) => m !== state.method && m !== "WHATSAPP")
+      : ([state.method === "TOTP" ? "SMS" : "TOTP"] as StepUpMethod[]);
+  if (others.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+      {others.map((m) => (
+        <button
+          key={m}
+          type="button"
+          data-step-up-switch
+          data-step-up-switch-to={m}
+          onClick={() => onSwitch(m)}
+          style={switchButtonStyle}
+        >
+          {METHOD_SWITCH_LABEL[m]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const noticeStyle = { margin: "8px 0 0", fontSize: 12, color: "#475569" } as const;
 
 const inputStyle = {
   width: "100%",

@@ -39,7 +39,7 @@ export function formatTeamLimitReachedMessage(
     ? `${rawPlan.charAt(0).toUpperCase()}${rawPlan.slice(1).toLowerCase()}`
     : null;
   const planPart = planLabel ? `${planLabel} plan` : "plan";
-  return `Your ${planPart} includes up to ${limit} Team${
+  return `Your ${planPart} includes up to ${limit} Collaboration Team${
     limit === 1 ? "" : "s"
-  }. Upgrade to create another Team.`;
+  }. Upgrade to create another Collaboration Team.`;
 }

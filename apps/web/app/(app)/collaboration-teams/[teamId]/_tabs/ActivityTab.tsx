@@ -185,8 +185,8 @@ function activityLabel(e: CollaborationTeamActivityEventType): string {
     case "TEAM_RENAMED": return "Team renamed";
     case "TEAM_DESCRIPTION_CHANGED": return "Description updated";
     case "TEAM_TYPE_CHANGED": return "Template changed";
-    case "TEAM_ARCHIVED": return "Team archived";
-    case "TEAM_REOPENED": return "Team reopened";
+    case "TEAM_ARCHIVED": return "Collaboration Team archived";
+    case "TEAM_REOPENED": return "Collaboration Team restored";
     case "MEMBER_INVITED": return "Member invited";
     case "INVITE_RESENT": return "Invite resent";
     case "INVITE_REVOKED": return "Invite revoked";
@@ -259,9 +259,13 @@ function activitySentence(
         ? `${actor} changed the team template`
         : "The team template was changed";
     case "TEAM_ARCHIVED":
-      return actor ? `${actor} archived the team` : "The team was archived";
+      return actor
+        ? `${actor} archived the Collaboration Team`
+        : "The Collaboration Team was archived";
     case "TEAM_REOPENED":
-      return actor ? `${actor} reopened the team` : "The team was reopened";
+      return actor
+        ? `${actor} restored the Collaboration Team`
+        : "The Collaboration Team was restored";
 
     case "MEMBER_INVITED":
       return targetName

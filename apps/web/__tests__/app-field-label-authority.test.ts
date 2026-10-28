@@ -129,6 +129,10 @@ const EXPECTED_CONSUMERS = [
   // the team header could open the SAME form instead of growing a second one;
   // its five fields carry the canonical label exactly as they did in the tab.
   "app/(app)/collaboration-teams/[teamId]/_components/CreateAssignmentModal.tsx",
+  // 2026-10-28 — the Archive Collaboration Team confirmation (exact name and
+  // reason fields) and the Lead recovery picker label with the same authority.
+  "app/(app)/collaboration-teams/[teamId]/_components/ArchiveTeamDialog.tsx",
+  "app/(app)/collaboration-teams/[teamId]/_components/LeadRecoveryBanner.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
   "app/(app)/collaboration-teams/[teamId]/_tabs/SettingsTab.tsx",
   "app/(app)/collaboration-teams/page.tsx",

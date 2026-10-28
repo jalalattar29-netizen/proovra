@@ -55,9 +55,9 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { effectiveGroupMemberWhere } from "./effective-membership.js";
-import { getPlanCapabilities } from "@proovra/shared-billing";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 import {
+  resolveWorkspaceInvitationAllowance,
   resolveWorkspaceSeatState,
   workspaceSeatsAdmit,
 } from "../billing/workspace-seats.service.js";
@@ -161,7 +161,7 @@ export async function resolveCollaborationEntitlement(
     select: { ownerUserId: true, workspaceKind: true },
   });
 
-  const [ctx, seats, teamsUsed, pendingInvites] = await Promise.all([
+  const [ctx, seats, teamsUsed, invitationAllowance] = await Promise.all([
     resolveCommercialContext({
       type: "WORKSPACE",
       teamId: workspaceId,
@@ -171,17 +171,16 @@ export async function resolveCollaborationEntitlement(
     client.collaborationTeam.count({
       where: { workspaceId, status: "ACTIVE", archivedAtUtc: null },
     }),
-    client.teamInvite.count({
-      where: {
-        teamId: workspaceId,
-        acceptedAt: null,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-    }),
+    /*
+     * The invitation ceilings come from the SAME resolver the create gate
+     * applies (members ledger M8). Projected from the raw catalog, a 20-seat
+     * contract was told it could hold 1000 pending invitations while the gate
+     * refused the twenty-first.
+     */
+    resolveWorkspaceInvitationAllowance(workspaceId, client),
   ]);
+  const pendingInvites = invitationAllowance.pending;
 
-  const caps = getPlanCapabilities(ctx.plan);
   /**
    * WCR-07 — CONTRACT FIRST, on both collaboration dimensions.
    *
@@ -232,7 +231,7 @@ export async function resolveCollaborationEntitlement(
     }
   }
   if (teamsUsed > teamsLimit) exceeded.push("COLLABORATION_TEAMS");
-  if (pendingInvites > caps.maxPendingInvitesPerTeam) {
+  if (pendingInvites > invitationAllowance.maxPending) {
     exceeded.push("PENDING_INVITATIONS");
   }
 
@@ -290,8 +289,8 @@ export async function resolveCollaborationEntitlement(
     },
     invitations: {
       pending: pendingInvites,
-      maxPending: caps.maxPendingInvitesPerTeam,
-      maxPer24h: caps.maxInvitesPer24h,
+      maxPending: invitationAllowance.maxPending,
+      maxPer24h: invitationAllowance.maxPer24h,
     },
     /**
      * The three affordances the surface renders, decided here.

@@ -6439,6 +6439,16 @@ model OrganizationSecurityPolicy {
   // §10.7 allowed authentication methods (empty = no restriction). Values:
   // PASSWORD | OAUTH | SSO.
   allowedAuthMethods      String[] @default([]) @map("allowed_auth_methods")
+  // 2026-10-28 — STEP-UP ASSURANCE. STANDARD admits the whole ladder;
+  // PHISHING_RESISTANT admits only a passkey or an IdP reauthentication whose
+  // asserted context is in `idpStepUpAcceptedContexts`. SMS/WhatsApp codes
+  // satisfy step-up only while `stepUpSmsAllowed`. An IdP context is accepted
+  // only when listed (empty list = a FORCED fresh IdP sign-in is required and
+  // its context is not otherwise judged), and only within the max age.
+  stepUpAssurance           String   @default("STANDARD") @map("step_up_assurance") @db.VarChar(24)
+  stepUpSmsAllowed          Boolean  @default(true) @map("step_up_sms_allowed")
+  idpStepUpAcceptedContexts String[] @default([]) @map("idp_step_up_accepted_contexts")
+  idpStepUpMaxAgeSeconds    Int      @default(300) @map("idp_step_up_max_age_seconds")
 
   // §policy-lifecycle (§1.2) — Workspace deletion NEVER deletes the policy
   // (SetNull). Organization deletion does NOT cascade the policy either: it is
@@ -7045,6 +7055,25 @@ model StepUpChallenge {
   factorId         String? @map("factor_id") @db.Uuid
   factorGeneration Int?    @map("factor_generation")
 
+  /**
+   * COLLABORATION TEAM ARCHIVE STEP-UP (2026-10-28) — the authenticator
+   * ladder. `method` is the factor kind that answers the challenge (PASSKEY,
+   * IDP_REAUTH, TOTP, SMS, WHATSAPP); null on rows written before this
+   * migration, which keep the factor-row path. An IDP_REAUTH challenge has
+   * no MfaFactor: it is bound to the Organization's SSO connection instead,
+   * and `authnContext` records the assurance the IdP asserted (a class ref
+   * or acr value, never an assertion). `webauthnChallenge` is the random
+   * challenge a passkey assertion must sign. `handoffTokenHash` lets a
+   * system browser (mobile, IdP popup) complete THIS challenge exactly once;
+   * spending the approval still requires the session that started it.
+   */
+  method            String?   @db.VarChar(16)
+  ssoConnectionId   String?   @map("sso_connection_id") @db.Uuid
+  authnContext      String?   @map("authn_context") @db.VarChar(256)
+  webauthnChallenge String?   @map("webauthn_challenge") @db.VarChar(128)
+  handoffTokenHash  String?   @map("handoff_token_hash") @db.VarChar(64)
+  handoffUsedAtUtc  DateTime? @map("handoff_used_at_utc") @db.Timestamptz(6)
+
   // TTL for the approval. Defaults to STEP_UP_TTL_DEFAULT_SECONDS.
   expiresAtUtc  DateTime  @map("expires_at_utc") @db.Timestamptz(6)
   approvedAtUtc DateTime? @map("approved_at_utc") @db.Timestamptz(6)
@@ -7155,6 +7184,9 @@ enum MfaFactorStatus {
 
 enum MfaFactorKind {
   TOTP
+  // 2026-10-28 — a WebAuthn passkey or hardware security key
+  // (MfaWebauthnCredential).
+  PASSKEY
 
   // PHASE 13 (NEW-058) — VERIFIED CONTACT FACTORS.
   //
@@ -7245,6 +7277,8 @@ model MfaFactor {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  webauthnCredential MfaWebauthnCredential?
+
   // PHASE 13 (NEW-058) — one enrolled destination per user per channel. The
   // hash is the key because the plaintext is sealed; without this a caller
   // could enrol the same number repeatedly and leave several ACTIVE rows for
@@ -7257,6 +7291,35 @@ model MfaFactor {
   @@index([status])
   @@index([userId, kind, status])
   @@map("mfa_factors")
+}
+
+/**
+ * COLLABORATION TEAM ARCHIVE STEP-UP (2026-10-28) — a passkey / security key.
+ *
+ * The enrolment, revocation and generation lifecycle is the owning
+ * MfaFactor's (kind PASSKEY), so a revoked passkey kills an approval at spend
+ * time exactly as a revoked phone does. This row carries only what WebAuthn
+ * verification needs: the credential id, its COSE public key and the
+ * authenticator's signature counter. No private material exists server-side.
+ */
+model MfaWebauthnCredential {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  factorId     String   @unique @map("factor_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  /// base64url credential id, as the authenticator returned it.
+  credentialId String   @unique @map("credential_id") @db.VarChar(1024)
+  publicKey    Bytes    @map("public_key")
+  signCount    BigInt   @default(0) @map("sign_count")
+  transports   String[] @default([])
+  aaguid       String?  @db.VarChar(64)
+  backedUp     Boolean  @default(false) @map("backed_up")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  factor MfaFactor @relation(fields: [factorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mfa_webauthn_credentials")
 }
 
 model MfaRecoveryCode {
@@ -9305,6 +9368,13 @@ model AuthenticatedSession {
   /// Optional IdP this session was issued through. NULL = email/password
   /// or guest. Otherwise points at the SsoConnection that authenticated.
   ssoConnectionId String? @map("sso_connection_id") @db.Uuid
+  /// 2026-10-28 — how this session was authenticated (PASSWORD, SAML, OIDC,
+  /// …), the IdP-asserted authentication context and the IdP's own
+  /// authentication instant. A recent, sufficient IdP context can satisfy an
+  /// IDP_REAUTH step-up without another redirect. Null on older rows.
+  authMethod      String?   @map("auth_method") @db.VarChar(16)
+  authnContext    String?   @map("authn_context") @db.VarChar(256)
+  idpAuthAtUtc    DateTime? @map("idp_auth_at_utc") @db.Timestamptz(6)
 
   /// Issuance + expiry. The JWT itself carries iat/exp; we mirror here
   /// so the inventory query stays fast.
@@ -13960,6 +14030,10 @@ model CollaborationTeam {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   archivedAtUtc   DateTime? @map("archived_at_utc") @db.Timestamptz(6)
+  // 2026-10-28 — archive provenance. A Collaboration Team is never
+  // customer-deleted; who archived it, and why, stays on the row.
+  archivedByUserId String?  @map("archived_by_user_id") @db.Uuid
+  archiveReason    String?  @map("archive_reason") @db.VarChar(500)
 
   workspace Team @relation("CollaborationTeamWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy User @relation("CollaborationTeamCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)

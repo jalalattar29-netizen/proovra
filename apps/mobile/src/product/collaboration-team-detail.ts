@@ -154,8 +154,7 @@ export function attentionItems(w: TeamOverview["work"]): AttentionItem[] {
 const PERMISSION_LABELS: Readonly<Record<string, string>> = {
   "team.read": "See this team and its work",
   "team.update_settings": "Change the team's name and description",
-  "team.archive": "Archive or reopen this team",
-  "team.delete": "Permanently delete this team when it holds no records",
+  "team.archive": "Archive or restore this Collaboration Team",
   "team.transfer_lead": "Transfer the lead role",
   "team.member.invite": "Add workspace members to the team",
   "team.member.remove": "Remove members from the team",
@@ -171,14 +170,16 @@ const PERMISSION_LABELS: Readonly<Record<string, string>> = {
 };
 
 export function humanizePermission(p: string, isArchived: boolean): string {
-  if (p === "team.archive") return isArchived ? "Reopen this team" : "Archive this team";
+  if (p === "team.archive") {
+    return isArchived ? "Restore this Collaboration Team" : "Archive this Collaboration Team";
+  }
   return PERMISSION_LABELS[p] ?? p;
 }
 
 const PERMISSION_GROUPS: ReadonlyArray<{ title: string; match: (p: string) => boolean }> = [
   {
     title: "Team management",
-    match: (p) => p === "team.update_settings" || p === "team.archive" || p === "team.delete" || p === "team.transfer_lead",
+    match: (p) => p === "team.update_settings" || p === "team.archive" || p === "team.transfer_lead",
   },
   { title: "Members", match: (p) => p.startsWith("team.member.") },
   { title: "Work", match: (p) => p.startsWith("team.assignment.") },
@@ -216,13 +217,13 @@ export function summarisePermissions(permissions: readonly string[]): string {
 // Members (MembersTab.tsx)
 // ---------------------------------------------------------------------------
 
-export function buildTeamMembersPagePath(teamId: string, opts: { q?: string; cursor?: string | null; limit?: number } = {}): string {
+export function buildTeamMembersPagePath(teamId: string, opts: { q?: string; cursor?: string | null; limit?: number; status?: string } = {}): string {
   const p = new URLSearchParams();
   if (opts.q && opts.q.trim()) p.set("q", opts.q.trim());
+  if (opts.status) p.set("status", opts.status);
   if (opts.cursor) p.set("cursor", opts.cursor);
   if (opts.limit) p.set("limit", String(opts.limit));
-  const qs = p.toString();
-  return `/v1/collaboration-teams/${encodeURIComponent(teamId)}/members${qs ? `?${qs}` : ""}`;
+  return `/v1/collaboration-teams/${encodeURIComponent(teamId)}/members?${p.toString()}`;
 }
 
 export interface TeamRosterRow {
@@ -233,6 +234,18 @@ export interface TeamRosterRow {
   displayName: string;
   email: string | null;
   joinedAtIso: string | null;
+}
+
+/** The roles the server lets carry a task (`TASK_ASSIGNABLE_ROLES`). */
+export const TASK_ASSIGNABLE_ROLES: ReadonlySet<string> = new Set(["LEAD", "ADMIN", "MEMBER"]);
+
+/**
+ * Who can carry a task, from the paged roster (members ledger X4): ACTIVE, in
+ * a role that does work, with a user id. The detail payload's member list is a
+ * bounded preview and includes VIEWERs, whom the server refuses as assignees.
+ */
+export function assignableRosterRows(rows: ReadonlyArray<TeamRosterRow>): TeamRosterRow[] {
+  return rows.filter((r) => r.status === "ACTIVE" && r.userId !== null && TASK_ASSIGNABLE_ROLES.has(r.role));
 }
 
 /** The paged roster: FLAT displayName/email (collaboration-team.service.ts:2489). */
@@ -355,8 +368,8 @@ const ACTIVITY_LABEL: Readonly<Record<string, string>> = {
   TEAM_RENAMED: "Team renamed",
   TEAM_DESCRIPTION_CHANGED: "Description updated",
   TEAM_TYPE_CHANGED: "Template changed",
-  TEAM_ARCHIVED: "Team archived",
-  TEAM_REOPENED: "Team reopened",
+  TEAM_ARCHIVED: "Collaboration Team archived",
+  TEAM_REOPENED: "Collaboration Team restored",
   MEMBER_INVITED: "Member invited",
   INVITE_RESENT: "Invite resent",
   INVITE_REVOKED: "Invite revoked",
@@ -439,9 +452,13 @@ export function activitySentence(item: TeamActivityEntry, actor: string | null):
     case "TEAM_TYPE_CHANGED":
       return actor ? `${actor} changed the team template` : "The team template was changed";
     case "TEAM_ARCHIVED":
-      return actor ? `${actor} archived the team` : "The team was archived";
+      return actor
+        ? `${actor} archived the Collaboration Team`
+        : "The Collaboration Team was archived";
     case "TEAM_REOPENED":
-      return actor ? `${actor} reopened the team` : "The team was reopened";
+      return actor
+        ? `${actor} restored the Collaboration Team`
+        : "The Collaboration Team was restored";
     case "MEMBER_INVITED":
       return target ? `${who} invited ${target}` : actor ? `${actor} invited a new member` : "A member was invited";
     case "INVITE_RESENT":

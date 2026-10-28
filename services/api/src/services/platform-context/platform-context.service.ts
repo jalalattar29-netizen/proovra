@@ -41,8 +41,10 @@ import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import {
   workspaceIncludesExternalReview,
+  workspaceIncludesReviewCapability,
   workspaceIncludesReviewerOperations,
 } from "../billing-enforcement.service.js";
+import { resolveWorkspaceCollaborationLimits } from "../billing/workspace-seats.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
 // ATTENTION ARCHITECTURE (2026-08-22) — the canonical answer to "is this an Enterprise
 // customer?", replacing a `billingPlan === "ENTERPRISE"` string comparison.
@@ -645,6 +647,38 @@ export async function buildPlatformContext(
     }
   }
 
+  /**
+   * COLLABORATION AND TEAM-TASK ENTITLEMENT FROM THE GATES' OWN AUTHORITIES
+   * (members ledger M4/C8). The catalog row ignores the Enterprise contract:
+   * a SUSPENDED contract still projected 1000 Collaboration Teams, and a
+   * contract excluding reviewer operations still projected team task queues,
+   * so navigation and buttons offered what every request refused. Both fail
+   * closed — without a workspace or on a failed read nothing is offered.
+   */
+  let collaborationLimits = {
+    maxCollaborationTeamsPerWorkspace: 0,
+    maxAcceptedMembersPerCollaborationTeam: 0,
+    maxAdditionalWorkspaceMembers: 0 as number | null,
+    maxPendingInvitesPerTeam: 0,
+    maxInvitesPer24h: 0,
+  };
+  let reviewQueuesIncluded = false;
+  if (workspace.id) {
+    try {
+      collaborationLimits = await resolveWorkspaceCollaborationLimits(workspace.id);
+    } catch {
+      // stays closed
+    }
+    try {
+      reviewQueuesIncluded = await workspaceIncludesReviewCapability(
+        workspace.id,
+        "REVIEW_TASKS_AND_QUEUES",
+      );
+    } catch {
+      reviewQueuesIncluded = false;
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Capabilities
   // -------------------------------------------------------------------------
@@ -666,7 +700,7 @@ export async function buildPlatformContext(
       packageProducesOperationalConditions: planProducesOperationalConditions(workspace.plan),
       memberCount: workspace.membership.memberCount,
       // Members audit ENT-01 — the plan halves of the capability map.
-      collaborationIncluded: planCaps.maxCollaborationTeamsPerWorkspace > 0,
+      collaborationIncluded: collaborationLimits.maxCollaborationTeamsPerWorkspace > 0,
       reviewerOperationsIncluded,
     });
     // OPS-021 — the Operations capabilities follow the SAME member-lifecycle
@@ -766,8 +800,8 @@ export async function buildPlatformContext(
     // PHASE 12B Track 1A — server-projected surface-tier entitlement (the ONE
     // commercial catalog decides; the frontend never branches on plan names).
     professionalSurfacesIncluded: planCaps.professionalSurfacesIncluded,
-    reviewQueuesIncluded: planCaps.reviewQueuesIncluded,
-    teamCollaborationIncluded: planCaps.maxCollaborationTeamsPerWorkspace > 0,
+    reviewQueuesIncluded,
+    teamCollaborationIncluded: collaborationLimits.maxCollaborationTeamsPerWorkspace > 0,
     /**
      * WCR-10 (2026-09-07) — EXTERNAL REVIEW, PROJECTED FROM ITS OWN AUTHORITY.
      *
@@ -828,12 +862,15 @@ export async function buildPlatformContext(
      */
     limits: {
       maxCollaborationTeamsPerWorkspace:
-        planCaps.maxCollaborationTeamsPerWorkspace,
+        collaborationLimits.maxCollaborationTeamsPerWorkspace,
       maxAcceptedMembersPerCollaborationTeam:
-        planCaps.maxAcceptedMembersPerCollaborationTeam,
-      maxAdditionalWorkspaceMembers: planCaps.maxAdditionalWorkspaceMembers,
-      maxPendingInvitesPerTeam: planCaps.maxPendingInvitesPerTeam,
-      maxInvitesPer24h: planCaps.maxInvitesPer24h,
+        collaborationLimits.maxAcceptedMembersPerCollaborationTeam,
+      // A contract seat count where one governs; otherwise the catalog's.
+      maxAdditionalWorkspaceMembers:
+        collaborationLimits.maxAdditionalWorkspaceMembers ??
+        planCaps.maxAdditionalWorkspaceMembers,
+      maxPendingInvitesPerTeam: collaborationLimits.maxPendingInvitesPerTeam,
+      maxInvitesPer24h: collaborationLimits.maxInvitesPer24h,
     },
   };
 

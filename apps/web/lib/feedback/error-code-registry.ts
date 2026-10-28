@@ -211,6 +211,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
 
   // -- Security posture -----------------------------------------------------
   STEP_UP_ENROLLMENT_REQUIRED: { disposition: "customer", where: "global" },
+  // 2026-10-28 — the authenticator ladder.
+  STEP_UP_METHOD_MISMATCH: { disposition: "customer", where: "global" },
+  STEP_UP_HANDOFF_INVALID: {
+    disposition: "generic",
+    why: "a stale, reused or forged system-browser handoff link; naming which would tell a holder of a leaked link whether it was ever valid",
+  },
   HIGH_SECURITY_PREREQUISITES_UNMET: { disposition: "customer", where: "global" },
   GOVERNANCE_CHECK_FAILED: {
     disposition: "generic",

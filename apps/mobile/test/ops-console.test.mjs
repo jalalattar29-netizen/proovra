@@ -301,7 +301,7 @@ test("bulk: STEP_UP_REQUIRED → challenge → code → the SAME request retried
   for (let i = 0; i < 3; i += 1) await settle();
 
   const start = requests.find((q) => q.path === "/v1/identity-security/step-up/start");
-  assert.deepEqual(start.body, { teamId: TEAM, purpose: "REVIEWER_OPS_BULK_ACTION", resourceKind: "workspace", resourceId: TEAM });
+  assert.deepEqual(start.body, { teamId: TEAM, purpose: "REVIEWER_OPS_BULK_ACTION", resourceKind: "workspace", resourceId: TEAM, handoff: true });
   const attempts = requests.filter((q) => q.path === "/v1/ops/bulk-actions");
   const retried = attempts.at(-1);
   assert.equal(retried.headers["x-proovra-step-up-challenge-id"], "ch-1");

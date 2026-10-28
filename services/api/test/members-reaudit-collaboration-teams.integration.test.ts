@@ -15,9 +15,8 @@
  *   - CT-04  EVIDENCE and REVIEW task targets follow the record's own access,
  *            as CASE targets do;
  *   - CT-06  each ineligible assignee is refused with its specific code;
- *   - SEC-03 deleting a group needs a fresh step-up (refused without, allowed
- *            with a real ceremony); a group that cannot be deleted is refused
- *            without a ceremony being asked for.
+ *   - no customer hard-delete route remains (2026-10-28: Collaboration Teams
+ *            are archived, never deleted).
  */
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -371,71 +370,19 @@ describe("Members re-audit D1a — Collaboration Teams (live PostgreSQL)", () =>
   });
 
   // ===========================================================================
-  // SEC-03 — deleting a group needs a fresh step-up.
+  // 2026-10-28 — a Collaboration Team is never customer-deleted. The former
+  // SEC-03 delete (and its disposability projection) is gone; retirement is
+  // the step-up-gated archive (collaboration-team-archive.integration.test.ts).
   // ===========================================================================
 
-  it("SEC-03 — a disposable group is deleted only after a real step-up; a history-bearing one is refused without a ceremony", async () => {
+  it("no customer hard-delete route remains reachable", async () => {
     const teamId = await group();
-    const url = `/v1/collaboration-teams/${teamId}`;
     const headers = { ...bearer(A().ownerToken), [WS]: A().teamId };
-
-    const refused = await h.app.inject({ method: "DELETE", url, headers });
-    expect(refused.statusCode, refused.body).toBe(401);
-    expect(errorCode(refused)).toBe("STEP_UP_REQUIRED");
-    // The 401 can be on the wire while the handler is still running: wait for
-    // the handler itself before asserting the refusal changed nothing.
+    const del = await h.app.inject({ method: "DELETE", url: `/v1/collaboration-teams/${teamId}`, headers });
+    expect(del.statusCode, del.body).toBe(404);
+    const disp = await h.app.inject({ method: "GET", url: `/v1/collaboration-teams/${teamId}/disposability`, headers });
+    expect(disp.statusCode, disp.body).toBe(404);
     await h.handlersSettled();
     expect(await prisma.collaborationTeam.findUnique({ where: { id: teamId } })).not.toBeNull();
-
-    // A challenge approved for ANOTHER group does not delete this one.
-    const other = await group();
-    const wrong = await h.app.inject({
-      method: "DELETE",
-      url,
-      headers: {
-        ...headers,
-        ...(await stepUp.approvedHeader({
-          token: A().ownerToken,
-          userId: owner(),
-          teamId: A().teamId,
-          purpose: "COLLABORATION_TEAM_DELETE",
-          resourceKind: "collaboration_team",
-          resourceId: other,
-        })),
-      },
-    });
-    expect(wrong.statusCode).toBe(401);
-    await h.handlersSettled();
-    expect(await prisma.collaborationTeam.findUnique({ where: { id: teamId } })).not.toBeNull();
-
-    const ok = await h.app.inject({
-      method: "DELETE",
-      url,
-      headers: {
-        ...headers,
-        ...(await stepUp.approvedHeader({
-          token: A().ownerToken,
-          userId: owner(),
-          teamId: A().teamId,
-          purpose: "COLLABORATION_TEAM_DELETE",
-          resourceKind: "collaboration_team",
-          resourceId: teamId,
-        })),
-      },
-    });
-    expect(ok.statusCode, ok.body).toBe(200);
-    expect(await prisma.collaborationTeam.findUnique({ where: { id: teamId } })).toBeNull();
-
-    // A group with history cannot be deleted at all: refused with its own
-    // code, and no ceremony is asked for first.
-    const kase = await prisma.case.create({
-      data: { name: `D1a history ${tag()}`, teamId: A().teamId, ownerUserId: owner() },
-      select: { id: true },
-    });
-    await ct.createAssignment({ teamId: other, actorUserId: owner(), targetType: "CASE", targetId: kase.id });
-    const historic = await h.app.inject({ method: "DELETE", url: `/v1/collaboration-teams/${other}`, headers });
-    expect(historic.statusCode, historic.body).toBe(409);
-    expect(errorCode(historic)).toBe("TEAM_NOT_DISPOSABLE");
-    expect(await prisma.collaborationTeam.findUnique({ where: { id: other } })).not.toBeNull();
   });
 });

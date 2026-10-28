@@ -53,6 +53,8 @@ const CODE_COPY: Record<string, string> = {
     "Every seat on this workspace's contract is in use, so this member can't be reinstated. Free a seat or extend the contract first.",
   collaboration_team_capacity_reached:
     "A Collaboration Team this member belongs to is now full on your plan. Make room in that team before reinstating them.",
+  workspace_seat_contention:
+    "Another membership change is in progress for this workspace. Try again in a moment.",
   member_owner_immutable:
     "The workspace owner cannot be suspended, revoked, or demoted here. Transfer ownership first.",
   role_transition_to_owner_forbidden:

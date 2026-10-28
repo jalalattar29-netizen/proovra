@@ -128,6 +128,11 @@ export type CollaborationTeamDetail = {
    */
   activeMemberCount: number;
   pendingInviteCount: number;
+  /**
+   * Members ledger X5 — valid leads (ACTIVE in the group and the workspace).
+   * Absent from an older server; 0 means the group has no lead.
+   */
+  validLeadCount?: number;
   memberPreviewLimit: number;
   members: ReadonlyArray<CollaborationTeamMember>;
   invites: ReadonlyArray<CollaborationTeamInvite>;
@@ -545,59 +550,70 @@ export async function updateTeam(
   });
 }
 
-export async function archiveTeam(teamId: string): Promise<void> {
-  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}/archive`, {
+/**
+ * ARCHIVE COLLABORATION TEAM (2026-10-28) — the one retirement; there is no
+ * delete. The server re-checks the exact name, then requires a recent step-up
+ * bound to this group: the caller passes the step-up headers its retry
+ * supplies (`useStepUpAction`). `alreadyArchived` is true when another
+ * request archived it first — nothing changed.
+ */
+export async function archiveTeam(
+  teamId: string,
+  input: { confirmName: string; reason?: string },
+  headers?: Record<string, string>,
+): Promise<{ alreadyArchived: boolean }> {
+  const res = (await apiFetch(`${BASE}/${encodeURIComponent(teamId)}/archive`, {
     method: "POST",
+    body: JSON.stringify(input),
+    ...(headers ? { headers } : {}),
+  })) as { alreadyArchived?: boolean } | null;
+  return { alreadyArchived: res?.alreadyArchived === true };
+}
+
+/**
+ * What archiving would affect, from the server — shown BEFORE the step-up.
+ * Counts only; the keys in `unavailable` / `preserved` / `restore.rechecks`
+ * are stable and worded by the dialog.
+ */
+export type CollaborationTeamArchiveImpact = {
+  teamId: string;
+  teamName: string;
+  status: string;
+  acceptedMembers: number;
+  caseGrants: number;
+  openAssignments: number;
+  pendingInvites: number;
+  unavailable: ReadonlyArray<string>;
+  preserved: ReadonlyArray<string>;
+  restore: { requestable: boolean; rechecks: ReadonlyArray<string> };
+};
+
+export async function getTeamArchiveImpact(
+  teamId: string,
+): Promise<CollaborationTeamArchiveImpact> {
+  const res = (await apiFetch(
+    `${BASE}/${encodeURIComponent(teamId)}/archive-impact`,
+  )) as { impact?: CollaborationTeamArchiveImpact } | null;
+  if (!res?.impact) throw new Error("archive impact unavailable");
+  return res.impact;
+}
+
+/**
+ * LEAD RECOVERY (members ledger X5) — the workspace owner appoints a lead for
+ * a team that has none: a current member, or themself. The server refuses
+ * anyone but the owner, and a team that still has a lead.
+ */
+export async function recoverTeamLead(teamId: string, userId: string): Promise<void> {
+  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}/lead-recovery`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
   });
 }
 
 /**
- * Whether this group can be permanently deleted, and what stops it.
- *
- * The SERVER decides. Emptiness is a property of rows the browser cannot see —
- * assignments, discussion, access reviews, guests, real activity — so a client
- * that computed it would be guessing. Read before offering the control, never
- * inferred from a failed DELETE: teaching a destructive limit by letting the
- * operator hit it is exactly what §15.28 rules out.
- */
-export type CollaborationTeamDisposability = {
-  disposable: boolean;
-  /** The history that blocks deletion, by kind. Empty when disposable. */
-  blockers: ReadonlyArray<{ kind: string; count: number }>;
-};
-
-export async function getTeamDisposability(
-  teamId: string,
-): Promise<CollaborationTeamDisposability> {
-  const res = (await apiFetch(
-    `${BASE}/${encodeURIComponent(teamId)}/disposability`,
-  )) as { disposition?: CollaborationTeamDisposability } | null;
-  return res?.disposition ?? { disposable: false, blockers: [] };
-}
-
-/**
- * Permanently delete a group that carries no operational record.
- *
- * The server re-checks disposability inside its transaction and answers 409
- * `TEAM_NOT_DISPOSABLE` for a group with history — this is the accidental-
- * creation path, not a way to erase work. Archiving remains the action for a
- * group that has done any, and it already frees the capacity slot, so deletion
- * is never the route to more capacity.
- */
-/**
- * Members audit SEC-03 — deleting a group is irreversible and needs a fresh
- * factor: the caller passes the step-up headers its retry supplies.
- */
-export async function deleteTeam(teamId: string, headers?: Record<string, string>): Promise<void> {
-  await apiFetch(`${BASE}/${encodeURIComponent(teamId)}`, { method: "DELETE", ...(headers ? { headers } : {}) });
-}
-
-/**
- * WCR-13 — reopen an archived group.
- *
- * Archiving was one-way while the confirmation dialog promised it was not.
- * Capacity is re-checked server-side: an archived group frees a plan slot, so
- * reopening competes with creating.
+ * RESTORE COLLABORATION TEAM (WCR-13). The server re-checks plan entitlement,
+ * the active-Team count, per-Team member capacity, the workspace and
+ * Organization lifecycle and the Enterprise contract at restore time.
  */
 export async function unarchiveTeam(teamId: string): Promise<void> {
   await apiFetch(`${BASE}/${encodeURIComponent(teamId)}/unarchive`, {

@@ -57,8 +57,9 @@ const ROLE_WORDS: Record<WorkspaceRole, string> = {
   VIEWER: "Viewer",
 };
 
+/** An unknown plan is unknown — never shown as FREE (members ledger M15). */
 function planLabel(plan: string | null): string {
-  return (plan ?? "FREE").toUpperCase();
+  return plan ? plan.toUpperCase() : "—";
 }
 
 function asRole(v: unknown): WorkspaceRole | null {
@@ -111,12 +112,15 @@ export function projectSettingsOverview(envelope: unknown): SettingsOverview {
 
   return {
     isPersonal: !isOrg,
-    workspaceName: isOrg ? orgName : "Personal Space",
+    workspaceName: isOrg ? orgName : "Personal Workspace",
     role,
     roleLabel: role ? ROLE_WORDS[role] : null,
     billing,
     canViewRoles: isOrg && caps.SETTINGS_VIEW === true,
-    canManageMembers: isOrg && caps.SETTINGS_MANAGE === true,
+    // M15 — a Personal Workspace on a plan with Collaboration Teams has
+    // members too; its owner manages them exactly as the web shows.
+    canManageMembers:
+      caps.SETTINGS_MANAGE === true && (isOrg || planFeatures.teamCollaborationIncluded === true),
     showAiSettings: !(!isOrg && allowance === 0),
     showReviewerCriteria: isPlatformAdmin || planFeatures.reviewerOperationsIncluded === true,
     matrixRole: isOrg ? str(active.roleLabel) : "OWNER",

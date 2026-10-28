@@ -25,7 +25,42 @@ export const STEP_UP_CHALLENGE_HEADER = "x-proovra-step-up-challenge-id";
 export const STEP_UP_START_PATH = "/v1/identity-security/step-up/start";
 export const STEP_UP_CHECK_PATH = "/v1/identity-security/step-up/check";
 
-export type ChallengeMethod = "TOTP" | "SMS" | "WHATSAPP";
+/**
+ * 2026-10-28 — the authenticator ladder. A PASSKEY or IDP_REAUTH challenge
+ * is answered in a SYSTEM BROWSER (`handoffUrl`, opened with
+ * expo-web-browser's auth session): the web page completes it with the
+ * passkey or the Organization's sign-in, then returns to
+ * `proovra://step-up/complete`. The app then reads the challenge status and,
+ * only when the server says APPROVED, retries the action — spending the
+ * approval still needs this app's own session.
+ */
+export type ChallengeMethod = "PASSKEY" | "IDP_REAUTH" | "TOTP" | "SMS" | "WHATSAPP";
+
+export const CHALLENGE_METHODS: ReadonlyArray<ChallengeMethod> = [
+  "PASSKEY",
+  "IDP_REAUTH",
+  "TOTP",
+  "SMS",
+  "WHATSAPP",
+];
+
+/** Where the system browser returns when the handoff page is done. */
+export const STEP_UP_RETURN_URL = "proovra://step-up/complete";
+
+export function stepUpStatusPath(challengeId: string, teamId: string): string {
+  return `/v1/identity-security/step-up/${encodeURIComponent(challengeId)}/status?teamId=${encodeURIComponent(teamId)}`;
+}
+
+/** Methods answered in the system browser rather than with a typed code. */
+export function isBrowserMethod(method: ChallengeMethod): boolean {
+  return method === "PASSKEY" || method === "IDP_REAUTH";
+}
+
+function asMethod(v: unknown): ChallengeMethod | null {
+  return typeof v === "string" && (CHALLENGE_METHODS as ReadonlyArray<string>).includes(v)
+    ? (v as ChallengeMethod)
+    : null;
+}
 
 export interface ChallengeDetails {
   readonly purpose: string;
@@ -61,6 +96,9 @@ export function buildStartBody(teamId: string, details: ChallengeDetails, channe
     ...(details.resourceKind ? { resourceKind: details.resourceKind } : {}),
     ...(details.resourceId ? { resourceId: details.resourceId } : {}),
     ...(channel ? { channel } : {}),
+    // The app answers a passkey in the system browser, so it always asks for
+    // a handoff; the server ignores it for the code kinds.
+    handoff: true,
   };
 }
 
@@ -68,6 +106,12 @@ export interface StartedChallenge {
   readonly challengeId: string;
   readonly method: ChallengeMethod;
   readonly destinationMask: string | null;
+  /** Every kind the server says this person may answer with, strongest first. */
+  readonly availableMethods: ReadonlyArray<ChallengeMethod>;
+  /** PASSKEY / IDP_REAUTH: the page that completes it in the system browser. */
+  readonly handoffUrl: string | null;
+  /** Approved at start (a recent, sufficient Organization sign-in). */
+  readonly approved: boolean;
 }
 
 /** The start response → the verifying state. Null when the id is missing. */
@@ -75,11 +119,16 @@ export function parseStartedChallenge(data: unknown): StartedChallenge | null {
   const d = obj(data);
   const id = obj(d["challenge"])["id"];
   if (typeof id !== "string" || id.length === 0) return null;
-  const m = d["method"];
+  const available = Array.isArray(d["availableMethods"])
+    ? (d["availableMethods"] as unknown[]).map(asMethod).filter((m): m is ChallengeMethod => m !== null)
+    : [];
   return {
     challengeId: id,
-    method: m === "TOTP" || m === "SMS" || m === "WHATSAPP" ? m : "SMS",
+    method: asMethod(d["method"]) ?? "SMS",
     destinationMask: typeof d["destinationMask"] === "string" ? (d["destinationMask"] as string) : null,
+    availableMethods: available,
+    handoffUrl: typeof d["handoffUrl"] === "string" ? (d["handoffUrl"] as string) : null,
+    approved: obj(d["challenge"])["status"] === "APPROVED",
   };
 }
 
@@ -102,7 +151,7 @@ export const PURPOSE_LABEL: Readonly<Record<string, string>> = {
   DEPARTMENT_MEMBERSHIP_REVOKE: "Revoke this department membership",
   // Members audit SEC-03 / ROLE-05 — irreversible deletes and published identity.
   CASE_DELETE: "Delete this case",
-  COLLABORATION_TEAM_DELETE: "Delete this Collaboration Team",
+  COLLABORATION_TEAM_ARCHIVE: "Archive this Collaboration Team",
   WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
 };
 
@@ -112,10 +161,30 @@ export function purposeLabel(purpose: string): string {
 
 export const CHALLENGE_COPY = {
   intro:
-    "This action requires an additional step-up confirmation. The action will only proceed after you verify a one-time code.",
+    "This action requires an additional step-up confirmation. Nothing happens until you confirm it's you.",
   preparing: "Preparing your verification…",
   enrollment:
-    "This action needs a verified second factor — an authenticator app or a verified phone — and this account has neither yet. Set one up under Settings → Security, then start this action again.",
+    "This action needs a verified way to confirm it's you — a passkey or security key, your organization's sign-in, an authenticator app, or (where allowed) a verified phone — and this account has none it can use here. Set one up under Settings → Security, then start this action again. Lost every factor? Use account recovery from the sign-in screen.",
+  passkeyPrompt: "Use your passkey or security key to confirm it's you. A secure browser window will open.",
+  idpPrompt: "Sign in again with your organization to confirm it's you. A secure browser window will open.",
+  passkeyAction: "Use passkey",
+  idpAction: "Continue to sign-in",
+  browserPending: "Confirmation isn't finished yet. Complete it in the browser window, then try again.",
+  browserDenied: "That didn't confirm it's you. Start again to retry.",
+  switchTo: {
+    PASSKEY: "Use a passkey or security key instead",
+    IDP_REAUTH: "Use your organization's sign-in instead",
+    TOTP: "Use an authenticator app instead",
+    SMS: "Use a text message instead",
+    WHATSAPP: "Use WhatsApp instead",
+  } as Readonly<Record<ChallengeMethod, string>>,
+  missing: {
+    PASSKEY: "This account has no passkey or security key set up.",
+    IDP_REAUTH: "Your organization's sign-in can't be used for this.",
+    TOTP: "This account has no authenticator app set up.",
+    SMS: "This account has no verified phone set up.",
+    WHATSAPP: "This account has no verified phone set up.",
+  } as Readonly<Record<ChallengeMethod, string>>,
   codeLabelTotp: "Code from your authenticator app",
   codeLabelPhone: (mask: string | null) =>
     mask ? `Verification code (sent to ${mask})` : "Verification code (sent to your verified phone)",
@@ -133,6 +202,20 @@ export const CHALLENGE_COPY = {
   noPhone: "This account has no verified phone set up.",
   switchFailed: "Could not switch verification method.",
 } as const;
+
+/** What proovra://step-up/complete says, from the browser's reported result. */
+export function describeStepUpReturn(result: string | null): { title: string; body: string } {
+  if (result === "approved") {
+    return {
+      title: "Confirmed",
+      body: "You confirmed it's you. Go back to finish the action — it continues only after the app checks the confirmation.",
+    };
+  }
+  return {
+    title: "Not confirmed",
+    body: "This didn't confirm it's you, so nothing was changed. Go back and try again, or choose another method.",
+  };
+}
 
 /** The code the flow rejects with when the person cancels. */
 export const STEP_UP_CANCEL = "STEP_UP_CANCEL";

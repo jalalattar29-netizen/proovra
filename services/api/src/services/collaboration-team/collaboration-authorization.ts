@@ -290,7 +290,7 @@ export async function authorizeCollaborationTeam(
     void reply.code(409).send({
       error: {
         code: "collaboration_team_archived",
-        message: "This team is archived. Reopen it before making changes.",
+        message: "This Collaboration Team is archived. Restore it before making changes.",
         requestId: req.id ?? null,
       },
     });

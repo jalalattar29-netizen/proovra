@@ -60,6 +60,7 @@ import { AppStatusText } from "../../../../components/app-primitives/AppStatusTe
 import { useAuth } from "../../../providers";
 import { useTeamId } from "../../../../lib/platform-context";
 import { ContactFactorEnrollmentPanel } from "../../../../components/identity-security/ContactFactorEnrollmentPanel";
+import { PasskeysCard } from "../../../../components/identity-security/PasskeysCard";
 
 // -----------------------------------------------------------------------------
 // Shared styles — canonical LIGHT tokens (no dark-theme constants).
@@ -2135,6 +2136,9 @@ export function PersonalSecuritySections() {
         passwordConfigured={loginMethods?.passwordConfigured ?? null}
       />
       <MfaCard mfa={mfa} mfaError={mfaError} reloadMfa={reloadMfa} />
+      {/* 2026-10-28 — passkeys / security keys. Account-owned like the
+          authenticator app, so shown in every space (no workspace needed). */}
+      <PasskeysCard />
       {/*
        * PHASE 13 (NEW-058) — the account-bound contact factor.
        *

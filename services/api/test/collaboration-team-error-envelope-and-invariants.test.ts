@@ -228,29 +228,21 @@ describe("the last ACTIVE LEAD invariant is transactional in all three writers",
   });
 });
 
-/** The DELETE registration only — bounded by the next route registration. */
-function deleteRouteBody(): string {
-  const start = ROUTES.indexOf("app.delete<{ Params: { teamId: string } }>");
-  expect(start, "delete route not found").toBeGreaterThan(-1);
-  const next = ROUTES.indexOf("\n  app.", start + 1);
-  return ROUTES.slice(start, next === -1 ? undefined : next);
-}
-
-describe("permanent deletion has its own capability", () => {
-  it("the delete route no longer rides on team.archive", () => {
-    const del = deleteRouteBody();
-    expect(del).toContain('groupPermission: "team.delete"');
-    expect(del).not.toContain('groupPermission: "team.archive"');
+describe("no customer hard-delete (2026-10-28)", () => {
+  it("no DELETE route is registered for a Collaboration Team", () => {
+    expect(ROUTES).not.toMatch(
+      /app\.delete<\{ Params: \{ teamId: string \} \}>\(\s*"\/v1\/collaboration-teams\/:teamId"/,
+    );
+    expect(ROUTES).not.toContain("/disposability");
   });
 
-  it("archived teams stay deletable — the lifecycle exception is deliberate", () => {
-    const del = deleteRouteBody();
-    expect(del).not.toContain("requireActiveTeam: true");
-  });
-
-  it("disposability is still re-asserted inside the deleting transaction", () => {
-    const body = SERVICE.slice(SERVICE.indexOf("export async function deleteCollaborationTeam("));
-    expect(body).toContain("$transaction");
-    expect(body).toContain("disposable");
+  it("archive asks for its step-up only after the exact-name confirmation", () => {
+    const body = ROUTES.slice(ROUTES.indexOf('"/v1/collaboration-teams/:teamId/archive",'));
+    const confirm = body.indexOf("assertArchiveConfirmation(");
+    const stepUp = body.indexOf('purpose: "COLLABORATION_TEAM_ARCHIVE"');
+    const mutate = body.indexOf("archiveCollaborationTeam(");
+    expect(confirm).toBeGreaterThan(-1);
+    expect(confirm).toBeLessThan(stepUp);
+    expect(stepUp).toBeLessThan(mutate);
   });
 });

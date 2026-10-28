@@ -1748,7 +1748,7 @@ export async function teamsRoutes(app: FastifyInstance) {
        * migration is optional. Release A is still required for invitations to
        * work; see the deployment note in the migration plan.
        */
-      const existingPendingInvite = await prisma.teamInvite.findFirst({
+      let existingPendingInvite = await prisma.teamInvite.findFirst({
         where: {
           teamId,
           email,
@@ -1756,8 +1756,44 @@ export async function teamsRoutes(app: FastifyInstance) {
           revokedAt: null,
         },
         orderBy: { createdAt: "desc" },
-        select: { id: true, role: true },
+        select: { id: true, role: true, expiresAt: true },
       });
+
+      /*
+       * AN EXPIRED INVITATION IS NOT "ALREADY PENDING" (members ledger M13).
+       *
+       * The partial unique index keeps a lapsed row in the way of a new one,
+       * so a re-invite at a different role was refused as "already pending"
+       * for a link nobody could use any more. A lapsed invitation at another
+       * role is superseded — closed, conditionally, so a concurrent resend
+       * that revived it wins — and the new role is invited fresh. One at the
+       * same role is still resent below, which rotates and extends it.
+       */
+      if (
+        existingPendingInvite &&
+        existingPendingInvite.role !== invitedRole &&
+        existingPendingInvite.expiresAt.getTime() <= Date.now()
+      ) {
+        const superseded = await prisma.teamInvite.updateMany({
+          where: {
+            id: existingPendingInvite.id,
+            acceptedAt: null,
+            revokedAt: null,
+            expiresAt: { lte: new Date() },
+          },
+          data: { revokedAt: new Date() },
+        });
+        if (superseded.count === 1) {
+          await auditTeamAction(req, {
+            userId,
+            action: "teams.invite_revoke",
+            outcome: "success",
+            resourceId: teamId,
+            metadata: { inviteId: existingPendingInvite.id, reason: "EXPIRED_SUPERSEDED_BY_REINVITE" },
+          });
+          existingPendingInvite = null;
+        }
+      }
 
       // Members audit INV-03 — a repeat invitation at a DIFFERENT role used to
       // resend the pending one at its old role and report success, so the
@@ -1835,7 +1871,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           existing: true,
           message: emailSent
             ? "Existing invitation resent successfully"
-            : "Existing invitation already pending",
+            : "Existing invitation renewed, but the email could not be delivered",
         });
       }
 
@@ -2003,7 +2039,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         existing: false,
         message: emailSent
           ? "Invitation sent successfully"
-          : "Invitation created successfully",
+          : "Invitation created, but the email could not be delivered",
       });
     }
   );

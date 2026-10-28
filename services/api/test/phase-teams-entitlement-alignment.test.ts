@@ -199,7 +199,7 @@ describe("Team creation — the commercial plan matrix", () => {
     );
     expect(e.details.limit).toBe(2);
     expect(e.details.usage).toBe(2);
-    expect(e.message).toContain("up to 2 Teams");
+    expect(e.message).toContain("up to 2 Collaboration Teams");
   });
 
   it("TEAM plan: fifth allowed, sixth denied with the same typed capacity response", async () => {
@@ -232,11 +232,12 @@ describe("Team creation — the commercial plan matrix", () => {
     }
   });
 
-  it("ENTERPRISE with an ACTIVE contract: the contracted ceiling, and the catalog only where the contract is silent", async () => {
+  it("ENTERPRISE with an ACTIVE contract: the contracted ceiling; a silent contract grants none (members ledger M5)", async () => {
     const active = { ...NO_CONTRACT_LIMITS, contractGovernsCapability: true };
     expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: { ...active, collaborationTeams: 12 } })).toBe(12);
     expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: { ...active, collaborationTeamMembers: 40 } })).toBe(40);
-    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: active })).toBe(1000);
+    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: active })).toBe(0);
+    expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: active })).toBe(0);
     expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: NO_CONTRACT_LIMITS })).toBe(0);
   });
 

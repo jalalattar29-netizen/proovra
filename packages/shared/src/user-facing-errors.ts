@@ -485,7 +485,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   },
   TEAM_LIMIT_REACHED: {
     title: "Team limit reached",
-    message: "Your plan's Team limit has been reached. Upgrade to create another Team.",
+    message: "Your plan's Collaboration Team limit has been reached. Upgrade to create another Collaboration Team.",
     severity: "warning",
     actionLabel: "View billing",
     actionHref: "/billing",
@@ -547,8 +547,59 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     severity: "warning",
   },
   COLLABORATION_TEAM_ARCHIVED: {
-    title: "This team is archived",
-    message: "Reopen this team before making changes. Its history stays available either way.",
+    title: "This Collaboration Team is archived",
+    message: "Restore this Collaboration Team before making changes. Its history stays available either way.",
+    severity: "warning",
+  },
+  // 2026-10-28 — Archive Collaboration Team, Restore and Lead recovery.
+  ARCHIVE_CONFIRMATION_MISMATCH: {
+    title: "Name doesn't match",
+    message: "Type the Collaboration Team's exact name to archive it.",
+    severity: "warning",
+  },
+  WORKSPACE_NOT_ACTIVE: {
+    title: "Workspace is closed",
+    message: "This workspace is closed, so its Collaboration Teams can't be restored.",
+    severity: "warning",
+  },
+  ORGANIZATION_NOT_ACTIVE: {
+    title: "Organization isn't active",
+    message: "This organization isn't active, so its Collaboration Teams can't be restored.",
+    severity: "warning",
+  },
+  LEAD_PRESENT: {
+    title: "This team already has a lead",
+    message: "Ask the team's lead to change its leadership.",
+    severity: "info",
+  },
+  LEAD_RECOVERY_OWNER_ONLY: {
+    title: "Only the workspace owner can do this",
+    message: "Only the workspace owner can appoint a lead for a team that has none.",
+    severity: "warning",
+  },
+  LEAD_RECOVERY_TARGET_NOT_MEMBER: {
+    title: "Choose a team member",
+    message: "Choose a current member of this Collaboration Team, or appoint yourself.",
+    severity: "warning",
+  },
+  // Members ledger C9 — reinstatement refusals said "something went wrong".
+  WORKSPACE_SEAT_LIMIT_REACHED: {
+    title: "No seat available",
+    message: "This workspace has used every seat its plan or contract includes. Free a seat, or upgrade, before reinstating this person.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  COLLABORATION_TEAM_CAPACITY_REACHED: {
+    title: "A Collaboration Team is full",
+    message: "This person belongs to a Collaboration Team that is now at its member limit. Make room in that team, or upgrade, before reinstating them.",
+    severity: "warning",
+    actionLabel: "View billing",
+    actionHref: "/billing",
+  },
+  STEP_UP_METHOD_MISMATCH: {
+    title: "Use the method you started with",
+    message: "This confirmation is completed with a different method. Start again, or choose another method.",
     severity: "warning",
   },
   TEAM_MEMBER_LIMIT_REACHED: {

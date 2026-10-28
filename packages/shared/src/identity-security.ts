@@ -111,7 +111,13 @@ export const STEP_UP_PURPOSES = [
   // Members audit SEC-03 — deleting a case is irreversible.
   "CASE_DELETE",
   // Members re-audit SEC-03 — deleting a Collaboration Team is irreversible.
+  // RETIRED 2026-10-28: Collaboration Teams are never customer-deleted. Kept
+  // so a stored row still parses; no route asks for it.
   "COLLABORATION_TEAM_DELETE",
+  // 2026-10-28 — archiving a Collaboration Team withdraws every member's
+  // reach through it. Answered by the strongest authenticator held
+  // (STEP_UP_PURPOSE_FACTOR_POLICY below).
+  "COLLABORATION_TEAM_ARCHIVE",
   // Members re-audit ROLE-05 — the workspace's legal contact and logo appear
   // on what the workspace publishes.
   "WORKSPACE_IDENTITY_UPDATE",
@@ -326,26 +332,125 @@ export type StepUpPurpose = z.infer<typeof StepUpPurposeSchema>;
 // reviewer sees it and a test pins it — never by an implicit default.
 // -----------------------------------------------------------------------------
 
-export const STEP_UP_FACTOR_KINDS = ["TOTP", "SMS", "WHATSAPP"] as const;
+//
+// 2026-10-28 — THE AUTHENTICATOR LADDER. Two kinds join: PASSKEY (a WebAuthn
+// passkey or hardware security key, phishing-resistant) and IDP_REAUTH (a
+// fresh, assurance-checked reauthentication at the Organization's own SAML /
+// OIDC identity provider — never SCIM, which provisions and cannot
+// authenticate). The ORDER of a purpose's entry is its preference: the
+// strongest factor the person holds answers first. The ladder is offered
+// where a purpose names it; every older purpose keeps exactly the kinds it
+// had, so nothing else changes behaviour.
+// -----------------------------------------------------------------------------
+
+export const STEP_UP_FACTOR_KINDS = [
+  "PASSKEY",
+  "IDP_REAUTH",
+  "TOTP",
+  "SMS",
+  "WHATSAPP",
+] as const;
 export type StepUpFactorKind = (typeof STEP_UP_FACTOR_KINDS)[number];
+
+/** The kinds every purpose accepted before the ladder existed. */
+export const STEP_UP_CODE_FACTOR_KINDS: ReadonlyArray<StepUpFactorKind> = Object.freeze([
+  "TOTP",
+  "SMS",
+  "WHATSAPP",
+]);
+
+/** Strongest first: passkey, IdP reauthentication, authenticator app, codes. */
+export const STEP_UP_AUTHENTICATOR_LADDER: ReadonlyArray<StepUpFactorKind> = Object.freeze([
+  "PASSKEY",
+  "IDP_REAUTH",
+  "TOTP",
+  "SMS",
+  "WHATSAPP",
+]);
+
+/** Factor kinds an Organization requiring PHISHING_RESISTANT step-up admits. */
+export const PHISHING_RESISTANT_STEP_UP_KINDS: ReadonlyArray<StepUpFactorKind> = Object.freeze([
+  "PASSKEY",
+  "IDP_REAUTH",
+]);
+
+/** Codes delivered to a phone; admitted only where the Organization allows. */
+export const PHONE_DELIVERED_STEP_UP_KINDS: ReadonlyArray<StepUpFactorKind> = Object.freeze([
+  "SMS",
+  "WHATSAPP",
+]);
+
+export const STEP_UP_ASSURANCE_LEVELS = ["STANDARD", "PHISHING_RESISTANT"] as const;
+export type StepUpAssuranceLevel = (typeof STEP_UP_ASSURANCE_LEVELS)[number];
+
+const LADDER_PURPOSES: ReadonlySet<StepUpPurpose> = new Set<StepUpPurpose>([
+  "COLLABORATION_TEAM_ARCHIVE",
+]);
 
 export const STEP_UP_PURPOSE_FACTOR_POLICY: Readonly<
   Record<StepUpPurpose, ReadonlyArray<StepUpFactorKind>>
 > = Object.freeze(
   STEP_UP_PURPOSES.reduce(
     (policy, purpose) => {
-      policy[purpose] = STEP_UP_FACTOR_KINDS;
+      policy[purpose] = LADDER_PURPOSES.has(purpose)
+        ? STEP_UP_AUTHENTICATOR_LADDER
+        : STEP_UP_CODE_FACTOR_KINDS;
       return policy;
     },
     {} as Record<StepUpPurpose, ReadonlyArray<StepUpFactorKind>>,
   ),
 );
 
+/**
+ * The kinds that may answer THIS purpose for a person in an Organization with
+ * this step-up policy, in preference order. Pure: the policy narrows the
+ * purpose's ladder and never widens it. A null policy (no Organization
+ * policy row) is STANDARD with SMS allowed — today's behaviour.
+ */
+export function stepUpFactorKindsAllowed(
+  purpose: StepUpPurpose,
+  policy: { assurance: StepUpAssuranceLevel; smsAllowed: boolean } | null,
+): ReadonlyArray<StepUpFactorKind> {
+  const kinds = stepUpFactorKindsFor(purpose);
+  if (!policy) return kinds;
+  return kinds.filter((kind) => {
+    if (
+      policy.assurance === "PHISHING_RESISTANT" &&
+      !PHISHING_RESISTANT_STEP_UP_KINDS.includes(kind)
+    ) {
+      return false;
+    }
+    if (!policy.smsAllowed && PHONE_DELIVERED_STEP_UP_KINDS.includes(kind)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/** Safe authentication-method category for audit rows (never a secret). */
+export function stepUpMethodCategory(
+  method: string | null | undefined,
+): "PASSKEY" | "IDP_REAUTH" | "AUTHENTICATOR_APP" | "PHONE_CODE" | "UNKNOWN" {
+  switch (method) {
+    case "PASSKEY":
+      return "PASSKEY";
+    case "IDP_REAUTH":
+      return "IDP_REAUTH";
+    case "TOTP":
+      return "AUTHENTICATOR_APP";
+    case "SMS":
+    case "WHATSAPP":
+      return "PHONE_CODE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 /** The factor kinds that may satisfy a step-up for this purpose. */
 export function stepUpFactorKindsFor(
   purpose: StepUpPurpose,
 ): ReadonlyArray<StepUpFactorKind> {
-  return STEP_UP_PURPOSE_FACTOR_POLICY[purpose] ?? STEP_UP_FACTOR_KINDS;
+  return STEP_UP_PURPOSE_FACTOR_POLICY[purpose] ?? STEP_UP_CODE_FACTOR_KINDS;
 }
 
 // -----------------------------------------------------------------------------

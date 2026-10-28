@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281026001400_collaboration_vocabulary_normalise";
+export const EXPECTED_MIGRATION_HEAD = "20281028000000_team_archive_step_up_assurance";
 
 export type MigrationRow = {
   migration_name: string;

@@ -521,8 +521,7 @@ function HealthRow({
 const PERMISSION_LABELS: Record<string, string> = {
   "team.read": "See this team and its work",
   "team.update_settings": "Change the team's name and description",
-  "team.archive": "Archive or reopen this team",
-  "team.delete": "Permanently delete this team when it holds no records",
+  "team.archive": "Archive or restore this Collaboration Team",
   "team.transfer_lead": "Transfer the lead role",
   "team.member.invite": "Add workspace members to the team",
   "team.member.remove": "Remove members from the team",
@@ -560,8 +559,8 @@ const LIFECYCLE_SENSITIVE_LABELS: Record<
   { active: string; archived: string }
 > = {
   "team.archive": {
-    active: "Archive this team",
-    archived: "Reopen this team",
+    active: "Archive this Collaboration Team",
+    archived: "Restore this Collaboration Team",
   },
 };
 
@@ -585,7 +584,6 @@ const PERMISSION_GROUPS: { title: string; match: (p: string) => boolean }[] = [
     match: (p) =>
       p === "team.update_settings" ||
       p === "team.archive" ||
-      p === "team.delete" ||
       p === "team.transfer_lead",
   },
   { title: "Members", match: (p) => p.startsWith("team.member.") },

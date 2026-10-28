@@ -1218,7 +1218,12 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // 2026-10-25 (members audit LIFE-11): 136 -> 137 — internal-lifecycle.routes.ts,
 // the cron-secret machine endpoint the worker's lifecycle sweep calls. It is an
 // internal surface of its own, like internal-reindex.routes.ts beside it.
-const ROUTE_COUNT_PHASE_2_BASELINE = 137;
+// 2026-10-28 (Collaboration Team archive step-up): 137 -> 139 —
+// passkey.routes.ts (enrol, list and revoke passkeys behind account step-up)
+// and step-up-idp.routes.ts (the unauthenticated begin of the Organization
+// sign-in that answers an IDP_REAUTH challenge). Each is an identity surface
+// of its own, beside mfa.routes.ts and saml-auth.routes.ts.
+const ROUTE_COUNT_PHASE_2_BASELINE = 139;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

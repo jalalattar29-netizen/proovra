@@ -56,6 +56,16 @@ type JwtPayload = {
    * replace the primary `authMethod`. Epoch seconds MFA was satisfied.
    */
   mfaAt?: number;
+  /**
+   * 2026-10-28 — MFA-PENDING TOKENS ONLY, minted by the SAML ACS / OIDC
+   * callback after a VERIFIED IdP sign-in: the context identifier the IdP
+   * asserted (AuthnContextClassRef / acr) and its authentication instant
+   * (epoch seconds). They let POST /v1/auth/mfa/verify record the final
+   * session with its SSO provenance instead of collapsing it to PASSWORD.
+   * Server-signed like every claim here; never read from a client field.
+   */
+  idpCtx?: string;
+  idpAuthAt?: number;
 };
 
 /**
@@ -169,6 +179,30 @@ export function signJwt(
   const signingInput = `${headerB64}.${payloadB64}`;
   const signature = base64UrlEncode(signHmac(signingInput, secret));
   return `${signingInput}.${signature}`;
+}
+
+/**
+ * 2026-10-28 — the `sid` a token was ACTUALLY minted with. `signJwt` always
+ * assigns a fresh sid (a caller-supplied one is overwritten, by design), so a
+ * mint site that records the session inventory or binds an Organization
+ * session context must read the sid back from the signed token — never reuse
+ * a value it generated before signing, which the token does not carry.
+ */
+export function mintedSessionClaims(token: string): { sid: string; iat: number; exp: number } {
+  const parts = token.split(".");
+  const payload = JSON.parse(base64UrlDecode(parts[1] ?? "").toString("utf8")) as {
+    sid?: unknown;
+    iat?: unknown;
+    exp?: unknown;
+  };
+  if (
+    typeof payload.sid !== "string" ||
+    typeof payload.iat !== "number" ||
+    typeof payload.exp !== "number"
+  ) {
+    throw new Error("token_without_session_claims");
+  }
+  return { sid: payload.sid, iat: payload.iat, exp: payload.exp };
 }
 
 /**

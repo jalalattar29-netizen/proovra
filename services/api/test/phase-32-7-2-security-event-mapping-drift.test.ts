@@ -1487,6 +1487,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281026001300_identity_rows_outlive_workspace",
       // Members re-audit N-8: normalises deterministic legacy vocabulary variants and validates the DOM-08 checks that have no violators. BACKFILL.
       "20281026001400_collaboration_vocabulary_normalise",
+      // Collaboration Team archive and step-up assurance: passkey factor, step-up ladder columns, Organization assurance policy, session assurance, archive provenance. EXPAND.
+      "20281028000000_team_archive_step_up_assurance",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

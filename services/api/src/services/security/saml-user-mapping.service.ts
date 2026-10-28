@@ -243,7 +243,7 @@ function resolveDisplayName(
  * Resolves the external subject ID used as the ExternalIdentityMapping key.
  * Falls back to the NameID value.
  */
-function resolveExternalSubjectId(
+export function resolveExternalSubjectId(
   assertion: SamlAssertion,
   mapping: SamlAttributeMapping | null | undefined,
 ): string {

@@ -62,7 +62,26 @@ interface SecurityPolicy {
   ssoReadyFlag?: boolean;
   scimReadyFlag?: boolean;
   notes?: string | null;
+  // 2026-10-28 — step-up assurance (the authenticator ladder's Organization
+  // knobs). Server-validated; the editor only collects intent.
+  stepUpAssurance?: StepUpAssurance;
+  stepUpSmsAllowed?: boolean;
+  idpStepUpAcceptedContexts?: string[];
+  idpStepUpMaxAgeSeconds?: number;
 }
+type StepUpAssurance = "STANDARD" | "PHISHING_RESISTANT";
+const STEP_UP_ASSURANCE_OPTIONS: ReadonlyArray<{ value: StepUpAssurance; label: string; hint: string }> = [
+  {
+    value: "STANDARD",
+    label: "Standard",
+    hint: "Any enrolled factor: passkey, organization sign-in, authenticator app, or (if allowed) an SMS code.",
+  },
+  {
+    value: "PHISHING_RESISTANT",
+    label: "Phishing-resistant",
+    hint: "Only a passkey / security key, or an organization sign-in whose authentication context is listed below.",
+  },
+];
 interface PolicyResponse {
   applicability: "ORGANIZATION" | "NOT_APPLICABLE";
   organizationId?: string;
@@ -432,6 +451,83 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
                 setField("notes", (e.target.value === "" ? null : e.target.value) as never)
               }
               data-testid="sec-notes"
+            />
+          </label>
+
+          {/* 2026-10-28 — step-up assurance. */}
+          <fieldset data-field="stepUpAssurance" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 600 }}>Step-up assurance</legend>
+            <div style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+              What a member must use to confirm a sensitive action.
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem", flexWrap: "wrap" }}>
+              {STEP_UP_ASSURANCE_OPTIONS.map((o) => (
+                <Button
+                  key={o.value}
+                  size="sm"
+                  variant={(f.stepUpAssurance ?? "STANDARD") === o.value ? "primary" : "secondary"}
+                  disabled={saving}
+                  aria-pressed={(f.stepUpAssurance ?? "STANDARD") === o.value}
+                  onClick={() => setField("stepUpAssurance", o.value)}
+                  data-testid={`sec-stepUpAssurance-${o.value}`}
+                >
+                  {o.label}
+                </Button>
+              ))}
+            </div>
+            <div style={{ opacity: 0.75, fontSize: "0.85rem", marginTop: "0.25rem" }}>
+              {STEP_UP_ASSURANCE_OPTIONS.find((o) => o.value === (f.stepUpAssurance ?? "STANDARD"))?.hint}
+            </div>
+          </fieldset>
+
+          <div data-field="stepUpSmsAllowed">
+            <div style={{ fontWeight: 600 }}>Allow SMS codes for step-up</div>
+            <div style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+              When off, codes sent by SMS or WhatsApp no longer confirm sensitive actions. Never applies under phishing-resistant assurance.
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+              <Button size="sm" variant={f.stepUpSmsAllowed !== false ? "primary" : "secondary"} disabled={saving} aria-pressed={f.stepUpSmsAllowed !== false} onClick={() => setField("stepUpSmsAllowed", true)} data-testid="sec-stepUpSmsAllowed-on">Allowed</Button>
+              <Button size="sm" variant={f.stepUpSmsAllowed === false ? "primary" : "secondary"} disabled={saving} aria-pressed={f.stepUpSmsAllowed === false} onClick={() => setField("stepUpSmsAllowed", false)} data-testid="sec-stepUpSmsAllowed-off">Not allowed</Button>
+            </div>
+          </div>
+
+          <label data-field="idpStepUpAcceptedContexts" style={{ display: "block" }}>
+            <div style={{ fontWeight: 600 }}>Accepted IdP authentication contexts</div>
+            <div style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+              One per line (SAML AuthnContextClassRef or OIDC acr value, up to 16). A recent organization sign-in with one of these confirms a sensitive action; empty means a fresh sign-in is always required, and phishing-resistant assurance then cannot use organization sign-in.
+            </div>
+            <textarea
+              className="app-form-input"
+              rows={3}
+              spellCheck={false}
+              disabled={saving}
+              placeholder={"urn:oasis:names:tc:SAML:2.0:ac:classes:X509\nphr"}
+              value={listToText(f.idpStepUpAcceptedContexts)}
+              onChange={(e) => setField("idpStepUpAcceptedContexts", textToList(e.target.value))}
+              data-testid="sec-idpStepUpAcceptedContexts"
+            />
+          </label>
+
+          <label data-field="idpStepUpMaxAgeSeconds" style={{ display: "block" }}>
+            <div style={{ fontWeight: 600 }}>Maximum IdP sign-in age (seconds)</div>
+            <div style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+              How recent the organization sign-in must be to confirm an action (30–3600).
+            </div>
+            <input
+              className="app-form-input"
+              type="number"
+              min={30}
+              max={3600}
+              inputMode="numeric"
+              disabled={saving}
+              value={f.idpStepUpMaxAgeSeconds ?? ""}
+              onChange={(e) =>
+                setField(
+                  "idpStepUpMaxAgeSeconds",
+                  (e.target.value === "" ? undefined : Number(e.target.value)) as never,
+                )
+              }
+              data-testid="sec-idpStepUpMaxAgeSeconds"
             />
           </label>
 

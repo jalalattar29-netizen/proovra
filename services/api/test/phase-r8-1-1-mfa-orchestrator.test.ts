@@ -432,7 +432,15 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     // deprecated alias that now applies the Enterprise entitlement check and
     // the versioned write it previously skipped, and answers 409 on a stale
     // version. No step-up authority was added (the invariant test above).
-    const expected = 51590;
+    // Rebaselined 2026-10-28 (Collaboration Team archive step-up) to 59090.
+    // The authenticator ladder's HTTP surface: start returns the available
+    // methods, passkey options and the system-browser handoff URL; check
+    // accepts a WebAuthn assertion; a same-session status read; and the two
+    // unauthenticated handoff calls (options, assertion), rate-limited and
+    // bound to one pending challenge by a hashed single-use token. Every
+    // approval and consume stays in step-up.service.ts (the invariant test
+    // above still holds).
+    const expected = 59090;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

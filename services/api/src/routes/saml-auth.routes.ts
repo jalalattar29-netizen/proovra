@@ -25,7 +25,7 @@
  *     It is an additive surface registered separately in server.ts.
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
@@ -50,7 +50,12 @@ import {
   signJwt,
   signMfaPendingToken,
   MFA_PENDING_TTL_SECONDS,
+  mintedSessionClaims,
 } from "../services/jwt.js";
+import {
+  completeSamlIdpStepUp,
+  isStepUpIdpState,
+} from "../services/identity-security/step-up-idp-flow.js";
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 import {
   createMfaPendingChallenge,
@@ -88,6 +93,13 @@ import {
   persistSamlCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+// 2026-10-28 — SP endpoint identities shared with the IDP_REAUTH step-up round
+// trip (byte-identical ACS URL / entityID / signing key resolution).
+import {
+  samlAcsUrl as buildAcsUrl,
+  samlSpEntityId as buildSpEntityId,
+  samlSpSigningKey as resolveSpSigningKey,
+} from "../services/access-control/sso-endpoints.js";
 import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
 import { organizationIdForPolicy, resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
@@ -229,36 +241,6 @@ function setSessionCookie(
 }
 
 /**
- * Phase 3 — resolves the SP private signing key (PEM) for AuthnRequest
- * signing. Prefers the per-connection key; falls back to the platform-wide
- * SAML_SP_PRIVATE_KEY env. Returns null when no key material is available,
- * in which case the request is left unsigned. Never logged.
- */
-function resolveSpSigningKey(
-  connectionPrivateKey: string | null | undefined,
-): string | null {
-  if (connectionPrivateKey && connectionPrivateKey.trim().length > 0) {
-    return connectionPrivateKey;
-  }
-  const envKey = process.env["SAML_SP_PRIVATE_KEY"];
-  if (envKey && envKey.trim().length > 0) {
-    // Support newline-escaped env values (common in container secrets).
-    return envKey.includes("\\n") ? envKey.replace(/\\n/g, "\n") : envKey;
-  }
-  return null;
-}
-
-/**
- * Builds the SP entityID for a given connection.
- * Canonical form: {apiBaseUrl}/saml/sp/{connectionId}
- */
-function buildSpEntityId(connectionId: string): string {
-  const base =
-    process.env["API_BASE_URL"] ?? "https://api.proovra.com";
-  return `${base.replace(/\/$/, "")}/saml/sp/${connectionId}`;
-}
-
-/**
  * PHASE 13 §1.2 — the ONE authorization decision for the four operator-facing
  * SAML routes (ingest-metadata, test-connection, PUT/DELETE certificate-next).
  *
@@ -378,18 +360,6 @@ async function authorizeSamlOperator(
   }
 
   return { ok: true, teamId: conn.teamId };
-}
-
-/**
- * Builds the ACS (AssertionConsumerService) URL.
- * HTTP-POST binding endpoint that the IdP will POST the SAMLResponse to.
- */
-function buildAcsUrl(req: FastifyRequest): string {
-  const env = process.env["SAML_ACS_URL"];
-  if (env) return env;
-  const proto = (req.headers["x-forwarded-proto"] as string) || "https";
-  const host = req.headers["host"] ?? "";
-  return `${proto}://${host}/v1/auth/saml/acs`;
 }
 
 // ---------------------------------------------------------------------------
@@ -585,6 +555,21 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         // No RelayState — we can't correlate to an AuthnRequest.
         // Reject: we require InResponseTo correlation.
         return bounceToSamlError(reply, "saml_missing_relay_state");
+      }
+
+      // 2026-10-28 — IDP_REAUTH STEP-UP BRANCH. A RelayState minted by the
+      // step-up round trip carries a marker no sign-in can (the sign-in
+      // persist refuses it as an unsafe redirect). That response is verified
+      // exactly like a sign-in — same consume, same validator — but it can
+      // only APPROVE the one challenge it was bound to. It never mints a
+      // session, never sets a cookie and never provisions anyone.
+      if (await isStepUpIdpState(prisma, relayStateRaw)) {
+        const target = await completeSamlIdpStepUp(prisma, {
+          samlResponseBase64: samlResponseRaw,
+          relayStateRaw,
+          acsUrl: buildAcsUrl(req),
+        });
+        return reply.code(302).redirect(target);
       }
 
       const consume = await consumeCallbackAttempt(
@@ -818,6 +803,18 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
               sub: result.userId,
               provider: "EMAIL",
               email: result.email,
+              // 2026-10-28 — carry the VERIFIED SSO provenance through the
+              // MFA step so the session minted at /v1/auth/mfa/verify keeps
+              // it (it used to collapse to PASSWORD and drop the connection).
+              authMethod: "SAML" as const,
+              authAt: Math.floor(Date.now() / 1000),
+              ssoConnId: conn.id,
+              ...(assertion.authnContextClassRef
+                ? { idpCtx: assertion.authnContextClassRef.slice(0, 256) }
+                : {}),
+              ...(assertion.authnInstant
+                ? { idpAuthAt: Math.floor(assertion.authnInstant.getTime() / 1000) }
+                : {}),
             },
             jwtSecret,
             challenge.jti,
@@ -888,10 +885,8 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         // ---------------------------------------------------------------
         // Step 8: Mint JWT + session + cookie + redirect
         // ---------------------------------------------------------------
-        const sid = randomBytes(16).toString("base64url");
         const ttlSeconds = 60 * 60 * 24 * 30; // 30 days
         const issuedAt = Math.floor(Date.now() / 1000);
-        const exp = issuedAt + ttlSeconds;
         const payload = {
           sub: result.userId,
           provider: "EMAIL", // SAML-provisioned users use EMAIL provider; IdP link is in ExternalIdentityMapping
@@ -904,11 +899,13 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           // §10.2 — ORG-BOUND SSO satisfaction: the exact verified connection.
           ssoConnId: conn.id,
           email: result.email,
-          sid,
-          iat: issuedAt,
-          exp,
         };
         const token = signJwt(payload, jwtSecret, ttlSeconds);
+        // 2026-10-28 — the inventory row and the Organization session context
+        // are keyed by the sid the token ACTUALLY carries. `signJwt` assigns
+        // its own sid; a value generated before signing never reached the
+        // token, so the row it keyed could not be found from the session.
+        const { sid, exp } = mintedSessionClaims(token);
 
         const session = await recordAuthenticatedSession(
           {
@@ -921,6 +918,12 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
             ipPreview: ipPreview(req),
             uaPreview: uaPreview(req),
             deviceIdHash: deviceIdHash(req),
+            // 2026-10-28 — the assurance this IdP sign-in proved: the asserted
+            // context identifier and the IdP's AuthnInstant (never the
+            // assertion). A recent, accepted context can answer IDP_REAUTH.
+            authMethod: "SAML",
+            authnContext: assertion.authnContextClassRef,
+            idpAuthAtUtc: assertion.authnInstant,
           },
           prisma,
         );

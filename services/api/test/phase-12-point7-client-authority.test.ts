@@ -219,9 +219,14 @@ describe("PHASE 12 POINT 7 STEP 5 — client-authority metrics", () => {
       "utf8",
     );
     expect(service).toMatch(
-      /maxCollaborationTeamsPerWorkspace:\s*\n?\s*planCaps\.maxCollaborationTeamsPerWorkspace/,
+      // Members ledger M4 — the gate's own contract-aware resolver, not the
+      // raw catalog row.
+      /maxCollaborationTeamsPerWorkspace:\s*\n?\s*collaborationLimits\.maxCollaborationTeamsPerWorkspace/,
     );
-    expect(service).toMatch(/maxAdditionalWorkspaceMembers:\s*planCaps\.maxAdditionalWorkspaceMembers/);
+    // A contract seat count where one governs; the catalog otherwise.
+    expect(service).toMatch(
+      /maxAdditionalWorkspaceMembers:\s*\n?\s*collaborationLimits\.maxAdditionalWorkspaceMembers \?\?\s*\n?\s*planCaps\.maxAdditionalWorkspaceMembers/,
+    );
   });
 
   it("SilentPersonalFallbacks = 0 — the context builder gates every personal selection", () => {

@@ -9,14 +9,14 @@
  * renders nothing else; this does the same. A "Notifications" or "Access"
  * section with no field behind it would be a control that appears to save.
  *
- * ARCHIVE AND DELETE ARE DIFFERENT ACTIONS, AND THE DIFFERENCE MATTERS
- * Archiving keeps everything and already frees the plan slot; it can be
- * reopened. Deletion is the accidental-creation path and the server refuses it
- * for a group with any history (409 TEAM_NOT_DISPOSABLE). Because archiving
- * already frees the slot, deletion is never the route to more capacity — and
- * the surface says so rather than leaving a user to discover it by trying.
+ * ARCHIVE COLLABORATION TEAM — NEVER DELETE (2026-10-28)
+ * A Collaboration Team is never customer-deleted. Archiving keeps the team and
+ * its whole history, ends access through it and frees one active slot; it is
+ * confirmed with the server's impact preview and the team's exact name, then
+ * a recent step-up. Restore re-checks the plan and capacity server-side.
  */
 import { useCallback, useEffect, useState } from "react";
+import { View } from "react-native";
 
 import { apiFetch } from "../api";
 import { formatUserDateTime } from "../lib/date";
@@ -35,47 +35,52 @@ import {
   ProovraEmpty,
 } from "./index";
 import {
+  ARCHIVE_TEAM_ACTION,
   ARCHIVE_TEAM_CONSEQUENCE,
   COLLABORATION_TEAM_ROLES,
   COLLABORATION_TEAM_TYPES,
-  DELETE_TEAM_CONSEQUENCE,
+  RESTORE_TEAM_ACTION,
+  RESTORE_TEAM_CONSEQUENCE,
+  archiveConfirmationMatches,
   buildCollaborationMemberPath,
   buildCollaborationTeamPath,
   buildTeamActivityPath,
+  buildTeamArchiveBody,
+  buildTeamArchiveImpactPath,
   buildTeamArchivePath,
-  buildTeamDisposabilityPath,
   buildTeamUnarchivePath,
   buildTeamUpdateBody,
   canAdministerTeam,
   collaborationRoleLabel,
+  describeArchiveImpact,
   parseTeamActivity,
-  parseTeamDisposability,
+  parseTeamArchiveImpact,
   teamActivityLabel,
   validateTeamSettings,
   type CollaborationMember,
   type CollaborationTeamDetail,
   type TeamActivityItem,
-  type TeamDisposability,
+  type TeamArchiveImpact,
 } from "../product/collaboration";
 import { humanizeEnum } from "../product/domain-display";
 import { STEP_UP_CANCEL } from "../product/challenge-step-up";
 import { ChallengeStepUpSheet, useChallengeStepUp } from "./challenge-step-up";
 
-type Pending = { kind: "archive" | "unarchive" | "delete" } | null;
+type Pending = { kind: "unarchive" } | null;
 
 export function CollaborationSettingsSection({
   team,
   onChanged,
-  onDeleted,
+  onArchived,
 }: {
   team: CollaborationTeamDetail;
   onChanged: () => void;
-  onDeleted: () => void;
+  onArchived: () => void;
 }) {
   const teamId = team.id;
   const admin = canAdministerTeam(team.viewerRole);
-  // SEC-03 — deleting a group is irreversible: a fresh factor, bound to the
-  // group's workspace, through the one challenge flow.
+  // Archiving withdraws every member's reach through the group: a recent
+  // step-up, bound to this group and its workspace, through the one flow.
   const stepUp = useChallengeStepUp(team.workspaceId);
 
   const [name, setName] = useState(team.name);
@@ -90,7 +95,14 @@ export function CollaborationSettingsSection({
 
   const [activity, setActivity] = useState<TeamActivityItem[] | null>(null);
   const [activityCursor, setActivityCursor] = useState<string | null>(null);
-  const [disposability, setDisposability] = useState<TeamDisposability | null>(null);
+  // The archive sheet: the server's impact preview, the typed exact name and
+  // an optional reason. `impact` null while loading; `impactFailed` offers no
+  // destructive control.
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [impact, setImpact] = useState<TeamArchiveImpact | null>(null);
+  const [impactFailed, setImpactFailed] = useState(false);
+  const [typedName, setTypedName] = useState("");
+  const [reason, setReason] = useState("");
 
   const archived = team.status.toUpperCase() === "ARCHIVED";
 
@@ -104,13 +116,47 @@ export function CollaborationSettingsSection({
         setActivityCursor(page.nextCursor);
       })
       .catch(() => setActivity(null));
+  }, [teamId]);
 
-    if (admin) {
-      void apiFetch(buildTeamDisposabilityPath(teamId))
-        .then((d) => setDisposability(parseTeamDisposability(d)))
-        .catch(() => setDisposability(null));
+  const openArchive = useCallback(() => {
+    setArchiveOpen(true);
+    setImpact(null);
+    setImpactFailed(false);
+    setTypedName("");
+    setReason("");
+    void apiFetch(buildTeamArchiveImpactPath(teamId))
+      .then((d) => {
+        const parsed = parseTeamArchiveImpact(d);
+        if (parsed) setImpact(parsed);
+        else setImpactFailed(true);
+      })
+      .catch(() => setImpactFailed(true));
+  }, [teamId]);
+
+  const archive = useCallback(async () => {
+    if (!impact || !archiveConfirmationMatches(typedName, team.name)) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await stepUp.run((headers) =>
+        apiFetch(buildTeamArchivePath(teamId), {
+          method: "POST",
+          body: JSON.stringify(buildTeamArchiveBody({ confirmName: typedName, reason })),
+          ...(headers ? { headers } : {}),
+        }),
+      );
+      setArchiveOpen(false);
+      onArchived();
+    } catch (err) {
+      if ((err as { code?: string })?.code === STEP_UP_CANCEL) {
+        setMessage("Not archived — confirmation cancelled.");
+        return;
+      }
+      setMessage(toSafeUserError(err).message);
+    } finally {
+      setBusy(false);
     }
-  }, [teamId, admin]);
+  }, [impact, typedName, reason, team.name, teamId, stepUp, onArchived]);
 
   const loadMoreActivity = useCallback(async () => {
     if (!activityCursor) return;
@@ -154,37 +200,22 @@ export function CollaborationSettingsSection({
     setBusy(true);
     setMessage(null);
     try {
-      if (target.kind === "archive") {
-        await apiFetch(buildTeamArchivePath(teamId), { method: "POST", body: JSON.stringify({}) });
-        onChanged();
-      } else if (target.kind === "unarchive") {
-        // Capacity is re-checked server-side: an archived group freed a plan
-        // slot, so reopening competes with creating. The refusal, if there is
-        // one, is the server's to make.
+      if (target.kind === "unarchive") {
+        // Plan, active-Team count, member capacity and the workspace,
+        // Organization and contract state are re-checked server-side; the
+        // refusal, if there is one, is the server's to make.
         await apiFetch(buildTeamUnarchivePath(teamId), {
           method: "POST",
           body: JSON.stringify({}),
         });
         onChanged();
-      } else {
-        await stepUp.run((headers) =>
-          apiFetch(buildCollaborationTeamPath(teamId), {
-            method: "DELETE",
-            ...(headers ? { headers } : {}),
-          }),
-        );
-        onDeleted();
       }
     } catch (err) {
-      if ((err as { code?: string })?.code === STEP_UP_CANCEL) {
-        setMessage("Not deleted — confirmation cancelled.");
-        return;
-      }
       setMessage(toSafeUserError(err).message);
     } finally {
       setBusy(false);
     }
-  }, [pending, teamId, onChanged, onDeleted, stepUp]);
+  }, [pending, teamId, onChanged]);
 
   const changeRole = useCallback(
     async (member: CollaborationMember, role: string) => {
@@ -304,54 +335,94 @@ export function CollaborationSettingsSection({
       </ProovraSection>
 
       {admin ? (
-        <ProovraSection title="This group">
+        <ProovraSection title="This Collaboration Team">
+          <ProovraText variant="label" color={theme.color.ink.muted}>
+            {archived ? RESTORE_TEAM_CONSEQUENCE : ARCHIVE_TEAM_CONSEQUENCE}
+          </ProovraText>
           {archived ? (
             <ProovraButton
-              label="Reopen this group"
+              label={RESTORE_TEAM_ACTION}
               variant="secondary"
               loading={busy}
               onPress={() => setPending({ kind: "unarchive" })}
             />
           ) : (
             <ProovraButton
-              label="Archive this group"
+              label={ARCHIVE_TEAM_ACTION}
               variant="ghost"
               loading={busy}
-              onPress={() => setPending({ kind: "archive" })}
+              onPress={openArchive}
             />
           )}
-
-          {/*
-            Deletion is offered only when the SERVER says the group carries no
-            operational record. Absent means not disposable: defaulting to yes
-            on a permanent delete would be the client deciding a destructive
-            question the server owns.
-          */}
-          {disposability?.disposable ? (
-            <ProovraButton
-              label="Delete this group"
-              variant="ghost"
-              loading={busy}
-              onPress={() => setPending({ kind: "delete" })}
-            />
-          ) : disposability && disposability.blockers.length > 0 ? (
-            <ProovraCard>
-              <ProovraText variant="label" weight="semibold">
-                This group cannot be deleted
-              </ProovraText>
-              {disposability.blockers.map((b) => (
-                <ProovraText key={b} variant="label" color={theme.color.ink.muted}>
-                  {b}
-                </ProovraText>
-              ))}
-              <ProovraText variant="label" color={theme.color.ink.muted}>
-                Archiving is the action for a group that has done work, and it already frees
-                the plan slot.
-              </ProovraText>
-            </ProovraCard>
-          ) : null}
         </ProovraSection>
       ) : null}
+
+      <ProovraSheet
+        visible={archiveOpen}
+        title={ARCHIVE_TEAM_ACTION}
+        onClose={() => {
+          if (!busy) setArchiveOpen(false);
+        }}
+      >
+        <View style={{ gap: theme.space.s3 }} testID="archive-team-sheet">
+          <ProovraText variant="bodySm" weight="semibold">
+            {team.name}
+          </ProovraText>
+          {impactFailed ? (
+            <ProovraText variant="bodySm" color={theme.color.status.risk.fg} testID="archive-impact-failed">
+              We couldn't load what archiving would affect, so the team can't be archived right now.
+            </ProovraText>
+          ) : impact === null ? (
+            <ProovraText variant="bodySm">Checking what archiving would affect…</ProovraText>
+          ) : (
+            <>
+              {(() => {
+                const copy = describeArchiveImpact(impact);
+                return (
+                  <>
+                    <ProovraText variant="label" weight="semibold">Affected</ProovraText>
+                    {copy.affected.map((line) => (
+                      <ProovraText key={line} variant="bodySm">• {line}</ProovraText>
+                    ))}
+                    <ProovraText variant="label" weight="semibold">Unavailable while archived</ProovraText>
+                    {copy.unavailable.map((line) => (
+                      <ProovraText key={line} variant="bodySm">• {line}</ProovraText>
+                    ))}
+                    <ProovraText variant="label" weight="semibold">Preserved</ProovraText>
+                    {copy.preserved.map((line) => (
+                      <ProovraText key={line} variant="bodySm">• {line}</ProovraText>
+                    ))}
+                    <ProovraText variant="bodySm">{copy.restore}</ProovraText>
+                  </>
+                );
+              })()}
+              <ProovraFormField label={`Type ${team.name} to confirm`}>
+                <ProovraInput
+                  value={typedName}
+                  onChangeText={setTypedName}
+                  autoCapitalize="none"
+                  accessibilityLabel="Collaboration Team name confirmation"
+                />
+              </ProovraFormField>
+              <ProovraFormField label="Reason (optional, recorded in the audit trail)">
+                <ProovraInput
+                  value={reason}
+                  onChangeText={setReason}
+                  multiline
+                  accessibilityLabel="Archive reason"
+                />
+              </ProovraFormField>
+              <ProovraButton
+                label={ARCHIVE_TEAM_ACTION}
+                loading={busy}
+                disabled={!archiveConfirmationMatches(typedName, team.name)}
+                onPress={() => void archive()}
+              />
+            </>
+          )}
+          <ProovraButton label="Cancel" variant="ghost" disabled={busy} onPress={() => setArchiveOpen(false)} />
+        </View>
+      </ProovraSheet>
 
       <ProovraSheet
         visible={typePicker}
@@ -390,34 +461,16 @@ export function CollaborationSettingsSection({
 
       <ProovraConfirmSheet
         visible={pending !== null}
-        title={
-          pending?.kind === "archive"
-            ? "Archive this group?"
-            : pending?.kind === "unarchive"
-              ? "Reopen this group?"
-              : "Delete this group permanently?"
-        }
-        consequence={
-          pending?.kind === "archive"
-            ? ARCHIVE_TEAM_CONSEQUENCE
-            : pending?.kind === "unarchive"
-              ? "It becomes usable for new work again. This takes a plan slot, so it competes with creating a new group."
-              : DELETE_TEAM_CONSEQUENCE
-        }
-        confirmLabel={
-          pending?.kind === "archive"
-            ? "Archive"
-            : pending?.kind === "unarchive"
-              ? "Reopen"
-              : "Delete permanently"
-        }
-        tone={pending?.kind === "unarchive" ? "warning" : "danger"}
+        title={`Restore "${team.name}"?`}
+        consequence={RESTORE_TEAM_CONSEQUENCE}
+        confirmLabel={RESTORE_TEAM_ACTION}
+        tone="warning"
         busy={busy}
         onConfirm={() => void runPending()}
         onCancel={() => setPending(null)}
       />
       {/* The verification sheet `stepUp.run` waits on; without it a challenged
-          archive or delete would wait on a prompt nobody can see. */}
+          archive would wait on a prompt nobody can see. */}
       <ChallengeStepUpSheet stepUp={stepUp} />
     </>
   );

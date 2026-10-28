@@ -92,7 +92,13 @@ export type AccountStepUpAction =
   // PHASE 4 §7.4 (2026-07-22) — OWNED-workspace ownership transfer
   // (workspace-owner-only route; step-up proves the owner's own recent
   // authentication).
-  | "workspace_ownership_transfer";
+  | "workspace_ownership_transfer"
+  // 2026-10-28 — binding or removing a passkey / security key. A stolen
+  // session must not be able to enrol an attacker's authenticator (which
+  // would then satisfy the strongest workspace step-up) nor strip the
+  // holder's own.
+  | "passkey_register"
+  | "passkey_remove";
 
 type StepUpDenial = {
   status: 401 | 429;

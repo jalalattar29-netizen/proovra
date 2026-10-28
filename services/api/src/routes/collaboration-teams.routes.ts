@@ -26,6 +26,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import {
   collaborationTeamRoleHasPermission,
+  stepUpMethodCategory,
   type Permission,
 } from "@proovra/shared";
 import { z } from "zod";
@@ -44,8 +45,9 @@ import {
   acceptInvite,
   addExistingMember,
   archiveCollaborationTeam,
-  assessCollaborationTeamDisposability,
-  deleteCollaborationTeam,
+  assertArchiveConfirmation,
+  recoverCollaborationTeamLead,
+  assessCollaborationTeamArchiveImpact,
   changeMemberRole,
   createAssignment,
   createCollaborationTeam,
@@ -656,39 +658,41 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
-  // POST /v1/collaboration-teams/:teamId/archive  — archive
+  // ARCHIVE COLLABORATION TEAM (2026-10-28)
+  //
+  // There is no customer hard-delete. `DELETE /v1/collaboration-teams/:teamId`
+  // and its `/disposability` projection are gone: a Collaboration Team is
+  // retired by archiving it, which preserves the row and every record of who
+  // was in it and what they did.
   // ---------------------------------------------------------------------------
+
   /**
-   * GET /v1/collaboration-teams/:teamId/disposability
+   * GET /v1/collaboration-teams/:teamId/archive-impact
    *
-   * WHETHER PERMANENT DELETION IS SAFE, ANSWERED BEFORE IT IS ATTEMPTED.
-   *
-   * §15.28 is explicit that a failed DELETE must not be how an operator learns
-   * that deletion is unsafe. This projection lets the surface offer "Delete
-   * team" only where it can actually work, and explain the alternative where it
-   * cannot — rather than presenting a destructive control that answers 409.
-   *
-   * A READ of the group's own disposition, authorized like any other read of
-   * the group. It discloses counts of the group's own history and nothing about
-   * the records that history points at.
+   * What archiving THIS group would affect, shown in the confirmation BEFORE
+   * the step-up is asked for: accepted members, Case grants, live tasks and
+   * pending invitations, what becomes unavailable, what is preserved, and
+   * that Restore can be requested. Authorised as the archive itself; a
+   * foreign or hidden group is the binding's non-enumerating 404.
    */
   app.get<{ Params: { teamId: string } }>(
-    "/v1/collaboration-teams/:teamId/disposability",
+    "/v1/collaboration-teams/:teamId/archive-impact",
     {
       preHandler: requireAuth,
       handler: async (req, reply) => {
         const binding = await authorizeCollaborationTeam(req, reply, {
           collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.read",
-          allowWorkspaceGovernorRead: true,
+          permission: "collaboration.thread.create",
+          groupPermission: "team.archive",
+          requireActiveTeam: true,
         });
         if (!binding) return;
         try {
-          const disposition = await assessCollaborationTeamDisposability({
+          const impact = await assessCollaborationTeamArchiveImpact({
             teamId: req.params.teamId,
             actorUserId: binding.workspace.userId,
           });
-          return reply.send({ disposition });
+          return reply.send({ impact });
         } catch (err) {
           return handleServiceError(reply, err, req.id ?? null);
         }
@@ -697,94 +701,28 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
   );
 
   /**
-   * DELETE /v1/collaboration-teams/:teamId
+   * POST /v1/collaboration-teams/:teamId/archive  { confirmName, reason? }
    *
-   * Permanent removal of a group that carries no operational record — the
-   * accidental-creation case, handled without ceremony.
-   *
-   * NOT a commercial workaround: ARCHIVED groups already consume no active
-   * capacity, so nobody ever needs to delete history to free a slot. Deletion
-   * exists for structural cleanup and archiving for retirement, and the two
-   * stay distinct.
-   *
-   * The service re-checks disposability inside its transaction and refuses a
-   * history-bearing group with a typed 409 — this route cannot widen that.
+   * The order is the contract:
+   *   1. the binding proves active Workspace membership, the canonical
+   *      `team.archive` permission, visibility of the group, the matching
+   *      Workspace, a non-stale membership and Organization governance — a
+   *      foreign or hidden group is a non-enumerating 404;
+   *   2. the exact Collaboration Team name is confirmed (server-side too);
+   *   3. a RECENT STEP-UP for COLLABORATION_TEAM_ARCHIVE bound to this actor,
+   *      this Workspace and THIS group is consumed (single use) — answered by
+   *      the strongest authenticator held: passkey, Enterprise IdP
+   *      reauthentication, authenticator app, or an allowed phone code;
+   *   4. only then the archive transaction: lifecycle, access effects, work
+   *      effects and the ONE canonical audit row commit together.
+   * Nothing is written before step 3 succeeds.
    */
-  app.delete<{ Params: { teamId: string } }>(
-    "/v1/collaboration-teams/:teamId",
-    {
-      preHandler: requireAuth,
-      handler: async (req, reply) => {
-        const binding = await authorizeCollaborationTeam(req, reply, {
-          collaborationTeamId: req.params.teamId,
-          permission: "collaboration.thread.create",
-          /*
-           * ITS OWN CAPABILITY, NOT ARCHIVE'S.
-           *
-           * This read `team.archive`. That resolved to the right role — LEAD —
-           * so nothing was over-permitted, but it made permanent deletion and
-           * reversible retirement one authority. They are different decisions
-           * with different consequences, and one that cannot be named cannot
-           * be withdrawn on its own.
-           *
-           * `team.delete` is granted to LEAD and to nobody else, which is
-           * exactly who could reach this route before. The disposability
-           * assessment and its in-transaction re-check are untouched and remain
-           * what actually protects a history-bearing group.
-           */
-          groupPermission: "team.delete",
-          // Deliberately NOT `requireActiveTeam`: an archived accidental group
-          // must remain deletable, and freezing it would force an operator to
-          // reopen — consuming a capacity slot — merely to tidy up.
-        });
-        if (!binding) return;
-        const ctx = {
-          workspaceId: binding.workspace.workspaceId,
-          userId: binding.workspace.userId,
-        };
-        try {
-          // PERMANENT DELETION NEEDS A FRESH STEP-UP (members audit SEC-03).
-          // Archive is the reversible retirement; delete is irreversible, so the
-          // LEAD confirms it is them first. A group that cannot be deleted at
-          // all (it carries history) is refused by the service below WITHOUT a
-          // step-up being asked for — a ceremony for a certain refusal helps
-          // nobody. The challenge is bound to this group.
-          const disposition = await assessCollaborationTeamDisposability({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-          });
-          if (disposition.disposable) {
-            const gate = await requireStepUpForSensitiveAction({
-              req,
-              reply,
-              teamId: ctx.workspaceId,
-              userId: ctx.userId,
-              purpose: "COLLABORATION_TEAM_DELETE",
-              resourceKind: "collaboration_team",
-              resourceId: req.params.teamId,
-            });
-            if (gate.sent) return;
-          }
-          // D19 — the service writes the success record itself, outside the
-          // delete transaction so it survives the row; a second write here
-          // recorded every deletion twice.
-          await deleteCollaborationTeam({
-            teamId: req.params.teamId,
-            actorUserId: ctx.userId,
-          });
-          return reply.send({ ok: true });
-        } catch (err) {
-          return handleMutationError(reply, err, req.id ?? null, {
-            userId: ctx.userId,
-            workspaceId: ctx.workspaceId,
-            action: "collaboration_team.deleted",
-            resourceType: "collaboration_team",
-            resourceId: req.params.teamId,
-          });
-        }
-      },
-    },
-  );
+  const ArchiveBody = z
+    .object({
+      confirmName: z.string().min(1).max(200),
+      reason: z.string().trim().max(500).optional(),
+    })
+    .strict();
 
   app.post<{ Params: { teamId: string } }>(
     "/v1/collaboration-teams/:teamId/archive",
@@ -802,25 +740,60 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           workspaceId: binding.workspace.workspaceId,
           userId: binding.workspace.userId,
         };
+        const parsed = ArchiveBody.safeParse(req.body ?? {});
+        if (!parsed.success) {
+          return reply.code(400).send({
+            error: {
+              code: "invalid_body",
+              message: "Type the Collaboration Team's exact name to archive it.",
+              requestId: req.id ?? null,
+            },
+          });
+        }
         try {
-          await archiveCollaborationTeam({
+          await assertArchiveConfirmation({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
-            auditTx: (db) =>
-              auditEvent(
+            confirmName: parsed.data.confirmName,
+          });
+          const gate = await requireStepUpForSensitiveAction({
+            req,
+            reply,
+            teamId: ctx.workspaceId,
+            userId: ctx.userId,
+            purpose: "COLLABORATION_TEAM_ARCHIVE",
+            resourceKind: "collaboration_team",
+            resourceId: req.params.teamId,
+          });
+          if (gate.sent) return;
+          const result = await archiveCollaborationTeam({
+            teamId: req.params.teamId,
+            actorUserId: ctx.userId,
+            reason: parsed.data.reason ?? null,
+            auditTx: (db, summary) =>
+              emitTenantAudit(
                 {
-                  userId: ctx.userId,
-                  workspaceId: ctx.workspaceId,
                   action: "collaboration_team.archived",
+                  outcome: "success",
+                  sourceApp: "API",
+                  actorUserId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
                   resourceType: "collaboration_team",
                   resourceId: req.params.teamId,
-                  outcome: "success",
-                  requestId: req.id ?? null,
+                  correlationId: req.id ?? null,
+                  previousState: "ACTIVE",
+                  resultingState: "ARCHIVED",
+                  metadata: {
+                    reason: parsed.data.reason ?? null,
+                    // A CATEGORY, never a code, assertion or token.
+                    stepUpMethod: stepUpMethodCategory(gate.method ?? null),
+                    affected: summary,
+                  },
                 },
                 db,
               ),
           });
-          return reply.send({ ok: true });
+          return reply.send({ ok: true, alreadyArchived: !result.changed });
         } catch (err) {
           return handleMutationError(reply, err, req.id ?? null, {
             userId: ctx.userId,
@@ -834,8 +807,79 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
     },
   );
 
+
+  /**
+   * POST /v1/collaboration-teams/:teamId/lead-recovery  { userId }
+   *
+   * Members ledger X5 — the workspace OWNER appoints a LEAD for an ACTIVE
+   * group that has none. The binding admits the owner without a group role
+   * (`requireGroupMembership: false`) but still proves workspace membership,
+   * the role-change capability and the group's containment; the service
+   * re-checks owner-ness and the no-valid-lead condition under the lock.
+   */
+  app.post<{ Params: { teamId: string } }>(
+    "/v1/collaboration-teams/:teamId/lead-recovery",
+    {
+      preHandler: requireAuth,
+      handler: async (req, reply) => {
+        const binding = await authorizeCollaborationTeam(req, reply, {
+          collaborationTeamId: req.params.teamId,
+          permission: "identity.member.role.change",
+          requireActiveTeam: true,
+          requireGroupMembership: false,
+        });
+        if (!binding) return;
+        const ctx = {
+          workspaceId: binding.workspace.workspaceId,
+          userId: binding.workspace.userId,
+        };
+        const parsed = z.object({ userId: z.string().uuid() }).strict().safeParse(req.body ?? {});
+        if (!parsed.success) {
+          return reply.code(400).send({
+            error: { code: "invalid_body", message: "Choose who should lead this team.", requestId: req.id ?? null },
+          });
+        }
+        try {
+          const result = await recoverCollaborationTeamLead({
+            teamId: req.params.teamId,
+            actorUserId: ctx.userId,
+            newLeadUserId: parsed.data.userId,
+            auditTx: (db, outcome) =>
+              auditEvent(
+                {
+                  userId: ctx.userId,
+                  workspaceId: ctx.workspaceId,
+                  action: "collaboration_team.lead_recovered",
+                  resourceType: "collaboration_team",
+                  resourceId: req.params.teamId,
+                  outcome: "success",
+                  requestId: req.id ?? null,
+                  metadata: { newLeadUserId: parsed.data.userId, memberId: outcome.memberId, previousRole: outcome.previousRole },
+                },
+                db,
+              ),
+          });
+          return reply.send({ ok: true, memberId: result.memberId });
+        } catch (err) {
+          return handleMutationError(reply, err, req.id ?? null, {
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId,
+            action: "collaboration_team.lead_recovered",
+            resourceType: "collaboration_team",
+            resourceId: req.params.teamId,
+          });
+        }
+      },
+    },
+  );
+
   // ---------------------------------------------------------------------------
-  // POST /v1/collaboration-teams/:teamId/unarchive  — reopen
+  // POST /v1/collaboration-teams/:teamId/unarchive  — Restore Collaboration Team
+  //
+  // 2026-10-28 — every admission condition is re-checked by the service at
+  // restore time: subscription lifecycle, workspace and Organization
+  // lifecycle, plan entitlement and Enterprise contract, active-Team count and
+  // per-Team accepted-member capacity (see `unarchiveCollaborationTeam`).
   //
   // WCR-13 — the inverse of the route above, which did not exist while the
   // archive confirmation told operators members would lose access "until the
@@ -867,10 +911,7 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
           userId: binding.workspace.userId,
         };
         try {
-          await assertSubscriptionActiveOrGraceAllowed({
-            workspaceId: ctx.workspaceId,
-          });
-          await unarchiveCollaborationTeam({
+          const result = await unarchiveCollaborationTeam({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             auditTx: (db) =>
@@ -883,11 +924,12 @@ export async function collaborationTeamsRoutes(app: FastifyInstance) {
                   resourceId: req.params.teamId,
                   outcome: "success",
                   requestId: req.id ?? null,
+                  metadata: { previousState: "ARCHIVED", resultingState: "ACTIVE" },
                 },
                 db,
               ),
           });
-          return reply.send({ ok: true });
+          return reply.send({ ok: true, alreadyActive: !result.changed });
         } catch (err) {
           await auditDenial({
             userId: ctx.userId,

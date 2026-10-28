@@ -85,6 +85,16 @@ const PatchBody = z.object({
   ssoReadyFlag: z.boolean().optional(),
   scimReadyFlag: z.boolean().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  // 2026-10-28 — step-up assurance (the authenticator ladder's Organization
+  // knobs), on the ONE policy row through this ONE versioned, step-up-gated
+  // writer.
+  stepUpAssurance: z.enum(["STANDARD", "PHISHING_RESISTANT"]).optional(),
+  stepUpSmsAllowed: z.boolean().optional(),
+  idpStepUpAcceptedContexts: z
+    .array(z.string().trim().min(1).max(256))
+    .max(16)
+    .optional(),
+  idpStepUpMaxAgeSeconds: z.number().int().min(30).max(3600).optional(),
 });
 
 /**

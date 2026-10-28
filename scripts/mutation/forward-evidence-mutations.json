@@ -7415,10 +7415,10 @@
   {
     "id": "MEM-SEC03-CT-DELETE-STEPUP",
     "aud": "SEC-03",
-    "name": "Collaboration Team delete no longer demands a step-up",
+    "name": "Archive Collaboration Team no longer demands a step-up (the hard delete it once guarded is retired)",
     "file": "services/api/src/routes/collaboration-teams.routes.ts",
-    "find": "              purpose: \"COLLABORATION_TEAM_DELETE\",\n              resourceKind: \"collaboration_team\",\n              resourceId: req.params.teamId,\n            });\n            if (gate.sent) return;",
-    "replace": "              purpose: \"COLLABORATION_TEAM_DELETE\",\n              resourceKind: \"collaboration_team\",\n              resourceId: req.params.teamId,\n            });\n            void gate;",
+    "find": "            purpose: \"COLLABORATION_TEAM_ARCHIVE\",\n            resourceKind: \"collaboration_team\",\n            resourceId: req.params.teamId,\n          });\n          if (gate.sent) return;",
+    "replace": "            purpose: \"COLLABORATION_TEAM_ARCHIVE\",\n            resourceKind: \"collaboration_team\",\n            resourceId: req.params.teamId,\n          });\n          void gate;",
     "tests": [
       {
         "cwd": "services/api",
@@ -7428,7 +7428,9 @@
           "run",
           "--config",
           "vitest.integration.config.ts",
-          "test/members-reaudit-collaboration-teams.integration.test.ts"
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "3/11"
         ],
         "integration": true
       }
@@ -10569,6 +10571,357 @@
           "--config",
           "vitest.render.config.ts",
           "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-PERMISSION",
+    "aud": "MEX-G",
+    "name": "archive admits any group member, not only the archive permission",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "const { team } = await requireMemberWithPermission(db, input.teamId, input.actorUserId, \"team.archive\");",
+    "replace": "const { team } = await requireMemberWithPermission(db, input.teamId, input.actorUserId, \"team.read\");",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "1. archive is refused"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-RESOURCE-BINDING",
+    "aud": "MEX-G",
+    "name": "an approval for one Collaboration Team archives another",
+    "file": "services/api/src/services/identity-security/step-up.service.ts",
+    "find": "  if (row.resourceId !== expectedResourceId) {",
+    "replace": "  if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "12/13"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-PURPOSE-BINDING",
+    "aud": "MEX-G",
+    "name": "an approval for another operation archives a Collaboration Team",
+    "file": "services/api/src/services/identity-security/step-up.service.ts",
+    "find": "  if (!purposeSatisfies(row.purpose, input.purpose)) {",
+    "replace": "  if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "12/13"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-REPLAY",
+    "aud": "MEX-G",
+    "name": "a spent approval stays APPROVED and can be replayed",
+    "file": "services/api/src/services/identity-security/step-up.service.ts",
+    "find": "      status: prismaPkg.StepUpChallengeStatus.APPROVED,\n    },\n    data: { status: prismaPkg.StepUpChallengeStatus.CANCELLED },",
+    "replace": "      status: prismaPkg.StepUpChallengeStatus.APPROVED,\n    },\n    data: { status: prismaPkg.StepUpChallengeStatus.APPROVED },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "12/13"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-NO-PREAUTH-MUTATION",
+    "aud": "MEX-G",
+    "name": "the archive runs although the step-up refused",
+    "file": "services/api/src/routes/collaboration-teams.routes.ts",
+    "find": "          if (gate.sent) return;\n          const result = await archiveCollaborationTeam({",
+    "replace": "          const result = await archiveCollaborationTeam({",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "3/11"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-ENTERPRISE-CONTEXT",
+    "aud": "MEX-G",
+    "name": "an IdP context outside the Organization's accepted list approves step-up",
+    "file": "services/api/src/services/identity-security/step-up-idp-flow.ts",
+    "find": "    if (!asserted || !policy.acceptedContexts.includes(asserted)) {",
+    "replace": "    if (!asserted) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/step-up-idp-reauth.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-PASSKEY-OWNER",
+    "aud": "MEX-G",
+    "name": "a passkey of another person answers this person's step-up",
+    "file": "services/api/src/services/identity-security/step-up-passkey.ts",
+    "find": "        userId: input.userId,\n        factor: { userId: input.userId, ...ACTIVE_PASSKEY_FACTOR },",
+    "replace": "        factor: { ...ACTIVE_PASSKEY_FACTOR },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/passkey-step-up.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-SLOT-RELEASE",
+    "aud": "MEX-G",
+    "name": "an archived Collaboration Team keeps its active slot",
+    "file": "services/api/src/services/collaboration-team/billing-guards.ts",
+    "find": "  const workspaceTeamCount = await tx.collaborationTeam.count({\n    where: {\n      workspaceId: input.workspaceId,\n      status: \"ACTIVE\",\n      archivedAtUtc: null,\n    },\n  });",
+    "replace": "  const workspaceTeamCount = await tx.collaborationTeam.count({\n    where: {\n      workspaceId: input.workspaceId,\n    },\n  });",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "16/18"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-RESTORE-CAPACITY",
+    "aud": "MEX-G",
+    "name": "restore skips the per-Team member capacity re-check",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "    await lockAndAssertCollaborationTeamMemberCapacity(tx, {\n      teamId: input.teamId,\n      addingUserIds: [],\n      requireWithinCapacity: true,\n    });\n    const moved = await tx.collaborationTeam.updateMany({\n      where: { id: input.teamId, status: \"ARCHIVED\" },",
+    "replace": "    const moved = await tx.collaborationTeam.updateMany({\n      where: { id: input.teamId, status: \"ARCHIVED\" },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "17. restore re-checks plan"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-G-AUDIT-ATOMICITY",
+    "aud": "MEX-G",
+    "name": "the archive commits without its canonical audit row",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "    if (input.auditTx) await input.auditTx(db, summary);\n    return { changed: true, summary };",
+    "replace": "    return { changed: true, summary };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/collaboration-team-archive.integration.test.ts",
+          "-t",
+          "14/15"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-L-LEAD-RECOVERY-OWNER",
+    "aud": "MEX-L",
+    "name": "anyone may appoint a lead for a team that has none",
+    "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
+    "find": "  if (team.workspace.ownerUserId !== input.actorUserId) {\n    throw new CollaborationTeamError(\n      \"LEAD_RECOVERY_OWNER_ONLY\",",
+    "replace": "  if (false) {\n    throw new CollaborationTeamError(\n      \"LEAD_RECOVERY_OWNER_ONLY\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "X5"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-L-GRANT-AUDIT",
+    "aud": "MEX-L",
+    "name": "issuing an external-review grant writes no tenant audit row",
+    "file": "services/api/src/services/external-review/external-review-grant.service.ts",
+    "find": "          action: \"external_review.grant_issued\",",
+    "replace": "          action: \"external_review.grant_issued_unlogged\",",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "X6"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-L-SILENT-CONTRACT",
+    "aud": "MEX-L",
+    "name": "a contract silent on Collaboration Teams grants the catalog placeholder",
+    "file": "services/api/src/services/billing/enterprise-contract-limits.ts",
+    "find": "  // (typed upstream as ENTERPRISE_CONTRACT_REQUIRED); never the placeholder.\n  if (input.plan === \"ENTERPRISE\") return 0;",
+    "replace": "  // (typed upstream as ENTERPRISE_CONTRACT_REQUIRED); never the placeholder.\n  if (input.plan === \"ENTERPRISE\" && input.contract?.contractGovernsCapability !== true) return 0;",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "M5"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-L-ORG-CLOSURE",
+    "aud": "MEX-L",
+    "name": "account closure no longer stops at an owned Organization Workspace",
+    "file": "services/api/src/services/identity/account-lifecycle-preflight.service.ts",
+    "find": "  if (liveCustomerOrgs + liveOrganizationWorkspaces > 0) {",
+    "replace": "  if (false) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "M9"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-L-INVITE-LIFECYCLE",
+    "aud": "MEX-L",
+    "name": "a restricted subscription can still mint workspace invitations",
+    "file": "services/api/src/services/identity/workspace-invitation.service.ts",
+    "find": "  const email = normalizeInviteEmail(input.email);\n  await assertInvitationLifecycleAllows(input.workspaceId, client);",
+    "replace": "  const email = normalizeInviteEmail(input.email);",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/workspace-invitation-lifecycle-gate.test.ts"
         ]
       }
     ]

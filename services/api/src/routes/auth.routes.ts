@@ -183,6 +183,12 @@ async function recordSessionFromSignedToken(
   req: FastifyRequest,
   user: { id: string; currentWorkspaceId?: string | null },
   token: string,
+  /**
+   * 2026-10-28 — for a session completing an SSO sign-in through the MFA step:
+   * the IdP-asserted context and authentication instant carried (signed) in
+   * the pending token. Absent for every other login.
+   */
+  idp?: { authnContext: string | null; authAt: Date | null },
 ): Promise<void> {
   try {
     const parts = token.split(".");
@@ -194,6 +200,8 @@ async function recordSessionFromSignedToken(
       sid?: string;
       iat?: number;
       exp?: number;
+      authMethod?: string;
+      ssoConnId?: string;
     };
     if (
       typeof payload.sid !== "string" ||
@@ -202,6 +210,10 @@ async function recordSessionFromSignedToken(
     ) {
       return;
     }
+    // The token was signed by this process a moment ago, so its provenance
+    // claims are the server-verified ceremony — recorded as such.
+    const authMethod = typeof payload.authMethod === "string" ? payload.authMethod : null;
+    const isSso = authMethod === "SAML" || authMethod === "OIDC";
     await recordAuthenticatedSession({
       userId: user.id,
       teamId: user.currentWorkspaceId ?? null,
@@ -210,6 +222,14 @@ async function recordSessionFromSignedToken(
       exp: payload.exp,
       ipPreview: authIpPreview(req),
       uaPreview: authUaPreview(req),
+      authMethod,
+      ...(isSso && typeof payload.ssoConnId === "string"
+        ? {
+            ssoConnectionId: payload.ssoConnId,
+            authnContext: idp?.authnContext ?? null,
+            idpAuthAtUtc: idp?.authAt ?? null,
+          }
+        : {}),
     });
   } catch {
     // Best-effort. A failed inventory write must not break login.
@@ -1558,11 +1578,43 @@ export async function authRoutes(app: FastifyInstance) {
       // hard-deleted in the 5-minute window. Fail closed.
       return reply.code(401).send({ message: "user_not_found" });
     }
+    /**
+     * 2026-10-28 — SSO PROVENANCE SURVIVES THE MFA STEP. The SAML ACS and the
+     * OIDC callback reach this endpoint too, and they sign their VERIFIED
+     * provenance (method, connection, primary-ceremony time, IdP context and
+     * instant) into the pending token. It is server-signed and its challenge
+     * row was consumed above, so it is carried into the final session rather
+     * than collapsed to PASSWORD — which dropped the connection and left an
+     * SSO-required Organization refusing a session that had in fact come
+     * through its IdP. Every other pending token keeps PASSWORD, unchanged.
+     */
+    const ssoProvenance =
+      (pendingPayload.authMethod === "SAML" || pendingPayload.authMethod === "OIDC") &&
+      typeof pendingPayload.ssoConnId === "string" &&
+      pendingPayload.ssoConnId.length > 0
+        ? {
+            authMethod: pendingPayload.authMethod,
+            ssoConnId: pendingPayload.ssoConnId,
+            authAt:
+              typeof pendingPayload.authAt === "number"
+                ? pendingPayload.authAt
+                : Math.floor(Date.now() / 1000),
+            idp: {
+              authnContext:
+                typeof pendingPayload.idpCtx === "string" ? pendingPayload.idpCtx : null,
+              authAt:
+                typeof pendingPayload.idpAuthAt === "number"
+                  ? new Date(pendingPayload.idpAuthAt * 1000)
+                  : null,
+            },
+          }
+        : null;
     const token = signJwt(
       {
-        // §10.3 correction — MFA AUGMENTS the primary method (here PASSWORD —
-        // the MFA gate is reached only from email/password login), it does not
-        // replace it. Preserve PASSWORD provenance + record mfaAt.
+        // §10.3 correction — MFA AUGMENTS the primary method (PASSWORD for an
+        // email/password login; SAML/OIDC when the pending token carries a
+        // verified SSO provenance), it does not replace it. Preserve the
+        // primary provenance + record mfaAt.
         ...jwtPayloadFromUser(
           {
             id: user.id,
@@ -1570,8 +1622,11 @@ export async function authRoutes(app: FastifyInstance) {
             email: user.email,
             platformRole: user.platformRole,
           },
-          "PASSWORD",
+          ssoProvenance?.authMethod ?? "PASSWORD",
         ),
+        ...(ssoProvenance
+          ? { authAt: ssoProvenance.authAt, ssoConnId: ssoProvenance.ssoConnId }
+          : {}),
         mfaAt: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -1602,7 +1657,7 @@ export async function authRoutes(app: FastifyInstance) {
     // the real session is issued. It previously set the cookie without
     // writing an AuthenticatedSession row, leaving MFA users with an
     // empty session list. Same canonical helper as every other path.
-    await recordSessionFromSignedToken(req, user, token);
+    await recordSessionFromSignedToken(req, user, token, ssoProvenance?.idp);
     clearMfaPendingCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
     return reply.code(200).send({ token, user: toAuthUserProjection(user) });

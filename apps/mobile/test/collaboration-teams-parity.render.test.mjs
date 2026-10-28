@@ -125,14 +125,14 @@ test("TEAM_LIMIT_REACHED is said with the server's own limit", async () => {
   await r.type("Team name", "Fraud");
   await r.press("Submit new team");
   await settle();
-  assert.ok(r.hasText("Your Pro plan includes up to 2 Teams. Upgrade to create another Team."));
+  assert.ok(r.hasText("Your Pro plan includes up to 2 Collaboration Teams. Upgrade to create another Collaboration Team."));
   r.unmount();
 });
 
 test("a billing-restricted workspace is told why it cannot create, and a load failure is named", async () => {
   routes["/v1/collaboration-teams/entitlement"] = () => ({ ...ENT, canCreateCollaborationTeam: false, mutationsAllowed: false });
   const r = await render();
-  assert.ok(r.hasText("This workspace's billing needs attention before new Teams can be created."));
+  assert.ok(r.hasText("This workspace's billing needs attention before new Collaboration Teams can be created."));
   r.unmount();
   routes["/v1/collaboration-teams"] = () => ({ __status: 500, error: { code: "INTERNAL", requestId: "req-9" } });
   const r2 = await render();

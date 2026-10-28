@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useToast } from "../../../../../components/ui";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
@@ -16,14 +16,12 @@ import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserEr
 import {
   type CollaborationTeamDetail,
   type CollaborationTeamMember,
-  type CollaborationTeamDisposability,
   archiveTeam,
-  deleteTeam,
-  getTeamDisposability,
   unarchiveTeam,
   updateMember,
   updateTeam,
 } from "../../../../../lib/api/collaboration-teams";
+import { ArchiveTeamDialog } from "../_components/ArchiveTeamDialog";
 import {
   COLLABORATION_TEAM_TYPES,
   type CollaborationTeamType,
@@ -37,12 +35,11 @@ import {
 //   A. General details      — name, description, Save changes           [real]
 //   B. Team configuration   — Team type (teamType)                      [real]
 //   C. Leadership           — grant LEAD via updateMember               [real]
-//   E. Danger zone          — Archive / Reopen / Delete                 [real]
+//   E. Danger zone          — Archive / Restore Collaboration Team      [real]
 //
-// The old note here said "archiveTeam is the only destructive op (no delete
-// endpoint)" while this tab rendered a Delete button against a live
-// `DELETE /v1/collaboration-teams/:teamId`. The comment predated the endpoint
-// and was never corrected.
+// 2026-10-28 — there is no Delete. A Collaboration Team is never
+// customer-deleted: archiving preserves it and everything it did, and needs a
+// recent step-up.
 // Notifications and Access & permissions have no field on updateTeam and are
 // intentionally omitted rather than fabricated. Notification preferences live
 // on the separate collaboration/page.tsx with their own API.
@@ -68,7 +65,6 @@ function SettingsTab({
   onChange,
   canManage,
   canArchive,
-  canDelete,
   canTransferLead,
   onError,
 }: {
@@ -77,8 +73,12 @@ function SettingsTab({
   /** Role AND lifecycle — the page folds `status` in, so an archived team
    *  arrives here already false and no control has to remember. */
   canManage: boolean;
+  /**
+   * Role only (`team.archive`): Archive on an active team AND Restore on an
+   * archived one. Not folded with the lifecycle — Restore exists precisely
+   * for the archived state.
+   */
   canArchive: boolean;
-  canDelete: boolean;
   canTransferLead: boolean;
   onError: (err: unknown, fallback?: SafeErrorFallback) => void;
 }) {
@@ -158,120 +158,72 @@ function SettingsTab({
     }
   };
 
-  /**
-   * The SERVER's disposition on permanent deletion. `null` means not yet known
-   * — while loading, and if the read fails. A failed read must never surface a
-   * destructive control, so `null` shows neither Delete nor a claim that the
-   * group is protected.
-   *
-   * Keyed on the group id so a different team never inherits the previous
-   * one's answer.
-   */
-  const [disposability, setDisposability] =
-    useState<CollaborationTeamDisposability | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setDisposability(null);
-    void getTeamDisposability(team.id)
-      .then((d) => {
-        if (!cancelled) setDisposability(d);
-      })
-      .catch(() => {
-        if (!cancelled) setDisposability(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [team.id]);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   /**
-   * Delete is reached only when the projection says the group is disposable,
-   * so the confirmation describes what it actually does rather than warning
-   * about consequences that cannot occur here. No typed-name confirmation:
-   * that ceremony belongs to destroying work, and this group has none — asking
-   * for it would be the bureaucracy §15.26 rules out.
+   * ARCHIVE — the confirmation collects the exact name and an optional reason
+   * after showing the server's impact preview; the archive then runs through
+   * the one step-up flow, bound to this team. Nothing is archived unless the
+   * step-up succeeds; cancelling it changes nothing.
    */
-  const onDelete = async () => {
-    const ok = await confirm({
-      title: `Delete "${team.name}" permanently?`,
-      description:
-        "This team has no operational records. Deleting permanently removes the team itself. " +
-        "Workspace members keep their access, and cases and evidence are not affected.",
-      confirmLabel: "Delete team",
-      tone: "danger",
-    });
-    if (!ok) return;
+  const onArchiveConfirmed = async (input: { confirmName: string; reason?: string }) => {
     setBusy(true);
     try {
-      // SEC-03 — a fresh factor, bound to this group, through the one
-      // step-up flow; the hook retries with the challenge header.
-      await stepUp.runStepUpAction(
-        async (headers) => deleteTeam(team.id, headers ?? undefined),
+      const result = await stepUp.runStepUpAction(
+        async (headers) => archiveTeam(team.id, input, headers ?? undefined),
         { teamId: team.workspaceId },
       );
-      addToast("Team deleted.", "success");
+      setArchiveOpen(false);
+      addToast(
+        result.alreadyArchived
+          ? "This Collaboration Team was already archived."
+          : "Collaboration Team archived. Its history is preserved.",
+        "success",
+      );
       router.push("/collaboration-teams");
     } catch (err) {
       if ((err as { code?: string })?.code === "STEP_UP_CANCEL") {
-        addToast("Not deleted — confirmation cancelled.", "info");
+        addToast("Not archived — confirmation cancelled.", "info");
         return;
       }
-      notifyApiError(addToast, err, { message: "Couldn't delete team." });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onArchive = async () => {
-    const ok = await confirm({
-      title: `Archive "${team.name}"?`,
-      description:
-        "The team is hidden from the overview and drops out of active work routing. Assignments, discussion and activity history are preserved, and the team can be reopened from this page — reopening re-checks your plan's Team allowance, because an archived team does not occupy one.",
-      confirmLabel: "Archive team",
-      tone: "danger",
-      requireConfirmText: team.name,
-    });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      await archiveTeam(team.id);
-      addToast("Team archived.", "success");
-      router.push("/collaboration-teams");
-    } catch (err) {
-      notifyApiError(addToast, err, { message: "Couldn't archive team." });
+      notifyApiError(addToast, err, { message: "Couldn't archive the Collaboration Team." });
     } finally {
       setBusy(false);
     }
   };
 
   /**
-   * WCR-13 (2026-09-07) — the operation the dialog above always promised.
-   *
-   * Archiving was one-way: no service function, no route, no client call, and
-   * every mutation route refusing an archived group. The confirmation said
-   * members would lose access *"until the team is unarchived"*, which was not
-   * true of anything the product could do.
-   *
-   * Reopening RE-CHECKS CAPACITY server-side, and the copy says so, because an
-   * archived group does not occupy a plan slot: a workspace can archive one,
-   * create another, and then find the first cannot come back. That refusal is
-   * a real 409 with the plan and the ceiling in it, not a surprise.
+   * RESTORE (WCR-13). The server re-checks plan entitlement, the active-Team
+   * count, per-Team member capacity, and the workspace, Organization and
+   * contract state at this moment — a refusal names which, and the copy says
+   * so before anyone clicks.
    */
   const onUnarchive = async () => {
+    const ok = await confirm({
+      title: `Restore "${team.name}"?`,
+      description:
+        "Restoring makes this Collaboration Team active again, so it uses one of your plan's active Team slots. Your plan, the number of active Teams and the team's member capacity are checked first. Tasks cancelled and invitations revoked when it was archived stay as they are.",
+      confirmLabel: "Restore Collaboration Team",
+      tone: "neutral",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await unarchiveTeam(team.id);
-      addToast("Team reopened.", "success");
+      addToast("Collaboration Team restored.", "success");
       await onChange();
     } catch (err) {
-      notifyApiError(addToast, err, { message: "Couldn't reopen team." });
+      notifyApiError(addToast, err, { message: "Couldn't restore the Collaboration Team." });
     } finally {
       setBusy(false);
     }
   };
 
-  if (!canManage) {
+  const isArchived = team.status === "ARCHIVED";
+
+  // Restore is reachable on an archived team (WCR-13): only a viewer who can
+  // neither edit nor archive is refused the tab.
+  if (!canManage && !canArchive) {
     return (
       <div className="app-panel" data-testid="settings-permission-denied">
         <div className="app-panel__body">
@@ -282,8 +234,6 @@ function SettingsTab({
       </div>
     );
   }
-
-  const isArchived = team.status === "ARCHIVED";
 
   return (
     /*
@@ -319,6 +269,10 @@ function SettingsTab({
         className="app-grid-panels app-grid-panels--pairs"
         data-testid="settings-grid"
       >
+        {/* A–C are editing controls: shown only while the team can be edited
+            (an archived team is restored first). */}
+        {canManage ? (
+        <>
         {/* A. General details */}
         <div className="app-panel">
           <div className="app-panel__head">
@@ -501,6 +455,8 @@ function SettingsTab({
             </div>
           </div>
         ) : null}
+        </>
+        ) : null}
 
         {/* E. Danger zone — visually separated, red-tinted panel */}
         <div
@@ -543,7 +499,7 @@ function SettingsTab({
                     color: "#172033",
                   }}
                 >
-                  Archive team
+                  {isArchived ? "Restore Collaboration Team" : "Archive Collaboration Team"}
                 </p>
                 <p
                   style={{
@@ -554,8 +510,8 @@ function SettingsTab({
                   }}
                 >
                   {isArchived
-                    ? "This team is archived: it is hidden from the overview and out of active work routing, and its assignments, discussion and activity are preserved. Reopening re-checks your plan's Team allowance, because an archived team does not occupy one."
-                    : "Hides the team from the overview and removes it from active work routing. Assignments, discussion and activity history are preserved, and you can reopen it from here."}
+                    ? "This Collaboration Team is archived: its members have no access through it and it takes no new work, and its membership, assignments, discussion and activity are preserved. Restoring checks your plan, your active Teams and its member capacity first."
+                    : "Archiving ends access through this team and stops new work, and keeps the team and its whole history. Collaboration Teams are never deleted. You'll confirm the team's name and that it is you."}
                 </p>
               </div>
               {isArchived ? (
@@ -566,103 +522,33 @@ function SettingsTab({
                   className="app-secondary-action"
                   data-testid="settings-unarchive"
                 >
-                  {busy ? "Reopening…" : "Reopen team"}
+                  {busy ? "Restoring…" : "Restore Collaboration Team"}
                 </button>
               ) : (
                 <button
                   type="button"
-                  onClick={() => void onArchive()}
+                  onClick={() => setArchiveOpen(true)}
                   disabled={!canArchive || busy}
                   className="app-danger-action"
                   data-testid="settings-archive"
                 >
-                  Archive team
+                  Archive Collaboration Team
                 </button>
               )}
             </div>
 
-            {/*
-              DELETE — the accidental-creation case, and ONLY that.
-
-              The control is offered only when the SERVER says the group carries
-              no operational record. §15.28 is explicit that a failed request
-              must not be how an operator learns deletion is unsafe, so a
-              history-bearing group gets an explanation and Archive instead of a
-              destructive button that answers 409.
-
-              This is never a route to capacity: an ARCHIVED group already
-              consumes no active slot, so nobody needs to erase history to make
-              room. Archive retires work; Delete removes a group that never did
-              any.
-
-              `null` means the disposition has not arrived — no Delete control
-              and no claim either way, which is the honest state while loading
-              and the safe one if the read fails.
-            */}
-            {disposability === null ? null : disposability.disposable ? (
-              <div
-                className="app-inner-surface"
-                data-testid="settings-delete-available"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 16,
-                  padding: "14px 16px",
-                  flexWrap: "wrap",
-                  marginTop: 12,
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 13,
-                      fontWeight: 650,
-                      color: "#172033",
-                    }}
-                  >
-                    Delete team
-                  </p>
-                  <p
-                    style={{
-                      margin: "4px 0 0",
-                      fontSize: 12,
-                      lineHeight: 1.45,
-                      color: "#5F6878",
-                    }}
-                  >
-                    This team has no assignments, discussion or activity history.
-                    Deleting permanently removes the team itself. Workspace
-                    members, cases and evidence are not affected.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void onDelete()}
-                  disabled={!canDelete || busy}
-                  className="app-danger-action"
-                  data-testid="settings-delete"
-                >
-                  Delete team
-                </button>
-              </div>
-            ) : (
-              <p
-                className="app-alert"
-                data-testid="settings-delete-blocked"
-                style={{ marginTop: 12 }}
-              >
-                <strong>This team has operational history.</strong> It is linked
-                to work that the workspace keeps a record of, so it cannot be
-                permanently deleted. Archive it instead — the history stays
-                available and the team stops using one of your active team
-                slots.
-              </p>
-            )}
           </div>
         </div>
       </div>
+      {archiveOpen ? (
+        <ArchiveTeamDialog
+          teamId={team.id}
+          teamName={team.name}
+          busy={busy}
+          onCancel={() => setArchiveOpen(false)}
+          onConfirm={(input) => void onArchiveConfirmed(input)}
+        />
+      ) : null}
       <StepUpModal control={stepUp} />
     </section>
   );

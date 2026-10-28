@@ -37,6 +37,16 @@
  * it ends through organization offboarding, never as a side effect of one
  * person's account closure. While it has other members it still blocks
  * (WORKSPACE_MEMBERS_ACTIVE), failing closed.
+ *
+ * MEMBERS LEDGER M9 (2026-10-28) — and once it is empty it STILL does not close
+ * with the account. A solo first owner of an Enterprise customer Organization
+ * passed every check above (no other members, no other org members) and the
+ * closure legs then archived the CUSTOMER Organization and closed its
+ * Organization Workspace — Organization offboarding, with its contract and
+ * retention checks, reached as a side effect of one account. A live CUSTOMER
+ * Organization the caller owns, or a live Organization Workspace they own,
+ * blocks: ORGANIZATION_OFFBOARDING_REQUIRED. Implicit SYSTEM organizations
+ * (the Personal container) are unchanged and still archive with the account.
  */
 
 import { prisma } from "../../db.js";
@@ -54,6 +64,7 @@ export {
 export type AccountClosureBlockerCode =
   | "ORGANIZATION_OWNERSHIP_TRANSFER_REQUIRED"
   | "WORKSPACE_MEMBERS_ACTIVE"
+  | "ORGANIZATION_OFFBOARDING_REQUIRED"
   | "LEGAL_HOLD_ACTIVE"
   | "BILLING_SUBSCRIPTION_ACTIVE";
 
@@ -165,11 +176,17 @@ export async function evaluateAccountClosurePreflight(
     await Promise.all([
       prisma.organizationMembership.findMany({
         where: { userId, role: "ORG_OWNER" },
-        select: { organizationId: true },
+        select: { organizationId: true, organization: { select: { kind: true, status: true } } },
       }),
       prisma.team.findMany({
         where: { ownerUserId: userId },
-        select: { id: true, workspaceKind: true, isPersonal: true, billingPlan: true },
+        select: {
+          id: true,
+          workspaceKind: true,
+          isPersonal: true,
+          billingPlan: true,
+          closedAtUtc: true,
+        },
       }),
       // PHASE 12B CLUSTER 8 — count ACTIVE holds of EVERY scope across ALL
       // stores. Closing an account is irreversible, so a hold sitting in a
@@ -211,6 +228,30 @@ export async function evaluateAccountClosurePreflight(
         count: withOthers.length,
       });
     }
+  }
+
+  // M9 — a live customer Organization, or a live Organization Workspace, ends
+  // through Organization offboarding only.
+  const liveCustomerOrgs = ownedOrgMemberships.filter(
+    (m) => m.organization.kind === "CUSTOMER" && m.organization.status !== "ARCHIVED",
+  ).length;
+  const liveOrganizationWorkspaces = ownedTeams.filter(
+    (t) =>
+      t.closedAtUtc === null &&
+      resolveWorkspaceKind({
+        workspaceKind: t.workspaceKind,
+        isPersonal: t.isPersonal,
+        billingPlan: t.billingPlan,
+        teamLoaded: true,
+      }) === "ORGANIZATION",
+  ).length;
+  if (liveCustomerOrgs + liveOrganizationWorkspaces > 0) {
+    blockers.push({
+      code: "ORGANIZATION_OFFBOARDING_REQUIRED",
+      message:
+        "You own an organization or its workspace. Offboard the organization, or transfer its ownership, before closing your account.",
+      count: liveCustomerOrgs + liveOrganizationWorkspaces,
+    });
   }
 
   // Owned workspaces' other members (LIFE-13). A Personal or Owned workspace

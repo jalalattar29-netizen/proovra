@@ -216,9 +216,12 @@ export function resolveEffectiveContractSeats(input: {
  * and reconciling it against a placeholder either sells capacity nobody agreed
  * to or withholds capacity somebody paid for.
  *
- * Silence still means the catalog default, so an existing Enterprise contract
- * that says nothing about collaboration behaves exactly as it did before the
- * column existed.
+ * SILENCE IS NOT A TERM (members ledger M5, 2026-10-28). On ENTERPRISE the
+ * catalog row (1000 Teams / 500 per Team) is a placeholder nobody signed: an
+ * ACTIVE contract that states no Collaboration Team figure grants none, and
+ * the gates answer ENTERPRISE_CONTRACT_REQUIRED until the figure is set.
+ * Operator note: before this ships, every ACTIVE contract's two figures are
+ * set (readiness query in the migration deployment plan).
  */
 export function resolveEffectiveCollaborationTeamLimit(input: {
   plan: Parameters<typeof getPlanCapabilities>[0];
@@ -231,9 +234,9 @@ export function resolveEffectiveCollaborationTeamLimit(input: {
   ) {
     return input.contract.collaborationTeams;
   }
-  // CT-10 — no ACTIVE contract, no Enterprise capacity (typed upstream as
-  // ENTERPRISE_CONTRACT_REQUIRED); never the catalog's placeholder.
-  if (input.plan === "ENTERPRISE" && input.contract?.contractGovernsCapability !== true) return 0;
+  // CT-10 / M5 — on ENTERPRISE only a stated contract figure grants capacity
+  // (typed upstream as ENTERPRISE_CONTRACT_REQUIRED); never the placeholder.
+  if (input.plan === "ENTERPRISE") return 0;
   return getPlanCapabilities(input.plan).maxCollaborationTeamsPerWorkspace;
 }
 
@@ -260,7 +263,7 @@ export function resolveEffectiveCollaborationMemberLimit(input: {
   ) {
     return input.contract.collaborationTeamMembers;
   }
-  if (input.plan === "ENTERPRISE" && input.contract?.contractGovernsCapability !== true) return 0;
+  if (input.plan === "ENTERPRISE") return 0;
   return getPlanCapabilities(input.plan).maxAcceptedMembersPerCollaborationTeam;
 }
 

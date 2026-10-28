@@ -643,7 +643,7 @@ export default function OrganizationDetailScreen() {
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 Governance + identity tenant. Members, roles, invites, audit timeline, legal metadata. Does NOT grant workspace data access on its own.
               </ProovraText>
-              <ProovraText variant="bodySm" weight="semibold">Workspace (a.k.a. Team)</ProovraText>
+              <ProovraText variant="bodySm" weight="semibold">Workspace</ProovraText>
               <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
                 Operational tenant. Evidence, cases, reviewer queues, retention policy, plan + seats. Each workspace is bound to exactly one organization. Workspace-level RBAC is independent of organization role.
               </ProovraText>

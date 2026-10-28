@@ -757,6 +757,44 @@ export async function buildOidcAuthorizationUrl(
   return { authorizationUrl: url.toString(), state };
 }
 
+/**
+ * 2026-10-28 — the authorization URL for an IDP_REAUTH step-up ONLY. Never used
+ * by ordinary sign-in. It forces a fresh authentication at the IdP
+ * (`prompt=login`, `max_age=0`) and, when the Organization lists accepted
+ * contexts, asks for one of them (`acr_values`). The caller generates the
+ * state and nonce and persists them (hashed) in the replay ledger; nothing is
+ * kept in process memory, so any instance can complete the callback.
+ */
+export async function buildOidcStepUpAuthorizationUrl(input: {
+  conn: { issuerUrl: string | null; clientId: string | null; provider: string };
+  redirectUri: string;
+  state: string;
+  nonce: string;
+  acrValues: ReadonlyArray<string>;
+}): Promise<string> {
+  const { conn } = input;
+  if (ssoProviderProtocol(conn.provider as SsoProvider) !== "OIDC") {
+    throw new SsoServiceError("SSO_INVALID_PROVIDER");
+  }
+  if (!conn.issuerUrl || !conn.clientId) {
+    throw new SsoServiceError("SSO_INVALID_PROVIDER");
+  }
+  const discovery = await fetchOidcDiscovery(conn.issuerUrl);
+  const url = new URL(discovery.authorization_endpoint);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", conn.clientId);
+  url.searchParams.set("redirect_uri", input.redirectUri);
+  url.searchParams.set("scope", "openid");
+  url.searchParams.set("state", input.state);
+  url.searchParams.set("nonce", input.nonce);
+  url.searchParams.set("prompt", "login");
+  url.searchParams.set("max_age", "0");
+  if (input.acrValues.length > 0) {
+    url.searchParams.set("acr_values", input.acrValues.join(" "));
+  }
+  return url.toString();
+}
+
 // -----------------------------------------------------------------------------
 // OIDC discovery cache
 // -----------------------------------------------------------------------------
@@ -832,50 +870,34 @@ async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscovery> {
 // metadata so the route layer can issue the cookie.
 // -----------------------------------------------------------------------------
 
-export type OidcCallbackResult = {
-  connectionId: string;
-  teamId: string;
-  user: {
-    id: string;
-    email: string;
-    displayName: string | null;
-    isNewlyProvisioned: boolean;
-    role: "MEMBER" | "VIEWER";
-  };
-  redirectAfter: string | null;
-};
-
-export async function handleOidcCallback(
-  input: {
-    state: string;
-    code: string;
-    redirectUri: string;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<OidcCallbackResult> {
-  purgeExpiredOidcState();
-  const stateRecord = oidcStateStore.get(input.state);
-  if (!stateRecord) {
-    bump("sso_login_failure_total");
-    throw new SsoServiceError("SSO_INVALID_STATE");
-  }
-  oidcStateStore.delete(input.state); // single-use
-
-  const conn = await client.ssoConnection.findFirst({
-    where: { id: stateRecord.connectionId, teamId: stateRecord.teamId },
-  });
-  if (!conn) {
-    bump("sso_login_failure_total");
-    throw new SsoServiceError("SSO_CONNECTION_NOT_FOUND");
-  }
-  if (conn.status !== "ACTIVE") {
-    bump("sso_login_failure_total");
-    throw new SsoServiceError("SSO_CONNECTION_REVOKED");
-  }
-  if (!conn.issuerUrl || !conn.clientId || !conn.clientSecretHash) {
+/**
+ * 2026-10-28 — THE ONE code exchange + id_token verification. Shared by the
+ * sign-in callback and the IDP_REAUTH step-up callback so the two can never
+ * verify differently: signature against the issuer's JWKS, `iss`, `aud`,
+ * exp/nbf with bounded tolerance, a non-empty `sub`, and the nonce bound to
+ * this attempt (the caller supplies the comparison — the in-process record for
+ * sign-in, the persisted HMAC for step-up).
+ *
+ * Returns the verified subject plus the assurance claims a step-up judges:
+ * `acr` (the authentication context class) and `auth_time` (when the person
+ * actually authenticated at the IdP). No token is returned or logged.
+ */
+export async function exchangeCodeForVerifiedIdToken(input: {
+  conn: prismaPkg.SsoConnection;
+  code: string;
+  redirectUri: string;
+  nonceMatches: (nonce: unknown) => boolean;
+}): Promise<{
+  sub: string;
+  acr: string | null;
+  authTime: Date | null;
+  accessToken: string;
+  discovery: OidcDiscovery;
+}> {
+  const { conn } = input;
+  if (!conn.issuerUrl || !conn.clientId) {
     throw new SsoServiceError("SSO_INVALID_PROVIDER");
   }
-
   const discovery = await fetchOidcDiscovery(conn.issuerUrl);
 
   // The route layer SHOULD pass the same raw client secret we stored
@@ -955,6 +977,8 @@ export async function handleOidcCallback(
     });
   }
   let idTokenSub: string;
+  let acr: string | null = null;
+  let authTime: Date | null = null;
   try {
     const { payload } = await jwtVerify(
       tokenJson.id_token,
@@ -968,10 +992,17 @@ export async function handleOidcCallback(
     if (typeof payload.sub !== "string" || payload.sub.length === 0) {
       throw new Error("missing_sub");
     }
-    if (payload.nonce !== stateRecord.nonce) {
+    if (!input.nonceMatches(payload.nonce)) {
       throw new Error("nonce_mismatch");
     }
     idTokenSub = payload.sub;
+    const rawAcr = payload["acr"];
+    acr = typeof rawAcr === "string" && rawAcr.length > 0 ? rawAcr.slice(0, 256) : null;
+    const rawAuthTime = payload["auth_time"];
+    authTime =
+      typeof rawAuthTime === "number" && Number.isFinite(rawAuthTime) && rawAuthTime > 0
+        ? new Date(rawAuthTime * 1000)
+        : null;
   } catch {
     bump("sso_login_failure_total");
     safeEmitSecurityEvent({
@@ -986,6 +1017,76 @@ export async function handleOidcCallback(
     });
     throw new SsoServiceError("SSO_OIDC_TOKEN_INVALID");
   }
+
+  return {
+    sub: idTokenSub,
+    acr,
+    authTime,
+    accessToken: tokenJson.access_token,
+    discovery,
+  };
+}
+
+export type OidcCallbackResult = {
+  connectionId: string;
+  teamId: string;
+  user: {
+    id: string;
+    email: string;
+    displayName: string | null;
+    isNewlyProvisioned: boolean;
+    role: "MEMBER" | "VIEWER";
+  };
+  redirectAfter: string | null;
+  /**
+   * 2026-10-28 — the assurance the IdP asserted in the verified id_token:
+   * `acr` and `auth_time` (null when the IdP did not send them). Recorded on
+   * the session so a recent, sufficient sign-in can answer an IDP_REAUTH
+   * step-up. Never the token itself.
+   */
+  idp: { acr: string | null; authTime: Date | null };
+};
+
+export async function handleOidcCallback(
+  input: {
+    state: string;
+    code: string;
+    redirectUri: string;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<OidcCallbackResult> {
+  purgeExpiredOidcState();
+  const stateRecord = oidcStateStore.get(input.state);
+  if (!stateRecord) {
+    bump("sso_login_failure_total");
+    throw new SsoServiceError("SSO_INVALID_STATE");
+  }
+  oidcStateStore.delete(input.state); // single-use
+
+  const conn = await client.ssoConnection.findFirst({
+    where: { id: stateRecord.connectionId, teamId: stateRecord.teamId },
+  });
+  if (!conn) {
+    bump("sso_login_failure_total");
+    throw new SsoServiceError("SSO_CONNECTION_NOT_FOUND");
+  }
+  if (conn.status !== "ACTIVE") {
+    bump("sso_login_failure_total");
+    throw new SsoServiceError("SSO_CONNECTION_REVOKED");
+  }
+  if (!conn.issuerUrl || !conn.clientId || !conn.clientSecretHash) {
+    throw new SsoServiceError("SSO_INVALID_PROVIDER");
+  }
+
+  const verified = await exchangeCodeForVerifiedIdToken({
+    conn,
+    code: input.code,
+    redirectUri: input.redirectUri,
+    nonceMatches: (nonce) => nonce === stateRecord.nonce,
+  });
+  const idTokenSub = verified.sub;
+  const tokenJson = { access_token: verified.accessToken };
+  const discovery = verified.discovery;
 
   // ---- Userinfo ----
   let userinfo: { sub?: string; email?: string; name?: string };
@@ -1268,6 +1369,7 @@ export async function handleOidcCallback(
       role,
     },
     redirectAfter: stateRecord.redirectAfter,
+    idp: { acr: verified.acr, authTime: verified.authTime },
   };
 }
 

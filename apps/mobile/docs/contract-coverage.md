@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**170 bindings — OK 170, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**171 bindings — OK 171, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -61,11 +61,12 @@ top level of it.
 | OK | `parseCollaborationTeamDetail` | `GET /v1/collaboration-teams/:teamId` | team, viaWorkspaceGovernance | activeMemberCount, assignmentCount, description, id, invites, memberPreviewLimit, member… |
 | OK | `parseTeamDiscussionAccess` | `GET /v1/collaboration-teams/:teamId` | team, viaWorkspaceGovernance | team, viaWorkspaceGovernance |
 | OK | `parseTeamActivity` | `GET /v1/collaboration-teams/:teamId/activity` | items, nextCursor | items, nextCursor |
+| OK | `parseTeamArchiveImpact` | `GET /v1/collaboration-teams/:teamId/archive-impact` | impact | acceptedMembers, caseGrants, impact, openAssignments, pendingInvites, preserved, restore… |
 | OK | `parseAssignableTargets` | `GET /v1/collaboration-teams/:teamId/assignable-targets` | targets | targets |
 | OK | `parseAssignmentPage` | `GET /v1/collaboration-teams/:teamId/assignments` | assignments, nextCursor, total | assignments, nextCursor, total |
 | OK | `parseTeamComments` | `GET /v1/collaboration-teams/:teamId/comments` | directory, items | directory, items |
-| OK | `parseTeamDisposability` | `GET /v1/collaboration-teams/:teamId/disposability` | disposition | blockers, disposable, disposition |
 | OK | `parseEligibleMembers` | `GET /v1/collaboration-teams/:teamId/eligible-members` | members, nextCursor | members |
+| OK | `parseTeamMembersPage` | `GET /v1/collaboration-teams/:teamId/members` | members, nextCursor, totalActive | members, nextCursor |
 | OK | `parseResponsibilityMembers` | `GET /v1/collaboration-teams/:teamId/members` | members, nextCursor, totalActive | members |
 | OK | `parseTeamMemberLimit` | `GET /v1/collaboration-teams/entitlement` | canAssignExistingMember, canCreateCollaborationTeam, canInviteWorkspaceMember, collabora… | collaborationTeamMembers, limit |
 | OK | `parseCollaborationEntitlement` | `GET /v1/collaboration-teams/entitlement` | canAssignExistingMember, canCreateCollaborationTeam, canInviteWorkspaceMember, collabora… | canCreateCollaborationTeam, canInviteWorkspaceMember, collaborationTeams, exceededDimens… |
@@ -190,7 +191,7 @@ top level of it.
 | OK | `parseEvidenceBulkResponse` | `POST /v1/evidence/bulk` | csv, failedCount, fileName, items, results, successCount | accepted, csv, failedCount, fileName, pendingCount, queued, results, successCount, updated |
 | OK | `parseIntakePartUpload` | `POST /v1/external-intake/:token/sessions/:sid/parts` | part, upload | headers, part, partId, upload |
 | OK | `parseEnrolmentStart` | `POST /v1/identity-security/contact-factors/enroll/start` | codeExpiresAtUtc, factor, verificationAttemptId | codeExpiresAtUtc, factor, verificationAttemptId |
-| OK | `parseStartedChallenge` | `POST /v1/identity-security/step-up/start` | challenge, destinationMask, method | challenge, destinationMask, method |
+| OK | `parseStartedChallenge` | `POST /v1/identity-security/step-up/start` | availableMethods, challenge, destinationMask, handoffUrl, method, passkeyOptions | availableMethods, challenge, destinationMask, handoffUrl, method |
 | OK | `parseRecoveryRequest` | `POST /v1/identity/mfa-admin/recovery-requests` | details, error, ok, request, retryAfter | expiresAt, id, request, status |
 | OK | `parseTotpEnrollment` | `POST /v1/identity/mfa/enroll/start` | factorId, otpauthUri, secretBase32 | factorId, otpauthUri, secretBase32 |
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/enroll/verify` | error, factorId, recoveryCodes, retryAfterMs | recoveryCodes |

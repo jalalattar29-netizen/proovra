@@ -27,14 +27,30 @@
 
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
+import { createHash, randomBytes } from "node:crypto";
 import {
   STEP_UP_TTL_DEFAULT_SECONDS,
   STEP_UP_TTL_MAX_SECONDS,
+  STEP_UP_ASSURANCE_LEVELS,
   purposeSatisfies,
+  stepUpFactorKindsAllowed,
   stepUpFactorKindsFor,
+  type StepUpAssuranceLevel,
   type StepUpFactorKind,
   type StepUpPurpose,
 } from "@proovra/shared";
+import { organizationIdForPolicy } from "../identity/org-security-policy.service.js";
+import {
+  buildPasskeyAssertionOptions,
+  userHasActivePasskey,
+  verifyPasskeyAssertion,
+} from "./step-up-passkey.js";
+import {
+  idpStepUpBindingStillValid,
+  resolveIdpStepUpConnection,
+  sessionSatisfiesIdpStepUp,
+  type IdpStepUpPolicy,
+} from "./step-up-idp.js";
 import { openSecret } from "../security/mfa-secret-storage.js";
 import { claimTotpStep, requireTotpSecret } from "../security/mfa.service.js";
 import { matchTotpStep } from "../security/mfa-totp.js";
@@ -80,13 +96,24 @@ export type StepUpErrorCode =
    * old behaviour — was to accept whatever destination the request carried.
    */
   | "enrollment_required"
+  /**
+   * 2026-10-28 — the challenge is answered elsewhere (a passkey assertion, an
+   * IdP round trip) and this request carried the wrong kind of answer.
+   */
+  | "method_mismatch"
   | "denied";
 
 export class StepUpError extends Error {
   readonly code: StepUpErrorCode;
-  constructor(code: StepUpErrorCode) {
+  /**
+   * `enrollment_required` only: the kinds THIS purpose admits under the
+   * Organization's policy, so the refusal names what would satisfy it.
+   */
+  readonly acceptedFactors: ReadonlyArray<StepUpFactorKind> | null;
+  constructor(code: StepUpErrorCode, acceptedFactors: ReadonlyArray<StepUpFactorKind> | null = null) {
     super(code);
     this.code = code;
+    this.acceptedFactors = acceptedFactors;
   }
 }
 
@@ -132,6 +159,13 @@ export type StartStepUpInput = {
    * session-unbound challenge.
    */
   sessionIdHash?: string | null;
+  /**
+   * 2026-10-28 — the caller will complete a PASSKEY challenge in a SYSTEM
+   * BROWSER (the mobile app): mint a single-use handoff token for it. An
+   * IDP_REAUTH challenge always gets one, since it is completed by a browser
+   * round trip by definition.
+   */
+  handoff?: boolean;
 };
 
 export type StartStepUpResult = {
@@ -140,7 +174,78 @@ export type StartStepUpResult = {
   method: StepUpFactorKind;
   /** The enrolled phone's mask when a code was sent; null for TOTP. */
   destinationMask: string | null;
+  /**
+   * Every kind this person could answer THIS purpose with, strongest first
+   * (the policy-narrowed ladder intersected with what they hold), so a
+   * surface can offer "use another method" without guessing.
+   */
+  availableMethods: StepUpFactorKind[];
+  /** PASSKEY: the WebAuthn request options to pass to the browser. */
+  passkeyOptions: Record<string, unknown> | null;
+  /** The raw single-use handoff token (returned once, stored hashed). */
+  handoffToken: string | null;
 };
+
+// -----------------------------------------------------------------------------
+// 2026-10-28 — the Organization's step-up assurance, read from the ONE
+// Organization security policy row (no second policy store). A workspace with
+// no CUSTOMER Organization, or a customer Organization with no policy row yet,
+// has the default posture: STANDARD, SMS allowed — today's behaviour.
+// -----------------------------------------------------------------------------
+
+export type StepUpOrganizationPolicy = IdpStepUpPolicy & {
+  smsAllowed: boolean;
+  /**
+   * The Organization's approval lifetime (`stepUpTtlSeconds`). It was stored
+   * and editable and read by nothing: every challenge lived the default 15
+   * minutes whatever the Organization set (members ledger S-2).
+   */
+  ttlSeconds: number | null;
+};
+
+export async function resolveStepUpOrganizationPolicy(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<StepUpOrganizationPolicy | null> {
+  const organizationId = await organizationIdForPolicy(teamId, client);
+  if (!organizationId) return null;
+  const row = await client.organizationSecurityPolicy.findUnique({
+    where: { organizationId },
+    select: {
+      stepUpAssurance: true,
+      stepUpSmsAllowed: true,
+      idpStepUpAcceptedContexts: true,
+      idpStepUpMaxAgeSeconds: true,
+      stepUpTtlSeconds: true,
+    },
+  });
+  if (!row) return null;
+  // An absent value is the column default (STANDARD, SMS allowed, 300s); a
+  // stored level that is not a known one fails toward the stronger requirement.
+  const stored = row.stepUpAssurance ?? "STANDARD";
+  const assurance = (STEP_UP_ASSURANCE_LEVELS as ReadonlyArray<string>).includes(stored)
+    ? (stored as StepUpAssuranceLevel)
+    : "PHISHING_RESISTANT";
+  return {
+    assurance,
+    smsAllowed: row.stepUpSmsAllowed ?? true,
+    acceptedContexts: row.idpStepUpAcceptedContexts ?? [],
+    maxAgeSeconds: Math.max(30, Math.min(3600, row.idpStepUpMaxAgeSeconds ?? 300)),
+    ttlSeconds: row.stepUpTtlSeconds ?? null,
+  };
+}
+
+export function hashStepUpHandoffToken(raw: string): string {
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+/**
+ * A bound on how often one person may START a challenge for a ladder purpose:
+ * each start is a passkey ceremony, an IdP round trip or a code, and none of
+ * them should be an unmetered loop.
+ */
+const LADDER_MAX_STARTS_PER_WINDOW = 10;
+const LADDER_START_WINDOW_MS = 15 * 60 * 1000;
 
 /**
  * PV-STEPUP-001 — an authenticator-app challenge is refused to start once
@@ -170,16 +275,59 @@ export async function startStepUpChallenge(
    * defect. It now means the gate cannot be satisfied, which is what a gate
    * with nothing to check against should say.
    */
+  const policy = await resolveStepUpOrganizationPolicy(input.teamId, client);
+  const allowedKinds = stepUpFactorKindsAllowed(input.purpose, policy);
+  if (stepUpFactorKindsFor(input.purpose).includes("PASSKEY")) {
+    const recentStarts = await client.stepUpChallenge.count({
+      where: {
+        initiatedByUserId: input.userId,
+        purpose: input.purpose,
+        createdAt: { gte: new Date(Date.now() - LADDER_START_WINDOW_MS) },
+      },
+    });
+    if (recentStarts >= LADDER_MAX_STARTS_PER_WINDOW) {
+      throw new StepUpError("rate_limited");
+    }
+  }
+  const available = await resolveAvailableStepUpKinds(
+    { userId: input.userId, teamId: input.teamId, allowedKinds },
+    client,
+  );
+  // A named channel NARROWS among what the person holds; it never introduces
+  // a kind the policy or the person does not have.
+  const requested = input.channel ?? null;
+  const chosenKind: StepUpFactorKind | null =
+    requested !== null
+      ? available.kinds.includes(requested)
+        ? requested
+        : null
+      : (available.kinds[0] ?? null);
+  if (chosenKind === null) throw new StepUpError("enrollment_required", allowedKinds);
+
+  if (chosenKind === "PASSKEY" || chosenKind === "IDP_REAUTH") {
+    return startLadderChallenge(
+      {
+        input,
+        kind: chosenKind,
+        availableMethods: available.kinds,
+        idpConnectionId: available.idpConnectionId,
+        policy,
+      },
+      client,
+    );
+  }
+
   const factor = await resolveStepUpFactor(
     {
       userId: input.userId,
       purpose: input.purpose,
       factorId: input.factorId ?? null,
-      channel: input.channel ?? null,
+      channel: chosenKind,
+      allowedKinds,
     },
     client,
   );
-  if (!factor) throw new StepUpError("enrollment_required");
+  if (!factor) throw new StepUpError("enrollment_required", allowedKinds);
 
   let verificationAttemptId: string | null = null;
   let generation = factor.generation;
@@ -239,7 +387,7 @@ export async function startStepUpChallenge(
     verificationAttemptId = verification.attempt.id;
   }
 
-  const ttl = clampTtl(input.ttlSeconds ?? null);
+  const ttl = clampTtl(input.ttlSeconds ?? policy?.ttlSeconds ?? null);
   const expiresAt = new Date(Date.now() + ttl * 1000);
 
   // PHASE 12B B3 — the Organization is DERIVED FROM PERSISTENCE, never from a
@@ -277,6 +425,7 @@ export async function startStepUpChallenge(
        */
       factorId: factor.factorId,
       factorGeneration: generation,
+      method: factor.method,
     },
   });
   safeEmitSecurityEvent(
@@ -313,6 +462,173 @@ export async function startStepUpChallenge(
     challenge,
     method: factor.method,
     destinationMask: factor.destinationMask,
+    availableMethods: available.kinds,
+    passkeyOptions: null,
+    handoffToken: null,
+  };
+}
+
+/**
+ * Which kinds of the policy-narrowed ladder this person can actually answer
+ * with, strongest first. Holding is checked here, at start; the factor that
+ * answers is re-checked when the approval is spent.
+ */
+async function resolveAvailableStepUpKinds(
+  input: { userId: string; teamId: string; allowedKinds: ReadonlyArray<StepUpFactorKind> },
+  client: PrismaClient,
+): Promise<{ kinds: StepUpFactorKind[]; idpConnectionId: string | null }> {
+  const kinds: StepUpFactorKind[] = [];
+  let idpConnectionId: string | null = null;
+  for (const kind of input.allowedKinds) {
+    if (kind === "PASSKEY") {
+      if (await userHasActivePasskey(client, input.userId)) kinds.push(kind);
+      continue;
+    }
+    if (kind === "IDP_REAUTH") {
+      const connection = await resolveIdpStepUpConnection(client, {
+        userId: input.userId,
+        teamId: input.teamId,
+      });
+      if (connection) {
+        idpConnectionId = connection.connectionId;
+        kinds.push(kind);
+      }
+      continue;
+    }
+    if (kind === "TOTP") {
+      const totp = await client.mfaFactor.count({
+        where: {
+          userId: input.userId,
+          kind: "TOTP",
+          status: "ACTIVE",
+          revokedAt: null,
+          verifiedAtUtc: { not: null },
+        },
+      });
+      if (totp > 0) kinds.push(kind);
+      continue;
+    }
+    const contact = await resolveActiveContactFactor(
+      { userId: input.userId, kind },
+      client,
+    );
+    if (contact && contact.kind === kind) kinds.push(kind);
+  }
+  return { kinds, idpConnectionId };
+}
+
+/**
+ * PASSKEY and IDP_REAUTH challenges. Neither sends anything: a passkey
+ * challenge carries the random WebAuthn challenge its assertion must sign; an
+ * IdP challenge is completed by a forced, assurance-checked sign-in at the
+ * Organization's IdP — or approved at once when THIS session's own IdP
+ * sign-in is recent enough and its context is one the policy accepts.
+ *
+ * Every binding of a code challenge applies: user, workspace, Organization,
+ * purpose, resource, session, expiry. The factor binding is set when the
+ * challenge is answered (the passkey that signed); an IdP challenge is bound
+ * to the SSO connection instead, re-checked when the approval is spent.
+ */
+async function startLadderChallenge(
+  args: {
+    input: StartStepUpInput;
+    kind: "PASSKEY" | "IDP_REAUTH";
+    availableMethods: StepUpFactorKind[];
+    idpConnectionId: string | null;
+    policy: StepUpOrganizationPolicy | null;
+  },
+  client: PrismaClient,
+): Promise<StartStepUpResult> {
+  const { input, kind } = args;
+  const ttl = clampTtl(input.ttlSeconds ?? args.policy?.ttlSeconds ?? null);
+  const workspace = await client.team.findUnique({
+    where: { id: input.teamId },
+    select: { organizationId: true },
+  });
+
+  let passkeyOptions: Record<string, unknown> | null = null;
+  let webauthnChallenge: string | null = null;
+  let approvedContext: string | null = null;
+  if (kind === "PASSKEY") {
+    const built = await buildPasskeyAssertionOptions(client, input.userId);
+    if (!built) throw new StepUpError("enrollment_required");
+    passkeyOptions = built.options;
+    webauthnChallenge = built.challenge;
+  } else {
+    if (!args.idpConnectionId) throw new StepUpError("enrollment_required");
+    const recent = await sessionSatisfiesIdpStepUp(client, {
+      sessionIdHash: input.sessionIdHash ?? null,
+      userId: input.userId,
+      connectionId: args.idpConnectionId,
+      policy: args.policy ?? { acceptedContexts: [], maxAgeSeconds: 300, assurance: "STANDARD" },
+    });
+    approvedContext = recent?.authnContext ?? null;
+  }
+
+  const approvedNow = approvedContext !== null;
+  const wantsHandoff = kind === "IDP_REAUTH" ? !approvedNow : input.handoff === true;
+  const handoffToken = wantsHandoff ? randomBytes(32).toString("base64url") : null;
+
+  const challenge = await client.stepUpChallenge.create({
+    data: {
+      teamId: input.teamId,
+      initiatedByUserId: input.userId,
+      purpose: input.purpose,
+      resourceKind: input.resourceKind ?? null,
+      resourceId: input.resourceId ?? null,
+      status: approvedNow
+        ? prismaPkg.StepUpChallengeStatus.APPROVED
+        : prismaPkg.StepUpChallengeStatus.PENDING,
+      approvedAtUtc: approvedNow ? new Date() : null,
+      expiresAtUtc: new Date(Date.now() + ttl * 1000),
+      reason: input.reason?.slice(0, 400) ?? null,
+      sessionIdHash: input.sessionIdHash ?? null,
+      organizationId: workspace?.organizationId ?? null,
+      method: kind,
+      ssoConnectionId: kind === "IDP_REAUTH" ? args.idpConnectionId : null,
+      authnContext: approvedContext,
+      webauthnChallenge,
+      handoffTokenHash: handoffToken ? hashStepUpHandoffToken(handoffToken) : null,
+    },
+  });
+  safeEmitSecurityEvent(
+    {
+      teamId: input.teamId,
+      eventType: approvedNow ? "step_up_approved" : "step_up_started",
+      severity: "INFO",
+      details: {
+        actorUserId: input.userId,
+        purpose: input.purpose,
+        method: kind,
+        resourceKind: input.resourceKind ?? null,
+        resourceId: input.resourceId ?? null,
+        ...(approvedNow ? { satisfiedBy: "recent_idp_sign_in" } : {}),
+      },
+    },
+    client,
+  );
+  await emitTenantAudit({
+    action: approvedNow ? "identity_security.step_up.approved" : "identity_security.step_up.start",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.userId,
+    workspaceId: input.teamId,
+    resourceType: "step_up_challenge",
+    resourceId: challenge.id,
+    metadata: {
+      purpose: input.purpose,
+      method: kind,
+      resourceKind: input.resourceKind ?? null,
+      resourceId: input.resourceId ?? null,
+    },
+  }, client);
+  return {
+    challenge,
+    method: kind,
+    destinationMask: null,
+    availableMethods: args.availableMethods,
+    passkeyOptions,
+    handoffToken,
   };
 }
 
@@ -327,7 +643,9 @@ export type CheckStepUpInput = {
   // Passed straight to Phase 18 Verify — NEVER persisted, NEVER
   // logged. The verify route already enforces this; we re-state it
   // here so a casual reader sees it.
-  code: string;
+  code?: string | null;
+  /** 2026-10-28 — a WebAuthn assertion (AuthenticationResponseJSON). */
+  assertion?: unknown;
   ipAddress?: string | null;
   userAgent?: string | null;
   /**
@@ -366,6 +684,23 @@ export async function checkStepUpChallenge(
   }
   if (row.status !== prismaPkg.StepUpChallengeStatus.PENDING) {
     throw new StepUpError("challenge_consumed");
+  }
+
+  // 2026-10-28 — a passkey challenge is answered by an assertion; an IdP
+  // challenge only by its IdP round trip. A code never answers either.
+  if (row.method === "PASSKEY") {
+    const approved = await answerPasskeyChallenge(
+      { teamId: input.teamId, userId: input.userId, assertion: input.assertion },
+      row,
+      client,
+    );
+    return { challenge: approved };
+  }
+  if (row.method === "IDP_REAUTH") {
+    throw new StepUpError("method_mismatch");
+  }
+  if (typeof input.code !== "string" || input.code.length === 0) {
+    throw new StepUpError("method_mismatch");
   }
 
   /**
@@ -618,21 +953,45 @@ export async function consumeApprovedChallenge(
    * Same generic `challenge_not_found` denial as the bindings above, for the
    * same anti-enumeration reason.
    */
-  if (row.factorId == null || row.factorGeneration == null) {
-    throw new StepUpError("challenge_not_found");
-  }
-  const spendingFactor = await client.mfaFactor.findFirst({
-    where: {
-      id: row.factorId,
-      userId: input.userId,
-      status: "ACTIVE",
-      revokedAt: null,
-      verifiedAtUtc: { not: null },
-    },
-    select: { generation: true },
-  });
-  if (!spendingFactor || spendingFactor.generation !== row.factorGeneration) {
-    throw new StepUpError("challenge_not_found");
+  if (row.method === "IDP_REAUTH") {
+    /*
+     * 2026-10-28 — an IdP approval is bound to the Organization's SSO
+     * connection rather than to a factor row: the connection must still be
+     * ACTIVE and the person still linked to it, or the approval dies with
+     * the link (the analogue of a revoked factor). It must also carry the
+     * context the IdP asserted — an approval without one was never proven.
+     */
+    if (
+      row.ssoConnectionId == null ||
+      row.authnContext == null ||
+      !(await idpStepUpBindingStillValid(client, {
+        userId: input.userId,
+        connectionId: row.ssoConnectionId,
+      }))
+    ) {
+      throw new StepUpError("challenge_not_found");
+    }
+  } else {
+    if (row.factorId == null || row.factorGeneration == null) {
+      throw new StepUpError("challenge_not_found");
+    }
+    const spendingFactor = await client.mfaFactor.findFirst({
+      where: {
+        id: row.factorId,
+        userId: input.userId,
+        status: "ACTIVE",
+        revokedAt: null,
+        verifiedAtUtc: { not: null },
+      },
+      select: { generation: true, kind: true },
+    });
+    if (!spendingFactor || spendingFactor.generation !== row.factorGeneration) {
+      throw new StepUpError("challenge_not_found");
+    }
+    // A row that names its method must have been answered by that kind.
+    if (row.method != null && row.method !== spendingFactor.kind) {
+      throw new StepUpError("challenge_not_found");
+    }
   }
 
   if (row.expiresAtUtc.getTime() <= Date.now()) {
@@ -679,6 +1038,238 @@ export async function consumeApprovedChallenge(
 }
 
 // -----------------------------------------------------------------------------
+// 2026-10-28 — answering ladder challenges
+// -----------------------------------------------------------------------------
+
+/**
+ * A PASSKEY challenge answered by an assertion. The assertion must be signed
+ * over THIS challenge's random value by one of THIS person's ACTIVE passkeys,
+ * with user verification; the approval is then bound to that passkey's factor
+ * and generation, so revoking the passkey kills it exactly as revoking a
+ * phone does. A failed assertion spends the challenge (one attempt each).
+ */
+async function answerPasskeyChallenge(
+  input: { teamId: string; userId: string; assertion: unknown },
+  row: prismaPkg.StepUpChallenge,
+  client: PrismaClient,
+): Promise<prismaPkg.StepUpChallenge> {
+  if (row.expiresAtUtc.getTime() <= Date.now()) {
+    await client.stepUpChallenge.updateMany({
+      where: { id: row.id, status: prismaPkg.StepUpChallengeStatus.PENDING },
+      data: { status: prismaPkg.StepUpChallengeStatus.EXPIRED },
+    });
+    throw new StepUpError("challenge_expired");
+  }
+  if (input.assertion == null || row.webauthnChallenge == null) {
+    throw new StepUpError("method_mismatch");
+  }
+  const verified = await verifyPasskeyAssertion(client, {
+    userId: row.initiatedByUserId,
+    expectedChallenge: row.webauthnChallenge,
+    assertion: input.assertion,
+  });
+  if (!verified) {
+    await recordStepUpDenial({ teamId: input.teamId, userId: input.userId }, row, client);
+    throw new StepUpError("denied");
+  }
+  return markLadderChallengeApproved(
+    row,
+    { factorId: verified.factorId, factorGeneration: verified.generation, authnContext: null },
+    client,
+  );
+}
+
+/**
+ * The single transition PENDING -> APPROVED for a ladder challenge, guarded so
+ * two answers cannot both approve (and a cancelled or expired row stays so).
+ * The webauthn challenge and the handoff hash are cleared: neither can be
+ * used again.
+ */
+async function markLadderChallengeApproved(
+  row: prismaPkg.StepUpChallenge,
+  binding: { factorId: string | null; factorGeneration: number | null; authnContext: string | null },
+  client: PrismaClient,
+): Promise<prismaPkg.StepUpChallenge> {
+  const moved = await client.stepUpChallenge.updateMany({
+    where: {
+      id: row.id,
+      status: prismaPkg.StepUpChallengeStatus.PENDING,
+      expiresAtUtc: { gt: new Date() },
+    },
+    data: {
+      status: prismaPkg.StepUpChallengeStatus.APPROVED,
+      approvedAtUtc: new Date(),
+      factorId: binding.factorId,
+      factorGeneration: binding.factorGeneration,
+      authnContext: binding.authnContext,
+      webauthnChallenge: null,
+      handoffTokenHash: null,
+    },
+  });
+  if (moved.count === 0) throw new StepUpError("challenge_consumed");
+  const approved = await client.stepUpChallenge.findUniqueOrThrow({ where: { id: row.id } });
+  safeEmitSecurityEvent(
+    {
+      teamId: row.teamId,
+      eventType: "step_up_approved",
+      severity: "INFO",
+      details: {
+        actorUserId: row.initiatedByUserId,
+        purpose: row.purpose,
+        method: row.method,
+        resourceKind: row.resourceKind,
+        resourceId: row.resourceId,
+      },
+    },
+    client,
+  );
+  await emitTenantAudit({
+    action: "identity_security.step_up.approved",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: row.initiatedByUserId,
+    workspaceId: row.teamId,
+    resourceType: "step_up_challenge",
+    resourceId: row.id,
+    metadata: {
+      purpose: row.purpose,
+      method: row.method,
+      resourceKind: row.resourceKind ?? null,
+      resourceId: row.resourceId ?? null,
+    },
+  }, client);
+  return approved;
+}
+
+/**
+ * THE SYSTEM-BROWSER HANDOFF. A challenge started by the app (or by a page
+ * that opens an IdP popup) is completed in a browser that does not hold the
+ * app's session. The handoff token — 256 random bits, returned once at start,
+ * stored only as a hash — names the ONE challenge it may complete, and a
+ * completed or expired challenge refuses it. Completing the challenge is all
+ * it can do: spending the approval still requires the session that started
+ * it, so a leaked handoff link is useless to anyone but that session.
+ */
+export async function loadHandoffChallenge(
+  input: { challengeId: string; handoffToken: string; method: "PASSKEY" | "IDP_REAUTH" },
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.StepUpChallenge> {
+  const row = await client.stepUpChallenge.findUnique({ where: { id: input.challengeId } });
+  if (
+    !row ||
+    row.method !== input.method ||
+    row.handoffTokenHash == null ||
+    row.handoffTokenHash !== hashStepUpHandoffToken(input.handoffToken) ||
+    row.status !== prismaPkg.StepUpChallengeStatus.PENDING
+  ) {
+    throw new StepUpError("challenge_not_found");
+  }
+  if (row.expiresAtUtc.getTime() <= Date.now()) {
+    throw new StepUpError("challenge_expired");
+  }
+  return row;
+}
+
+/**
+ * The IdP round trip begins: the handoff is spent (once), so the same link
+ * cannot start a second sign-in for this challenge. Returns the challenge and
+ * its connection for the protocol redirect.
+ */
+export async function beginIdpHandoff(
+  input: { challengeId: string; handoffToken: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.StepUpChallenge> {
+  const row = await loadHandoffChallenge({ ...input, method: "IDP_REAUTH" }, client);
+  const spent = await client.stepUpChallenge.updateMany({
+    where: { id: row.id, handoffUsedAtUtc: null, status: prismaPkg.StepUpChallengeStatus.PENDING },
+    data: { handoffUsedAtUtc: new Date() },
+  });
+  if (spent.count === 0) throw new StepUpError("challenge_consumed");
+  return row;
+}
+
+/** The WebAuthn request options for a PASSKEY challenge's stored challenge. */
+export async function passkeyOptionsForChallenge(
+  row: prismaPkg.StepUpChallenge,
+  client: PrismaClient = defaultPrisma,
+): Promise<Record<string, unknown> | null> {
+  if (row.method !== "PASSKEY" || row.webauthnChallenge == null) return null;
+  const built = await buildPasskeyAssertionOptions(
+    client,
+    row.initiatedByUserId,
+    row.webauthnChallenge,
+  );
+  return built?.options ?? null;
+}
+
+/** A passkey answered in the handoff browser for an app-started challenge. */
+export async function answerPasskeyHandoff(
+  input: { challengeId: string; handoffToken: string; assertion: unknown },
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.StepUpChallenge> {
+  const row = await loadHandoffChallenge(
+    { challengeId: input.challengeId, handoffToken: input.handoffToken, method: "PASSKEY" },
+    client,
+  );
+  return answerPasskeyChallenge(
+    { teamId: row.teamId, userId: row.initiatedByUserId, assertion: input.assertion },
+    row,
+    client,
+  );
+}
+
+/**
+ * The IdP returned. The caller (the SAML ACS / OIDC callback branch) has
+ * verified the assertion or ID token, that its subject is linked to the
+ * person who started the challenge at this connection, that it is fresh, and
+ * that its context satisfies the Organization's policy. Only then is this
+ * called; it binds the approval to the connection and the asserted context.
+ */
+export async function approveIdpChallenge(
+  input: { challengeId: string; userId: string; connectionId: string; authnContext: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.StepUpChallenge> {
+  const row = await client.stepUpChallenge.findUnique({ where: { id: input.challengeId } });
+  if (
+    !row ||
+    row.method !== "IDP_REAUTH" ||
+    row.initiatedByUserId !== input.userId ||
+    row.ssoConnectionId !== input.connectionId ||
+    row.handoffUsedAtUtc == null
+  ) {
+    throw new StepUpError("challenge_not_found");
+  }
+  return markLadderChallengeApproved(
+    row,
+    { factorId: null, factorGeneration: null, authnContext: input.authnContext.slice(0, 256) },
+    client,
+  );
+}
+
+/**
+ * Status of one's own challenge — what a page waiting on a popup or the app
+ * waiting on a system browser polls. Never reveals another person's row.
+ */
+export async function readOwnStepUpChallenge(
+  input: { teamId: string; userId: string; challengeId: string; sessionIdHash: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ status: string; method: string | null; expiresAtUtc: string }> {
+  const row = await client.stepUpChallenge.findFirst({
+    where: { id: input.challengeId, teamId: input.teamId, initiatedByUserId: input.userId },
+    select: { status: true, method: true, expiresAtUtc: true, sessionIdHash: true },
+  });
+  if (!row) throw new StepUpError("challenge_not_found");
+  if (row.sessionIdHash != null && row.sessionIdHash !== input.sessionIdHash) {
+    throw new StepUpError("challenge_not_found");
+  }
+  return {
+    status: row.status,
+    method: row.method,
+    expiresAtUtc: row.expiresAtUtc.toISOString(),
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
 
@@ -706,10 +1297,12 @@ async function resolveStepUpFactor(
     purpose: StepUpPurpose;
     factorId: string | null;
     channel: StepUpFactorKind | null;
+    /** The purpose's kinds as narrowed by the Organization's policy. */
+    allowedKinds?: ReadonlyArray<StepUpFactorKind>;
   },
   client: PrismaClient,
 ): Promise<StepUpFactor | null> {
-  const allowed = stepUpFactorKindsFor(input.purpose);
+  const allowed = input.allowedKinds ?? stepUpFactorKindsFor(input.purpose);
   const channel = input.channel;
   if (channel !== null && !allowed.includes(channel)) return null;
 
@@ -735,7 +1328,9 @@ async function resolveStepUpFactor(
       };
     }
   }
-  if (channel === "TOTP") return null;
+  // A code factor answers only as one of the code kinds; the ladder kinds are
+  // answered by startLadderChallenge, never here.
+  if (channel !== null && channel !== "SMS" && channel !== "WHATSAPP") return null;
 
   const contact = await resolveActiveContactFactor(
     {
@@ -855,6 +1450,7 @@ export function projectStepUpChallenge(c: prismaPkg.StepUpChallenge): {
   resourceKind: string | null;
   resourceId: string | null;
   status: string;
+  method: string | null;
   expiresAtUtc: string;
   approvedAtUtc: string | null;
   createdAt: string;
@@ -865,6 +1461,7 @@ export function projectStepUpChallenge(c: prismaPkg.StepUpChallenge): {
     resourceKind: c.resourceKind,
     resourceId: c.resourceId,
     status: c.status,
+    method: c.method ?? null,
     expiresAtUtc: c.expiresAtUtc.toISOString(),
     approvedAtUtc: c.approvedAtUtc?.toISOString() ?? null,
     createdAt: c.createdAt.toISOString(),

@@ -141,6 +141,26 @@ export const NATIVE_DESTINATIONS = {
       "a 409 is not a failure: it carries the id of the request already in flight, which is the only route to the resend control for a user whose verification email never arrived",
     ],
   },
+  "/step-up/passkey": {
+    routeFile: "(stack)/step-up/complete.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/step-up/passkey/page.tsx","apps/mobile/src/ui/challenge-step-up.tsx"],
+    gaps: [
+      "the web page IS the native passkey ceremony: the app's step-up sheet opens it in an auth session (expo-web-browser) with the single-use handoff token, and the passkey is the platform's own - bound to the web relying party",
+      "the browser returns to proovra://step-up/complete; the sheet then reads the challenge status from the server and retries the action only when it is APPROVED",
+    ],
+  },
+  "/step-up/idp": {
+    routeFile: "(stack)/step-up/complete.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/step-up/idp/page.tsx","apps/mobile/src/ui/challenge-step-up.tsx"],
+    gaps: [
+      "an Organization sign-in can only run in a browser: the step-up sheet opens this page in an auth session; it starts the forced IdP reauthentication and receives its result on the same route",
+      "the browser returns to proovra://step-up/complete; approval is read from the server, never from the URL",
+    ],
+  },
   "/auth/mfa-recovery/verify": {
     routeFile: "(stack)/mfa-recovery-verify.tsx",
     status: "CODE_PARITY",

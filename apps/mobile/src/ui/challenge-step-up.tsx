@@ -17,6 +17,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 
 import { apiFetch } from "../api";
 import { toSafeUserError } from "../errors/safe-error";
@@ -25,13 +26,16 @@ import {
   STEP_UP_CANCEL,
   STEP_UP_CHALLENGE_HEADER,
   STEP_UP_CHECK_PATH,
+  STEP_UP_RETURN_URL,
   STEP_UP_START_PATH,
   buildStartBody,
   challengeDetailsFrom,
+  isBrowserMethod,
   isChallengeStepUpRequired,
   isEnrollmentRequired,
   parseStartedChallenge,
   purposeLabel,
+  stepUpStatusPath,
   type ChallengeDetails,
   type ChallengeMethod,
 } from "../product/challenge-step-up";
@@ -50,6 +54,10 @@ export type ChallengeState =
       method: ChallengeMethod;
       destinationMask: string | null;
       notice: string | null;
+      availableMethods: ReadonlyArray<ChallengeMethod>;
+      handoffUrl: string | null;
+      /** The system browser is open. */
+      working: boolean;
     }
   | { kind: "enrollment_required"; details: ChallengeDetails }
   | { kind: "failed"; details: ChallengeDetails; reason: string; canRestart: boolean }
@@ -103,16 +111,28 @@ export function useChallengeStepUp(teamId: string | null) {
           await apiFetch(STEP_UP_START_PATH, { method: "POST", body: JSON.stringify(buildStartBody(teamId, details, preferred)) }),
         );
         if (!started) throw new Error(CHALLENGE_COPY.startFailed);
-        setState({ kind: "verifying", details, notice: null, ...started });
+        if (started.approved) {
+          await retryWith(details, started.challengeId);
+          return;
+        }
+        setState({
+          kind: "verifying",
+          details,
+          notice: null,
+          working: false,
+          challengeId: started.challengeId,
+          method: started.method,
+          destinationMask: started.destinationMask,
+          availableMethods: started.availableMethods,
+          handoffUrl: started.handoffUrl,
+        });
       } catch (err) {
         const enrollment = isEnrollmentRequired(err);
         if (previous) {
           setState({
             ...previous,
             notice: enrollment
-              ? preferred === "TOTP"
-                ? CHALLENGE_COPY.noTotp
-                : CHALLENGE_COPY.noPhone
+              ? CHALLENGE_COPY.missing[preferred ?? previous.method]
               : toSafeUserError(err).message || CHALLENGE_COPY.switchFailed,
           });
           return;
@@ -138,10 +158,68 @@ export function useChallengeStepUp(teamId: string | null) {
     void startChallenge(state.details);
   }, [state, startChallenge]);
 
-  const switchMethod = useCallback(() => {
-    if (state.kind !== "verifying") return;
-    void startChallenge(state.details, state.method === "TOTP" ? "SMS" : "TOTP", state);
-  }, [state, startChallenge]);
+  const switchMethod = useCallback(
+    (to?: ChallengeMethod) => {
+      if (state.kind !== "verifying") return;
+      void startChallenge(state.details, to ?? (state.method === "TOTP" ? "SMS" : "TOTP"), state);
+    },
+    [state, startChallenge],
+  );
+
+  /**
+   * Retry the original action once with the approved challenge. The server
+   * consumes it atomically, bound to this app's session.
+   */
+  const retryWith = useCallback(
+    async (details: ChallengeDetails, challengeId: string) => {
+      const p = pending.current;
+      if (!p) {
+        setState({ kind: "idle" });
+        return;
+      }
+      setState({ kind: "retrying", details });
+      try {
+        const value = await p.action({ [STEP_UP_CHALLENGE_HEADER]: challengeId });
+        settle({ kind: "idle" });
+        p.resolve(value);
+      } catch (err) {
+        settle({ kind: "failed", details, reason: toSafeUserError(err).message || CHALLENGE_COPY.actionFailed, canRestart: false });
+        p.reject(err);
+      }
+    },
+    [settle],
+  );
+
+  /**
+   * PASSKEY / IDP_REAUTH — open the handoff page in an auth session. Whatever
+   * the page reports, the SERVER's status is what decides: only APPROVED
+   * retries the action; anything else leaves the challenge to try again or
+   * another method to choose.
+   */
+  const completeInBrowser = useCallback(async () => {
+    if (state.kind !== "verifying" || !isBrowserMethod(state.method) || !state.handoffUrl || !teamId) return;
+    const current = state;
+    setState({ ...current, working: true, notice: null });
+    try {
+      await WebBrowser.openAuthSessionAsync(current.handoffUrl as string, STEP_UP_RETURN_URL);
+    } catch {
+      // A browser that could not open is the same as one that was closed.
+    }
+    try {
+      const res = (await apiFetch(stepUpStatusPath(current.challengeId, teamId))) as { status?: unknown };
+      if (res?.status === "APPROVED") {
+        await retryWith(current.details, current.challengeId);
+        return;
+      }
+      setState({
+        ...current,
+        working: false,
+        notice: res?.status === "PENDING" ? CHALLENGE_COPY.browserPending : CHALLENGE_COPY.browserDenied,
+      });
+    } catch {
+      setState({ ...current, working: false, notice: CHALLENGE_COPY.browserPending });
+    }
+  }, [state, teamId, retryWith]);
 
   const restart = useCallback(() => {
     if (state.kind !== "failed" || !state.canRestart) return;
@@ -177,22 +255,9 @@ export function useChallengeStepUp(teamId: string | null) {
         setState(rejected);
         return;
       }
-      const p = pending.current;
-      if (!p) {
-        setState({ kind: "idle" });
-        return;
-      }
-      setState({ kind: "retrying", details });
-      try {
-        const value = await p.action({ [STEP_UP_CHALLENGE_HEADER]: state.challengeId });
-        settle({ kind: "idle" });
-        p.resolve(value);
-      } catch (err) {
-        settle({ kind: "failed", details, reason: toSafeUserError(err).message || CHALLENGE_COPY.actionFailed, canRestart: false });
-        p.reject(err);
-      }
+      await retryWith(details, state.challengeId);
     },
-    [state, teamId, settle],
+    [state, teamId, retryWith],
   );
 
   const close = useCallback(() => {
@@ -201,10 +266,35 @@ export function useChallengeStepUp(teamId: string | null) {
     else setState({ kind: "idle" });
   }, [cancel]);
 
-  return { state, run, cancel, close, restart, switchMethod, verifyAndRetry };
+  return { state, run, cancel, close, restart, switchMethod, verifyAndRetry, completeInBrowser };
 }
 
 export type ChallengeStepUp = ReturnType<typeof useChallengeStepUp>;
+
+/**
+ * "Use another method" — the kinds the server reported for this person
+ * (policy-narrowed, strongest first). An older response that lists none gets
+ * the TOTP <-> SMS toggle it always had.
+ */
+function MethodSwitches({
+  state,
+  onSwitch,
+}: {
+  state: { method: ChallengeMethod; availableMethods: ReadonlyArray<ChallengeMethod> };
+  onSwitch: (to?: ChallengeMethod) => void;
+}) {
+  const others: ChallengeMethod[] =
+    state.availableMethods.length > 0
+      ? state.availableMethods.filter((m) => m !== state.method && m !== "WHATSAPP")
+      : [state.method === "TOTP" ? "SMS" : "TOTP"];
+  return (
+    <>
+      {others.map((m) => (
+        <ProovraButton key={m} label={CHALLENGE_COPY.switchTo[m]} variant="ghost" onPress={() => onSwitch(m)} />
+      ))}
+    </>
+  );
+}
 
 export function ChallengeStepUpSheet({ stepUp }: { stepUp: ChallengeStepUp }) {
   const { state } = stepUp;
@@ -232,7 +322,27 @@ export function ChallengeStepUpSheet({ stepUp }: { stepUp: ChallengeStepUp }) {
           </>
         ) : null}
 
-        {state.kind === "verifying" ? (
+        {state.kind === "verifying" && isBrowserMethod(state.method) ? (
+          <>
+            <ProovraText variant="bodySm" testID="challenge-step-up-browser-prompt">
+              {state.method === "PASSKEY" ? CHALLENGE_COPY.passkeyPrompt : CHALLENGE_COPY.idpPrompt}
+            </ProovraText>
+            {state.notice ? (
+              <ProovraText variant="label" color={theme.color.status.pending.fg}>
+                {state.notice}
+              </ProovraText>
+            ) : null}
+            <ProovraButton
+              label={state.method === "PASSKEY" ? CHALLENGE_COPY.passkeyAction : CHALLENGE_COPY.idpAction}
+              disabled={state.working || !state.handoffUrl}
+              onPress={() => void stepUp.completeInBrowser()}
+            />
+            <MethodSwitches state={state} onSwitch={stepUp.switchMethod} />
+            <ProovraButton label="Cancel" variant="ghost" onPress={stepUp.cancel} />
+          </>
+        ) : null}
+
+        {state.kind === "verifying" && !isBrowserMethod(state.method) ? (
           <>
             <ProovraFormField
               label={state.method === "TOTP" ? CHALLENGE_COPY.codeLabelTotp : CHALLENGE_COPY.codeLabelPhone(state.destinationMask)}
@@ -255,11 +365,7 @@ export function ChallengeStepUpSheet({ stepUp }: { stepUp: ChallengeStepUp }) {
               disabled={code.trim().length === 0}
               onPress={() => void stepUp.verifyAndRetry(code.trim())}
             />
-            <ProovraButton
-              label={state.method === "TOTP" ? CHALLENGE_COPY.switchToSms : CHALLENGE_COPY.switchToTotp}
-              variant="ghost"
-              onPress={stepUp.switchMethod}
-            />
+            <MethodSwitches state={state} onSwitch={stepUp.switchMethod} />
             <ProovraButton label="Cancel" variant="ghost" onPress={stepUp.cancel} />
           </>
         ) : null}

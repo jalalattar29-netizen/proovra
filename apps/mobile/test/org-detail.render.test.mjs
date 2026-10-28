@@ -98,7 +98,7 @@ test("the server's flat detail is read: members and pending invites summarised, 
   const r = await render();
   assert.ok(r.hasText("3 members · 2 pending invites"), "the member / pending-invite summary is missing");
   assert.equal(r.byTestId("org-scope").length, 1);
-  assert.ok(r.hasText("Personal Space") && r.hasText("Organization (you are here)") && r.hasText("Workspace (a.k.a. Team)"));
+  assert.ok(r.hasText("Personal Space") && r.hasText("Organization (you are here)") && r.hasText("Workspace") && !r.hasText("a.k.a. Team"));
   assert.equal(r.byTestId("org-onboarding").length, 0, "onboarding shown to a non-owner of a populated org");
 });
 

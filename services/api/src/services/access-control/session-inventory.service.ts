@@ -118,6 +118,16 @@ export type RecordAuthenticatedSessionInput = {
   ipPreview?: string | null;
   uaPreview?: string | null;
   deviceIdHash?: string | null;
+  /**
+   * 2026-10-28 — how this session was authenticated (PASSWORD, SAML, OIDC, …)
+   * and, for an IdP sign-in, the context identifier the IdP asserted
+   * (AuthnContextClassRef / acr — never the assertion or token) and the IdP's
+   * own authentication instant (AuthnInstant / auth_time). Written once, at
+   * creation; a later upsert of the same session never rewrites them.
+   */
+  authMethod?: string | null;
+  authnContext?: string | null;
+  idpAuthAtUtc?: Date | null;
 };
 
 export async function recordAuthenticatedSession(
@@ -146,6 +156,12 @@ export async function recordAuthenticatedSession(
       ipPreview: input.ipPreview ?? null,
       uaPreview: input.uaPreview ?? null,
       deviceIdHash: input.deviceIdHash ?? null,
+      authMethod: input.authMethod ? input.authMethod.slice(0, 16) : null,
+      authnContext: input.authnContext ? input.authnContext.slice(0, 256) : null,
+      idpAuthAtUtc:
+        input.idpAuthAtUtc && Number.isFinite(input.idpAuthAtUtc.getTime())
+          ? input.idpAuthAtUtc
+          : null,
     },
   });
   return projectSession(row);

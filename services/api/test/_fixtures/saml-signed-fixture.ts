@@ -74,6 +74,11 @@ export type SignedSamlOpts = {
   inResponseTo?: string;
   destination?: string | null; // null → omit Response @Destination
   recipient?: string | null; // null → omit SubjectConfirmationData @Recipient
+  // 2026-10-28 — IDP_REAUTH step-up proofs. Defaults keep the fixture byte-for-byte
+  // what it was: NameID user@example.com, AuthnInstant now, Password context.
+  nameId?: string;
+  authnInstant?: Date | null; // null → omit AuthnStatement @AuthnInstant
+  authnContextClassRef?: string | null; // null → omit AuthnContext
 };
 
 export function buildSignedSamlResponse(o: SignedSamlOpts = {}): string {
@@ -90,8 +95,15 @@ export function buildSignedSamlResponse(o: SignedSamlOpts = {}): string {
   const recipient = o.recipient === null ? "" : ` Recipient="${o.recipient ?? ACS_URL}"`;
   const scdXml = `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer"><saml:SubjectConfirmationData${recipient} NotOnOrAfter="${new Date(now + 300000).toISOString()}" InResponseTo="${inResponseTo}"/></saml:SubjectConfirmation>`;
 
+  const nameId = o.nameId ?? "user@example.com";
+  const authnInstantAttr =
+    o.authnInstant === null ? "" : ` AuthnInstant="${(o.authnInstant ?? new Date(now)).toISOString()}"`;
+  const authnContextXml =
+    o.authnContextClassRef === null
+      ? ""
+      : `<saml:AuthnContext><saml:AuthnContextClassRef>${o.authnContextClassRef ?? "urn:oasis:names:tc:SAML:2.0:ac:classes:Password"}</saml:AuthnContextClassRef></saml:AuthnContext>`;
   const assertionId = "_assertion1";
-  const responseXml = `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response1"${destination} InResponseTo="${inResponseTo}" Version="2.0" IssueInstant="${new Date(now).toISOString()}"><saml:Issuer>${issuer}</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status><saml:Assertion ID="${assertionId}" Version="2.0" IssueInstant="${new Date(now).toISOString()}"><saml:Issuer>${issuer}</saml:Issuer><saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">user@example.com</saml:NameID>${scdXml}</saml:Subject><saml:Conditions NotBefore="${nb}" NotOnOrAfter="${noa}">${audienceXml}</saml:Conditions><saml:AuthnStatement AuthnInstant="${new Date(now).toISOString()}"><saml:AuthnContext><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:Password</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement></saml:Assertion></samlp:Response>`;
+  const responseXml = `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_response1"${destination} InResponseTo="${inResponseTo}" Version="2.0" IssueInstant="${new Date(now).toISOString()}"><saml:Issuer>${issuer}</saml:Issuer><samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status><saml:Assertion ID="${assertionId}" Version="2.0" IssueInstant="${new Date(now).toISOString()}"><saml:Issuer>${issuer}</saml:Issuer><saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${nameId}</saml:NameID>${scdXml}</saml:Subject><saml:Conditions NotBefore="${nb}" NotOnOrAfter="${noa}">${audienceXml}</saml:Conditions><saml:AuthnStatement${authnInstantAttr}>${authnContextXml}</saml:AuthnStatement></saml:Assertion></samlp:Response>`;
 
   const sig = new SignedXml({
     privateKey: IDP_PRIVATE_KEY_PEM,

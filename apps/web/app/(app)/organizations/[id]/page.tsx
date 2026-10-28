@@ -1197,7 +1197,7 @@ function OrganizationDetailInner() {
             </div>
           </div>
           <div data-scope="workspace" style={scopeCard}>
-            <div style={scopeTitle}>Workspace (a.k.a. Team)</div>
+            <div style={scopeTitle}>Workspace</div>
             <div style={{ color: "var(--ink-secondary, #475569)" }}>
               Operational tenant. Evidence, cases, reviewer queues, retention
               policy, plan + seats. Each workspace is bound to exactly one

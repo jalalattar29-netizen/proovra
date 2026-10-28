@@ -393,7 +393,7 @@ export function formatTeamLimitReachedMessage(details: unknown): string | null {
   if (limit === null) return null;
   const raw = typeof d.plan === "string" ? d.plan.trim() : "";
   const plan = raw ? `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()} plan` : "plan";
-  return `Your ${plan} includes up to ${limit} Team${limit === 1 ? "" : "s"}. Upgrade to create another Team.`;
+  return `Your ${plan} includes up to ${limit} Collaboration Team${limit === 1 ? "" : "s"}. Upgrade to create another Collaboration Team.`;
 }
 
 /** The web's template hints (collaboration-teams/page.tsx:1626). */
@@ -440,7 +440,7 @@ export function createDisabledReason(
   // restricted, at capacity — send a customer to different places.
   if (entitlement.planLocked) return TEAMS_PLAN_LOCKED_COPY;
   if (!entitlement.mutationsAllowed) {
-    return "This workspace's billing needs attention before new Teams can be created.";
+    return "This workspace's billing needs attention before new Collaboration Teams can be created.";
   }
   if (entitlement.exceededDimensions.includes("WORKSPACE_SEATS")) {
     return "This workspace is over its contracted seats.";
@@ -723,10 +723,12 @@ export function assignmentPageSummary(loaded: number, total: number | null): str
 // ---------------------------------------------------------------------------
 //
 // PATCH  /v1/collaboration-teams/:teamId          { name, description, teamType }
-// POST   /v1/collaboration-teams/:teamId/archive
-// POST   /v1/collaboration-teams/:teamId/unarchive
-// GET    /v1/collaboration-teams/:teamId/disposability
-// DELETE /v1/collaboration-teams/:teamId
+// GET    /v1/collaboration-teams/:teamId/archive-impact
+// POST   /v1/collaboration-teams/:teamId/archive    { confirmName, reason? } (step-up)
+// POST   /v1/collaboration-teams/:teamId/unarchive  (Restore)
+//
+// 2026-10-28 — there is no delete. A Collaboration Team is never
+// customer-deleted; archiving preserves it and needs a recent step-up.
 // GET    /v1/collaboration-teams/:teamId/activity?limit&cursor
 //
 // `updateTeam` supports EXACTLY { name, description, teamType }. The web tab
@@ -747,8 +749,8 @@ export function buildCollaborationMemberPath(teamId: string, memberId: string): 
   return `${buildCollaborationTeamPath(teamId)}/members/${encodeURIComponent(memberId)}`;
 }
 
-export function buildTeamDisposabilityPath(teamId: string): string {
-  return `${buildCollaborationTeamPath(teamId)}/disposability`;
+export function buildTeamArchiveImpactPath(teamId: string): string {
+  return `${buildCollaborationTeamPath(teamId)}/archive-impact`;
 }
 export function buildTeamActivityPath(
   teamId: string,
@@ -777,55 +779,111 @@ export function validateTeamSettings(name: string): string | null {
   return isValidTeamName(name) ? null : "Give this team a name.";
 }
 
-export interface TeamDisposability {
-  disposable: boolean;
-  blockers: string[];
+/**
+ * What archiving would affect — the server's preview, shown before the
+ * step-up. Null when it is missing or malformed: a surface that cannot show
+ * the impact offers no destructive control.
+ */
+export interface TeamArchiveImpact {
+  teamName: string;
+  acceptedMembers: number;
+  caseGrants: number;
+  openAssignments: number;
+  pendingInvites: number;
+  unavailable: string[];
+  preserved: string[];
+  restoreRequestable: boolean;
 }
 
-const BLOCKER_NOUN: Readonly<Record<string, [string, string]>> = {
-  assignments: ["assignment", "assignments"],
-  discussion: ["discussion comment", "discussion comments"],
-  accessReviews: ["access review", "access reviews"],
-  guests: ["guest", "guests"],
-  activity: ["activity entry", "activity entries"],
-};
-function blockerSentence(kind: string | null, count: unknown): string | null {
-  if (!kind || typeof count !== "number" || count <= 0) return null;
-  const noun = BLOCKER_NOUN[kind];
-  return noun ? `${count} ${count === 1 ? noun[0] : noun[1]}` : `${count} ${kind}`;
+function count(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-export function parseTeamDisposability(payload: unknown): TeamDisposability {
-  const d = obj(obj(payload).disposition ?? payload);
+export function parseTeamArchiveImpact(payload: unknown): TeamArchiveImpact | null {
+  const d = obj(obj(payload).impact ?? payload);
+  const teamName = str(d.teamName);
+  const members = count(d.acceptedMembers);
+  const cases = count(d.caseGrants);
+  const tasks = count(d.openAssignments);
+  const invites = count(d.pendingInvites);
+  if (teamName === null || members === null || cases === null || tasks === null || invites === null) {
+    return null;
+  }
   return {
-    // Absent means NOT disposable. A default of "yes" on a permanent delete
-    // would be the client deciding a destructive question the server owns.
-    disposable: d.disposable === true,
-    // Each blocker is `{ kind, count }` (collaboration-team.service.ts). Read as a
-    // string or `.message`, every one was dropped, so the "cannot be deleted"
-    // card never showed and the reason was never given.
-    blockers: rows(d.blockers)
-      .map((b) => (typeof b === "string" ? b : blockerSentence(str(obj(b).kind), obj(b).count) ?? str(obj(b).message) ?? str(obj(b).code)))
-      .filter((b): b is string => b !== null),
+    teamName,
+    acceptedMembers: members,
+    caseGrants: cases,
+    openAssignments: tasks,
+    pendingInvites: invites,
+    unavailable: rows(d.unavailable).filter((x): x is string => typeof x === "string"),
+    preserved: rows(d.preserved).filter((x): x is string => typeof x === "string"),
+    restoreRequestable: obj(d.restore).requestable === true,
   };
 }
 
-/**
- * Deletion is the ACCIDENTAL-CREATION path, not a way to erase work.
- *
- * The server re-checks disposability inside its transaction and answers 409
- * TEAM_NOT_DISPOSABLE for a group with history. Archiving is the action for a
- * group that has done any — and archiving already frees the plan slot, so
- * deletion is never the route to more capacity. The surface says both.
- */
-export const DELETE_TEAM_CONSEQUENCE =
-  "This permanently deletes a group that has no work, no messages and no history. " +
-  "It cannot be undone. Archiving is the action for a group that has done any work, " +
-  "and archiving already frees the plan slot.";
+const ARCHIVE_UNAVAILABLE_COPY: Readonly<Record<string, string>> = {
+  case_access_through_team: "Access to Cases granted to this Collaboration Team",
+  new_tasks: "New tasks and task changes",
+  discussion_posts: "New discussion posts",
+  new_members_and_invitations: "New members and invitations",
+  team_settings_changes: "Changes to the team's settings",
+};
+const ARCHIVE_PRESERVED_COPY: Readonly<Record<string, string>> = {
+  team_record: "The Collaboration Team itself",
+  membership_history: "Who was a member, and their roles",
+  assignments_history: "Every assignment and its outcome",
+  discussion_history: "The discussion",
+  activity_history: "The activity timeline",
+  audit_history: "The audit trail",
+};
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The impact as sentences, in the order the web dialog shows them. */
+export function describeArchiveImpact(impact: TeamArchiveImpact): {
+  affected: string[];
+  unavailable: string[];
+  preserved: string[];
+  restore: string;
+} {
+  return {
+    affected: [
+      `${plural(impact.acceptedMembers, "member", "members")} lose access through this team`,
+      `${plural(impact.caseGrants, "Case grant", "Case grants")} stop applying`,
+      `${plural(impact.openAssignments, "open task", "open tasks")} will be cancelled`,
+      `${plural(impact.pendingInvites, "pending invitation", "pending invitations")} will be revoked`,
+    ],
+    unavailable: impact.unavailable.map((k) => ARCHIVE_UNAVAILABLE_COPY[k] ?? k),
+    preserved: impact.preserved.map((k) => ARCHIVE_PRESERVED_COPY[k] ?? k),
+    restore: impact.restoreRequestable
+      ? "A Lead can restore this team later. Restoring checks your plan, how many active Collaboration Teams you have, and the team's member capacity at that time."
+      : "This team cannot be restored after archiving.",
+  };
+}
+
+/** Exact — case and spacing included. The server checks it again. */
+export function archiveConfirmationMatches(typed: string, teamName: string): boolean {
+  return typed === teamName;
+}
+
+export function buildTeamArchiveBody(input: { confirmName: string; reason: string }) {
+  const reason = input.reason.trim();
+  return { confirmName: input.confirmName, ...(reason ? { reason } : {}) };
+}
+
+export const ARCHIVE_TEAM_ACTION = "Archive Collaboration Team";
+export const RESTORE_TEAM_ACTION = "Restore Collaboration Team";
 
 export const ARCHIVE_TEAM_CONSEQUENCE =
-  "The group stops being used for new work and its plan slot is freed. Its messages, " +
-  "assignments and history are kept, and it can be reopened later.";
+  "Archiving ends access through this team and stops new work, and keeps the team and its " +
+  "whole history. Collaboration Teams are never deleted.";
+
+export const RESTORE_TEAM_CONSEQUENCE =
+  "Restoring makes this Collaboration Team active again, so it uses one of your plan's active " +
+  "Team slots. Your plan, the number of active Teams and the team's member capacity are " +
+  "checked first.";
 
 export interface TeamActivityItem {
   id: string;

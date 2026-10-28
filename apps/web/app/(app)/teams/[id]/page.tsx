@@ -207,6 +207,16 @@ type TeamActivitiesResponse = {
   activities: TeamActivity[];
 };
 
+/** `GET /v1/teams/:id/invites` returns at most this many rows (teams.routes.ts). */
+const INVITE_LIST_PAGE_CAP = 200;
+
+/** Members ledger M15 — the Workspace kind, in the product vocabulary. */
+const WORKSPACE_KIND_LABEL: Record<string, string> = {
+  PERSONAL: "Personal Workspace",
+  OWNED: "Owned Workspace",
+  ORGANIZATION: "Organization Workspace",
+};
+
 const INVITE_ROLE_OPTIONS = ["ADMIN", "MEMBER", "VIEWER"] as const;
 
 // The member-role options, the workspace role labels and `memberLabel` live
@@ -640,7 +650,12 @@ function TeamDetailPageBody() {
    *   - when neither is known the card says the count is unavailable — never 0.
    */
   const pendingInviteFigure: number | null =
-    canManageTeam && invitesRead === "ready"
+    // The admin list is a bounded page (members ledger M14a): once it is full
+    // it is no longer a count, and the server's own figure is used instead.
+    canManageTeam &&
+    invitesRead === "ready" &&
+    (invites.length < INVITE_LIST_PAGE_CAP ||
+      typeof team?.stats?.pendingInviteCount !== "number")
       ? pendingInvites.filter((i) => i.status !== "EXPIRED").length
       : typeof team?.stats?.pendingInviteCount === "number"
         ? team.stats.pendingInviteCount
@@ -1255,6 +1270,12 @@ function TeamDetailPageBody() {
                 */}
                 Who can access {team.name} — members, invitations, roles and
                 access governance.
+                {/* M15 — which kind of Workspace this is, said once. */}
+                {team.lifecycle?.kind ? (
+                  <span data-testid="people-workspace-kind" style={{ display: "block" }}>
+                    {WORKSPACE_KIND_LABEL[team.lifecycle.kind] ?? null}
+                  </span>
+                ) : null}
                 {currentRole ? ` Your role: ${workspaceRoleLabel(currentRole)}` : ""}
                 {effectivePlan ? ` · ${effectivePlan} plan` : ""}
               </p>
@@ -2144,6 +2165,7 @@ function TeamDetailPageBody() {
 }
 
 // Closure verification Part C — canonical PageRouteGate wrapper.
+
 export default function TeamDetailPage() {
   return (
     <PageRouteGate routeId="admin.teams">

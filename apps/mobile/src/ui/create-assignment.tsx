@@ -25,6 +25,12 @@ import {
   type CollaborationMember,
 } from "../product/collaboration";
 import { parseLocalDueInput } from "../product/team-responsibility";
+import {
+  assignableRosterRows,
+  buildTeamMembersPagePath,
+  parseTeamMembersPage,
+  TASK_ASSIGNABLE_ROLES,
+} from "../product/collaboration-team-detail";
 import { ProovraButton, ProovraFormField, ProovraInput, ProovraText } from "./index";
 import { ProovraFilterChips, ProovraSheet } from "./patterns";
 
@@ -52,6 +58,38 @@ export function CreateAssignmentSheet({
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The whole roster of people who can carry a task, paged from the server
+  // (members ledger X4); `null` until read, the detail preview on failure.
+  const [roster, setRoster] = useState<Array<{ userId: string; displayName: string }> | null>(null);
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    void (async () => {
+      const rows: Array<{ userId: string; displayName: string }> = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 20; page += 1) {
+        const parsed = parseTeamMembersPage(
+          await apiFetch(buildTeamMembersPagePath(teamId, { status: "ACTIVE", limit: 100, cursor })),
+        );
+        for (const r of assignableRosterRows(parsed.members)) rows.push({ userId: r.userId as string, displayName: r.displayName });
+        cursor = parsed.nextCursor;
+        if (!cursor) break;
+      }
+      if (!cancelled) setRoster(rows);
+    })().catch(() => {
+      if (!cancelled) {
+        setRoster(
+          members
+            .filter((m) => m.status === "ACTIVE" && m.userId && TASK_ASSIGNABLE_ROLES.has(m.role ?? ""))
+            .map((m) => ({ userId: m.userId as string, displayName: m.displayName })),
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, teamId, members]);
 
   // Changing the kind clears the chosen record and the search, as on the web.
   useEffect(() => {
@@ -111,7 +149,7 @@ export function CreateAssignmentSheet({
 
   const assigneeOptions = [
     { value: "", label: ASSIGNEE_TEAM_LEVEL_LABEL },
-    ...members.filter((m) => m.status === "ACTIVE" && m.userId).map((m) => ({ value: m.userId as string, label: m.displayName })),
+    ...(roster ?? []).map((m) => ({ value: m.userId, label: m.displayName })),
   ];
 
   return (

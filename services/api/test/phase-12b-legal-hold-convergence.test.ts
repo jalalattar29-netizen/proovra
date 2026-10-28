@@ -1644,7 +1644,8 @@ describe("PHASE 12B — step-up behavioral acceptance", () => {
     );
     // The retry invokes the SAME captured action, with the header injected.
     expect(modal).toMatch(/pendingActionRef\.current/);
-    expect(modal).toMatch(/"x-proovra-step-up-challenge-id": state\.challengeId/);
+    // 2026-10-28 — the retry is one helper shared by every factor kind.
+    expect(modal).toMatch(/"x-proovra-step-up-challenge-id": challengeId/);
     // Exactly once — no retry loop.
     expect((modal.match(/await action\(\{/g) ?? []).length).toBe(1);
   });

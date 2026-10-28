@@ -116,7 +116,7 @@ export function SettingsOverview({
   if (roleLabel) workspaceFacts.push({ label: "Role", value: roleLabel });
   workspaceFacts.push({
     label: "Type",
-    value: ui.isPersonalWorkspace ? "Personal space" : "Organization",
+    value: ui.isPersonalWorkspace ? "Personal Workspace" : "Organization Workspace",
   });
 
   const planFacts: OverviewFact[] = [

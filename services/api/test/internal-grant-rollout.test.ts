@@ -144,6 +144,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281026001300_identity_rows_outlive_workspace",
       // Members re-audit N-8: normalises deterministic legacy vocabulary variants and validates the DOM-08 checks that have no violators. BACKFILL.
       "20281026001400_collaboration_vocabulary_normalise",
+      // Collaboration Team archive and step-up assurance: passkey factor, step-up ladder columns, Organization assurance policy, session assurance, archive provenance. EXPAND.
+      "20281028000000_team_archive_step_up_assurance",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

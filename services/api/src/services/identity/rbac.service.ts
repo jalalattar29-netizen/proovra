@@ -99,7 +99,9 @@ export type RbacErrorCode =
   // contract with no seat left, or a group that refilled while they were
   // suspended, refuses the reinstatement instead of exceeding either.
   | "workspace_seat_limit_reached"
-  | "collaboration_team_capacity_reached";
+  | "collaboration_team_capacity_reached"
+  // Members ledger C6 — the seat lock could not be taken within its bound.
+  | "workspace_seat_contention";
 
 export class RbacError extends Error {
   readonly code: RbacErrorCode;
@@ -642,7 +644,23 @@ async function assertReinstatementFitsCapacityTx(
   workspaceId: string,
   userId: string,
 ): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`}))`;
+  /*
+   * BOUNDED WAIT (members ledger C6). Acceptance takes this lock with
+   * try-and-back-off so a burst of joins never parks pooled connections; a
+   * reinstatement is a single administrator's act, so it may wait — but never
+   * indefinitely: past the bound it is refused as retryable contention rather
+   * than holding a connection.
+   */
+  await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`}))`;
+  } catch (err) {
+    if ((err as { meta?: { code?: string }; code?: string })?.meta?.code === "55P03" || /lock timeout/i.test(String((err as Error)?.message))) {
+      throw new RbacError("workspace_seat_contention");
+    }
+    throw err;
+  }
+  await tx.$executeRaw`SET LOCAL lock_timeout = 0`;
   const seats = await resolveWorkspaceSeatState(workspaceId, tx);
   if (!workspaceSeatsAdmit(seats)) throw new RbacError("workspace_seat_limit_reached");
   const groups = await tx.collaborationTeamMember.findMany({

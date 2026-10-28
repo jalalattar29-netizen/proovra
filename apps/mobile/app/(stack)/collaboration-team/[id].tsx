@@ -239,7 +239,7 @@ export default function CollaborationTeamDetailScreen() {
       <CollaborationSettingsSection
         team={t}
         onChanged={() => void load()}
-        onDeleted={() => router.back()}
+        onArchived={() => router.back()}
       />
 
       <ProovraButton

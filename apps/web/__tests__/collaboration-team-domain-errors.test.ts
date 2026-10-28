@@ -58,7 +58,7 @@ async function thrownFrom(status: number, body: unknown): Promise<unknown> {
 const ARCHIVED_BODY = {
   error: {
     code: "collaboration_team_archived",
-    message: "This team is archived. Reopen it before making changes.",
+    message: "This Collaboration Team is archived. Restore it before making changes.",
     requestId: "req-archived",
   },
 };
@@ -85,7 +85,7 @@ test("archived refusal survives apiFetch with code, message, status and requestI
   // The specific failure this replaces: the message used to arrive as the
   // synthetic placeholder because it was read from `body.error.message` and
   // the server had put it beside `error`, not inside it.
-  assert.equal(err.message, "This team is archived. Reopen it before making changes.");
+  assert.equal(err.message, "This Collaboration Team is archived. Restore it before making changes.");
   assert.doesNotMatch(err.message, /^HTTP \d{3}: API error$/);
 });
 
@@ -110,8 +110,8 @@ const EVIDENCE_SENTENCE = /evidence data has not been changed/;
 test("archived refusal renders its own copy, not the generic fallback", async () => {
   const err = await thrownFrom(409, ARCHIVED_BODY);
   const safe = toSafeUserError(err);
-  assert.equal(safe.title, "This team is archived");
-  assert.match(safe.message, /Reopen this team before making changes/);
+  assert.equal(safe.title, "This Collaboration Team is archived");
+  assert.match(safe.message, /Restore this Collaboration Team before making changes/);
   assert.notEqual(safe.title, GENERIC_TITLE);
   // An action on team membership must never be answered with a reassurance
   // about evidence custody.

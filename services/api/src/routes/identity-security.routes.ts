@@ -58,8 +58,12 @@ import {
 } from "../middleware/cron-secret.js";
 import {
   StepUpError,
+  answerPasskeyHandoff,
   checkStepUpChallenge,
+  loadHandoffChallenge,
+  passkeyOptionsForChallenge,
   projectStepUpChallenge,
+  readOwnStepUpChallenge,
   startStepUpChallenge,
 } from "../services/identity-security/step-up.service.js";
 import {
@@ -111,6 +115,24 @@ import {
 } from "./identity-security-shared.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
+
+/**
+ * 2026-10-28 — where a system browser completes a PASSKEY (mobile) or
+ * IDP_REAUTH challenge. The challenge id and the single-use handoff token
+ * travel in the URL FRAGMENT, which a browser never sends to any server, so
+ * neither lands in an access log; the page posts them in a request body.
+ */
+function stepUpHandoffUrl(
+  method: "PASSKEY" | "IDP_REAUTH",
+  challengeId: string,
+  token: string,
+  /** The app started it: the page returns to the app when it is done. */
+  returnToApp: boolean,
+): string {
+  const base = (process.env.APP_BASE_URL?.trim() || "https://app.proovra.com").replace(/\/+$/, "");
+  const page = method === "PASSKEY" ? "passkey" : "idp";
+  return `${base}/step-up/${page}#challenge=${encodeURIComponent(challengeId)}&token=${encodeURIComponent(token)}${returnToApp ? "&return=app" : ""}`;
+}
 const ParamsId = z.object({ id: z.string().uuid() });
 
 
@@ -150,14 +172,24 @@ function handleStepUpError(reply: FastifyReply, err: unknown): boolean {
           // set it up. An authenticator app counts (PV-OD-011); "enrol a
           // device" used to send an authenticator-app user looking for a phone.
           message:
-            "This action needs a verified second factor — an authenticator app or a verified phone. Set one up in Settings → Security, then try again.",
-          acceptedFactors: STEP_UP_FACTOR_KINDS,
+            "This action needs a verified second factor — a passkey or security key, your organization's sign-in, an authenticator app, or (where allowed) a verified phone. Set one up in Settings → Security, then try again. If you have lost every factor, use account recovery.",
+          acceptedFactors: err.acceptedFactors ?? STEP_UP_FACTOR_KINDS,
           remedy: "/settings#security",
+          recovery: "/auth/mfa-challenge",
         },
       });
       return true;
     }
-    if (err.code === "denied" || err.code === "challenge_expired" || err.code === "challenge_not_found") {
+    if (err.code === "method_mismatch") {
+      reply.code(400).send({ status: "denied", error: { code: "STEP_UP_METHOD_MISMATCH" } });
+      return true;
+    }
+    if (
+      err.code === "denied" ||
+      err.code === "challenge_expired" ||
+      err.code === "challenge_not_found" ||
+      err.code === "challenge_consumed"
+    ) {
       // Bucket every check failure into a single response shape so an
       // attacker cannot tell which exact branch failed.
       reply.code(400).send({ status: "denied" });
@@ -203,6 +235,11 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
      */
     channel: z.enum(STEP_UP_FACTOR_KINDS).optional(),
     reason: z.string().min(1).max(400).optional(),
+    /**
+     * 2026-10-28 — the caller (the mobile app) completes a PASSKEY challenge
+     * in a system browser; the response then carries a handoff URL.
+     */
+    handoff: z.boolean().optional(),
   }).strict();
 
   app.post(
@@ -228,6 +265,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           // PHASE 12B B3 — bind the challenge to THIS session, read from the
           // authenticated request rather than any caller-supplied field.
           sessionIdHash: req.user?.sessionIdHash ?? null,
+          handoff: body.handoff === true,
         });
         return reply.code(200).send({
           challenge: projectStepUpChallenge(result.challenge),
@@ -236,6 +274,21 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           // when one was.
           method: result.method,
           destinationMask: result.destinationMask,
+          // 2026-10-28 — the ladder: what else this person may answer with,
+          // the WebAuthn options for a passkey, and the system-browser URL
+          // for an IdP reauthentication or an app-started passkey.
+          availableMethods: result.availableMethods,
+          passkeyOptions: result.passkeyOptions,
+          handoffUrl:
+            result.handoffToken &&
+            (result.method === "PASSKEY" || result.method === "IDP_REAUTH")
+              ? stepUpHandoffUrl(
+                  result.method,
+                  result.challenge.id,
+                  result.handoffToken,
+                  body.handoff === true,
+                )
+              : null,
         });
       } catch (err) {
         if (handleStepUpError(reply, err)) return;
@@ -250,8 +303,12 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
     // NEW-058: no `phone`. The destination is re-resolved from the factor the
     // challenge was minted against, so a caller cannot verify against a
     // different number than the one that was sent to.
-    code: z.string().min(3).max(16),
-  }).strict();
+    code: z.string().min(3).max(16).optional(),
+    /** 2026-10-28 — a WebAuthn assertion answering a PASSKEY challenge. */
+    assertion: z.record(z.string(), z.unknown()).optional(),
+  }).strict().refine((b) => (b.code === undefined) !== (b.assertion === undefined), {
+    message: "Exactly one of code or assertion is required.",
+  });
 
   app.post(
     "/v1/identity-security/step-up/check",
@@ -265,7 +322,8 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           teamId: body.teamId,
           userId: actor.userId,
           challengeId: body.challengeId,
-          code: body.code,
+          code: body.code ?? null,
+          assertion: body.assertion,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
           // PHASE 12B B3 — the approval must come from the session that started
@@ -278,6 +336,105 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
           status: "approved",
           challenge: projectStepUpChallenge(result.challenge),
         });
+      } catch (err) {
+        if (handleStepUpError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  /**
+   * 2026-10-28 — the status of one's OWN challenge, for a page waiting on an
+   * IdP popup or the app waiting on a system browser. Same-session only.
+   */
+  app.get(
+    "/v1/identity-security/step-up/:id/status",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsId.parse(req.params);
+      const q = TeamIdQuery.parse(req.query ?? {});
+      const actor = await requireSecurityActor(req, reply, q.teamId, "identity.member.read");
+      if (!actor) return;
+      try {
+        const status = await readOwnStepUpChallenge({
+          teamId: q.teamId,
+          userId: actor.userId,
+          challengeId: id,
+          sessionIdHash: req.user?.sessionIdHash ?? null,
+        });
+        return reply.code(200).send(status);
+      } catch (err) {
+        if (err instanceof StepUpError) {
+          return reply.code(404).send({ error: { code: "challenge_not_found" } });
+        }
+        throw err;
+      }
+    },
+  );
+
+  /**
+   * 2026-10-28 — THE HANDOFF BROWSER'S TWO CALLS. Unauthenticated by design:
+   * the system browser holds no app session. What authorises each call is the
+   * single-use handoff token (hashed at rest, bound to ONE pending challenge)
+   * AND the authenticator itself — a passkey of the person who started the
+   * challenge, or a sign-in at their Organization's IdP. Neither call can
+   * spend the approval; only the starting session can. Denials are uniform.
+   */
+  // Bounded per challenge, across instances (a handoff is never a hot path).
+  const handoffRateLimited = async (challengeId: string): Promise<boolean> =>
+    !(
+      await enforceRateLimit({
+        key: `step-up-handoff:${challengeId}`,
+        bound: "global",
+        max: 10,
+        windowSec: 600,
+      })
+    ).allowed;
+
+  const HandoffBody = z.object({
+    challengeId: z.string().uuid(),
+    token: z.string().min(16).max(128),
+  }).strict();
+
+  app.post(
+    "/v1/identity-security/step-up/handoff/passkey/options",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = HandoffBody.parse(req.body ?? {});
+      if (await handoffRateLimited(body.challengeId)) {
+        return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+      try {
+        const row = await loadHandoffChallenge({
+          challengeId: body.challengeId,
+          handoffToken: body.token,
+          method: "PASSKEY",
+        });
+        const options = await passkeyOptionsForChallenge(row);
+        if (!options) return reply.code(400).send({ status: "denied" });
+        return reply.code(200).send({ passkeyOptions: options });
+      } catch (err) {
+        if (handleStepUpError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/identity-security/step-up/handoff/passkey",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = HandoffBody.extend({ assertion: z.record(z.string(), z.unknown()) })
+        .strict()
+        .parse(req.body ?? {});
+      if (await handoffRateLimited(body.challengeId)) {
+        return reply.code(429).send({ error: { code: "rate_limited" } });
+      }
+      try {
+        await answerPasskeyHandoff({
+          challengeId: body.challengeId,
+          handoffToken: body.token,
+          assertion: body.assertion,
+        });
+        return reply.code(200).send({ status: "approved" });
       } catch (err) {
         if (handleStepUpError(reply, err)) return;
         throw err;

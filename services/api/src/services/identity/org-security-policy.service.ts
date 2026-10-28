@@ -28,6 +28,7 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   coerceSecurityPolicy,
   evaluateAuthMethod,
+  normaliseIdpStepUpContexts,
   evaluateSessionLifetime,
   evaluatePolicyVersion,
   evaluateHighSecurityActivation,
@@ -351,6 +352,11 @@ export async function applySecurityPolicyPatch(
   }
   if (input.patch.reviewerSessionTimeoutSeconds !== undefined) {
     input.patch.reviewerSessionTimeoutSeconds = clampTimeoutSeconds(input.patch.reviewerSessionTimeoutSeconds);
+  }
+  // 2026-10-28 — accepted IdP step-up contexts: trimmed, blanks dropped,
+  // deduped (bounds were enforced by the route schema).
+  if (input.patch.idpStepUpAcceptedContexts !== undefined) {
+    input.patch.idpStepUpAcceptedContexts = normaliseIdpStepUpContexts(input.patch.idpStepUpAcceptedContexts);
   }
   if (input.patch.contributorSessionTimeoutSeconds !== undefined) {
     input.patch.contributorSessionTimeoutSeconds = clampTimeoutSeconds(input.patch.contributorSessionTimeoutSeconds);

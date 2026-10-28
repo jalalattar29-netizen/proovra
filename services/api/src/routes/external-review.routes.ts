@@ -212,7 +212,15 @@ export async function externalReviewRoutes(app: FastifyInstance) {
        */
       const entitled = await workspaceIncludesExternalReview(actor.teamId);
       if (!entitled) {
+        // Canonical envelope (members ledger X6); `denial`/`entitlement`
+        // stay at the top level for pre-existing consumers.
         return reply.code(403).send({
+          error: {
+            code: "ENTITLEMENT_REQUIRED",
+            message: "External Review is not included on this workspace's plan.",
+            requestId: req.id ?? null,
+            details: { denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" },
+          },
           denial: "ENTITLEMENT_REQUIRED",
           entitlement: "EXTERNAL_REVIEW",
         });
@@ -249,10 +257,20 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         allowPackageDownload: body.allowPackageDownload,
         redactionPolicyVersion: body.redactionPolicyVersion ?? null,
         safeNote: body.safeNote ?? null,
+        correlationId: req.id ?? null,
       });
       if (!result.ok) {
-        return reply.code(400).send({
-          error: { code: "grant_issue_denied", reason: result.reason },
+        // A storage failure is not the caller's mistake: 503, not 400.
+        const unavailable = result.reason === "service_unavailable";
+        return reply.code(unavailable ? 503 : 400).send({
+          error: {
+            code: "grant_issue_denied",
+            reason: result.reason,
+            message: unavailable
+              ? "The grant could not be issued right now. Try again."
+              : "The grant could not be issued for that subject.",
+            requestId: req.id ?? null,
+          },
         });
       }
       // The raw token is returned EXACTLY ONCE — the operator must
@@ -311,6 +329,7 @@ export async function externalReviewRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         toState: "REVOKED",
         actorUserId: actor.actorUserId,
+        correlationId: req.id ?? null,
       });
       if (!result.ok) {
         // ANTI-ENUMERATION: a not-found grant ID + a transition
@@ -323,9 +342,21 @@ export async function externalReviewRoutes(app: FastifyInstance) {
             ? 404
             : result.reason === "invalid_transition"
               ? 409
-              : 400;
+              : result.reason === "service_unavailable"
+                ? 503
+                : 400;
         return reply.code(httpStatus).send({
-          error: { code: "revoke_denied", reason: result.reason },
+          error: {
+            code: "revoke_denied",
+            reason: result.reason,
+            message:
+              httpStatus === 404
+                ? "Grant not found."
+                : httpStatus === 409
+                  ? "This grant can no longer be revoked."
+                  : "The grant could not be revoked right now.",
+            requestId: req.id ?? null,
+          },
         });
       }
       return reply.code(200).send({ grant: result.grant });

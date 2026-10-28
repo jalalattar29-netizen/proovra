@@ -25,7 +25,40 @@ export type ResolvedSecurityPolicy = {
   concurrentSessionLimit: number | null;
   stepUpIntervalSeconds: number | null;
   allowedAuthMethods: AuthMethod[];
+  /**
+   * 2026-10-28 — STEP-UP ASSURANCE (the step-up ladder's Organization knobs).
+   * STANDARD admits every rung; PHISHING_RESISTANT admits only a passkey or an
+   * IdP reauthentication whose asserted context is listed. Phone codes answer
+   * step-up only while `stepUpSmsAllowed`. Admin-configuration: projected only
+   * on the org-admin policy surface.
+   */
+  stepUpAssurance: StepUpAssurance;
+  stepUpSmsAllowed: boolean;
+  /** AuthnContextClassRef / acr values an IdP reauthentication may assert. */
+  idpStepUpAcceptedContexts: string[];
+  /** How recent the IdP's own authentication must be (seconds, 30..3600). */
+  idpStepUpMaxAgeSeconds: number;
 };
+
+export type StepUpAssurance = "STANDARD" | "PHISHING_RESISTANT";
+export const IDP_STEP_UP_MAX_AGE_MIN_SECONDS = 30;
+export const IDP_STEP_UP_MAX_AGE_MAX_SECONDS = 3600;
+export const IDP_STEP_UP_MAX_CONTEXTS = 16;
+export const IDP_STEP_UP_CONTEXT_MAX_LENGTH = 256;
+
+/**
+ * Trim, drop blanks, dedupe (first occurrence wins). Bounds are enforced by the
+ * route schema; this only normalises what passed it.
+ */
+export function normaliseIdpStepUpContexts(values: ReadonlyArray<string>): string[] {
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = raw.trim();
+    if (v.length === 0 || out.includes(v)) continue;
+    out.push(v);
+  }
+  return out;
+}
 
 /** The STANDARD, fully-permissive default posture (fail-safe / pre-migration). */
 export function defaultSecurityPolicy(
@@ -45,6 +78,10 @@ export function defaultSecurityPolicy(
     concurrentSessionLimit: null,
     stepUpIntervalSeconds: null,
     allowedAuthMethods: [],
+    stepUpAssurance: "STANDARD",
+    stepUpSmsAllowed: true,
+    idpStepUpAcceptedContexts: [],
+    idpStepUpMaxAgeSeconds: 300,
   };
 }
 
@@ -71,6 +108,25 @@ export function coerceSecurityPolicy(
     allowedAuthMethods: Array.isArray(row.allowedAuthMethods)
       ? (row.allowedAuthMethods.filter((m) => m === "PASSWORD" || m === "OAUTH" || m === "SSO") as AuthMethod[])
       : [],
+    // An unrecognised stored level fails toward the STRONGER requirement, the
+    // same rule the step-up authority applies when it reads this row.
+    stepUpAssurance:
+      row.stepUpAssurance === undefined || row.stepUpAssurance === null || row.stepUpAssurance === "STANDARD"
+        ? "STANDARD"
+        : "PHISHING_RESISTANT",
+    stepUpSmsAllowed: row.stepUpSmsAllowed !== false,
+    idpStepUpAcceptedContexts: Array.isArray(row.idpStepUpAcceptedContexts)
+      ? normaliseIdpStepUpContexts(
+          row.idpStepUpAcceptedContexts.filter((v): v is string => typeof v === "string"),
+        )
+      : [],
+    idpStepUpMaxAgeSeconds:
+      typeof row.idpStepUpMaxAgeSeconds === "number"
+        ? Math.max(
+            IDP_STEP_UP_MAX_AGE_MIN_SECONDS,
+            Math.min(IDP_STEP_UP_MAX_AGE_MAX_SECONDS, row.idpStepUpMaxAgeSeconds),
+          )
+        : d.idpStepUpMaxAgeSeconds,
   };
 }
 
@@ -183,5 +239,9 @@ export type SecurityPolicyPatch = Partial<
     | "concurrentSessionLimit"
     | "stepUpIntervalSeconds"
     | "allowedAuthMethods"
+    | "stepUpAssurance"
+    | "stepUpSmsAllowed"
+    | "idpStepUpAcceptedContexts"
+    | "idpStepUpMaxAgeSeconds"
   >
 >;

@@ -248,7 +248,7 @@ function TeamsOverview() {
     : planLocked
       ? PLAN_LOCKED_COPY
       : restricted
-        ? "This workspace's billing needs attention before new Teams can be created."
+        ? "This workspace's billing needs attention before new Collaboration Teams can be created."
         : atCapacity
           ? `Your ${planForCapacity} plan allows up to ${maxTeams} active Team${
               maxTeams === 1 ? "" : "s"

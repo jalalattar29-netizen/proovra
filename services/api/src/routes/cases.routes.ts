@@ -421,6 +421,9 @@ async function refuseCaseAccessManagement(
   return reply.code(403).send({ message: "Forbidden" });
 }
 
+/** The Collaboration Team was archived while its Case grant was being written. */
+class TeamArchivedDuringGrant extends Error {}
+
 export async function casesRoutes(app: FastifyInstance) {
   app.post("/v1/cases", { preHandler: requireAuthAndLegal }, async (req, reply) => {
     const body = CreateCaseBody.parse(req.body);
@@ -2284,7 +2287,7 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(409).send({
           error: {
             code: "collaboration_team_archived",
-            message: "This team is archived. Reopen it before making changes.",
+            message: "This Collaboration Team is archived. Restore it before making changes.",
             requestId: req.id,
           },
           requestId: req.id,
@@ -2296,6 +2299,17 @@ export async function casesRoutes(app: FastifyInstance) {
         grant = await prisma.$transaction(async (tx) => {
           // The manager decision serialises with the write (third round, N5).
           await assertCaseAccessManagerTx(tx, { caseId: id, teamId: item.teamId, userId: actorUserId });
+          /*
+           * THE TEAM IS STILL ACTIVE, UNDER ITS ROW LOCK (members ledger X10).
+           * The status above was read outside this transaction, so an archive
+           * committing in between left a grant on an archived team. Archive
+           * takes FOR UPDATE on the team row; a SHARE lock here serialises with
+           * it, and the re-read decides.
+           */
+          const locked = await tx.$queryRaw<Array<{ status: string }>>`
+            SELECT "status" FROM "collaboration_teams" WHERE "id" = ${team.id}::uuid FOR SHARE
+          `;
+          if (locked[0]?.status !== "ACTIVE") throw new TeamArchivedDuringGrant();
           // A grant makes the case restricted, durably (re-audit defect 6).
           const nowRestricted = await markCaseRestrictedTx(tx, id);
           const row = await tx.caseCollaborationTeamAccess.upsert({
@@ -2321,6 +2335,25 @@ export async function casesRoutes(app: FastifyInstance) {
           return row;
         });
       } catch (err) {
+        if (err instanceof TeamArchivedDuringGrant) {
+          await auditCaseAction(req, {
+            userId: actorUserId,
+            action: "cases.team_access_grant",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            teamId: item.teamId,
+            metadata: { reason: "team_archived", collaborationTeamId: team.id },
+          });
+          return reply.code(409).send({
+            error: {
+              code: "collaboration_team_archived",
+              message: "This Collaboration Team is archived. Restore it before making changes.",
+              requestId: req.id,
+            },
+            requestId: req.id,
+          });
+        }
         if (!(err instanceof CaseAccessManagerRefusal)) throw err;
         return refuseCaseAccessManagement(req, reply, err.decision, {
           userId: actorUserId,

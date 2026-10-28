@@ -163,6 +163,9 @@ import { ssoAuthRoutes } from "./routes/sso-auth.routes.js";
 // R8.2 — Real SAML SP routes (HTTP-Redirect + HTTP-POST ACS + SP metadata).
 // Registered separately from sso-auth.routes.ts which handles OIDC.
 import { samlAuthRoutes } from "./routes/saml-auth.routes.js";
+// 2026-10-28 — IDP_REAUTH step-up: the system browser's begin call. The
+// callback half lives in the SAML ACS / OIDC callback above (never a session).
+import { stepUpIdpRoutes } from "./routes/step-up-idp.routes.js";
 import { aiRoutes } from "./routes/ai.routes.js";
 import { enterpriseRoutes } from "./routes/enterprise.routes.js";
 // CR1 Phase B — legacy `webhookRoutes` (per-org in-memory webhooks) deleted.
@@ -211,6 +214,8 @@ import { identitySecurityRoutes } from "./routes/identity-security.routes.js";
 // canonical session model, same factor authority; a sibling plugin, not a
 // second surface.
 import { identitySecurityContactFactorRoutes } from "./routes/identity-security-contact-factors.routes.js";
+// 2026-10-28 — passkeys / security keys: the account's WebAuthn factors.
+import { passkeyRoutes } from "./routes/passkey.routes.js";
 // R8.1.1 — MFA REST surface (TOTP enroll/verify, factors, recovery
 // codes, challenge). Sub-domain of the canonical identity surface;
 // not a parallel auth system.
@@ -1429,6 +1434,7 @@ allowedHeaders: [
   // R8.2 — SAML SP routes alongside the OIDC routes. Same canonical session
   // model; no parallel auth surface. SAML_ENABLED=false disables at runtime.
   await app.register(samlAuthRoutes);
+  await app.register(stepUpIdpRoutes);
   await app.register(aiRoutes);
   await app.register(enterpriseRoutes);
   // CR1 Phase B — legacy `webhookRoutes` registration removed.
@@ -1569,6 +1575,9 @@ allowedHeaders: [
   await app.register(identitySecurityRoutes);
   // NEW-058 — how an account acquires the factor the step-up gate above reads.
   await app.register(identitySecurityContactFactorRoutes);
+  // 2026-10-28 — how an account acquires the passkey the step-up ladder's
+  // strongest rung reads (enrolment gated by the account step-up).
+  await app.register(passkeyRoutes);
   // R8.1.1 — MFA endpoints registered alongside identity-security.
   // Same canonical session + auth model; no parallel auth surface.
   await app.register(mfaRoutes);

@@ -53,6 +53,13 @@ export type SamlAssertion = {
   attributes: Record<string, string[]>;
   /** AuthnContextClassRef URI, or null if not present. */
   authnContextClassRef: string | null;
+  /**
+   * 2026-10-28 — AuthnStatement/@AuthnInstant: when the person actually
+   * authenticated at the IdP (distinct from IssueInstant, which is when the
+   * assertion was minted). Null when absent or not a valid xs:dateTime — a
+   * step-up that must prove freshness fails closed on null.
+   */
+  authnInstant: Date | null;
   /** Conditions/@NotBefore as a Date, or null if not in the assertion. */
   notBefore: Date | null;
   /** Conditions/@NotOnOrAfter as a Date, or null if not in the assertion. */
@@ -704,10 +711,12 @@ export function validateSamlResponse(
   // -------------------------------------------------------------------------
   let sessionIndex: string | null = null;
   let authnContextClassRef: string | null = null;
+  let authnInstant: Date | null = null;
 
   const authnStmts = getByNsLocalName(assertion, NS_SAML, "AuthnStatement");
   if (authnStmts.length > 0) {
     sessionIndex = authnStmts[0]!.getAttribute("SessionIndex") ?? null;
+    authnInstant = parseSamlInstant(authnStmts[0]!.getAttribute("AuthnInstant"));
     const classRefs = getByNsLocalName(
       authnStmts[0]!,
       NS_SAML,
@@ -778,9 +787,23 @@ export function validateSamlResponse(
     issuer,
     attributes,
     authnContextClassRef: authnContextClassRef ?? null,
+    authnInstant,
     notBefore,
     notOnOrAfter,
     audienceRestriction,
     nameIdHash: hashValue(nameId),
   };
+}
+
+/**
+ * 2026-10-28 — an xs:dateTime attribute (AuthnInstant) as a Date, or null.
+ * SAML requires UTC with an explicit designator; anything else, or anything
+ * Date cannot place on the timeline, is treated as absent (never guessed).
+ */
+function parseSamlInstant(raw: string | null | undefined): Date | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(v)) return null;
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d : null;
 }

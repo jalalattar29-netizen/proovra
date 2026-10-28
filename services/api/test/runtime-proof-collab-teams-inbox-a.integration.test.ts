@@ -211,7 +211,7 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
       });
     });
 
-    it("DELETE /v1/collaboration-teams/:teamId — the LEAD deletes a history-free group; a group MEMBER and a foreign owner are concealed", async () => {
+    it("POST /v1/collaboration-teams/:teamId/archive — the LEAD archives after a real step-up; a group MEMBER and a foreign owner are concealed; nothing is deleted", async () => {
       const a = h.fixtures.teamA;
       const b = h.fixtures.teamB;
       const group = await newGroup(a.teamId, a.ownerUserId);
@@ -221,40 +221,53 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
         userIdToAdd: a.memberUserId,
         role: "MEMBER",
       });
+      const name = (await prisma.collaborationTeam.findUniqueOrThrow({ where: { id: group.id } })).name;
+      const payload = { confirmName: name };
 
       const member = await call({
-        method: "DELETE",
-        url: `/v1/collaboration-teams/${group.id}`,
+        method: "POST",
+        url: `/v1/collaboration-teams/${group.id}/archive`,
         token: a.memberToken,
         headers: { [WS]: a.teamId },
+        payload,
       });
       expect(member.statusCode).toBe(404);
       expect(member.json()).toEqual({ error: { code: "not_found" } });
 
       const foreign = await call({
-        method: "DELETE",
-        url: `/v1/collaboration-teams/${group.id}`,
+        method: "POST",
+        url: `/v1/collaboration-teams/${group.id}/archive`,
         token: b.ownerToken,
         headers: { [WS]: b.teamId },
+        payload,
       });
       expect(foreign.statusCode).toBe(404);
       expect(foreign.json()).toEqual(member.json());
-      expect(await prisma.collaborationTeam.findUnique({ where: { id: group.id } })).not.toBeNull();
 
-      // Members audit SEC-03 — permanent deletion needs a fresh step-up.
-      const noStepUp = await call({
+      // The hard-delete route is gone for everyone, the LEAD included.
+      const del = await call({
         method: "DELETE",
         url: `/v1/collaboration-teams/${group.id}`,
         token: a.ownerToken,
         headers: { [WS]: a.teamId },
       });
+      expect(del.statusCode).toBe(404);
+
+      // A recent step-up is required, and nothing changes without it.
+      const noStepUp = await call({
+        method: "POST",
+        url: `/v1/collaboration-teams/${group.id}/archive`,
+        token: a.ownerToken,
+        headers: { [WS]: a.teamId },
+        payload,
+      });
       expect(noStepUp.statusCode).toBe(401);
       expect((noStepUp.json() as { error: { code: string } }).error.code).toBe("STEP_UP_REQUIRED");
-      expect(await prisma.collaborationTeam.findUnique({ where: { id: group.id } })).not.toBeNull();
+      expect((await prisma.collaborationTeam.findUniqueOrThrow({ where: { id: group.id } })).status).toBe("ACTIVE");
 
       const res = await call({
-        method: "DELETE",
-        url: `/v1/collaboration-teams/${group.id}`,
+        method: "POST",
+        url: `/v1/collaboration-teams/${group.id}/archive`,
         token: a.ownerToken,
         headers: {
           [WS]: a.teamId,
@@ -262,28 +275,29 @@ describe("K5-A — collaboration, threads, inbox, schedule, workspace admin (liv
             token: a.ownerToken,
             userId: a.ownerUserId,
             teamId: a.teamId,
-            purpose: "COLLABORATION_TEAM_DELETE",
+            purpose: "COLLABORATION_TEAM_ARCHIVE",
             resourceKind: "collaboration_team",
             resourceId: group.id,
           })),
         },
+        payload,
       });
       expect(res.statusCode, res.body).toBe(200);
-      expect(res.json()).toEqual({ ok: true });
-      expect(await prisma.collaborationTeam.findUnique({ where: { id: group.id } })).toBeNull();
-      expect(await prisma.collaborationTeamMember.count({ where: { teamId: group.id } })).toBe(0);
+      expect(res.json()).toEqual({ ok: true, alreadyArchived: false });
+      const row = await prisma.collaborationTeam.findUniqueOrThrow({ where: { id: group.id } });
+      expect(row).toMatchObject({ status: "ARCHIVED", archivedByUserId: a.ownerUserId });
+      expect(await prisma.collaborationTeamMember.count({ where: { teamId: group.id } })).toBe(2);
 
-      const audit = await auditRow("collaboration_team.deleted", group.id);
+      const audit = await auditRow("collaboration_team.archived", group.id);
       expect(audit).toMatchObject({
         userId: a.ownerUserId,
         workspaceId: a.teamId,
         resourceType: "collaboration_team",
         outcome: "success",
       });
-      // D19 — one deletion, one record.
       expect(
         await prisma.adminAuditLog.count({
-          where: { action: "collaboration_team.deleted", resourceId: group.id, outcome: "success" },
+          where: { action: "collaboration_team.archived", resourceId: group.id, outcome: "success" },
         }),
       ).toBe(1);
     });

@@ -423,6 +423,11 @@ const CLOSURE_BLOCKER_ACTION: Record<string, { label: string; href: string }> = 
     label: "Manage workspace people",
     href: WORKSPACE_PEOPLE_PATH,
   },
+  // Members ledger M9: an owned Organization ends through offboarding only.
+  ORGANIZATION_OFFBOARDING_REQUIRED: {
+    label: "Go to organizations",
+    href: "/organizations",
+  },
   LEGAL_HOLD_ACTIVE: { label: "Review evidence holds", href: "/evidence" },
 };
 

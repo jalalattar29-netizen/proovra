@@ -292,7 +292,7 @@ export async function lockAndAssertCollaborationTeamCapacity(
       code: "TEAM_LIMIT_REACHED",
       message: `This workspace's ${planDisplayName(input.plan)} plan includes up to ${
         input.maxCollaborationTeamsPerWorkspace
-      } Team${input.maxCollaborationTeamsPerWorkspace === 1 ? "" : "s"}. Upgrade to create another Team.`,
+      } Collaboration Team${input.maxCollaborationTeamsPerWorkspace === 1 ? "" : "s"}. Upgrade to create another Collaboration Team.`,
       details: {
         plan: input.plan,
         maxCollaborationTeamsPerWorkspace: input.maxCollaborationTeamsPerWorkspace,
@@ -394,7 +394,7 @@ export async function assertCanCreateCollaborationTeam(
   if (workspaceTeamCount >= maxCollaborationTeamsPerWorkspace) {
     throwBillingError({
       code: "TEAM_LIMIT_REACHED",
-      message: `This workspace's ${planDisplayName(plan)} plan includes up to ${maxCollaborationTeamsPerWorkspace} Team${maxCollaborationTeamsPerWorkspace === 1 ? "" : "s"}. Upgrade to create another Team.`,
+      message: `This workspace's ${planDisplayName(plan)} plan includes up to ${maxCollaborationTeamsPerWorkspace} Collaboration Team${maxCollaborationTeamsPerWorkspace === 1 ? "" : "s"}. Upgrade to create another Collaboration Team.`,
       details: {
         plan,
         maxCollaborationTeamsPerWorkspace,

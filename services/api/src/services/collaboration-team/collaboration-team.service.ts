@@ -71,7 +71,6 @@ import { listLatestWorkloadSnapshots } from "../reviewer-ops/workload.service.js
 // below can reach it: `collaboration-completion.service.ts`, where it used to
 // live, imports FROM this file. Writing rows the canonical account inbox
 // already reads — not a second notification store.
-import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
@@ -107,9 +106,11 @@ async function revokeGrantsLostWithGroupReachTx(
   });
 }
 import { emitTeamNotifications } from "./team-notifications.js";
+import { organizationLifecycleApplies } from "../identity/workspace-kind.js";
 import {
   assertCanCreateCollaborationTeam,
   assertCollaborationTeamMemberLimit,
+  assertSubscriptionActiveOrGraceAllowed,
   lockAndAssertCollaborationTeamCapacity,
   lockAndAssertCollaborationTeamMemberCapacity,
   lockCollaborationTeamMembership,
@@ -318,7 +319,7 @@ const E = {
   archived: () =>
     new CollaborationTeamError(
       "collaboration_team_archived",
-      "This team is archived. Reopen it before making changes.",
+      "This Collaboration Team is archived. Restore it before making changes.",
       409,
     ),
 
@@ -1229,7 +1230,7 @@ export async function getCollaborationTeamDetail(
    */
   if (!viewerRow && !input.viaWorkspaceGovernance) throw E.notFound("Team");
   const viewer = { role: viewerRow?.role ?? "VIEWER" };
-  const [activeMemberCount, pendingInviteCount] = await Promise.all([
+  const [activeMemberCount, pendingInviteCount, validLeadCount] = await Promise.all([
     client.collaborationTeamMember.count({
       // WCR-11 — effective members only.
       where: { teamId: input.teamId, ...effectiveGroupMemberWhere(input.workspaceId) },
@@ -1237,6 +1238,9 @@ export async function getCollaborationTeamDetail(
     client.collaborationTeamInvite.count({
       where: { teamId: input.teamId, status: "PENDING" },
     }),
+    // Members ledger X5 — whether the group still has a valid lead, so the
+    // workspace owner is offered Lead recovery only when it is needed.
+    client.collaborationTeamMember.count({ where: validLeadWhere(input.teamId, input.workspaceId) }),
   ]);
   /**
    * An address is administrative data. A VIEWER reads the team; an EXTERNAL
@@ -1281,6 +1285,7 @@ export async function getCollaborationTeamDetail(
     },
     activeMemberCount,
     pendingInviteCount,
+    validLeadCount,
     memberPreviewLimit: DETAIL_MEMBER_PREVIEW,
     members: team.members.map((m) => ({
       id: m.id,
@@ -1402,283 +1407,293 @@ export async function updateCollaborationTeam(
 
 /**
  * ===========================================================================
- * IS THIS GROUP SAFELY DISPOSABLE? — the ONE backend answer (§15.25–15.28).
+ * ARCHIVE COLLABORATION TEAM — the one retirement (2026-10-28).
  * ===========================================================================
- * A Collaboration Team is an operational GROUPING inside a workspace. It owns
- * no Evidence, no Case, no custody record, no retention or Legal Hold state —
- * `CollaborationTeamAssignment.targetId` is a bare UUID with NO foreign key to
- * Case or Evidence, so nothing that cascades from this table can reach them.
- * Deleting a group therefore cannot destroy evidence, and that is a property of
- * the schema rather than a promise made here.
  *
- * What it CAN destroy is the operational record. Ten child tables cascade from
- * `collaboration_teams`: members, invites, activity, assignments, comments,
- * notifications, notification preferences, guests and access reviews. For an
- * accidentally-created empty group those rows are nothing. For a group that has
- * carried real work they are the history of who was responsible for what — the
- * kind of record an evidence platform exists to keep.
+ * A Collaboration Team is NEVER customer-deleted. It used to have two exits:
+ * archive, and a permanent delete for a group with no "operational history" —
+ * whose cascade still took its members, invites, activity and notification
+ * preferences with it. Responsibility for evidence work is provenance: who was
+ * in the group, when, and what they were asked to do stays answerable for as
+ * long as the workspace exists. So there is one exit, and it preserves.
  *
- * So deletion is admitted only for a genuinely disposable group, and the
- * decision is made HERE rather than in the browser: emptiness is a property of
- * the data, and a client that computed it would be guessing at rows it cannot
- * see. §15.28 OPTION A — a history-bearing group is retained and archived, not
- * hard-deleted.
+ * Archiving:
+ *   - keeps the row, its membership rows (as they were), assignments,
+ *     discussion, activity and audit history — nothing is deleted;
+ *   - ends new activity: every mutation route requires an ACTIVE group, the
+ *     invite acceptance path refuses an archived one, and the status write
+ *     is what `teamGrantReaches` / placement read, so every Case grant and
+ *     every member's reach THROUGH the group ends at the same instant;
+ *   - settles live work through the task state machine (CANCELLED, recorded
+ *     on the group's timeline) and revokes pending invitations;
+ *   - ends shares and external-review grants whose creator reached the
+ *     record only through this group (`revokeGrantsLostWithGroupReachTx`);
+ *   - frees one active-Team slot (capacity counts ACTIVE groups only).
  *
- * MEMBERS ARE NOT A BLOCKER, deliberately. Adding people to a group is how it
- * gets created; a group with three members and no work is still an accident
- * somebody wants tidied away, and removing them by hand first would be exactly
- * the bureaucracy §15.26 says to avoid. Group membership confers no access and
- * survives nowhere else, so it is disposable state.
+ * It is one transaction under a row lock: the first archive transitions and
+ * writes the ONE success audit row; a concurrent or repeated archive finds
+ * the row already ARCHIVED, changes nothing and records nothing as success.
  *
- * PENDING INVITES ARE NOT A BLOCKER either: a group invite grants no workspace
- * access and expires on its own. Neither is a notification preference.
+ * Step-up is the ROUTE's job and happens before this is called: nothing here
+ * may run for an unverified actor.
  */
-export type CollaborationTeamDisposability = {
-  /** True when permanent deletion is safe and permitted. */
-  disposable: boolean;
+export type CollaborationTeamArchiveImpact = {
+  teamId: string;
+  teamName: string;
+  status: string;
+  /** Accepted, effective members of the group (owner included). */
+  acceptedMembers: number;
+  /** Cases this group was granted; that reach ends with the archive. */
+  caseGrants: number;
+  /** Live tasks (OPEN / IN_PROGRESS / REASSIGNED) — settled as CANCELLED. */
+  openAssignments: number;
+  /** Pending group invitations — revoked. */
+  pendingInvites: number;
+  /** What becomes unavailable, as stable keys the surfaces word. */
+  unavailable: ReadonlyArray<string>;
+  /** What stays, as stable keys. */
+  preserved: ReadonlyArray<string>;
   /**
-   * The history that makes it non-disposable, by kind. Empty when disposable.
-   * Bounded counts — enough for the UI to explain WHY without listing rows.
+   * Restore can always be REQUESTED by whoever may archive; whether it then
+   * succeeds is decided at that moment against these, all re-checked.
    */
-  blockers: ReadonlyArray<{ kind: string; count: number }>;
+  restore: { requestable: true; rechecks: ReadonlyArray<string> };
 };
 
-export async function assessCollaborationTeamDisposability(
-  input: { teamId: string; actorUserId: string },
-  client: PrismaClient = defaultPrisma,
-): Promise<CollaborationTeamDisposability> {
-  const { team } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    // Reading the disposition needs no more authority than reading the group.
-    "team.read",
-  );
-  void team;
+const ARCHIVE_UNAVAILABLE = [
+  "case_access_through_team",
+  "new_tasks",
+  "discussion_posts",
+  "new_members_and_invitations",
+  "team_settings_changes",
+] as const;
+const ARCHIVE_PRESERVED = [
+  "team_record",
+  "membership_history",
+  "assignments_history",
+  "discussion_history",
+  "activity_history",
+  "audit_history",
+] as const;
+const RESTORE_RECHECKS = [
+  "plan_entitlement",
+  "active_team_count",
+  "per_team_member_capacity",
+  "workspace_lifecycle",
+  "organization_lifecycle",
+  "enterprise_contract",
+] as const;
 
-  const [assignments, comments, accessReviews, guests, activity, caseGrants] =
-    await Promise.all([
-      // Responsibility for a Case, Evidence or Review — the provenance record.
-      client.collaborationTeamAssignment.count({
-        where: { teamId: input.teamId },
-      }),
-      // Operational discussion. People said things about the work here.
-      client.collaborationTeamComment.count({ where: { teamId: input.teamId } }),
-      // Governance: somebody reviewed who belonged to this group.
-      client.collaborationTeamAccessReview.count({
-        where: { teamId: input.teamId },
-      }),
-      // External participants were admitted to this group.
-      client.collaborationTeamGuest.count({ where: { teamId: input.teamId } }),
-      /*
-       * Activity BEYOND the group's own creation.
-       *
-       * Every group has a TEAM_CREATED row the moment it exists, and members
-       * added during setup produce more. Counting all activity would make
-       * every group non-disposable and the feature pointless, so the trivial
-       * lifecycle vocabulary is excluded: what remains is evidence that the
-       * group was actually USED.
-       */
-      client.collaborationTeamActivity.count({
-        where: {
-          teamId: input.teamId,
-          eventType: {
-            notIn: [
-              "TEAM_CREATED",
-              "TEAM_UPDATED",
-              "MEMBER_ADDED",
-              "MEMBER_REMOVED",
-              "MEMBER_ROLE_CHANGED",
-              "TEAM_ARCHIVED",
-              "TEAM_REOPENED",
-            ],
-          },
-        },
-      }),
-      // Members audit ACC-10 — Cases this group was granted reach into. The
-      // grant is an access record; the team FK is RESTRICT so it can never be
-      // cascaded away, and a group holding grants is archived instead.
-      client.caseCollaborationTeamAccess.count({ where: { collaborationTeamId: input.teamId } }),
-    ]);
+/** Every non-terminal state of the Team task machine. */
+const LIVE_TEAM_TASK_STATUSES = ["OPEN", "IN_PROGRESS", "REASSIGNED"] as const;
 
-  const blockers = [
-    { kind: "assignments", count: assignments },
-    { kind: "discussion", count: comments },
-    { kind: "accessReviews", count: accessReviews },
-    { kind: "guests", count: guests },
-    { kind: "activity", count: activity },
-    { kind: "caseAccess", count: caseGrants },
-  ].filter((b) => b.count > 0);
-
-  return { disposable: blockers.length === 0, blockers };
+async function countArchiveImpact(
+  client: PrismaClient,
+  team: { id: string; workspaceId: string },
+): Promise<Pick<CollaborationTeamArchiveImpact, "acceptedMembers" | "caseGrants" | "openAssignments" | "pendingInvites">> {
+  const [acceptedMembers, caseGrants, openAssignments, pendingInvites] = await Promise.all([
+    client.collaborationTeamMember.count({
+      where: { ...effectiveGroupMemberWhere(team.workspaceId), teamId: team.id },
+    }),
+    client.caseCollaborationTeamAccess.count({ where: { collaborationTeamId: team.id } }),
+    client.collaborationTeamAssignment.count({
+      where: { teamId: team.id, status: { in: [...LIVE_TEAM_TASK_STATUSES] } },
+    }),
+    client.collaborationTeamInvite.count({ where: { teamId: team.id, status: "PENDING" } }),
+  ]);
+  return { acceptedMembers, caseGrants, openAssignments, pendingInvites };
 }
 
 /**
- * PERMANENTLY DELETE A DISPOSABLE GROUP (§15.26).
- *
- * The accidental-creation case, handled without ceremony: a group with no
- * operational record is removed, and the cascade takes only its own empty
- * bookkeeping with it.
- *
- * FAIL CLOSED. The disposability assessment is re-run INSIDE the transaction,
- * against the same client that performs the delete. Checking outside it would
- * be a read-then-write race: a comment or an assignment landing between the two
- * would be destroyed by a decision made before it existed.
- *
- * AUTHORITY. `team.archive` — the same authority that retires a group, not the
- * creator. Creator-ownership is not an authorization model in this product and
- * introducing one here would be a new authority for a narrower operation.
- * Tenancy is enforced by `requireMemberWithPermission`, which resolves the
- * group's workspace and refuses anyone outside it.
- *
- * AUDIT BEFORE THE ROW GOES. The activity feed cascades with the group, so the
- * durable record is the tenant audit event, written with the real workspace and
- * actor. `recordActivity` is deliberately NOT used: writing to a table that is
- * about to be deleted in the same transaction records nothing.
+ * The impact preview the confirmation shows BEFORE step-up. Authorised as the
+ * archive itself (`team.archive`): only someone who may archive needs it, and
+ * it discloses counts of the group's own records, never their content.
  */
-export async function deleteCollaborationTeam(
+export async function assessCollaborationTeamArchiveImpact(
   input: { teamId: string; actorUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<void> {
+): Promise<CollaborationTeamArchiveImpact> {
   const { team } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
     "team.archive",
   );
-
-  await client.$transaction(async (tx) => {
-    const disposition = await assessCollaborationTeamDisposability(
-      { teamId: input.teamId, actorUserId: input.actorUserId },
-      tx as PrismaClient,
-    );
-    if (!disposition.disposable) {
-      throw new CollaborationTeamError(
-        "TEAM_NOT_DISPOSABLE",
-        "This team has operational history and cannot be permanently deleted. Archive it instead.",
-        409,
-        { blockers: disposition.blockers },
-      );
-    }
-    await tx.collaborationTeam.delete({ where: { id: input.teamId } });
-    // In the same transaction (members audit AUD-01): the platform audit log
-    // does not cascade with the group, so the row survives it — and a delete
-    // that rolls back can no longer leave a record claiming it happened.
-    await emitTenantAudit(
-      {
-        action: "collaboration_team.deleted",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId: input.actorUserId,
-        workspaceId: team.workspaceId,
-        resourceType: "collaboration_team",
-        resourceId: input.teamId,
-      },
-      tx as never,
-    );
+  const row = await client.collaborationTeam.findUniqueOrThrow({
+    where: { id: input.teamId },
+    select: { name: true, status: true },
   });
+  const counts = await countArchiveImpact(client, team);
+  return {
+    teamId: team.id,
+    teamName: row.name,
+    status: row.status,
+    ...counts,
+    unavailable: ARCHIVE_UNAVAILABLE,
+    preserved: ARCHIVE_PRESERVED,
+    restore: { requestable: true, rechecks: RESTORE_RECHECKS },
+  };
 }
 
-export async function archiveCollaborationTeam(
-  input: { teamId: string; actorUserId: string; auditTx?: CollaborationMutationAudit },
+/**
+ * The exact-name confirmation, checked server-side too: a client that skipped
+ * its own typed confirmation cannot archive by sending the request anyway.
+ * Exact means exact — case and spacing included — because the point is that
+ * the person read which group they are retiring.
+ */
+export async function assertArchiveConfirmation(
+  input: { teamId: string; actorUserId: string; confirmName: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  const { team } = await requireMemberWithPermission(
-    client,
-    input.teamId,
-    input.actorUserId,
-    "team.archive",
-  );
-  if (team.status === "ARCHIVED") {
-    if (input.auditTx) await input.auditTx(client, undefined);
-    return;
+  await requireMemberWithPermission(client, input.teamId, input.actorUserId, "team.archive");
+  const row = await client.collaborationTeam.findUniqueOrThrow({
+    where: { id: input.teamId },
+    select: { name: true },
+  });
+  if (input.confirmName !== row.name) {
+    throw new CollaborationTeamError(
+      "ARCHIVE_CONFIRMATION_MISMATCH",
+      "Type the Collaboration Team's exact name to archive it.",
+      400,
+    );
   }
-  await client.$transaction(async (tx) => {
-    await tx.collaborationTeam.update({
-      where: { id: input.teamId },
-      data: { status: "ARCHIVED", archivedAtUtc: new Date() },
+}
+
+export type ArchiveCollaborationTeamResult = {
+  /** False when the group was already archived: nothing changed. */
+  changed: boolean;
+  summary: {
+    acceptedMembers: number;
+    caseGrants: number;
+    cancelledAssignments: number;
+    revokedInvites: number;
+  } | null;
+};
+
+export async function archiveCollaborationTeam(
+  input: {
+    teamId: string;
+    actorUserId: string;
+    reason?: string | null;
+    auditTx?: CollaborationMutationAudit<NonNullable<ArchiveCollaborationTeamResult["summary"]>>;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<ArchiveCollaborationTeamResult> {
+  const reason = input.reason?.trim().slice(0, 500) || null;
+  return client.$transaction(async (tx) => {
+    const db = tx as unknown as PrismaClient;
+    // One transition: the row is locked, then re-read. A concurrent archive
+    // waits here and then finds ARCHIVED.
+    await tx.$queryRaw`SELECT "id" FROM "collaboration_teams" WHERE "id" = ${input.teamId}::uuid FOR UPDATE`;
+    // Authority re-checked under the lock: a LEAD demoted meanwhile is refused.
+    const { team } = await requireMemberWithPermission(db, input.teamId, input.actorUserId, "team.archive");
+    if (team.status === "ARCHIVED") return { changed: false, summary: null };
+
+    const counts = await countArchiveImpact(db, team);
+    const moved = await tx.collaborationTeam.updateMany({
+      where: { id: input.teamId, status: "ACTIVE" },
+      data: {
+        status: "ARCHIVED",
+        archivedAtUtc: new Date(),
+        archivedByUserId: input.actorUserId,
+        archiveReason: reason,
+      },
     });
+    if (moved.count === 0) return { changed: false, summary: null };
+
     /**
      * AN ARCHIVED GROUP CARRIES NO LIVE WORK (members audit CT-11).
      *
-     * Archiving left OPEN and IN_PROGRESS tasks live on a group nobody could
-     * act in, so they sat in assignees' queues forever. They are settled
-     * through the task state machine — CANCELLED, every one recorded on the
-     * group's timeline — never deleted, so the history of who was asked to do
-     * what survives the archive.
+     * Live tasks are settled through the task state machine — CANCELLED, every
+     * one recorded on the group's timeline — never deleted, so the history of
+     * who was asked to do what survives. REASSIGNED is live too (the release
+     * module's own definition); it was left behind before.
      */
-    const open = await tx.collaborationTeamAssignment.findMany({
-      where: { teamId: input.teamId, status: { in: [...OPEN_ASSIGNMENT_STATUSES] } },
-      select: { id: true },
+    const live = await tx.collaborationTeamAssignment.findMany({
+      where: { teamId: input.teamId, status: { in: [...LIVE_TEAM_TASK_STATUSES] } },
+      select: { id: true, status: true },
     });
-    if (open.length > 0) {
-      await tx.collaborationTeamAssignment.updateMany({
-        where: { id: { in: open.map((a) => a.id) } },
+    let cancelledAssignments = 0;
+    for (const a of live) {
+      const written = await tx.collaborationTeamAssignment.updateMany({
+        where: { id: a.id, status: a.status },
         data: { status: "CANCELLED" },
       });
-      for (const a of open) {
-        await recordActivity(tx, {
-          teamId: input.teamId,
-          workspaceId: team.workspaceId,
-          actorUserId: input.actorUserId,
-          eventType: "ASSIGNMENT_CANCELLED",
-          targetType: "ASSIGNMENT",
-          targetId: a.id,
-          metadata: { assignmentId: a.id, reason: "team_archived" },
-        });
-      }
+      if (written.count === 0) continue;
+      cancelledAssignments += 1;
+      await recordActivity(tx, {
+        teamId: input.teamId,
+        workspaceId: team.workspaceId,
+        actorUserId: input.actorUserId,
+        eventType: "ASSIGNMENT_CANCELLED",
+        targetType: "ASSIGNMENT",
+        targetId: a.id,
+        metadata: { assignmentId: a.id, reason: "team_archived", previousStatus: a.status },
+      });
     }
+    // A pending invitation to an archived group can never be honoured.
+    const revoked = await tx.collaborationTeamInvite.updateMany({
+      where: { teamId: input.teamId, status: "PENDING" },
+      data: { status: "REVOKED", revokedAtUtc: new Date() },
+    });
     await recordActivity(tx, {
       teamId: input.teamId,
       workspaceId: team.workspaceId,
       actorUserId: input.actorUserId,
       eventType: "TEAM_ARCHIVED",
+      metadata: {
+        ...(reason ? { reason } : {}),
+        cancelledAssignments,
+        revokedInvites: revoked.count,
+      },
     });
     // The group's case reach ends with it: grants its members created on
     // cases granted only to it end too.
     await revokeGrantsLostWithGroupReachTx(tx, { teamId: input.teamId, actorUserId: input.actorUserId });
-    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
+    const summary = {
+      acceptedMembers: counts.acceptedMembers,
+      caseGrants: counts.caseGrants,
+      cancelledAssignments,
+      revokedInvites: revoked.count,
+    };
+    if (input.auditTx) await input.auditTx(db, summary);
+    return { changed: true, summary };
   });
 }
 
 /**
- * WCR-13 (2026-09-07) — REOPEN A GROUP.
+ * RESTORE A COLLABORATION TEAM (formerly "reopen", WCR-13).
  *
- * Archiving was one-way. There was no service function, no route and no client
- * call to undo it, and every mutation route passes `requireActiveTeam: true`,
- * so an archived group was frozen for ever — while the confirmation dialog told
- * the operator members would lose access *"until the team is unarchived"*.
+ * An archived group frees a slot, so restoring one competes with creating
+ * one; and the world may have changed since it was archived. Everything that
+ * admits a group is RE-CHECKED here, at restore time, inside one transaction
+ * under the same locks creation takes:
  *
- * Two ways to close that: delete the promise, or keep it. Keeping it is the
- * right call on an evidence platform. Archiving is the ONLY way a workspace at
- * its group ceiling can free a slot, so making it irreversible turns a routine
- * tidy-up into a permanent loss of a group's assignments, discussion and
- * activity — and an operator who archived the wrong group had no recourse.
+ *   - the subscription lifecycle (a restricted workspace adds no capacity);
+ *   - the workspace is not closed, and a governing Organization is ACTIVE;
+ *   - the plan includes Collaboration Teams, and the Enterprise contract is
+ *     ACTIVE and grants them (the contract-first resolver fails closed);
+ *   - the ACTIVE-group count is below the limit (creation lock, recount);
+ *   - the group's accepted, effective non-owner members fit the per-group
+ *     limit — a group archived on TEAM with ten cannot return on PRO.
  *
- * REOPENING RE-CHECKS CAPACITY, and that is the whole subtlety. Archived groups
- * do not count against `maxCollaborationTeamsPerWorkspace` (correctly — the cap
- * is on ACTIVE groups). So a PRO workspace can archive one of its two groups,
- * create a third, and then try to reopen the first. Without a check that is a
- * way to hold three active groups on a plan that sells two. The guard runs
- * inside the same transaction and under the same per-workspace advisory lock as
- * creation, because reopening and creating compete for exactly the same slot.
+ * Nothing archived is "un-cancelled": settled tasks and revoked invitations
+ * stay as the history records them.
  */
 export async function unarchiveCollaborationTeam(
   input: { teamId: string; actorUserId: string; auditTx?: CollaborationMutationAudit },
   client: PrismaClient = defaultPrisma,
-): Promise<void> {
+): Promise<{ changed: boolean }> {
   const { team } = await requireMemberWithPermission(
     client,
     input.teamId,
     input.actorUserId,
-    // Reopening is the inverse of archiving and carries the same authority.
+    // Restoring is the inverse of archiving and carries the same authority.
     "team.archive",
   );
-  if (team.status === "ACTIVE") {
-    if (input.auditTx) await input.auditTx(client, undefined);
-    return;
-  }
+  if (team.status === "ACTIVE") return { changed: false };
 
+  await assertRestoreLifecycleAllows(team.workspaceId, client);
   // Resolved OUTSIDE the transaction, once, so the in-transaction re-check
   // compares against the same numbers rather than resolving a second answer.
   const cap = await assertCanCreateCollaborationTeam(
@@ -1686,36 +1701,72 @@ export async function unarchiveCollaborationTeam(
     client,
   );
 
-  await client.$transaction(async (tx) => {
+  return client.$transaction(async (tx) => {
     await lockAndAssertCollaborationTeamCapacity(tx, {
       workspaceId: team.workspaceId,
       plan: cap.plan,
       maxCollaborationTeamsPerWorkspace: cap.maxCollaborationTeamsPerWorkspace,
     });
-    // Restoring re-checks the MEMBER capacity too (members audit CT-03): a
-    // group archived on TEAM with ten members cannot return to current access
-    // on a PRO plan that sells five.
     await lockAndAssertCollaborationTeamMemberCapacity(tx, {
       teamId: input.teamId,
       addingUserIds: [],
       requireWithinCapacity: true,
     });
-    await tx.collaborationTeam.update({
-      where: { id: input.teamId },
+    const moved = await tx.collaborationTeam.updateMany({
+      where: { id: input.teamId, status: "ARCHIVED" },
       data: { status: "ACTIVE", archivedAtUtc: null },
     });
+    // A concurrent restore won: nothing to record.
+    if (moved.count === 0) return { changed: false };
     await recordActivity(tx, {
       teamId: input.teamId,
       workspaceId: team.workspaceId,
       actorUserId: input.actorUserId,
-      // `TEAM_REOPENED` already existed in the event vocabulary with no
-      // producer — the feed was ready for this operation before the operation
-      // was. Reusing it rather than minting a second name for one fact.
       eventType: "TEAM_REOPENED",
     });
     if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, undefined);
+    return { changed: true };
   });
 }
+
+/**
+ * The lifecycle half of the restore re-check, asked of the canonical
+ * authorities: the subscription lifecycle adapter every Collaboration Team
+ * mutation uses, and the workspace / Organization state the invitation
+ * acceptance reads (`organizationLifecycleApplies`).
+ */
+async function assertRestoreLifecycleAllows(
+  workspaceId: string,
+  client: PrismaClient,
+): Promise<void> {
+  const workspace = await client.team.findUnique({
+    where: { id: workspaceId },
+    select: {
+      closedAtUtc: true,
+      workspaceKind: true,
+      organization: { select: { status: true } },
+    },
+  });
+  if (!workspace || workspace.closedAtUtc !== null) {
+    throw new CollaborationTeamError(
+      "WORKSPACE_NOT_ACTIVE",
+      "This workspace is closed, so its Collaboration Teams cannot be restored.",
+      409,
+    );
+  }
+  if (
+    organizationLifecycleApplies(workspace.workspaceKind ?? "UNKNOWN") &&
+    workspace.organization?.status !== "ACTIVE"
+  ) {
+    throw new CollaborationTeamError(
+      "ORGANIZATION_NOT_ACTIVE",
+      "This organization is not active, so its Collaboration Teams cannot be restored.",
+      409,
+    );
+  }
+  await assertSubscriptionActiveOrGraceAllowed({ workspaceId }, client);
+}
+
 
 // -----------------------------------------------------------------------------
 // Members
@@ -1827,6 +1878,111 @@ export async function addExistingMember(
     return row;
   });
   return result;
+}
+
+/**
+ * LEAD RECOVERY (members ledger X5, 2026-10-28).
+ *
+ * A group can be left with no valid LEAD: a departing workspace member's
+ * group rows end with their membership (`standing-reach.ts`), and nothing
+ * names a successor. Every LEAD-gated write — archive, settings, granting
+ * LEAD — then refused everyone, and the workspace OWNER, whom
+ * `assertMayActOnLead` names as the other authority over leads, had no path:
+ * a governor holds no group role.
+ *
+ * This is that path, and only that path:
+ *   - only the workspace OWNER (the same authority `assertMayActOnLead` admits);
+ *   - only while the group has NO valid lead (checked under the membership
+ *     lock, so it cannot race a LEAD being appointed the ordinary way);
+ *   - the new LEAD is an effective member of the group, or the owner
+ *     themself (who consumes no group seat);
+ *   - recorded on the group's timeline and in the canonical audit, in the
+ *     same transaction.
+ */
+export async function recoverCollaborationTeamLead(
+  input: {
+    teamId: string;
+    actorUserId: string;
+    newLeadUserId: string;
+    auditTx?: CollaborationMutationAudit<{ memberId: string; previousRole: string | null }>;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ memberId: string }> {
+  const team = await client.collaborationTeam.findUnique({
+    where: { id: input.teamId },
+    select: { id: true, workspaceId: true, status: true, workspace: { select: { ownerUserId: true } } },
+  });
+  if (!team) throw E.notFound("Team");
+  if (team.workspace.ownerUserId !== input.actorUserId) {
+    throw new CollaborationTeamError(
+      "LEAD_RECOVERY_OWNER_ONLY",
+      "Only the workspace owner can appoint a lead for a team that has none.",
+      403,
+    );
+  }
+  if (team.status !== "ACTIVE") throw E.archived();
+
+  return client.$transaction(async (tx) => {
+    await lockCollaborationTeamMembership(tx, input.teamId);
+    const leads = await tx.collaborationTeamMember.count({
+      where: validLeadWhere(input.teamId, team.workspaceId),
+    });
+    if (leads > 0) {
+      throw new CollaborationTeamError(
+        "LEAD_PRESENT",
+        "This team already has a lead. Ask them to change its leadership.",
+        409,
+      );
+    }
+    const existing = await tx.collaborationTeamMember.findFirst({
+      where: { teamId: input.teamId, userId: input.newLeadUserId, ...effectiveGroupMemberWhere(team.workspaceId) },
+      select: { id: true, role: true },
+    });
+    let memberId: string;
+    let previousRole: string | null = null;
+    if (existing) {
+      previousRole = existing.role;
+      await tx.collaborationTeamMember.update({ where: { id: existing.id }, data: { role: "LEAD" } });
+      memberId = existing.id;
+    } else if (input.newLeadUserId === team.workspace.ownerUserId) {
+      // The owner appoints themself; any earlier row of theirs is reused.
+      const prior = await tx.collaborationTeamMember.findFirst({
+        where: { teamId: input.teamId, userId: input.newLeadUserId },
+        select: { id: true, role: true },
+      });
+      if (prior) {
+        previousRole = prior.role;
+        await tx.collaborationTeamMember.update({
+          where: { id: prior.id },
+          data: { role: "LEAD", status: "ACTIVE", suspendedAt: null },
+        });
+        memberId = prior.id;
+      } else {
+        const created = await tx.collaborationTeamMember.create({
+          data: { teamId: input.teamId, userId: input.newLeadUserId, role: "LEAD", status: "ACTIVE" },
+          select: { id: true },
+        });
+        memberId = created.id;
+      }
+    } else {
+      throw new CollaborationTeamError(
+        "LEAD_RECOVERY_TARGET_NOT_MEMBER",
+        "Choose a current member of this team, or appoint yourself.",
+        409,
+      );
+    }
+    await recordActivity(tx, {
+      teamId: input.teamId,
+      workspaceId: team.workspaceId,
+      actorUserId: input.actorUserId,
+      eventType: "MEMBER_ROLE_CHANGED",
+      targetType: "MEMBER",
+      targetId: memberId,
+      metadata: { memberId, role: "LEAD", previousRole, reason: "lead_recovery" },
+    });
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, { memberId, previousRole });
+    return { memberId };
+  });
 }
 
 export async function changeMemberRole(
@@ -2336,6 +2492,13 @@ export async function acceptInvite(
   // was removed) — invites are single-use (maxUses is always written 1).
   if (invite.status === "ACCEPTED" || invite.useCount >= invite.maxUses)
     throw E.inviteAlreadyUsed();
+  // An archived group admits nobody (2026-10-28): archive revokes pending
+  // invitations, and a link minted in the instant before is refused here.
+  const inviteTeam = await client.collaborationTeam.findUnique({
+    where: { id: invite.teamId },
+    select: { status: true },
+  });
+  if (!inviteTeam || inviteTeam.status !== "ACTIVE") throw E.archived();
 
   /**
    * BIND THE INVITE TO THE PERSON IT WAS ADDRESSED TO.

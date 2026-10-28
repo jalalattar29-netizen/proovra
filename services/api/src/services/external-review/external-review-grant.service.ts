@@ -213,6 +213,8 @@ export type IssueGrantInput = {
   allowPackageDownload?: boolean;
   redactionPolicyVersion?: string | null;
   safeNote?: string | null;
+  /** Request id, recorded on the grant's audit row. */
+  correlationId?: string | null;
 };
 
 export type IssueGrantResult =
@@ -359,38 +361,68 @@ async function issueExternalReviewGrantInner(
   const tokenHash = hashToken(rawToken);
 
   try {
-    const rows = (await client.$queryRawUnsafe(
-      `INSERT INTO "external_review_grants" (
-         "team_id", "scope_kind", "evidence_id", "case_id", "package_id",
-         "token_hash", "reviewer_email", "reviewer_display_name",
-         "state", "invited_by_user_id", "expires_at_utc",
-         "allow_original_download", "allow_package_download",
-         "redaction_policy_version", "safe_note"
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, 'INVITED', $9, $10, $11, $12, $13, $14
-       )
-       RETURNING "id", "team_id", "scope_kind", "evidence_id", "case_id",
-         "package_id", "reviewer_email", "reviewer_display_name", "state",
-         "invited_by_user_id", "approved_by_user_id", "revoked_by_user_id",
-         "expires_at_utc", "accepted_at_utc", "revoked_at_utc",
-         "last_accessed_at_utc", "access_count", "allow_original_download",
-         "allow_package_download", "redaction_policy_version", "safe_note",
-         "created_at_utc", "updated_at_utc"`,
-      input.teamId,
-      input.scopeKind,
-      evidenceId,
-      caseId,
-      packageId,
-      tokenHash,
-      input.reviewerEmail.toLowerCase().trim().slice(0, 320),
-      input.reviewerDisplayName?.slice(0, 200) ?? null,
-      input.invitedByUserId,
-      expiry,
-      input.allowOriginalDownload ?? false,
-      input.allowPackageDownload ?? true,
-      input.redactionPolicyVersion?.slice(0, 32) ?? null,
-      input.safeNote?.slice(0, 500) ?? null,
-    )) as RawGrantRow[];
+    /*
+     * THE GRANT AND ITS AUDIT ROW COMMIT TOGETHER (members ledger X6). Issuing
+     * hands an outsider a bearer token; a best-effort security event alone left
+     * the tenant trail without the act whenever the event write failed. Renew
+     * already audited in its transaction — issue and revoke now do the same.
+     */
+    const rows = await client.$transaction(async (tx) => {
+      const inserted = (await tx.$queryRawUnsafe(
+        `INSERT INTO "external_review_grants" (
+           "team_id", "scope_kind", "evidence_id", "case_id", "package_id",
+           "token_hash", "reviewer_email", "reviewer_display_name",
+           "state", "invited_by_user_id", "expires_at_utc",
+           "allow_original_download", "allow_package_download",
+           "redaction_policy_version", "safe_note"
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, 'INVITED', $9, $10, $11, $12, $13, $14
+         )
+         RETURNING "id", "team_id", "scope_kind", "evidence_id", "case_id",
+           "package_id", "reviewer_email", "reviewer_display_name", "state",
+           "invited_by_user_id", "approved_by_user_id", "revoked_by_user_id",
+           "expires_at_utc", "accepted_at_utc", "revoked_at_utc",
+           "last_accessed_at_utc", "access_count", "allow_original_download",
+           "allow_package_download", "redaction_policy_version", "safe_note",
+           "created_at_utc", "updated_at_utc"`,
+        input.teamId,
+        input.scopeKind,
+        evidenceId,
+        caseId,
+        packageId,
+        tokenHash,
+        input.reviewerEmail.toLowerCase().trim().slice(0, 320),
+        input.reviewerDisplayName?.slice(0, 200) ?? null,
+        input.invitedByUserId,
+        expiry,
+        input.allowOriginalDownload ?? false,
+        input.allowPackageDownload ?? true,
+        input.redactionPolicyVersion?.slice(0, 32) ?? null,
+        input.safeNote?.slice(0, 500) ?? null,
+      )) as RawGrantRow[];
+      const created = inserted[0];
+      if (created) {
+        await emitTenantAudit(
+          {
+            action: "external_review.grant_issued",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: input.invitedByUserId,
+            workspaceId: input.teamId,
+            resourceType: "external_review_grant",
+            resourceId: created.id,
+            correlationId: input.correlationId ?? null,
+            resultingState: "INVITED",
+            metadata: {
+              scopeKind: input.scopeKind,
+              expiresAtUtc: created.expires_at_utc.toISOString(),
+            },
+          },
+          tx as never,
+        );
+      }
+      return inserted;
+    });
     const raw = rows[0];
     if (!raw) {
       bump("external_review_grant_issue_failed_total");
@@ -629,6 +661,7 @@ export type TransitionInput = {
   teamId: string;
   toState: ExternalReviewAccessState;
   actorUserId: string;
+  correlationId?: string | null;
 };
 
 export type TransitionResult =
@@ -706,33 +739,63 @@ export async function transitionExternalReviewGrant(
     }
     const revokedAt = input.toState === "REVOKED" ? new Date() : null;
     const acceptedAt = input.toState === "ACTIVE" ? new Date() : null;
-    const rows = (await client.$queryRawUnsafe(
-      `UPDATE "external_review_grants"
-         SET "state" = $3,
-             "revoked_at_utc" = COALESCE("revoked_at_utc", $4),
-             "revoked_by_user_id" = COALESCE("revoked_by_user_id", $5),
-             "accepted_at_utc" = COALESCE("accepted_at_utc", $6),
-             "approved_by_user_id" = COALESCE("approved_by_user_id", $7),
-             "updated_at_utc" = NOW()
-         WHERE "id" = $1 AND "team_id" = $2
-         RETURNING "id", "team_id", "scope_kind", "evidence_id", "case_id",
-           "package_id", "reviewer_email", "reviewer_display_name", "state",
-           "invited_by_user_id", "approved_by_user_id", "revoked_by_user_id",
-           "expires_at_utc", "accepted_at_utc", "revoked_at_utc",
-           "last_accessed_at_utc", "access_count", "allow_original_download",
-           "allow_package_download", "redaction_policy_version", "safe_note",
-           "created_at_utc", "updated_at_utc"`,
-      input.grantId,
-      input.teamId,
-      input.toState,
-      revokedAt,
-      input.toState === "REVOKED" ? input.actorUserId : null,
-      acceptedAt,
-      input.toState === "ACTIVE" ? input.actorUserId : null,
-    )) as RawGrantRow[];
+    /*
+     * Conditional on the state just read, and audited in the same transaction
+     * (members ledger X6): two racing transitions cannot both apply, and a
+     * revoke that commits always leaves its tenant audit row.
+     */
+    const rows = await client.$transaction(async (tx) => {
+      const updated = (await tx.$queryRawUnsafe(
+        `UPDATE "external_review_grants"
+           SET "state" = $3,
+               "revoked_at_utc" = COALESCE("revoked_at_utc", $4),
+               "revoked_by_user_id" = COALESCE("revoked_by_user_id", $5),
+               "accepted_at_utc" = COALESCE("accepted_at_utc", $6),
+               "approved_by_user_id" = COALESCE("approved_by_user_id", $7),
+               "updated_at_utc" = NOW()
+           WHERE "id" = $1 AND "team_id" = $2 AND "state" = $8
+           RETURNING "id", "team_id", "scope_kind", "evidence_id", "case_id",
+             "package_id", "reviewer_email", "reviewer_display_name", "state",
+             "invited_by_user_id", "approved_by_user_id", "revoked_by_user_id",
+             "expires_at_utc", "accepted_at_utc", "revoked_at_utc",
+             "last_accessed_at_utc", "access_count", "allow_original_download",
+             "allow_package_download", "redaction_policy_version", "safe_note",
+             "created_at_utc", "updated_at_utc"`,
+        input.grantId,
+        input.teamId,
+        input.toState,
+        revokedAt,
+        input.toState === "REVOKED" ? input.actorUserId : null,
+        acceptedAt,
+        input.toState === "ACTIVE" ? input.actorUserId : null,
+        fromState,
+      )) as RawGrantRow[];
+      const moved = updated[0];
+      // A repeat revoke is idempotent (same-state transitions are allowed)
+      // and records nothing new: one revocation, one audit row.
+      if (moved && input.toState === "REVOKED" && fromState !== "REVOKED") {
+        await emitTenantAudit(
+          {
+            action: "external_review.grant_revoked",
+            outcome: "success",
+            sourceApp: "API",
+            actorUserId: input.actorUserId,
+            workspaceId: input.teamId,
+            resourceType: "external_review_grant",
+            resourceId: moved.id,
+            correlationId: input.correlationId ?? null,
+            previousState: fromState,
+            resultingState: "REVOKED",
+          },
+          tx as never,
+        );
+      }
+      return updated;
+    });
     const raw = rows[0];
     if (!raw) {
-      return { ok: false, reason: "service_unavailable" };
+      // The state moved between the read and the write: another transition won.
+      return { ok: false, reason: "invalid_transition" };
     }
     if (input.toState === "REVOKED") {
       bump("external_review_revoked_total");

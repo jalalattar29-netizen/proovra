@@ -53,6 +53,10 @@ import {
 } from "../billing/workspace-seats.service.js";
 import { organizationLifecycleApplies } from "./workspace-kind.js";
 import {
+  BillingLimitError,
+  assertSubscriptionActiveOrGraceAllowed,
+} from "../collaboration-team/billing-guards.js";
+import {
   maskInvitedEmail,
   type WorkspaceInvitationLookup,
 } from "@proovra/shared";
@@ -179,6 +183,30 @@ export type CreatedWorkspaceInvitation = {
  * makes "one live invitation per address per workspace" a constraint rather
  * than a read the route performed and then raced against.
  */
+/**
+ * GROWTH FOLLOWS THE SUBSCRIPTION LIFECYCLE (members ledger M6).
+ *
+ * The entitlement projection already says a restricted workspace cannot invite
+ * (`canInviteWorkspaceMember = mutationsAllowed && seats`), and the surfaces
+ * disable the control — but the API minted, resent and accepted invitations
+ * regardless. The decision is the canonical lifecycle policy's, reached through
+ * the same adapter every Collaboration Team mutation calls; only its error is
+ * translated into this domain's typed refusal.
+ */
+async function assertInvitationLifecycleAllows(
+  workspaceId: string,
+  client: PrismaClient,
+): Promise<void> {
+  try {
+    await assertSubscriptionActiveOrGraceAllowed({ workspaceId }, client);
+  } catch (err) {
+    if (err instanceof BillingLimitError) {
+      throw new WorkspaceInvitationError(err.code, err.message, err.httpStatus, err.details);
+    }
+    throw err;
+  }
+}
+
 export async function createWorkspaceInvitation(
   input: {
     workspaceId: string;
@@ -192,6 +220,7 @@ export async function createWorkspaceInvitation(
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedWorkspaceInvitation> {
   const email = normalizeInviteEmail(input.email);
+  await assertInvitationLifecycleAllows(input.workspaceId, client);
 
   /**
    * THE ALLOWANCE GATE.
@@ -207,75 +236,98 @@ export async function createWorkspaceInvitation(
    * ceiling was hit and what the plan allows rather than "something went
    * wrong".
    */
-  const allowance = await resolveWorkspaceInvitationAllowance(
-    input.workspaceId,
-    client,
-  );
-  // Members audit CT-10 — an ENTERPRISE workspace without an ACTIVE contract
-  // is not "a plan without invitations"; it is a contract to complete.
-  if (!allowance.featureIncluded && allowance.plan === "ENTERPRISE") {
-    throw new WorkspaceInvitationError(
-      "ENTERPRISE_CONTRACT_REQUIRED",
-      "This organization's contract does not configure members yet. Ask your organization administrator to complete the contract.",
-      409,
-      { plan: allowance.plan },
-    );
-  }
-  if (!allowance.featureIncluded || allowance.maxPending <= 0) {
-    throw new WorkspaceInvitationError(
-      "WORKSPACE_INVITES_NOT_INCLUDED",
-      "This workspace's plan does not include inviting other people.",
-      402,
-      { plan: allowance.plan },
-    );
-  }
-  if (allowance.pending >= allowance.maxPending) {
-    throw new WorkspaceInvitationError(
-      "WORKSPACE_INVITE_LIMIT_REACHED",
-      `This workspace already has ${allowance.maxPending} invitations waiting to be accepted. Revoke one, or wait for it to be accepted.`,
-      409,
-      {
-        plan: allowance.plan,
-        pending: allowance.pending,
-        maxPending: allowance.maxPending,
-      },
-    );
-  }
-  if (allowance.sentLast24h >= allowance.maxPer24h) {
-    throw new WorkspaceInvitationError(
-      "WORKSPACE_INVITE_RATE_LIMIT_REACHED",
-      `This workspace has sent its ${allowance.maxPer24h} invitations for today. Try again tomorrow.`,
-      429,
-      {
-        plan: allowance.plan,
-        sentLast24h: allowance.sentLast24h,
-        maxPer24h: allowance.maxPer24h,
-      },
-    );
-  }
-
+  /*
+   * Counted UNDER A LOCK (members ledger M14b). Read outside any lock, two
+   * concurrent creates at `maxPending - 1` both saw room and both inserted.
+   * Same try-lock-and-retry shape as acceptance, for the same pool reason.
+   */
   const { raw, hash } = mintToken();
   const expiresAt = new Date(
     Date.now() + (input.expiresInMs ?? WORKSPACE_INVITE_TTL_MS),
   );
+  const run = async (tx: PrismaClient): Promise<WorkspaceInvitationView | null> => {
+    const [{ locked }] = await tx.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_xact_lock(hashtext(${`workspace-invite:${input.workspaceId}`})) AS locked
+    `;
+    if (!locked) return null;
+    const allowance = await resolveWorkspaceInvitationAllowance(
+      input.workspaceId,
+      tx,
+    );
+    // Members audit CT-10 — an ENTERPRISE workspace without an ACTIVE contract
+    // is not "a plan without invitations"; it is a contract to complete.
+    if (!allowance.featureIncluded && allowance.plan === "ENTERPRISE") {
+      throw new WorkspaceInvitationError(
+        "ENTERPRISE_CONTRACT_REQUIRED",
+        "This organization's contract does not configure members yet. Ask your organization administrator to complete the contract.",
+        409,
+        { plan: allowance.plan },
+      );
+    }
+    if (!allowance.featureIncluded || allowance.maxPending <= 0) {
+      throw new WorkspaceInvitationError(
+        "WORKSPACE_INVITES_NOT_INCLUDED",
+        "This workspace's plan does not include inviting other people.",
+        402,
+        { plan: allowance.plan },
+      );
+    }
+    if (allowance.pending >= allowance.maxPending) {
+      throw new WorkspaceInvitationError(
+        "WORKSPACE_INVITE_LIMIT_REACHED",
+        `This workspace already has ${allowance.maxPending} invitations waiting to be accepted. Revoke one, or wait for it to be accepted.`,
+        409,
+        {
+          plan: allowance.plan,
+          pending: allowance.pending,
+          maxPending: allowance.maxPending,
+        },
+      );
+    }
+    if (allowance.sentLast24h >= allowance.maxPer24h) {
+      throw new WorkspaceInvitationError(
+        "WORKSPACE_INVITE_RATE_LIMIT_REACHED",
+        `This workspace has sent its ${allowance.maxPer24h} invitations for today. Try again tomorrow.`,
+        429,
+        {
+          plan: allowance.plan,
+          sentLast24h: allowance.sentLast24h,
+          maxPer24h: allowance.maxPer24h,
+        },
+      );
+    }
+
+    const created = await tx.teamInvite.create({
+      data: {
+        teamId: input.workspaceId,
+        email,
+        role: input.role,
+        tokenHash: hash,
+        invitedByUserId: input.invitedByUserId,
+        expiresAt,
+      },
+    });
+    const projected = projectInvitation(created);
+    if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
+    return projected;
+  };
 
   try {
-    const view = await client.$transaction(async (tx) => {
-      const created = await tx.teamInvite.create({
-        data: {
-          teamId: input.workspaceId,
-          email,
-          role: input.role,
-          tokenHash: hash,
-          invitedByUserId: input.invitedByUserId,
-          expiresAt,
-        },
-      });
-      const projected = projectInvitation(created);
-      if (input.auditTx) await input.auditTx(tx as unknown as PrismaClient, projected);
-      return projected;
-    });
-    return { invite: view, rawToken: raw };
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      const view = await client.$transaction(
+        (tx) => run(tx as unknown as PrismaClient),
+        { maxWait: 10_000, timeout: 15_000 },
+      );
+      if (view) return { invite: view, rawToken: raw };
+      await new Promise((resolve) =>
+        setTimeout(resolve, 40 + Math.floor(Math.random() * 120)),
+      );
+    }
+    throw new WorkspaceInvitationError(
+      "WORKSPACE_INVITE_CONTENTION",
+      "Too many invitations are being sent from this workspace at once. Try again in a moment.",
+      409,
+    );
   } catch (err) {
     if (
       err instanceof prismaPkg.Prisma.PrismaClientKnownRequestError &&
@@ -322,6 +374,7 @@ export async function resendWorkspaceInvitation(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<CreatedWorkspaceInvitation> {
+  await assertInvitationLifecycleAllows(input.workspaceId, client);
   return client.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "team_invites" WHERE "id" = ${input.inviteId}::uuid FOR UPDATE`;
     const existing = await tx.teamInvite.findFirst({
@@ -642,6 +695,8 @@ export async function acceptWorkspaceInvitation(
     return consumed;
   }
   assertInvitationCannotReviveMembership(existingMembership, invite.createdAt);
+  // Joining is growth: a restricted subscription admits no new member (M6).
+  await assertInvitationLifecycleAllows(invite.teamId, client);
 
   /**
    * DO NOT HOLD A CONNECTION WHILE WAITING FOR A LOCK.

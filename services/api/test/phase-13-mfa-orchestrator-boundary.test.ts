@@ -67,8 +67,11 @@ const STEP_UP_AUTHORITY_FUNCTIONS = [
  *   mfa.service                      TOTP enrolment and activation — R8.1.1
  *   mfa-admin-lifecycle.service      operator-side revocation
  *   mfa-recovery-request.service     the approved-recovery reset
+ *   identity-security/passkey.service  passkey enrolment, use and revocation
+ *                                    (2026-10-28; the step-up verifier writes
+ *                                    through it, never directly)
  *
- * A file writing the table that is not on this list is a fifth opinion about
+ * A file writing the table that is not on this list is another opinion about
  * what "verified" means, which is what `ParallelMfaAuthorities` counts.
  */
 const SANCTIONED_FACTOR_WRITERS = [
@@ -76,6 +79,7 @@ const SANCTIONED_FACTOR_WRITERS = [
   "src/services/security/mfa.service.ts",
   "src/services/security/mfa-admin-lifecycle.service.ts",
   "src/services/security/mfa-recovery-request.service.ts",
+  "src/services/identity-security/passkey.service.ts",
 ] as const;
 
 function readApi(rel: string): string {

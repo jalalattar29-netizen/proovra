@@ -64,6 +64,12 @@ export type RequireStepUpSuccess = {
    * proof reference (break-glass, high-security) use THIS, never a raw header.
    */
   verifiedChallengeId: string;
+  /**
+   * 2026-10-28 — the authenticator kind that answered (PASSKEY, IDP_REAUTH,
+   * TOTP, SMS, WHATSAPP; null on a legacy row). Recorded as a CATEGORY on the
+   * audit of the action it authorised — never anything secret.
+   */
+  method?: string | null;
 };
 
 /**
@@ -180,7 +186,7 @@ export async function requireStepUpForSensitiveAction(
   }
 
   try {
-    await consumeApprovedChallenge(
+    const consumed = await consumeApprovedChallenge(
       {
         teamId: input.teamId,
         userId: input.userId,
@@ -199,7 +205,11 @@ export async function requireStepUpForSensitiveAction(
       },
       client,
     );
-    return { sent: false, verifiedChallengeId: challengeId };
+    return {
+      sent: false,
+      verifiedChallengeId: challengeId,
+      method: consumed.method ?? null,
+    };
   } catch (err) {
     if (err instanceof StepUpError) {
       safeEmitSecurityEvent(

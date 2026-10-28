@@ -79,19 +79,18 @@ import {
 // IdP) composes the canonical authorization primitive.
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+// 2026-10-28 — the redirect URI shared with the IDP_REAUTH step-up round trip
+// (the IdP compares it byte for byte at the code exchange).
+import { oidcRedirectUri as getRedirectUri } from "../services/access-control/sso-endpoints.js";
+import { mintedSessionClaims } from "../services/jwt.js";
+import {
+  completeOidcIdpStepUp,
+  isStepUpIdpState,
+} from "../services/identity-security/step-up-idp-flow.js";
 
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
-
-function getRedirectUri(req: FastifyRequest): string {
-  // Production: build from request host. Dev: env override allowed.
-  const env = process.env["SSO_CALLBACK_REDIRECT_URI"];
-  if (env) return env;
-  const proto = (req.headers["x-forwarded-proto"] as string) || "https";
-  const host = req.headers["host"] ?? "";
-  return `${proto}://${host}/v1/auth/sso/callback`;
-}
 
 function ipPreview(req: FastifyRequest): string | null {
   const ip = req.ip ?? "";
@@ -454,6 +453,21 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         })
         .parse(req.query ?? {});
 
+      // 2026-10-28 — IDP_REAUTH STEP-UP BRANCH. A state minted by the step-up
+      // round trip is verified with the same exchange and id_token checks as
+      // a sign-in, but it can only APPROVE the one challenge it was bound to:
+      // no session, no cookie, no provisioning. Checked before the sign-in
+      // error bounce so a cancelled step-up lands on the step-up result page.
+      if (await isStepUpIdpState(prisma, q.state)) {
+        const target = await completeOidcIdpStepUp(prisma, {
+          stateRaw: q.state,
+          code: q.code ?? null,
+          idpError: q.error ?? null,
+          redirectUri: getRedirectUri(req),
+        });
+        return reply.code(302).redirect(target);
+      }
+
       if (q.error || !q.code) {
         return bounceToAuthError(reply, `idp_${q.error ?? "no_code"}`);
       }
@@ -582,6 +596,16 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
               sub: result.user.id,
               provider: "EMAIL",
               email: result.user.email,
+              // 2026-10-28 — carry the VERIFIED SSO provenance through the
+              // MFA step so the session minted at /v1/auth/mfa/verify keeps
+              // it (it used to collapse to PASSWORD and drop the connection).
+              authMethod: "OIDC" as const,
+              authAt: Math.floor(Date.now() / 1000),
+              ssoConnId: result.connectionId,
+              ...(result.idp.acr ? { idpCtx: result.idp.acr } : {}),
+              ...(result.idp.authTime
+                ? { idpAuthAt: Math.floor(result.idp.authTime.getTime() / 1000) }
+                : {}),
             },
             jwtSecret,
             challenge.jti,
@@ -653,10 +677,8 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
 
         // Mint the JWT. We reuse the existing token shape so the
         // auth middleware accepts the session unchanged.
-        const sid = randomBytes(16).toString("base64url");
         const ttlSeconds = 60 * 60 * 24 * 30;
         const issuedAt = Math.floor(Date.now() / 1000);
-        const exp = issuedAt + ttlSeconds;
         const payload = {
           sub: result.user.id,
           provider: "EMAIL", // SSO-provisioned users are EMAIL provider; IdP link is in ExternalIdentityMapping
@@ -667,11 +689,12 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           // §10.2 — ORG-BOUND SSO satisfaction: the exact verified connection.
           ssoConnId: result.connectionId,
           email: result.user.email,
-          sid,
-          iat: issuedAt,
-          exp,
         };
         const token = signJwt(payload, jwtSecret, ttlSeconds);
+        // 2026-10-28 — key the inventory row and the Organization session
+        // context by the sid the token ACTUALLY carries (`signJwt` assigns
+        // its own; a pre-generated value never reached the token).
+        const { sid, exp } = mintedSessionClaims(token);
 
         // Persist the active session BEFORE setting the cookie so the
         // admin inventory + heartbeat is consistent.
@@ -686,6 +709,11 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             ipPreview: ipPreview(req),
             uaPreview: uaPreview(req),
             deviceIdHash: deviceIdHash(req),
+            // 2026-10-28 — the assurance the verified id_token asserted
+            // (`acr`, `auth_time`); never the token itself.
+            authMethod: "OIDC",
+            authnContext: result.idp.acr,
+            idpAuthAtUtc: result.idp.authTime,
           },
           prisma,
         );

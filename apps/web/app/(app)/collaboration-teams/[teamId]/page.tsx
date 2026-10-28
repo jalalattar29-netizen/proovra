@@ -49,6 +49,7 @@ import { DiscussionPanel } from "./_tabs/DiscussionTab";
 import { AssignmentsTab } from "./_tabs/AssignmentsTab";
 import { ActivityTab } from "./_tabs/ActivityTab";
 import { SettingsTab } from "./_tabs/SettingsTab";
+import { LeadRecoveryBanner } from "./_components/LeadRecoveryBanner";
 import { CreateAssignmentModal } from "./_components/CreateAssignmentModal";
 
 // WORKSPACE AND COLLABORATION RECONCILIATION — Discussion joined the tabs and
@@ -131,7 +132,8 @@ function TeamDetail() {
   }, [search]);
 
   // WCR-09 — the tenant this page is bound to; every loader below depends on it.
-  const { activeWorkspaceId } = usePlatformContext();
+  const { activeWorkspaceId, envelope } = usePlatformContext();
+  const viewerUserId = envelope?.user?.id ?? "";
   const [team, setTeam] = useState<
     (CollaborationTeamDetail & { viaWorkspaceGovernance: boolean }) | null
   >(null);
@@ -443,8 +445,8 @@ function TeamDetail() {
    * `isArchived` is folded in HERE, once, rather than in each tab: the tabs
    * receive a capability that is already true or already false, so no tab can
    * forget the lifecycle half. What remains available on an archived team is
-   * exactly what the server still accepts — reopening it, and deleting a
-   * group that carries no record.
+   * exactly what the server still accepts — restoring it. (There is no
+   * delete: a Collaboration Team is never customer-deleted.)
    *
    * THIS IS NOT AUTHORIZATION. Every one of these mutations is still gated
    * server-side by `authorizeCollaborationTeam` with `requireActiveTeam`, and
@@ -479,14 +481,10 @@ function TeamDetail() {
   const canSupervise =
     !isArchived &&
     collaborationTeamRoleHasPermission(team.viewerRole, "team.assignment.reassign");
-  /** Reopen and delete are the two writes an archived team still accepts. */
+  /** Archive, and Restore — the one write an archived team still accepts. */
   const canArchive = collaborationTeamRoleHasPermission(
     team.viewerRole,
     "team.archive",
-  );
-  const canDelete = collaborationTeamRoleHasPermission(
-    team.viewerRole,
-    "team.delete",
   );
   const canTransferLead =
     !isArchived &&
@@ -945,7 +943,7 @@ function TeamDetail() {
           <span>
             <strong>This team is archived.</strong> Its members, work and
             history stay readable, but changes are disabled.
-            {canArchive ? " Reopen it to make changes." : ""}
+            {canArchive ? " Restore it to make changes." : ""}
           </span>
           {canArchive ? (
             <button
@@ -954,10 +952,14 @@ function TeamDetail() {
               data-testid="team-archived-banner-reopen"
               onClick={() => goTab("settings")}
             >
-              Reopen in Settings
+              Restore in Settings
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {team.status === "ACTIVE" && team.validLeadCount === 0 ? (
+        <LeadRecoveryBanner team={team} viewerUserId={viewerUserId} onDone={refresh} />
       ) : null}
 
       <div>
@@ -999,7 +1001,6 @@ function TeamDetail() {
               onChange={refresh}
               canManage={canManage}
               canArchive={canArchive}
-              canDelete={canDelete}
               canTransferLead={canTransferLead}
               onError={onTabError}
             />

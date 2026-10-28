@@ -562,7 +562,11 @@ describe("P0 — source contracts for fail-closed tenant guards", () => {
     expect(src).toMatch(/jwtVerify\(/);
     expect(src).toMatch(/issuer: discovery\.issuer/);
     expect(src).toMatch(/audience: conn\.clientId/);
-    expect(src).toMatch(/payload\.nonce !== stateRecord\.nonce/);
+    // 2026-10-28 — the exchange + id_token verification is shared with the
+    // IDP_REAUTH step-up callback; sign-in binds it to the in-process nonce
+    // (behaviour: phase-8-oidc-callback.test.ts nonce-mismatch case).
+    expect(src).toMatch(/!input\.nonceMatches\(payload\.nonce\)/);
+    expect(src).toMatch(/nonceMatches: \(nonce\) => nonce === stateRecord\.nonce/);
     expect(src).toMatch(/userinfo\.sub !== idTokenSub/);
     expect(src).toMatch(/SSO_ACCOUNT_LINK_DENIED/);
   });

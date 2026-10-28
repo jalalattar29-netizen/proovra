@@ -35,6 +35,13 @@ export type SamlAuthnRequestInput = {
   /** Whether to set ForceAuthn="true". Defaults to false. */
   forceAuthn?: boolean;
   /**
+   * 2026-10-28 — IDP_REAUTH step-up only. When non-empty, the request carries
+   * <samlp:RequestedAuthnContext Comparison="exact"> listing these
+   * AuthnContextClassRef URIs, asking the IdP to authenticate with one of
+   * them. Empty / absent (every ordinary sign-in) emits no element.
+   */
+  requestedAuthnContextClassRefs?: ReadonlyArray<string>;
+  /**
    * Phase 3 — SP AuthnRequest signing.
    *
    * When provided, the AuthnRequest is signed for the HTTP-Redirect binding
@@ -127,8 +134,19 @@ function buildAuthnRequestXml(
   acsUrl: string,
   nameIdFormat: string,
   forceAuthn: boolean,
+  requestedAuthnContextClassRefs: ReadonlyArray<string> = [],
 ): string {
   const forceAuthnAttr = forceAuthn ? "true" : "false";
+  // Schema order (saml-schema-protocol-2.0): Issuer, NameIDPolicy, …,
+  // RequestedAuthnContext — so it follows NameIDPolicy.
+  const requestedAuthnContext =
+    requestedAuthnContextClassRefs.length > 0
+      ? `<samlp:RequestedAuthnContext Comparison="exact">` +
+        requestedAuthnContextClassRefs
+          .map((ref) => `<saml:AuthnContextClassRef>${xmlEscape(ref)}</saml:AuthnContextClassRef>`)
+          .join("") +
+        `</samlp:RequestedAuthnContext>`
+      : "";
 
   // prettier-ignore
   return (
@@ -146,6 +164,7 @@ function buildAuthnRequestXml(
     `<samlp:NameIDPolicy` +
       ` AllowCreate="true"` +
       ` Format="${xmlEscape(nameIdFormat)}" />` +
+    requestedAuthnContext +
     `</samlp:AuthnRequest>`
   );
 }
@@ -177,6 +196,7 @@ export function buildSamlAuthnRequest(
     nameIdFormat = DEFAULT_NAME_ID_FORMAT,
     forceAuthn = false,
     spPrivateKeyPem = null,
+    requestedAuthnContextClassRefs = [],
   } = input;
 
   // Step 1: Generate stable identifiers for this request
@@ -194,6 +214,7 @@ export function buildSamlAuthnRequest(
     acsUrl,
     nameIdFormat,
     forceAuthn,
+    requestedAuthnContextClassRefs,
   );
 
   // Step 4: Deflate (raw, no zlib header) the UTF-8 encoded XML
