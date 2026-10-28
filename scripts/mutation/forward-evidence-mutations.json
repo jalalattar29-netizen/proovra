@@ -9990,5 +9990,518 @@
         "integration": true
       }
     ]
+  },
+  {
+    "id": "MEX-A-NAV-GROUP",
+    "aud": "MEX-A",
+    "name": "Collaboration Teams leaves Governance (falls back to the Workspace group, apart from Members & Access)",
+    "file": "apps/web/lib/navigation/phaseBOperationalGroups.ts",
+    "find": "      // Collaboration Team is never a Workspace.\n      \"workspace.collaboration_teams\",\n",
+    "replace": "      // Collaboration Team is never a Workspace.\n",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "members-collaboration-navigation"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-A-NAV-LABEL",
+    "aud": "MEX-A",
+    "name": "the navigation item is called 'Teams' again",
+    "file": "apps/web/lib/navigation/routeRegistry.ts",
+    "find": "    label: \"Collaboration Teams\",\n    description: \"Group workspace members",
+    "replace": "    label: \"Teams\",\n    description: \"Group workspace members",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "node",
+        "args": [
+          "scripts/run-tests.mjs",
+          "members-collaboration-navigation"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-B-TEAMS-LIMIT",
+    "aud": "MEX-B",
+    "name": "the Collaboration Teams card shows the per-Team size as the Team limit",
+    "file": "packages/shared/src/collaboration-teams-kpi.ts",
+    "find": "    value: `${stat.active} of ${stat.limit}`,",
+    "replace": "    value: `${stat.active} of ${stat.membersPerTeam}`,",
+    "tests": [
+      {
+        "cwd": "packages/shared",
+        "cmd": "node",
+        "args": [
+          "--test",
+          "tests/collaboration-teams-kpi.test.mjs"
+        ]
+      },
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ],
+    "build": [
+      "shared"
+    ]
+  },
+  {
+    "id": "MEX-B-UNKNOWN-ZERO",
+    "aud": "MEX-B",
+    "name": "an unknown open-case count renders as 0",
+    "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+    "find": "{typeof team?.stats?.openCaseCount === \"number\" ? team.stats.openCaseCount : \"—\"}",
+    "replace": "{team?.stats?.openCaseCount ?? 0}",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-B-SEATS-FULL",
+    "aud": "MEX-B",
+    "name": "a plan ceiling of 0 (FREE/PAYG) shows 'Every seat is in use' again",
+    "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+    "find": "{seatLimit !== null && seatLimit > 0 && seatsAvailable === 0 ? (",
+    "replace": "{seatsAvailable === 0 ? (",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-C-MEMBERS-TOOLBAR",
+    "aud": "MEX-C",
+    "name": "the members search and status leave the shared toolbar row",
+    "file": "apps/web/app/(app)/teams/[id]/components/WorkspaceMembersPanel.tsx",
+    "find": "          <div className=\"app-list-toolbar__row\">",
+    "replace": "          <div>",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-D-PERSONAL-DESTINATION",
+    "aud": "MEX-D",
+    "name": "the Personal Workspace lifecycle card points at the forwarding page again",
+    "file": "apps/web/lib/members/workspaceLifecycleDestination.ts",
+    "find": "      return { kind: \"ACCOUNT_CLOSURE\", href: ACCOUNT_CLOSURE_HREF, label: \"Close account\" };",
+    "replace": "      return { kind: \"ACCOUNT_CLOSURE\", href: `/teams/${encodeURIComponent(workspaceId)}/lifecycle`, label: \"Close account\" };",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-D-LIFECYCLE-REDIRECT",
+    "aud": "MEX-D",
+    "name": "the old Personal lifecycle URL renders the empty forwarding page instead of redirecting",
+    "file": "apps/web/app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx",
+    "find": "    state.workspace.lifecycle?.kind === \"PERSONAL\" &&",
+    "replace": "    false &&",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/workspace-lifecycle-page-redirect.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-D-CLOSE-ACCOUNT-OWNER",
+    "aud": "MEX-D",
+    "name": "a collaborator is offered closing their own account on another person's Personal Workspace",
+    "file": "apps/web/app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx",
+    "find": "{policy.nextAction === \"CLOSE_ACCOUNT\" && isOwner ? (",
+    "replace": "{policy.nextAction === \"CLOSE_ACCOUNT\" ? (",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/workspace-lifecycle-page-redirect.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-E-URL-STATE",
+    "aud": "MEX-E",
+    "name": "the Teams list ignores the status in its URL",
+    "file": "apps/web/lib/collaboration/teamsListFilters.ts",
+    "find": "    status: pick(params.get(\"status\"), STATUSES) ?? \"ALL\",",
+    "replace": "    status: \"ALL\",",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-teams-list-toolbar.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-E-LOADMORE-STALE",
+    "aud": "MEX-E",
+    "name": "a Load more page fetched under the previous filters is appended to the new list",
+    "file": "apps/web/app/(app)/collaboration-teams/page.tsx",
+    "find": "                        isStale: () => filterKeyRef.current !== issuedUnder,",
+    "replace": "                        isStale: () => false,",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-teams-list-toolbar.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-F-EXTERNAL-REVIEW-GATE",
+    "aud": "MEX-F",
+    "name": "the External reviewers link renders where /review/external would 404",
+    "file": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+    "find": "    externalReviewIncluded === true &&\n    canOpenExternalReviewConsole;",
+    "replace": "    externalReviewIncluded === true;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-team-hero-actions.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-F-ASSIGN-ENTITLEMENT",
+    "aud": "MEX-F",
+    "name": "Create assignment is offered on PRO, where every submit is refused",
+    "file": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+    "find": "    teamTasksIncluded === true &&\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-team-hero-actions.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-F-GROWTH-RESTRICTION",
+    "aud": "MEX-F",
+    "name": "Add people and Create assignment ignore a billing restriction",
+    "file": "apps/web/app/(app)/collaboration-teams/[teamId]/page.tsx",
+    "find": "  const growthAllowed = headerEntitlement?.mutationsAllowed === true;",
+    "replace": "  const growthAllowed = true;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-team-hero-actions.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-SEARCH-REACH",
+    "aud": "MEX-ACC",
+    "name": "/v1/search returns a restricted Case and its Evidence to a member off the list",
+    "file": "services/api/src/services/search/evidence-search.service.ts",
+    "find": "  if (reach.AND) {",
+    "replace": "  if (false && reach.AND) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "SEARCH"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-SUGGEST-REACH",
+    "aud": "MEX-ACC",
+    "name": "/v1/search/suggest returns a restricted Case's title to a member off the list",
+    "file": "services/api/src/routes/search.routes.ts",
+    "find": "            ...(await searchDocumentReachWhere(prisma, q.teamId, actor.userId)),\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "SEARCH"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-GRANT-REACH",
+    "aud": "MEX-ACC",
+    "name": "an external-review grant is issued on a restricted Case the issuer cannot see",
+    "file": "services/api/src/services/external-review/external-review-grant.service.ts",
+    "find": "      where: { AND: [{ id: ids.caseId, teamId }, caseVisibleToWhere(actorUserId)] },",
+    "replace": "      where: { AND: [{ id: ids.caseId, teamId }] },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "GRANT"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-GRANT-REACH-EVIDENCE",
+    "aud": "MEX-ACC",
+    "name": "an external-review grant is issued on Evidence of a restricted Case the issuer cannot see",
+    "file": "services/api/src/services/external-review/external-review-grant.service.ts",
+    "find": "        deletedAt: null,\n        ...evidenceVisibleThroughCasesWhere(actorUserId),\n      },",
+    "replace": "        deletedAt: null,\n      },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "GRANT"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-RESTORE-CAPACITY",
+    "aud": "MEX-CAP",
+    "name": "reinstating a member exceeds a Collaboration Team that refilled meanwhile",
+    "file": "services/api/src/services/identity/rbac.service.ts",
+    "find": "    await assertReinstatementFitsCapacityTx(tx, input.teamId, target.userId);\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "RESTORE"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-OWNER-SEAT",
+    "aud": "MEX-CAP",
+    "name": "the workspace owner consumes a Collaboration Team position",
+    "file": "services/api/src/services/collaboration-team/billing-guards.ts",
+    "find": "    ...effectiveGroupMemberWhere(workspaceId),\n    userId: { not: ownerUserId },\n  };",
+    "replace": "    ...effectiveGroupMemberWhere(workspaceId),\n  };",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-collaboration-capacity.integration.test.ts"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-REVOKE-RACE",
+    "aud": "MEX-INV",
+    "name": "a revoke stamps an invitation that was accepted after it was read",
+    "file": "services/api/src/services/identity/workspace-invitation.service.ts",
+    "find": "      where: { id: existing.id, teamId: input.workspaceId, acceptedAt: null, revokedAt: null },",
+    "replace": "      where: { id: existing.id, teamId: input.workspaceId },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "REVOKE"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-STATS-VISIBLE",
+    "aud": "MEX-B",
+    "name": "Members & Access counts restricted Cases the caller cannot see",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "        prisma.case.count({\n          where: { AND: [await workspaceCaseWhere(teamId, prisma), caseVisibleToWhere(userId)] },\n        }),",
+    "replace": "        prisma.case.count({\n          where: { AND: [await workspaceCaseWhere(teamId, prisma)] },\n        }),",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "STATS"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-REFUSAL-STATUS",
+    "aud": "MEX-OBS",
+    "name": "a capacity refusal on reinstatement answers a generic 400 instead of the typed 409",
+    "file": "services/api/src/http/member-command-gates.ts",
+    "find": "    case \"workspace_seat_limit_reached\":\n    case \"collaboration_team_capacity_reached\":\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "RESTORE"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]
