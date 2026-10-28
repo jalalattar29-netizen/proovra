@@ -275,6 +275,14 @@ test("no process-spawning script is unguarded", () => {
       why: "rehearses migrations against a disposable database it is pointed at",
       guard: /function assertLoopback/,
     },
+    // 2026-10-28 — the canonical migration runner. It always handed Prisma
+    // the ambient environment (stdio/env inherited); it now names `env:` only
+    // to add the SAFE_MIGRATE_WRAPPER_OK hand-off for the prisma.config.ts
+    // hook, which is what made it visible to this walk.
+    "services/api/scripts/safe-migrate.mjs": {
+      why: "the canonical migration runner; a real database is its target, and it refuses a non-local host without the dual acknowledgement and a backup id",
+      guard: /shouldAllowMigration\(/,
+    },
     "scripts/mutation/public-verify-mutations.mjs": {
       why: "runs the repo's own test commands; it hands each child an ALLOWLISTED environment (platform and disposable-infrastructure variables only), never the ambient one",
       guard: /const CHILD_ENV_ALLOW = /,
