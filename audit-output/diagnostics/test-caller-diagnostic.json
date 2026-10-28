@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "08b090ff7d996ce1e2ab9de1ab8d800241b6e83b856aeecf42f2ff7c14cf2f30",
+  "capabilityRouteInventoryHash": "534e900d69dd7af5d08b20cd92d3a6cdfbbe7d32ab4b68785f275e923e10df75",
   "totals": {
-    "routes": 1206,
+    "routes": 1214,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
     "testCallSites": 104,
@@ -83,12 +83,6 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "DELETE /v1/collaboration-teams/:teamId",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
       "routeId": "DELETE /v1/collaboration-teams/:teamId/comments/:commentId",
       "testCallerCount": 0,
       "testOnly": false,
@@ -152,6 +146,12 @@
     },
     {
       "routeId": "DELETE /v1/graph/relationships/manual/:manualRelationshipId",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "DELETE /v1/identity-security/passkeys/:factorId",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -1077,6 +1077,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/collaboration-teams/:teamId/archive-impact",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/collaboration-teams/:teamId/assignable-targets",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1090,12 +1096,6 @@
     },
     {
       "routeId": "GET /v1/collaboration-teams/:teamId/comments",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /v1/collaboration-teams/:teamId/disposability",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -1830,6 +1830,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/identity-security/passkeys",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/identity-security/risk/me",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1855,6 +1861,12 @@
     },
     {
       "routeId": "GET /v1/identity-security/sessions",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/identity-security/step-up/:id/status",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -4639,6 +4651,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/collaboration-teams/:teamId/lead-recovery",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/collaboration-teams/:teamId/members",
       "testCallerCount": 0,
       "testOnly": false,
@@ -5469,6 +5487,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/identity-security/passkeys/registration/options",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/identity-security/passkeys/registration/verify",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/identity-security/password",
       "testCallerCount": 0,
       "testOnly": false,
@@ -5494,6 +5524,24 @@
     },
     {
       "routeId": "POST /v1/identity-security/step-up/check",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/identity-security/step-up/handoff/idp/begin",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/identity-security/step-up/handoff/passkey",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/identity-security/step-up/handoff/passkey/options",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7355,5 +7403,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "ddd847c3f2711f8af95f9787e20a0bc04f1ffbb8b67b3f3626fc3d0159ff2923"
+  "contentHash": "fa079e44c1e6b508cbc65c1e280cf228fcda00c4d1817ba2ce55ab66c0603c9a"
 }

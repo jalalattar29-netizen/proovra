@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 346,
-    "classifiedMigrations": 346,
+    "filesystemMigrations": 347,
+    "classifiedMigrations": 347,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 346,
+    "productionSnapshotUnknown": 347,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 346,
-    "classifiedMigrations": 346,
+    "filesystemMigrations": 347,
+    "classifiedMigrations": 347,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 346,
+    "productionSnapshotUnknown": 347,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 110,
+      "EXPAND": 111,
       "BACKFILL": 35,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 129,
+      "SAFE_TO_APPLY_NOW": 130,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 6
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 346
+    "ProductionMigrationStateUnknown": 347
   },
   "gateFailures": [],
   "migrations": [
@@ -26182,8 +26182,108 @@
       "evidence": "COLLABORATION VOCABULARY NORMALISE (2026-10-26, members re-audit N-8). Deterministic variants normalised; unmappable rows reported and left; clean checks VALIDATED. Safe on either image; idempotent. ROLLBACK: none needed (normalised values are canonical). NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281028000000_team_archive_step_up_assurance",
       "order": 345,
+      "sqlPresent": true,
+      "byteLength": 5854,
+      "checksumSha256": "44930c7ef98137c913e1242849a6529764f4bacd543698631e1528a4ccc9d008",
+      "checksumSha256Raw": "44930c7ef98137c913e1242849a6529764f4bacd543698631e1528a4ccc9d008",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "b0673edb54fe32bda2e7ac0ae40a6101d2657d42",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "mfa_webauthn_credentials"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "authenticated_sessions",
+          "collaboration_teams",
+          "mfa_factors",
+          "mfa_webauthn_credentials",
+          "organization_security_policies",
+          "step_up_challenges"
+        ],
+        "addedColumns": [
+          "archive_reason",
+          "archived_by_user_id",
+          "auth_method",
+          "authn_context",
+          "handoff_token_hash",
+          "handoff_used_at_utc",
+          "idp_auth_at_utc",
+          "idp_step_up_accepted_contexts",
+          "idp_step_up_max_age_seconds",
+          "method",
+          "sso_connection_id",
+          "step_up_assurance",
+          "step_up_sms_allowed",
+          "webauthn_challenge"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [
+          "mfafactorkind"
+        ],
+        "createdIndexes": [
+          "mfa_webauthn_credentials_credential_id_key",
+          "mfa_webauthn_credentials_factor_id_key",
+          "mfa_webauthn_credentials_user_id_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "mfa_factors_kind_payload_chk",
+          "mfa_webauthn_credentials_factor_id_fkey"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260526100000_add_identity_phase17",
+        "20260528100000_add_identity_security_phase19",
+        "20260603100000_phase26_identity_governance",
+        "20260722000000_r8_1_mfa_activation",
+        "20270201000000_phase_5_collaboration_teams"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 2,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.tables WHERE table_name='mfa_webauthn_credentials') || ':' || (SELECT count(*) FROM information_schema.columns WHERE table_name='step_up_challenges' AND column_name='method') || ':' || (SELECT count(*) FROM information_schema.columns WHERE table_name='collaboration_teams' AND column_name='archived_by_user_id')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "COLLABORATION TEAM ARCHIVE AND STEP-UP ASSURANCE (2026-10-28). Enum value PASSKEY; mfa_factors_kind_payload_chk widened with a PASSKEY branch (existing branches verbatim); mfa_webauthn_credentials created (guarded); nullable step-up ladder, session assurance and archive provenance columns; Organization step-up policy columns with defaults that reproduce today's behaviour. Safe on either image; idempotent. ROLLBACK: code-first; every addition is ignored by the previous image. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 346,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
