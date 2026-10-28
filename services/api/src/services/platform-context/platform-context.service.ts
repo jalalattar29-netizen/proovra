@@ -675,8 +675,12 @@ export async function buildPlatformContext(
    * through it made every first paint wait on them. The plan is already
    * resolved; only an ENTERPRISE workspace needs its contract, read once and
    * projected by the same fail-closed `resolveEnterpriseContractLimits`.
+   *
+   * Only from a plan the canonical resolver RETURNED on this request: when it
+   * degraded, `workspace.plan` is still the raw billing column (a lapsed PRO
+   * reads PRO), so the limits and the review flag stay closed instead.
    */
-  if (workspace.id && workspace.plan) {
+  if (workspace.id && workspace.plan && activeCommercial) {
     try {
       const plan = workspace.plan as Parameters<typeof collaborationLimitsFor>[0]["plan"];
       const contractLimits =

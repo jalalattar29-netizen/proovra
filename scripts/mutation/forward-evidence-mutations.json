@@ -11069,5 +11069,92 @@
         "integration": true
       }
     ]
+  },
+  {
+    "id": "MEX-CA-X4-WORK-ROSTER",
+    "aud": "MEX-CA",
+    "name": "the Work tab names members from the 25-row preview again",
+    "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
+    "find": "  const roster = useActiveTeamRoster(team) ?? previewRoster(team);",
+    "replace": "  const roster = previewRoster(team);",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-team-work-roster.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-X4-REASSIGN-VIEWER",
+    "aud": "MEX-CA",
+    "name": "the reassign picker offers a VIEWER the server refuses",
+    "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
+    "find": "      .filter((m) => TASK_ASSIGNABLE_ROLES.has(m.role))\n      .map((m) => ({ value: m.userId, label: m.label })),",
+    "replace": "      .map((m) => ({ value: m.userId, label: m.label })),",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/collaboration-team-work-roster.render.test.tsx"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-PROJECTION-RESOLVED-PLAN",
+    "aud": "MEX-CA",
+    "name": "the boot projection derives collaboration limits from an unresolved plan",
+    "file": "services/api/src/services/platform-context/platform-context.service.ts",
+    "find": "  if (workspace.id && workspace.plan && activeCommercial) {",
+    "replace": "  if (workspace.id && workspace.plan) {",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "test/collaboration-team-error-envelope-and-invariants.test.ts",
+          "-t",
+          "RESOLVED plan"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "MEX-CA-PASSWORD-ADD-CANCELS",
+    "aud": "MEX-CA",
+    "name": "adding a first password leaves earlier step-up approvals spendable",
+    "file": "services/api/src/routes/identity-links.routes.ts",
+    "find": "      await cancelOutstandingStepUpChallenges(userId);\n      auditIdentityEvent(req, userId, \"identity.password_added\", {});",
+    "replace": "      auditIdentityEvent(req, userId, \"identity.password_added\", {});",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-ledger-closure.integration.test.ts",
+          "-t",
+          "adding a first password"
+        ],
+        "integration": true
+      }
+    ]
   }
 ]

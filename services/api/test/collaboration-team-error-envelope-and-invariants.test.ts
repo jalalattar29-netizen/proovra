@@ -249,3 +249,20 @@ describe("no customer hard-delete (2026-10-28)", () => {
     expect(stepUp).toBeLessThan(mutate);
   });
 });
+
+describe("boot projection — collaboration limits come only from a RESOLVED plan", () => {
+  // Closure reconciliation 2026-10-28. When the canonical plan resolution
+  // degrades, `workspace.plan` is still the raw billing column (a lapsed PRO
+  // reads PRO). The limits and the review-queue flag must then stay closed,
+  // not be projected from that column. Structural: the degraded branch is a
+  // thrown resolver, which this unit suite cannot provoke through ESM.
+  const SRC = read("services/platform-context/platform-context.service.ts");
+  it("the cheap limits run only when the commercial plan resolved on this request", () => {
+    const at = SRC.indexOf("collaborationLimits = collaborationLimitsFor(");
+    const guard = SRC.lastIndexOf("if (", at);
+    expect(at).toBeGreaterThan(-1);
+    expect(SRC.slice(guard, SRC.indexOf("{", guard))).toMatch(/&&\s*activeCommercial\s*\)/);
+    // The degraded branch nulls it, so the guard is closed exactly then.
+    expect(SRC).toMatch(/catch \{[^}]*activeCommercial = null;/);
+  });
+});

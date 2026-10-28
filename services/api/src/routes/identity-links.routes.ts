@@ -60,6 +60,7 @@ import {
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 
 const LinkBody = z.object({
   idToken: z.string().min(16),
@@ -334,6 +335,9 @@ export async function identityLinksRoutes(app: FastifyInstance) {
         where: { id: userId },
         data: { passwordHash: hashPassword(body.newPassword) },
       });
+      // Closure reconciliation (N-6) — a new password is a security change
+      // like a changed one: no approval granted before it is spent after it.
+      await cancelOutstandingStepUpChallenges(userId);
       auditIdentityEvent(req, userId, "identity.password_added", {});
       return reply.code(200).send({ passwordConfigured: true });
     },

@@ -35,7 +35,6 @@ import {
   type CollaborationTeamDetail,
   createAssignment,
   listAssignableTargets,
-  listTeamMembers,
 } from "../../../../../lib/api/collaboration-teams";
 import {
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
@@ -44,12 +43,8 @@ import {
   type CollaborationTeamAssignmentTarget,
 } from "@proovra/shared";
 
-import { memberLabel, priorityLabel, targetLabel } from "./assignment-vocabulary";
-
-/** The roles the server lets carry a task (`TASK_ASSIGNABLE_ROLES`). */
-const TASK_ASSIGNABLE_ROLES: ReadonlySet<string> = new Set(["LEAD", "ADMIN", "MEMBER"]);
-/** 20 pages of 100 covers the largest per-Team limit a plan sells. */
-const ASSIGNEE_ROSTER_MAX_PAGES = 20;
+import { priorityLabel, targetLabel } from "./assignment-vocabulary";
+import { TASK_ASSIGNABLE_ROLES, useActiveTeamRoster } from "./team-roster";
 
 /** The picker speaks in options; the API speaks in targets. One translation. */
 function toOption(target: AssignableTarget): AppSearchSelectOption {
@@ -133,41 +128,12 @@ export function CreateAssignmentModal({
    * `team.members` is a bounded preview (the first 25), so in a larger group
    * the rest could never be chosen; and it included VIEWERs, whom the server
    * refuses as assignees (`TASK_ASSIGNABLE_ROLES`). The roster is read from
-   * the paged members endpoint, ACTIVE only, in the roles that do work.
-   * `null` while loading; on a failed read the preview is used, so the
-   * picker degrades rather than empties.
+   * the paged members endpoint (`useActiveTeamRoster`), ACTIVE only, in the
+   * roles that do work. `null` while loading; on a failed read the preview is
+   * used, so the picker degrades rather than empties.
    */
-  const [assignees, setAssignees] = useState<
-    ReadonlyArray<{ userId: string; label: string; email: string | null }> | null
-  >(null);
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const rows: Array<{ userId: string; label: string; email: string | null }> = [];
-      let cursor: string | null = null;
-      for (let page = 0; page < ASSIGNEE_ROSTER_MAX_PAGES; page += 1) {
-        const res = await listTeamMembers(team.id, { status: "ACTIVE", limit: 100, cursor });
-        for (const m of res.members) {
-          if (!TASK_ASSIGNABLE_ROLES.has(m.role)) continue;
-          rows.push({ userId: m.userId, label: m.displayName, email: m.email });
-        }
-        cursor = res.nextCursor;
-        if (!cursor) break;
-      }
-      if (!cancelled) setAssignees(rows);
-    })().catch(() => {
-      if (!cancelled) {
-        setAssignees(
-          team.members
-            .filter((m) => m.status === "ACTIVE" && TASK_ASSIGNABLE_ROLES.has(m.role))
-            .map((m) => ({ userId: m.userId, label: memberLabel(m), email: m.user.email ?? null })),
-        );
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [team.id, team.members]);
+  const roster = useActiveTeamRoster(team);
+  const assignees = roster === null ? null : roster.filter((m) => TASK_ASSIGNABLE_ROLES.has(m.role));
   const [priority, setPriority] =
     useState<CollaborationTeamAssignmentPriority>("NORMAL");
   const [dueAt, setDueAt] = useState("");

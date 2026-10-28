@@ -32,16 +32,20 @@ import {
   ASSIGNEE_UNASSIGNED,
   type CollaborationTeamAssignment,
   type CollaborationTeamDetail,
-  type CollaborationTeamMember,
   listAssignments,
   updateAssignment,
 } from "../../../../../lib/api/collaboration-teams";
 import {
-  memberLabel,
   priorityLabel,
   statusLabel,
   targetLabel,
 } from "../_components/assignment-vocabulary";
+import {
+  previewRoster,
+  type RosterEntry,
+  TASK_ASSIGNABLE_ROLES,
+  useActiveTeamRoster,
+} from "../_components/team-roster";
 import {
   COLLABORATION_TEAM_ASSIGNMENT_PRIORITIES,
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
@@ -308,6 +312,13 @@ function AssignmentsTab({
   // was the browser's approximation of a query the database now runs. The row
   // resolves its own assignee from `members`.
 
+  /*
+   * The whole ACTIVE roster (members ledger X4): the filter, each row's
+   * assignee and the reassign picker name members the 25-row detail preview
+   * does not hold. The preview answers only until the roster arrives.
+   */
+  const roster = useActiveTeamRoster(team) ?? previewRoster(team);
+
   /**
    * The server already applied every filter, so what came back IS what
    * matches. Re-filtering here would narrow a correct answer a second time
@@ -328,9 +339,7 @@ function AssignmentsTab({
     // The sentinel the SERVER understands. It used to be a client-only
     // `__team__` that the filter translated locally; now the value travels.
     { value: ASSIGNEE_UNASSIGNED, label: ASSIGNEE_TEAM_LEVEL_LABEL },
-    ...team.members
-      .filter((m) => m.status === "ACTIVE")
-      .map((m) => ({ value: m.userId, label: memberLabel(m) })),
+    ...roster.map((m) => ({ value: m.userId, label: m.label })),
   ];
 
   const targetTypeOptions = [
@@ -551,7 +560,7 @@ function AssignmentsTab({
                     (canSupervise ||
                       (viewerUserId !== null && a.assigneeUserId === viewerUserId))
                   }
-                  members={team.members}
+                  members={roster}
                   onChanged={async (msg) => {
                     addToast(msg, "success");
                     await refresh();
@@ -612,7 +621,7 @@ function AssignmentRow({
    * the server's rule (`ASSIGNEE_SELF_TRANSITIONS` / `team.assignment.reassign`).
    */
   canWork: boolean;
-  members: ReadonlyArray<CollaborationTeamMember>;
+  members: ReadonlyArray<RosterEntry>;
   onChanged: (msg: string) => void | Promise<void>;
   /** The error itself — see the note on MembersTab's identical prop (§5). */
   onError: (err: unknown, fallback?: SafeErrorFallback) => void;
@@ -621,7 +630,7 @@ function AssignmentRow({
   const [editing, setEditing] = useState(false);
   const { confirm } = useConfirmAction();
   const assignee = members.find((m) => m.userId === assignment.assigneeUserId);
-  const assigneeLabel = assignee ? memberLabel(assignee) : ASSIGNEE_TEAM_LEVEL_SHORT;
+  const assigneeLabel = assignee ? assignee.label : ASSIGNEE_TEAM_LEVEL_SHORT;
   const isTeamLevel = !assignment.assigneeUserId;
 
   /**
@@ -931,7 +940,7 @@ function EditAssignmentModal({
   onError,
 }: {
   assignment: CollaborationTeamAssignment;
-  members: ReadonlyArray<CollaborationTeamMember>;
+  members: ReadonlyArray<RosterEntry>;
   teamId: string;
   onClose: () => void;
   onSaved: (msg: string) => void | Promise<void>;
@@ -955,9 +964,10 @@ function EditAssignmentModal({
 
   const assigneeOptions = [
     { value: "", label: ASSIGNEE_TEAM_LEVEL_LABEL },
+    // The server refuses a VIEWER as an assignee, so it is not offered.
     ...members
-      .filter((m) => m.status === "ACTIVE")
-      .map((m) => ({ value: m.userId, label: memberLabel(m) })),
+      .filter((m) => TASK_ASSIGNABLE_ROLES.has(m.role))
+      .map((m) => ({ value: m.userId, label: m.label })),
   ];
 
   const submit = async () => {

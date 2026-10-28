@@ -341,6 +341,63 @@ describe("Members ledger closure (live PostgreSQL)", () => {
     expect((await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } })).status).toBe("CANCELLED");
   });
 
+  it("N-6 — adding a first password to an OAuth-only account cancels outstanding step-ups too", async () => {
+    const { signJwt, mintedSessionClaims } = await import("../src/services/jwt.js");
+    const { hashSessionId } = await import("../src/services/identity-security/session-revocation.service.js");
+    const email = `n6b-${tag()}@test.proovra.local`;
+    const user = await prisma.user.create({
+      data: { email, provider: "GOOGLE", providerUserId: `g-${tag()}` },
+      select: { id: true },
+    });
+    const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");
+    await prisma.userLegalAcceptance.createMany({
+      data: Object.entries(REQUIRED_LEGAL_VERSIONS as Record<string, string>).map(([policyKey, policyVersion]) => ({
+        userId: user.id,
+        policyKey,
+        policyVersion,
+        source: "integration-harness",
+      })),
+    });
+    const A = h.fixtures.teamA;
+    await prisma.teamMember.create({ data: { teamId: A.teamId, userId: user.id, role: "MEMBER", status: "ACTIVE" } });
+    const token = signJwt(
+      { sub: user.id, provider: "GOOGLE", email, authMethod: "SOCIAL_OAUTH", authAt: Math.floor(Date.now() / 1000) },
+      process.env.AUTH_JWT_SECRET!,
+      3600,
+    );
+    // An approval under the account as it stood (the ceremony enrols an
+    // authenticator app to answer it) ...
+    const header = await ceremony.approvedHeader({
+      token,
+      userId: user.id,
+      teamId: A.teamId,
+      purpose: "COLLABORATION_TEAM_ARCHIVE",
+      resourceKind: "collaboration_team",
+      resourceId: randomUUID(),
+    });
+    const id = header["x-proovra-step-up-challenge-id"]!;
+    expect((await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } })).status).toBe("APPROVED");
+    // ... then the account is OAuth-only with a fresh session, the shape the
+    // add-a-password route serves (its account step-up is the recent sign-in).
+    await prisma.mfaFactor.deleteMany({ where: { userId: user.id } });
+    await prisma.authenticatedSession.create({
+      data: {
+        userId: user.id,
+        teamId: null,
+        sessionIdHash: hashSessionId(mintedSessionClaims(token).sid),
+        expiresAtUtc: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const added = await h.app.inject({
+      method: "POST",
+      url: "/v1/identity/password",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { newPassword: "N6b-Password-Added-1!" },
+    });
+    expect(added.statusCode, added.body).toBe(200);
+    expect((await prisma.stepUpChallenge.findUniqueOrThrow({ where: { id } })).status).toBe("CANCELLED");
+  });
+
   // ---------------------------------------------------------------------------
   it("N-3 — an Organization invite seats nobody in a workspace whose subscription restricts growth", async () => {
     const org = await seedOrganizationTenant(deps, { billingPlan: "TEAM" });
