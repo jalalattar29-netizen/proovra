@@ -11075,8 +11075,8 @@
     "aud": "MEX-CA",
     "name": "the Work tab names members from the 25-row preview again",
     "file": "apps/web/app/(app)/collaboration-teams/[teamId]/_tabs/AssignmentsTab.tsx",
-    "find": "  const roster = useActiveTeamRoster(team) ?? previewRoster(team);",
-    "replace": "  const roster = previewRoster(team);",
+    "find": "  const roster = useActiveTeamRoster(team.members) ?? previewRoster(team.members);",
+    "replace": "  const roster = previewRoster(team.members);",
     "tests": [
       {
         "cwd": "apps/web",

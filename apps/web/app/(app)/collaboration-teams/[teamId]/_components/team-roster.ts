@@ -13,8 +13,13 @@
  *
  * `null` while loading; on a failed read the preview is returned, so a picker
  * degrades rather than empties.
+ *
+ * The group is the one this route names (`/collaboration-teams/[teamId]`),
+ * read from the route as the page reads it — every consumer lives under it —
+ * so the request's path is never assembled from a caller's argument.
  */
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 import {
   type CollaborationTeamDetail,
@@ -22,6 +27,8 @@ import {
 } from "../../../../../lib/api/collaboration-teams";
 
 import { memberLabel } from "./assignment-vocabulary";
+
+type PreviewMembers = CollaborationTeamDetail["members"];
 
 /** The roles the server lets carry a task (`TASK_ASSIGNABLE_ROLES`). */
 export const TASK_ASSIGNABLE_ROLES: ReadonlySet<string> = new Set(["LEAD", "ADMIN", "MEMBER"]);
@@ -36,21 +43,27 @@ export type RosterEntry = {
 };
 
 /** The preview, in roster shape — the fallback, and the first paint. */
-export function previewRoster(team: CollaborationTeamDetail): ReadonlyArray<RosterEntry> {
-  return team.members
+export function previewRoster(members: PreviewMembers): ReadonlyArray<RosterEntry> {
+  return members
     .filter((m) => m.status === "ACTIVE")
     .map((m) => ({ userId: m.userId, label: memberLabel(m), email: m.user.email ?? null, role: m.role }));
 }
 
-export function useActiveTeamRoster(team: CollaborationTeamDetail): ReadonlyArray<RosterEntry> | null {
+/** `members` is the group's detail preview — the fallback. */
+export function useActiveTeamRoster(members: PreviewMembers): ReadonlyArray<RosterEntry> | null {
+  const teamId = useParams<{ teamId: string }>()?.teamId ?? null;
   const [roster, setRoster] = useState<ReadonlyArray<RosterEntry> | null>(null);
   useEffect(() => {
     let cancelled = false;
+    if (!teamId) {
+      setRoster(previewRoster(members));
+      return;
+    }
     void (async () => {
       const rows: RosterEntry[] = [];
       let cursor: string | null = null;
       for (let page = 0; page < ROSTER_MAX_PAGES; page += 1) {
-        const res = await listTeamMembers(team.id, { status: "ACTIVE", limit: 100, cursor });
+        const res = await listTeamMembers(teamId, { status: "ACTIVE", limit: 100, cursor });
         for (const m of res.members) {
           rows.push({ userId: m.userId, label: m.displayName, email: m.email, role: m.role });
         }
@@ -59,11 +72,11 @@ export function useActiveTeamRoster(team: CollaborationTeamDetail): ReadonlyArra
       }
       if (!cancelled) setRoster(rows);
     })().catch(() => {
-      if (!cancelled) setRoster(previewRoster(team));
+      if (!cancelled) setRoster(previewRoster(members));
     });
     return () => {
       cancelled = true;
     };
-  }, [team]);
+  }, [teamId, members]);
   return roster;
 }

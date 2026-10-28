@@ -132,7 +132,7 @@ export function CreateAssignmentModal({
    * roles that do work. `null` while loading; on a failed read the preview is
    * used, so the picker degrades rather than empties.
    */
-  const roster = useActiveTeamRoster(team);
+  const roster = useActiveTeamRoster(team.members);
   const assignees = roster === null ? null : roster.filter((m) => TASK_ASSIGNABLE_ROLES.has(m.role));
   const [priority, setPriority] =
     useState<CollaborationTeamAssignmentPriority>("NORMAL");

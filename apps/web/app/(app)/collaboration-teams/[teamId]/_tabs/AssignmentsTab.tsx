@@ -317,7 +317,7 @@ function AssignmentsTab({
    * assignee and the reassign picker name members the 25-row detail preview
    * does not hold. The preview answers only until the roster arrives.
    */
-  const roster = useActiveTeamRoster(team) ?? previewRoster(team);
+  const roster = useActiveTeamRoster(team.members) ?? previewRoster(team.members);
 
   /**
    * The server already applied every filter, so what came back IS what
