@@ -207,6 +207,9 @@ export async function acceptCrossOrgReview(input: {
       prisma,
       teamId: input.teamId,
       invitedByUserId: input.actorUserId,
+      // The subject was checked against its creator's Case reach at invite
+      // time; the same reach governs it now.
+      reachUserId: row.createdByUserId,
       reviewerEmail,
       role: "EXTERNAL_REVIEWER",
       scope:

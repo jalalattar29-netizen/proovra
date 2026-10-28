@@ -195,6 +195,13 @@ function generateRawToken(): string {
 export type IssueGrantInput = {
   teamId: string;
   invitedByUserId: string;
+  /**
+   * Whose Case reach the subject is checked against; the issuer when absent.
+   * A cross-org acceptance passes the invitation's CREATOR: the subject was
+   * vetted against their reach when they named it, and the governor who
+   * accepts need not be on a restricted Case's list to approve the exchange.
+   */
+  reachUserId?: string | null;
   scopeKind: ExternalReviewScopeKind;
   evidenceId?: string | null;
   caseId?: string | null;
@@ -330,7 +337,7 @@ async function issueExternalReviewGrantInner(
     evidenceId,
     caseId,
     packageId,
-  }, input.invitedByUserId))) {
+  }, input.reachUserId ?? input.invitedByUserId))) {
     return { ok: false, reason: "invalid_scope" };
   }
 

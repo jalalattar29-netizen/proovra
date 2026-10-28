@@ -376,7 +376,10 @@ function TeamsOverview() {
     // Only a real switch resets the view: on arrival the scope came from the
     // URL and must survive.
     if (renderedWorkspaceId.current === activeWorkspaceId) return;
+    const previous = renderedWorkspaceId.current;
     renderedWorkspaceId.current = activeWorkspaceId;
+    // null → id is the envelope arriving, not a switch: the URL's view stays.
+    if (previous === null || previous === undefined) return;
     setTeams([]);
     setEntitlement(null);
     setNextCursor(null);

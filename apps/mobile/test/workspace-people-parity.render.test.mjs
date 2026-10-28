@@ -223,3 +223,13 @@ test("an Organization Workspace owner gets no account-closure route from People"
   assert.equal(r.byLabel("Manage workspace lifecycle").length, 0);
   r.unmount();
 });
+
+test("an Enterprise contract with seats but no Teams still offers invitations", async () => {
+  Object.assign(detail, {
+    stats: { ...detail.stats, seatLimit: 50, seatUsed: 3, seatAvailable: 47, collaborationTeams: { featureIncluded: false, active: 0, limit: 0, limitSource: "ENTERPRISE_CONTRACT", membersPerTeam: 0 } },
+  });
+  const r = await render();
+  assert.equal(r.byLabel("Collaboration Teams: Not included").length, 1);
+  assert.ok(r.byLabel("Invite person").length >= 1);
+  r.unmount();
+});

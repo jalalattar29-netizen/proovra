@@ -417,7 +417,9 @@ export default function WorkspacePeopleScreen() {
   const openCaseCount = overview?.openCaseCount ?? null;
   const activeMemberCount = overview?.seats.activeMemberCount ?? null;
   const collaborationTeamsKpi = describeCollaborationTeamsKpi(overview?.collaborationTeams ?? null);
-  const collaborationNotIncluded = overview?.collaborationTeams?.featureIncluded === false;
+  // Member admission, not Teams: the Workspace member ceiling is 0 (FREE,
+  // PAYG). An Enterprise contract may sell seats without Teams and still invites.
+  const collaborationNotIncluded = overview?.seats.seatLimit === 0;
 
   const header = (subtitle: string | undefined, withActions: boolean) => (
     <ProovraPageHeader

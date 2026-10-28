@@ -44,6 +44,8 @@ export type IssueInvitationInput = {
   prisma?: PrismaClient;
   teamId: string;
   invitedByUserId: string;
+  /** Whose Case reach governs the subject (see IssueGrantInput.reachUserId). */
+  reachUserId?: string | null;
   reviewerEmail: string;
   reviewerDisplayName?: string;
   organization?: string;
@@ -89,6 +91,7 @@ export async function issueInvitation(
     {
       teamId: input.teamId,
       invitedByUserId: input.invitedByUserId,
+      reachUserId: input.reachUserId ?? null,
       scopeKind: input.scope.kind,
       evidenceId: input.scope.evidenceId ?? null,
       caseId: input.scope.caseId ?? null,

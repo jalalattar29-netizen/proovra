@@ -600,8 +600,11 @@ function TeamDetailPageBody() {
    * it is stated in the Workspace overview and the full-seats banner below.
    */
   const collaborationTeams = team?.stats?.collaborationTeams ?? null;
-  // The plan admits nobody but the owner: no invitation control is offered.
-  const collaborationNotIncluded = collaborationTeams?.featureIncluded === false;
+  // The plan admits nobody but the owner — the server's Workspace member
+  // ceiling is 0 (FREE, PAYG) — so no invitation control is offered. Decided
+  // by member admission, NOT by Collaboration Teams: an Enterprise contract
+  // can sell seats without Teams, and its owner must still invite.
+  const collaborationNotIncluded = seatLimit === 0;
   const collaborationTeamsKpi = describeCollaborationTeamsKpi(collaborationTeams);
   const lifecycleDestination = workspaceLifecycleDestination(team?.lifecycle, teamId ?? "");
   const seatsAvailable =

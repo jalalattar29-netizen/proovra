@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "08b090ff7d996ce1e2ab9de1ab8d800241b6e83b856aeecf42f2ff7c14cf2f30",
-  "consumerInventoryHash": "98d900fbfcd3f8670ea9659c565264bf68646eb9bdb57631cff0b1d32685febb",
+  "consumerInventoryHash": "9dece12b25dfd1ea7020b082319b46d82ffaec0dfde056c8356275b591c41e94",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1206,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10569,
+      "METHOD_ON_VALUE": 10573,
       "UNRESOLVED_IDENTIFIER": 1492
     },
     "MutationFixpointRounds": 9,
@@ -412,7 +412,7 @@
       "method": "DELETE",
       "route": "/v1/collaboration-teams/:teamId/comments/:commentId",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:101",
+      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:112",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2284,7 +2284,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:82",
+      "productConsumer": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:85",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2356,7 +2356,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/:teamId/comments",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:39",
+      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:50",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2440,7 +2440,7 @@
       "method": "GET",
       "route": "/v1/collaboration-teams/entitlement",
       "registeringFile": "services/api/src/routes/collaboration-teams.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:106",
+      "productConsumer": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:109",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7228,7 +7228,7 @@
       "method": "PATCH",
       "route": "/v1/collaboration-teams/:teamId/comments/:commentId",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:81",
+      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:92",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -9304,7 +9304,7 @@
       "method": "POST",
       "route": "/v1/collaboration-teams/:teamId/comments",
       "registeringFile": "services/api/src/routes/collaboration-completion.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:68",
+      "productConsumer": "apps/mobile/src/ui/team-discussion.tsx:79",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -31097,8 +31097,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3165",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3165",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3219",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3219",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31130,8 +31130,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3236",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3236",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@3290",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3290",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31163,8 +31163,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@2573",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2573",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.updateMany@2627",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2627",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31196,8 +31196,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@3675",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3675",
+      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@3729",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3729",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31229,8 +31229,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2553",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2553",
+      "writerId": "services/api/src/routes/teams.routes.ts#evidence.updateMany@2607",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2607",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31262,8 +31262,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#team.update@1420",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:1420",
+      "writerId": "services/api/src/routes/teams.routes.ts#team.update@1474",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:1474",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31295,8 +31295,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@346",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:346",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@348",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:348",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -31336,8 +31336,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@350",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:350",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@352",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:352",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "createActivity",
       "kind": "DATABASE",
@@ -31377,8 +31377,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@3702",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3702",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@3756",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3756",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31410,8 +31410,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3936",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3936",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3990",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3990",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31443,8 +31443,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3972",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3972",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@4026",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4026",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -31476,8 +31476,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@4018",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:4018",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@4072",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:4072",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -51141,8 +51141,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@741",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:741",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$executeRawUnsafe@775",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:775",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "recordExternalReviewAccess",
       "kind": "RAW_SQL",
@@ -51175,8 +51175,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@328",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:328",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@362",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:362",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "issueExternalReviewGrantInner",
       "kind": "RAW_SQL",
@@ -51213,8 +51213,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@675",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:675",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@709",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:709",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "transitionExternalReviewGrant",
       "kind": "RAW_SQL",
@@ -51265,8 +51265,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@895",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:895",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#external_review_grants.$queryRawUnsafe@929",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:929",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "rotateExternalReviewGrantToken",
       "kind": "RAW_SQL",
@@ -51300,8 +51300,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#externalReviewGrant.updateMany@630",
-      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:630",
+      "writerId": "services/api/src/services/external-review/external-review-grant.service.ts#externalReviewGrant.updateMany@664",
+      "terminalLocation": "services/api/src/services/external-review/external-review-grant.service.ts:664",
       "file": "services/api/src/services/external-review/external-review-grant.service.ts",
       "enclosingDeclaration": "renewExternalReviewGrant",
       "kind": "DATABASE",
@@ -51727,8 +51727,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/portal-invitation.service.ts#externalReviewerRoleAssignment.updateMany@227",
-      "terminalLocation": "services/api/src/services/external-review/portal-invitation.service.ts:227",
+      "writerId": "services/api/src/services/external-review/portal-invitation.service.ts#externalReviewerRoleAssignment.updateMany@230",
+      "terminalLocation": "services/api/src/services/external-review/portal-invitation.service.ts:230",
       "file": "services/api/src/services/external-review/portal-invitation.service.ts",
       "enclosingDeclaration": "acceptInvitation",
       "kind": "DATABASE",
@@ -51760,8 +51760,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/external-review/portal-invitation.service.ts#externalReviewerRoleAssignment.upsert@110",
-      "terminalLocation": "services/api/src/services/external-review/portal-invitation.service.ts:110",
+      "writerId": "services/api/src/services/external-review/portal-invitation.service.ts#externalReviewerRoleAssignment.upsert@113",
+      "terminalLocation": "services/api/src/services/external-review/portal-invitation.service.ts:113",
       "file": "services/api/src/services/external-review/portal-invitation.service.ts",
       "enclosingDeclaration": "issueInvitation",
       "kind": "DATABASE",
@@ -52830,8 +52830,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@235",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:235",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@238",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:238",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "acceptCrossOrgReview",
       "kind": "DATABASE",
@@ -52863,8 +52863,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@265",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:265",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@268",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:268",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "declineCrossOrgReview",
       "kind": "DATABASE",
@@ -52896,8 +52896,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@323",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:323",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@326",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:326",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "revokeCrossOrgReview",
       "kind": "DATABASE",
@@ -56218,8 +56218,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.create@880",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:880",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.create@942",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:942",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantCapability",
       "kind": "DATABASE",
@@ -56251,8 +56251,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@1008",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1008",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@1070",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1070",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokeCapability",
       "kind": "DATABASE",
@@ -56284,8 +56284,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@876",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:876",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.update@938",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:938",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantCapability",
       "kind": "DATABASE",
@@ -56317,8 +56317,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.updateMany@956",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:956",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberCapabilityGrant.updateMany@1018",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1018",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "updateCapability",
       "kind": "DATABASE",
@@ -56350,8 +56350,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.create@1107",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1107",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.create@1169",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1169",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantDelegatedAdminScope",
       "kind": "DATABASE",
@@ -56383,8 +56383,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.update@1236",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1236",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.update@1298",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1298",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokeDelegatedAdminScope",
       "kind": "DATABASE",
@@ -56418,8 +56418,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1099",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1099",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1161",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1161",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "grantDelegatedAdminScope",
       "kind": "DATABASE",
@@ -56451,8 +56451,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1184",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1184",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1246",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1246",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "updateDelegatedAdminScope",
       "kind": "DATABASE",
@@ -56484,8 +56484,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamInvite.updateMany@270",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:270",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamInvite.updateMany@284",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:284",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokePendingInvitesForMember",
       "kind": "DATABASE",
@@ -56522,8 +56522,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@395",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:395",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@409",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:409",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -56556,8 +56556,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@487",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:487",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@501",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:501",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokeMember",
       "kind": "DATABASE",
@@ -56592,8 +56592,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@567",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:567",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@582",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:582",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "restoreMember",
       "kind": "DATABASE",
@@ -56625,8 +56625,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@636",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:636",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@698",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:698",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "leaveWorkspace",
       "kind": "DATABASE",
@@ -56658,8 +56658,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@747",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:747",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.update@809",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:809",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -56693,8 +56693,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.updateMany@1390",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1390",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.updateMany@1452",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1452",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "touchMemberLastSeen",
       "kind": "DATABASE",
@@ -57125,13 +57125,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.update@425",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:425",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@433",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:433",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "revokeWorkspaceInvitation",
       "kind": "DATABASE",
       "target": "teamInvite",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "WORKSPACE_MEMBERSHIP_INVITATION",
       "insideTransaction": true,
       "entryRoutes": [
@@ -57158,8 +57158,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@613",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:613",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@636",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:636",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "acceptWorkspaceInvitation",
       "kind": "DATABASE",
@@ -57191,8 +57191,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@692",
-      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:692",
+      "writerId": "services/api/src/services/identity/workspace-invitation.service.ts#teamInvite.updateMany@715",
+      "terminalLocation": "services/api/src/services/identity/workspace-invitation.service.ts:715",
       "file": "services/api/src/services/identity/workspace-invitation.service.ts",
       "enclosingDeclaration": "run",
       "kind": "DATABASE",
@@ -86732,8 +86732,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/search/evidence-search.service.ts#evidenceRelationship.create@1110",
-      "terminalLocation": "services/api/src/services/search/evidence-search.service.ts:1110",
+      "writerId": "services/api/src/services/search/evidence-search.service.ts#evidenceRelationship.create@1121",
+      "terminalLocation": "services/api/src/services/search/evidence-search.service.ts:1121",
       "file": "services/api/src/services/search/evidence-search.service.ts",
       "enclosingDeclaration": "createRelationship",
       "kind": "DATABASE",
@@ -97689,7 +97689,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/team-discussion.tsx",
-          "line": 101,
+          "line": 112,
           "caller": "remove",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -97707,7 +97707,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:101 (remove, MOBILE); apps/web/lib/api/collaboration-completion.ts:169 (deleteComment, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:112 (remove, MOBILE); apps/web/lib/api/collaboration-completion.ts:169 (deleteComment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -99489,7 +99489,7 @@
       "method": "DELETE",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:475",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:476",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -99607,7 +99607,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1486",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1540",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -99657,7 +99657,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/cases/:caseId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3196",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3250",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -99712,7 +99712,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/external-grants/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3604",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3658",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -99803,7 +99803,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1957",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2011",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -99822,7 +99822,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 929,
+          "line": 961,
           "caller": "handleConfirmDeleteInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -99832,7 +99832,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:331 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:929 (handleConfirmDeleteInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:331 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:961 (handleConfirmDeleteInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -99874,7 +99874,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2340",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2394",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108116,7 +108116,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
-          "line": 82,
+          "line": 85,
           "caller": "CollaborationTeamDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -108124,7 +108124,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
-          "line": 106,
+          "line": 109,
           "caller": "CollaborationTeamDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -108174,7 +108174,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:82 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(stack)/collaboration-team/[id].tsx:106 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(tabs)/teams.tsx:168 (CollaborationScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:85 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(stack)/collaboration-team/[id].tsx:109 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(tabs)/teams.tsx:168 (CollaborationScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -108577,7 +108577,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/team-discussion.tsx",
-          "line": 39,
+          "line": 50,
           "caller": "TeamDiscussion",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -108595,7 +108595,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:39 (TeamDiscussion, MOBILE); apps/web/lib/api/collaboration-completion.ts:134 (listComments, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:50 (TeamDiscussion, MOBILE); apps/web/lib/api/collaboration-completion.ts:134 (listComments, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -109031,7 +109031,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/collaboration-team/[id].tsx",
-          "line": 106,
+          "line": 109,
           "caller": "CollaborationTeamDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -109057,7 +109057,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:106 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(tabs)/teams.tsx:168 (CollaborationScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:413 (getCollaborationEntitlement, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/collaboration-team/[id].tsx:109 (CollaborationTeamDetailScreen, MOBILE); apps/mobile/app/(tabs)/teams.tsx:168 (CollaborationScreen, MOBILE); apps/web/lib/api/collaboration-teams.ts:413 (getCollaborationEntitlement, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -120932,6 +120932,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "case",
+        "evidence",
         "evidenceSearchDocument",
         "revokedSession",
         "supportAccessGrant",
@@ -121179,7 +121181,7 @@
         },
         {
           "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
-          "line": 278,
+          "line": 282,
           "caller": "load",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -121189,7 +121191,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:337 (load, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:278 (load, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/investigation/page.tsx:337 (load, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:282 (load, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126751,7 +126753,7 @@
       "method": "GET",
       "path": "/v1/platform/rbac/matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3745",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3799",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131430,7 +131432,7 @@
       "method": "GET",
       "path": "/v1/search",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:303",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:304",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -131491,6 +131493,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "case",
+        "evidence",
         "evidenceSearchDocument",
         "revokedSession",
         "supportAccessGrant",
@@ -131519,7 +131523,7 @@
       "method": "GET",
       "path": "/v1/search/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:672",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:673",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131582,7 +131586,7 @@
       "method": "GET",
       "path": "/v1/search/diagnostics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:1115",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:1118",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131624,6 +131628,8 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "case",
+        "evidence",
         "evidenceSearchDocument",
         "governanceReconciliationRun",
         "team",
@@ -131650,7 +131656,7 @@
       "method": "GET",
       "path": "/v1/search/relationships/:evidenceId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:531",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:532",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131715,7 +131721,7 @@
       "method": "GET",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:407",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:408",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131779,7 +131785,7 @@
       "method": "GET",
       "path": "/v1/search/semantic/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:770",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:771",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131835,7 +131841,7 @@
       "method": "GET",
       "path": "/v1/search/suggest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:804",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:805",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -131870,6 +131876,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "case",
+        "evidence",
         "evidenceSearchDocument",
         "teamMember",
         "user"
@@ -132612,7 +132620,7 @@
       "method": "GET",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:655",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:657",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132679,7 +132687,7 @@
       "method": "GET",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:737",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:742",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132762,7 +132770,7 @@
         },
         {
           "file": "apps/web/app/(app)/settings/_sections/WorkspaceLifecycleSection.tsx",
-          "line": 71,
+          "line": 79,
           "caller": "WorkspaceLifecycleSection",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132770,7 +132778,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 486,
+          "line": 502,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -132812,6 +132820,8 @@
         "adminAuditLog",
         "authenticatedSession",
         "case",
+        "collaborationTeam",
+        "collaborationTeamMember",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -132831,7 +132841,6 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "analyticsEvent",
         "entitlement",
         "securityEvent"
       ],
@@ -132860,7 +132869,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3429",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3483",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132932,7 +132941,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2977",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3031",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132967,7 +132976,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 498,
+          "line": 514,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -133018,7 +133027,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/cases",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1236",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1290",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133070,7 +133079,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3802",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3856",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133142,7 +133151,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/external-collaborators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3290",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3344",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133196,7 +133205,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1280",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1334",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133215,7 +133224,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 491,
+          "line": 507,
           "caller": "TeamDetailPageBody",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -133223,7 +133232,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 856,
+          "line": 888,
           "caller": "reloadInvites",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -133233,7 +133242,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:175 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:491 (TeamDetailPageBody, WEB); apps/web/app/(app)/teams/[id]/page.tsx:856 (reloadInvites, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:175 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:507 (TeamDetailPageBody, WEB); apps/web/app/(app)/teams/[id]/page.tsx:888 (reloadInvites, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133273,7 +133282,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1056",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1110",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133448,7 +133457,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/access",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2189",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2243",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133507,7 +133516,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/members/:memberId/removal-impact",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2251",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2305",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -137081,7 +137090,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/team-discussion.tsx",
-          "line": 81,
+          "line": 92,
           "caller": "saveEdit",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -137099,7 +137108,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:81 (saveEdit, MOBILE); apps/web/lib/api/collaboration-completion.ts:159 (editComment, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:92 (saveEdit, MOBILE); apps/web/lib/api/collaboration-completion.ts:159 (editComment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -138933,7 +138942,7 @@
       "method": "PATCH",
       "path": "/v1/search/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:502",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:503",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -139128,7 +139137,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1356",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1410",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -139155,7 +139164,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 711,
+          "line": 743,
           "caller": "handleSaveTeamName",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -139165,7 +139174,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:385 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:711 (handleSaveTeamName, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:385 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/organizations/[id]/setup/page.tsx:438 (OrganizationSetupInner, WEB); apps/web/app/(app)/teams/[id]/page.tsx:743 (handleSaveTeamName, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -139211,7 +139220,7 @@
       "method": "PATCH",
       "path": "/v1/teams/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2031",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2085",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -150330,7 +150339,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/team-discussion.tsx",
-          "line": 68,
+          "line": 79,
           "caller": "post",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -150348,7 +150357,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:68 (post, MOBILE); apps/web/lib/api/collaboration-completion.ts:147 (createComment, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/team-discussion.tsx:79 (post, MOBILE); apps/web/lib/api/collaboration-completion.ts:147 (createComment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -162272,8 +162281,15 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "collaborationTeam",
+        "collaborationTeamMember",
+        "enterpriseContract",
+        "evidence",
+        "evidencePartDerivedAsset",
         "mfaFactor",
         "notificationDelivery",
+        "organization",
+        "report",
         "revokedSession",
         "riskSignal",
         "ssoConnection",
@@ -162282,6 +162298,7 @@
         "team",
         "teamMember",
         "user",
+        "verificationPackage",
         "webhookEndpoint"
       ],
       "modelsWritten": [
@@ -162298,14 +162315,15 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.updateMany — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
+        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
+        "services/api/src/services/identity/rbac.service.ts: teamMember.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -167710,7 +167728,7 @@
         },
         {
           "file": "apps/web/app/(app)/investigation/reviewers/page.tsx",
-          "line": 234,
+          "line": 238,
           "caller": "performSignalAction",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -167728,7 +167746,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/media-intelligence-panel.tsx:184 (act, MOBILE); apps/web/app/(app)/investigation/page.tsx:415 (handleSignalAction, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:234 (performSignalAction, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/media-intelligence-panel.tsx:184 (act, MOBILE); apps/web/app/(app)/investigation/page.tsx:415 (handleSignalAction, WEB); apps/web/app/(app)/investigation/reviewers/page.tsx:238 (performSignalAction, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -178651,7 +178669,7 @@
       "method": "POST",
       "path": "/v1/search/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:910",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:913",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -178722,7 +178740,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:613",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:614",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -178776,7 +178794,7 @@
       "method": "POST",
       "path": "/v1/search/reindex/workflow/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:648",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:649",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -178815,7 +178833,7 @@
       "method": "POST",
       "path": "/v1/search/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:558",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:559",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -178865,7 +178883,7 @@
       "method": "POST",
       "path": "/v1/search/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:431",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:432",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -178926,7 +178944,7 @@
       "method": "POST",
       "path": "/v1/search/semantic/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/search.routes.ts:731",
+      "registrationEvidence": "services/api/src/routes/search.routes.ts:732",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -179390,7 +179408,7 @@
       "method": "POST",
       "path": "/v1/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:593",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:595",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179456,7 +179474,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/cases/link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3089",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3143",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179511,7 +179529,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3834",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3888",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179590,7 +179608,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4005",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4059",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179659,7 +179677,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1560",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:1614",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179678,7 +179696,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 742,
+          "line": 774,
           "caller": "handleInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -179688,7 +179706,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:276 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:742 (handleInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:276 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:774 (handleInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -179755,7 +179773,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2920",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2974",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179774,7 +179792,7 @@
         },
         {
           "file": "apps/web/app/(app)/teams/[id]/page.tsx",
-          "line": 872,
+          "line": 904,
           "caller": "handleResendInvite",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -179784,7 +179802,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:307 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:872 (handleResendInvite, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/workspace-people.tsx:307 (WorkspacePeopleScreen, MOBILE); apps/web/app/(app)/teams/[id]/page.tsx:904 (handleResendInvite, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -179829,7 +179847,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/leave",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2691",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2745",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179939,7 +179957,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4126",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4180",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180012,7 +180030,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4072",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:4126",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180100,7 +180118,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2830",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2884",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180191,7 +180209,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/lookup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2768",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2822",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"

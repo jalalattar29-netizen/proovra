@@ -155,6 +155,18 @@ describe("B — the KPI cards", () => {
     expect(screen.queryByTestId("people-seats-full")).toBeNull();
   });
 
+  it("an Enterprise contract that sells seats but no Teams still offers invitations", async () => {
+    fx.stats = stats({
+      collaborationTeams: { featureIncluded: false, active: 0, limit: 0, limitSource: "ENTERPRISE_CONTRACT", membersPerTeam: 0 },
+      seatLimit: 50,
+      seatUsed: 3,
+      seatAvailable: 47,
+    });
+    await mount();
+    expect(within(teamsCard()).getByText("Not included")).toBeTruthy();
+    expect(screen.getByTestId("people-invite-open")).toBeTruthy();
+  });
+
   it("an Enterprise contract with every seat taken still says so", async () => {
     fx.stats = stats({ collaborationTeams: collab.ENTERPRISE, seatLimit: 20, seatUsed: 20, seatAvailable: 0 });
     await mount();

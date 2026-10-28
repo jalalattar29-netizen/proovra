@@ -26,6 +26,9 @@ import {
 
 type ReachClient = Pick<PrismaClient, "case" | "evidence">;
 
+/** Below PostgreSQL's bind-parameter ceiling with room for the rest of the query. */
+export const SEARCH_REACH_EXCLUSION_LIMIT = 20_000;
+
 export async function searchDocumentReachWhere(
   client: ReachClient,
   workspaceId: string,
@@ -33,11 +36,9 @@ export async function searchDocumentReachWhere(
 ): Promise<Prisma.EvidenceSearchDocumentWhereInput> {
   const [hiddenCases, hiddenEvidence] = await Promise.all([
     client.case.findMany({
-      where: {
-        teamId: workspaceId,
-        restrictedAtUtc: { not: null },
-        NOT: caseVisibleToWhere(actorUserId),
-      },
+      // NOT visible already implies restricted (caseVisibleToWhere admits
+      // every unrestricted Case), by the canonical rule rather than the flag.
+      where: { teamId: workspaceId, NOT: caseVisibleToWhere(actorUserId) },
       select: { id: true },
     }),
     client.evidence.findMany({
@@ -45,6 +46,15 @@ export async function searchDocumentReachWhere(
       select: { id: true },
     }),
   ]);
+  /*
+   * The exclusion is inlined. A member off restricted Cases holding more
+   * Evidence than one statement can carry is refused EVERY match rather than
+   * shown any hidden row: the bound fails closed and never truncates the
+   * list (an SQL-side NOT EXISTS is the follow-up that removes the bound).
+   */
+  if (hiddenCases.length + hiddenEvidence.length > SEARCH_REACH_EXCLUSION_LIMIT) {
+    return { AND: [{ id: { in: [] } }] };
+  }
   const and: Prisma.EvidenceSearchDocumentWhereInput[] = [];
   if (hiddenCases.length > 0) {
     and.push({

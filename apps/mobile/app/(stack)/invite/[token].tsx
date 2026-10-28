@@ -94,7 +94,7 @@ function CollaborationInviteScreen() {
     } catch (err) {
       const safe = toSafeUserError(err);
       // T-12 — the two PLAN refusals are not errors to retry: the web shows a
-      // panel with "View billing" and "Back to Teams" (accept/page.tsx:130-156,
+      // panel with "View billing" and "Back to Collaboration Teams" (accept/page.tsx:130-156,
       // 405, 440). Retrying cannot change the owner's plan.
       const refusal = inviteRefusal(err);
       if (refusal) {
@@ -139,7 +139,7 @@ function CollaborationInviteScreen() {
                 fullWidth={false}
                 onPress={() => router.push("/billing")}
               />
-              <ProovraButton label="Back to Teams" variant="ghost" fullWidth={false} onPress={() => router.replace("/teams")} />
+              <ProovraButton label="Back to Collaboration Teams" variant="ghost" fullWidth={false} onPress={() => router.replace("/teams")} />
             </View>
           }
         />

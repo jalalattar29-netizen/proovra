@@ -206,6 +206,63 @@ describe("members experience — reach, capacity and counts (live PostgreSQL)", 
     });
   });
 
+  describe("GRANT — a cross-org acceptance is checked against the CREATOR's reach", () => {
+    async function invitation(createdByUserId: string, caseId: string) {
+      return prisma.crossOrgReviewGrant.create({
+        data: {
+          teamId: A().teamId,
+          invitingOrganizationId: randomUUID(),
+          invitedOrgSlug: `mx-org-${tag()}`,
+          state: "INVITED",
+          scope: { text: "matter review", subject: { kind: "CASE", id: caseId } },
+          createdByUserId,
+        } as never,
+        select: { id: true },
+      });
+    }
+    const accept = async (grantId: string) => {
+      const { acceptCrossOrgReview } = await import("../src/services/governance/cross-org-review.service.js");
+      // The workspace OWNER decides — and is not on the restricted Case.
+      return acceptCrossOrgReview({
+        teamId: A().teamId,
+        grantId,
+        acceptingOrganizationId: randomUUID(),
+        externalReviewGrantId: null,
+        actorUserId: A().ownerUserId,
+      });
+    };
+
+    it("a creator on the list: the owner off the list can still accept the exchange", async () => {
+      const creator = await person("ADMIN");
+      const c = await newCase(creator.id);
+      await restrict(c.id, [creator.id]);
+      const row = await invitation(creator.id, c.id);
+      expect((await accept(row.id)).ok).toBe(true);
+    });
+
+    it("a creator off the list: refused, and no external-review grant is minted", async () => {
+      const owner = await person("MEMBER");
+      const creator = await person("ADMIN");
+      const c = await newCase(owner.id);
+      await restrict(c.id, [owner.id]);
+      const row = await invitation(creator.id, c.id);
+      expect((await accept(row.id)).ok).toBe(false);
+      expect(await prisma.externalReviewGrant.count({ where: { teamId: A().teamId, caseId: c.id } })).toBe(0);
+    });
+  });
+
+  describe("SEARCH — the exclusion bound fails closed", () => {
+    it("past the bound every match is refused rather than any hidden row shown", async () => {
+      const { searchDocumentReachWhere } = await import("../src/services/search/search-reach.js");
+      const many = Array.from({ length: 20_001 }, () => ({ id: randomUUID() }));
+      const fake = {
+        case: { findMany: async () => many },
+        evidence: { findMany: async () => [] },
+      };
+      expect(await searchDocumentReachWhere(fake as never, A().teamId, "u")).toEqual({ AND: [{ id: { in: [] } }] });
+    });
+  });
+
   // ===========================================================================
   describe("RESTORE — reinstatement takes back the Team position it held", () => {
     it("a group that refilled while the member was suspended refuses the reinstatement; with room it succeeds", async () => {

@@ -10503,5 +10503,74 @@
         "integration": true
       }
     ]
+  },
+  {
+    "id": "MEX-STATS-OPEN-VISIBLE",
+    "aud": "MEX-B",
+    "name": "the Open cases figure counts open restricted Cases the caller cannot see",
+    "file": "services/api/src/routes/teams.routes.ts",
+    "find": "              caseVisibleToWhere(userId),\n              { status: { in: [...OPEN_CASE_STATUSES] } },",
+    "replace": "              { status: { in: [...OPEN_CASE_STATUSES] } },",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "STATS"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-CROSS-ORG-REACH",
+    "aud": "MEX-ACC",
+    "name": "a cross-org acceptance is checked against the accepting governor instead of the creator",
+    "file": "services/api/src/services/governance/cross-org-review.service.ts",
+    "find": "      reachUserId: row.createdByUserId,\n",
+    "replace": "",
+    "tests": [
+      {
+        "cwd": "services/api",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.integration.config.ts",
+          "test/members-experience.integration.test.ts",
+          "-t",
+          "cross-org"
+        ],
+        "integration": true
+      }
+    ]
+  },
+  {
+    "id": "MEX-B-INVITE-ADMISSION",
+    "aud": "MEX-B",
+    "name": "invitations are hidden on an Enterprise contract that sells seats but no Teams",
+    "file": "apps/web/app/(app)/teams/[id]/page.tsx",
+    "find": "  const collaborationNotIncluded = seatLimit === 0;",
+    "replace": "  const collaborationNotIncluded = collaborationTeams?.featureIncluded === false;",
+    "tests": [
+      {
+        "cwd": "apps/web",
+        "cmd": "npx",
+        "args": [
+          "vitest",
+          "run",
+          "--config",
+          "vitest.render.config.ts",
+          "__tests__/render/members-access-experience.render.test.tsx"
+        ]
+      }
+    ]
   }
 ]

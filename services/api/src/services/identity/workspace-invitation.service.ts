@@ -440,7 +440,10 @@ export async function revokeWorkspaceInvitation(
         tokenHash: hashToken(`revoked:${existing.id}:${randomBytes(16).toString("hex")}`),
       },
     });
-    const updated = await tx.teamInvite.findUniqueOrThrow({ where: { id: existing.id } });
+    const updated = await tx.teamInvite.findUnique({ where: { id: existing.id } });
+    if (!updated) {
+      throw new WorkspaceInvitationError("INVITE_NOT_FOUND", "Invitation not found.", 404);
+    }
     if (claimed.count === 0) {
       if (updated.acceptedAt) {
         throw new WorkspaceInvitationError(

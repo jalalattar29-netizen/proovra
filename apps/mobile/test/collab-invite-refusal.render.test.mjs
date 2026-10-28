@@ -51,7 +51,7 @@ test("at capacity: the web's title, the counts from the server, billing and back
   assert.equal(r.byLabel("Try again").length, 0, "a retry that cannot succeed is offered");
   await r.press("View billing and upgrade options");
   assert.deepEqual(M.calls.push, ["/billing"]);
-  await r.press("Back to Teams");
+  await r.press("Back to Collaboration Teams");
   assert.deepEqual(M.calls.replace, ["/teams"]);
 });
 

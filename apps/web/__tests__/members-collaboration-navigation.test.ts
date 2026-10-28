@@ -47,7 +47,6 @@ function sidebar(plan: Plan) {
       planFeatures: {
         teamCollaborationIncluded: collaboration,
         intakeIncluded: plan !== "FREE",
-        professionalSurfacesIncluded: collaboration,
         reviewerOperationsIncluded: plan === "TEAM" || plan === "ENTERPRISE",
         reviewQueuesIncluded: plan === "TEAM" || plan === "ENTERPRISE",
         externalReviewIncluded: collaboration,
