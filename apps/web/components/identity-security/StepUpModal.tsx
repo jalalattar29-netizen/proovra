@@ -173,6 +173,10 @@ export function useStepUpAction({
   const pendingActionRef = useRef<StepUpAction<unknown> | null>(null);
   const onSuccessRef = useRef<((value: unknown) => void) | null>(null);
   const onFailureRef = useRef<((err: unknown) => void) | null>(null);
+  // Advanced by every cancel: a /step-up/start answer that lands after the
+  // operator cancelled belongs to a flow that no longer exists and must not
+  // reopen the dialog (or reach retryWithChallenge).
+  const flowRef = useRef(0);
 
   const closeIdle = useCallback(() => {
     setState({ kind: "idle" });
@@ -250,6 +254,7 @@ export function useStepUpAction({
 
   const cancel = useCallback(() => {
     const onFail = onFailureRef.current;
+    flowRef.current += 1;
     pendingActionRef.current = null;
     onSuccessRef.current = null;
     onFailureRef.current = null;
@@ -295,6 +300,7 @@ export function useStepUpAction({
         });
         return;
       }
+      const flow = flowRef.current;
       try {
         // `apiFetch` returns the PARSED body and throws on non-2xx.
         const json = (await apiFetch(
@@ -318,6 +324,7 @@ export function useStepUpAction({
           passkeyOptions?: Record<string, unknown> | null;
           handoffUrl?: string | null;
         };
+        if (flowRef.current !== flow) return;
         // A recent, sufficient Organization sign-in in THIS session can
         // satisfy the step-up outright: the server returns it approved.
         if (json.challenge.status === "APPROVED") {
@@ -343,6 +350,7 @@ export function useStepUpAction({
           working: false,
         });
       } catch (err) {
+        if (flowRef.current !== flow) return;
         const e = err as ApiErrorLike;
         // The server's stable, actionable denial for an account with no
         // second factor it can use here. It is deliberately NOT bucketed with

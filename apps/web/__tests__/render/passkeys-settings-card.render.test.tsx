@@ -210,9 +210,52 @@ describe("PasskeysCard", () => {
     await screen.findByText("You have no passkeys yet.");
     fireEvent.change(screen.getByLabelText("Name for the new passkey"), { target: { value: "Key" } });
     fireEvent.click(screen.getByRole("button", { name: "Add passkey" }));
-    await screen.findByRole("dialog", { name: "Step-up confirmation" });
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    // Wait for the verifying stage, not just the dialog: the "Preparing…"
+    // stage has its own Cancel, which React replaces when /step-up/start
+    // answers. Clicking the first Cancel found could hit that detached button
+    // and do nothing — this case failed on ci for a12372913 that way.
+    await screen.findByLabelText("Code from your authenticator app");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(await screen.findByText("Nothing was changed.")).toBeTruthy();
     expect(mocks.startRegistration).not.toHaveBeenCalled();
   });
+
+  for (const approved of [false, true]) {
+    it(`cancelling while the step-up is still starting stays cancelled when the start answers late (${approved ? "pre-approved" : "challenge"})`, async () => {
+      let release: () => void = () => {};
+      const gate = new Promise<void>((r) => (release = r));
+      let optionsCalls = 0;
+      mocks.fetch.mockImplementation(async (path: string, init?: RequestInit) => {
+        calls.push({ path, init });
+        if (path === "/v1/identity-security/step-up/start") {
+          await gate;
+          return approved
+            ? { challenge: { id: CHALLENGE, status: "APPROVED" } }
+            : { challenge: { id: CHALLENGE }, method: "TOTP", availableMethods: ["TOTP"], destinationMask: null };
+        }
+        if (path === "/v1/identity-security/passkeys") return { passkeys: [] };
+        if (path.endsWith("/registration/options")) {
+          optionsCalls += 1;
+          if (optionsCalls === 1) throw stepUpRequired("PASSKEY_REGISTER", "user", "me");
+          return { challenge: "x" };
+        }
+        throw new Error(`unexpected ${path}`);
+      });
+      render(<PasskeysCard />);
+      await screen.findByText("You have no passkeys yet.");
+      fireEvent.change(screen.getByLabelText("Name for the new passkey"), { target: { value: "Key" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add passkey" }));
+      await screen.findByText("Preparing your verification…");
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(await screen.findByText("Nothing was changed.")).toBeTruthy();
+      release();
+      // The late answer belongs to a cancelled flow: no dialog comes back,
+      // and nothing is retried.
+      await waitFor(() => expect(calls.some((c) => c.path === "/v1/identity-security/step-up/start")).toBe(true));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByRole("dialog", { name: "Step-up confirmation" })).toBeNull();
+      expect(optionsCalls).toBe(1);
+      expect(mocks.startRegistration).not.toHaveBeenCalled();
+    });
+  }
 });
