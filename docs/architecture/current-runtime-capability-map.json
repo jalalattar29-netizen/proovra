@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
-  "consumerInventoryHash": "cda61eb4b0410072a5b646e0d46522ed3b385e4e6b3e6a4e7ee097a6cfe18bc2",
+  "consumerInventoryHash": "20c5e7e17934f1708aa493a53b4bf3678ee45c3bec29c6e0ec30f60dc3de5450",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1219,
@@ -2752,7 +2752,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:1691",
+      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:1692",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -2800,7 +2800,7 @@
       "method": "GET",
       "route": "/v1/evidence/:id/artifacts/status",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:892",
+      "productConsumer": "apps/mobile/app/(stack)/capture.tsx:893",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -112244,7 +112244,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/capture.tsx",
-          "line": 1691,
+          "line": 1692,
           "caller": "CaptureScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -112342,7 +112342,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:1691 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence-archive.tsx:52 (EvidenceArchiveScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:433 (EvidenceDetailScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:1692 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence-archive.tsx:52 (EvidenceArchiveScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:433 (EvidenceDetailScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112617,7 +112617,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/capture.tsx",
-          "line": 892,
+          "line": 893,
           "caller": "CaptureScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -112691,7 +112691,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:892 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:470 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:590 (EvidenceDetailScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/capture.tsx:893 (CaptureScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:470 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:590 (EvidenceDetailScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
