@@ -16,6 +16,7 @@ import {
   renderPageSection,
 } from "../ui.js";
 import { renderTechnicalSummaryAppendixInner } from "./technical-summary.js";
+import { escapeHtml, safe } from "../formatters.js";
 
 /**
  * 2026-10-29 (F-14) — the shared recomputation note says the digest can be
@@ -24,9 +25,7 @@ import { renderTechnicalSummaryAppendixInner } from "./technical-summary.js";
  * (verification-package.ts). Presentation only; no digest is changed.
  */
 export const MULTIPART_DIGEST_SEPARATORS_NOTE =
-  "Algorithm: SHA-256. Canonical package digest: SHA-256 of the per-part lowercase hex digests in partIndex order joined by '|'. Multipart manifest digest: SHA-256 of the same digests joined by '\\n' (LF).";
-import { escapeHtml, safe } from "../formatters.js";
-
+  "Each part keeps its own SHA-256 (algorithm: SHA-256). Canonical package digest: SHA-256 of the per-part lowercase hex digests in partIndex order joined by '|'. Multipart manifest digest: SHA-256 of the same digests joined by '\\n' (LF).";
 
 /**
  * Wire contract D — the system-generated capture records (CAPTURE_MANIFEST

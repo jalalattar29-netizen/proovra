@@ -46,6 +46,11 @@ async function segment(name: string, size: string, seconds: number, opts: { audi
     ...(opts.audio ? ["-f", "lavfi", "-i", `sine=frequency=440:sample_rate=48000:duration=${seconds}`] : []),
     // Distinct pictures per segment: the pattern's clock is shifted by `offset`.
     "-vf", `setpts=PTS-STARTPTS,drawbox=x=0:y=0:w=40:h=40:color=${["red", "green", "blue", "yellow"][opts.offset ?? 0]}:t=fill`,
+    // The fixture's rate is pinned, not inherited: from ffmpeg 7.0 `setpts`
+    // drops the source's 12 fps and the MP4 muxer falls back to 25 fps CFR,
+    // duplicating frames (49 for 2 s). ffmpeg-static ships 6.1 on Windows and
+    // 7.0 on Linux, so without this the same test generated different inputs.
+    "-r", "12",
     "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-g", "12",
     ...(opts.audio ? ["-c:a", "aac", "-shortest"] : []),
     file,
