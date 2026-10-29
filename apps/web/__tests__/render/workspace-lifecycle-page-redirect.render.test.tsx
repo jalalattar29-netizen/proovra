@@ -22,12 +22,19 @@ const H = vi.hoisted(() => ({
   push: vi.fn(),
   router: null as unknown as Record<string, unknown>,
   read: null as null | Record<string, unknown> | Error,
+  // The owned Workspace's closure card reads GET /v1/teams/:id/closure. It used
+  // to receive the Workspace read too (no `blockers`), and when that answer
+  // landed before cleanup the card threw at `state.blockers.length`: an
+  // unhandled error that turned ci's mutation baseline red on 4fcebf2c6 and
+  // reproduced 1 in 30 on 8f5521f3b. It now gets the shape the route returns.
+  closure: { request: null, blockers: [], confirmationPhrase: "close Owned", coolingOffDays: 7, membersLosingAccess: 0 },
 }));
 H.router = { replace: H.replace, push: H.push, back: () => {}, prefetch: () => {} };
 
 vi.mock("../../lib/api", () => ({
-  apiFetch: async () => {
+  apiFetch: async (path: string) => {
     if (H.read instanceof Error) throw Object.assign(H.read, { statusCode: 404 });
+    if (path.endsWith("/closure")) return H.closure;
     return H.read;
   },
   ApiError: class ApiError extends Error {},
@@ -90,6 +97,9 @@ describe("the lifecycle URL, by kind and viewer", () => {
     H.read = { id: WS, name: "Owned", canManageWorkspace: true, lifecycle: POLICY.OWNED };
     render(<WorkspaceLifecyclePage />);
     await screen.findByText("Workspace closure");
+    // The real controls: the closure card has loaded its state inside the test.
+    await waitFor(() => expect(document.querySelector("[data-workspace-closure-card]")).not.toBeNull());
+    expect(screen.getByText(/7-day cancellation window/)).toBeTruthy();
     expect(H.replace).not.toHaveBeenCalled();
   });
 
