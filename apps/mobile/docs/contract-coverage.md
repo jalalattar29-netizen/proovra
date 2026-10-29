@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**171 bindings — OK 171, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**172 bindings — OK 172, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -91,6 +91,7 @@ top level of it.
 | OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items |
 | OK | `parseOperationalTimeline` | `GET /v1/evidence/:id/operational-timeline` | entries, evidenceId, generatedAtUtc, teamId | entries |
 | OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | bucket, displayName, displaySizeLabel, downloadFileName, evidenceId, key, kind, lastAcce… | publicUrl, url |
+| OK | `parseOriginalPartLinks` | `GET /v1/evidence/:id/parts` | artifacts, evidenceId, multipart, originalDownloadBlockedByPolicy, parts, primary | parts |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | evidenceId, generatedAtUtc, reviewerSnapshot, snapshots, storage, url, version | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |

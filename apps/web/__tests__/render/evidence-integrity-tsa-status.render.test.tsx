@@ -63,6 +63,9 @@ describe("Integrity tab — Timestamp proof (TSA), one presenter (AUD-14)", () =
     expect(tsaRow().textContent).toContain("Trusted timestamp not obtained");
     expect(tsaRow().textContent).not.toMatch(/Status: FAILED|Timestamp failed/);
     expect(cell()?.getAttribute("data-tone")).toBe("amber");
+    // The card's integrity state is "unavailable" (the provider issued nothing),
+    // never "failed" (a token that was refused) — P8-I.
+    expect(tsaRow().getAttribute("data-evidence-matrix-state")).toBe("unavailable");
   });
 
   it("a kept token never validated reads Recorded, not validated — never amber pending", () => {

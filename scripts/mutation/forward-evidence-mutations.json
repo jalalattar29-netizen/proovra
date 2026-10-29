@@ -1142,7 +1142,7 @@
           "run",
           "test/report-pdf-layout.test.ts",
           "-t",
-          "AUD-19"
+          "follows its audience"
         ],
         "env": {
           "PUPPETEER_EXECUTABLE_PATH": "C:/Program Files/Google/Chrome/Application/chrome.exe"
@@ -1153,7 +1153,7 @@
   {
     "id": "P7-G",
     "phase": "P7",
-    "name": "the worker passes 'disclosed' whatever the record decided",
+    "name": "the worker discloses the location to the EXTERNAL package whatever the record decided",
     "file": "services/worker/src/processor.ts",
     "find": "  return parseVerificationDisclosurePolicy(row).showRecordedLocation;",
     "replace": "  return parseVerificationDisclosurePolicy(row).showRecordedLocation || Boolean(row);",
@@ -1166,9 +1166,9 @@
           "run",
           "--config",
           "vitest.integration.config.ts",
-          "test/forward/forward-output-pipeline.integration.test.ts",
+          "test/point5/report-package-recovery.integration.test.ts",
           "-t",
-          "PHASE 7"
+          "F-14 closure: external package"
         ],
         "integration": true
       }
@@ -1431,8 +1431,8 @@
     "phase": "P8",
     "name": "a kept token never validated is amber again",
     "file": "packages/shared/src/tsa-status.ts",
-    "find": "  RECORDED_NOT_VALIDATED: \"neutral\",\n  NOT_OBTAINED: \"neutral\",",
-    "replace": "  RECORDED_NOT_VALIDATED: \"warning\",\n  NOT_OBTAINED: \"neutral\",",
+    "find": "  RECORDED_NOT_VALIDATED: \"neutral\",\n  NOT_OBTAINED: \"warning\",",
+    "replace": "  RECORDED_NOT_VALIDATED: \"warning\",\n  NOT_OBTAINED: \"warning\",",
     "build": [
       "shared"
     ],
@@ -1559,8 +1559,8 @@
     "phase": "P8",
     "name": "the timestamp authority is called under the workspace capacity lock again",
     "file": "services/api/src/services/evidence-complete.service.ts",
-    "find": "      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n      });\n\n      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });",
-    "replace": "      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });\n\n      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n      });",
+    "find": "      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });\n\n      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });",
+    "replace": "      // ET-SEC-28 — under the workspace capacity lock (see\n      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace\n      // waits here until this one commits, then sees its bytes.\n      await lockEvidenceCapacitySubject(scope, tx);\n      await assertWorkspaceAllowsStorageGrowth({\n        scope,\n        incomingBytes: incomingGrowth,\n      });\n\n      const tsaResult = await createEvidenceTimestamp({\n        digestHex: fileSha256,\n        inputKind: tsaInputKind,\n      });",
     "tests": [
       {
         "cwd": "services/api",
@@ -3175,8 +3175,8 @@
     "id": "P13-37J",
     "phase": "P13",
     "name": "mobile sends a mocked fix as an ordinary one",
-    "file": "apps/mobile/app/(stack)/capture.tsx",
-    "find": "        ...(pos.mocked === true ? { providerReportedMock: true } : {})",
+    "file": "apps/mobile/src/capture/device-location.ts",
+    "find": "        ...(pos.mocked === true ? { providerReportedMock: true } : {}),",
     "replace": "",
     "tests": [
       {

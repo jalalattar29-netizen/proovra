@@ -58,7 +58,8 @@ test("AUD-16: a kept token with no recorded cause states no cause", () => {
 
 test("one tone per status: a not-validated token is never amber 'pending'; failure is red", () => {
   assert.equal(TSA_PROOF_STATUS_TONE.RECORDED_NOT_VALIDATED, "neutral");
-  assert.equal(TSA_PROOF_STATUS_TONE.NOT_OBTAINED, "neutral");
+  // 2026-10-29 — a timestamp the provider did not issue is ONE degraded state (warning) on every surface.
+  assert.equal(TSA_PROOF_STATUS_TONE.NOT_OBTAINED, "warning");
   assert.equal(TSA_PROOF_STATUS_TONE.FAILED, "danger");
   assert.equal(TSA_PROOF_STATUS_TONE.VALIDATED, "success");
   for (const s of TSA_PROOF_STATUSES) assert.ok(TSA_PROOF_STATUS_LABELS[s] && TSA_PROOF_STATUS_TONE[s], s);

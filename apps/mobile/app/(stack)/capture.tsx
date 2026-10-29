@@ -25,6 +25,7 @@ import {
   ProovraConfirmSheet,
 } from "../../src/ui";
 import { useToast } from "../../src/toast-context";
+import { formatUserDateTime } from "../../src/lib/date";
 import {
   CaptureIntakeRail,
   CaptureReadinessPanel,
@@ -1863,7 +1864,7 @@ if (!isRecording || busy) return;
               <View key={key} style={styles.pendingRow} testID="capture-pending-record">
                 <ProovraText variant="bodySm" weight="semibold">{label}</ProovraText>
                 <ProovraText variant="label" color={theme.color.ink.muted}>
-                  {`Last saved ${new Date(rec.updatedAtIso).toLocaleString()}${rec.linkGroupId ? " · linked to another capture" : ""}`}
+                  {`Last saved ${formatUserDateTime(rec.updatedAtIso)}${rec.linkGroupId ? " · linked to another capture" : ""}`}
                 </ProovraText>
                 <View style={styles.resumeActions}>
                   <ProovraButton

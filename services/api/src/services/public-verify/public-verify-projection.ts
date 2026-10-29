@@ -33,8 +33,6 @@ import {
   custodyEventLabel,
   WITHHELD_BY_DISCLOSURE_POLICY,
   genericItemLabel,
-  parseVerificationMatrix,
-  withholdIdentityRows,
   type PublicVerifyDisclosureFacts,
   type PublicVerifyIdentifierKind,
   type VerificationDisclosurePolicy,
@@ -461,30 +459,7 @@ function projectCaptureManifest(m: unknown): unknown {
   return isObj(m.client) ? { ...m, client: pick(m.client, PUBLIC_MANIFEST_CLIENT_KEYS) } : m;
 }
 
-/**
- * F-27a (2026-10-29) — when the record's identity is WITHHELD, the matrix's
- * account/organization rows are withheld too, on every tier. They are generic
- * categories ("Authenticated email account"), not personal data, but stating
- * them beside "Withheld by the record's disclosure policy" contradicted that
- * statement (AUD-45). The BASIC tier already did this; RICH did not.
- */
-function projectVerificationMatrix(matrix: unknown, recordFacts: unknown): unknown {
-  const identity = isObj(recordFacts) && isObj(recordFacts.identity) ? recordFacts.identity : null;
-  if (!identity || identity.disclosure !== "WITHHELD") return matrix ?? null;
-  const parsed = parseVerificationMatrix(matrix);
-  if (parsed) return withholdIdentityRows(parsed);
-  // Fail closed for a matrix this parser does not recognise: the identity rows
-  // are still withheld, row by row.
-  if (!isObj(matrix) || !Array.isArray(matrix.rows)) return matrix ?? null;
-  return {
-    ...matrix,
-    rows: matrix.rows.map((r: unknown) =>
-      isObj(r) && (r.key === "account_identity" || r.key === "organization_verification")
-        ? { ...r, status: "NOT_APPLICABLE", statement: "Not disclosed on this verification page.", measuredAtUtc: null }
-        : r,
-    ),
-  };
-}
+
 const TECH_ACQUISITION = [
   "method",
   "deliveryChannel",
@@ -524,7 +499,6 @@ export function projectPublicVerification(
   const out: Obj = pick(full, ALWAYS_KEYS);
   if (d.mode === "CONTENT_PREVIEW") Object.assign(out, pick(full, CONTENT_KEYS));
   if ("captureManifest" in out) out.captureManifest = projectCaptureManifest(out.captureManifest);
-  if ("verificationMatrix" in out) out.verificationMatrix = projectVerificationMatrix(out.verificationMatrix, full.recordFacts);
   out.technicalMetadata = d.mode === "CONTENT_PREVIEW" ? projectTechnicalMetadata(full.technicalMetadata, d) : null;
   out.disclosure = d;
   out.basicVerification = projectBasic(full.basicVerification, d);

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 // now exercise the same paths production does.
 import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
-import { MULTIPART_DIGEST_RECOMPUTATION_NOTE } from "../src/report-v2/sections/technical-appendix.js";
+import { MULTIPART_DIGEST_SEPARATORS_NOTE as MULTIPART_DIGEST_RECOMPUTATION_NOTE } from "../src/report-v2/sections/technical-appendix.js";
 import { escapeHtml } from "../src/report-v2/formatters.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
 import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";

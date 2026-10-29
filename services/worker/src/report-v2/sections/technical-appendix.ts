@@ -1,6 +1,7 @@
 import { ReportViewModel, KeyValueRow } from "../types.js";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
+  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 import {
@@ -15,16 +16,17 @@ import {
   renderPageSection,
 } from "../ui.js";
 import { renderTechnicalSummaryAppendixInner } from "./technical-summary.js";
-import { escapeHtml, safe } from "../formatters.js";
 
 /**
- * 2026-10-29 — how a multipart digest is recomputed, stated exactly as the
- * verification package README states it (verification-package.ts): the
- * separator is named, the algorithm is SHA-256, and the two digests are kept
- * apart. Presentation only; no digest is changed.
+ * 2026-10-29 (F-14) — the shared recomputation note says the digest can be
+ * recomputed from the ordered per-part hashes; this names WHICH digest uses
+ * WHICH separator, exactly as the verification package README states it
+ * (verification-package.ts). Presentation only; no digest is changed.
  */
-export const MULTIPART_DIGEST_RECOMPUTATION_NOTE =
-  "Each part keeps its own SHA-256 (algorithm: SHA-256). Canonical package digest: SHA-256 of the per-part lowercase hex digests in partIndex order joined by '|'. Multipart manifest digest: SHA-256 of the same digests joined by '\\n' (LF).";
+export const MULTIPART_DIGEST_SEPARATORS_NOTE =
+  "Algorithm: SHA-256. Canonical package digest: SHA-256 of the per-part lowercase hex digests in partIndex order joined by '|'. Multipart manifest digest: SHA-256 of the same digests joined by '\\n' (LF).";
+import { escapeHtml, safe } from "../formatters.js";
+
 
 /**
  * Wire contract D — the system-generated capture records (CAPTURE_MANIFEST
@@ -256,7 +258,7 @@ signatureOnPage1
               vm.technicalPartCount > 1
                 ? renderCallout({
                     title: "Multipart integrity explanation",
-                    body: `${PROOVRA_MULTIPART_REVIEWER_EXPLANATION} ${MULTIPART_DIGEST_RECOMPUTATION_NOTE} ${PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}`,
+                    body: `${PROOVRA_MULTIPART_REVIEWER_EXPLANATION} ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE} ${MULTIPART_DIGEST_SEPARATORS_NOTE} ${PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}`,
                     tone: "neutral",
                   })
                 : ""

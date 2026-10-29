@@ -254,32 +254,18 @@ describe("projectPublicVerification — the allowlist", () => {
   });
 
   /*
-   * F-27 (2026-10-29). (a) A withheld identity withholds the matrix's identity
-   * rows on the RICH tier too — measured live: a VERIFICATION_ONLY page said
-   * "Authenticated email account …" beside "Withheld by the record's disclosure
-   * policy". (b) "Browser details" are NEVER public under any policy, including
-   * the capture client's browser/OS/model in the capture manifest.
+   * F-27b (2026-10-29). "Browser details" are NEVER public under any policy,
+   * including the capture client's browser/OS/model in the capture manifest.
    */
-  it("F-27a: identity rows are withheld on the RICH tier while identity is withheld; a category is not personal data", () => {
-    const f = facts();
-    f.verificationMatrix = {
-      rows: [
-        { key: "account_identity", label: "Account identity", status: "VERIFIED", statement: "Authenticated email account: the account's email address was verified when the record was created.", measuredAtUtc: "2026-10-29T02:37:10.326Z" },
-        { key: "file_integrity", label: "File integrity", status: "VERIFIED", statement: "Recorded digests agree.", measuredAtUtc: null },
-      ],
-    };
-    const vo = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE"), { attributionExposed: false });
-    const rows = (vo.verificationMatrix as { rows: Array<Record<string, unknown>> }).rows;
-    expect(rows.find((r) => r.key === "account_identity")).toMatchObject({ status: "NOT_APPLICABLE", statement: "Not disclosed on this verification page." });
-    expect(rows.find((r) => r.key === "file_integrity")).toMatchObject({ status: "VERIFIED" });
-    expect(JSON.stringify(vo)).not.toMatch(/Authenticated email account/);
-    // Disclosed identity: the category stays (it is a category, not an email address).
-    (f.recordFacts as { identity: Record<string, unknown> }).identity = { disclosure: "SHOWN" };
-    const shown = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE"), { attributionExposed: true });
-    expect(JSON.stringify(shown)).toMatch(/Authenticated email account/);
-    expect(JSON.stringify(shown)).not.toMatch(/@example.test/);
-  });
-
+  /*
+   * F-27a was investigated and is NOT a contract violation: the matrix's
+   * account-identity row is part of "the complete verification result" the
+   * published contract always shows (describeVerificationDisclosure), it is a
+   * category ("Authenticated email account"), never personal data, and
+   * intake-verify-attribution ("an ordinary upload keeps its account
+   * attribution") plus the J4 cross-surface journey pin it. Only the categorical
+   * labels beside a WITHHELD identity statement (AUD-45, above) are withheld.
+   */
   it("F-27b: no browser, OS or device-model details leave, even with content preview", () => {
     const f = facts();
     f.captureManifest = {
