@@ -15,9 +15,9 @@ describe("AUD-51 report item labels never come from a storage key", () => {
   it("a part with no original file name is 'Evidence item N', not its key's basename", () => {
     const out = buildReportEvidenceContent({
       accessPolicy: POLICY,
-      evidence: { id: "ev", mimeType: "image/jpeg", sizeBytes: 10, storageBucket: "b", storageKey: "evidence/ev/internal-secret-name.jpg", fileSha256: null },
+      evidence: { id: "ev", mimeType: "image/jpeg", sizeBytes: 10, storageBucket: "b", storageKey: "evidence/ev/internal-secret-name.jpg", fileSha256: null, acquisitionMode: null },
       parts: [
-        { id: "p0", partIndex: 0, originalFileName: null, mimeType: "image/jpeg", sizeBytes: 10, sha256: null, durationMs: null, storageBucket: "b", storageKey: "evidence/ev/parts/internal-secret-name.jpg" },
+        { id: "p0", partIndex: 0, originalFileName: null, mimeType: "image/jpeg", sizeBytes: 10, sha256: null, durationMs: null, storageBucket: "b", storageKey: "evidence/ev/parts/internal-secret-name.jpg", artifactClass: "ORIGINAL" },
       ],
     });
     expect(out.items[0]!.label).not.toContain("internal-secret-name");
@@ -27,8 +27,8 @@ describe("AUD-51 report item labels never come from a storage key", () => {
   it("an original file name is still used", () => {
     const out = buildReportEvidenceContent({
       accessPolicy: POLICY,
-      evidence: { id: "ev", mimeType: "image/jpeg", sizeBytes: 10, storageBucket: "b", storageKey: "k", fileSha256: null },
-      parts: [{ id: "p0", partIndex: 0, originalFileName: "Roof.jpg", mimeType: "image/jpeg", sizeBytes: 10, sha256: null, durationMs: null, storageBucket: "b", storageKey: "k/p0" }],
+      evidence: { id: "ev", mimeType: "image/jpeg", sizeBytes: 10, storageBucket: "b", storageKey: "k", fileSha256: null, acquisitionMode: null },
+      parts: [{ id: "p0", partIndex: 0, originalFileName: "Roof.jpg", mimeType: "image/jpeg", sizeBytes: 10, sha256: null, durationMs: null, storageBucket: "b", storageKey: "k/p0", artifactClass: "ORIGINAL" }],
     });
     expect(out.items[0]!.label).toBe("Roof.jpg");
   });

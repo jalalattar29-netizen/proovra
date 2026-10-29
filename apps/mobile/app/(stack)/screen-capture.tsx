@@ -14,8 +14,8 @@
  * flow reducer, listeners, reconnect and sealing pipeline are UNCHANGED.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { Platform, View, StyleSheet } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Platform, Switch, View, StyleSheet } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
@@ -33,8 +33,16 @@ import {
   ensureCaptureNotificationPermission,
   NOTIFICATION_DENIED_COPY,
 } from "../../src/capture/notification-permission";
-import { saveCaptureSession } from "../../src/capture/capture-session-store";
+import { captureRecordKey, saveCaptureSession } from "../../src/capture/capture-session-store";
 import { toScreenDraftItem } from "../../src/capture/screen-acquisition";
+import {
+  acquireLocationWithChoice,
+  locationOutcomeMessage,
+  locationParam,
+  reservationLocationFields,
+  type CarriedLocation,
+} from "../../src/capture/device-location";
+import { registerLinkedRecord } from "../../src/capture/capture-links";
 import { openCaptureDraft } from "../../src/capture/capture-draft";
 import { setCaptureActive } from "../../src/capture/active-capture";
 import { INITIAL_SCREEN_FLOW, screenFlowReducer } from "../../src/screen-capture-flow";
@@ -81,8 +89,38 @@ export default function ScreenCaptureScreen() {
   const pendingRef = useRef<PendingScreenStaging | null>(null);
   const supported = Platform.OS === "android" && isScreenCaptureSupported();
 
+  // Decision 2 — the Location choice from Capture, shown here and read BEFORE
+  // Android's screen-capture consent; carried into the reservation at staging.
+  const params = useLocalSearchParams<{ useLocation?: string; locationRequired?: string; linkGroup?: string }>();
+  const [useLocation, setUseLocation] = useState(() => locationParam(params.useLocation));
+  const locationRequired = locationParam(params.locationRequired);
+  const linkGroup = typeof params.linkGroup === "string" && params.linkGroup ? params.linkGroup : null;
+  const [locationNote, setLocationNote] = useState<string | null>(null);
+  const locationRef = useRef<ReturnType<typeof reservationLocationFields> | null>(null);
+  const carriedLocationRef = useRef<CarriedLocation | null>(null);
+
+  /**
+   * frameIndex -1 = no frame was added; the native `status` says why. An
+   * unchanged screen or a failed read is SAID — it used to change nothing on
+   * screen, so a tap looked ignored.
+   */
+  const noteFrame = useCallback(
+    (frameIndex: number, status: unknown) => {
+      if (frameIndex !== -1) return;
+      if (status === "FAILED") {
+        toast.addToast("That frame could not be captured. Try Capture Frame again.", "warning");
+      } else if (status !== "STOPPED") {
+        toast.addToast("The screen has not changed since the last frame, so no new frame was added.", "info");
+      }
+    },
+    [toast],
+  );
+
   useEffect(() => {
-    const frameSub = addScreenFrameListener((e) => dispatch({ type: "FRAME", frameCount: e.frameCount }));
+    const frameSub = addScreenFrameListener((e) => {
+      noteFrame(e.frameIndex, (e as { status?: unknown }).status);
+      dispatch({ type: "FRAME", frameCount: e.frameCount });
+    });
     const stopSub = addScreenStoppedListener((e: ScreenCaptureResult) => {
       lastResultRef.current = e;
       dispatch({ type: "STOPPED", frameCount: e.frames.length, stopReason: e.stopReason });
@@ -91,7 +129,7 @@ export default function ScreenCaptureScreen() {
       frameSub.remove();
       stopSub.remove();
     };
-  }, []);
+  }, [noteFrame]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,6 +173,28 @@ export default function ScreenCaptureScreen() {
   const start = useCallback(async (opts: { notificationAcknowledged?: boolean } = {}) => {
     setBusy(true);
     try {
+      // Decision 2 — LOCATION FIRST, before Android's consent: the location
+      // recorded is where the device was when the capture started.
+      if (!locationRef.current) {
+        if (!useLocation) {
+          locationRef.current = reservationLocationFields({ useLocation: false, result: null });
+          carriedLocationRef.current = { useLocation: false, outcome: null, recordedAtStart: true };
+        } else {
+          setLocationNote("Checking location…");
+          const decision = await acquireLocationWithChoice({ required: locationRequired, proceedLabel: "Capture without location" });
+          if (decision.kind === "cancel") {
+            setLocationNote(decision.result ? locationOutcomeMessage(decision.result.outcome) : null);
+            return;
+          }
+          setLocationNote(
+            decision.kind === "acquired"
+              ? "Location recorded for the start of this capture."
+              : `${locationOutcomeMessage(decision.result.outcome)} Capturing without location.`,
+          );
+          locationRef.current = reservationLocationFields({ useLocation: true, result: decision.result });
+          carriedLocationRef.current = { useLocation: true, outcome: decision.result.outcome, recordedAtStart: true };
+        }
+      }
       // UC-AND-003 — Android 13+: the notification is the ONLY cross-app control
       // (Capture Frame, Stop); ask for it before the service starts.
       if (!opts.notificationAcknowledged) {
@@ -151,11 +211,13 @@ export default function ScreenCaptureScreen() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [useLocation, locationRequired]);
 
   const captureFrame = useCallback(async () => {
     setBusy(true);
     try {
+      // The result is also emitted as onScreenFrame, which states an
+      // unchanged screen (-1) for the button and the notification alike.
       await captureScreenFrame();
     } catch (err) {
       toast.addToast(toSafeUserError(err, { message: "Could not capture a frame." }).message, "error");
@@ -196,8 +258,17 @@ export default function ScreenCaptureScreen() {
       lastResultRef.current = result;
       // AUD-005 — durable and retryable: progress is persisted as it happens,
       // a resumed staging reuses its session, and no frame is deleted here.
+      // The location fixed BEFORE the capture started (or, for a kept staging,
+      // the one it persisted). A capture recovered after a process death whose
+      // start read was lost is stated UNAVAILABLE when location was chosen —
+      // never acquired now and presented as the start location.
+      const location =
+        resume?.location ??
+        locationRef.current ??
+        reservationLocationFields({ useLocation, result: null });
       const staged = await stageScreenCapture(result, {
         teamId: resume ? resume.teamId : teamId,
+        location,
         pending: resume,
         persist: savePendingScreenStaging,
       });
@@ -211,7 +282,12 @@ export default function ScreenCaptureScreen() {
       });
       // Its id travels with the durable record, so Capture closes THIS draft at
       // finalize instead of leaving it listed as unfinished.
-      const draft = await openCaptureDraft({ items: [item] }).catch(() => null);
+      const carried: CarriedLocation = carriedLocationRef.current ?? {
+        useLocation: !!location.gps || (!!location.locationRequestOutcome && location.locationRequestOutcome !== "NOT_REQUESTED"),
+        outcome: location.gps ? "GRANTED" : location.locationRequestOutcome && location.locationRequestOutcome !== "NOT_REQUESTED" ? location.locationRequestOutcome : null,
+        recordedAtStart: true,
+      };
+      const draft = await openCaptureDraft({ items: [item], teamId, useLocation: carried.useLocation }).catch(() => null);
 
       // The durable record the canonical surface resumes. Its parts are
       // already uploaded, so finalize seals without re-uploading them.
@@ -231,13 +307,23 @@ export default function ScreenCaptureScreen() {
             source: "SCREEN_FRAME",
             sizeBytes: staged.sizeBytes,
             uploaded: true,
+            // The ORIGIN the mixed-origin guard reads in Capture.
+            itemSourceLabel: "DIRECT_SCREEN_CAPTURE_ANDROID",
           },
         ],
         acquisition: {
           mode: "DIRECT_SCREEN_CAPTURE_ANDROID",
           manifestJson: staged.manifestJson,
         },
+        location: carried,
+        linkGroupId: linkGroup,
       });
+      if (linkGroup) {
+        await registerLinkedRecord(
+          linkGroup,
+          captureRecordKey({ captureSessionId: staged.session.captureSessionId, draftId: draft?.id ?? null }),
+        ).catch(() => undefined);
+      }
 
       // Committed to the canonical record: only NOW may the on-device
       // screenshots go (UC-AND-010), and the staging record with them.
@@ -248,8 +334,9 @@ export default function ScreenCaptureScreen() {
       lastResultRef.current = null;
 
       dispatch({ type: "FINALIZED", evidenceId: staged.evidenceId });
-      toast.addToast("Screen capture staged — review and finish in Capture", "success");
-      router.replace("/capture");
+      // Decision 3 — the success state stays, with "Capture another" and
+      // "Review in Capture"; this record waits, pending, in Capture.
+      toast.addToast("Screen capture staged — review and finish it in Capture", "success");
     } catch (err) {
       const terminal = err instanceof ScreenStagingError && !err.retryable;
       const pending = err instanceof ScreenStagingError ? err.pending : await loadPendingScreenStaging();
@@ -270,7 +357,7 @@ export default function ScreenCaptureScreen() {
       await clearScreenCaptureLedger().catch(() => undefined);
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
-  }, [toast, teamId, router]);
+  }, [toast, teamId, useLocation, linkGroup]);
 
   /** Discard / Try Again / Capture Another: the local screenshots go too (UC-AND-010). */
   const reset = useCallback(() => {
@@ -287,9 +374,19 @@ export default function ScreenCaptureScreen() {
     }
     void clearPendingScreenStaging();
     void clearScreenCaptureLedger().catch(() => undefined);
+    // Each capture reads its own start location.
+    locationRef.current = null;
+    carriedLocationRef.current = null;
+    setLocationNote(null);
     setNotificationDenied(false);
     dispatch({ type: "RESET" });
   }, []);
+
+  /** Back to Capture, where the staged record is listed as pending. */
+  const reviewInCapture = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/capture");
+  }, [router]);
 
   if (personalSpace.loading) return <ProovraScreen scroll={false}><ProovraLoadingState /></ProovraScreen>;
   if (!personalSpace.allowed) {
@@ -328,6 +425,31 @@ export default function ScreenCaptureScreen() {
             <Bullet text="Anything visible on screen can become evidence — including sensitive information." />
             <Bullet text="Protected content may be unavailable because of Android restrictions." />
             <Bullet text="You control it: capture each frame and stop from the capture notification." />
+            {/* Decision 2 — the Location choice, read BEFORE Android's consent. */}
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleText}>
+                <ProovraText variant="bodySm" weight="semibold">Location</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {useLocation
+                    ? "Included — read once, before the capture starts."
+                    : locationRequired
+                      ? "Required by the selected plan."
+                      : "Not included."}
+                </ProovraText>
+              </View>
+              <Switch
+                value={useLocation}
+                onValueChange={(v) => {
+                  setUseLocation(v);
+                  setLocationNote(null);
+                  locationRef.current = null;
+                }}
+                accessibilityLabel="Include location metadata"
+              />
+            </View>
+            {locationNote ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary} testID="screen-location-status">{locationNote}</ProovraText>
+            ) : null}
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
               A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.
             </ProovraText>
@@ -335,7 +457,12 @@ export default function ScreenCaptureScreen() {
             <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="How screen capture works" onPress={() => router.push("/legal/screen-capture")}>
               How screen capture works
             </ProovraText>
-            <ProovraButton label="Start Screen Capture" loading={busy} onPress={() => void start()} />
+            <ProovraButton
+              label="Start Screen Capture"
+              loading={busy}
+              disabled={locationRequired && !useLocation}
+              onPress={() => void start()}
+            />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
         )}
@@ -379,13 +506,13 @@ export default function ScreenCaptureScreen() {
         )}
 
         {state.phase === "success" && (
-          <ProovraCard style={styles.card}>
+          <ProovraCard style={styles.card} testID="screen-staged">
             <ProovraBadge tone="pending" label={`Staged (${state.frameCount} frame(s))`} />
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
-              Review and finish this session in Capture. It is not evidence until you do.
+              This capture is its own evidence record, pending in Capture. It is not evidence until you finish it there. Capturing another starts a new, separate record — this one stays pending.
             </ProovraText>
-            <ProovraButton label="Go to Capture" onPress={() => router.replace("/capture")} />
-            <ProovraButton label="Capture Another" variant="secondary" onPress={reset} />
+            <ProovraButton label="Review in Capture" onPress={reviewInCapture} />
+            <ProovraButton label="Capture another" variant="secondary" onPress={reset} />
           </ProovraCard>
         )}
 
@@ -423,4 +550,6 @@ const styles = StyleSheet.create({
   caveat: { marginTop: theme.space.s1 },
   bulletRow: { flexDirection: "row", gap: theme.space.s2 },
   bulletText: { flex: 1 },
+  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.space.s2 },
+  toggleText: { flex: 1, gap: 2 },
 });

@@ -82,6 +82,7 @@ import {
   completeGenericDirectCapture,
   declareDirectCapturePart,
   declareDirectCapturePartLost,
+  listDirectCaptureParts,
   loadOwnedDirectCaptureSession,
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
@@ -203,7 +204,7 @@ const ReserveDirectEvidenceBody = z
       .optional(),
     // The outcome of a location request that produced no coordinates; recorded
     // in the creation custody event (canonical location state). Optional.
-    locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE"]).optional(),
+    locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE", "TIMEOUT", "NOT_REQUESTED"]).optional(),
   })
   .strict();
 
@@ -513,6 +514,30 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       try {
         const out = await declareDirectCapturePartLost({ sessionId: id, ownerUserId: userId, partIndex });
         return reply.code(out.created ? 201 : 200).send({ loss: out });
+      } catch (err) {
+        return sendDirectCaptureError(reply, err);
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // GET /v1/capture/direct-sessions/:id/parts  (wire contract C)
+  //
+  // The server-authoritative list of the session's declared parts (DECLARED /
+  // UPLOADED / LOST), for its owner only — the same authorization as a
+  // declaration. A client allocates its next part index as max(partIndex) + 1
+  // and answers PART_ALREADY_DECLARED by refetching this list.
+  // ---------------------------------------------------------------------------
+  app.get(
+    "/v1/capture/direct-sessions/:id/parts",
+    { preHandler: requireAuthAndLegal },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const userId = getAuthUserId(req);
+      const { id } = SessionParams.parse(req.params);
+      if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
+      try {
+        const out = await listDirectCaptureParts({ sessionId: id, ownerUserId: userId });
+        return reply.code(200).send(out);
       } catch (err) {
         return sendDirectCaptureError(reply, err);
       }
@@ -874,7 +899,14 @@ async function recordCaptureSealFailure(sessionId: string, err: unknown): Promis
 
 function sendDirectCaptureError(reply: FastifyReply, err: unknown): FastifyReply {
   if (err instanceof DirectCaptureError) {
-    return reply.code(err.statusCode).send({ denial: err.code });
+    // The denial code is the stable contract; a refusal a client must act on
+    // also carries an actionable message, and a check-specific detail.
+    const message = err.actionableMessage;
+    return reply.code(err.statusCode).send({
+      denial: err.code,
+      ...(message ? { message } : {}),
+      ...(err.detail ? { detail: err.detail } : {}),
+    });
   }
   const e = err as { statusCode?: unknown; code?: unknown };
   const status = typeof e.statusCode === "number" ? e.statusCode : 500;

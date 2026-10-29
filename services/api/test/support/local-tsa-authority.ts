@@ -17,6 +17,8 @@
  *   rejected         a well-formed rejection (no token)
  *   granted_no_token status granted, no timeStampToken (hand-built DER)
  *   corrupted        a trusted reply with one signature byte flipped
+ *   http_503         the provider answers HTTP 503 (an outage), no reply body
+ *   empty_body       the provider answers HTTP 200 with an EMPTY body
  */
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -38,7 +40,9 @@ export type LocalTsaMode =
   | "wrong_nonce"
   | "rejected"
   | "granted_no_token"
-  | "corrupted";
+  | "corrupted"
+  | "http_503"
+  | "empty_body";
 
 export const LOCAL_TSA_DEFAULT_POLICY = "1.3.6.1.4.1.55555.1.1";
 export const LOCAL_TSA_OTHER_POLICY = "1.3.6.1.4.1.55555.1.2";
@@ -203,6 +207,11 @@ export async function startLocalTsa(): Promise<LocalTsa> {
       case "granted_no_token":
         // PKIStatusInfo { status granted(0) }, no token.
         return Buffer.from([0x30, 0x05, 0x30, 0x03, 0x02, 0x01, 0x00]);
+      case "empty_body":
+        return Buffer.alloc(0);
+      case "http_503":
+        // Answered below, before a reply is built.
+        return Buffer.alloc(0);
     }
   };
 
@@ -211,6 +220,11 @@ export async function startLocalTsa(): Promise<LocalTsa> {
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       state.requests += 1;
+      if (state.mode === "http_503") {
+        res.writeHead(503, { "content-type": "text/plain" });
+        res.end("local test TSA: service unavailable");
+        return;
+      }
       answer(Buffer.concat(chunks)).then(
         (body) => {
           res.writeHead(200, { "content-type": "application/timestamp-reply" });

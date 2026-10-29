@@ -2400,9 +2400,10 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     }
   });
 
-  // F-14 closure — ONE decision, read by every surface for the same version,
-  // and re-read for every new version (never a stale package payload).
-  it("F-14 closure: report, package and Public Verify carry the same disclosure decision per version, across policy transitions", async () => {
+  // F-14 closure — ONE public decision, read by every PUBLIC surface for the same
+  // version, re-read for every new version (never a stale package payload). The
+  // authorized report is not a public surface: it always carries the location.
+  it("F-14 closure: external package and Public Verify carry the same disclosure decision per version, across policy transitions; the authorized report always carries the location", async () => {
     const { buildReportViewModel } = await import("../../../worker/src/report-v2/build-view-model.js");
     const { shareLinkFor } = await import("../helpers/verify-share.js");
     const ev = await signedEvidence();
@@ -2426,8 +2427,10 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     };
     const leaks = (m: Map<string, Buffer>) => scanPackageForLocationLeaks(m, { coordinates: [FIX.lat, FIX.lng] });
     const expectSurfaces = (v: Awaited<ReturnType<typeof issue>>, disclosed: boolean) => {
-      expect(v.reportDisclosed, `v${v.version} report decision`).toBe(disclosed);
-      expect(leaks(asEntries("report-view-model", v.vm)).length > 0, `v${v.version} report shows the location`).toBe(disclosed);
+      // The AUTHORIZED report always carries the opted-in location; the public
+      // policy governs only the public audience (Public Verify, external package).
+      expect(v.reportDisclosed, `v${v.version} authorized report decision`).toBe(true);
+      expect(leaks(asEntries("report-view-model", v.vm)).length > 0, `v${v.version} authorized report shows the location`).toBe(true);
       expect(leaks(asEntries("public-verify", v.verify)).length > 0, `v${v.version} Public Verify shows the location`).toBe(disclosed);
       expect(leaks(v.entries).length > 0, `v${v.version} external package carries the location`).toBe(disclosed);
       expect([...v.entries.keys()].some((k) => k.endsWith("capture-context.json")), `v${v.version} capture-context.json`).toBe(disclosed);

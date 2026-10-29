@@ -210,13 +210,16 @@ test("only the canonical surface finalizes — the screens stage", () => {
   // The canonical surface is the only one that completes, and it does so
   // through the one function that picks the route by acquisition.
   const capture = read("../app/(stack)/capture.tsx");
-  assert.match(capture, /completeAcquisition\(captureSession, acquisitionRef\.current\)/);
+  assert.match(capture, /completeAcquisition\(activeSession, acquisitionRef\.current\)/);
 
-  // And the screens say what they actually did.
+  // And the screens say what they actually did — and stay on a review state
+  // (decision 3) instead of redirecting at once.
   for (const file of [
     "../app/(stack)/screen-capture.tsx",
     "../app/(stack)/continuous-capture.tsx",
   ]) {
-    assert.match(read(file), /review and finish in Capture|Go to Capture/);
+    assert.match(read(file), /review and finish it in Capture/);
+    assert.match(read(file), /label="Review in Capture"/);
+    assert.match(read(file), /label="Capture another"/);
   }
 });

@@ -1364,6 +1364,41 @@ export function parseOriginalLink(payload: unknown): string | null {
 }
 
 /**
+ * Wire contract D (2026-10-29) — a record stored as several ORIGINAL files (a
+ * segmented screen recording, a multi-file upload) has no single original:
+ * GET /original answers 409 ORIGINAL_IS_MULTIPART instead of handing out part
+ * 0 as if it were complete. Its originals are the parts listing, one file each.
+ */
+export function isMultipartOriginalError(err: unknown): boolean {
+  return Boolean(err && typeof err === "object" && (err as { code?: unknown }).code === "ORIGINAL_IS_MULTIPART");
+}
+
+export function buildEvidencePartsPath(evidenceId: string): string {
+  return `${buildEvidencePath(evidenceId)}/parts`;
+}
+
+export type OriginalPartLink = { partIndex: number; label: string; url: string };
+
+/** The presigned original files of a parts listing (none when the policy withholds them). */
+export function parseOriginalPartLinks(payload: unknown): OriginalPartLink[] {
+  const d = obj(payload);
+  const parts = Array.isArray(d.parts) ? (d.parts as unknown[]) : [];
+  return parts
+    .map((raw) => {
+      const p = obj(raw);
+      const url = str(p.url);
+      const partIndex = typeof p.partIndex === "number" ? p.partIndex : 0;
+      if (!url) return null;
+      return {
+        partIndex,
+        label: str(p.originalFileName) ?? str(p.displayName) ?? `Part ${partIndex + 1}`,
+        url,
+      };
+    })
+    .filter((x): x is OriginalPartLink => x !== null);
+}
+
+/**
  * Whether the original can be fetched at all, in the record's current state.
  *
  * A DESTROYED record has no bytes left to presign, and the route answers 404

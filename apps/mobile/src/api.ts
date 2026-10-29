@@ -102,10 +102,15 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
     const code =
       (errObj && typeof errObj["code"] === "string" ? (errObj["code"] as string) : undefined) ||
       (obj && typeof obj["code"] === "string" ? (obj["code"] as string) : undefined) ||
+      // The direct-capture routes refuse as { denial, message?, detail? }
+      // (capture-trust.routes.ts sendDirectCaptureError). Without this every
+      // such refusal — PART_ALREADY_DECLARED, SESSION_ALREADY_RESERVED — was
+      // "API_ERROR" and no caller could act on it.
+      (obj && typeof obj["denial"] === "string" ? (obj["denial"] as string) : undefined) ||
       "API_ERROR";
 
     const err: MobileApiError = new Error(
-      requestId ? `${message} (requestId: ${requestId})` : message
+      requestId ?`${message} (requestId: ${requestId})` : message
     );
     err.requestId = requestId;
     err.statusCode = res.status;

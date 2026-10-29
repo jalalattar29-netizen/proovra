@@ -110,8 +110,10 @@ const SubmitterIdentityBody = z.object({
 // orchestration layer.
 const SubmitLocationBody = z
   .object({
+    // F-36 — TIMEOUT is its own outcome (no fix in time), not "unavailable";
+    // a strict enum without it refused the whole submit as malformed.
     consentState: z
-      .enum(["GRANTED", "DENIED", "UNAVAILABLE", "NOT_REQUESTED"])
+      .enum(["GRANTED", "DENIED", "UNAVAILABLE", "TIMEOUT", "NOT_REQUESTED"])
       .optional(),
     latitude: z.number().gte(-90).lte(90).optional(),
     longitude: z.number().gte(-180).lte(180).optional(),

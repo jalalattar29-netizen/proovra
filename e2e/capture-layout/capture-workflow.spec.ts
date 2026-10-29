@@ -319,3 +319,73 @@ test.describe("capture — the rail's dense surfaces", () => {
     );
   });
 });
+
+/*
+ * F-29 (2026-10-29) — the desktop layout at 1181-1280px. A legacy
+ * `@media (max-width: 1280px)` rule spanned the rail across `1 / -1` under the
+ * two-column template, so on a 1280px laptop the rail fell BELOW the working
+ * column and an empty 352px track sat beside it ("looks like a tablet"). The
+ * 1024 test above and the overflow sweep could not see it: nothing overflowed.
+ */
+test.describe("capture — desktop keeps the rail beside the working column", () => {
+  for (const width of [1440, 1280, 1200]) {
+    test(`${width}: the rail is a side column, level with the working column`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openCapture(page);
+      const main = await page.locator(".capture-main-panel").first().boundingBox();
+      const rail = await page.locator(".capture-session-column").first().boundingBox();
+      expect(main).not.toBeNull();
+      expect(rail).not.toBeNull();
+      expect(rail!.x, "the rail starts to the right of the working column").toBeGreaterThanOrEqual(main!.x + main!.width - 1);
+      expect(Math.abs(rail!.y - main!.y), "the rail starts level with the working column").toBeLessThan(80);
+    });
+  }
+});
+
+/** The relative luminance contrast of two `rgb()` colours (WCAG 2.x). */
+function contrastRatio(a: string, b: string): number {
+  const lum = (c: string) => {
+    const [r, g, bl] = (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number).map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/*
+ * F-25 (2026-10-29) — the browser screen-recording card reused the dropzone's
+ * tile grid and the legacy audio-card class; their !important hover rules made
+ * the primary "Choose what to record" button white-on-white on hover and
+ * removed its focus ring. Measured from the real cascade, at rest and hovered.
+ */
+test.describe("capture — the screen recording card's actions", () => {
+  test("Choose what to record keeps a legible primary fill at rest, on hover, and shows a focus ring", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openCapture(page);
+    await page.getByRole("button", { name: /^Screen/ }).first().click();
+    const button = page.locator("[data-capture-screen-recorder] button.app-primary-action").first();
+    await expect(button).toHaveText(/Choose what to record/);
+    const read = () =>
+      button.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return { image: s.backgroundImage, bg: s.backgroundColor, color: s.color, outline: s.outlineStyle, outlineWidth: s.outlineWidth };
+      });
+    const rest = await read();
+    expect(rest.image, "the primary fill is the canonical gradient").toMatch(/gradient/);
+    await button.hover();
+    const hovered = await read();
+    expect(hovered.image, "hover keeps the primary fill (no white tile background)").toMatch(/gradient/);
+    // White text must sit on the purple fill: compare against the gradient's first stop.
+    const stop = (hovered.image.match(/rgba?\([^)]+\)/) ?? ["rgb(124, 58, 237)"])[0];
+    expect(contrastRatio(hovered.color, stop), "label contrast on hover").toBeGreaterThanOrEqual(4.5);
+    await page.mouse.move(0, 0);
+    await button.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    const focused = await read();
+    expect(focused.outline, "keyboard focus shows a ring").not.toBe("none");
+  });
+});

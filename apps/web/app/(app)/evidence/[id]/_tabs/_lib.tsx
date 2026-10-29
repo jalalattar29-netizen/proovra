@@ -43,8 +43,12 @@ import {
   type OtsVerificationKey,
   custodyEventLabel,
   pdfSignatureStatusLabel,
+  downloadOriginalFilesLabel,
+  technicalPartCountLabel,
 } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
+import { groupEvidencePreviewItems } from "./recording-items";
+import { EvidenceRecordingMount } from "./EvidenceRecordingMount";
 import { useOptionalLocale } from "../../../../providers";
 import type { AppTone } from "../../../../../components/app-primitives/AppStatusBadge";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -690,10 +694,13 @@ export function PreviewWorkspace({
   workspace,
   onOpenOriginal,
   onDownloadOriginal,
+  canPrepareRecording,
 }: {
   workspace: ReviewWorkspaceResponse;
   onOpenOriginal: () => void;
   onDownloadOriginal: () => void;
+  /** May this viewer start preparing a historical recording's combined video? */
+  canPrepareRecording?: boolean;
 }) {
   const privateItemNotesById = useMemo(
     () =>
@@ -742,7 +749,36 @@ export function PreviewWorkspace({
     contentItems.find((it) => it.id === selectedPreviewItemId) ??
     defaultItem;
 
+  // Wire contract D — ONE card per user item (a screen recording is one card);
+  // its stored parts and any capture record are technical, listed below.
+  const contentArtifacts = workspace.evidence.contentArtifacts ?? null;
+  const grouped = groupEvidencePreviewItems(contentItems, contentArtifacts);
+  const selectedRecording =
+    grouped.cards.find((card) => card.item.id === selectedItem?.id)?.recording ?? null;
+  const storedPartCount = contentArtifacts?.technical.storedPartCount ?? contentItems.length;
+  const originalIsMultipart = (contentArtifacts?.technical.originalPartCount ?? contentItems.length) > 1;
+  const showTechnicalParts = () => {
+    const el = document.getElementById("evidence-technical-parts");
+    if (el instanceof HTMLDetailsElement) el.open = true;
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const renderPreview = () => {
+    if (selectedRecording) {
+      return (
+        <EvidenceRecordingMount
+          evidenceId={workspace.evidence.id}
+          teamId={workspace.evidence.teamId ?? null}
+          layout={selectedRecording.layout}
+          singleFileUrl={selectedRecording.layout === "SINGLE_FILE" ? selectedItem?.viewUrl ?? null : null}
+          label={selectedRecording.label}
+          onShowOriginalFiles={showTechnicalParts}
+          onDownloadRecording={onDownloadOriginal}
+          canPrepare={canPrepareRecording}
+        />
+      );
+    }
+
     if (!selectedItem || !selectedItem.viewUrl) {
       return (
         <div className="evidence-detail-preview-placeholder">
@@ -843,8 +879,11 @@ export function PreviewWorkspace({
             type="button"
             className="app-secondary-action"
             onClick={onDownloadOriginal}
+            data-evidence-download-original={originalIsMultipart ? "parts" : "single"}
           >
-            Download
+            {/* Wire contract D — a record stored as several files has no
+                single original; the action downloads every original file. */}
+            {originalIsMultipart ? downloadOriginalFilesLabel(storedPartCount) : "Download"}
           </button>
         </div>
       </div>
@@ -856,7 +895,7 @@ export function PreviewWorkspace({
         role="listbox"
         aria-label="Evidence files"
       >
-        {contentItems.map((item) => {
+        {grouped.cards.map(({ item, recording }) => {
           const privateItemNote = privateItemNotesById.get(item.id);
           const itemWithMeta = item as typeof item & {
             privateRole?: string | null;
@@ -888,23 +927,31 @@ export function PreviewWorkspace({
               data-content-item-selected={isSelected ? "true" : "false"}
             >
               <div className="evidence-detail-item-row">
-                <strong>{item.label}</strong>
+                <strong>{recording ? recording.label : item.label}</strong>
                 <span
                   className="app-status-text"
                   data-size="sm"
                   data-tone={mediaKindTone(item.kind)}
                 >
-                  {item.kind}
+                  {recording ? "recording" : item.kind}
                 </span>
               </div>
-              <p>{item.originalFileName || "Original filename not recorded"}</p>
-              <div className="evidence-detail-definition-inline">
-                <span>Size</span>
-                <strong>{item.displaySizeLabel || formatBytes(item.sizeBytes)}</strong>
-              </div>
+              <p data-content-item-recording={recording ? recording.layout : undefined}>
+                {recording
+                  ? recording.layout === "SINGLE_FILE"
+                    ? item.originalFileName || "One video file"
+                    : `Stored as ${technicalPartCountLabel(recording.partCount)}`
+                  : item.originalFileName || "Original filename not recorded"}
+              </p>
+              {recording?.layout === "SEGMENTED" ? null : (
+                <div className="evidence-detail-definition-inline">
+                  <span>Size</span>
+                  <strong>{item.displaySizeLabel || formatBytes(item.sizeBytes)}</strong>
+                </div>
+              )}
               <div className="evidence-detail-definition-inline">
                 <span>Role</span>
-                <strong>{describeContentItemRole(item)}</strong>
+                <strong>{recording ? "Primary evidence" : describeContentItemRole(item)}</strong>
               </div>
               {itemWithMeta.privateRole ? (
                 <div
@@ -937,6 +984,36 @@ export function PreviewWorkspace({
           );
         })}
       </div>
+
+      {/* Wire contract D — technical parts: a recording's stored parts and any
+          system-generated capture record, with their own SHA-256. Never
+          counted as evidence items. */}
+      {grouped.technical.length > 0 ? (
+        <details
+          id="evidence-technical-parts"
+          className="evidence-detail-technical-parts"
+          data-evidence-technical-parts={grouped.technical.length}
+        >
+          <summary>Technical parts ({grouped.technical.length})</summary>
+          <ul className="evidence-detail-technical-parts__list">
+            {grouped.technical.map(({ item, label }) => (
+              <li key={item.id} data-technical-part={item.index}>
+                <strong>
+                  {label} — stored part {item.index + 1}
+                </strong>
+                <span>
+                  {" "}
+                  {item.mimeType ?? "format not recorded"}
+                  {item.sizeBytes ? ` · ${item.displaySizeLabel || formatBytes(item.sizeBytes)}` : ""}
+                </span>
+                <code className="evidence-detail-technical-parts__sha">
+                  SHA-256 {item.sha256 ?? "not recorded"}
+                </code>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </section>
   );
 }

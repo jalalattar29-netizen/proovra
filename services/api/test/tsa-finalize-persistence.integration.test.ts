@@ -151,7 +151,7 @@ describe("TSA validation facts persisted at finalize (live PostgreSQL 16)", () =
     objects.set(`${u.bucket}/${u.key}`, Buffer.from(`tsa-part-${randomBytes(6).toString("hex")}`));
     const done = await call("POST", `/v1/evidence/${id}/complete`, token, {});
     expect(done.statusCode, done.body).toBe(200);
-    return prisma.evidence.findUniqueOrThrow({
+    const row = await prisma.evidence.findUniqueOrThrow({
       where: { id },
       select: {
         fileSha256: true,
@@ -165,6 +165,21 @@ describe("TSA validation facts persisted at finalize (live PostgreSQL 16)", () =
         tsaTokenBase64: true,
       },
     });
+    // 2026-10-29: the custody event records the round-trip duration, and the
+    // completion response carries the bounded outcome for the notice.
+    const event = await prisma.custodyEvent.findFirstOrThrow({
+      where: { evidenceId: id, eventType: { in: ["TIMESTAMP_APPLIED", "TIMESTAMP_FAILED"] } },
+      select: { eventType: true, payload: true },
+    });
+    const payload = event.payload as Record<string, unknown>;
+    expect(Number.isInteger(payload.tsaDurationMs)).toBe(true);
+    expect(payload.tsaDurationMs as number).toBeGreaterThanOrEqual(0);
+    expect(payload.tsaInputDigestHex).toBe(row.fileSha256);
+    expect(payload.tsaInputKind).toBe("FILE_SHA256");
+    const outcome = done.json().tsaOutcome as Record<string, unknown>;
+    expect(outcome).toMatchObject({ tsaStatus: row.tsaStatus, tsaFailureCode: row.tsaFailureCode, tsaTokenPresent: Boolean(row.tsaTokenBase64) });
+    expect(JSON.stringify(outcome)).not.toContain(row.fileSha256 ?? "never");
+    return { ...row, custodyEventType: event.eventType };
   }
 
   it("a trusted token finalizes STAMPED with its validation facts and the token's own imprint", async () => {
@@ -177,6 +192,17 @@ describe("TSA validation facts persisted at finalize (live PostgreSQL 16)", () =
     expect(ev.tsaFailureCode).toBeNull();
     expect(ev.tsaInputDigestHex).toBe(ev.fileSha256);
     expect(ev.tsaMessageImprint).toBe(ev.fileSha256);
+    expect(ev.custodyEventType).toBe("TIMESTAMP_APPLIED");
+  }, 120_000);
+
+  it("2026-10-29: a provider outage (HTTP 503) finalizes the record FAILED with no token — sealed, never blocked", async () => {
+    tsa.mode = "http_503";
+    const ev = await finalize();
+    expect(ev.tsaStatus).toBe("FAILED");
+    expect(ev.tsaFailureCode).toBe("tsa_provider_http_error");
+    expect(ev.tsaTokenBase64 ?? "").toBe("");
+    expect(ev.tsaInputDigestHex).toBe(ev.fileSha256);
+    expect(ev.custodyEventType).toBe("TIMESTAMP_FAILED");
   }, 120_000);
 
   it("a FORGED token finalizes FAILED with its code, never STAMPED; the reply is kept", async () => {

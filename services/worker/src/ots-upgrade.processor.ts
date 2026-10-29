@@ -112,6 +112,8 @@ import {
   isOtsGlobalBudgetExhausted,
   OTS_GLOBAL_BUDGET_DAYS_DEFAULT,
   readOtsGlobalBudgetDays,
+  resolveOtsAnchoringStart,
+  resolveOtsBudgetStart,
 } from "@proovra/shared-runtime";
 
 export {
@@ -125,17 +127,6 @@ export {
  * Returns the upper bound for re-enqueue attempts before the global
  * budget gives up. Exported so callers (operations queue UI) can
  * surface the same number in the "stuck OTS" label.
- */
-
-/**
- * Decide whether a piece of evidence has exceeded the global budget.
- * The budget is computed from the FIRST observed upgrade attempt for
- * this evidence. We track that by comparing the current job's
- * `upgradedAt` to `evidence.otsAnchoredAtUtc` (the earliest known
- * pinned-upgrade timestamp) or the evidence's `createdAt` as a
- * fallback when no upgrade has ever produced an anchor row.
- *
- * Exported for the contract test.
  */
 
 /**
@@ -153,50 +144,20 @@ export {
  * database read.
  */
 /**
- * WHEN THE GLOBAL BUDGET STARTS FOR THIS PROOF (2026-09-29).
+ * WHEN THE GLOBAL BUDGET STARTS FOR THIS PROOF — THE shared start
+ * (`resolveOtsBudgetStart` / `resolveOtsAnchoringStart` in
+ * @proovra/shared-runtime ops/ots-aging.ts), the same instant the operations
+ * aging condition measures from.
  *
- * It used to start at `evidence.createdAt`. A record finalized long before its
- * proof existed — every Free record captured before initialization moved out
- * of the report job, stamped later by the reconciler — was therefore
- * "exhausted" on its FIRST genuinely pending observation and marked FAILED
- * with a CRITICAL incident, although its proof was hours old.
+ * The earliest OTS custody event (moved forward only by a demotion); with NO
+ * recorded OTS event at all (rows older than any OTS custody writing), the
+ * record's creation (2026-10-29). Such a row used to get a null start, which
+ * the budget never failed: it stayed PENDING forever. It now fails at budget
+ * like every other proof.
  *
- * The start is now a DURABLE, RECORDED fact about the proof: the earliest OTS
- * custody event for the record (the initializer's `ots_initialized` /
- * `proof_created` event on every proof since 2026-09-09; the report job's
- * `proof_created` / `anchored` event before that). A proof existed no later
- * than that event, so the budget can start late but never early.
- *
- * A proof whose anchor was DEMOTED on a conclusive re-check restarts at the
- * demotion: it was treated as anchored until then, and the calendar gets a
- * full budget to upgrade it before it can be called failed.
- *
- * NO RECORDED OTS EVENT AT ALL (rows older than any OTS custody writing):
- * `null` — no date is invented and the budget never fails the proof
- * automatically. It stays PENDING and visible to operators through the
- * separate `evidence_integrity.ots_pending_aged` condition.
- *
- * Exported for the behaviour test.
+ * `resolveOtsBudgetStart` is re-exported here for the behaviour test.
  */
-export function resolveOtsBudgetStart(
-  events: ReadonlyArray<{ atUtc: Date; payload: unknown }>,
-): Date | null {
-  if (events.length === 0) return null;
-  let start = events[0]!.atUtc;
-  for (const event of events) {
-    if (event.atUtc < start) start = event.atUtc;
-  }
-  for (const event of events) {
-    const payload = (event.payload ?? {}) as { otsPhase?: unknown };
-    if (
-      (payload.otsPhase === "anchor_not_confirmed_on_recheck" || payload.otsPhase === "legacy_anchor_label_without_attestation") &&
-      event.atUtc > start
-    ) {
-      start = event.atUtc;
-    }
-  }
-  return start;
-}
+export { resolveOtsBudgetStart };
 
 const OTS_BUDGET_EVENT_TYPES = [
   prismaPkg.CustodyEventType.OTS_APPLIED,
@@ -204,13 +165,13 @@ const OTS_BUDGET_EVENT_TYPES = [
   prismaPkg.CustodyEventType.OTS_ATTEMPT_ERROR,
 ];
 
-async function loadOtsBudgetStart(evidenceId: string): Promise<Date | null> {
+async function loadOtsBudgetStart(evidenceId: string, createdAt: Date): Promise<Date> {
   const events = await prisma.custodyEvent.findMany({
     where: { evidenceId, eventType: { in: OTS_BUDGET_EVENT_TYPES } },
     orderBy: { sequence: "asc" },
     select: { atUtc: true, payload: true },
   });
-  return resolveOtsBudgetStart(events);
+  return resolveOtsAnchoringStart({ otsBudgetStartUtc: resolveOtsBudgetStart(events), createdAt });
 }
 
 export async function processOtsUpgrade(job: Job<unknown>) {
@@ -233,8 +194,8 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     where: { id: evidenceId },
     select: {
       id: true,
-      // (2026-09-29) No longer the budget anchor — see
-      // `resolveOtsBudgetStart`. Kept for the incident and log context.
+      // The budget's start only when the record has NO OTS custody event
+      // (resolveOtsAnchoringStart); otherwise incident and log context.
       createdAt: true,
       // Phase IA-reliability — required so the incident bridge can
       // scope the OperationalIncident row to the right workspace.
@@ -452,8 +413,8 @@ export async function processOtsUpgrade(job: Job<unknown>) {
       validator: candidate.validator,
     };
     if (candidate.state === "PENDING") {
-      const budgetStart = await loadOtsBudgetStart(evidenceId);
-      if (budgetStart !== null && isOtsGlobalBudgetExhausted({ firstAttemptAtUtc: budgetStart, nowUtc: observedAt })) {
+      const budgetStart = await loadOtsBudgetStart(evidenceId, evidence.createdAt);
+      if (isOtsGlobalBudgetExhausted({ firstAttemptAtUtc: budgetStart, nowUtc: observedAt })) {
         observation = { kind: "BUDGET_EXHAUSTED" };
       }
     }

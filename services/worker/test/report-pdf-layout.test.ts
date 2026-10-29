@@ -579,19 +579,19 @@ describe.skipIf(!BROWSER)("the report names the record by its verification refer
 });
 
 /*
- * AUD-19 (2026-10-20) — THE REPORT'S RECORDED LOCATION FOLLOWS THE RECORD'S
- * DISCLOSURE. Characterization (before): a record holding coordinates printed
- * them, the accuracy and the map whatever its owner decided. Now a withheld
- * location (no decision, or a decision not to show it) is stated nowhere: no
- * coordinate, no map, no heading — and no "not recorded" either, which would
- * be false. Disclosed, it prints as before.
+ * THE REPORT'S AUDIENCE DECIDES WHETHER COORDINATES PRINT (supersedes AUD-19).
+ * The authorized report (the processor passes recordedLocationDisclosed: true
+ * under every public policy) prints the opted-in location. A projection for an
+ * audience that may not see it (false / absent) prints no coordinate, no map
+ * and no "Capture location" panel — and states the location as WITHHELD, never
+ * "not recorded" (which would be false) and never silence.
  */
-describe.skipIf(!BROWSER)("the report's recorded location follows the record's disclosure (AUD-19)", () => {
+describe.skipIf(!BROWSER)("the report's recorded location follows its audience", () => {
   const pdfText = async (input: ReportV2Input) =>
     (await readReportGeometry(await renderPdf(await htmlOf(input)))).map((p) => p.items.map((i) => i.str).join(" ")).join(" ").replace(/\s+/g, " ");
 
   it(
-    "withheld (undecided or not shown): no coordinate, no map, no location heading, no 'not recorded'",
+    "withheld audience: no coordinate, no map, and the location is stated as withheld — never 'not recorded'",
     async () => {
       const recorded = regressionRecordInput("recorded");
       for (const decision of [undefined, false] as const) {
@@ -599,17 +599,19 @@ describe.skipIf(!BROWSER)("the report's recorded location follows the record's d
         const html = await htmlOf(input);
         expect(html).not.toContain(`<img class="capture-context-map"`);
         expect(html).not.toContain('data-capture-location="recorded"');
+        expect(html).toContain('data-capture-location="withheld"');
         const text = await pdfText(input);
         expect(text).not.toMatch(/52\.521|13\.405/);
         expect(text).not.toMatch(/Latitude|Longitude|Accuracy radius|Capture location/i);
         expect(text).not.toMatch(/Location (metadata )?(was )?not recorded/i);
+        expect(text).toMatch(/Location withheld/);
       }
     },
     RENDER_TIMEOUT * 2,
   );
 
   it(
-    "disclosed: the coordinates and the map print",
+    "authorized report: the coordinates and the map print",
     async () => {
       const input = regressionRecordInput("recorded");
       expect(input.recordedLocationDisclosed).toBe(true);

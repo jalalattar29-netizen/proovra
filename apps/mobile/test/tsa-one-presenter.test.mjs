@@ -18,7 +18,8 @@ before(async () => {
 });
 
 test("the server's proof status is stated in the shared words and tones", () => {
-  assert.deepEqual(PV.verifyTimestampTone("FAILED", "NOT_OBTAINED"), { label: "Not obtained", tone: "neutral" });
+  // 2026-10-29 — a timestamp the provider did not issue is ONE degraded state (warning) on every surface.
+  assert.deepEqual(PV.verifyTimestampTone("FAILED", "NOT_OBTAINED"), { label: "Not obtained", tone: "warning" });
   assert.deepEqual(PV.verifyTimestampTone("FAILED", "RECORDED_NOT_VALIDATED"), { label: "Recorded, not validated", tone: "neutral" });
   assert.deepEqual(PV.verifyTimestampTone("FAILED", "FAILED"), { label: "Validation failed", tone: "danger" });
   assert.deepEqual(PV.verifyTimestampTone("STAMPED", "VALIDATED"), { label: "RFC 3161 timestamp validated", tone: "success" });

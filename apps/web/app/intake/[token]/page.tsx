@@ -35,6 +35,16 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 import { formatUserDateTime } from "../../../lib/date";
 import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
+import {
+  intakeLocationSubmitBody,
+  locationFailureMessage,
+  locationStateFromGeolocationError,
+  locationStateFromPosition,
+  locationSubmitBlock,
+  normalizeIntakeLocationPolicy,
+  skipLocationState,
+  type LocationState,
+} from "./location-outcome";
 
 /**
  * Intake-links P0 bugfix — friendly public error mapper. The backend
@@ -280,25 +290,13 @@ type LinkView = {
   locationPolicy?: string;
 };
 
-/**
- * Contributor's local-only location state. Lives entirely in browser
- * memory until Submit; the only network surface is the final submit
- * POST. The page NEVER calls navigator.geolocation outside of an
- * explicit Share click — that is the central privacy invariant of
- * this feature.
+/*
+ * Contributor's local-only location state (`LocationState`, ./location-outcome).
+ * Lives entirely in browser memory until Submit; the only network surface is
+ * the final submit POST. The page NEVER calls navigator.geolocation outside of
+ * an explicit Share click — that is the central privacy invariant of this
+ * feature.
  */
-type LocationState =
-  | { phase: "idle" }
-  | { phase: "requesting" }
-  | {
-      phase: "granted";
-      lat: number;
-      lng: number;
-      accuracyMeters: number | null;
-      capturedAt: string;
-    }
-  | { phase: "denied" }
-  | { phase: "unavailable"; reason: string };
 
 type SessionView = {
   id: string;
@@ -576,16 +574,12 @@ export default function ExternalIntakePage({
     return expectedSteps.filter((s) => s.required && !mapped.has(s.id));
   }, [link, expectedSteps, parts]);
 
-  const locationPolicy: "NONE" | "OPTIONAL" | "REQUIRED" = (() => {
-    const raw = link?.locationPolicy;
-    if (raw === "OPTIONAL" || raw === "REQUIRED") return raw;
-    return "NONE";
-  })();
+  const locationPolicy = normalizeIntakeLocationPolicy(link?.locationPolicy);
 
-  // REQUIRED policy blocks submit until coordinates land. OPTIONAL /
-  // NONE never gate on location — the user can submit either way.
-  const locationBlocksSubmit =
-    locationPolicy === "REQUIRED" && locationState.phase !== "granted";
+  // REQUIRED policy blocks submit until coordinates land; any policy waits
+  // for a request already in flight. NONE never gates on location.
+  const locationBlockReason = locationSubmitBlock(locationPolicy, locationState);
+  const locationBlocksSubmit = locationBlockReason !== null;
 
   const canSubmit =
     parts.length > 0 &&
@@ -613,9 +607,7 @@ export default function ExternalIntakePage({
       const missing = requiredStepsMissing.map((x) => x.purposeLabel).join(", ");
       return `Assign a file to: ${missing}.`;
     }
-    if (locationBlocksSubmit) {
-      return "This request needs your location. Use Share location above.";
-    }
+    if (locationBlockReason) return locationBlockReason;
     return null;
   })();
 
@@ -633,33 +625,19 @@ export default function ExternalIntakePage({
     }
     setLocationState({ phase: "requesting" });
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocationState({
-          phase: "granted",
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracyMeters:
-            typeof pos.coords.accuracy === "number" ? pos.coords.accuracy : null,
-          capturedAt: new Date(pos.timestamp).toISOString(),
-        });
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          setLocationState({ phase: "denied" });
-        } else {
-          setLocationState({
-            phase: "unavailable",
-            reason:
-              "Your device couldn't determine its location. You can still submit without it, or contact the sender.",
-          });
-        }
-      },
+      (pos) => setLocationState(locationStateFromPosition(pos)),
+      // Denied / timed out / unavailable are distinct outcomes, shown at
+      // once with Try again (and Continue without on an OPTIONAL link).
+      (err) => setLocationState(locationStateFromGeolocationError(err.code)),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
     );
   }
 
+  // "Not now" / "Continue without location" — the contributor's choice. A
+  // failed request keeps its outcome (DENIED / TIMEOUT / UNAVAILABLE); a
+  // request never made is NOT_REQUESTED ("not included").
   function skipLocation() {
-    setLocationState({ phase: "denied" });
+    setLocationState((s) => skipLocationState(s));
   }
 
   /** True only for the mode that actually collects a contributor-chosen name. */
@@ -960,28 +938,9 @@ export default function ExternalIntakePage({
     try {
       // Build the optional location body. NONE-policy links send no
       // body so the request stays exactly as it was pre-feature. For
-      // OPTIONAL/REQUIRED we send the consent state + (when granted)
-      // bounded coordinates — the API revalidates everything.
-      const locationBody = (() => {
-        if (locationPolicy === "NONE") return undefined;
-        if (locationState.phase === "granted") {
-          return {
-            consentState: "GRANTED" as const,
-            latitude: locationState.lat,
-            longitude: locationState.lng,
-            accuracyMeters: locationState.accuracyMeters ?? undefined,
-            capturedAtUtc: locationState.capturedAt,
-            source: "BROWSER_GEOLOCATION" as const,
-          };
-        }
-        if (locationState.phase === "denied") {
-          return { consentState: "DENIED" as const };
-        }
-        if (locationState.phase === "unavailable") {
-          return { consentState: "UNAVAILABLE" as const };
-        }
-        return { consentState: "NOT_REQUESTED" as const };
-      })();
+      // OPTIONAL/REQUIRED we send the outcome + (when granted) the
+      // coordinates (0 preserved) — the API revalidates everything.
+      const locationBody = intakeLocationSubmitBody(locationPolicy, locationState);
       // Contributor device clock + timezone at submit time. Captured
       // locally — never silently exfiltrated mid-session. The server
       // re-sanitises everything (clock skew, malformed strings); we
@@ -1688,6 +1647,7 @@ function LocationCard({
 }: {
   policy: "OPTIONAL" | "REQUIRED";
   state: LocationState;
+  // (Both handlers: onShare also retries; onSkip also "continues without".)
   onShare: () => void;
   onSkip: () => void;
 }) {
@@ -1747,15 +1707,49 @@ function LocationCard({
             : "."}
         </div>
       ) : null}
-      {state.phase === "denied" ? (
-        <div className="ipk-muted">
-          {required
-            ? "Location is required. Allow location in your browser settings, or contact the sender."
-            : "Location not shared. You can still submit without it."}
-        </div>
+      {/* F-36 — a failed request is stated AT ONCE, with Try again, and on
+          an OPTIONAL link Continue without location (the outcome is kept). */}
+      {state.phase === "denied" || state.phase === "timeout" || state.phase === "unavailable" ? (
+        <>
+          <div className="ipk-muted" role="status" data-intake-location-outcome={state.phase}>
+            {locationFailureMessage(policy, state)}
+          </div>
+          <div className="ipk-aside__actions">
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={onShare}
+              data-intake-location-retry="true"
+            >
+              Try again
+            </button>
+            {!required ? (
+              <button
+                type="button"
+                className="ipk-quiet"
+                onClick={onSkip}
+                data-intake-location-continue-without="true"
+              >
+                Continue without location
+              </button>
+            ) : null}
+          </div>
+        </>
       ) : null}
-      {state.phase === "unavailable" ? (
-        <div className="ipk-muted">{state.reason}</div>
+      {state.phase === "skipped" ? (
+        <div className="ipk-aside__actions">
+          <div className="ipk-muted" data-intake-location-outcome="skipped">
+            {locationFailureMessage(policy, state)}
+          </div>
+          <button
+            type="button"
+            className="ipk-quiet"
+            onClick={onShare}
+            data-intake-location-share="true"
+          >
+            Share location
+          </button>
+        </div>
       ) : null}
     </div>
   );

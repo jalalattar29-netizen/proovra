@@ -58,5 +58,6 @@ test("the staged draft carries the real size — the sum of declared segments, n
   assert.equal(C.continuousSessionBytes([]), 0);
   const screen = code("../app/(stack)/continuous-capture.tsx");
   assert.ok(!/sizeBytes:\s*0\b/.test(screen), "the draft item size is still hard-coded to 0");
-  assert.match(screen, /sizeBytes: continuousSessionBytes\(declaredRef\.current\)/);
+  // A segmented recording sums its declared segments; a single-file one states its one file.
+  assert.match(screen, /sizeBytes: staged\.sizeBytes \?\? continuousSessionBytes\(declaredRef\.current\)/);
 });

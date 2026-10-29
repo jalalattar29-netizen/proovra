@@ -155,6 +155,8 @@ export const DIRECT_CAPTURE_CLIENT_SOURCES = [
   // UC-3 continuous screen-capture artifact roles.
   "SCREEN_SEGMENT",
   "CONTINUOUS_MANIFEST",
+  // Contract A (2026-10-29) — the ONE recording file of a SINGLE_FILE session.
+  "SCREEN_RECORDING",
 ] as const;
 export type DirectCaptureClientSource = (typeof DIRECT_CAPTURE_CLIENT_SOURCES)[number];
 
@@ -229,13 +231,36 @@ export const DIRECT_CAPTURE_DENIALS = {
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
+/**
+ * 2026-10-29 — the ACTIONABLE message a client can show (or act on) for the
+ * refusals a recorder meets mid-flow. The `denial` code stays the stable,
+ * machine-readable contract; the message says what to do next.
+ */
+export const DIRECT_CAPTURE_DENIAL_MESSAGES: Readonly<Partial<Record<DirectCaptureDenial, string>>> = {
+  PART_ALREADY_DECLARED:
+    "This part number is already declared in this capture session with a different file. Fetch the session's declared parts (GET /v1/capture/direct-sessions/:id/parts) and declare this file at the next free part number.",
+  PART_LOST:
+    "This part number was stated lost in this capture session and cannot be declared again. Fetch the session's declared parts (GET /v1/capture/direct-sessions/:id/parts) and declare the file at the next free part number.",
+  MANIFEST_SEAL_ROUTE_REQUIRED:
+    "This capture session is sealed with its capture manifest, not through /complete. Upload and declare the manifest, then complete the session through its own route.",
+  CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH:
+    "The recording manifest does not match the files declared in this capture session: every recording file must be declared once, at the part number the manifest gives it, with the same digest and size, and the manifest must be declared as the capture manifest after them. Rebuild the manifest from the session's declared parts (GET /v1/capture/direct-sessions/:id/parts) and seal again.",
+};
+
 export class DirectCaptureError extends Error {
   readonly statusCode: number;
   readonly code: DirectCaptureDenial;
-  constructor(code: DirectCaptureDenial) {
+  /** A bounded, non-sensitive statement of WHICH check refused (for the client and logs). */
+  readonly detail: string | null;
+  constructor(code: DirectCaptureDenial, detail?: string | null) {
     super(code);
     this.code = code;
     this.statusCode = DIRECT_CAPTURE_DENIALS[code];
+    this.detail = detail ? detail.slice(0, 200) : null;
+  }
+  /** The actionable message for this refusal, when it has one. */
+  get actionableMessage(): string | null {
+    return DIRECT_CAPTURE_DENIAL_MESSAGES[this.code] ?? null;
   }
 }
 
@@ -628,7 +653,7 @@ export type ReserveDirectCaptureEvidenceInput = {
   originalFileName?: string | null;
   deviceTimeIso?: string;
   gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
-  locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
+  locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
   now?: Date;
 };
 
@@ -746,7 +771,9 @@ export async function declareDirectCapturePart(
   const recordedThrough = input.recordedThrough ?? null;
   if (
     recordedThrough !== null &&
-    (input.clientReportedSource !== "SCREEN_SEGMENT" ||
+    // Contract A — the one SCREEN_RECORDING of a single-file session may carry
+    // the recorder's count too (always 1, at part 0).
+    ((input.clientReportedSource !== "SCREEN_SEGMENT" && input.clientReportedSource !== "SCREEN_RECORDING") ||
       !Number.isInteger(recordedThrough) ||
       recordedThrough < input.partIndex + 1 ||
       recordedThrough > MAX_PARTS)
@@ -1037,6 +1064,101 @@ export async function readLostRecordedThroughMin(
   return bound;
 }
 
+export type DirectCapturePartListing = {
+  partIndex: number;
+  sha256: string;
+  state: "DECLARED" | "UPLOADED" | "LOST";
+  /** What the client said the part is, verbatim from its declaration. */
+  source: string | null;
+};
+
+/**
+ * Wire contract C (2026-10-29) — THE server-authoritative list of a session's
+ * declared parts, for its owner. A client allocates its next part index as
+ * max(partIndex) + 1 from this list (a LOST index is never reused) and treats
+ * PART_ALREADY_DECLARED as "refetch and retry"; the declaration under the
+ * session lock stays the uniqueness authority. UPLOADED means the bytes are in
+ * storage (a sealed record's parts all are); it is read, not assumed.
+ */
+export async function listDirectCaptureParts(input: {
+  prisma?: PrismaClient;
+  sessionId: string;
+  ownerUserId: string;
+}): Promise<{ parts: DirectCapturePartListing[] }> {
+  const db = input.prisma ?? defaultPrisma;
+  const session = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
+  const rows = await db.captureTrustEventRecord.findMany({
+    where: {
+      teamId: session.teamId!,
+      captureSessionId: session.id,
+      code: { in: ["CAPTURE_ARTIFACT_SIGNED_AT_SOURCE", "CAPTURE_ARTIFACT_RECEIVED", "CAPTURE_ARTIFACT_LOST"] },
+    },
+    orderBy: { sequence: "asc" },
+    select: { payload: true, code: true },
+    take: MAX_PARTS * 3,
+  });
+  const declared = new Map<number, { sha256: string; source: string | null }>();
+  const lost = new Set<number>();
+  for (const r of rows) {
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    const idx = p["partIndex"];
+    if (typeof idx !== "number" || !Number.isInteger(idx)) continue;
+    if (r.code === "CAPTURE_ARTIFACT_LOST") {
+      if (p["stage"] === "part_lost") lost.add(idx);
+      continue;
+    }
+    if (p["stage"] !== "part_declared" || typeof p["declaredSha256"] !== "string") continue;
+    if (!declared.has(idx)) {
+      declared.set(idx, {
+        sha256: p["declaredSha256"],
+        source: typeof p["clientReportedSource"] === "string" ? p["clientReportedSource"] : null,
+      });
+    }
+  }
+
+  // Which declared parts' bytes are stored. A sealed record holds every part;
+  // otherwise one bounded HEAD per declared part that has a part row.
+  const uploaded = new Set<number>();
+  const evidenceId = session.finalizedEvidenceId;
+  if (evidenceId && declared.size > 0) {
+    const record = await db.evidence.findUnique({ where: { id: evidenceId }, select: { status: true } });
+    const sealed =
+      record?.status === prismaPkg.EvidenceStatus.SIGNED || record?.status === prismaPkg.EvidenceStatus.REPORTED;
+    const partRows = await db.evidencePart.findMany({
+      where: { evidenceId, partIndex: { in: [...declared.keys()] } },
+      select: { partIndex: true, storageBucket: true, storageKey: true },
+    });
+    const pending = partRows.filter((p) => !lost.has(p.partIndex) && p.storageBucket && p.storageKey);
+    if (sealed) {
+      for (const p of pending) uploaded.add(p.partIndex);
+    } else {
+      const HEAD_CONCURRENCY = 8;
+      for (let i = 0; i < pending.length; i += HEAD_CONCURRENCY) {
+        await Promise.all(
+          pending.slice(i, i + HEAD_CONCURRENCY).map(async (p) => {
+            try {
+              const head = await headObject({ bucket: p.storageBucket, key: p.storageKey });
+              if ((head.sizeBytes ?? 0) > 0) uploaded.add(p.partIndex);
+            } catch {
+              /* absent: still only declared */
+            }
+          }),
+        );
+      }
+    }
+  }
+
+  const parts: DirectCapturePartListing[] = [...declared.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([partIndex, d]) => ({
+      partIndex,
+      sha256: d.sha256,
+      state: lost.has(partIndex) ? "LOST" : uploaded.has(partIndex) ? "UPLOADED" : "DECLARED",
+      source: d.source,
+    }));
+  return { parts };
+}
+
 /**
  * AUD-37 — is this part of a direct-capture record stated LOST? The canonical
  * part presign refuses to re-open a lost index (its bytes would be a part no
@@ -1321,10 +1443,21 @@ export async function completeGenericDirectCapture(input: {
   const db = input.prisma ?? defaultPrisma;
   const loaded = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
   if (MANIFEST_SEALED_DIRECT_CAPTURE_MODES.has(String(loaded.acquisitionMode))) {
-    throw new DirectCaptureError("MANIFEST_SEAL_ROUTE_REQUIRED");
+    throw new DirectCaptureError(
+      "MANIFEST_SEAL_ROUTE_REQUIRED",
+      `seal this session with POST /v1/capture/direct-sessions/:id/${MANIFEST_SEAL_ROUTE_BY_MODE[String(loaded.acquisitionMode)]}`,
+    );
   }
   return completeDirectCapture(input);
 }
+
+/** The seal route (last path segment) of each manifest-sealed mode. */
+const MANIFEST_SEAL_ROUTE_BY_MODE: Readonly<Record<string, string>> = {
+  DIRECT_WEB_CAPTURE_EXTENSION: "web-complete",
+  DIRECT_SCREEN_CAPTURE_ANDROID: "screen-complete",
+  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: "continuous-complete",
+  DIRECT_SCREEN_CAPTURE_IOS: "continuous-complete",
+};
 
 /** The short transactions of a seal (claim, bind, release) never hash anything. */
 const SEAL_STEP_TRANSACTION = { timeout: 30_000, maxWait: 10_000 } as const;

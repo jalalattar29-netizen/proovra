@@ -96,18 +96,23 @@ test.describe("Direct Web Capture card", () => {
     expect(bg > br && bg > bb, `the border is green-biased: ${cardBorder}`).toBe(false);
   });
 
-  test("the heading is bold, and heavier than the body it introduces", async ({ page }) => {
+  test("unpublished: a secondary note BELOW the working sources, never a promoted panel above them", async ({ page }) => {
     await openCapture(page);
-    const titleWeight = Number(await computed(page, TITLE, "font-weight"));
-    const bodyWeight = Number(await computed(page, ".capture-direct-web__body", "font-weight"));
-
-    expect(titleWeight).toBeGreaterThanOrEqual(700);
-    expect(titleWeight).toBeGreaterThan(bodyWeight);
-
-    // It is a heading in the document, not a paragraph that looks like one.
-    await expect(page.locator(`${CARD} h2#direct-web-capture-heading`)).toHaveText(
-      "Direct Web Capture",
-    );
+    // No promoted heading panel while nothing can be installed.
+    await expect(page.locator(TITLE)).toHaveCount(0);
+    await expect(page.locator(`${CARD}.capture-direct-web--note`)).toBeVisible();
+    // It follows Evidence materials (the working capture sources) in the document.
+    const order = await page.evaluate(() => {
+      const note = document.querySelector("[data-capture-direct-web-capture]");
+      const drop = document.querySelector(".capture-drop-zone-enterprise");
+      return note && drop ? drop.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING : -1;
+    });
+    expect(order, "the note must come after the working capture sources").toBeGreaterThan(0);
+    // It says Screen recording works now and does not equate the two capabilities.
+    const text = (await page.locator(CARD).textContent()) ?? "";
+    expect(text).toMatch(/Screen recording/);
+    expect(text).toMatch(/not the same as extension page capture/);
+    expect(text).not.toMatch(/Don.t just upload a screenshot/);
   });
 
   test("the learn-more link is bold and still points at the disclosure page", async ({
@@ -115,7 +120,7 @@ test.describe("Direct Web Capture card", () => {
   }) => {
     await openCapture(page);
     const link = page.locator(LEARN_MORE);
-    await expect(link).toHaveText("Learn how Direct Web Capture works");
+    await expect(link).toHaveText("How extension capture works");
     expect(Number(await computed(page, LEARN_MORE, "font-weight"))).toBeGreaterThanOrEqual(700);
 
     // The destination is the authenticated disclosure page. It is NOT the

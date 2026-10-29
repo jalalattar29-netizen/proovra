@@ -8,6 +8,15 @@ import {
   settleRequestAsNotApplicable,
 } from "./output-production-refusal.js";
 import { outputLifecycleRefusal, type OutputProductionRefusal } from "@proovra/shared";
+// 2026-10-29 — wire contract D: one screen recording is one evidence item.
+import {
+  CAPTURE_RECORD_SYSTEM_LABEL,
+  SCREEN_RECORDING_ITEM_LABEL,
+  isContinuousScreenRecordingMode,
+  continuousRecordingFactsFromCustody,
+  continuousRecordingAcquisitionText,
+} from "@proovra/shared";
+import { readReportCombinedRecording } from "./report-v2/combined-recording-bridge.js";
 import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
@@ -388,6 +397,29 @@ type ReportEvidenceAsset = {
   previewDataUrl: string | null;
   previewTextExcerpt: string | null;
   previewCaption: string | null;
+  /** Wire contract D — set on the ONE item a continuous screen recording is. */
+  userItemKind?: "recording" | "file";
+  recordingLayout?: "SINGLE_FILE" | "SEGMENTED" | null;
+  /** The recording's stored parts, in part order (technical). */
+  technicalParts?: ReportTechnicalPart[] | null;
+};
+
+type ReportTechnicalPart = {
+  partIndex: number;
+  sha256: string | null;
+  sizeBytes: string | null;
+  displaySizeLabel: string | null;
+  mimeType: string | null;
+};
+
+/** Wire contract D — a CAPTURE_MANIFEST part, for the technical appendix. */
+type ReportCaptureRecord = {
+  id: string;
+  partIndex: number;
+  label: string;
+  mimeType: string | null;
+  sizeBytes: string | null;
+  sha256: string | null;
 };
 
 type ReportReviewGuidance = {
@@ -469,6 +501,8 @@ type ReportBuildParams = {
   captureManifest?: Parameters<typeof buildReportPdfV2>[0]["captureManifest"];
   /** UC-TRUST-008 — the exact stored bytes this report certifies. */
   certifiedOriginal?: Parameters<typeof buildReportPdfV2>[0]["certifiedOriginal"];
+  /** May this report's audience see stored coordinates? Authorized reports: always. */
+  recordedLocationDisclosed?: boolean;
 };
 
 type PreparedReportArtifacts = {
@@ -1648,6 +1682,8 @@ export function buildReportEvidenceContent(params: {
     storageKey: string | null;
     fileSha256: string | null;
     intakePlanJson?: Prisma.JsonValue | null;
+    /** Wire contract D — required so no caller can forget it. */
+    acquisitionMode: string | null;
   };
   parts: Array<{
     id: string;
@@ -1661,6 +1697,8 @@ export function buildReportEvidenceContent(params: {
     checklistStepId?: string | null;
     storageBucket: string;
     storageKey: string;
+    /** Wire contract D — ORIGINAL | CAPTURE_MANIFEST; required. */
+    artifactClass: string | null;
   }>;
 }): {
   summary: ReportEvidenceContentSummary;
@@ -1668,14 +1706,32 @@ export function buildReportEvidenceContent(params: {
   primaryItem: ReportEvidenceAsset | null;
   previewPolicy: ReportPreviewPolicy;
   limitations: ReportLegalLimitations;
+  /** Wire contract D — system-generated capture records (technical appendix only). */
+  captureRecords: ReportCaptureRecord[];
 } {
-const hasStoredParts = params.parts.length > 0;
+  // Wire contract D (2026-10-29) — a CAPTURE_MANIFEST part is never an
+  // evidence item: it is listed in the technical appendix as a "Capture record
+  // (system-generated)". Every other part is an ORIGINAL; the parts of ONE
+  // continuous screen recording are collapsed into ONE item below.
+  const captureRecords: ReportCaptureRecord[] = params.parts
+    .filter((part) => part.artifactClass === "CAPTURE_MANIFEST")
+    .sort((a, b) => a.partIndex - b.partIndex)
+    .map((part) => ({
+      id: part.id,
+      partIndex: part.partIndex,
+      label: CAPTURE_RECORD_SYSTEM_LABEL,
+      mimeType: part.mimeType ?? null,
+      sizeBytes: part.sizeBytes != null ? String(part.sizeBytes) : null,
+      sha256: part.sha256 ?? null,
+    }));
+  const originalParts = params.parts.filter((part) => part.artifactClass !== "CAPTURE_MANIFEST");
+const hasStoredParts = originalParts.length > 0;
   const accessPolicy = params.accessPolicy;
   const canExposeContent = accessPolicy.allowContentView;
   const canDownload = accessPolicy.allowDownload;
 
-const items: ReportEvidenceAsset[] = hasStoredParts
-  ? [...params.parts]
+const perPartItems: ReportEvidenceAsset[] = hasStoredParts
+  ? [...originalParts]
       .map((part) => {
             const kind = detectEvidenceAssetKind(part.mimeType);
         const sizeBytes = part.sizeBytes != null ? String(part.sizeBytes) : null;
@@ -1684,13 +1740,13 @@ const resolvedRole = resolveReviewerArtifactRole({
   checklistStepId: part.checklistStepId ?? null,
   intakePlanJson: params.evidence.intakePlanJson ?? null,
   fallbackRole:
-    params.parts.length === 1 ||
+    originalParts.length === 1 ||
     (params.evidence.storageBucket === part.storageBucket &&
       params.evidence.storageKey === part.storageKey)
       ? "primary_evidence"
       : "supporting_evidence",
   fallbackRoleSource:
-    params.parts.length === 1
+    originalParts.length === 1
       ? "fallback_single"
       : params.evidence.storageBucket === part.storageBucket &&
           params.evidence.storageKey === part.storageKey
@@ -1848,6 +1904,49 @@ const isPrimary = isPrimaryReviewerArtifactRole(resolvedRole.artifactRole);
         })()
       : [];
 
+  // Wire contract D — ONE continuous screen recording is ONE evidence item.
+  // Its stored parts stay listed (in part order, with their own SHA-256) as
+  // the item's technical parts; nothing about them is re-hashed or reordered.
+  const items: ReportEvidenceAsset[] = (() => {
+    if (!isContinuousScreenRecordingMode(params.evidence.acquisitionMode) || perPartItems.length === 0) {
+      return perPartItems;
+    }
+    const ordered = [...perPartItems].sort((a, b) => a.index - b.index);
+    const lead = perPartItems.find((item) => item.isPrimary) ?? ordered[0]!;
+    const segmented = ordered.length > 1;
+    const totalBytes = ordered.reduce<bigint>(
+      (acc, item) => acc + (item.sizeBytes ? BigInt(item.sizeBytes) : 0n),
+      0n,
+    );
+    const totalSize = totalBytes > 0n ? totalBytes.toString() : null;
+    const durations = ordered.map((item) => item.durationMs);
+    return [
+      {
+        ...lead,
+        label: SCREEN_RECORDING_ITEM_LABEL,
+        // A segmented recording has no single file name; a single-file one keeps its own.
+        originalFileName: segmented ? null : lead.originalFileName,
+        sizeBytes: totalSize,
+        displaySizeLabel: formatBytesForDisplay(totalSize),
+        durationMs: durations.every((d) => typeof d === "number")
+          ? durations.reduce<number>((acc, d) => acc + (d as number), 0)
+          : lead.durationMs,
+        isPrimary: true,
+        artifactRole: "primary_evidence" as const,
+        previewable: ordered.some((item) => item.previewable),
+        userItemKind: "recording" as const,
+        recordingLayout: segmented ? ("SEGMENTED" as const) : ("SINGLE_FILE" as const),
+        technicalParts: ordered.map((item) => ({
+          partIndex: item.index,
+          sha256: item.sha256,
+          sizeBytes: item.sizeBytes,
+          displaySizeLabel: item.displaySizeLabel,
+          mimeType: item.mimeType,
+        })),
+      },
+    ];
+  })();
+
 if (items.length > 0 && !items.some((item) => item.isPrimary)) {
       items[0] = {
       ...items[0],
@@ -1922,6 +2021,7 @@ structure: items.length > 1 ? "multipart" : "single",
     primaryItem,
     previewPolicy,
     limitations,
+    captureRecords,
   };
 }
 
@@ -2889,6 +2989,7 @@ await recordIntegrityObservation({
       storageKey,
       fileSha256,
       intakePlanJson: evidence.intakePlanJson ?? null,
+      acquisitionMode: evidence.acquisitionMode ?? null,
     },
     parts: parts.map((part) => ({
       id: part.id,
@@ -2902,6 +3003,7 @@ await recordIntegrityObservation({
       checklistStepId: part.checklistStepId ?? null,
       storageBucket: part.storageBucket,
       storageKey: part.storageKey,
+      artifactClass: part.artifactClass ?? null,
     })),
   });
 
@@ -2938,6 +3040,37 @@ await recordIntegrityObservation({
       eventHash: true,
     },
   });
+
+  // Wire contract D / A — a continuous screen recording's layout and audio,
+  // as its validated manifest stated them (custody manifest-facts event), in
+  // THE shared wording. Null for any other record (legacy wording stays).
+  const continuousFacts = continuousRecordingFactsFromCustody(custodyEvents);
+  const continuousText = continuousRecordingAcquisitionText({
+    acquisitionMode: evidence.acquisitionMode ?? null,
+    layout: continuousFacts?.layout ?? null,
+    audioTracks: continuousFacts?.audioTracks ?? null,
+  });
+  const continuousRecording = continuousText
+    ? {
+        layout: continuousText.layout,
+        statement: continuousText.statement,
+        observedByProovra: continuousText.observedByProovra,
+        audioStatement: continuousText.audioStatement,
+      }
+    : null;
+  if (continuousRecording) {
+    for (const item of contentArtifacts.items) {
+      if (item.userItemKind === "recording") item.recordingLayout = continuousRecording.layout;
+    }
+  }
+
+  // COMBINE — the DERIVED combined review video of a segmented recording, as
+  // it stands at report time (the newest COMPLETED generation; a superseded or
+  // in-progress one is never stated). Report versions generated before it
+  // completed simply do not mention it; no version is triggered from here.
+  const combinedRecording = contentArtifacts.items.some((i) => i.userItemKind === "recording")
+    ? await readReportCombinedRecording(evidence.id)
+    : null;
 
   // THE evidence-signature key only: a key registered for another purpose
   // (the package seal) is never read as the record's signing key.
@@ -3259,6 +3392,12 @@ evidenceStructure:
     contentCompositionSummary,
     primaryContentLabel,
     contentItems: contentArtifacts.items,
+    // Wire contract D — the technical appendix lists these, never the gallery.
+    captureRecords: contentArtifacts.captureRecords,
+    // Contract A — the recording's layout/audio statement (null otherwise).
+    continuousRecording,
+    // COMBINE — the derived combined review video, when COMPLETED (null otherwise).
+    combinedRecording,
     primaryContentItem: contentArtifacts.primaryItem,
     defaultPreviewItemId,
     previewPolicy: contentArtifacts.previewPolicy,
@@ -3344,6 +3483,7 @@ const trustDecision = buildTrustDecision({
     captureManifest: (await loadProvenanceChainForPackage(evidence.id))?.captureManifestFacts ?? null,
     downloadUrl: evidenceDetailUrl,
     externalMode: false,
+    recordedLocationDisclosed: AUTHORIZED_REPORT_SHOWS_RECORDED_LOCATION,
     mediaIntelligence: reportMediaIntelligence,
     technicalSummary: reportTechnicalSummary,
     acquisition: reportAcquisition,
@@ -3711,10 +3851,14 @@ function toBoundedReasonCode(error: unknown): string {
 }
 
 /**
- * AUD-19 (2026-10-20) — the record's location disclosure when the report is
- * issued: the report prints the recorded location only when the owner chose to
- * show it (CONTENT_PREVIEW + showRecordedLocation). Fails closed.
+ * The record's PUBLIC location disclosure (CONTENT_PREVIEW + showRecordedLocation).
+ * It governs EXTERNAL projections only — the external package profile. The
+ * authorized report never reads it: a public-page setting must not suppress
+ * the location the submitter opted in to in their own report
+ * (AUTHORIZED_REPORT_SHOWS_RECORDED_LOCATION). Fails closed.
  */
+const AUTHORIZED_REPORT_SHOWS_RECORDED_LOCATION = true;
+
 async function recordedLocationDisclosedAtIssue(evidenceId: string): Promise<boolean> {
   const row = await prisma.evidence.findUnique({
     where: { id: evidenceId },
@@ -4466,9 +4610,14 @@ async function runReportGeneration(
           otsHash: prepared.reportEvidencePayload.otsHash ?? null,
           otsAnchoredAtUtc:
             prepared.reportEvidencePayload.otsAnchoredAtUtc ?? null,
-          itemCount: prepared.contentSummary.itemCount,
+          // Wire contract D — integrity follows the STORED parts: a screen
+          // recording is one user item but its every part must carry a hash.
+          itemCount: Math.max(
+            prepared.contentSummary.itemCount,
+            prepared.verificationEvidenceFiles.length,
+          ),
           multipartItemHashesPresent:
-            prepared.contentSummary.itemCount <= 1
+            Math.max(prepared.contentSummary.itemCount, prepared.verificationEvidenceFiles.length) <= 1
               ? true
               : prepared.verificationEvidenceFiles.length > 1 &&
                 prepared.verificationEvidenceFiles.every((file) => Boolean(file.sha256)),
@@ -4626,7 +4775,7 @@ async function runReportGeneration(
           buildInfo: env.WORKER_BUILD_INFO ?? null,
           verifyUrl: prepared.verifyUrl,
           verificationRef: prepared.verificationRef,
-          recordedLocationDisclosed: await recordedLocationDisclosedAtIssue(prepared.evidenceId),
+          recordedLocationDisclosed: AUTHORIZED_REPORT_SHOWS_RECORDED_LOCATION,
           downloadUrl: prepared.downloadUrl,
           externalMode: false,
           mediaIntelligence: finalizedReportMediaIntelligence,

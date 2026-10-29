@@ -817,3 +817,23 @@ test("AUD-37: a served mocked location keeps its warning in every locale", () =>
   const ordinary = mod.projectLocationState({ locationState: { state: "RECORDED", label: "Location recorded", tone: "info", detail: null } }, "de");
   assert.equal(ordinary.detail, null);
 });
+
+test("wire contract D — a multipart original is the parts listing, never part 0 alone", () => {
+  assert.equal(mod.isMultipartOriginalError({ code: "ORIGINAL_IS_MULTIPART", statusCode: 409 }), true);
+  assert.equal(mod.isMultipartOriginalError({ code: "NOT_FOUND" }), false);
+  assert.equal(mod.isMultipartOriginalError(null), false);
+  assert.equal(mod.buildEvidencePartsPath("ev 1"), "/v1/evidence/ev%201/parts");
+  assert.deepEqual(
+    mod.parseOriginalPartLinks({
+      parts: [
+        { partIndex: 0, url: "https://s3/a", originalFileName: "segment-0.mp4" },
+        { partIndex: 1, url: null, displayName: "withheld" },
+        { partIndex: 2, url: "https://s3/c", displayName: "manifest.json" },
+      ],
+    }),
+    [
+      { partIndex: 0, label: "segment-0.mp4", url: "https://s3/a" },
+      { partIndex: 2, label: "manifest.json", url: "https://s3/c" },
+    ],
+  );
+});

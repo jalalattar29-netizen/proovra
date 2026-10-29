@@ -214,6 +214,21 @@ public class ProovraScreenCaptureModule: Module {
       promise.resolve()
     }
 
+    /// STREAMING SHA-256 + MD5 of a capture file (1 MiB chunks, off the main
+    /// thread): the integrity claim of a long recording without holding it in
+    /// JS memory (ProovraFileDigest.swift).
+    AsyncFunction("hashFile") { (uri: String, promise: Promise) in
+      DispatchQueue.global(qos: .utility).async {
+        do {
+          promise.resolve(try ProovraFileDigest.digest(uri: uri).toJsMap())
+        } catch ProovraFileDigest.Failure.notFound {
+          promise.reject("FILE_NOT_FOUND", "The file to hash is not on this device.")
+        } catch {
+          promise.reject("HASH_FAILED", "The file could not be read to compute its digest.")
+        }
+      }
+    }
+
     OnStartObserving { self.startObserving() }
     OnStopObserving { self.stopObserving() }
   }

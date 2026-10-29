@@ -24,13 +24,24 @@
  * segments), but a tail the client never declared is invisible to it, so every
  * surface states completeness as client-reported (`captureCompletenessRows`).
  *
+ * CONTRACT A (2026-10-29) — ONE Start→Stop recording = ONE video file. A
+ * manifest stating `recordingLayout: "SINGLE_FILE"` lists exactly one
+ * `screen_recording` entry (part 0) bounded by the SESSION bounds, and states
+ * orientation changes, pauses, dropped frames and the audio tracks written —
+ * each named by a limitation when it limits the record. A manifest without
+ * the field is the legacy SEGMENTED layout and validates exactly as before.
+ *
  * PRIVACY (deliberate omissions): NO app inventory, notification contents,
  * clipboard, contacts or hardware identifiers — only the coarse display/OS/app
  * context and segment structure needed to interpret the recording.
  */
 
 import { CAPTURE_LIMITS } from "./capture-limits.js";
-import { CAPTURE_MANIFEST_FACTS_SCHEMA, type CaptureManifestFacts } from "./web-capture-manifest.js";
+import {
+  CAPTURE_MANIFEST_FACTS_SCHEMA,
+  CAPTURE_MANIFEST_FACTS_STAGE,
+  type CaptureManifestFacts,
+} from "./web-capture-manifest.js";
 
 /**
  * V2 (UC-STR-002 / UC-IOS-001, 2026-09-30). V1 had no statement of how many
@@ -52,10 +63,34 @@ export const SCREEN_CONTINUOUS_SESSION_COMPLETENESS = [
 export type ScreenContinuousSessionCompleteness =
   (typeof SCREEN_CONTINUOUS_SESSION_COMPLETENESS)[number];
 
-/** A segment is a DIRECT recording chunk (an ORIGINAL part). */
-export const SCREEN_CONTINUOUS_ARTIFACT_ROLES = ["screen_segment"] as const;
+/**
+ * A segment is a DIRECT recording chunk (an ORIGINAL part). `screen_recording`
+ * is the ONE whole recording of a SINGLE_FILE session; a SEGMENTED manifest
+ * may only list `screen_segment` (the validator checks the role per layout).
+ */
+export const SCREEN_CONTINUOUS_ARTIFACT_ROLES = ["screen_segment", "screen_recording"] as const;
 export type ScreenContinuousArtifactRole =
   (typeof SCREEN_CONTINUOUS_ARTIFACT_ROLES)[number];
+
+/**
+ * Contract A (2026-10-29) — how the recording is laid out in the record.
+ * Absent ⇒ SEGMENTED (every manifest an installed client or a historical record
+ * carries; accepted forever). SINGLE_FILE ⇒ ONE Start→Stop recording is ONE
+ * complete video file (part 0) plus this manifest (part 1): no encoder
+ * restarts, no rollover, no splitting at a limit.
+ */
+export const SCREEN_CONTINUOUS_RECORDING_LAYOUTS = ["SEGMENTED", "SINGLE_FILE"] as const;
+export type ScreenContinuousRecordingLayout = (typeof SCREEN_CONTINUOUS_RECORDING_LAYOUTS)[number];
+
+/** Contract A — the audio tracks ACTUALLY written to the file (empty ⇒ silent). */
+export const SCREEN_CONTINUOUS_AUDIO_TRACKS = ["APP", "MICROPHONE"] as const;
+export type ScreenContinuousAudioTrack = (typeof SCREEN_CONTINUOUS_AUDIO_TRACKS)[number];
+
+/** The layout a manifest states (absent ⇒ the legacy SEGMENTED layout). */
+export function continuousRecordingLayoutOf(manifest: unknown): ScreenContinuousRecordingLayout {
+  const v = manifest && typeof manifest === "object" ? (manifest as Record<string, unknown>).recordingLayout : undefined;
+  return v === "SINGLE_FILE" ? "SINGLE_FILE" : "SEGMENTED";
+}
 
 export const SCREEN_CONTINUOUS_TERMINATION_REASONS = [
   "USER_STOPPED",
@@ -93,6 +128,10 @@ export const SCREEN_CONTINUOUS_LIMITATION_CODES = [
   "SEGMENT_WRITE_FAILED",
   /** UC-IOS-009 — the system paused the broadcast; the paused interval is not recorded. */
   "BROADCAST_PAUSED",
+  /** Contract A — no audio track was written to the recording (`audioTracks` is empty). */
+  "AUDIO_NOT_CAPTURED",
+  /** Contract A — the writer refused frames (`droppedFrameCount` > 0); counted, never hidden. */
+  "FRAMES_DROPPED",
 ] as const;
 export type ScreenContinuousLimitationCode =
   (typeof SCREEN_CONTINUOUS_LIMITATION_CODES)[number];
@@ -137,6 +176,15 @@ export const SCREEN_CONTINUOUS_MANIFEST_BOUNDS = {
   maxOverlapMs: 1000,
   timingSlackMs: 5000,
   clockSkewMs: 5 * 60 * 1000,
+  /** Contract A — bounded lists of a SINGLE_FILE (or any) manifest. */
+  maxOrientationChanges: 256,
+  maxPauses: 256,
+  /**
+   * Contract A — the ONE recording of a SINGLE_FILE session is bounded by the
+   * SESSION bounds (never the per-segment ones).
+   */
+  maxRecordingBytes: CAPTURE_LIMITS.maxContinuousSessionBytes,
+  maxRecordingMs: CAPTURE_LIMITS.maxContinuousSessionMs,
 } as const;
 
 /** ET-DC-09 — the terminations that END a complete session (the recorder's own rule). */
@@ -282,7 +330,26 @@ export type ScreenContinuousManifest = {
   terminationReason: ScreenContinuousTerminationReason;
   limitations: ScreenContinuousLimitationCode[];
   notes: string[];
+  // ---- Contract A (all optional, additive; absent ⇒ legacy SEGMENTED) ----
+  recordingLayout?: ScreenContinuousRecordingLayout;
+  /** Orientation over the recording (first entry = the initial orientation). */
+  orientationTimeline?: ScreenContinuousOrientationChange[];
+  /** Wall time with no frames (iOS broadcast pause), on the session timeline. */
+  pauses?: ScreenContinuousPause[];
+  /** Frames the writer refused (counted, never hidden). */
+  droppedFrameCount?: number;
+  /** Tracks ACTUALLY written to the file (empty ⇒ silent). */
+  audioTracks?: ScreenContinuousAudioTrack[];
 };
+
+export type ScreenContinuousOrientationChange = {
+  atOffsetMs: number;
+  orientation: "portrait" | "landscape";
+  widthPx?: number;
+  heightPx?: number;
+};
+
+export type ScreenContinuousPause = { startOffsetMs: number; endOffsetMs: number };
 
 export type ScreenContinuousManifestValidation =
   | { ok: true; manifest: ScreenContinuousManifest }
@@ -405,6 +472,15 @@ export function validateScreenContinuousManifest(
     }
   }
   const limitations = m.limitations as string[];
+  // Contract A — the layout. Absent is the legacy SEGMENTED layout, validated
+  // exactly as before; anything else present must be a known layout.
+  if (
+    m.recordingLayout !== undefined &&
+    !(SCREEN_CONTINUOUS_RECORDING_LAYOUTS as ReadonlyArray<unknown>).includes(m.recordingLayout)
+  ) {
+    return { ok: false, error: "invalid recordingLayout" };
+  }
+  const singleFile = m.recordingLayout === "SINGLE_FILE";
   if (!Array.isArray(m.notes) || m.notes.length > B.maxNotes) {
     return { ok: false, error: "invalid notes" };
   }
@@ -422,7 +498,7 @@ export function validateScreenContinuousManifest(
   for (const s of m.segments as unknown[]) {
     if (typeof s !== "object" || s === null) return { ok: false, error: "a segment is not an object" };
     const seg = s as Record<string, unknown>;
-    if (!(SCREEN_CONTINUOUS_ARTIFACT_ROLES as ReadonlyArray<unknown>).includes(seg.role)) {
+    if (seg.role !== (singleFile ? "screen_recording" : "screen_segment")) {
       return { ok: false, error: "invalid segment.role" };
     }
     if (!isNonNegInt(seg.partIndex)) return { ok: false, error: "invalid segment.partIndex" };
@@ -455,13 +531,125 @@ export function validateScreenContinuousManifest(
     }
     // A segment's declared orientation MUST agree with its own pixel geometry —
     // a segment recorded after a rotation carries its true (new) geometry.
+    // (A SINGLE_FILE recording states its ENCODED canvas and its INITIAL
+    // orientation, which need not agree: rotation lives in orientationTimeline.)
     const landscapeByDims = (seg.widthPx as number) >= (seg.heightPx as number);
-    if (landscapeByDims !== (seg.orientation === "landscape")) {
+    if (!singleFile && landscapeByDims !== (seg.orientation === "landscape")) {
       return { ok: false, error: "segment orientation does not match its dimensions" };
     }
     orientations.add(seg.orientation as string);
     if (!isBoundedString(seg.mediaType, 80)) return { ok: false, error: "invalid segment.mediaType" };
   }
+  // ---- Contract A — the optional single-file facts, checked when present ----
+  const segs = m.segments as ScreenContinuousSegmentDescriptor[];
+  // The stretch the facts must lie within: the stated duration, or (0 is the
+  // UC-IOS-006 "not known" fallback) the end of what was actually written.
+  const factsSpanMs =
+    (m.totalDurationMs as number) > 0
+      ? (m.totalDurationMs as number)
+      : Math.max(0, ...segs.map((s) => s.startedAtOffsetMs + s.durationMs));
+  if (singleFile) {
+    // ONE Start→Stop = ONE file: exactly one entry, the whole recording, at
+    // part 0 / sequence 0, bounded by the SESSION bounds (never per-segment).
+    if (segs.length !== 1) return { ok: false, error: "a SINGLE_FILE manifest must list exactly one recording" };
+    const rec = segs[0]!;
+    if (rec.partIndex !== 0 || rec.sequence !== 0) {
+      return { ok: false, error: "the SINGLE_FILE recording must be part 0, sequence 0" };
+    }
+    if (m.recordedSegmentCount !== 1) {
+      return { ok: false, error: "a SINGLE_FILE manifest must state recordedSegmentCount 1" };
+    }
+    if (rec.startedAtOffsetMs > B.maxGapMs) {
+      return { ok: false, error: "the SINGLE_FILE recording does not start at the capture start" };
+    }
+    if (rec.sizeBytes > B.maxRecordingBytes) {
+      return { ok: false, error: "the SINGLE_FILE recording exceeds the session byte bound" };
+    }
+    if (rec.durationMs > B.maxRecordingMs + B.timingSlackMs || (m.totalDurationMs as number) > B.maxRecordingMs + B.timingSlackMs) {
+      return { ok: false, error: "the SINGLE_FILE recording exceeds the session duration bound" };
+    }
+    // A file is whole or it is not: there is no "segment" of it to lose.
+    if (limitations.includes("SEGMENT_UPLOAD_LOST")) {
+      return { ok: false, error: "a SINGLE_FILE manifest cannot carry SEGMENT_UPLOAD_LOST" };
+    }
+  }
+  if (m.orientationTimeline !== undefined) {
+    const tl = m.orientationTimeline;
+    if (!Array.isArray(tl) || tl.length === 0 || tl.length > B.maxOrientationChanges) {
+      return { ok: false, error: "invalid orientationTimeline" };
+    }
+    let prevAt = -1;
+    for (const raw of tl as unknown[]) {
+      if (!raw || typeof raw !== "object") return { ok: false, error: "an orientationTimeline entry is not an object" };
+      const e = raw as Record<string, unknown>;
+      if (!isNonNegInt(e.atOffsetMs)) return { ok: false, error: "invalid orientationTimeline.atOffsetMs" };
+      if (e.orientation !== "portrait" && e.orientation !== "landscape") {
+        return { ok: false, error: "invalid orientationTimeline.orientation" };
+      }
+      if ((e.widthPx !== undefined && !isPositiveInt(e.widthPx)) || (e.heightPx !== undefined && !isPositiveInt(e.heightPx))) {
+        return { ok: false, error: "invalid orientationTimeline dimensions" };
+      }
+      if (e.atOffsetMs <= prevAt) return { ok: false, error: "orientationTimeline is not in ascending order" };
+      if (e.atOffsetMs > factsSpanMs + B.timingSlackMs) {
+        return { ok: false, error: "an orientation change lies outside the recording" };
+      }
+      prevAt = e.atOffsetMs;
+      orientations.add(e.orientation);
+    }
+    const first = tl[0] as Record<string, unknown>;
+    if (singleFile && ((first.atOffsetMs as number) > B.maxGapMs || first.orientation !== segs[0]!.orientation)) {
+      return { ok: false, error: "orientationTimeline does not start with the recording's initial orientation" };
+    }
+  }
+  if (m.pauses !== undefined) {
+    const ps = m.pauses;
+    if (!Array.isArray(ps) || ps.length > B.maxPauses) return { ok: false, error: "invalid pauses" };
+    let prevEnd = -1;
+    for (const raw of ps as unknown[]) {
+      if (!raw || typeof raw !== "object") return { ok: false, error: "a pause is not an object" };
+      const p = raw as Record<string, unknown>;
+      if (!isNonNegInt(p.startOffsetMs) || !isNonNegInt(p.endOffsetMs) || p.endOffsetMs <= p.startOffsetMs) {
+        return { ok: false, error: "invalid pause interval" };
+      }
+      if (p.startOffsetMs < prevEnd) return { ok: false, error: "pauses overlap or are out of order" };
+      if (p.endOffsetMs > factsSpanMs + B.timingSlackMs) {
+        return { ok: false, error: "a pause lies outside the recording duration" };
+      }
+      prevEnd = p.endOffsetMs;
+    }
+    // A pause is an unrecorded stretch: it is NAMED, never silent.
+    if (ps.length > 0 && !limitations.includes("BROADCAST_PAUSED")) {
+      return { ok: false, error: "pauses are not recorded in limitations (BROADCAST_PAUSED)" };
+    }
+  }
+  if (m.droppedFrameCount !== undefined) {
+    if (!isNonNegInt(m.droppedFrameCount)) return { ok: false, error: "invalid droppedFrameCount" };
+    if (m.droppedFrameCount > 0 && !limitations.includes("FRAMES_DROPPED")) {
+      return { ok: false, error: "dropped frames are not recorded in limitations (FRAMES_DROPPED)" };
+    }
+    if (m.droppedFrameCount === 0 && limitations.includes("FRAMES_DROPPED")) {
+      return { ok: false, error: "FRAMES_DROPPED contradicts droppedFrameCount 0" };
+    }
+  }
+  if (m.audioTracks !== undefined) {
+    const at = m.audioTracks;
+    if (!Array.isArray(at) || at.length > SCREEN_CONTINUOUS_AUDIO_TRACKS.length) {
+      return { ok: false, error: "invalid audioTracks" };
+    }
+    for (const t of at as unknown[]) {
+      if (!(SCREEN_CONTINUOUS_AUDIO_TRACKS as ReadonlyArray<unknown>).includes(t)) {
+        return { ok: false, error: "invalid audioTracks entry" };
+      }
+    }
+    if (new Set(at).size !== at.length) return { ok: false, error: "duplicate audioTracks entry" };
+    if (at.length === 0 && !limitations.includes("AUDIO_NOT_CAPTURED")) {
+      return { ok: false, error: "a silent recording is not recorded in limitations (AUDIO_NOT_CAPTURED)" };
+    }
+    if (at.length > 0 && limitations.includes("AUDIO_NOT_CAPTURED")) {
+      return { ok: false, error: "AUDIO_NOT_CAPTURED contradicts the written audioTracks" };
+    }
+  }
+
   // Orientation transitions must be RECORDED, not silent.
   if (orientations.size > 1 && !limitations.includes("ORIENTATION_CHANGED_DURING_CAPTURE")) {
     return { ok: false, error: "orientation transition across segments is not recorded in limitations" };
@@ -524,6 +712,13 @@ export function validateScreenContinuousManifest(
       if ((SCREEN_CONTINUOUS_INCOMPLETE_LIMITATIONS as ReadonlyArray<string>).includes(l)) {
         return { ok: false, error: `a complete session cannot carry ${l}` };
       }
+    }
+    // Contract A — a SINGLE_FILE recording is COMPLETE only when its writer
+    // FINALIZED it cleanly: a clean stop (above), no interruption or write
+    // failure (above), and an actual, non-empty file of non-zero duration. A
+    // file the writer could not finish is an INTERRUPTED_SESSION.
+    if (singleFile && (ordered[0]!.sizeBytes === 0 || ordered[0]!.durationMs === 0)) {
+      return { ok: false, error: "a complete SINGLE_FILE session needs a finalized, non-empty recording" };
     }
     if (!contiguous) return { ok: false, error: "segment sequence numbers are not contiguous from 0" };
     if (listed !== recorded) {
@@ -591,6 +786,147 @@ export function continuousSegmentStartOffsets(input: unknown): Map<number, numbe
     out.set(seg.partIndex as number, seg.startedAtOffsetMs as number);
   }
   return out.size > 0 ? out : null;
+}
+
+// =============================================================================
+// Contract A — the single-file recording facts persisted at seal.
+//
+// They travel INSIDE the manifest-facts trust event (`facts.continuous`), so
+// the bind's chain head covers them, and are read back with
+// `readContinuousRecordingFacts` (the generic `readCaptureManifestFacts` keeps
+// its own bounded shape). Everything here is REPORTED BY THE CAPTURE CLIENT.
+// A field the manifest did not state is null — never guessed.
+// =============================================================================
+
+export const CONTINUOUS_RECORDING_FACTS_SCHEMA = "PROOVRA_CONTINUOUS_RECORDING_FACTS_V1" as const;
+
+export type ContinuousRecordingFacts = {
+  schema: typeof CONTINUOUS_RECORDING_FACTS_SCHEMA;
+  layout: ScreenContinuousRecordingLayout;
+  /** null: not stated (a legacy client). [] : the recording is silent. */
+  audioTracks: ScreenContinuousAudioTrack[] | null;
+  droppedFrameCount: number | null;
+  pauses: ScreenContinuousPause[] | null;
+  orientationTimeline: ScreenContinuousOrientationChange[] | null;
+  /** SINGLE_FILE only: the one recording as the manifest describes it. */
+  recording: { partIndex: number; sizeBytes: number; durationMs: number; widthPx: number; heightPx: number } | null;
+};
+
+/** The recording facts of a VALIDATED manifest. */
+export function continuousRecordingFacts(m: ScreenContinuousManifest): ContinuousRecordingFacts {
+  const layout = continuousRecordingLayoutOf(m);
+  const rec = layout === "SINGLE_FILE" ? m.segments[0] : undefined;
+  return {
+    schema: CONTINUOUS_RECORDING_FACTS_SCHEMA,
+    layout,
+    audioTracks: m.audioTracks ? [...m.audioTracks] : null,
+    droppedFrameCount: typeof m.droppedFrameCount === "number" ? m.droppedFrameCount : null,
+    pauses: m.pauses ? m.pauses.map((p) => ({ startOffsetMs: p.startOffsetMs, endOffsetMs: p.endOffsetMs })) : null,
+    orientationTimeline: m.orientationTimeline
+      ? m.orientationTimeline.map((e) => ({
+          atOffsetMs: e.atOffsetMs,
+          orientation: e.orientation,
+          ...(typeof e.widthPx === "number" ? { widthPx: e.widthPx } : {}),
+          ...(typeof e.heightPx === "number" ? { heightPx: e.heightPx } : {}),
+        }))
+      : null,
+    recording: rec
+      ? { partIndex: rec.partIndex, sizeBytes: rec.sizeBytes, durationMs: rec.durationMs, widthPx: rec.widthPx, heightPx: rec.heightPx }
+      : null,
+  };
+}
+
+/**
+ * Read the recording facts back from a manifest-facts trust-event payload (or
+ * the facts object, or the recording facts themselves). Tolerant and bounded:
+ * facts recorded before contract A read as the legacy SEGMENTED layout with
+ * nothing stated; a malformed list reads as not stated.
+ */
+export function readContinuousRecordingFacts(payload: unknown): ContinuousRecordingFacts | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  const facts = (p["stage"] === CAPTURE_MANIFEST_FACTS_STAGE ? p["facts"] : p) as Record<string, unknown> | undefined;
+  if (!facts || typeof facts !== "object") return null;
+  const c = (facts["schema"] === CONTINUOUS_RECORDING_FACTS_SCHEMA ? facts : facts["continuous"]) as
+    | Record<string, unknown>
+    | undefined;
+  if (!c || typeof c !== "object" || c["schema"] !== CONTINUOUS_RECORDING_FACTS_SCHEMA) {
+    // Pre-contract-A continuous facts: the legacy layout, nothing stated.
+    if (facts["kind"] !== "SCREEN_CONTINUOUS") return null;
+    return {
+      schema: CONTINUOUS_RECORDING_FACTS_SCHEMA,
+      layout: "SEGMENTED",
+      audioTracks: null,
+      droppedFrameCount: null,
+      pauses: null,
+      orientationTimeline: null,
+      recording: null,
+    };
+  }
+  const B = SCREEN_CONTINUOUS_MANIFEST_BOUNDS;
+  const list = <T>(v: unknown, max: number, pick: (e: Record<string, unknown>) => T | null): T[] | null => {
+    if (!Array.isArray(v) || v.length > max) return null;
+    const out: T[] = [];
+    for (const e of v) {
+      const got = e && typeof e === "object" ? pick(e as Record<string, unknown>) : null;
+      if (got === null) return null;
+      out.push(got);
+    }
+    return out;
+  };
+  const rawAudio = c["audioTracks"];
+  const audio =
+    Array.isArray(rawAudio) &&
+    rawAudio.length <= SCREEN_CONTINUOUS_AUDIO_TRACKS.length &&
+    rawAudio.every((t) => (SCREEN_CONTINUOUS_AUDIO_TRACKS as ReadonlyArray<unknown>).includes(t))
+      ? [...(rawAudio as ScreenContinuousAudioTrack[])]
+      : null;
+  const r =c["recording"] as Record<string, unknown> | null | undefined;
+  const recording =
+    r && typeof r === "object" &&
+    isNonNegInt(r["partIndex"]) && isNonNegInt(r["sizeBytes"]) && isNonNegInt(r["durationMs"]) &&
+    isNonNegInt(r["widthPx"]) && isNonNegInt(r["heightPx"])
+      ? {
+          partIndex: r["partIndex"] as number,
+          sizeBytes: r["sizeBytes"] as number,
+          durationMs: r["durationMs"] as number,
+          widthPx: r["widthPx"] as number,
+          heightPx: r["heightPx"] as number,
+        }
+      : null;
+  return {
+    schema: CONTINUOUS_RECORDING_FACTS_SCHEMA,
+    layout: c["layout"] === "SINGLE_FILE" ? "SINGLE_FILE" : "SEGMENTED",
+    audioTracks: audio,
+    droppedFrameCount: isNonNegInt(c["droppedFrameCount"]) ? (c["droppedFrameCount"] as number) : null,
+    pauses: list(c["pauses"], B.maxPauses, (e) =>
+      isNonNegInt(e["startOffsetMs"]) && isNonNegInt(e["endOffsetMs"])
+        ? { startOffsetMs: e["startOffsetMs"] as number, endOffsetMs: e["endOffsetMs"] as number }
+        : null,
+    ),
+    orientationTimeline: list(c["orientationTimeline"], B.maxOrientationChanges, (e) =>
+      isNonNegInt(e["atOffsetMs"]) && (e["orientation"] === "portrait" || e["orientation"] === "landscape")
+        ? {
+            atOffsetMs: e["atOffsetMs"] as number,
+            orientation: e["orientation"] as "portrait" | "landscape",
+            ...(isPositiveInt(e["widthPx"]) ? { widthPx: e["widthPx"] as number } : {}),
+            ...(isPositiveInt(e["heightPx"]) ? { heightPx: e["heightPx"] as number } : {}),
+          }
+        : null,
+    ),
+    recording,
+  };
+}
+
+/**
+ * The persisted manifest facts PLUS the recording facts (`continuous`). The
+ * generic facts object is unchanged, so every existing reader keeps working.
+ */
+export function continuousCaptureManifestFactsWithRecording(
+  m: ScreenContinuousManifest,
+  ref: Parameters<typeof continuousCaptureManifestFacts>[1],
+): CaptureManifestFacts & { continuous: ContinuousRecordingFacts } {
+  return { ...continuousCaptureManifestFacts(m, ref), continuous: continuousRecordingFacts(m) };
 }
 
 /** UC-PROV-003 — the persisted facts of a VALIDATED continuity manifest. */

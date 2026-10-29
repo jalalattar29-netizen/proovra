@@ -11,6 +11,13 @@
 
 import { reviewWorkflowStateLabel } from "@proovra/shared";
 import { reportFreshnessChangeCopy } from "@proovra/shared";
+// 2026-10-29 — wire contract D: one screen recording is one item.
+import {
+  CAPTURE_RECORD_SYSTEM_LABEL,
+  RECORDING_TECHNICAL_PART_LABEL,
+  SCREEN_RECORDING_ITEM_LABEL,
+  technicalPartCountLabel,
+} from "@proovra/shared";
 import {
   outputNoteCopy,
   projectOutputProgress,
@@ -1435,6 +1442,19 @@ export interface PreviewItem {
   viewUrl: string | null;
 }
 
+/**
+ * Wire contract D — a stored part that is not an evidence item of its own: a
+ * screen recording's segment (or its one file) or a system-generated capture
+ * record. Listed as technical, with its own SHA-256.
+ */
+export interface TechnicalPartRow {
+  id: string;
+  partIndex: number;
+  label: string;
+  sha256: string | null;
+  sizeLabel: string;
+}
+
 /** `_lib.tsx:220` describeContentItemRole (the server's label first). */
 function contentItemRole(it: Obj): string {
   const artifactRole = s(it["artifactRole"]);
@@ -1457,7 +1477,16 @@ function contentItemRole(it: Obj): string {
  * workspace `evidence.contentItems`), each part's PRIVATE note joined from
  * `parts[].privateNote` by id, and the default selection the web resolves.
  */
-export function projectPreview(rw: unknown): { items: PreviewItem[]; defaultId: string | null } {
+export function projectPreview(rw: unknown): {
+  items: PreviewItem[];
+  defaultId: string | null;
+  /** Wire contract D — technical parts (empty for an ordinary record / older API). */
+  technicalParts: TechnicalPartRow[];
+  /** Every stored part (the "Download original files (N technical parts)" N). */
+  storedPartCount: number;
+  /** More than one ORIGINAL file: there is no single original to open. */
+  originalIsMultipart: boolean;
+} {
   const root = o(rw);
   const ev = o(root["evidence"]);
   const notes = new Map<string, string | null>();
@@ -1485,6 +1514,54 @@ export function projectPreview(rw: unknown): { items: PreviewItem[]; defaultId: 
       };
     })
     .filter((x): x is PreviewItem => x !== null);
+  // Wire contract D (2026-10-29) — the API's projection: ONE card for a screen
+  // recording (its lead part), the rest of its parts and any capture record as
+  // technical parts. An older API sends no presentation: nothing changes.
+  const rawItems = arr(ev["contentItems"]).map(o);
+  const presentationOf = (id: string) =>
+    s(rawItems.find((x) => x["id"] === id)?.["partPresentation"]) ?? "user_item";
+  const indexOf = (id: string) => {
+    const n = rawItems.find((x) => x["id"] === id)?.["index"];
+    return typeof n === "number" ? n : 0;
+  };
+  const artifacts = o(ev["contentArtifacts"]);
+  const recording = arr(artifacts["userItems"]).map(o).find((u) => u["kind"] === "recording") ?? null;
+  const recordingParts = items.filter((i) => presentationOf(i.id) === "recording_part");
+  const lead = recording
+    ? recordingParts.find((i) => indexOf(i.id) === recording["primaryPartIndex"]) ?? recordingParts[0] ?? null
+    : null;
+  const recordingPartCount = arr(recording?.["partIndexes"]).length;
+  const segmented = (s(recording?.["layout"]) ?? (recordingPartCount > 1 ? "SEGMENTED" : "SINGLE_FILE")) === "SEGMENTED";
+  const technicalParts: TechnicalPartRow[] = items
+    .filter((i) => presentationOf(i.id) !== "user_item")
+    .sort((a, b) => indexOf(a.id) - indexOf(b.id))
+    .map((i) => ({
+      id: i.id,
+      partIndex: indexOf(i.id),
+      label: presentationOf(i.id) === "capture_record" ? CAPTURE_RECORD_SYSTEM_LABEL : RECORDING_TECHNICAL_PART_LABEL,
+      sha256: s(rawItems.find((x) => x["id"] === i.id)?.["sha256"]),
+      sizeLabel: i.sizeLabel,
+    }));
+  if (technicalParts.length > 0) {
+    const userCards = items.filter((i) => presentationOf(i.id) === "user_item");
+    items.length = 0;
+    if (lead) {
+      items.push({
+        ...lead,
+        label: s(recording?.["label"]) ?? SCREEN_RECORDING_ITEM_LABEL,
+        kind: "video",
+        originalFileName: segmented ? null : lead.originalFileName,
+        sizeLabel: segmented ? `Stored as ${technicalPartCountLabel(recordingPartCount)}` : lead.sizeLabel,
+        role: "Primary evidence",
+      });
+    }
+    items.push(...userCards);
+  }
+  const technical = o(artifacts["technical"]);
+  const storedPartCount =
+    typeof technical["storedPartCount"] === "number" ? (technical["storedPartCount"] as number) : rawItems.length;
+  const originalPartCount =
+    typeof technical["originalPartCount"] === "number" ? (technical["originalPartCount"] as number) : rawItems.length;
   const defaultId =
     items.find((i) => i.id === s(ev["defaultPreviewItemId"]))?.id ??
     items.find((i) => {
@@ -1494,7 +1571,14 @@ export function projectPreview(rw: unknown): { items: PreviewItem[]; defaultId: 
     s(o(ev["primaryContentItem"])["id"]) ??
     items[0]?.id ??
     null;
-  return { items, defaultId };
+  return {
+    items,
+    // A default that became a technical part falls back to the first card.
+    defaultId: defaultId && items.some((i) => i.id === defaultId) ? defaultId : items[0]?.id ?? null,
+    technicalParts,
+    storedPartCount,
+    originalIsMultipart: originalPartCount > 1,
+  };
 }
 
 export const PREVIEW_COPY = {

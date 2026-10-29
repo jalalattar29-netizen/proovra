@@ -1,5 +1,6 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useRef, useState } from "react";
+import { tsaCompletionNotice } from "@proovra/shared";
 import { useRouter } from "next/navigation";
 import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
 
@@ -28,7 +29,7 @@ import {
   normalizeClientMimeType,
   validateIncomingFiles,
 } from "../_lib/file-utils";
-import { requestBrowserCaptureLocation } from "../_lib/browser-location";
+import { useCaptureLocation, type FinishLocation } from "./useCaptureLocation";
 import { computeIntegrityFromBlob } from "../_lib/hash-utils";
 import {
   buildStorageLimitMessage,
@@ -304,8 +305,10 @@ export function useCaptureSessionOrchestration({
   const [sessionStartedAt, setSessionStartedAt] = useState(() => new Date());
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   const [sessionTimeline, setSessionTimeline] = useState<SessionTimelineEvent[]>([]);
-  const [, setLocationAccuracyMeters] = useState<number | null>(null);
-  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const location = useCaptureLocation({
+    useLocation,
+    required: selectedCollectionPlan?.locationRequirement === "required",
+  });
 
   const sessionItemsRef = useRef<SessionItem[]>([]);
   const reservationRef = useRef<CaptureRecordReservation | null>(null);
@@ -555,7 +558,6 @@ export function useCaptureSessionOrchestration({
     setProgress(0);
     setError(null);
     setBusy(false);
-    setLocationPermissionDenied(false);
     setSessionStartedAt(new Date());
 
     if (!options?.preserveTimeline) {
@@ -583,7 +585,10 @@ export function useCaptureSessionOrchestration({
     onResetAudioRecorder();
   };
 
-  const finalizeSession = async () => {
+  const finalizeWithoutLocation = () => finalizeSession({ acceptLocationFailure: true });
+
+  const finalizeSession = async (options?: { acceptLocationFailure?: boolean }) => {
+    const acceptLocationFailure = options?.acceptLocationFailure === true;
     const items = sessionItemsRef.current;
 
     // A STANDING condition (workspace full; plan excludes this) survives the
@@ -649,57 +654,30 @@ export function useCaptureSessionOrchestration({
         throw new Error("No evidence items are available to finalize.");
       }
 
-      let gps:
-        | {
-            lat: number;
-            lng: number;
-            accuracyMeters?: number;
-          }
-        | undefined;
-
-      const locationRequired = selectedCollectionPlan?.locationRequirement === "required";
+      const locationRequired = location.required;
       const shouldUsePreciseGps = locationRequired;
-      // A request without coordinates carries why (see requestBrowserCaptureLocation).
-      let locationRequestOutcome: "DENIED" | "UNAVAILABLE" | undefined;
-
-      if (useLocation) {
-        const located = await requestBrowserCaptureLocation(shouldUsePreciseGps);
-        gps = located.gps;
-        locationRequestOutcome = located.outcome;
-        if (gps) {
-          setLocationAccuracyMeters(gps.accuracyMeters ?? null);
-          setLocationPermissionDenied(false);
-
-          recordTimelineEvent({
-            title: "Location recorded",
-            detail: shouldUsePreciseGps
-              ? "Precise device location metadata was attached with user consent because the selected intake plan requires location context."
-              : "Reduced-precision device location metadata was attached with user consent.",
-            tone: "info",
-          });
-        } else {
-          setLocationAccuracyMeters(null);
-          setLocationPermissionDenied(true);
-
-          recordTimelineEvent({
-            title: "Location unavailable",
-            detail: "The browser denied or failed to provide device location metadata.",
-            tone: "warning",
-          });
-
-          if (locationRequired) {
-            throw new Error(
-              "Location metadata is required by the selected plan, but browser location was not granted."
-            );
-          }
-
-          addToast("Location unavailable. Continuing without GPS.", "warning");
-        }
+      // A resumed finalize reuses the reserved record: its location was fixed
+      // when it was created and is not re-measured (see useCaptureLocation).
+      const measured: FinishLocation = resuming ? {} : await location.measureForFinish(acceptLocationFailure);
+      if (measured.stopMessage) {
+        setError(measured.stopMessage);
+        addToast(measured.stopMessage, "warning");
+        standingStatus = locationRequired ? "Location required" : "Location not obtained";
+        return;
       }
-
-      if (locationRequired && !gps) {
-        throw new Error(
-          "Location metadata is required by the selected plan. Enable location and grant browser permission before finishing."
+      const gps = measured.gps;
+      const locationRequestOutcome = measured.outcome;
+      if (gps || locationRequestOutcome !== "NOT_REQUESTED") {
+        recordTimelineEvent(
+          gps
+            ? {
+                title: "Location recorded",
+                detail: shouldUsePreciseGps
+                  ? "Precise device location metadata was attached with user consent because the selected intake plan requires location context."
+                  : "Reduced-precision device location metadata was attached with user consent.",
+                tone: "info",
+              }
+            : { title: "Location not obtained", detail: "Finishing without location; the record states the failed request.", tone: "warning" },
         );
       }
 
@@ -1008,10 +986,13 @@ export function useCaptureSessionOrchestration({
       setProgress(95);
 
       currentItemId = null;
-      await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
+      const completed = (await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
         method: "POST",
         body: JSON.stringify({}),
-      });
+      })) as { tsaOutcome?: Parameters<typeof tsaCompletionNotice>[0] } | null;
+      // The record is sealed and signed either way; a trusted timestamp the
+      // provider did not issue is stated now, not discovered later.
+      const tsaNotice = tsaCompletionNotice(completed?.tsaOutcome ?? null);
       // Sealed: nothing left to resume.
       reservationRef.current = null;
 
@@ -1041,6 +1022,7 @@ export function useCaptureSessionOrchestration({
         const outcomeToast = artifactOutcomeToast(artifactOutcome);
         addToast(outcomeToast.message, outcomeToast.tone);
       }
+      if (tsaNotice) addToast(`${tsaNotice.title}. ${tsaNotice.message}`, "warning");
 
       // Drop the local draft handle — the server has moved it to FINALIZED
       // (linked to the new evidence record) inside the create handler.
@@ -1124,7 +1106,9 @@ export function useCaptureSessionOrchestration({
     busy,
     error,
     finalizeSession,
-    locationPermissionDenied,
+    finalizeWithoutLocation,
+    location,
+    locationPermissionDenied: location.permissionDenied,
     progress,
     removeSessionItem,
     resetCaptureState,

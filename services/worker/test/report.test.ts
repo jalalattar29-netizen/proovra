@@ -5,13 +5,14 @@ import { describe, expect, it } from "vitest";
 // now exercise the same paths production does.
 import { buildReportViewModel } from "../src/report-v2/build-view-model.js";
 import { renderReportHtml } from "../src/report-v2/render-html.js";
+import { MULTIPART_DIGEST_RECOMPUTATION_NOTE } from "../src/report-v2/sections/technical-appendix.js";
+import { escapeHtml } from "../src/report-v2/formatters.js";
 import type { ReportV2Input } from "../src/report-v2/types.js";
 import { REAL, upgradedProof } from "../../../packages/shared/tests/helpers/ots-fixtures.mjs";
 import { chainColumnsFor } from "./fixtures/ots-chain-fixtures.js";
 import {
   PROOVRA_FORBIDDEN_SURFACE_PATTERNS,
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
-  PROOVRA_MULTIPART_RECOMPUTATION_NOTE,
   PROOVRA_MULTIPART_REVIEWER_EXPLANATION,
 } from "@proovra/shared-evidence-presentation";
 
@@ -472,7 +473,8 @@ describe("report v2 pipeline", () => {
     expect(html).not.toContain("Strongly verified");
     expect(html).not.toContain("Strong recorded integrity");
     expect(html).toContain(PROOVRA_MULTIPART_REVIEWER_EXPLANATION);
-    expect(html).toContain(PROOVRA_MULTIPART_RECOMPUTATION_NOTE);
+    // 2026-10-29 — the recomputation note names both separators ('|' and '\n').
+    expect(html).toContain(escapeHtml(MULTIPART_DIGEST_RECOMPUTATION_NOTE));
     expect(html).toContain(PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE);
     for (const pattern of PROOVRA_FORBIDDEN_SURFACE_PATTERNS) {
       expect(html).not.toMatch(pattern);

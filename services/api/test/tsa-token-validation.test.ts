@@ -13,10 +13,14 @@
  * granted-without-token replies were all persisted as STAMPED, and the
  * returned `messageImprint` was the digest we sent, never the token's.
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 
-import { createEvidenceTimestamp } from "../src/services/timestamp.service.js";
+import { compositeSha256 } from "@proovra/shared-runtime";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { createEvidenceTimestamp, TSA_LOG_EVENTS, type TimestampResult } from "../src/services/timestamp.service.js";
 import { evaluateKeptTsaToken } from "../src/services/timestamp/kept-token-validation.js";
+import { timestampCustodyPayload } from "../src/services/timestamp/timestamp-custody-payload.js";
 import {
   LOCAL_TSA_DEFAULT_POLICY,
   LOCAL_TSA_OTHER_POLICY,
@@ -205,4 +209,159 @@ describe("TSA token validation (locally minted authority, loopback HTTP)", () =>
     // A reply with no token at all.
     expect(await evaluateKeptTsaToken({ ...row, tsaTokenBase64: "" })).toMatchObject({ ok: false, code: "tsa_token_missing" });
   }, 60_000);
+
+  // -------------------------------------------------------------------------
+  // 2026-10-29 — every outcome is OBSERVABLE: one bounded structured log line
+  // (tsa.timestamp.stamped / .failed), a duration on the result and in the
+  // custody payload, and nothing secret anywhere (URL, credentials, digest,
+  // provider body, token).
+  // -------------------------------------------------------------------------
+  describe("observability of every outcome", () => {
+    type LogLine = Record<string, unknown>;
+    let lines: LogLine[] = [];
+    let raw: string[] = [];
+    const capture = (...args: unknown[]) => {
+      const s = String(args[0] ?? "");
+      if (!s.includes('"event":"tsa.timestamp.')) return;
+      raw.push(s);
+      lines.push(JSON.parse(s) as LogLine);
+    };
+    const spies: Array<{ mockRestore(): void }> = [];
+    beforeAll(() => {
+      spies.push(vi.spyOn(console, "info").mockImplementation(capture));
+      spies.push(vi.spyOn(console, "warn").mockImplementation(capture));
+    });
+    afterAll(() => {
+      for (const s of spies) s.mockRestore();
+    });
+    afterEach(() => {
+      lines = [];
+      raw = [];
+    });
+
+    /** The one line this request logged, with nothing secret in it. */
+    function onlyLine(r: TimestampResult, digest: string): LogLine {
+      expect(lines).toHaveLength(1);
+      const text = raw[0]!;
+      for (const secret of ["local-user", "local-secret-never-in-argv", tsa.url, "127.0.0.1", digest]) {
+        expect(text).not.toContain(secret);
+      }
+      if (r.tokenBase64) expect(text).not.toContain(r.tokenBase64.slice(0, 40));
+      expect(lines[0]).toMatchObject({ provider: "LOCAL_TEST_TSA", outcome: r.status, failureCode: r.failureCode, durationMs: r.durationMs });
+      return lines[0]!;
+    }
+
+    function durationRecorded(r: TimestampResult, inputKind: string) {
+      expect(Number.isInteger(r.durationMs)).toBe(true);
+      expect(r.durationMs).toBeGreaterThanOrEqual(0);
+      const payload = timestampCustodyPayload(r, inputKind);
+      expect(payload.tsaDurationMs).toBe(r.durationMs);
+      expect(payload.tsaInputKind).toBe(inputKind);
+      expect(payload.tsaInputDigestHex).toBe(r.requestDigestHex);
+      return payload;
+    }
+
+    it("success, single file: STAMPED, the token's imprint binds the EXACT digest sent, duration persisted", async () => {
+      configure();
+      const digest = createHash("sha256").update("a single preserved file").digest("hex");
+      const r = (await createEvidenceTimestamp({ digestHex: digest, inputKind: "FILE_SHA256" }))!;
+      expect(r.status).toBe("STAMPED");
+      expect(r.messageImprint).toBe(digest);
+      expect(r.requestDigestHex).toBe(digest);
+      const payload = durationRecorded(r, "FILE_SHA256");
+      expect(payload).toMatchObject({ tsaStatus: "STAMPED", tsaFailureCode: null, tsaMessageImprint: digest });
+      expect(onlyLine(r, digest)).toMatchObject({
+        event: TSA_LOG_EVENTS.STAMPED,
+        level: "info",
+        category: null,
+        stage: "complete",
+        inputKind: "FILE_SHA256",
+        httpStatusClass: "2xx",
+        replyKept: true,
+      });
+    }, 30_000);
+
+    it("success, multipart: the '|' composite digest (CANONICAL_PACKAGE_SHA256) is what the token certifies", async () => {
+      configure();
+      const parts = ["part zero bytes", "part one bytes", "part two bytes"].map((s) => createHash("sha256").update(s).digest("hex"));
+      const composite = compositeSha256(parts);
+      // The composite is the hash of the part hashes joined by "|", in part order.
+      expect(composite).toBe(createHash("sha256").update(parts.join("|")).digest("hex"));
+      const r = (await createEvidenceTimestamp({ digestHex: composite, inputKind: "CANONICAL_PACKAGE_SHA256" }))!;
+      expect(r.status).toBe("STAMPED");
+      expect(r.messageImprint).toBe(composite);
+      for (const p of parts) expect(r.messageImprint).not.toBe(p);
+      durationRecorded(r, "CANONICAL_PACKAGE_SHA256");
+      expect(onlyLine(r, composite)).toMatchObject({ event: TSA_LOG_EVENTS.STAMPED, inputKind: "CANONICAL_PACKAGE_SHA256" });
+    }, 30_000);
+
+    it("transport failure (closed port): tsa_provider_unreachable, no HTTP status, nothing kept", async () => {
+      configure({ TSA_URL: "http://127.0.0.1:9/tsr" });
+      const r = (await createEvidenceTimestamp({ digestHex: DIGEST, inputKind: "FILE_SHA256" }))!;
+      expect(r).toMatchObject({ status: "FAILED", failureCode: "tsa_provider_unreachable", tokenBase64: "", messageImprint: null });
+      durationRecorded(r, "FILE_SHA256");
+      expect(onlyLine(r, DIGEST)).toMatchObject({
+        event: TSA_LOG_EVENTS.FAILED,
+        level: "warn",
+        category: "NOT_ISSUED",
+        stage: "transport",
+        httpStatusClass: null,
+        replyKept: false,
+      });
+    }, 30_000);
+
+    it("HTTP 5xx: tsa_provider_http_error with the status class, the provider's body never kept or logged", async () => {
+      configure();
+      tsa.mode = "http_503";
+      const r = (await createEvidenceTimestamp({ digestHex: DIGEST, inputKind: "FILE_SHA256" }))!;
+      expect(r).toMatchObject({ status: "FAILED", failureCode: "tsa_provider_http_error", tokenBase64: "" });
+      durationRecorded(r, "FILE_SHA256");
+      const line = onlyLine(r, DIGEST);
+      expect(line).toMatchObject({ category: "NOT_ISSUED", stage: "transport", httpStatusClass: "5xx" });
+      expect(raw[0]).not.toContain("service unavailable");
+      expect(JSON.stringify(r)).not.toContain("service unavailable");
+    }, 30_000);
+
+    it("empty 200 body: FAILED (parse failed, no token) — never a crash of completion", async () => {
+      configure();
+      tsa.mode = "empty_body";
+      const r = (await createEvidenceTimestamp({ digestHex: DIGEST, inputKind: "FILE_SHA256" }))!;
+      expect(r.status).toBe("FAILED");
+      expect(["tsa_response_parse_failed", "tsa_token_missing"]).toContain(r.failureCode);
+      expect(r.tokenBase64).toBe("");
+      durationRecorded(r, "FILE_SHA256");
+      expect(onlyLine(r, DIGEST)).toMatchObject({ category: "NOT_ISSUED", stage: "reply", httpStatusClass: "2xx", replyKept: false });
+    }, 30_000);
+
+    it("non-granted response: tsa_response_not_granted, the reply kept for triage", async () => {
+      configure();
+      tsa.mode = "rejected";
+      const r = (await createEvidenceTimestamp({ digestHex: DIGEST, inputKind: "FILE_SHA256" }))!;
+      expect(r).toMatchObject({ status: "FAILED", failureCode: "tsa_response_not_granted" });
+      durationRecorded(r, "FILE_SHA256");
+      expect(onlyLine(r, DIGEST)).toMatchObject({ category: "NOT_ISSUED", stage: "reply", replyKept: true });
+    }, 30_000);
+
+    it("imprint mismatch: FAILED; the token's own imprint is recorded beside the digest sent", async () => {
+      configure();
+      tsa.mode = "wrong_imprint";
+      const r = (await createEvidenceTimestamp({ digestHex: DIGEST, inputKind: "FILE_SHA256" }))!;
+      expect(r).toMatchObject({ status: "FAILED", failureCode: "tsa_message_imprint_mismatch", messageImprint: "ab".repeat(32), requestDigestHex: DIGEST });
+      const payload = durationRecorded(r, "FILE_SHA256");
+      expect(payload.tsaMessageImprint).not.toBe(payload.tsaInputDigestHex);
+      expect(onlyLine(r, DIGEST)).toMatchObject({ category: "VALIDATION_FAILED", stage: "reply" });
+    }, 30_000);
+
+    it("untrusted signer: the token is KEPT, not validated, never STAMPED", async () => {
+      configure();
+      tsa.mode = "forged";
+      const r = (await createEvidenceTimestamp({ digestHex: DIGEST, inputKind: "FILE_SHA256" }))!;
+      expect(r).toMatchObject({ status: "FAILED", failureCode: "tsa_token_untrusted", validatedAtUtc: null });
+      expect(r.tokenBase64.length).toBeGreaterThan(100);
+      // The token it kept certifies exactly the digest we sent.
+      expect(r.messageImprint).toBe(DIGEST);
+      durationRecorded(r, "FILE_SHA256");
+      expect(onlyLine(r, DIGEST)).toMatchObject({ category: "VALIDATION_FAILED", stage: "validation", replyKept: true });
+    }, 30_000);
+  });
 });

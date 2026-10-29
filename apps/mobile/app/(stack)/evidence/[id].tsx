@@ -17,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, type EvidenceOutputState, formatCaptureLocationCoordinate, formatCaptureLocationAccuracy } from "@proovra/shared";
+import { evidenceLocationCopy, NEW_VERSION_ACTION, otsAnchoringCopy, TRASH_KEEPS_PLAN_CAPACITY_COPY, TRASH_LIFECYCLE_COPY, type EvidenceOutputState, formatCaptureLocationCoordinate, formatCaptureLocationAccuracy, downloadOriginalFilesLabel } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -58,6 +58,10 @@ import {
   relationshipTypeLabel,
   EVIDENCE_RELATIONSHIP_TYPES,
   parseOriginalLink,
+  isMultipartOriginalError,
+  buildEvidencePartsPath,
+  parseOriginalPartLinks,
+  type OriginalPartLink,
   originalAccessRefusal,
   ORIGINAL_ACCESS_CONSEQUENCE,
   buildEvidenceLabelBody,
@@ -306,6 +310,8 @@ export default function EvidenceDetailScreen() {
   const [labelBusy, setLabelBusy] = useState(false);
   /** Opening the ORIGINAL file. A GET that writes to the custody chain. */
   const [originalBusy, setOriginalBusy] = useState(false);
+  // Wire contract D — the original FILES of a record stored as several parts.
+  const [originalParts, setOriginalParts] = useState<OriginalPartLink[] | null>(null);
   /** Linking this record to another. The picker reads the library. */
   const [linking, setLinking] = useState(false);
   const [linkType, setLinkType] = useState<string>("RELATED");
@@ -836,6 +842,16 @@ export default function EvidenceDetailScreen() {
               }
               await Linking.openURL(link);
             } catch (err) {
+              if (isMultipartOriginalError(err)) {
+                // No single original: list the original files (technical parts).
+                const links = parseOriginalPartLinks(await apiFetch(buildEvidencePartsPath(String(id))));
+                if (links.length === 0) {
+                  Alert.alert("Original files not available", "The original files are not available under this workspace's download policy.");
+                  return;
+                }
+                setOriginalParts(links);
+                return;
+              }
               Alert.alert("Could not open the original", toSafeUserError(err, { message: "Failed to open original" }).message);
             } finally {
               setOriginalBusy(false);
@@ -1398,6 +1414,35 @@ export default function EvidenceDetailScreen() {
             originalBusy={originalBusy}
             originalRefusal={originalRefusal}
           />
+          {/* Wire contract D — technical parts: a screen recording's stored parts
+              and any capture record, each with its own SHA-256. Never counted
+              as evidence items. */}
+          {preview.technicalParts.length > 0 ? (
+            <ProovraCard testID="evidence-technical-parts">
+              <ProovraText variant="bodySm" weight="semibold">{`Technical parts (${preview.technicalParts.length})`}</ProovraText>
+              {preview.technicalParts.map((part) => (
+                <View key={part.id}>
+                  <ProovraText variant="label">{`${part.label} — stored part ${part.partIndex + 1}${part.sizeLabel ? ` · ${part.sizeLabel}` : ""}`}</ProovraText>
+                  <ProovraText variant="label" color={theme.color.ink.muted}>{`SHA-256 ${part.sha256 ?? "not recorded"}`}</ProovraText>
+                </View>
+              ))}
+            </ProovraCard>
+          ) : null}
+          {originalParts ? (
+            <ProovraCard testID="evidence-original-files">
+              <ProovraText variant="bodySm" weight="semibold">{downloadOriginalFilesLabel(preview.storedPartCount)}</ProovraText>
+              {originalParts.map((part) => (
+                <ProovraButton
+                  key={part.partIndex}
+                  label={part.label}
+                  accessibilityLabel={`Open original file ${part.partIndex + 1}`}
+                  variant="ghost"
+                  fullWidth={false}
+                  onPress={() => void Linking.openURL(part.url)}
+                />
+              ))}
+            </ProovraCard>
+          ) : null}
           {rw ? <RecordSummaryCard items={recordSummaryItems(record, (iso) => formatUserDateTime(iso) ?? iso)} /> : null}
           {caseAssignment ? (
             <View style={styles.inline}>

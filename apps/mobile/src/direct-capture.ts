@@ -48,6 +48,8 @@ export type DirectCaptureItemSource =
   | "SCREEN_FRAME"
   | "SCREEN_MANIFEST"
   | "SCREEN_SEGMENT"
+  /** Contract A — the ONE file of a SINGLE_FILE continuous recording (part 0). */
+  | "SCREEN_RECORDING"
   | "CONTINUOUS_MANIFEST";
 
 /** Acquisition modes the mobile app may open a direct-capture session for. */
@@ -102,7 +104,7 @@ export async function reserveDirectCaptureEvidence(
      * permission denied, or no position). Recorded with the record so its
      * location state reads "not shared" / "unavailable", never "not recorded".
      */
-    locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
+    locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
   },
 ): Promise<string> {
   const res = await withTimeout(
@@ -174,7 +176,15 @@ export async function uploadDirectCaptureItem(
    * AUD-004 / AUD-005 — per-request deadlines. A stalled declare, presign or
    * PUT now rejects with code TIMEOUT instead of hanging its caller forever.
    */
-  timeouts: { requestMs?: number; putMs?: number } = {},
+  timeouts: {
+    requestMs?: number;
+    putMs?: number;
+    /**
+     * iOS: hand the PUT to a BACKGROUND URL session, so a long single-file
+     * recording keeps uploading when PROOVRA leaves the foreground.
+     */
+    background?: boolean;
+  } = {},
 ): Promise<{ partIndex: number; sha256Hex: string; sizeBytes: number }> {
   const requestMs = timeouts.requestMs ?? CAPTURE_REQUEST_TIMEOUT_MS;
   const putMs = timeouts.putMs ?? CAPTURE_PUT_TIMEOUT_MS;
@@ -233,6 +243,7 @@ export async function uploadDirectCaptureItem(
     checksumSha256Base64: integrity.checksumSha256Base64,
     contentMd5Base64: integrity.contentMd5Base64,
     timeoutMs: putMs,
+    ...(timeouts.background ? { background: true } : {}),
   });
 
   return { partIndex: item.partIndex, sha256Hex, sizeBytes: integrity.sizeBytes };
@@ -385,4 +396,116 @@ export async function stateDirectCapturePartLost(session: DirectCaptureSession, 
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+/**
+ * Contract C — the server's own list of a session's parts (owner-only).
+ *
+ * The client used to number a new item `items.length`, which collided with a
+ * part the session had already declared (a resumed session, a removed item)
+ * and surfaced as an unexplained 409. The server's list is the authority for
+ * what is taken; declaration under the session lock stays the uniqueness
+ * authority, so a race still answers PART_ALREADY_DECLARED and the caller
+ * reads the list again.
+ */
+export type DirectCapturePartState = "DECLARED" | "UPLOADED" | "LOST";
+export type DirectCapturePart = {
+  partIndex: number;
+  sha256: string | null;
+  state: DirectCapturePartState;
+  source: string | null;
+};
+
+export function parseDirectCaptureParts(res: unknown): DirectCapturePart[] {
+  const rows = (res as { parts?: unknown } | null)?.parts;
+  if (!Array.isArray(rows)) return [];
+  const out: DirectCapturePart[] = [];
+  for (const raw of rows) {
+    const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+    if (!r || typeof r.partIndex !== "number" || !Number.isInteger(r.partIndex) || r.partIndex < 0) continue;
+    const state: DirectCapturePartState = r.state === "UPLOADED" || r.state === "LOST" ? r.state : "DECLARED";
+    out.push({
+      partIndex: r.partIndex,
+      sha256: typeof r.sha256 === "string" ? r.sha256 : null,
+      state,
+      source: typeof r.source === "string" ? r.source : null,
+    });
+  }
+  return out;
+}
+
+export async function listDirectCaptureParts(session: DirectCaptureSession): Promise<DirectCapturePart[]> {
+  const res = await withTimeout(
+    (signal) => apiFetch(`/v1/capture/direct-sessions/${encodeURIComponent(session.captureSessionId)}/parts`, { signal }),
+    CAPTURE_REQUEST_TIMEOUT_MS,
+    "Reading the session's parts",
+  );
+  return parseDirectCaptureParts(res);
+}
+
+/** PURE — the next free part index: after every part the server or this client holds. */
+export function nextFreePartIndex(
+  serverParts: ReadonlyArray<{ partIndex: number }>,
+  localTaken: Iterable<number> = [],
+): number {
+  let max = -1;
+  for (const p of serverParts) max = Math.max(max, p.partIndex);
+  for (const n of localTaken) max = Math.max(max, n);
+  return max + 1;
+}
+
+/** How many times a declaration refused as PART_ALREADY_DECLARED is re-allocated. */
+export const PART_ALLOCATION_RETRIES = 3;
+
+type DirectCaptureItemInput = Parameters<typeof uploadDirectCaptureItem>[2];
+
+/**
+ * Declare + upload ONE item at a server-authoritative part index.
+ *
+ * `taken` is what this client already holds for the session (uploaded
+ * items); the server list adds what it holds. On PART_ALREADY_DECLARED the
+ * list is read again and the next index tried — bounded, so a server that
+ * keeps refusing surfaces its refusal instead of looping.
+ */
+export async function uploadDirectCaptureItemAllocated(
+  session: DirectCaptureSession,
+  evidenceId: string,
+  item: Omit<DirectCaptureItemInput, "partIndex">,
+  options: {
+    taken?: Iterable<number>;
+    /** A session opened by this very finalize holds nothing yet: skip the first read. */
+    freshSession?: boolean;
+    timeouts?: Parameters<typeof uploadDirectCaptureItem>[3];
+    listParts?: (s: DirectCaptureSession) => Promise<DirectCapturePart[]>;
+    upload?: typeof uploadDirectCaptureItem;
+  } = {},
+): Promise<{ partIndex: number; sha256Hex: string; sizeBytes: number }> {
+  const list = options.listParts ?? listDirectCaptureParts;
+  const upload = options.upload ?? uploadDirectCaptureItem;
+  const taken = [...(options.taken ?? [])];
+  const readServer = async (): Promise<DirectCapturePart[]> => {
+    try {
+      return await list(session);
+    } catch (err) {
+      // An API without contract C (404) leaves this client's own count as the
+      // only information; any other failure is a real failure of the finalize.
+      const e = err as { status?: number; statusCode?: number } | null;
+      if ((e?.status ?? e?.statusCode) === 404) return [];
+      throw err;
+    }
+  };
+  let server: DirectCapturePart[] = options.freshSession ? [] : await readServer();
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= PART_ALLOCATION_RETRIES; attempt += 1) {
+    const partIndex = nextFreePartIndex(server, taken);
+    try {
+      return await upload(session, evidenceId, { ...item, partIndex }, options.timeouts);
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code !== "PART_ALREADY_DECLARED") throw err;
+      lastErr = err;
+      taken.push(partIndex);
+      server = await readServer();
+    }
+  }
+  throw lastErr;
 }

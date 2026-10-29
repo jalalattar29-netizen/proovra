@@ -199,7 +199,26 @@ export const MEDIA_INTELLIGENCE_JOB_KINDS = [
   // second queue. The processor reads teamId/evidenceId/kind from the run row,
   // never the wire; the DB `media_intelligence_runs_kind_bounded` CHECK admits it.
   "reconstruct_screen",
+  // 2026-10-29 — ONE DERIVED combined MP4 for a legacy SEGMENTED continuous
+  // screen recording (segments verified against their sealed digests, joined
+  // in sequence, gaps kept). Same queue and durable run lifecycle as
+  // `reconstruct_screen`; its own enforced budget and attempt ceiling are
+  // MEDIA_INTELLIGENCE_KIND_BOUNDS below. The DB CHECK admits it from
+  // migration 20281029000000.
+  "combine_screen_recording",
 ] as const;
+
+/**
+ * Per-kind bounds for kinds whose single attempt is long (a whole-recording
+ * ffmpeg pass). Unlike the queue-wide retry budget (observed, not enforced),
+ * these ARE enforced by the kind's handler: every subprocess is killed at the
+ * remainder of `attemptTimeoutMs`, which is kept below the run lease (20 min)
+ * so a live attempt is never taken over, and a run whose attempt count reached
+ * `maxAttempts` is terminally FAILED instead of retried again.
+ */
+export const MEDIA_INTELLIGENCE_KIND_BOUNDS = {
+  combine_screen_recording: { attemptTimeoutMs: 15 * 60 * 1000, maxAttempts: 3 },
+} as const;
 
 export type MediaIntelligenceJobKind =
   (typeof MEDIA_INTELLIGENCE_JOB_KINDS)[number];

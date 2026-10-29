@@ -57,11 +57,12 @@ function tsaRow(): HTMLElement {
 const cell = () => tsaRow().querySelector(".evidence-detail-matrix-cell__state");
 
 describe("Integrity tab — Timestamp proof (TSA), one presenter (AUD-14)", () => {
-  it("a provider outage reads Not obtained — not failed, not the raw word", () => {
+  it("a provider outage reads the shared degraded state — warning, not failed, not the raw word", () => {
     render(<EvidenceIntegrityTab ctx={ctx(undefined, undefined, { timestampAvailable: false, status: "FAILED", proofStatus: "NOT_OBTAINED" })} />);
-    expect(tsaRow().textContent).toContain("Not obtained");
+    // (2026-10-29) The same words and tone as the evidence header (tsaLabel).
+    expect(tsaRow().textContent).toContain("Trusted timestamp not obtained");
     expect(tsaRow().textContent).not.toMatch(/Status: FAILED|Timestamp failed/);
-    expect(cell()?.getAttribute("data-tone")).not.toBe("red");
+    expect(cell()?.getAttribute("data-tone")).toBe("amber");
   });
 
   it("a kept token never validated reads Recorded, not validated — never amber pending", () => {

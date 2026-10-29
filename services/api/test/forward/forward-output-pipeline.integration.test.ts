@@ -1300,14 +1300,16 @@ describe("FORWARD OUTPUT PIPELINE (real processor, live PostgreSQL 16)", () => {
       return { ...ev, input: input!, ref };
     }
 
-    it("AUD-18 + AUD-19: a record whose owner did not disclose its location is rendered with its pvr_ and the location withheld", async () => {
+    it("AUD-18 + location contract: under the DEFAULT public policy the AUTHORIZED report still carries the opted-in location", async () => {
+      // The public page's VERIFICATION_ONLY default governs the public audience
+      // only. The owner's report prints what the submitter opted in to.
       const r = await issueWithLocation({});
       expect(r.ref).toMatch(/^pvr_/);
       expect(r.input.verificationRef).toBe(r.ref);
-      expect(r.input.recordedLocationDisclosed).toBe(false);
+      expect(r.input.recordedLocationDisclosed).toBe(true);
     }, 300_000);
 
-    it("AUD-19: CONTENT_PREVIEW with the recorded location shown is rendered with the location disclosed", async () => {
+    it("CONTENT_PREVIEW with the recorded location shown is rendered with the location (unchanged)", async () => {
       const r = await issueWithLocation({ verificationDisclosureMode: "CONTENT_PREVIEW", showRecordedLocation: true });
       expect(r.input.recordedLocationDisclosed).toBe(true);
       expect(r.input.verificationRef).toBe(r.ref);

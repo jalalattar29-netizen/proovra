@@ -77,7 +77,6 @@ import {
   isOtsTerminal,
   shortId,
   shouldPollArtifactReadiness,
-  tryDownloadFile,
   type EvidenceDetailCtx,
   type EvidenceDetailTab,
   EvidenceHeroIconActions,
@@ -85,6 +84,7 @@ import {
 import { getRecordStatusBadgeTone } from "../lib/evidence-library-status";
 import { useArtifactReadinessPoll } from "./_hooks/useArtifactReadinessPoll";
 import { useEvidenceArtifactActions } from "./_hooks/useEvidenceArtifactActions";
+import { useOriginalDownload } from "./_hooks/useOriginalDownload";
 import { EvidenceOverviewTab } from "./_tabs/EvidenceOverviewTab";
 import { EvidenceIntegrityTab } from "./_tabs/EvidenceIntegrityTab";
 import { EvidenceCustodyTab } from "./_tabs/EvidenceCustodyTab";
@@ -640,54 +640,12 @@ function EvidenceDetailPageInner() {
     }
   };
 
-  const openOriginal = async () => {
-    if (!evidenceId) return;
-    try {
-      const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
-        url?: string | null;
-        publicUrl?: string | null;
-      };
-      const url = data.publicUrl ?? data.url ?? null;
-      if (!url) {
-        addToast("Original file not available", "info");
-        return;
-      }
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (openError) {
-      addToast("Failed to open original", "error");
-      captureException(openError, { feature: "web_evidence_open_original", evidenceId });
-    }
-  };
+  // "Open original" / "Download original" — wire contract D lives in the hook.
+  const { openOriginal, downloadOriginal } = useOriginalDownload({
+    evidenceId: evidenceId ?? null,
+    addToast,
+  });
 
-  const downloadOriginal = async () => {
-    if (!evidenceId) return;
-    try {
-      const data = (await apiFetch(`/v1/evidence/${evidenceId}/original`)) as {
-        url?: string | null;
-        publicUrl?: string | null;
-        originalFileName?: string | null;
-      };
-      const url = data.url ?? data.publicUrl ?? null;
-      if (!url) {
-        addToast("Original file not available", "info");
-        return;
-      }
-      // Hoisted so BOTH arguments are plain identifiers at the call site.
-      // The architecture audit resolves a request primitive by walking its
-      // arguments; an inline `||` or property access made the site
-      // unanalysable and forced a hand-reviewed exemption.
-      const originalFileName = data.originalFileName || `evidence-${evidenceId}`;
-      const ok = await tryDownloadFile(url, originalFileName);
-      if (!ok) window.open(url, "_blank", "noopener,noreferrer");
-      addToast("Original downloaded", "success");
-    } catch (downloadError) {
-      addToast("Failed to download original", "error");
-      captureException(downloadError, {
-        feature: "web_evidence_download_original",
-        evidenceId,
-      });
-    }
-  };
   /**
    * The three artifact ACTIONS — download report, download verification
    * package, request generation of both — live in one hook so this page stays

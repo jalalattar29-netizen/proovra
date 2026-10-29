@@ -38,6 +38,14 @@ import { buildContinuousManifest, reconcileContinuousUploads, type DeclaredSegme
 import { classifyCaptureError, localFileMissingError } from "./capture/capture-retry";
 import type { ContinuousRecoveryDeps } from "./capture/continuous-recovery";
 import {
+  buildSingleFileManifest,
+  singleFileName,
+  singleFilePutTimeoutMs,
+  type ContinuousResultBase,
+  type SingleFileAudioTrack,
+  type SingleFileRecording,
+} from "./continuous-single-file";
+import {
   commitContinuousSpool,
   discardContinuousSpool,
   markContinuousSegmentUploaded,
@@ -195,7 +203,18 @@ export async function cleanupContinuousTempFiles(
 /** Open the PROOVRA session + reserve ONE Evidence for the whole session. */
 export async function beginContinuousSession(
   /** ET-DC-08 — the ACTIVE workspace, as /capture passes it (see stageScreenCapture). */
-  options: { teamId?: string | null } = {},
+  options: {
+    teamId?: string | null;
+    /**
+     * Decision 2 — the location read BEFORE the recording started (or why
+     * there is none, or NOT_REQUESTED when the person chose not to include
+     * it). Carried into the reservation; never acquired after the fact.
+     */
+    location?: {
+      gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
+      locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
+    };
+  } = {},
 ): Promise<{ session: DirectCaptureSession; evidenceId: string }> {
   // The server-issued session carries the platform-correct canonical mode:
   // iOS (UC-5, Apple system broadcast) vs Android (UC-3, MediaProjection). Both
@@ -207,6 +226,10 @@ export async function beginContinuousSession(
     type: "VIDEO",
     mimeType: "video/mp4",
     deviceTimeIso: new Date().toISOString(),
+    ...(options.location?.gps ? { gps: options.location.gps } : {}),
+    ...(!options.location?.gps && options.location?.locationRequestOutcome
+      ? { locationRequestOutcome: options.location.locationRequestOutcome }
+      : {}),
   });
   return { session, evidenceId };
 }
@@ -449,4 +472,113 @@ export async function releaseStagedContinuousSpool(
 ): Promise<void> {
   const committed = await commitContinuousSpool({ captureSessionId }).catch(() => false);
   if (committed === null) await discardContinuousSpool(recordingId).catch(() => undefined);
+}
+
+/* ===========================================================================
+ * PRODUCT DECISION 1 — the SINGLE_FILE layout (wire contracts A + B).
+ *
+ * A new native build stops with ONE finalized recording file and emits no
+ * segment events. Its staging uploads that ONE file as part 0 (declaration
+ * source SCREEN_RECORDING) and the contract-A manifest as part 1, then hands
+ * the manifest to Capture, which seals through `continuous-complete` exactly as
+ * it does a segmented recording. A legacy build keeps the segmented path above.
+ * ======================================================================== */
+
+export interface StagedSingleFileCapture extends StagedContinuousCapture {
+  layout: "SINGLE_FILE";
+  /** Bytes of the one recording file, as declared (server-verified at seal). */
+  sizeBytes: number;
+  audioTracks: SingleFileAudioTrack[];
+}
+
+/**
+ * Stage a SINGLE_FILE recording: part 0 = the file, part 1 = the manifest.
+ *
+ * Durable and idempotent like the segmented staging: `declared` (persisted by
+ * `onDeclared` once part 0 is at storage) skips the re-upload on a retry, and a
+ * manifest FIXED before its first upload (`existing`) is re-sent byte for byte.
+ * An unfinalized file is still staged — what was written is kept — and its
+ * manifest states the interruption; a missing file cannot be staged at all.
+ */
+export async function stageSingleFileRecording(
+  session: DirectCaptureSession,
+  evidenceId: string,
+  result: ContinuousResultBase,
+  rec: SingleFileRecording,
+  options: {
+    declared?: { sha256Hex: string; sizeBytes: number } | null;
+    existing?: { manifestJson: string; manifestPartIndex: number } | null;
+    extraLimitations?: ReadonlyArray<string>;
+    onDeclared?: (declared: { sha256Hex: string; sizeBytes: number }) => Promise<void>;
+    onManifestFixed?: (fixed: { manifestJson: string; manifestPartIndex: number }) => Promise<void>;
+    timeouts?: { requestMs?: number; putMs?: number };
+  } = {},
+): Promise<StagedSingleFileCapture> {
+  let manifestJson: string;
+  let manifestPartIndex = 1;
+  let declared = options.declared ?? null;
+  if (options.existing) {
+    manifestJson = options.existing.manifestJson;
+    manifestPartIndex = options.existing.manifestPartIndex;
+  } else {
+    if (!declared) {
+      if (!rec.recordingUri) throw new Error("The recording file could not be saved on this device.");
+      const sizeBytes = await fileSizeBytes(rec.recordingUri);
+      const up = await uploadDirectCaptureItem(
+        session,
+        evidenceId,
+        {
+          partIndex: 0,
+          uri: rec.recordingUri,
+          mimeType: "video/mp4",
+          durationMs: rec.recordingDurationMs ?? undefined,
+          originalFilename: singleFileName(result.captureStartedAtUtc),
+          source: "SCREEN_RECORDING",
+        },
+        {
+          requestMs: options.timeouts?.requestMs,
+          putMs: options.timeouts?.putMs ?? singleFilePutTimeoutMs(sizeBytes),
+          // iOS: a long recording keeps uploading if PROOVRA leaves the foreground.
+          background: Platform.OS === "ios",
+        },
+      );
+      declared = { sha256Hex: up.sha256Hex, sizeBytes };
+      await options.onDeclared?.(declared);
+    }
+    manifestJson = JSON.stringify(
+      buildSingleFileManifest(session.captureSessionId, result, rec, declared, options.extraLimitations ?? []),
+    );
+    await options.onManifestFixed?.({ manifestJson, manifestPartIndex });
+  }
+  const manifest = JSON.parse(manifestJson) as { sessionCompleteness: string; segments: Array<{ sizeBytes?: number }> };
+  const manifestUri = `${FileSystem.cacheDirectory}proovra-continuous-manifest-${session.captureSessionId}.json`;
+  await FileSystem.writeAsStringAsync(manifestUri, manifestJson);
+  await uploadDirectCaptureItem(
+    session,
+    evidenceId,
+    {
+      partIndex: manifestPartIndex,
+      uri: manifestUri,
+      mimeType: "application/json",
+      originalFilename: "continuous-capture-manifest.json",
+      source: "CONTINUOUS_MANIFEST",
+    },
+    options.timeouts,
+  );
+  await deleteLocalFileQuietly(manifestUri);
+  return {
+    layout: "SINGLE_FILE",
+    manifestJson,
+    manifestPartIndex,
+    segmentCount: 1,
+    recordedSegmentCount: 1,
+    sessionCompleteness: manifest.sessionCompleteness,
+    sizeBytes: declared?.sizeBytes ?? manifest.segments[0]?.sizeBytes ?? 0,
+    audioTracks: rec.audioTracks,
+  };
+}
+
+/** The one local recording file goes once its staging is handed to Capture. */
+export async function releaseSingleFileRecording(rec: Pick<SingleFileRecording, "recordingUri"> | null): Promise<void> {
+  if (rec?.recordingUri) await deleteLocalFileQuietly(rec.recordingUri);
 }

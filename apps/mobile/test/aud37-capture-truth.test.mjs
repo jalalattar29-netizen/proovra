@@ -17,9 +17,14 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(resolve(HERE, "..", p), "utf8");
 
-test("the capture screen sends the provider's mock flag with the fix", () => {
-  const src = read("app/(stack)/capture.tsx");
+test("the capture paths send the provider's mock flag with the fix (the ONE shared location read)", () => {
+  const src = read("src/capture/device-location.ts");
   assert.match(src, /pos\.mocked === true \? \{ providerReportedMock: true \}/);
+  // Every native capture path reads location through it; none reads expo-location itself.
+  for (const screen of ["app/(stack)/capture.tsx", "app/(stack)/continuous-capture.tsx", "app/(stack)/screen-capture.tsx"]) {
+    assert.ok(!/from "expo-location"/.test(read(screen)), screen);
+    assert.match(read(screen), /from "\.\.\/\.\.\/src\/capture\/device-location"/, screen);
+  }
 });
 
 test("the frame screen offers a recovered capture and clears the ledger only when staged or discarded", () => {
@@ -33,7 +38,7 @@ test("the frame screen offers a recovered capture and clears the ledger only whe
 test("the Android service records each frame durably before JS is told, and the module refuses to overwrite recovered frames", () => {
   const svc = read("modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt");
   const ledgerAt = svc.indexOf("FrameLedgerKeeper.update { frameLedgerWithFrame(it, frames.last(), limitations.toList()) }");
-  const notifyAt = svc.indexOf("onFrame?.invoke(index, frames.size)", ledgerAt);
+  const notifyAt = svc.indexOf("onFrame?.invoke(index, frames.size, FRAME_CAPTURED)", ledgerAt);
   assert.ok(ledgerAt > 0 && notifyAt > ledgerAt);
   assert.match(svc, /fun lastOutcome\(\): ScreenCaptureOutcome\? = last \?: recoveredOutcome\(\)/);
   const mod = read("modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt");

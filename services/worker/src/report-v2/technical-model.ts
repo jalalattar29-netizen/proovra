@@ -24,6 +24,7 @@ import {
 } from "./normalizers.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  tsaFailureNote,
   type TrustSignal,
   formatTimestampForReportUtc,
 } from "@proovra/shared";
@@ -259,6 +260,10 @@ export function buildTimestampRows(
   const claimed = (label: string, value: unknown) =>
     validatedToken || value == null || value === "" ? label : `${label} (${TSA_UNVALIDATED_CLAIM_QUALIFIER})`;
   const ev = evidence as ReportEvidence;
+  const failureNote =
+    String(ev.tsaStatus ?? "").trim().toUpperCase() === "FAILED"
+      ? tsaFailureNote(ev.tsaFailureCode ?? null, Boolean(ev.tsaFailureReason))
+      : null;
 
   return [
     { label: "Timestamp Provider", value: safe(ev.tsaProvider) },
@@ -274,6 +279,9 @@ export function buildTimestampRows(
     ...(timestampStateOf(trustDecision) === "PASSED"
       ? [{ label: "Validation Scope", value: TSA_VALIDATED_QUALIFICATION_STATEMENT }]
       : []),
+    // (2026-10-29) A FAILED request states its bounded failure CATEGORY — the
+    // shared sentence, never the provider's raw text.
+    ...(failureNote ? [{ label: "Timestamp Outcome", value: failureNote }] : []),
     {
       label: "Timestamped Digest Type",
       value: timestampDigestLabel,

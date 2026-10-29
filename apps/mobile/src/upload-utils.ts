@@ -33,14 +33,20 @@
  *            into one pre-allocated buffer of the exact file size, so peak JS
  *            memory is ~1x the file plus one chunk instead of ~3.3x.
  *
- * REMAINING LIMIT (honest): expo-crypto exposes no INCREMENTAL digest, so the
- * whole file must still be resident once to hash it. Chunked hashing needs a
- * native streaming digest and is tracked as such — it is not claimed here.
+ * STREAMING (2026-10-29): native builds from 2026-10-29 expose `hashFile`
+ * (proovra-screen-capture: 1 MiB chunks into incremental SHA-256 + MD5, off the
+ * JS thread), so a file — a single-file screen recording is up to 512 MB — is
+ * never resident in JS to be hashed. `chooseIntegrityPath` decides: native
+ * whenever the binary has it; the JS path above only on an older binary
+ * (nothing else exists there) or, if the native digest fails, for a file small
+ * enough to hold (JS_INTEGRITY_MAX_BYTES). A large file whose native digest
+ * failed is refused rather than risking an out-of-memory crash.
  */
 import * as FileSystem from "expo-file-system";
 import * as Crypto from "expo-crypto";
 
 import { CAPTURE_PUT_TIMEOUT_MS, CaptureTimeoutError, withTimeout } from "./capture/capture-retry";
+import { hashFileNative, isNativeFileHashAvailable } from "../modules/proovra-screen-capture";
 
 /** Bytes read per chunk when assembling the file for hashing (3 MiB, base64-aligned). */
 const READ_CHUNK_BYTES = 3 * 1024 * 1024;
@@ -164,6 +170,26 @@ async function readFileBytes(fileUri: string, sizeBytes: number): Promise<Uint8A
   return out;
 }
 
+/** The largest file the JS (whole-file-in-memory) path may hash after a native failure. */
+export const JS_INTEGRITY_MAX_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Which digest path hashes a file of `sizeBytes`: the native STREAMING digest
+ * when the binary has it (and it has not just failed); the JS path when the
+ * binary is older (it is the only path there) or, after a native failure, only
+ * for a small file; otherwise refuse — never load a large file into JS memory.
+ */
+export function chooseIntegrityPath(
+  nativeAvailable: boolean,
+  sizeBytes: number,
+  nativeFailed: boolean,
+  maxJsBytes: number = JS_INTEGRITY_MAX_BYTES,
+): "native" | "js" | "refuse" {
+  if (nativeAvailable && !nativeFailed) return "native";
+  if (!nativeAvailable) return "js";
+  return sizeBytes <= maxJsBytes ? "js" : "refuse";
+}
+
 export type FileIntegrity = {
   fileUri: string;
   sizeBytes: number;
@@ -182,6 +208,31 @@ export type FileIntegrity = {
 export async function computeFileIntegrity(uri: string): Promise<FileIntegrity> {
   const fileUri = await ensureFileUri(uri);
 
+  const stat = await FileSystem.getInfoAsync(fileUri, { size: true });
+  if (!stat.exists || stat.isDirectory) {
+    throw new Error("The capture file is no longer available.");
+  }
+  const statSize = typeof stat.size === "number" ? stat.size : 0;
+
+  if (chooseIntegrityPath(isNativeFileHashAvailable(), statSize, false) === "native") {
+    try {
+      const d = await hashFileNative(fileUri);
+      // The digest describes exactly the bytes it read; a file that grew or
+      // shrank meanwhile is not the file that was stated.
+      if (d.sizeBytes !== statSize) throw new Error("The capture file changed while it was being read.");
+      return {
+        fileUri,
+        sizeBytes: d.sizeBytes,
+        sha256Hex: d.sha256Hex,
+        checksumSha256Base64: hexToBase64(d.sha256Hex),
+        contentMd5Base64: d.md5Base64,
+      };
+    } catch (err) {
+      if (chooseIntegrityPath(true, statSize, true) === "refuse") throw err;
+    }
+  }
+
+  // JS path (older binary, or a small file after a native failure).
   const info = await FileSystem.getInfoAsync(fileUri, { md5: true, size: true });
   if (!info.exists || info.isDirectory) {
     throw new Error("The capture file is no longer available.");
@@ -218,6 +269,12 @@ export async function uploadWithPut(params: {
   contentMd5Base64?: string;
   /** AUD-004 / AUD-005 — the PUT's deadline; a stalled upload is cancelled and rejects TIMEOUT. */
   timeoutMs?: number;
+  /**
+   * iOS: run the PUT in a BACKGROUND URL session (expo-file-system
+   * `sessionType`), so a long single-file screen recording keeps uploading
+   * while PROOVRA is not in the foreground. Ignored where unsupported.
+   */
+  background?: boolean;
 }) {
   const prepared =
     params.checksumSha256Base64 && params.contentMd5Base64
@@ -236,6 +293,9 @@ export async function uploadWithPut(params: {
       "Content-MD5": prepared.contentMd5Base64,
     },
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    ...(params.background && FileSystem.FileSystemSessionType
+      ? { sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
+      : {}),
   };
   // A cancellable task where the platform offers one, so a timed-out PUT stops
   // sending instead of finishing in the background.

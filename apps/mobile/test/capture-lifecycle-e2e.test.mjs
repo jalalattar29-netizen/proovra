@@ -570,9 +570,9 @@ test("location (2026-10-16): a denied or unavailable device location is sent as 
   const reserve = requests.filter((r) => r.path === "/v1/capture/direct-sessions/cs-1/evidence").at(-1);
   assert.equal(reserve.body.locationRequestOutcome, "DENIED");
   assert.equal(reserve.body.gps, undefined);
-  // The capture screen records the outcome it observes and never sends it beside coordinates.
+  // The capture screen sends exactly the fields the ONE location helper
+  // decided — coordinates OR an outcome, never both (device-location.test.mjs).
   const src = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
-  assert.match(src, /locationOutcomeRef\.current = "DENIED"/);
-  assert.match(src, /locationOutcomeRef\.current = "UNAVAILABLE"/);
-  assert.match(src, /locationRequestOutcome: gps \? undefined : locationOutcomeRef\.current/);
+  assert.match(src, /\.\.\.location\.fields,/);
+  assert.match(src, /reservationLocationFields\(\{ useLocation: false, result: null \}\)/);
 });

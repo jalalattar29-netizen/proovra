@@ -54,10 +54,11 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       VERIFY_RATE_LIMIT_MAX: ${VERIFY_RATE_LIMIT_MAX}
       VERIFY_RATE_LIMIT_WINDOW_SEC: ${VERIFY_RATE_LIMIT_WINDOW_SEC}
-      OTS_ENABLED: "true"
-      OTS_BIN: ots
-      OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
-      OTS_TIMEOUT_MS: "30000"
+      # NO OTS_ENABLED / OTS_BIN / OTS_CALENDAR_URL / OTS_TIMEOUT_MS HERE
+      # (2026-10-29): the API never stamps or upgrades a proof — it only
+      # enqueues the worker's job (services/api/src/services/integrity/
+      # ots-anchoring-authority.service.ts) — and no API source reads them. They
+      # are set on the worker below, which runs the `ots` client.
       # NO OTS_BITCOIN_* HERE. The independent Bitcoin verifier is worker code
       # (services/worker/src/ots-bitcoin-*.ts); the API neither reads nor may
       # receive its configuration or credentials. In production the API refuses

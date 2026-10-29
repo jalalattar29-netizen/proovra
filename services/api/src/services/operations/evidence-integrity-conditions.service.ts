@@ -91,6 +91,8 @@ import {
   otsPendingOperationalPosture,
   readOtsOperationsAgingPolicy,
   OTS_PENDING_STATUSES,
+  OTS_BUDGET_CUSTODY_EVENT_TYPES,
+  resolveOtsBudgetStart,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 import {
@@ -217,6 +219,12 @@ type EvidenceIntegrityRow = {
   createdAt: Date;
   updatedAt: Date;
   /**
+   * THE ONE ANCHORING START (2026-10-29): the earliest OTS custody event, as
+   * the Worker's retry budget reads it (resolveOtsBudgetStart). Loaded for
+   * pending rows by withOtsBudgetStart; absent ⇒ createdAt.
+   */
+  otsBudgetStartUtc?: Date | null;
+  /**
    * CLOSURE PASS (2026-08-22) — the POSITIVE correlator, when one exists.
    *
    * Set only by a deliberate multi-record execution (a repair run, a bulk
@@ -238,6 +246,35 @@ const EVIDENCE_SELECT = {
   updatedAt: true,
   integrityCorrelationId: true,
 } as const;
+
+/**
+ * Attach each PENDING row's anchoring start — the same instant the Worker's
+ * budget measures from — so the aged-pending condition and the Worker can
+ * never disagree about how long a record has been waiting. One query for the
+ * batch; a row with no OTS custody event keeps createdAt (the shared fallback).
+ */
+async function withOtsBudgetStart<T extends { id: string; otsStatus: string | null; otsBudgetStartUtc?: Date | null }>(
+  client: PrismaClient,
+  rows: T[],
+): Promise<T[]> {
+  const pending = rows.filter((r) => (OTS_PENDING_STATUSES as readonly string[]).includes(String(r.otsStatus ?? "")));
+  if (pending.length === 0) return rows;
+  const events = await client.custodyEvent.findMany({
+    where: {
+      evidenceId: { in: pending.map((r) => r.id) },
+      eventType: { in: [...OTS_BUDGET_CUSTODY_EVENT_TYPES] as prismaPkg.CustodyEventType[] },
+    },
+    select: { evidenceId: true, atUtc: true, payload: true },
+  });
+  const byEvidence = new Map<string, Array<{ atUtc: Date; payload: unknown }>>();
+  for (const e of events) {
+    const list = byEvidence.get(e.evidenceId) ?? [];
+    list.push({ atUtc: e.atUtc, payload: e.payload });
+    byEvidence.set(e.evidenceId, list);
+  }
+  for (const r of pending) r.otsBudgetStartUtc = resolveOtsBudgetStart(byEvidence.get(r.id) ?? []);
+  return rows;
+}
 
 function failureReasonFor(
   row: EvidenceIntegrityRow,
@@ -292,7 +329,7 @@ export function isOtsDefect(row: OtsAnchoringRecord): boolean {
  * that resolves ANCHORED is never pending, whatever its stored status says.
  */
 export function isOtsPendingBeyondSla(
-  row: OtsAnchoringRecord & { otsStatus: string | null; otsAnchoredAtUtc: Date | null; createdAt: Date },
+  row: OtsAnchoringRecord & { otsStatus: string | null; otsAnchoredAtUtc: Date | null; createdAt: Date; otsBudgetStartUtc?: Date | null },
   now: Date,
 ): boolean {
   if (!isOtsAwaitingAnchor(row, otsAnchoringOf(row))) return false;
@@ -510,6 +547,7 @@ export async function syncEvidenceIntegrityConditions(
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: SCAN_BOUND + 1,
   }))) as EvidenceIntegrityRow[];
+  await inSourceStage("SCAN", () => withOtsBudgetStart(client, failing));
 
   if (failing.length > SCAN_BOUND) {
     result.complete = false;
@@ -1046,6 +1084,7 @@ async function resolveRecoveredOtsPendingAged(
       createdAt: true,
     },
   });
+  await withOtsBudgetStart(client, rows as Array<(typeof rows)[number] & { otsBudgetStartUtc?: Date | null }>);
   const byId = new Map(rows.map((r) => [r.id, r]));
 
   let resolved = 0;

@@ -260,10 +260,15 @@ describe("Wave 2 — perceptual-hash producer wiring in finalize fanout", () => 
     // Wave 4 added the OCR + transcript producer enqueues; the Enterprise
     // Technical Metadata work added the 5th media enqueue
     // (extract_technical_metadata) — see the explicit assertion below.
+    // 2026-10-29 added the 6th: the DERIVED combined screen recording
+    // (combine_screen_recording), pinned below the same way.
     expect(searchEnqueues).toBe(1);
-    expect(mediaEnqueues).toBe(5);
+    expect(mediaEnqueues).toBe(6);
     expect(graphEnqueues).toBe(1);
-    expect(searchEnqueues + mediaEnqueues + graphEnqueues).toBe(7);
+    expect(searchEnqueues + mediaEnqueues + graphEnqueues).toBe(8);
+    expect(FANOUT).toMatch(
+      /enqueueMediaIntelligenceAnalysis\(\{[\s\S]*?kind:\s*"combine_screen_recording"/,
+    );
 
     // Keep the count meaningful: the 5th media enqueue must be exactly
     // the deterministic technical-metadata extraction job (not a

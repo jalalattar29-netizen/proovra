@@ -10,6 +10,9 @@ import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * UC-2 + UC-3 — Android screen-capture Expo module.
@@ -63,6 +66,9 @@ class ProovraScreenCaptureModule : Module() {
 
   // Which flow the pending consent belongs to.
   private var pendingKind: String? = null
+
+  // STREAMING file digests run here, never on the JS or main thread.
+  private val hashExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
   companion object {
     private const val CONSENT_REQUEST = 0x50D1
@@ -166,6 +172,25 @@ class ProovraScreenCaptureModule : Module() {
       }
       ContinuousScreenCaptureService.discardSpool(ctx)
       promise.resolve(null)
+    }
+
+    // STREAMING SHA-256 + MD5 of a capture file (FileDigest.kt: 1 MiB chunks),
+    // so a long recording is hashed without holding it in JS memory.
+    AsyncFunction("hashFile") { uri: String, promise: Promise ->
+      hashExecutor.execute {
+        val path = filePathFromUri(uri)
+        val file = path?.let { File(it) }
+        if (file == null || !file.isFile) {
+          promise.reject(CodedException(HASH_FILE_NOT_FOUND, "The file to hash is not on this device.", null))
+          return@execute
+        }
+        try {
+          val d = digestFile(file)
+          promise.resolve(mapOf("sha256Hex" to d.sha256Hex, "md5Base64" to d.md5Base64, "sizeBytes" to d.sizeBytes))
+        } catch (_: Throwable) {
+          promise.reject(CodedException(HASH_FAILED, "The file could not be read to compute its digest.", null))
+        }
+      }
     }
 
     // ---- UC-2 frame flow --------------------------------------------------

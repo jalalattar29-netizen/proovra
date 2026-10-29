@@ -33,6 +33,8 @@ import {
   custodyEventLabel,
   WITHHELD_BY_DISCLOSURE_POLICY,
   genericItemLabel,
+  parseVerificationMatrix,
+  withholdIdentityRows,
   type PublicVerifyDisclosureFacts,
   type PublicVerifyIdentifierKind,
   type VerificationDisclosurePolicy,
@@ -442,17 +444,47 @@ const TECH_EXIF = [
   "softwareTag",
   "metadataStatus",
 ] as const;
-const TECH_ENVIRONMENT = [
-  "uploadSource",
-  "captureMethod",
-  "browserName",
-  "browserVersion",
-  "osName",
-  "osVersion",
-  "deviceClass",
-  "engine",
-  "platform",
-] as const;
+/**
+ * F-27b (2026-10-29) — the published disclosure contract
+ * (describeVerificationDisclosure) lists "browser details" under NEVER, for
+ * every policy. Browser and OS names/versions and the rendering engine are a
+ * device fingerprint, so they never leave on a public page, even with content
+ * preview. The broad device class and platform stay.
+ */
+const TECH_ENVIRONMENT = ["uploadSource", "captureMethod", "deviceClass", "platform"] as const;
+
+/** The capture client's identity on a public page: what kind of client, never which browser/OS build. */
+const PUBLIC_MANIFEST_CLIENT_KEYS = ["kind", "appVersion", "platform"] as const;
+
+function projectCaptureManifest(m: unknown): unknown {
+  if (!isObj(m)) return m ?? null;
+  return isObj(m.client) ? { ...m, client: pick(m.client, PUBLIC_MANIFEST_CLIENT_KEYS) } : m;
+}
+
+/**
+ * F-27a (2026-10-29) — when the record's identity is WITHHELD, the matrix's
+ * account/organization rows are withheld too, on every tier. They are generic
+ * categories ("Authenticated email account"), not personal data, but stating
+ * them beside "Withheld by the record's disclosure policy" contradicted that
+ * statement (AUD-45). The BASIC tier already did this; RICH did not.
+ */
+function projectVerificationMatrix(matrix: unknown, recordFacts: unknown): unknown {
+  const identity = isObj(recordFacts) && isObj(recordFacts.identity) ? recordFacts.identity : null;
+  if (!identity || identity.disclosure !== "WITHHELD") return matrix ?? null;
+  const parsed = parseVerificationMatrix(matrix);
+  if (parsed) return withholdIdentityRows(parsed);
+  // Fail closed for a matrix this parser does not recognise: the identity rows
+  // are still withheld, row by row.
+  if (!isObj(matrix) || !Array.isArray(matrix.rows)) return matrix ?? null;
+  return {
+    ...matrix,
+    rows: matrix.rows.map((r: unknown) =>
+      isObj(r) && (r.key === "account_identity" || r.key === "organization_verification")
+        ? { ...r, status: "NOT_APPLICABLE", statement: "Not disclosed on this verification page.", measuredAtUtc: null }
+        : r,
+    ),
+  };
+}
 const TECH_ACQUISITION = [
   "method",
   "deliveryChannel",
@@ -491,6 +523,8 @@ export function projectPublicVerification(
   const d = disclosure;
   const out: Obj = pick(full, ALWAYS_KEYS);
   if (d.mode === "CONTENT_PREVIEW") Object.assign(out, pick(full, CONTENT_KEYS));
+  if ("captureManifest" in out) out.captureManifest = projectCaptureManifest(out.captureManifest);
+  if ("verificationMatrix" in out) out.verificationMatrix = projectVerificationMatrix(out.verificationMatrix, full.recordFacts);
   out.technicalMetadata = d.mode === "CONTENT_PREVIEW" ? projectTechnicalMetadata(full.technicalMetadata, d) : null;
   out.disclosure = d;
   out.basicVerification = projectBasic(full.basicVerification, d);

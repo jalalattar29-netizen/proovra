@@ -1901,4 +1901,323 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // ===========================================================================
+  // 2026-10-29 — the DERIVED combined screen recording
+  // ===========================================================================
+  //
+  // ONE combined MP4 of a legacy SEGMENTED continuous screen recording, derived
+  // by the worker (`combine_screen_recording`). Bytes never pass through the
+  // API: a short-lived presigned S3 GET — which honours HTTP Range, so the
+  // player seeks without pulling the file — is issued only after THE
+  // byte-release gate (evaluateArtifactDownload, kind "derived") allowed it,
+  // and each issue is recorded on the record's custody chain
+  // (EVIDENCE_DOWNLOADED / EVIDENCE_VIEWED with artifact "derived"; no new
+  // custody type — the payload names the artifact, exactly as originals do).
+
+  // GET /v1/evidence/:evidenceId/combined-recording?teamId=…
+  //   readiness: NOT_APPLICABLE | NOT_STARTED | PENDING | PROCESSING |
+  //   COMPLETED | FAILED | UNSUPPORTED, the lineage a surface renders (gaps,
+  //   completeness, mode, canvas, sources), and whether the caller may play /
+  //   download it. No URL and no storage reference.
+  app.get(
+    "/v1/evidence/:evidenceId/combined-recording",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { evidenceId } = ParamsEvidenceId.parse(req.params);
+      const { teamId } = TeamQuery.parse(req.query ?? {});
+      const actor = await authorizeOrFail(req, reply, {
+        teamId,
+        permission: "evidence.read",
+        resourceKind: "evidence",
+        resourceId: evidenceId,
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;
+      const { getCombinedRecordingStatus } = await import(
+        "../services/media-intelligence/combined-recording.service.js"
+      );
+      const { screenRecordingCombinedFilename } = await import("@proovra/shared");
+      const status = await getCombinedRecordingStatus(teamId, evidenceId);
+      const release = await derivedRelease(req, evidenceId, actor.actorUserId, false);
+      const l = status.asset?.lineage ?? null;
+      return reply.code(200).send({
+        evidenceId,
+        applicable: status.applicable,
+        state: status.state,
+        segmentCount: status.segmentCount,
+        run: status.run,
+        combined: status.asset
+          ? {
+              assetId: status.asset.id,
+              generation: status.asset.generation,
+              artifactClass: "DERIVED",
+              derivedSha256: status.asset.derivedSha256,
+              sizeBytes: status.asset.sizeBytes,
+              widthPx: status.asset.widthPx,
+              heightPx: status.asset.heightPx,
+              generatedAtUtc: status.asset.generatedAtUtc,
+              filename: screenRecordingCombinedFilename(evidenceId, status.asset.generation),
+              mode: l?.mode ?? null,
+              completeness: l?.completeness ?? null,
+              durationMs: l?.output.durationMs ?? null,
+              gaps: l?.gaps ?? [],
+              limitations: l?.limitations ?? [],
+              sources: (l?.sources ?? []).map((s) => ({
+                partIndex: s.partIndex,
+                sequence: s.sequence,
+                sha256: s.sha256,
+                combinedStartMs: s.combinedStartMs,
+                durationMs: s.durationMs,
+              })),
+              sourceSetSha256: l?.sourceSetSha256 ?? null,
+              statement: l?.statement ?? null,
+            }
+          : null,
+        release: release.allowed
+          ? { allowed: true }
+          : { allowed: false, code: (release.body as { code?: string }).code ?? "ACCESS_DENIED" },
+      });
+    },
+  );
+
+  /**
+   * Issue one presigned URL for the current combined asset. `purpose` decides
+   * the response disposition and the custody fact: `download` → attachment +
+   * EVIDENCE_DOWNLOADED; `playback` → inline video/mp4 + EVIDENCE_VIEWED.
+   */
+  async function issueCombinedRecordingUrl(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    purpose: "download" | "playback",
+  ) {
+    const { evidenceId } = ParamsEvidenceId.parse(req.params);
+    const { teamId } = TeamQuery.parse(req.query ?? {});
+    const actor = await authorizeOrFail(req, reply, {
+      teamId,
+      permission: "evidence.read",
+      resourceKind: "evidence",
+      resourceId: evidenceId,
+      antiEnumeration: true,
+    });
+    if (!actor) return;
+    if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;
+    const svc = await import("../services/media-intelligence/combined-recording.service.js");
+    const status = await svc.getCombinedRecordingStatus(teamId, evidenceId);
+    if (!status.asset) {
+      return reply.code(404).send({ error: { code: "combined_recording_not_ready", state: status.state } });
+    }
+    // THE byte-release decision — a refusal is recorded on custody.
+    const release = await derivedRelease(req, evidenceId, actor.actorUserId, true);
+    if (!release.allowed) return reply.code(release.statusCode).send(release.body);
+    const storage = await svc.combinedRecordingStorage(teamId, evidenceId, status.asset.id);
+    if (!storage) return reply.code(503).send({ error: { code: "storage_unavailable" } });
+
+    const { screenRecordingCombinedFilename } = await import("@proovra/shared");
+    const filename = screenRecordingCombinedFilename(evidenceId, status.asset.generation);
+    const expiresInSeconds = 300;
+    let url: string;
+    try {
+      const { presignGetObject } = await import("../storage.js");
+      url = await presignGetObject({
+        bucket: storage.bucket,
+        key: storage.key,
+        versionId: storage.versionId,
+        expiresInSeconds,
+        // The name is built from a UUID prefix and an integer — header-safe by construction.
+        responseContentDisposition: `${purpose === "download" ? "attachment" : "inline"}; filename="${filename}"`,
+        responseContentType: "video/mp4",
+      });
+    } catch {
+      return reply.code(503).send({ error: { code: "storage_unavailable" } });
+    }
+
+    const at = new Date();
+    try {
+      const { appendCustodyEvent } = await import("../services/custody-events.service.js");
+      await appendCustodyEvent({
+        evidenceId,
+        eventType:
+          purpose === "download"
+            ? prismaPkg.CustodyEventType.EVIDENCE_DOWNLOADED
+            : prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
+        atUtc: at,
+        payload: {
+          artifact: "derived",
+          assetKind: "screen_recording_combined",
+          derivedAssetId: status.asset.id,
+          derivedSha256: status.asset.derivedSha256,
+          generation: status.asset.generation,
+          channel: purpose === "download" ? "combined_recording_download" : "combined_recording_playback",
+          accessMode: purpose === "download" ? "authenticated_derived_download" : "derived_playback_url_issued",
+          accessedByUserId: actor.actorUserId,
+          accessedAtUtc: at.toISOString(),
+        },
+        ip: req.ip,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
+      });
+    } catch {
+      // The URL is minted; the failure is observable, never silent success.
+      bump("media_intelligence_enqueue_failed_total");
+      req.log.warn({ evidenceId, purpose }, "combined_recording.custody_append_failed");
+    }
+
+    reply.header("cache-control", "private, no-store");
+    reply.header("referrer-policy", "no-referrer");
+    return reply.code(200).send({
+      evidenceId,
+      url,
+      expiresInSeconds,
+      filename,
+      contentType: "video/mp4",
+      artifactClass: "DERIVED",
+      derivedSha256: status.asset.derivedSha256,
+      sizeBytes: status.asset.sizeBytes,
+      rangeRequests: true,
+    });
+  }
+
+  // GET /v1/evidence/:evidenceId/combined-recording/download?teamId=…
+  //   → { url } — attachment `<evidenceId8>-DERIVED-combined-recording-v<gen>.mp4`.
+  app.get(
+    "/v1/evidence/:evidenceId/combined-recording/download",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => issueCombinedRecordingUrl(req, reply, "download"),
+  );
+
+  // GET /v1/evidence/:evidenceId/combined-recording/playback?teamId=…
+  //   → { url } — inline video/mp4 for the player (Range-capable, seekable).
+  app.get(
+    "/v1/evidence/:evidenceId/combined-recording/playback",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => issueCombinedRecordingUrl(req, reply, "playback"),
+  );
+
+  // POST /v1/evidence/:evidenceId/combined-recording/prepare
+  //   The owner-triggered (re)preparation — the safe path for HISTORICAL
+  //   records sealed before the post-seal trigger existed. Same generation
+  //   rules as Derived Review: a live run is re-joined; a COMPLETED one answers
+  //   200 already_prepared unless `regenerate`; a settled failure starts N+1.
+  //   Recorded on custody. Nothing runs against a record that is not a
+  //   segmented continuous recording.
+  app.post(
+    "/v1/evidence/:evidenceId/combined-recording/prepare",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { evidenceId } = ParamsEvidenceId.parse(req.params);
+      const body = z
+        .object({ teamId: z.string().uuid(), regenerate: z.boolean().optional() })
+        .strict()
+        .parse(req.body ?? {});
+      const actor = await authorizeOrFail(req, reply, {
+        teamId: body.teamId,
+        permission: "intelligence.run",
+        resourceKind: "evidence",
+        resourceId: evidenceId,
+        antiEnumeration: true,
+      });
+      if (!actor) return;
+      const evidence = await bindDerivedRecord(reply, { evidenceId, teamId: body.teamId });
+      if (!evidence) return;
+      if (evidence.deletedAt) return reply.code(404).send({ error: { code: "not_found" } });
+
+      const svc = await import("../services/media-intelligence/combined-recording.service.js");
+      const { applicable } = await svc.combinedRecordingApplicability(evidenceId);
+      if (!applicable) return reply.code(409).send({ error: { code: "combined_recording_not_applicable" } });
+
+      const mi = await import("@proovra/shared-runtime/media-intelligence");
+      const eligibility = await mi.evaluateDerivedProductionEligibility(evidenceId, prisma as never);
+      if (!eligibility.eligible) {
+        return reply.code(409).send({ error: { code: "evidence_not_eligible", reason: eligibility.reason } });
+      }
+      const { screenRecordingCombineIdempotencyKey } = await import("@proovra/shared");
+      const status = await svc.getCombinedRecordingStatus(body.teamId, evidenceId);
+      const latest = status.run;
+      const { enqueueMediaIntelligenceAnalysis } = await import("../queue/media-intelligence-queue.js");
+
+      if (latest && (latest.status === "PENDING" || latest.status === "PROCESSING")) {
+        if (body.regenerate) return reply.code(409).send({ error: { code: "run_in_progress" } });
+        const enq = await enqueueMediaIntelligenceAnalysis({
+          teamId: body.teamId,
+          evidenceId,
+          kind: "combine_screen_recording",
+          runId: latest.id,
+        });
+        return reply.code(202).send({
+          evidenceId,
+          queued: true,
+          reused: true,
+          generation: latest.generation,
+          runId: latest.id,
+          reason: enq.enqueued ? null : enq.reason,
+        });
+      }
+      if (status.asset && !body.regenerate) {
+        return reply.code(200).send({
+          evidenceId,
+          queued: false,
+          reason: "already_prepared",
+          generation: status.asset.generation,
+          runId: latest?.id ?? null,
+        });
+      }
+
+      const generation = Math.max(latest?.generation ?? 0, status.asset?.generation ?? 0) + 1;
+      const created = await mi.enqueueMediaIntelligenceRun(
+        {
+          teamId: body.teamId,
+          evidenceId,
+          kind: "combine_screen_recording",
+          idempotencyKey: screenRecordingCombineIdempotencyKey(evidenceId, generation),
+        },
+        prisma as never,
+      );
+      if (!created.ok) {
+        return reply.code(503).send({ error: { code: "queue_unavailable", detail: created.reason } });
+      }
+      if (created.reused && created.run.status !== "PENDING") {
+        return reply.code(409).send({ error: { code: "run_in_progress" } });
+      }
+      const enq = await enqueueMediaIntelligenceAnalysis({
+        teamId: body.teamId,
+        evidenceId,
+        kind: "combine_screen_recording",
+        runId: created.run.id,
+      });
+      if (!enq.enqueued && !String(enq.reason ?? "").startsWith("job_")) {
+        // The PENDING run is durable; the stranded-run reconciler enqueues it.
+        return reply.code(503).send({
+          error: { code: "queue_unavailable", detail: enq.reason, runId: created.run.id },
+        });
+      }
+      try {
+        const { appendCustodyEvent } = await import("../services/custody-events.service.js");
+        await appendCustodyEvent({
+          evidenceId,
+          eventType: prismaPkg.CustodyEventType.MEDIA_INTELLIGENCE_REFRESH_REQUESTED,
+          payload: {
+            kind: "combine_screen_recording",
+            generation,
+            regenerate: Boolean(body.regenerate),
+            runId: created.run.id,
+            supersedesRunId: latest?.id ?? null,
+            actorUserId: actor.actorUserId,
+          },
+          ip: req.ip,
+          userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
+        });
+      } catch {
+        bump("media_intelligence_enqueue_failed_total");
+      }
+      return reply.code(202).send({
+        evidenceId,
+        queued: true,
+        reused: false,
+        generation,
+        runId: created.run.id,
+        reason: null,
+      });
+    },
+  );
 }

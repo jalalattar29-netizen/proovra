@@ -1489,6 +1489,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281026001400_collaboration_vocabulary_normalise",
       // Collaboration Team archive and step-up assurance: passkey factor, step-up ladder columns, Organization assurance policy, session assurance, archive provenance. EXPAND.
       "20281028000000_team_archive_step_up_assurance",
+      // Combined screen recording: run kind, derived asset kind and the derived size ceiling for ONE DERIVED MP4 of a legacy segmented recording. EXPAND.
+      "20281029000000_screen_recording_combined_derivative",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

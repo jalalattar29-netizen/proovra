@@ -106,7 +106,10 @@ export const Linking = {
   },
   canOpenURL: async () => true,
 };
-export const Alert = { alert: () => {} };
+// A test answers a system alert by setting globalThis.__ALERT__(title, message, buttons, options).
+export const Alert = {
+  alert: (...a) => (typeof globalThis.__ALERT__ === "function" ? globalThis.__ALERT__(...a) : undefined),
+};
 export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
 export const useColorScheme = () => "light";
 export const I18nManager = { isRTL: false };

@@ -47,9 +47,21 @@ function availabilityLine(state: string): string {
   }
 }
 
+/**
+ * PLACEMENT (2026-10-29). The card used to render unconditionally right under
+ * the page title — a full panel about a channel nobody can install yet, above
+ * every working capture source, opening with "Don't just upload a screenshot".
+ * It now leads the workflow ONLY when the extension is genuinely installable
+ * (AVAILABLE). In every other state the page shows `CaptureDirectWebCaptureNote`
+ * instead: a compact secondary note below the working sources that says what
+ * the extension would do, that it is not installable here, and that browser
+ * Screen recording (a different capability: a video of the screen, window or
+ * tab you choose) is available now.
+ */
 export function CaptureDirectWebCaptureCard() {
   const { directWebCapture } = useCaptureCapabilities();
   const { state, canInstall, installUrl } = directWebCapture;
+  if (state !== "AVAILABLE" || !canInstall || !installUrl) return null;
 
   return (
     <section
@@ -62,11 +74,10 @@ export function CaptureDirectWebCaptureCard() {
         Direct Web Capture
       </h2>
       <p className="capture-direct-web__body">
-        Don&apos;t just upload a screenshot. The PROOVRA browser extension captures the page
-        in your browser — screenshots and a sanitized copy of its structure — and uploads
-        it through a capture session for your account. PROOVRA independently checks the
-        bytes it receives and records when it received them, together with the limitations
-        the extension detected.
+        The PROOVRA browser extension captures a web page in your browser — screenshots and a
+        sanitized copy of its structure — and uploads it through a capture session for your
+        account. PROOVRA independently checks the bytes it receives and records when it received
+        them, together with the limitations the extension detected.
       </p>
       <p className="capture-direct-web__note">
         PROOVRA records how the page entered the evidence lifecycle. It does not establish
@@ -96,5 +107,43 @@ export function CaptureDirectWebCaptureCard() {
         </a>
       </div>
     </section>
+  );
+}
+
+/**
+ * The secondary placement: everywhere the extension is NOT installable. Never an
+ * install control; states plainly that browser Screen recording works now and is
+ * a different capability from extension page capture.
+ */
+export function CaptureDirectWebCaptureNote() {
+  const { directWebCapture } = useCaptureCapabilities();
+  const { state, canInstall, installUrl } = directWebCapture;
+  if (state === "AVAILABLE" && canInstall && installUrl) return null;
+
+  return (
+    <aside
+      className="capture-direct-web capture-direct-web--note"
+      data-capture-direct-web-capture
+      data-direct-web-capture-state={state}
+      aria-label="Browser extension capture"
+    >
+      <p className="capture-direct-web__body">
+        <strong>Browser extension page capture</strong> — screenshots of a web page plus a sanitized
+        copy of its structure — runs in the PROOVRA browser extension.{" "}
+        <span data-capture-direct-web-availability>{availabilityLine(state)}</span>
+      </p>
+      <p className="capture-direct-web__note">
+        To record your screen now, use <strong>Screen recording</strong> in Evidence materials: it
+        records the screen, window or tab you choose as a video. It is not the same as extension
+        page capture.{" "}
+        <a
+          className="capture-direct-web__learn-more"
+          data-capture-direct-web-learn-more
+          href={DIRECT_WEB_CAPTURE_LEARN_MORE_HREF}
+        >
+          How extension capture works
+        </a>
+      </p>
+    </aside>
   );
 }

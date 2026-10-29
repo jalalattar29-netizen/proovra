@@ -342,11 +342,23 @@ describe("global budget", () => {
     expect(h.incidents).toEqual([]);
   });
 
-  it("a historical row with NO recorded OTS event is never failed by the budget", async () => {
+  // 2026-10-29: a row with NO recorded OTS event used to get a null budget
+  // start and stay PENDING forever. Its start is now the record's creation
+  // (resolveOtsAnchoringStart) — the same start the aging condition reads.
+  it("a historical row with NO recorded OTS event is failed at budget, measured from its creation", async () => {
     h.row = baseRow({ createdAt: ago(400) });
     h.upgrades.push(stillPending);
     await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "FAILED", otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED", otsProofBase64: PROOF_V1 });
+    expect(h.incidents).toEqual(["OTS:ev-1:GLOBAL_BUDGET_EXHAUSTED"]);
+  });
+
+  it("a row with NO recorded OTS event, created inside the budget, stays PENDING", async () => {
+    h.row = baseRow({ createdAt: ago(10) });
+    h.upgrades.push(stillPending);
+    await processOtsUpgrade(job() as never);
     expect(h.row!.otsStatus).toBe("PENDING");
+    expect(h.incidents).toEqual([]);
   });
 
   it("a proof still pending past the budget is FAILED OTS_GLOBAL_BUDGET_EXHAUSTED with one incident", async () => {

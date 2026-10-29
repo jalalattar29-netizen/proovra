@@ -40,7 +40,9 @@ async function render(input: ReportV2Input) {
 const CASES: Array<{ name: string; gps: Partial<ReportV2Input["evidence"]["gps"]>; state: string; label: string | null; map: boolean }> = [
   { name: "valid recorded coordinates", gps: { lat: "52.521", lng: "13.405", accuracyMeters: "20", locationSource: "CLIENT_APP_DEVICE_LOCATION" }, state: "RECORDED", label: "Location recorded", map: true },
   { name: "legacy record with no location facts", gps: {}, state: "NOT_RECORDED", label: null, map: false },
-  { name: "not requested (intake NONE / upload)", gps: { requestOutcome: "NOT_REQUESTED" }, state: "NOT_RECORDED", label: null, map: false },
+  // A recorded NOT_REQUESTED (intake link without location, or the capture toggle off) is stated, not silent.
+  { name: "not requested (intake NONE / toggle off)", gps: { requestOutcome: "NOT_REQUESTED" }, state: "NOT_INCLUDED", label: "Location not included", map: false },
+  { name: "request timed out", gps: { requestOutcome: "TIMEOUT" }, state: "TIMED_OUT", label: "Location timed out", map: false },
   { name: "persisted denial", gps: { requestOutcome: "DENIED" }, state: "NOT_SHARED", label: "Location not shared", map: false },
   { name: "technical unavailability", gps: { requestOutcome: "UNAVAILABLE" }, state: "UNAVAILABLE", label: "Location unavailable", map: false },
   { name: "invalid stored coordinates", gps: { lat: "123", lng: "13.4" }, state: "INVALID", label: "Location metadata invalid", map: false },

@@ -68,7 +68,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "../../src/api";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
-import * as Location from "expo-location";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -86,10 +85,28 @@ import {
   openDirectCaptureSession,
   reserveDirectCaptureEvidence,
   discardDirectCaptureSession,
-  uploadDirectCaptureItem,
+  uploadDirectCaptureItemAllocated,
   type DirectCaptureItemSource,
   type DirectCaptureSession,
 } from "../../src/direct-capture";
+import {
+  acquireDeviceLocation,
+  acquireLocationWithChoice,
+  carriedLocationStatus,
+  locationOutcomeMessage,
+  parseCarriedLocation,
+  reservationLocationFields,
+  LOCATION_CANNOT_BE_ADDED_LATER,
+  type CarriedLocation,
+} from "../../src/capture/device-location";
+import {
+  forgetLinkedRecord,
+  newLinkGroupId,
+  recordSealedAndLink,
+  registerLinkedRecord,
+} from "../../src/capture/capture-links";
+import { sealedTimestampNotice } from "../../src/capture/completion-notice";
+import { isScreenAcquisitionMode, screenAcquisitionLabel } from "../../src/capture/screen-acquisition";
 import {
   openCaptureDraft,
   updateCaptureDraft,
@@ -117,8 +134,9 @@ import type { ScreenAcquisitionMode } from "../../src/capture/screen-acquisition
 import { captureReportWaitStep, REPORT_STATUS_UNREADABLE_MESSAGE } from "../../src/product/evidence-record";
 import {
   saveCaptureSession,
-  loadCaptureSession,
+  loadCaptureSessions,
   clearCaptureSession,
+  captureRecordKey,
   isSessionResumable,
   type PersistedCaptureSession,
 } from "../../src/capture/capture-session-store";
@@ -171,6 +189,23 @@ type CapturedItem = {
   locationIncluded?: boolean;
 };
 
+/** One item about to be staged (camera, picker, recorder). */
+type StagedItemInput = {
+  uri: string;
+  mimeType: string;
+  durationMs?: number;
+  sizeBytes?: number;
+  originalFilename?: string;
+  source: DirectCaptureItemSource;
+};
+
+/** The acquisition origin an item carries for the mixed-origin guard. */
+function originOf(acquisitionMode: string | null | undefined): string | null {
+  // A screen acquisition's items carry its MODE; an ordinary item carries none
+  // (the guard reads "no screen mode" as the mobile app's own capture).
+  return acquisitionMode && isScreenAcquisitionMode(acquisitionMode) ? acquisitionMode : null;
+}
+
 export default function CaptureScreen() {
   const { addToast } = useToast();
   const router = useRouter();
@@ -219,10 +254,25 @@ export default function CaptureScreen() {
   const planModeRef = useRef<CapturePlanMode>("FLEXIBLE");
   planModeRef.current = planMode;
   const useLocationRef = useRef(false);
-  /** The outcome of the last location request that produced no coordinates. */
-  const locationOutcomeRef = useRef<"DENIED" | "UNAVAILABLE" | undefined>(undefined);
   useLocationRef.current = useLocation;
   const [locationDenied, setLocationDenied] = useState(false);
+  /** What the device said when the toggle was turned on (stated at once, never silent). */
+  const [locationCheck, setLocationCheck] = useState<string | null>(null);
+  /**
+   * The location a SCREEN record carries from the start of its recording.
+   * Read-only here: it was acquired before the recording began, and nothing
+   * acquired now may stand in for it.
+   */
+  const carriedLocationRef = useRef<CarriedLocation | null>(null);
+  const [carriedLocation, setCarriedLocation] = useState<CarriedLocation | null>(null);
+  /** Records captured together as separate evidence share a link group. */
+  const linkGroupRef = useRef<string | null>(null);
+  /** An item that would mix origins, awaiting "add as a separate linked record". */
+  const [linkOffer, setLinkOffer] = useState<
+    | { kind: "item"; input: StagedItemInput }
+    | { kind: "screen"; route: ScreenSourceRoute }
+    | null
+  >(null);
   const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   // Web "Unfinished capture sessions" (useCaptureDraftList): the server DRAFTs.
@@ -371,9 +421,12 @@ export default function CaptureScreen() {
 
   // M5 — an interrupted session recovered from durable storage awaiting the
   // operator's Resume/Discard choice (null once decided).
-  const [resumable, setResumable] = useState<PersistedCaptureSession | null>(null);
+  // EVERY pending record of this user (one per session), each with its own
+  // Resume / Discard. A second recording never replaces the first.
+  const [pendingRecords, setPendingRecords] = useState<PersistedCaptureSession[]>([]);
   const [staleRecovered, setStaleRecovered] = useState(false);
-  const [resuming, setResuming] = useState(false);
+  const [resumingKey, setResumingKey] = useState<string | null>(null);
+  const resuming = resumingKey !== null;
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -412,10 +465,10 @@ hasActiveDraft: isSessionActive || isRecording,
    * Both writes are best-effort — a failed persist must never break live
    * capture.
    */
-  const persistSession = useCallback(() => {
+  const persistSession = useCallback((): Promise<void> => {
     const items = sessionItemsRef.current;
     const draft = draftIdRef.current;
-    if (items.length === 0) return;
+    if (items.length === 0) return Promise.resolve();
 
     if (draft) {
       setDraftSaveState("saving");
@@ -447,7 +500,8 @@ hasActiveDraft: isSessionActive || isRecording,
     }
 
     const session = captureSessionRef.current;
-    void saveCaptureSession({
+    if (!session && !draft) return Promise.resolve();
+    return saveCaptureSession({
       captureSessionId: session?.captureSessionId ?? draft ?? "",
       expiresAtUtc: session?.expiresAtUtc ?? "",
       evidenceId: sessionEvidenceIdRef.current ?? draft ?? "",
@@ -463,7 +517,14 @@ hasActiveDraft: isSessionActive || isRecording,
         sizeBytes: it.sizeBytes,
         durationMs: it.durationMs,
         uploaded: it.uploaded,
+        itemSourceLabel: it.itemSourceLabel ?? null,
       })),
+      // The acquisition is part of the record. Persisting without it wiped a
+      // staged recording's manifest on the resume re-save, and after a restart
+      // Finish sealed through /complete — refused MANIFEST_SEAL_ROUTE_REQUIRED.
+      acquisition: acquisitionRef.current,
+      location: carriedLocationRef.current ?? { useLocation: useLocationRef.current, outcome: null, recordedAtStart: false },
+      linkGroupId: linkGroupRef.current,
     });
   }, []);
 
@@ -487,31 +548,43 @@ hasActiveDraft: isSessionActive || isRecording,
     if (isSessionActive) persistSession();
   }, [sessionItems, sessionEvidenceId, isSessionActive, persistSession, template, planMode, useLocation]);
 
-  // M5 — on mount, recover an interrupted session. Resumable → offer Resume/
-  // Discard; stale/expired → auto-clear and inform (it can't be completed).
-  useEffect(() => {
-    let alive = true;
-    if (!captureOwnerId) return undefined;
-    void (async () => {
-      const persisted = await loadCaptureSession();
-      if (!alive || !persisted) return;
-      // Don't offer to resume the session that is already live on this screen.
-      if (sessionEvidenceIdRef.current) return;
-      if (isSessionResumable(persisted)) {
-        setResumable(persisted);
-      } else {
-        setStaleRecovered(true);
-        await clearCaptureSession();
+  /** Is this persisted record the session live on this screen right now? */
+  const isLiveRecord = useCallback((r: PersistedCaptureSession) => {
+    const draft = draftIdRef.current;
+    const live = captureSessionRef.current?.captureSessionId ?? null;
+    return (!!draft && r.draftId === draft) || (!!live && r.captureSessionId === live);
+  }, []);
+
+  // M5 — recover interrupted sessions, on mount AND whenever Capture regains
+  // focus (a screen surface may have staged a new record meanwhile).
+  // Resumable → offered with Resume / Discard; stale/expired → cleared and
+  // stated (it can't be completed).
+  const refreshPendingRecords = useCallback(async () => {
+    if (!captureOwnerId) return;
+    const all = await loadCaptureSessions();
+    const offered: PersistedCaptureSession[] = [];
+    let stale = 0;
+    for (const r of all) {
+      if (isLiveRecord(r)) continue;
+      if (isSessionResumable(r)) offered.push(r);
+      else {
+        stale += 1;
+        await clearCaptureSession({ captureSessionId: r.captureSessionId, draftId: r.draftId });
       }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [captureOwnerId]);
+    }
+    if (stale > 0) setStaleRecovered(true);
+    setPendingRecords(offered);
+  }, [captureOwnerId, isLiveRecord]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPendingRecords();
+      return undefined;
+    }, [refreshPendingRecords]),
+  );
 
   const resumeSession = useCallback(
     async (persisted: PersistedCaptureSession) => {
-      setResuming(true);
+      setResumingKey(captureRecordKey(persisted));
       try {
         // A not-yet-uploaded item whose local file is gone (cache cleared) cannot
         // be resumed — drop it honestly. Already-uploaded parts live server-side,
@@ -535,6 +608,10 @@ hasActiveDraft: isSessionActive || isRecording,
             uploading: false,
             uploaded: it.uploaded,
             error: null,
+            // The ORIGIN the mixed-origin guard reads. A record persisted by
+            // an older build carries none on its items, so a screen record's
+            // origin is restored from its acquisition — never lost on resume.
+            itemSourceLabel: it.itemSourceLabel ?? originOf(persisted.acquisition?.mode),
           });
         }
         const dropped = persisted.items.length - kept.length;
@@ -556,7 +633,9 @@ hasActiveDraft: isSessionActive || isRecording,
             planChosenRef.current = true;
             setPendingTemplateId(detail.templateId);
             if (detail.planMode) setPlanMode(detail.planMode);
-            setUseLocation(detail.useLocation);
+            // The record's own location choice wins over the draft's (a draft
+            // opened by an older handoff said false for every recording).
+            setUseLocation(persisted.location ? persisted.location.useLocation : detail.useLocation);
             const byId = new Map(detail.items.map((i) => [i.clientItemId, i]));
             for (let k = 0; k < kept.length; k += 1) {
               const snap = byId.get(kept[k].id);
@@ -573,19 +652,29 @@ hasActiveDraft: isSessionActive || isRecording,
         // as a frame capture and lose the completeness that says whether it
         // was interrupted.
         acquisitionRef.current = persisted.acquisition ?? null;
+        // A screen record's location was decided at the START of its
+        // recording and is shown read-only; any other record keeps the choice.
+        const carried = parseCarriedLocation(persisted.location);
+        carriedLocationRef.current = carried?.recordedAtStart ? carried : null;
+        setCarriedLocation(carriedLocationRef.current);
+        if (persisted.location) setUseLocation(persisted.location.useLocation);
+        linkGroupRef.current = persisted.linkGroupId ?? null;
         setSessionEvidenceId(sessionEvidenceIdRef.current);
         const idx = CAPTURE_TYPES.indexOf(persisted.type);
         if (idx >= 0) setActiveIndex(idx);
         setSessionState(kept);
-        setResumable(null);
+        setPendingRecords((prev) => prev.filter((r) => captureRecordKey(r) !== captureRecordKey(persisted)));
         if (kept.length === 0) {
           // Nothing recoverable — clear and start fresh.
           sessionEvidenceIdRef.current = null;
           captureSessionRef.current = null;
           acquisitionRef.current = null;
           draftIdRef.current = null;
+          carriedLocationRef.current = null;
+          setCarriedLocation(null);
+          linkGroupRef.current = null;
           setSessionEvidenceId(null);
-          await clearCaptureSession();
+          await clearCaptureSession({ captureSessionId: persisted.captureSessionId, draftId: persisted.draftId });
           addToast("The interrupted capture could not be recovered", "warning");
         } else if (dropped > 0) {
           addToast(`Resumed — ${dropped} item${dropped === 1 ? "" : "s"} were no longer available`, "warning");
@@ -593,7 +682,7 @@ hasActiveDraft: isSessionActive || isRecording,
           addToast("Capture session resumed", "success");
         }
       } finally {
-        setResuming(false);
+        setResumingKey(null);
       }
     },
     [setSessionState, addToast],
@@ -674,9 +763,8 @@ hasActiveDraft: isSessionActive || isRecording,
    * and is still open. Dropping only the durable local record would leave the
    * record stranded with nothing left that could ever reach it.
    */
-  const discardRecovered = useCallback(async () => {
-    const recovered = resumable;
-    setResumable(null);
+  const discardRecovered = useCallback(async (recovered: PersistedCaptureSession) => {
+    setResumingKey(captureRecordKey(recovered));
     // A session that never reached finalize holds only a DRAFT (both slots
     // carry its id); discarding it is a draft transition, not a direct one.
     const draftOnly = !!recovered && recovered.captureSessionId === recovered.evidenceId;
@@ -686,14 +774,25 @@ hasActiveDraft: isSessionActive || isRecording,
       setServerDrafts((prev) => prev.filter((d) => d.id !== draftId));
     }
     if (recovered?.captureSessionId && !draftOnly) {
-      await discardDirectCaptureSession({
-        captureSessionId: recovered.captureSessionId,
-        expiresAtUtc: recovered.expiresAtUtc,
-      }).catch(() => undefined);
+      try {
+        await discardDirectCaptureSession({
+          captureSessionId: recovered.captureSessionId,
+          expiresAtUtc: recovered.expiresAtUtc,
+        });
+      } catch (err) {
+        // The reservation is still open on the server: the record is KEPT so
+        // it can still be released (or finished) — never orphaned.
+        setResumingKey(null);
+        addToast(toSafeUserError(err, { message: "The capture could not be released. Try again." }).message, "error");
+        return;
+      }
     }
-    await clearCaptureSession();
+    if (recovered.linkGroupId) await forgetLinkedRecord(recovered.linkGroupId, captureRecordKey(recovered)).catch(() => undefined);
+    await clearCaptureSession({ captureSessionId: recovered.captureSessionId, draftId: recovered.draftId });
+    setPendingRecords((prev) => prev.filter((r) => captureRecordKey(r) !== captureRecordKey(recovered)));
+    setResumingKey(null);
     addToast("Interrupted capture discarded", "info");
-  }, [resumable, addToast]);
+  }, [addToast]);
 
   useEffect(() => {
     if (!isRecording) {
@@ -807,50 +906,63 @@ hasActiveDraft: isSessionActive || isRecording,
     return name && name.length > 0 ? name : fallback;
   }, []);
 
-  const getGps = useCallback(async () => {
-    locationOutcomeRef.current = undefined;
-    if (!useLocation) return undefined;
+  /**
+   * The reservation's location, decided at Finish (decision 2).
+   *
+   * Off ⇒ NOT_REQUESTED ("not included"). On ⇒ a fresh fix through the shared
+   * helper; a failure is never silent: the person chooses Retry, Finish
+   * without location (not offered when the plan requires it) or Cancel, and
+   * Cancel stops the finish before anything is reserved.
+   */
+  const resolveFinishLocation = useCallback(async (): Promise<
+    { ok: true; fields: ReturnType<typeof reservationLocationFields> } | { ok: false }
+  > => {
+    if (!useLocationRef.current) return { ok: true, fields: reservationLocationFields({ useLocation: false, result: null }) };
     // A plan that REQUIRES location cannot finish without it (web orchestration :611-625).
-    const locationRequired = templateRef.current?.locationRequirement === "required";
-
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) {
-      locationOutcomeRef.current = "DENIED";
-      recordActivity(LOCATION_UNAVAILABLE);
-      setLocationDenied(true);
-      if (locationRequired) {
-        throw new Error("Location metadata is required by the selected plan, but device location was not granted.");
-      }
-      addToast("Location permission denied. Continuing without GPS.", "warning");
-      return undefined;
-    }
-
-    try {
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced
-      });
-
+    const required = templateRef.current?.locationRequirement === "required";
+    const decision = await acquireLocationWithChoice({ required });
+    if (decision.kind === "acquired") {
       recordActivity(LOCATION_RECORDED);
       setLocationDenied(false);
-      return {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracyMeters: pos.coords.accuracy ?? undefined,
-        // AUD-37 — Android reports a fix from a mock provider; it is stated,
-        // never presented as an ordinary recorded location.
-        ...(pos.mocked === true ? { providerReportedMock: true } : {})
-      };
-    } catch {
-      locationOutcomeRef.current = "UNAVAILABLE";
-      recordActivity(LOCATION_UNAVAILABLE);
-      setLocationDenied(true);
-      if (locationRequired) {
-        throw new Error("Location metadata is required by the selected plan. Enable location and grant permission before finishing.");
-      }
-      addToast("Could not get location. Continuing without GPS.", "warning");
-      return undefined;
+      setLocationCheck(locationOutcomeMessage("GRANTED"));
+      return { ok: true, fields: reservationLocationFields({ useLocation: true, result: decision.result }) };
     }
-  }, [useLocation, addToast, recordActivity]);
+    recordActivity(LOCATION_UNAVAILABLE);
+    setLocationDenied(true);
+    if (decision.result) setLocationCheck(locationOutcomeMessage(decision.result.outcome));
+    if (decision.kind === "proceed") {
+      return { ok: true, fields: reservationLocationFields({ useLocation: true, result: decision.result }) };
+    }
+    return { ok: false };
+  }, [recordActivity]);
+
+  /**
+   * The toggle is a CHOICE with an immediate answer: turning it on asks the
+   * device at once and says what it answered, rather than discovering a
+   * denied permission at Finish. A recording's location was decided when it
+   * started, so it cannot be turned on afterwards.
+   */
+  const onUseLocation = useCallback(
+    (next: boolean) => {
+      if (carriedLocationRef.current?.recordedAtStart) {
+        addToast(LOCATION_CANNOT_BE_ADDED_LATER, "warning");
+        return;
+      }
+      setUseLocation(next);
+      if (!next) {
+        setLocationCheck(null);
+        setLocationDenied(false);
+        return;
+      }
+      setLocationCheck("Checking location…");
+      void acquireDeviceLocation().then((r) => {
+        if (!useLocationRef.current) return;
+        setLocationDenied(r.outcome !== "GRANTED");
+        setLocationCheck(locationOutcomeMessage(r.outcome));
+      });
+    },
+    [addToast],
+  );
 
   /**
    * Open the CANONICAL capture draft on the first staged item.
@@ -883,15 +995,39 @@ hasActiveDraft: isSessionActive || isRecording,
     }
   }, [teamId, useLocation]);
 
+  /** The link group's member key this screen already registered for the live record. */
+  const linkRegisteredRef = useRef<string | null>(null);
+
+  /**
+   * SET THE LIVE RECORD ASIDE, LINKED (decision 3).
+   *
+   * The live record (a staged screen recording, or any session a new screen
+   * recording is added beside) is persisted as a pending record of its own —
+   * nothing is discarded, its reservation stays — and joins a link group. The
+   * screen then starts empty for the NEW record, which joins the same group;
+   * once both seal they are linked through the relationships API.
+   */
+  const setAsideLiveRecordLinked = useCallback(async (): Promise<string> => {
+    const group = linkGroupRef.current ?? newLinkGroupId();
+    linkGroupRef.current = group;
+    await persistSession();
+    const key = draftIdRef.current ?? captureSessionRef.current?.captureSessionId ?? null;
+    if (key) await registerLinkedRecord(group, key);
+    sessionEvidenceIdRef.current = null;
+    captureSessionRef.current = null;
+    acquisitionRef.current = null;
+    draftIdRef.current = null;
+    carriedLocationRef.current = null;
+    linkRegisteredRef.current = null;
+    setCarriedLocation(null);
+    setSessionEvidenceId(null);
+    setSessionState([]);
+    await refreshPendingRecords();
+    return group;
+  }, [persistSession, setSessionState, refreshPendingRecords]);
+
   const addCapturedItemToSession = useCallback(
-    async (input: {
-      uri: string;
-      mimeType: string;
-      durationMs?: number;
-      sizeBytes?: number;
-      originalFilename?: string;
-      source: DirectCaptureItemSource;
-    }) => {
+    async (input: StagedItemInput) => {
       setError(null);
       setInfo(null);
 
@@ -909,13 +1045,22 @@ hasActiveDraft: isSessionActive || isRecording,
       const staged = sessionItemsRef.current.map((i) => ({
         sourceLabel: i.itemSourceLabel ?? i.source,
       }));
-      if (wouldMixOrigins(staged, input.source)) {
-        setMixedOrigin(mixedOriginPrompt(resolveDraftAcquisition(staged)));
+      // An item staged HERE is the mobile app's own capture: no screen origin.
+      const incomingOrigin = originOf(null);
+      if (wouldMixOrigins(staged, incomingOrigin)) {
+        // Never staged into the screen session: offered as a SEPARATE record
+        // linked to the recording, or not at all.
+        setLinkOffer({ kind: "item", input });
         return;
       }
 
       try {
-        await ensureDraft();
+        const draftId = await ensureDraft();
+        const group = linkGroupRef.current;
+        if (group && linkRegisteredRef.current !== draftId) {
+          linkRegisteredRef.current = draftId;
+          await registerLinkedRecord(group, draftId).catch(() => undefined);
+        }
 
         const nextItem: CapturedItem = {
           id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -925,11 +1070,14 @@ hasActiveDraft: isSessionActive || isRecording,
           sizeBytes: input.sizeBytes,
           originalFilename: input.originalFilename,
           source: input.source,
-          partIndex: sessionItemsRef.current.length,
+          // PROVISIONAL: the index a part is declared at is allocated by the
+          // server at Finish (contract C); this only orders the staged items.
+          partIndex: sessionItemsRef.current.reduce((m, i) => Math.max(m, i.partIndex), -1) + 1,
           uploadProgress: 0,
           uploading: false,
           uploaded: false,
           error: null,
+          itemSourceLabel: incomingOrigin,
           // Guided mode maps an incoming item onto the open required step it fits.
           checklistStepId: assignRequiredStep({
             planMode: planModeRef.current,
@@ -963,12 +1111,11 @@ hasActiveDraft: isSessionActive || isRecording,
       if (sessionCompletingEvidence || isRecording) return;
 
       recordActivity(removedActivity(sessionItemsRef.current.find((item) => item.id === itemId)?.originalFilename));
-      const filtered = sessionItemsRef.current
-        .filter((item) => item.id !== itemId)
-        .map((item, index) => ({
-          ...item,
-          partIndex: index
-        }));
+      // Renumber ONLY the items not yet declared: an uploaded item's part is
+      // fixed on the server, and moving it would declare a second part.
+      const remaining = sessionItemsRef.current.filter((item) => item.id !== itemId);
+      let next = remaining.filter((i) => i.uploaded).reduce((m, i) => Math.max(m, i.partIndex), -1) + 1;
+      const filtered = remaining.map((item) => (item.uploaded ? item : { ...item, partIndex: next++ }));
 
       setSessionState(filtered);
 
@@ -979,14 +1126,22 @@ hasActiveDraft: isSessionActive || isRecording,
         // state, or this becomes a second way to strand an empty record.
         const session = captureSessionRef.current;
         const draft = draftIdRef.current;
+        const group = linkGroupRef.current;
         sessionEvidenceIdRef.current = null;
         captureSessionRef.current = null;
         acquisitionRef.current = null;
         draftIdRef.current = null;
+        carriedLocationRef.current = null;
+        setCarriedLocation(null);
+        linkGroupRef.current = null;
+        linkRegisteredRef.current = null;
         setSessionEvidenceId(null);
         if (draft) void discardCaptureDraft(draft).catch(() => undefined);
         if (session) void discardDirectCaptureSession(session).catch(() => undefined);
-        void clearCaptureSession();
+        if (group && (draft ?? session?.captureSessionId)) {
+          void forgetLinkedRecord(group, (draft ?? session?.captureSessionId) as string).catch(() => undefined);
+        }
+        void clearCaptureSession({ captureSessionId: session?.captureSessionId ?? null, draftId: draft });
       } else {
         persistSession();
       }
@@ -1014,6 +1169,7 @@ hasActiveDraft: isSessionActive || isRecording,
   const discardSession = useCallback(async () => {
     if (sessionCompletingEvidence || isRecording || discarding) return;
     const session = captureSessionRef.current;
+    const recordKey = { captureSessionId: session?.captureSessionId ?? null, draftId: draftIdRef.current };
 
     setDiscarding(true);
     setError(null);
@@ -1045,12 +1201,21 @@ hasActiveDraft: isSessionActive || isRecording,
 
     sessionEvidenceIdRef.current = null;
     captureSessionRef.current = null;
-        acquisitionRef.current = null;
+    acquisitionRef.current = null;
+    carriedLocationRef.current = null;
+    setCarriedLocation(null);
+    const group = linkGroupRef.current;
+    linkGroupRef.current = null;
+    linkRegisteredRef.current = null;
+    if (group && (recordKey.draftId ?? recordKey.captureSessionId)) {
+      await forgetLinkedRecord(group, (recordKey.draftId ?? recordKey.captureSessionId) as string).catch(() => undefined);
+    }
     setSessionEvidenceId(null);
     setSessionState([]);
     setInfo(null);
     setUploadProgress(0);
-    await clearCaptureSession(); // M5 — drop the durable record on explicit discard
+    // M5 — drop THIS durable record on explicit discard; every other pending record stays.
+    await clearCaptureSession(recordKey);
     setDiscarding(false);
     addToast("Session discarded", "info");
   }, [sessionCompletingEvidence, isRecording, discarding, setSessionState, addToast]);
@@ -1407,10 +1572,30 @@ if (!isRecording || busy) return;
 
     let captureSession = captureSessionRef.current;
     let evidenceId = sessionEvidenceIdRef.current;
+    const recordKey = draftIdRef.current ?? captureSession?.captureSessionId ?? null;
 
     try {
+      // ONE RECORD, ONE ORIGIN — checked BEFORE anything is reserved. The
+      // add-path refuses a mixing item, but that is a UI affordance; this is
+      // the claim itself. A draft that is mixed by any route — a resumed
+      // session, a future caller — must not be sealed under one origin.
+      const sealing = resolveDraftAcquisition(
+        sessionItemsRef.current.map((i) => ({ sourceLabel: i.itemSourceLabel ?? i.source })),
+      );
+      if (sealing.kind === "MIXED_ORIGIN") {
+        setMixedOrigin(mixedOriginPrompt(sealing));
+        throw new Error("This session mixes capture origins.");
+      }
+
+      const freshSession = !captureSession || !evidenceId;
       if (!captureSession || !evidenceId) {
-        const gps = await getGps();
+        // Decision 2 — the location is decided BEFORE the reservation, and a
+        // failure is the person's call (Retry / without / Cancel), never silent.
+        const location = await resolveFinishLocation();
+        if (!location.ok) {
+          setInfo("Finish cancelled. Nothing was reserved; your items are still staged.");
+          return;
+        }
         const rootType = deriveBatchEvidenceType(items.map((i) => i.mimeType));
         const primary = primaryItem(items);
         // The active workspace, not always the personal one (2026-09-29, D13).
@@ -1420,12 +1605,13 @@ if (!isRecording || busy) return;
           type: rootType,
           mimeType: primary?.mimeType ?? "application/octet-stream",
           deviceTimeIso: new Date().toISOString(),
-          gps,
-          locationRequestOutcome: gps ? undefined : locationOutcomeRef.current,
+          ...location.fields,
         });
         sessionEvidenceIdRef.current = evidenceId;
         setSessionEvidenceId(evidenceId);
       }
+      const activeSession = captureSession;
+      const activeEvidenceId = evidenceId;
 
       for (let i = 0; i < items.length; i += 1) {
         const item = items[i];
@@ -1440,48 +1626,44 @@ if (!isRecording || busy) return;
         setSessionState(
           sessionItemsRef.current.map((current) =>
             current.id === item.id
-              ? { ...current, uploading: true, error: null, uploadProgress: 0 }
-              : current
-          )
-        );
-
-        setSessionState(
-          sessionItemsRef.current.map((current) =>
-            current.id === item.id
-              ? { ...current, uploading: true, uploadProgress: 10 }
+              ? { ...current, uploading: true, error: null, uploadProgress: 10 }
               : current
           )
         );
 
         // Declare the digest to the session, then upload the bytes through
-        // the canonical part presign (never as JSON).
-        await uploadDirectCaptureItem(captureSession, evidenceId, {
-          partIndex: item.partIndex,
-          uri: item.uri,
-          mimeType: item.mimeType,
-          durationMs: item.durationMs,
-          originalFilename: item.originalFilename,
-          source: item.source,
-          privateRole: item.role,
-          privateNote: item.privateNote,
-          checklistStepId: item.checklistStepId,
-          sourceLabel: item.sourceNote,
-        });
+        // the canonical part presign (never as JSON). The part index is
+        // SERVER-AUTHORITATIVE (contract C): after every part the session
+        // already holds, re-read and retried on PART_ALREADY_DECLARED.
+        const declared = await uploadDirectCaptureItemAllocated(
+          activeSession,
+          activeEvidenceId,
+          {
+            uri: item.uri,
+            mimeType: item.mimeType,
+            durationMs: item.durationMs,
+            originalFilename: item.originalFilename,
+            source: item.source,
+            privateRole: item.role,
+            privateNote: item.privateNote,
+            checklistStepId: item.checklistStepId,
+            sourceLabel: item.sourceNote,
+          },
+          {
+            freshSession,
+            taken: sessionItemsRef.current.filter((c) => c.uploaded).map((c) => c.partIndex),
+          },
+        );
 
-setSessionState(
-  sessionItemsRef.current.map((current) =>
-    current.id === item.id
-      ? { ...current, uploading: true, uploadProgress: 100 }
-      : current
-  )
-);
         setSessionState(
           sessionItemsRef.current.map((current) =>
             current.id === item.id
-              ? { ...current, uploading: false, uploaded: true, uploadProgress: 100 }
+              ? { ...current, partIndex: declared.partIndex, uploading: false, uploaded: true, uploadProgress: 100 }
               : current
           )
         );
+        // Durable at once: a restart after this point never re-declares it.
+        void persistSession();
 
         setUploadProgress(Math.round(((i + 1) / items.length) * 85));
       }
@@ -1496,40 +1678,55 @@ setSessionState(
       // through the route its manifest belongs to; an ordinary phone capture
       // through /complete. The screens no longer decide this for themselves —
       // that is what made the product have two endings.
-      //
-      // THE SECOND GATE. The add-path refuses a mixing item, but that is a UI
-      // affordance; this is the claim itself. A draft that is mixed by any
-      // route — a resumed session, a future caller — must not be sealed under
-      // one origin.
-      const sealing = resolveDraftAcquisition(
-        sessionItemsRef.current.map((i) => ({ sourceLabel: i.itemSourceLabel ?? i.source })),
-      );
-      if (sealing.kind === "MIXED_ORIGIN") {
-        setMixedOrigin(mixedOriginPrompt(sealing));
-        throw new Error("This session mixes capture origins.");
-      }
-
-      await completeAcquisition(captureSession, acquisitionRef.current);
+      await completeAcquisition(activeSession, acquisitionRef.current);
 
       setUploadProgress(96);
-      await pollReport(evidenceId);
+      await pollReport(activeEvidenceId);
       setUploadProgress(100);
 
-      addToast("Evidence created successfully", "success", 2000);
+      // The sealed record's trusted timestamp: a missing one is said NOW, in
+      // place of the plain success message — not discovered later on the record.
+      let timestampNotice: ReturnType<typeof sealedTimestampNotice> = null;
+      try {
+        const sealed = await apiFetch(`/v1/evidence/${activeEvidenceId}`);
+        timestampNotice = sealedTimestampNotice(sealed?.evidence ?? sealed);
+      } catch {
+        // The record page states the timestamp state; nothing is claimed here.
+      }
+      if (timestampNotice) {
+        addToast(`${timestampNotice.title}. ${timestampNotice.message}`, "warning");
+      } else {
+        addToast("Evidence created successfully", "success", 2000);
+      }
+
+      // Records captured together as separate evidence are linked once BOTH
+      // have sealed; a failure here never undoes the seal (it is retried at
+      // the next seal of the group).
+      const group = linkGroupRef.current;
+      const sealedKey = recordKey ?? activeSession.captureSessionId;
+      if (group) {
+        const linked = await recordSealedAndLink(group, sealedKey, activeEvidenceId).catch(() => "FAILED" as const);
+        if (linked === "LINKED") addToast("Linked to the record captured with it", "info");
+        else if (linked === "WAITING") addToast("It will be linked to the record captured with it once that one is finished.", "info");
+      }
 
       // M5 — completion confirmed: drop the durable record so it can never be
       // offered for resume again.
       // The draft has done its job; closing it records the session as
       // finalized rather than leaving an orphan DRAFT behind.
+      const finishedKey = { captureSessionId: activeSession.captureSessionId, draftId: draftIdRef.current };
       if (draftIdRef.current) {
         await discardCaptureDraft(draftIdRef.current).catch(() => undefined);
         draftIdRef.current = null;
       }
-      await clearCaptureSession();
+      await clearCaptureSession(finishedKey);
       sessionEvidenceIdRef.current = null;
       captureSessionRef.current = null;
-        acquisitionRef.current = null;
       acquisitionRef.current = null;
+      carriedLocationRef.current = null;
+      setCarriedLocation(null);
+      linkGroupRef.current = null;
+      linkRegisteredRef.current = null;
       setSessionEvidenceId(null);
       setSessionState([]);
       setInfo(null);
@@ -1538,7 +1735,7 @@ setSessionState(
       setSessionCompletingEvidence(false);
       setUploadProgress(0);
 
-      router.push(`/evidence/${evidenceId}`);
+      router.push(`/evidence/${activeEvidenceId}`);
     } catch (err) {
       const msg = toSafeUserError(err, { message: "Failed to finish session" }).message;
       setError(msg);
@@ -1547,7 +1744,7 @@ setSessionState(
       setBusy(false);
       setSessionCompletingEvidence(false);
     }
-  }, [addToast, pollReport, router, setSessionState, isRecording, recordActivity]);
+  }, [addToast, pollReport, router, setSessionState, isRecording, recordActivity, resolveFinishLocation, persistSession, teamId]);
 
   // The camera's own controls (web CaptureCameraOverlay): which lens, and the light.
   const [facing, setFacing] = useState<"back" | "front">("back");
@@ -1580,12 +1777,54 @@ setSessionState(
 
   const totalBytes = sessionItems.reduce((sum, i) => sum + (i.sizeBytes ?? 0), 0);
   const hasItems = sessionItems.length > 0;
+  const hasItemsLive = hasItems;
+  // A server draft already offered as a pending record is not offered twice.
   const visibleDrafts = serverDrafts.filter(
     (d) =>
       d.id !== draftIdRef.current &&
-      d.id !== resumable?.draftId &&
-      !(resumable && resumable.captureSessionId === resumable.evidenceId && d.id === resumable.captureSessionId),
+      !pendingRecords.some(
+        (r) => d.id === r.draftId || (r.captureSessionId === r.evidenceId && d.id === r.captureSessionId),
+      ),
   );
+
+  /**
+   * Open a screen source. Its recording is ALWAYS its own record: with a live
+   * session on this screen, the person is asked to keep that session as a
+   * separate record linked to the new recording (nothing is discarded).
+   * The Location choice travels with it, to be read BEFORE recording starts.
+   */
+  const openScreenSource = (route: ScreenSourceRoute, linkGroup: string | null) => {
+    router.push({
+      pathname: route,
+      params: {
+        useLocation: useLocationRef.current ? "1" : "0",
+        ...(templateRef.current?.locationRequirement === "required" ? { locationRequired: "1" } : {}),
+        ...(linkGroup ? { linkGroup } : {}),
+      },
+    });
+  };
+  const runScreenSource = (route: ScreenSourceRoute) => {
+    if (sessionItemsRef.current.length > 0) {
+      setLinkOffer({ kind: "screen", route });
+      return;
+    }
+    openScreenSource(route, null);
+  };
+  const acceptLinkOffer = async () => {
+    const offer = linkOffer;
+    setLinkOffer(null);
+    if (!offer) return;
+    const group = await setAsideLiveRecordLinked();
+    if (offer.kind === "screen") {
+      // The new recording joins the group on its own screen; this screen is
+      // empty again and belongs to no group.
+      linkGroupRef.current = null;
+      openScreenSource(offer.route, group);
+      return;
+    }
+    addToast("Your recording is kept as its own pending record. This item starts a separate record linked to it.", "info");
+    await addCapturedItemToSession(offer.input);
+  };
 
   const INTAKE_ACTIONS: ReadonlyArray<{ kind: CaptureKind; label: string; helper: string }> = [
     // Web parity: CaptureDropzone labels this intake "Files" (apps/web/components/capture-v2/CaptureDropzone.tsx).
@@ -1607,16 +1846,51 @@ setSessionState(
       {/* Web order: the intake rail, the drafts, then the page's own title. */}
       <CaptureIntakeRail items={plannedItems} templateSelected={template !== null} readiness={captureReadiness} />
 
-      {resumable ? (
+      {pendingRecords.length > 0 ? (
         <ProovraCard style={styles.resumeCard} testID="capture-resume-banner">
-          <ProovraText variant="h3" weight="semibold">Resume your capture?</ProovraText>
-          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-            An unfinished capture with {resumable.items.length} item{resumable.items.length === 1 ? "" : "s"} was recovered. Resume to finish it, or discard it.
+          <ProovraText variant="h3" weight="semibold">
+            {pendingRecords.length === 1 ? "Resume your capture?" : `${pendingRecords.length} unfinished captures`}
           </ProovraText>
-          <View style={styles.resumeActions}>
-            <ProovraButton label="Resume" loading={resuming} onPress={() => void resumeSession(resumable)} />
-            <ProovraButton label="Discard" variant="danger" disabled={resuming} onPress={() => void discardRecovered()} />
-          </View>
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+            {pendingRecords.length === 1
+              ? `An unfinished capture with ${pendingRecords[0].items.length} item${pendingRecords[0].items.length === 1 ? "" : "s"} was recovered. Resume to finish it, or discard it.`
+              : "Each is its own evidence record. Resume one to finish it, or discard it — the others stay pending."}
+          </ProovraText>
+          {pendingRecords.map((rec) => {
+            const key = captureRecordKey(rec);
+            const label = rec.acquisition ? screenAcquisitionLabel(rec.acquisition.mode) : `${rec.items.length} staged item${rec.items.length === 1 ? "" : "s"}`;
+            return (
+              <View key={key} style={styles.pendingRow} testID="capture-pending-record">
+                <ProovraText variant="bodySm" weight="semibold">{label}</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {`Last saved ${new Date(rec.updatedAtIso).toLocaleString()}${rec.linkGroupId ? " · linked to another capture" : ""}`}
+                </ProovraText>
+                <View style={styles.resumeActions}>
+                  <ProovraButton
+                    label="Resume"
+                    accessibilityLabel={pendingRecords.length === 1 ? "Resume" : `Resume ${label}`}
+                    fullWidth={false}
+                    loading={resumingKey === key}
+                    disabled={resuming || hasItemsLive}
+                    onPress={() => void resumeSession(rec)}
+                  />
+                  <ProovraButton
+                    label="Discard"
+                    accessibilityLabel={pendingRecords.length === 1 ? "Discard" : `Discard ${label}`}
+                    variant="danger"
+                    fullWidth={false}
+                    disabled={resuming}
+                    onPress={() => void discardRecovered(rec)}
+                  />
+                </View>
+              </View>
+            );
+          })}
+          {hasItemsLive ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>
+              Finish or clear the session below before resuming another capture.
+            </ProovraText>
+          ) : null}
         </ProovraCard>
       ) : null}
       {staleRecovered ? (
@@ -1652,9 +1926,11 @@ setSessionState(
               planMode={planMode}
               onPlanMode={setPlanMode}
               useLocation={useLocation}
-              onUseLocation={setUseLocation}
+              onUseLocation={onUseLocation}
               busy={sessionCompletingEvidence}
               hasSessionItems={hasItems}
+              locationStatus={carriedLocationStatus(carriedLocation) ?? (useLocation ? locationCheck : null)}
+              locationLocked={!!carriedLocation?.recordedAtStart}
             />
           </View>
 
@@ -1727,14 +2003,14 @@ setSessionState(
                   <ProovraButton
                     label="Screen capture"
                     variant="secondary"
-                    disabled={isSessionActive || isRecording}
-                    onPress={() => router.push("/screen-capture")}
+                    disabled={isRecording || sessionCompletingEvidence}
+                    onPress={() => runScreenSource("/screen-capture")}
                   />
                   <ProovraButton
                     label="Continuous screen capture"
                     variant="secondary"
-                    disabled={isSessionActive || isRecording}
-                    onPress={() => router.push("/continuous-capture")}
+                    disabled={isRecording || sessionCompletingEvidence}
+                    onPress={() => runScreenSource("/continuous-capture")}
                   />
                 </>
               ) : (
@@ -1747,17 +2023,17 @@ setSessionState(
                   <ProovraButton
                     label="Continuous screen capture"
                     variant="secondary"
-                    disabled={isSessionActive || isRecording}
-                    onPress={() => router.push("/continuous-capture")}
+                    disabled={isRecording || sessionCompletingEvidence}
+                    onPress={() => runScreenSource("/continuous-capture")}
                   />
                   <ProovraText variant="label" color={theme.color.ink.muted}>
                     On iPhone and iPad, screen capture records continuously through Apple's screen broadcast until you stop it.
                   </ProovraText>
                 </>
               )}
-              {isSessionActive || isRecording ? (
+              {isSessionActive ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>
-                  Finish or discard the current session to use another source.
+                  A screen recording is always its own evidence record. Your current session is kept as a separate pending record.
                 </ProovraText>
               ) : null}
             </View>
@@ -1939,6 +2215,25 @@ setSessionState(
             A statement with a next step, not a silent refusal. Nothing staged
             is discarded by either action here.
           */}
+          {/*
+            DECISION 3 — a screen recording is sealed as its own record. What
+            would mix with it is offered as a SEPARATE record linked to it;
+            it is never staged into the recording's session.
+          */}
+          <ProovraSheet
+            visible={linkOffer !== null}
+            title="Add as a separate linked record?"
+            onClose={() => setLinkOffer(null)}
+          >
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+              {linkOffer?.kind === "screen"
+                ? "Screen recordings are sealed as their own evidence record. Keep your current session as a separate record linked to this new recording? Nothing you have staged is lost."
+                : "Screen recordings are sealed as their own evidence record. Add this as a separate record linked to this recording?"}
+            </ProovraText>
+            <ProovraButton label="Add as a separate linked record" onPress={() => void acceptLinkOffer()} />
+            <ProovraButton label="Not now" variant="ghost" onPress={() => setLinkOffer(null)} />
+          </ProovraSheet>
+
           <ProovraSheet
             visible={mixedOrigin !== null}
             title={mixedOrigin?.title ?? ""}
@@ -1991,6 +2286,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", marginTop: theme.space.s2, marginBottom: theme.space.s2 },
   resumeCard: { gap: theme.space.s2, marginBottom: theme.space.s3, borderColor: theme.color.accent.a500 },
   resumeActions: { flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2, marginTop: theme.space.s2 },
+  pendingRow: { gap: 2, paddingTop: theme.space.s2, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.color.border.subtle },
   staleNote: { marginBottom: theme.space.s3 },
   block: { marginBottom: theme.space.s3 },
   upper: { textTransform: "uppercase", letterSpacing: 0.4 },
@@ -2021,3 +2317,6 @@ const styles = StyleSheet.create({
   sessionCard: { gap: theme.space.s2, marginBottom: theme.space.s3 },
   sessionActions: { marginTop: 8, gap: theme.space.s2 },
 });
+
+/** The two screen sources Capture opens (declared last: the routes themselves sit under the platform gate above). */
+type ScreenSourceRoute = "/screen-capture" | "/continuous-capture";

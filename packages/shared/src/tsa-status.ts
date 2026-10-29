@@ -19,6 +19,7 @@
  */
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import { resolveTsaTrustState } from "./trust-signal-state.js";
+import { TSA_FAILURE_NOTES, TSA_NOT_OBTAINED_SUPPORT_STATEMENT, tsaFailureNote } from "./tsa-failure-copy.js";
 import type { ComponentVerificationState } from "./basic-verification.js";
 
 export const TSA_PROOF_STATUSES = [
@@ -89,9 +90,84 @@ export const TSA_PROOF_STATUS_TONE: Readonly<Record<TsaProofStatus, "success" | 
   PENDING: "warning",
   VALIDATED: "success",
   RECORDED_NOT_VALIDATED: "neutral",
-  NOT_OBTAINED: "neutral",
+  NOT_OBTAINED: "warning",
   FAILED: "danger",
 };
+
+/**
+ * THE DEGRADED STATE (2026-10-29): a timestamp was requested and the provider
+ * issued no usable token. One wording and one tone where the owner reads it
+ * (evidence header, Integrity tab, completion notice): the owner was promised a
+ * trusted timestamp and did not get one, so it is a warning — not a neutral
+ * "Not obtained", and never "failed" (the record itself is sound).
+ */
+export const TSA_NOT_OBTAINED_PRESENTATION = Object.freeze({
+  label: "Trusted timestamp not obtained",
+  tone: "warning" as const,
+});
+
+/** A status's label and tone, with NOT_OBTAINED stated as the degraded state above. */
+export function tsaProofStatusPresentation(status: TsaProofStatus): {
+  label: string;
+  tone: "success" | "neutral" | "warning" | "danger";
+} {
+  if (status === "NOT_OBTAINED") return { ...TSA_NOT_OBTAINED_PRESENTATION };
+  return { label: TSA_PROOF_STATUS_LABELS[status], tone: TSA_PROOF_STATUS_TONE[status] };
+}
+
+export type TsaCompletionNotice = {
+  tone: "warning";
+  title: string;
+  message: string;
+};
+
+/**
+ * WHAT A COMPLETION TOAST SAYS ABOUT THE TIMESTAMP (2026-10-29). Null when
+ * there is nothing to add to the plain "sealed" success (validated, pending,
+ * not requested); otherwise a warning the toast shows INSTEAD of the plain
+ * success, so a record sealed without its trusted timestamp is never announced
+ * as if it had one.
+ *
+ * Input: `tsaOutcome` from POST /v1/evidence/:id/complete
+ * ({ tsaStatus, tsaFailureCode, tsaTokenPresent, tsaValidatedAtUtc }), or the
+ * same four facts read from the record.
+ */
+export function tsaCompletionNotice(
+  input:
+    | {
+        tsaStatus: string | null | undefined;
+        tsaFailureCode?: string | null;
+        tsaTokenPresent?: boolean | null;
+        tsaValidatedAtUtc?: Date | string | null;
+      }
+    | null
+    | undefined,
+): TsaCompletionNotice | null {
+  if (!input) return null;
+  const status = resolveTsaProofStatus({
+    tsaStatus: input.tsaStatus,
+    tsaFailureCode: input.tsaFailureCode ?? null,
+    tsaValidatedAtUtc: input.tsaValidatedAtUtc ?? null,
+    tsaTokenPresent: input.tsaTokenPresent ?? null,
+  });
+  if (status === "NOT_OBTAINED") {
+    const why = tsaFailureNote(input.tsaFailureCode ?? null, true) ?? TSA_FAILURE_NOTES.UNSPECIFIED;
+    return {
+      tone: "warning",
+      title: `Evidence sealed — ${TSA_NOT_OBTAINED_PRESENTATION.label.toLowerCase()}`,
+      message: `${why} ${TSA_NOT_OBTAINED_SUPPORT_STATEMENT}`,
+    };
+  }
+  if (status === "FAILED" || status === "RECORDED_NOT_VALIDATED") {
+    const why = tsaFailureNote(input.tsaFailureCode ?? null) ?? TSA_FAILURE_NOTES.NOT_VALIDATED;
+    return {
+      tone: "warning",
+      title: "Evidence sealed — timestamp not validated",
+      message: `${why} The record remains sealed and signed, and OpenTimestamps anchoring proceeds independently.`,
+    };
+  }
+  return null;
+}
 
 /**
  * The component state a verification surface draws. Only a validated token

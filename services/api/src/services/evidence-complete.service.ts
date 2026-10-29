@@ -31,6 +31,7 @@ import {
 } from "../storage.js";
 import { sha256HexFromStream } from "../stream-hash.js";
 import { createEvidenceTimestamp } from "./timestamp.service.js";
+import type { TimestampResult } from "./timestamp.service.js";
 import { timestampCustodyPayload } from "./timestamp/timestamp-custody-payload.js";
 import * as prismaPkg from "@prisma/client";
 import { requestReportGeneration } from "./reports/report-generation-authority.service.js";
@@ -204,6 +205,17 @@ type CompleteEvidenceReturn = {
   signingKeyVersion: number | null;
   /** (2026-09-29, D11) This call was a duplicate of an earlier finalize. */
   alreadyFinalized?: boolean;
+  /**
+   * (2026-10-29) The RFC 3161 outcome of THIS finalize, for the completion
+   * notice (@proovra/shared tsaCompletionNotice). Absent on a duplicate call;
+   * null when no timestamp was requested.
+   */
+  tsaOutcome?: {
+    tsaStatus: TimestampResult["status"];
+    tsaFailureCode: string | null;
+    tsaTokenPresent: boolean;
+    tsaValidatedAtUtc: string | null;
+  } | null;
 };
 
 function asIso(d: Date | null | undefined): string | null {
@@ -1408,8 +1420,11 @@ const fingerprint = buildFingerprint({
       // discards its token with the rest of the transaction.
       const signResult = await signer.signFingerprintHex(fingerprintHash);
 
+      const tsaInputKind =
+        multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";
       const tsaResult = await createEvidenceTimestamp({
         digestHex: fileSha256,
+        inputKind: tsaInputKind,
       });
 
       // ET-SEC-28 — under the workspace capacity lock (see
@@ -1420,8 +1435,6 @@ const fingerprint = buildFingerprint({
         scope,
         incomingBytes: incomingGrowth,
       });
-      const tsaInputKind =
-        multipartItemCount > 1 ? "CANONICAL_PACKAGE_SHA256" : "FILE_SHA256";
 
 // UC-0 — `captureMethod` is the legacy STRUCTURE/compat field (single file vs
 // multipart). It is NOT acquisition: `acquisitionMode` is written once by
@@ -1819,6 +1832,17 @@ const captureMethod =
           signatureBase64: ev.signatureBase64,
           signingKeyId: ev.signingKeyId,
           signingKeyVersion: ev.signingKeyVersion,
+          // (2026-10-29) What the RFC 3161 step produced, for the completion
+          // notice (@proovra/shared tsaCompletionNotice): bounded facts only —
+          // never the token, URL or digest. Null when no timestamp was requested.
+          tsaOutcome: tsaResult
+            ? {
+                tsaStatus: tsaResult.status,
+                tsaFailureCode: tsaResult.failureCode,
+                tsaTokenPresent: tsaResult.tokenBase64.length > 0,
+                tsaValidatedAtUtc: tsaResult.validatedAtUtc?.toISOString() ?? null,
+              }
+            : null,
         },
         // The outputs belong to the RECORD and its funding, not to the
         // account's recurring plan. A credit-funded completion earns its

@@ -75,6 +75,51 @@ export type ReportEvidenceAsset = {
   previewDataUrl?: string | null;
   previewTextExcerpt?: string | null;
   previewCaption?: string | null;
+  /**
+   * Wire contract D (2026-10-29) — set on the ONE item a continuous screen
+   * recording is; `technicalParts` are its stored parts in part order.
+   */
+  userItemKind?: "recording" | "file";
+  recordingLayout?: "SINGLE_FILE" | "SEGMENTED" | null;
+  technicalParts?: ReportTechnicalPart[] | null;
+};
+
+export type ReportTechnicalPart = {
+  partIndex: number;
+  sha256: string | null;
+  sizeBytes: string | null;
+  displaySizeLabel: string | null;
+  mimeType: string | null;
+};
+
+/** Contract A — THE shared wording (continuousRecordingAcquisitionText). */
+export type ReportContinuousRecording = {
+  layout: "SINGLE_FILE" | "SEGMENTED";
+  statement: string;
+  observedByProovra: string;
+  audioStatement: string | null;
+};
+
+/** COMBINE — the derived combined review video's lineage facts (never an original). */
+export type ReportCombinedRecording = {
+  derivedSha256: string | null;
+  sourceSegmentCount: number;
+  completeness: "COMPLETE" | "PARTIAL";
+  gapCount: number;
+  /** Sum of the gaps whose length is known. */
+  gapTotalMs: number;
+  gapDurationUnknown: boolean;
+  generatedAtUtc: string | null;
+};
+
+/** Wire contract D — a CAPTURE_MANIFEST part: technical appendix only. */
+export type ReportCaptureRecord = {
+  id: string;
+  partIndex: number;
+  label: string;
+  mimeType: string | null;
+  sizeBytes: string | null;
+  sha256: string | null;
 };
 
 export type PreviewRenderKind =
@@ -271,6 +316,12 @@ export type ReportEvidence = {
   primaryContentLabel?: string | null;
   contentSummary?: ReportEvidenceContentSummary | null;
   contentItems?: ReportEvidenceAsset[] | null;
+  /** Wire contract D — system-generated capture records (never evidence items). */
+  captureRecords?: ReportCaptureRecord[] | null;
+  /** Contract A — a continuous screen recording's layout/audio statement. */
+  continuousRecording?: ReportContinuousRecording | null;
+  /** COMBINE — the derived combined review video, when COMPLETED at report time. */
+  combinedRecording?: ReportCombinedRecording | null;
   primaryContentItem?: ReportEvidenceAsset | null;
   defaultPreviewItemId?: string | null;
   previewPolicy?: ReportPreviewPolicy | null;
@@ -767,6 +818,15 @@ export type ReportViewModel = {
 
   contentSummary: ReportEvidenceContentSummary;
   contentItems: ReportEvidenceAsset[];
+  /** Wire contract D — capture records, listed in the technical appendix. */
+  captureRecords: ReportCaptureRecord[];
+  continuousRecording: ReportContinuousRecording | null;
+  combinedRecording: ReportCombinedRecording | null;
+  /**
+   * Every stored part (ORIGINAL + capture records): the multipart digest's
+   * input. Technical — never a user item count.
+   */
+  technicalPartCount: number;
   primaryContentItem: ReportEvidenceAsset | null;
   structureLabel: string;
   presentation: {

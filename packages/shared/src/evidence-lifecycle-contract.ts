@@ -717,7 +717,7 @@ const STEP_DEFS: Record<
     id: "OTSAnchoredLater",
     eventName: EVIDENCE_LIFECYCLE_EVENT_NAMES.OTSAnchoredLater,
     description:
-      "A PENDING OpenTimestamps proof is upgraded and its stored bytes now execute from the record's digest to a valid Bitcoin block-header attestation: the canonical state becomes ANCHORED (\"Bitcoin anchoring — Anchored\"), terminal for that proof. This may occur hours or days after the report/package were sealed; when the latest report stated an earlier state, exactly one automatic report + package version is requested (services/worker/src/ots-anchored-version.ts).",
+      "A PENDING OpenTimestamps proof is upgraded and its stored bytes now execute from the record's digest to a valid Bitcoin block-header attestation: the canonical state becomes ANCHORED (\"Bitcoin anchoring — Anchored\"), terminal for that proof. This may occur hours or days after the report/package were sealed. ANCHORED alone only NAMES a block (verification ATTESTATION_RECORDED) and requests NO new version; once the independent Bitcoin main-chain check VERIFIES the proof (CHAIN_VERIFIED) and the latest report stated something else, exactly one automatic report + package version is requested (services/worker/src/ots-anchored-version.ts). With the chain verifier disabled or unavailable the record stays ATTESTATION_RECORDED, stated as not independently checked, and the worker's verifier telemetry counts it (anchoredAwaitingChainVerification).",
     writerResponsibility:
       "services/worker/src/ots-upgrade.processor.ts (decides with services/worker/src/ots-state.ts:decideOtsTransition, writes compare-and-set via buildOtsEvidenceUpdateData).",
     timestampMeaning:

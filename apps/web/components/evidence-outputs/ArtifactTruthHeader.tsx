@@ -21,6 +21,7 @@ import {
   reportFreshnessChangeCopy,
   type ReportFreshnessExplanation,
   resolveTsaTrustState,
+  TSA_NOT_OBTAINED_PRESENTATION,
   tsaFailureCodeImpliesToken,
   toVerificationStatus,
   VERIFICATION_STATUS_LABELS,
@@ -86,8 +87,9 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
   // says no token came back.
   const providerCode = /^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(String(t.failureCode ?? ""));
   if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && providerCode) {
-    // The provider did not issue a token: a failure, said as one.
-    return { label: "Failed — no token obtained", tone: "warn", state: s.state, status: "UNAVAILABLE", measuredAtUtc: null };
+    // The provider did not issue a token: THE shared degraded state — the same
+    // words and warning tone as the Integrity tab and the completion notice.
+    return { label: TSA_NOT_OBTAINED_PRESENTATION.label, tone: "warn", state: s.state, status: "UNAVAILABLE", measuredAtUtc: null };
   }
   if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && !providerCode) {
     // A token may exist; no validation of it succeeded.

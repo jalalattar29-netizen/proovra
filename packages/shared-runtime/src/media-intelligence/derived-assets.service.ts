@@ -50,6 +50,12 @@ export const DERIVED_ASSET_KINDS = [
   // so this is a code-only extension, no migration.
   "video_keyframe",
   "screen_reconstruction",
+  // 2026-10-29 — ONE DERIVED combined MP4 per generation (variantKey combined-vN)
+  // of a legacy SEGMENTED continuous screen recording. Multi-source: the row is
+  // anchored to the first source segment (FK) and its `generation_parameters`
+  // list every segment joined (`sources[]`). The asset_kind / size_bytes CHECKs
+  // admit it from migration 20281029000000.
+  "screen_recording_combined",
 ] as const;
 export type DerivedAssetKind = (typeof DERIVED_ASSET_KINDS)[number];
 

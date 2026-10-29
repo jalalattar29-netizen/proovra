@@ -9,6 +9,32 @@ export const CAPTURE_LOCATION_STATUS_LABEL = "Location recorded";
 export const CAPTURE_LOCATION_CONTEXT_DESCRIPTION =
   "Device/browser-reported location preserved with this evidence record.";
 
+/**
+ * WHAT a recorded location means for the record's acquisition path — the
+ * moment it was measured and what it does NOT show. Every authorized surface
+ * states it beside the coordinates, so an upload's location is never read as
+ * the original file's capture place and a screen recording's is never read as
+ * where the on-screen content came from.
+ */
+export function evidenceLocationMeaning(acquisitionMode: string | null | undefined): string {
+  switch (acquisitionMode) {
+    case "PROOVRA_WEB_UPLOAD":
+      return "Where the submitting browser reported being when this record was submitted. It is not the original file's capture location.";
+    case "DIRECT_SCREEN_CAPTURE_IOS":
+    case "DIRECT_SCREEN_CAPTURE_ANDROID":
+    case "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS":
+      return "Where the recording device reported being when the screen capture started. It does not show where the on-screen content originated.";
+    case "DIRECT_WEB_CAPTURE_EXTENSION":
+      return "Where the capturing browser reported being when the page was captured. It does not show where the page's content originated.";
+    case "PROOVRA_MOBILE_APP":
+      return "Where the submitting device reported being when this record was finalized. It is not necessarily where each item was captured.";
+    case "SECURE_INTAKE_LINK":
+      return "Where the contributor's device reported being at submission, after the contributor explicitly agreed to share it.";
+    default:
+      return "Device-reported location preserved with this evidence record.";
+  }
+}
+
 export const CAPTURE_LOCATION_SHORT_BOUNDARY =
   "Location metadata is device-reported and permission-based.";
 
@@ -882,6 +908,13 @@ export function buildCaptureLocationMapDataUrl(params: {
 //   INVALID       stored coordinates fail validation. A warning for the
 //                 location metadata ONLY; the coordinates are never shown and
 //                 no other signal is affected.
+//   TIMED_OUT     a request was made and the device did not answer in time.
+//   NOT_INCLUDED  location was not part of this submission: the submitter
+//                 turned location off, or the intake link did not ask for it
+//                 (the capture recorded NOT_REQUESTED). Neutral.
+//   WITHHELD      valid coordinates ARE stored, but this audience may not see
+//                 them (an external or public projection). Never "not
+//                 recorded": the record holds a location.
 //
 // No state is "blocked". Missing optional location never blocks evidence
 // completion, a report, a package or verification.
@@ -892,6 +925,9 @@ export const EVIDENCE_LOCATION_STATES = [
   "NOT_SHARED",
   "UNAVAILABLE",
   "INVALID",
+  "TIMED_OUT",
+  "NOT_INCLUDED",
+  "WITHHELD",
 ] as const;
 export type EvidenceLocationState = (typeof EVIDENCE_LOCATION_STATES)[number];
 
@@ -918,6 +954,21 @@ export const EVIDENCE_LOCATION_STATE_PRESENTATION: Readonly<
     tone: "warning",
     detail: "The stored coordinates failed validation and are not shown.",
   },
+  TIMED_OUT: {
+    label: "Location timed out",
+    tone: "neutral",
+    detail: "Location was requested, but the device did not provide it in time.",
+  },
+  NOT_INCLUDED: {
+    label: "Location not included",
+    tone: "neutral",
+    detail: "Location was not requested for this submission, or the submitter chose not to include it.",
+  },
+  WITHHELD: {
+    label: "Location withheld",
+    tone: "neutral",
+    detail: "A location was recorded; it is withheld from this view by the record's disclosure settings.",
+  },
 };
 
 /**
@@ -930,7 +981,7 @@ export const MOCK_LOCATION_DETAIL =
   "The device marked these coordinates as coming from a mock (simulated) location provider. They are not an independent observation of where the capture happened.";
 
 /** Outcomes of a location request that a capture path recorded. */
-export const LOCATION_REQUEST_OUTCOMES = ["NOT_REQUESTED", "GRANTED", "DENIED", "UNAVAILABLE"] as const;
+export const LOCATION_REQUEST_OUTCOMES = ["NOT_REQUESTED", "GRANTED", "DENIED", "UNAVAILABLE", "TIMEOUT"] as const;
 export type LocationRequestOutcome = (typeof LOCATION_REQUEST_OUTCOMES)[number];
 
 export function parseLocationRequestOutcome(value: unknown): LocationRequestOutcome | null {
@@ -959,6 +1010,12 @@ export type EvidenceLocationFacts = {
   requirement?: string | null;
   /** AUD-37 — the provider reported the fix as mocked (locationProviderMockFromCustody). */
   providerReportedMock?: boolean | null;
+  /**
+   * This audience may not see stored coordinates (an external or public
+   * projection). Valid stored coordinates then read WITHHELD — never
+   * NOT_RECORDED — and no coordinate leaves.
+   */
+  withheld?: boolean | null;
 };
 
 export type EvidenceLocationPresentation = {
@@ -1007,7 +1064,9 @@ export function resolveEvidenceLocation(
       : null;
   let state: EvidenceLocationState;
   let coordinates: EvidenceLocationPresentation["coordinates"] = null;
-  if (isValidCaptureCoordinatePair(f)) {
+  if (isValidCaptureCoordinatePair(f) && f.withheld === true) {
+    state = "WITHHELD";
+  } else if (isValidCaptureCoordinatePair(f)) {
     state = "RECORDED";
     const accuracy = toFiniteNumber(f.accuracyMeters ?? null);
     coordinates = {
@@ -1027,7 +1086,11 @@ export function resolveEvidenceLocation(
         : // GRANTED with nothing stored: requested, nothing usable obtained.
           outcome === "UNAVAILABLE" || outcome === "GRANTED"
           ? "UNAVAILABLE"
-          : "NOT_RECORDED";
+          : outcome === "TIMEOUT"
+            ? "TIMED_OUT"
+            : outcome === "NOT_REQUESTED"
+              ? "NOT_INCLUDED"
+              : "NOT_RECORDED";
   }
   const p = EVIDENCE_LOCATION_STATE_PRESENTATION[state];
   const mock = state === "RECORDED" && f.providerReportedMock === true;
@@ -1043,7 +1106,7 @@ export function resolveEvidenceLocation(
       ? {
           level: requirementLevel,
           label: LOCATION_REQUIREMENT_LABEL[requirementLevel],
-          unmet: requirementLevel === "required" && state !== "RECORDED",
+          unmet: requirementLevel === "required" && state !== "RECORDED" && state !== "WITHHELD",
         }
       : null,
   };
@@ -1142,6 +1205,9 @@ const LOCATION_COPY_EN: EvidenceLocationCopy = {
     NOT_SHARED: { label: P.NOT_SHARED.label, detail: P.NOT_SHARED.detail },
     UNAVAILABLE: { label: P.UNAVAILABLE.label, detail: P.UNAVAILABLE.detail },
     INVALID: { label: P.INVALID.label, detail: P.INVALID.detail },
+    TIMED_OUT: { label: P.TIMED_OUT.label, detail: P.TIMED_OUT.detail },
+    NOT_INCLUDED: { label: P.NOT_INCLUDED.label, detail: P.NOT_INCLUDED.detail },
+    WITHHELD: { label: P.WITHHELD.label, detail: P.WITHHELD.detail },
   },
   requirement: LOCATION_REQUIREMENT_LABEL,
   requirementRow: {
@@ -1170,6 +1236,15 @@ const LOCATION_COPY_DE: EvidenceLocationCopy = {
     INVALID: {
       label: "Standortmetadaten ungültig",
       detail: "Die gespeicherten Koordinaten haben die Prüfung nicht bestanden und werden nicht angezeigt.",
+    },
+    TIMED_OUT: {
+      label: "Standortabfrage abgelaufen",
+      detail: "Der Standort wurde angefragt, aber das Gerät hat ihn nicht rechtzeitig bereitgestellt.",
+    },
+    NOT_INCLUDED: { label: "Standort nicht einbezogen", detail: "Für diese Einreichung wurde kein Standort angefragt, oder die einreichende Person hat ihn nicht einbezogen." },
+    WITHHELD: {
+      label: "Standort zurückgehalten",
+      detail: "Ein Standort wurde erfasst; er wird in dieser Ansicht gemäß den Offenlegungseinstellungen des Datensatzes nicht angezeigt.",
     },
   },
   requirement: {
@@ -1205,6 +1280,9 @@ const LOCATION_COPY_AR: EvidenceLocationCopy = {
       label: "بيانات الموقع الوصفية غير صالحة",
       detail: "لم تجتز الإحداثيات المخزّنة التحقق، لذا لا تُعرض.",
     },
+    TIMED_OUT: { label: "انتهت مهلة طلب الموقع", detail: "طُلب الموقع، لكن الجهاز لم يوفّره في الوقت المحدد." },
+    NOT_INCLUDED: { label: "لم يُضمَّن الموقع", detail: "لم يُطلب الموقع لهذا الإرسال، أو اختار مقدّم السجل عدم تضمينه." },
+    WITHHELD: { label: "الموقع محجوب", detail: "سُجّل موقع، لكنه محجوب عن هذا العرض وفق إعدادات الإفصاح للسجل." },
   },
   requirement: {
     required: "مطلوب بموجب خطة الجمع",

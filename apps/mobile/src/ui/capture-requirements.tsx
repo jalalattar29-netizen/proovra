@@ -77,6 +77,8 @@ export function CaptureIntakeStructure({
   onUseLocation,
   busy,
   hasSessionItems,
+  locationStatus,
+  locationLocked,
 }: {
   planMode: CapturePlanMode;
   onPlanMode: (m: CapturePlanMode) => void;
@@ -84,6 +86,13 @@ export function CaptureIntakeStructure({
   onUseLocation: (v: boolean) => void;
   busy: boolean;
   hasSessionItems: boolean;
+  /** What the device answered, or what a recording carries — stated, never silent. */
+  locationStatus?: string | null;
+  /**
+   * A recording's location was decided when it STARTED: the switch still
+   * answers a tap (with why it cannot change), but the value is read-only.
+   */
+  locationLocked?: boolean;
 }) {
   const locked = busy || hasSessionItems;
   return (
@@ -109,12 +118,19 @@ export function CaptureIntakeStructure({
           backgroundColor: useLocation ? theme.color.accent.a050 : theme.color.surface.card,
         }}
       >
-        <View style={{ gap: 2 }}>
+        <View style={{ gap: 2, flex: 1 }}>
           <ProovraText variant="bodySm" weight="semibold">Location</ProovraText>
-          <ProovraText variant="label" color={theme.color.ink.secondary}>{useLocation ? "Included" : "Not included"}</ProovraText>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {locationLocked ? "Set when the recording started" : useLocation ? "Included" : "Not included"}
+          </ProovraText>
         </View>
         <Switch value={useLocation} onValueChange={onUseLocation} disabled={busy} accessibilityLabel="Include location metadata" />
       </View>
+      {locationStatus ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary} testID="capture-location-status">
+          {locationStatus}
+        </ProovraText>
+      ) : null}
     </ProovraCard>
   );
 }

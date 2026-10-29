@@ -252,7 +252,7 @@ export async function createEvidence(params: {
    * them). Recorded in the EVIDENCE_CREATED custody event as a client-reported
    * fact; ignored when coordinates arrived. Absent = no request outcome.
    */
-  locationRequestOutcome?: "DENIED" | "UNAVAILABLE";
+  locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
 intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   /**
    * UC-0 — HOW this Evidence enters PROOVRA. REQUIRED, and always a constant

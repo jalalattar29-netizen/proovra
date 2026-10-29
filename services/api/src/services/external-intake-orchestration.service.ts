@@ -762,7 +762,7 @@ export async function updateExternalEvidencePartMapping(
  * accuracy band, not the coordinates themselves.
  */
 export type ExternalIntakeLocationInput = {
-  /** GRANTED | DENIED | UNAVAILABLE | NOT_REQUESTED — contributor's decision. */
+  /** GRANTED | DENIED | UNAVAILABLE | TIMEOUT | NOT_REQUESTED — the contributor's choice / request outcome. */
   consentState: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -877,6 +877,23 @@ function normalizeIntakeLocationCoordinates(
   return { lat, lng, accuracyMeters };
 }
 
+/** F-36 — the location outcomes an intake submission can record. */
+export const INTAKE_LOCATION_OUTCOMES = ["GRANTED", "DENIED", "UNAVAILABLE", "TIMEOUT", "NOT_REQUESTED"] as const;
+export type IntakeLocationOutcome = (typeof INTAKE_LOCATION_OUTCOMES)[number];
+
+/**
+ * F-36 — THE recorded outcome of the contributor's location choice. An
+ * unknown value is NOT_REQUESTED (never guessed into a grant), and GRANTED
+ * without usable coordinates is UNAVAILABLE: a "granted" outcome with no
+ * location would state a consent the record cannot show.
+ */
+export function intakeLocationOutcome(raw: unknown, hasCoordinates: boolean): IntakeLocationOutcome {
+  const state = (INTAKE_LOCATION_OUTCOMES as ReadonlyArray<unknown>).includes(raw)
+    ? (raw as IntakeLocationOutcome)
+    : "NOT_REQUESTED";
+  return state === "GRANTED" && !hasCoordinates ? "UNAVAILABLE" : state;
+}
+
 /**
  * Accuracy band for the audit log. Raw accuracy values can be
  * fingerprinting-adjacent, so we bucket them. This is also more
@@ -909,11 +926,8 @@ export async function submitExternalIntake(
   // The location field is OPTIONAL in the route schema, so a missing
   // body for a NONE link still works exactly like the pre-feature path.
   const policy = input.link.locationPolicy ?? "NONE";
-  const consentState =
-    typeof input.location?.consentState === "string"
-      ? input.location.consentState
-      : "NOT_REQUESTED";
   const coords = normalizeIntakeLocationCoordinates(input.location);
+  const consentState = intakeLocationOutcome(input.location?.consentState, coords !== null);
   const shouldPersistLocation =
     policy !== "NONE" && consentState === "GRANTED" && coords !== null;
 

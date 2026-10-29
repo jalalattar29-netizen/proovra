@@ -90,8 +90,22 @@ function databaseWith(present: {
   disclosurePolicy?: boolean;
   // 20281028000000 — team archive and step-up assurance, object by object.
   teamArchiveStepUp?: StepUpState;
+  // 20281029000000 — the combined screen recording's three widened CHECKs.
+  combinedRecording?: { runKind?: boolean; assetKind?: boolean; sizeCeiling?: boolean };
 }) {
   return async (sql: string): Promise<boolean> => {
+    // 20281029000000 — CHECK definitions; matched before anything that names
+    // the derived-asset table.
+    const combined = present.combinedRecording ?? {};
+    if (sql.includes("media_intelligence_runs_kind_bounded")) {
+      return combined.runKind === true && sql.includes("combine_screen_recording");
+    }
+    if (sql.includes("evidence_part_derived_assets_kind_bounded")) {
+      return combined.assetKind === true && sql.includes("screen_recording_combined");
+    }
+    if (sql.includes("evidence_part_derived_assets_size_bounded")) {
+      return combined.sizeCeiling === true && sql.includes("671088640");
+    }
     // 20281028000000 — matched FIRST: its column probes name tables no other
     // matcher knows, and its CHECK probe must not fall through to anything.
     const stepUp = present.teamArchiveStepUp ?? {};
@@ -282,6 +296,7 @@ const FULLY_MIGRATED = {
   threeDecisions: true,
   captureClientAttempt: true,
   disclosurePolicy: true,
+  combinedRecording: { runKind: true, assetKind: true, sizeCeiling: true },
 };
 
 describe("runtime schema requirements", () => {
@@ -608,6 +623,54 @@ describe("runtime schema requirements — team archive and step-up assurance (20
     expect(check).toBeDefined();
     expect(check).toContain("pg_get_constraintdef");
     expect(check).toContain("PASSKEY");
+  });
+});
+
+/**
+ * 20281029000000 — THE COMBINED SCREEN RECORDING. Each CHECK keeps its name
+ * when widened, so a database that never applied the swap still has a
+ * constraint of that name; only its definition tells them apart.
+ */
+describe("runtime schema requirements — combined screen recording (20281029000000)", () => {
+  const MIGRATION = "20281029000000_screen_recording_combined_derivative";
+
+  it("the narrower CHECKs are REFUSED, each named, the migration named", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, combinedRecording: {} }));
+    expect(result.ok).toBe(false);
+    expect(result.indeterminate).toEqual([]);
+    expect(result.missing.map((m) => m.id).sort()).toEqual([
+      "evidence_part_derived_assets_kind_bounded.screen_recording_combined",
+      "evidence_part_derived_assets_size_bounded.combined_ceiling",
+      "media_intelligence_runs_kind_bounded.combine_screen_recording",
+    ]);
+    expect(describeRuntimeSchemaFailure(result)).toContain(MIGRATION);
+  });
+
+  it("only the size ceiling missing is refused alone", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const result = await checkRuntimeSchemaRequirements(
+      databaseWith({ ...FULLY_MIGRATED, combinedRecording: { runKind: true, assetKind: true } }),
+    );
+    expect(result.missing.map((m) => m.id)).toEqual(["evidence_part_derived_assets_size_bounded.combined_ceiling"]);
+  });
+
+  it("the CHECKs are asserted by definition", async () => {
+    const { checkRuntimeSchemaRequirements } = await load();
+    const seen: string[] = [];
+    await checkRuntimeSchemaRequirements(async (sql) => {
+      seen.push(sql);
+      return true;
+    });
+    for (const [name, needle] of [
+      ["media_intelligence_runs_kind_bounded", "'combine_screen_recording'"],
+      ["evidence_part_derived_assets_kind_bounded", "'screen_recording_combined'"],
+      ["evidence_part_derived_assets_size_bounded", "671088640"],
+    ] as const) {
+      const sql = seen.find((s) => s.includes(name));
+      expect(sql).toContain("pg_get_constraintdef");
+      expect(sql).toContain(needle);
+    }
   });
 });
 

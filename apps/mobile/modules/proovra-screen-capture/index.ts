@@ -460,6 +460,42 @@ export type ScreenContinuousLedger = {
   segments: ScreenLedgerSegment[];
 };
 
+/** A STREAMING digest of one file, computed natively (wire: hashFile). */
+export type NativeFileDigest = { sha256Hex: string; md5Base64: string; sizeBytes: number };
+
+type FileDigestNativeModule = {
+  /** Absent on native builds before 2026-10-29. */
+  hashFile?(uri: string): Promise<NativeFileDigest>;
+};
+
+/**
+ * True when this native build can hash a file in STREAMING chunks (iOS and
+ * Android builds from 2026-10-29). Older binaries lack it: the caller falls
+ * back to its JS path.
+ */
+export function isNativeFileHashAvailable(): boolean {
+  if (Platform.OS !== "android" && Platform.OS !== "ios") return false;
+  try {
+    return typeof (nativeModule() as unknown as FileDigestNativeModule).hashFile === "function";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * SHA-256 (hex) + MD5 (base64) + size of a file:// URI, read natively in 1 MiB
+ * chunks off the JS/main thread — memory stays at one chunk whatever the file
+ * size (a single-file recording is up to 512 MB). Rejects FILE_NOT_FOUND for a
+ * missing file, HASH_FAILED for an unreadable one, UNSUPPORTED on an older binary.
+ */
+export async function hashFileNative(uri: string): Promise<NativeFileDigest> {
+  const mod = nativeModule() as unknown as FileDigestNativeModule;
+  if (!isNativeFileHashAvailable() || typeof mod.hashFile !== "function") {
+    throw new Error("UNSUPPORTED: this app build has no native file digest.");
+  }
+  return mod.hashFile(uri);
+}
+
 type ContinuousNativeModule = {
   isContinuousSupported(): boolean;
   /** AUD-006 — iOS takes the recordingId (null: the focused/live one); Android takes none. */

@@ -97,7 +97,8 @@
 .capture-main-panel > .capture-requirements-panel,
 .capture-main-panel > .capture-drop-zone-enterprise,
 .capture-main-panel > .capture-materials-board,
-.capture-main-panel > .capture-audio-card {
+.capture-main-panel > .capture-audio-card,
+.capture-main-panel > .capture-screen-card {
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
@@ -1116,6 +1117,19 @@
    sections sit side by side while they still fit.
 --------------------------------------------------------------------------- */
 
+/* Above the band breakpoint the rail IS the second column. capture-v2.css still
+   carries a legacy `@media (max-width: 1280px)` rule that spans the rail across
+   `1 / -1`; under this sheet's two-column template that dropped the rail below
+   the working column and left an empty 352px track beside it on 1181-1280px
+   desktops (a 1280px laptop, or 1920px at 150%). The breakpoint stays on the
+   viewport, not a container: the shell PUSHES the content when its sidebar is
+   hovered, and a container query would flip the whole layout on every hover. */
+@media (min-width: 1181px) {
+  .capture-enterprise-grid > .capture-session-column {
+    grid-column: auto !important;
+  }
+}
+
 /* Below this the rail cannot hold a label and its value on one line. */
 @media (max-width: 1180px) {
   .capture-enterprise-grid {
@@ -1655,6 +1669,7 @@
 .capture-main-panel > .capture-drop-zone-enterprise,
 .capture-main-panel > .capture-materials-board,
 .capture-main-panel > .capture-audio-card,
+.capture-main-panel > .capture-screen-card,
 .capture-enterprise-page .capture-intake-plan,
 .capture-enterprise-page .capture-guidance-card,
 .capture-enterprise-page .capture-contextual-help {
@@ -2823,4 +2838,59 @@
   outline: 2px solid var(--accent-500, #2563eb);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   BROWSER SCREEN RECORDING CARD — its own action row on the canonical action
+   primitives (app-primitives.css). No tile-grid or legacy audio-card rule
+   reaches these buttons, so hover keeps the primitive's contrast and
+   keyboard focus keeps a visible ring.
+--------------------------------------------------------------------------- */
+.capture-screen-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.capture-enterprise-page .capture-screen-card__actions > .app-primary-action:focus-visible,
+.capture-enterprise-page .capture-screen-card__actions > .app-secondary-action:focus-visible,
+.capture-enterprise-page .capture-location-failure__actions > .app-secondary-action:focus-visible {
+  outline: 2px solid #6d28d9;
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   LOCATION — what happened to the location request, stated where it was asked
+   for, with the actions the user can take (retry; finish without it unless the
+   plan requires it).
+--------------------------------------------------------------------------- */
+.capture-location-failure {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--capture-orange, #d97706);
+  border-radius: 12px;
+  background: var(--capture-orange-soft, #fff7eb);
+  color: var(--capture-ink, #101828);
+  font-size: var(--cap-fs-meta, 0.85rem);
+  line-height: 1.45;
+}
+
+.capture-location-failure p {
+  margin: 0;
+}
+
+.capture-location-failure__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.capture-location-note {
+  margin: 12px 0 0;
+  color: var(--capture-muted, rgba(23, 37, 42, 0.64));
+  font-size: var(--cap-fs-meta, 0.85rem);
+  line-height: 1.45;
 }

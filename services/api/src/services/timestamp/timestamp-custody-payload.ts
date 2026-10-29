@@ -28,5 +28,8 @@ export function timestampCustodyPayload(tsaResult: TimestampResult, tsaInputKind
     // rows ("the timestamp landed but our parser missed the serial"). Empty on
     // fully-clean STAMPED and on every FAILED row.
     tsaParseWarnings: tsaResult.warnings,
+    // (2026-10-29) How long the RFC 3161 round-trip took, every outcome.
+    // Events written before this field existed simply lack it.
+    tsaDurationMs: tsaResult.durationMs,
   };
 }

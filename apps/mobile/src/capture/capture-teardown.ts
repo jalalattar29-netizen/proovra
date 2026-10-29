@@ -27,7 +27,7 @@ import {
   stopScreenCapture,
 } from "../../modules/proovra-screen-capture";
 import { discardDirectCaptureSession } from "../direct-capture";
-import { clearCaptureSession, loadCaptureSession, setCaptureSessionOwner } from "./capture-session-store";
+import { clearCaptureSession, loadCaptureSessions, setCaptureSessionOwner } from "./capture-session-store";
 import { clearLiveContinuousSession, loadLiveContinuousSession } from "./continuous-session-store";
 import { clearPendingScreenStaging, loadPendingScreenStaging } from "./screen-staging-store";
 
@@ -53,7 +53,9 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
     if (native.active) {
       const recordingId = native.recordingId ?? null;
       for (const s of getContinuousSegments(recordingId)) localFiles.add(s.uri);
-      await stopContinuousCapture(recordingId);
+      const stopped = (await stopContinuousCapture(recordingId)) as { recordingUri?: unknown } | null | undefined;
+      // A SINGLE_FILE build hands back its one recording file instead of segments.
+      if (typeof stopped?.recordingUri === "string" && stopped.recordingUri) localFiles.add(stopped.recordingUri);
     }
   });
   await quietly(async () => {
@@ -65,10 +67,11 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
 
   // 2. Release the open server sessions while the token is still valid.
   const live = await loadLiveContinuousSession();
-  const staged = await loadCaptureSession();
+  // EVERY pending record of this account, not only the newest one.
+  const stagedRecords = await loadCaptureSessions();
   const sessions = new Map<string, string>();
   if (live) sessions.set(live.captureSessionId, live.expiresAtUtc);
-  if (staged) {
+  for (const staged of stagedRecords) {
     sessions.set(staged.captureSessionId, staged.expiresAtUtc);
     for (const it of staged.items) if (it.uri) localFiles.add(it.uri);
   }

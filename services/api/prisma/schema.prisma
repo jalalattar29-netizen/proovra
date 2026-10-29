@@ -14668,10 +14668,18 @@ model EvidencePartDerivedAsset {
   id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId                   String    @map("team_id") @db.Uuid
   evidenceId               String    @map("evidence_id") @db.Uuid
+  // The FK anchor. A multi-source derivative (screen_recording_combined) is
+  // anchored to its FIRST source segment; every source it joined is listed in
+  // generationParameters.sources[] (projected as sourcePartIndexes[]).
   evidencePartId           String    @map("evidence_part_id") @db.Uuid
+  // CHECK evidence_part_derived_assets_kind_bounded (last widened by migration
+  // 20281029000000 with screen_recording_combined).
   assetKind                String    @map("asset_kind") @db.VarChar(48)
   status                   String    @default("PENDING") @db.VarChar(24)
   derivedSha256            String?   @map("derived_sha256") @db.VarChar(64)
+  // CHECK evidence_part_derived_assets_size_bounded: 0..671,088,640 bytes
+  // (640 MiB — the 512 MiB continuous-session ceiling plus combine overhead;
+  // migration 20281029000000; it was 50,000,000).
   sizeBytes                Int?      @map("size_bytes")
   contentType              String?   @map("content_type") @db.VarChar(80)
   widthPx                  Int?      @map("width_px")

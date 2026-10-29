@@ -83,7 +83,11 @@ function installNative() {
 }
 
 before(async () => {
-  M = await loadModule("app/(stack)/continuous-capture.tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs"]);
+  M = await loadModule("app/(stack)/continuous-capture.tsx", [
+    "test/support/providers.tsx",
+    "test/support/expo-stub.mjs",
+    "src/capture/capture-session-store.ts",
+  ]);
 });
 
 beforeEach(async () => {
@@ -369,4 +373,224 @@ test("UC-AND-004 / UC-IOS-010: a remounted screen reattaches to the live recordi
   const second = await render();
   assert.equal(opens().length, 1, "a second server session was opened over a live recording");
   assert.ok(second.hasText("Continuous capture active"), second.texts().join(" / "));
+});
+
+/* ---------------------------------------------------------------------------
+ * 2026-10-29 — decisions 1-3 on this screen: ONE recording file (contract B),
+ * the location read BEFORE the recording starts, the optional microphone, and
+ * a staged review state from which "Capture another" is reachable.
+ * ------------------------------------------------------------------------ */
+
+const SINGLE_RESULT = (over = {}) => ({
+  ...RESULT,
+  captureStartedAtUtc: new Date(Date.now() - 40_000).toISOString(),
+  captureEndedAtUtc: new Date(Date.now() - 10_000).toISOString(),
+  totalDurationMs: 30_000,
+  segmentCount: 0,
+  layout: "SINGLE_FILE",
+  recordingUri: "file:///cache/proovra-recording.mp4",
+  recordingSizeBytes: 9,
+  recordingDurationMs: 30_000,
+  widthPx: 1080,
+  heightPx: 2400,
+  orientationTimeline: [{ atOffsetMs: 0, orientation: "portrait" }],
+  pauses: [],
+  audioTracks: [],
+  finalized: true,
+  ...over,
+});
+
+/** Request bodies, by path. */
+function recordBodies() {
+  const bodies = [];
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const path = String(url).replace(/^https?:\/\/[^/]+/, "");
+    bodies.push({ path, method: init.method ?? "GET", body: init.body ? JSON.parse(String(init.body)) : null });
+    return inner(url, init);
+  };
+  return bodies;
+}
+
+let draftSeq = 0;
+const staging = () => {
+  globalThis.__FS__ = new Map([["file:///cache/proovra-recording.mp4", "recording"]]);
+  globalThis.__UPLOAD_ASYNC__ = async () => ({ status: 200 });
+  routes["/v1/capture/sessions"] = () => ({ session: { id: `draft-${(draftSeq += 1)}`, status: "DRAFT" } });
+};
+const unstage = () => {
+  delete globalThis.__FS__;
+  delete globalThis.__UPLOAD_ASYNC__;
+  delete globalThis.__EXPO_PARAMS__;
+  delete globalThis.__LOCATION__;
+};
+
+test("decision 1: a SINGLE_FILE recording uploads ONE file as part 0 and the manifest as part 1; Capture another stays reachable", async () => {
+  staging();
+  const bodies = recordBodies();
+  native.state.stop = async () => SINGLE_RESULT();
+  try {
+    const r = await render();
+    assert.ok(r.texts().some((t) => t.includes("50 minutes or 512 MB")), "the limits are not stated before recording");
+    await r.press("Start Continuous Capture");
+    await settle();
+    await r.press("Stop & Review");
+    await settle();
+    assert.ok(r.hasText("Recording saved"), r.texts().join(" / "));
+    assert.ok(r.hasText("No audio was recorded — this recording is silent."));
+    await r.press("Continue to Finish & Sign");
+    await settle();
+    const decl = bodies.filter((b) => b.path.includes("/declaration"));
+    assert.deepEqual(
+      decl.map((d) => [d.path.split("/parts/")[1], d.body.clientReportedSource]),
+      [["0/declaration", "SCREEN_RECORDING"], ["1/declaration", "CONTINUOUS_MANIFEST"]],
+    );
+    // Staged, and NOT redirected: the review state offers both next steps.
+    assert.deepEqual(M.calls.replace, []);
+    assert.equal(r.byLabel("Capture another").length, 1, r.texts().join(" / "));
+    assert.equal(r.byLabel("Review in Capture").length, 1);
+    const [rec] = await M.loadCaptureSessions();
+    assert.equal(rec.acquisition.mode, "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
+    assert.equal(JSON.parse(rec.acquisition.manifestJson).recordingLayout, "SINGLE_FILE");
+    assert.equal(rec.items[0].itemSourceLabel, "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS");
+    assert.deepEqual(rec.location, { useLocation: false, outcome: null, recordedAtStart: true });
+
+    // Capture another: a NEW recording; the first record stays pending.
+    await r.press("Capture another");
+    await settle();
+    assert.ok(r.hasText("Start Continuous Capture"));
+    assert.equal(discards().length, 0, "Capture another released the staged recording");
+    const first = routes["/v1/capture/direct-sessions"];
+    routes["/v1/capture/direct-sessions"] = (path, init) => {
+      const res = first(path, init);
+      return res?.session?.captureSessionId ? { session: { captureSessionId: "cs-2", expiresAtUtc: "2026-09-30T11:00:00.000Z" } } : res;
+    };
+    // The staged file was released; the recorder writes a new one for the new recording.
+    assert.ok(globalThis.__DELETED__?.includes("file:///cache/proovra-recording.mp4"), "the staged local file was kept");
+    globalThis.__FS__.set("file:///cache/proovra-recording.mp4", "second recording");
+    await r.press("Start Continuous Capture");
+    await settle();
+    await r.press("Stop & Review");
+    await settle();
+    await r.press("Continue to Finish & Sign");
+    await settle();
+    const ids = (await M.loadCaptureSessions()).map((x) => x.captureSessionId).sort();
+    assert.deepEqual(ids, ["cs-1", "cs-2"], "the second recording overwrote the first pending record");
+  } finally {
+    unstage();
+  }
+});
+
+test("decision 1: an unfinalized file is stated INTERRUPTED and staged as such; a missing file offers only Discard", async () => {
+  staging();
+  native.state.stop = async () =>
+    SINGLE_RESULT({ finalized: false, recordingDurationMs: null, terminationReason: "UNKNOWN", sessionCompleteness: "INTERRUPTED_SESSION" });
+  try {
+    const r = await render();
+    await r.press("Start Continuous Capture");
+    await settle();
+    await r.press("Stop & Review");
+    await settle();
+    assert.ok(r.hasText("Recording interrupted"));
+    assert.ok(!r.hasText("Recording saved"));
+    await r.press("Continue to Finish & Sign");
+    await settle();
+    const [rec] = await M.loadCaptureSessions();
+    const manifest = JSON.parse(rec.acquisition.manifestJson);
+    assert.equal(manifest.sessionCompleteness, "INTERRUPTED_SESSION");
+    assert.ok(manifest.limitations.includes("CAPTURE_INTERRUPTED"));
+  } finally {
+    unstage();
+  }
+  native.state.stop = async () => SINGLE_RESULT({ recordingUri: null, finalized: false });
+  const r2 = await render();
+  await r2.press("Start Continuous Capture");
+  await settle();
+  await r2.press("Stop & Review");
+  await settle();
+  assert.ok(r2.hasText("The recording could not be saved"));
+  assert.equal(r2.byLabel("Continue to Finish & Sign").length, 0);
+});
+
+test("decision 2: location is read BEFORE the native start and goes into the reservation", async () => {
+  globalThis.__EXPO_PARAMS__ = { useLocation: "1" };
+  globalThis.__LOCATION__ = { coords: { latitude: 48.85, longitude: 2.35, accuracy: 12 } };
+  const bodies = recordBodies();
+  try {
+    const r = await render();
+    assert.equal(r.byLabel("Include location metadata")[0].props.value, true, "Capture's choice did not reach this screen");
+    await r.press("Start Continuous Capture");
+    await settle();
+    const reserve = bodies.find((b) => b.path === "/v1/capture/direct-sessions/cs-1/evidence");
+    assert.deepEqual(reserve.body.gps, { lat: 48.85, lng: 2.35, accuracyMeters: 12 });
+    assert.equal(reserve.body.locationRequestOutcome, undefined);
+    assert.ok(r.texts().some((t) => t.includes("Location recorded for the start of this recording.")));
+  } finally {
+    unstage();
+  }
+});
+
+test("decision 2: location OFF goes into the reservation as NOT_REQUESTED, never coordinates", async () => {
+  const bodies2 = recordBodies();
+  const r2 = await render();
+  await r2.press("Start Continuous Capture");
+  await settle();
+  const reserve2 = bodies2.find((b) => b.path === "/v1/capture/direct-sessions/cs-1/evidence");
+  assert.equal(reserve2.body.locationRequestOutcome, "NOT_REQUESTED");
+  assert.equal(reserve2.body.gps, undefined);
+});
+
+test("decision 2: a denied location asks first — Cancel starts NOTHING (no consent, no session)", async () => {
+  globalThis.__EXPO_PARAMS__ = { useLocation: "1" };
+  globalThis.__LOCATION__ = { granted: false };
+  const alerts = [];
+  globalThis.__ALERT__ = (title, message, buttons) => {
+    alerts.push(buttons.map((b) => b.text));
+    buttons.find((b) => b.text === "Cancel").onPress();
+  };
+  try {
+    const r = await render();
+    await r.press("Start Continuous Capture");
+    await settle();
+    assert.deepEqual(alerts, [["Retry", "Record without location", "Cancel"]]);
+    assert.deepEqual(native.calls, [], "the recording started although the person cancelled");
+    assert.equal(opens().length, 0);
+  } finally {
+    delete globalThis.__ALERT__;
+    unstage();
+  }
+});
+
+test("decision 2: a plan that REQUIRES location never offers to record without it", async () => {
+  globalThis.__EXPO_PARAMS__ = { useLocation: "1", locationRequired: "1" };
+  globalThis.__LOCATION__ = { fail: true };
+  const alerts = [];
+  globalThis.__ALERT__ = (title, message, buttons) => {
+    alerts.push(buttons.map((b) => b.text));
+    buttons.find((b) => b.text === "Cancel").onPress();
+  };
+  try {
+    const r = await render();
+    await r.press("Start Continuous Capture");
+    await settle();
+    assert.deepEqual(alerts, [["Retry", "Cancel"]]);
+    assert.deepEqual(native.calls, []);
+  } finally {
+    delete globalThis.__ALERT__;
+    unstage();
+  }
+});
+
+test("optional microphone (Android): the in-app choice asks RECORD_AUDIO and starts with { microphone: true }", async () => {
+  let options = null;
+  native.state.start = async (o) => {
+    options = o;
+    return { osConsentGranted: true, captureStartedAtUtc: "2026-09-30T10:00:00.000Z", segmentMs: 6000, maxSegments: 199 };
+  };
+  const r = await render();
+  const toggle = r.byLabel("Record microphone audio").find((n) => n.props.onValueChange);
+  await act(async () => toggle.props.onValueChange(true));
+  await r.press("Start Continuous Capture");
+  await settle();
+  assert.equal(options?.microphone, true);
 });

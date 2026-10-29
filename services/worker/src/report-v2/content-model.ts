@@ -312,5 +312,6 @@ export function buildFingerprintNarrative(
     return `Single evidence item represented by a canonical fingerprint and recorded MIME metadata. MIME: ${mimeText}.`;
   }
 
-  return `Multipart evidence package (${contentSummary.itemCount} items) represented by a canonical fingerprint describing structure, metadata, and integrity values. MIME types: ${mimeText}.`;
+  // Wire contract D — called with the STORED part count (digest semantics).
+  return `Multipart evidence record (${contentSummary.itemCount} stored parts) represented by a canonical fingerprint describing structure, metadata, and integrity values. MIME types: ${mimeText}.`;
 }

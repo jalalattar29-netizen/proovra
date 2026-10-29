@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
-import type { TsaValidationEvidence } from "@proovra/shared";
+import { tsaFailureCategory, type TsaValidationEvidence } from "@proovra/shared";
 import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-// Phase O1.5B — bounded TSA spans. Attributes carry provider name +
-// status only. NEVER the TSA token body, message imprint hex digest,
-// or response bytes.
+// Phase O1.5B — bounded TSA spans. Attributes carry provider name,
+// outcome, bounded failure code/category and duration only. NEVER the TSA
+// token body, message imprint hex digest, or response bytes.
 import {
   PROOVRA_SPAN_NAMES,
   withProovraSpan,
@@ -89,13 +89,19 @@ const CURL_UNREACHABLE = new Set([5, 6, 7, 35, 52, 56]);
 export function classifyTsaSubprocessError(error: unknown): {
   code: TsaProviderFailureCode;
   reason: string;
+  /** The HTTP status the provider answered with, when curl reported one. */
+  httpStatus: number | null;
 } {
-  const e = (error ?? {}) as { killed?: boolean; signal?: string | null; code?: unknown; stderr?: unknown };
-  const out = (code: TsaProviderFailureCode) => ({ code, reason: PROVIDER_REASONS[code] });
+  const e = (error ?? {}) as { killed?: boolean; signal?: string | null; code?: unknown; stderr?: unknown; stdout?: unknown };
+  // `-w "%{http_code}"` writes the status to stdout even when --fail exits 22;
+  // the stderr "returned error: NNN" is the fallback. 000 = no response.
+  const written = /^\s*([1-5]\d{2})\s*$/.exec(String(e.stdout ?? ""))?.[1];
+  const status = written ?? /returned error:\s*(\d{3})/i.exec(String(e.stderr ?? ""))?.[1];
+  const httpStatus = status ? Number.parseInt(status, 10) : null;
+  const out = (code: TsaProviderFailureCode) => ({ code, reason: PROVIDER_REASONS[code], httpStatus });
   if (e.killed === true || e.code === 28 || e.code === "ETIMEDOUT") return out("tsa_provider_timeout");
   if (typeof e.code === "number" && CURL_UNREACHABLE.has(e.code)) return out("tsa_provider_unreachable");
   if (e.code === 22) {
-    const status = /returned error:\s*(\d{3})/i.exec(String(e.stderr ?? ""))?.[1];
     if (status === "429") return out("tsa_provider_quota_exceeded");
     if (status === "403") return out("tsa_provider_access_restricted");
     if (status === "401") return out("tsa_provider_auth_failed");
@@ -160,7 +166,72 @@ export type TimestampResult = {
    * line; the repair tool can fill in the missing columns later.
    */
   warnings: TsaReplyWarningCode[];
+  /**
+   * (2026-10-29) Wall-clock milliseconds of the whole RFC 3161 round-trip —
+   * query, transport, reply parse and validation — on every outcome. Recorded
+   * in the TIMESTAMP_APPLIED / TIMESTAMP_FAILED custody payload and the
+   * `tsa.timestamp.*` log line, so a slow or timed-out provider is visible.
+   */
+  durationMs: number;
 };
+
+/** The bounded log events one TSA request emits (exactly one per request). */
+export const TSA_LOG_EVENTS = Object.freeze({
+  STAMPED: "tsa.timestamp.stamped",
+  FAILED: "tsa.timestamp.failed",
+  ERROR: "tsa.timestamp.error",
+} as const);
+
+/** Where a FAILED request stopped. */
+type TsaStage = "transport" | "reply" | "validation" | "complete";
+
+type TsaDiagnostics = { stage: TsaStage; httpStatus: number | null };
+
+/**
+ * The provider LABEL as logged: the operator-chosen TSA_PROVIDER name, bounded
+ * to a plain identifier. Anything else (a URL pasted into the label, a value
+ * with credentials) is never echoed.
+ */
+function providerLogLabel(provider: string): string {
+  return /^[A-Za-z0-9_.-]{1,64}$/.test(provider) ? provider : "UNRECOGNISED_LABEL";
+}
+
+function httpStatusClass(status: number | null): string | null {
+  return status === null ? null : `${Math.floor(status / 100)}xx`;
+}
+
+/**
+ * ONE structured line per TSA request, emitted in every environment (the API
+ * logger's info/warn are silent in production, so this writes the console
+ * directly, like the other operator diagnostics). Bounded facts only: never
+ * the TSA URL, username or password, the provider's response body, the token
+ * or the digest.
+ */
+function logTsaOutcome(
+  result: TimestampResult,
+  diag: TsaDiagnostics,
+  inputKind: string | null,
+): void {
+  const stamped = result.status === "STAMPED";
+  const line = JSON.stringify({
+    level: stamped ? "info" : "warn",
+    event: stamped ? TSA_LOG_EVENTS.STAMPED : TSA_LOG_EVENTS.FAILED,
+    provider: providerLogLabel(result.provider),
+    outcome: result.status,
+    category: stamped ? null : tsaFailureCategory(result.failureCode, true),
+    failureCode: result.failureCode,
+    stage: stamped ? "complete" : diag.stage,
+    inputKind,
+    durationMs: result.durationMs,
+    httpStatusClass: httpStatusClass(diag.httpStatus),
+    replyKept: result.tokenBase64.length > 0,
+    parseWarnings: result.warnings.length,
+  });
+  // eslint-disable-next-line no-console
+  if (stamped) console.info(line);
+  // eslint-disable-next-line no-console
+  else console.warn(line);
+}
 
 async function mkWorkDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "tsa-"));
@@ -180,21 +251,60 @@ async function cleanup(files: string[]): Promise<void> {
 
 export async function createEvidenceTimestamp(params: {
   digestHex: string;
+  /**
+   * What the digest is (FILE_SHA256 | CANONICAL_PACKAGE_SHA256) — for the log
+   * line only; the persisted tsaInputKind is written by the finalizer.
+   */
+  inputKind?: string | null;
 }): Promise<TimestampResult | null> {
   if (!enabled()) return null;
+  const providerLabel = (process.env.TSA_PROVIDER ?? "UNSPECIFIED_TSA").trim() || "UNSPECIFIED_TSA";
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.TSA_TIMESTAMP_REQUEST,
     {
       "proovra.operation": "tsa_timestamp_request",
-      "proovra.provider": (process.env.TSA_PROVIDER ?? "UNSPECIFIED_TSA").trim() || "UNSPECIFIED_TSA",
+      "proovra.provider": providerLabel,
     },
-    () => createEvidenceTimestampInner(params),
+    async (span) => {
+      const startedAt = performance.now();
+      const diag: TsaDiagnostics = { stage: "transport", httpStatus: null };
+      const elapsed = () => Math.max(0, Math.round(performance.now() - startedAt));
+      let result: TimestampResult;
+      try {
+        result = { ...(await createEvidenceTimestampInner(params, diag)), durationMs: elapsed() };
+      } catch (err) {
+        // Configuration or input errors (TSA_URL unset, a malformed digest):
+        // the request never reached a provider. Bounded: the error's name only.
+        // eslint-disable-next-line no-console
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: TSA_LOG_EVENTS.ERROR,
+            provider: providerLogLabel(providerLabel),
+            errorName: err instanceof Error ? err.name.slice(0, 40) : "unknown",
+            inputKind: params.inputKind ?? null,
+            durationMs: elapsed(),
+          }),
+        );
+        throw err;
+      }
+      logTsaOutcome(result, diag, params.inputKind ?? null);
+      // Outcome + duration on the request span (bounded codes, no digest/URL).
+      span.setAttribute("proovra.tsa.outcome", result.status);
+      span.setAttribute("proovra.tsa.duration_ms", result.durationMs);
+      if (result.failureCode) {
+        span.setAttribute("proovra.tsa.failure_code", result.failureCode);
+        span.setAttribute("proovra.tsa.failure_category", tsaFailureCategory(result.failureCode, true) ?? "UNSPECIFIED");
+      }
+      return result;
+    },
   );
 }
 
-async function createEvidenceTimestampInner(params: {
-  digestHex: string;
-}): Promise<TimestampResult | null> {
+async function createEvidenceTimestampInner(
+  params: { digestHex: string },
+  diag: TsaDiagnostics,
+): Promise<Omit<TimestampResult, "durationMs">> {
   const tsaUrl = must("TSA_URL");
   // UC-TRUST-006 — credentials are OPTIONAL (many authorities are
   // unauthenticated); requiring them threw and blocked completion.
@@ -223,7 +333,7 @@ async function createEvidenceTimestampInner(params: {
     code: TimestampFailureCode,
     reason: string,
     extra: Partial<TimestampResult> = {},
-  ): TimestampResult => ({
+  ): Omit<TimestampResult, "durationMs"> => ({
     ...base,
     serialNumber: null,
     genTimeUtc: null,
@@ -255,7 +365,7 @@ async function createEvidenceTimestampInner(params: {
           curlConfig,
         ];
       }
-      await execFileAsync(
+      const transport = await execFileAsync(
         "curl",
         [
           "-sS",
@@ -267,13 +377,27 @@ async function createEvidenceTimestampInner(params: {
           `@${requestFile}`,
           "-o",
           responseFile,
+          // The HTTP status alone on stdout (the body goes to responseFile).
+          "-w",
+          "%{http_code}",
           tsaUrl,
         ],
         { timeout: timeoutMs() },
       );
+      const httpCode = /^\s*(\d{3})\s*$/.exec(String(transport.stdout ?? ""))?.[1];
+      diag.httpStatus = httpCode ? Number.parseInt(httpCode, 10) : null;
     } catch (error) {
       const classified = classifyTsaSubprocessError(error);
+      diag.httpStatus = classified.httpStatus;
       return failed(classified.code, classified.reason);
+    }
+
+    // 2. The reply. An empty body (curl leaves no file for one) is a reply
+    //    that carries nothing — not a token, and not a crash of completion.
+    diag.stage = "reply";
+    const replyBytes = await fs.stat(responseFile).then((s) => s.size, () => 0);
+    if (replyBytes === 0) {
+      return failed("tsa_response_parse_failed", "Trusted timestamp provider returned an empty response.");
     }
 
     // The reply bytes are KEPT on every later failure, so a token can be
@@ -281,8 +405,8 @@ async function createEvidenceTimestampInner(params: {
     // re-contacting the authority (which the no-retry invariant forbids).
     const tokenBase64 = (await fs.readFile(responseFile)).toString("base64");
 
-    // 2. Read the reply. A granted status without a token (ET-TSA-02) makes
-    //    openssl refuse the structure outright.
+    //    Read it. A granted status without a token (ET-TSA-02) makes openssl
+    //    refuse the structure outright.
     let stdout: string;
     try {
       ({ stdout } = await execFileAsync(
@@ -318,6 +442,7 @@ async function createEvidenceTimestampInner(params: {
     }
 
     // 3. Validate the token. Only this makes it a timestamp.
+    diag.stage = "validation";
     const validation = await validateTsaToken({
       responseFile,
       queryFile: requestFile,

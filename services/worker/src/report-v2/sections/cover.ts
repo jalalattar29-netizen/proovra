@@ -318,8 +318,12 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
             <div class="cover-meta-card cover-meta-card-wide">
 <div class="cover-meta-label">${
-  vm.contentSummary.itemCount > 1
-    ? "Lead item SHA-256 (multipart package — per-part hashes follow)"
+  // Wire contract D — digest semantics follow the STORED parts.
+  vm.technicalPartCount > 1
+    ? vm.primaryContentItem?.userItemKind === "recording" &&
+      (vm.primaryContentItem.technicalParts?.length ?? 0) > 1
+      ? "First recording part SHA-256 (segmented recording — per-part hashes follow)"
+      : "Lead item SHA-256 (multipart package — per-part hashes follow)"
     : "Original file SHA-256"
 }</div>
               <div class="cover-meta-value cover-meta-value-code cover-primary-hash">

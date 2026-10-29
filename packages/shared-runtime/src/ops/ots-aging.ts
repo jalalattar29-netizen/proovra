@@ -51,13 +51,80 @@ export function getOtsGlobalBudgetMs(): number {
 }
 
 /**
+ * WHEN THE BUDGET STARTS FOR THIS PROOF, FROM ITS CUSTODY (2026-09-29; moved
+ * here from the Worker 2026-10-29 so the aging condition reads the same start).
+ *
+ * The start is a DURABLE, RECORDED fact about the proof: the earliest OTS
+ * custody event for the record (OTS_APPLIED / OTS_FAILED / OTS_ATTEMPT_ERROR —
+ * the initializer's `ots_initialized` / `proof_created` event on every proof
+ * since 2026-09-09; the report job's `proof_created` / `anchored` event before
+ * that). A proof existed no later than that event, so the budget can start
+ * late but never early: a record finalized long before its proof existed (a
+ * Free record stamped later by the reconciler) is not "exhausted" on its first
+ * genuinely pending observation.
+ *
+ * A proof whose anchor was DEMOTED on a conclusive re-check restarts at the
+ * demotion: it was treated as anchored until then, and the calendar gets a
+ * full budget to upgrade it before it can be called failed.
+ *
+ * Null when there is no OTS custody event; `resolveOtsAnchoringStart` then
+ * supplies the record's own creation.
+ */
+export function resolveOtsBudgetStart(
+  events: ReadonlyArray<{ atUtc: Date; payload: unknown }>,
+): Date | null {
+  if (events.length === 0) return null;
+  let start = events[0]!.atUtc;
+  for (const event of events) {
+    if (event.atUtc < start) start = event.atUtc;
+  }
+  for (const event of events) {
+    const payload = (event.payload ?? {}) as { otsPhase?: unknown };
+    if (
+      (payload.otsPhase === "anchor_not_confirmed_on_recheck" || payload.otsPhase === "legacy_anchor_label_without_attestation") &&
+      event.atUtc > start
+    ) {
+      start = event.atUtc;
+    }
+  }
+  return start;
+}
+
+/** The custody event types `resolveOtsBudgetStart` reads. */
+export const OTS_BUDGET_CUSTODY_EVENT_TYPES: readonly string[] = Object.freeze([
+  "OTS_APPLIED",
+  "OTS_FAILED",
+  "OTS_ATTEMPT_ERROR",
+]);
+
+/**
+ * THE ONE ANCHORING START — the instant both the Worker's retry budget and the
+ * operations aging condition measure from.
+ *
+ *   `otsBudgetStartUtc` (resolveOtsBudgetStart over the record's OTS custody)
+ *     when the caller read it;
+ *   otherwise the record's `createdAt`. OTS submission happens at finalize,
+ *     so creation is the earliest instant a proof can have existed. A record
+ *     with NO OTS custody event at all (rows older than any OTS custody
+ *     writing) used to get no start, never reach the budget and stay PENDING
+ *     forever; it now fails at budget like every other proof.
+ *
+ * `otsAnchoredAtUtc` is deliberately NOT read: it is when an anchor was
+ * recorded, not when anchoring began, and the Worker never measured from it.
+ */
+export function resolveOtsAnchoringStart(evidence: {
+  otsBudgetStartUtc?: Date | null;
+  createdAt: Date;
+}): Date {
+  return evidence.otsBudgetStartUtc ?? evidence.createdAt;
+}
+
+/**
  * Has this record been trying to anchor for longer than the budget?
  *
- * `firstAttemptAtUtc` is the earliest known anchoring instant — the Worker
- * passes `otsAnchoredAtUtc` when one exists and the record's `createdAt`
- * otherwise, because OTS submission happens at finalize. A null means nothing
- * is known about when it started, which is NOT the same as "a long time ago"
- * and therefore answers false.
+ * `firstAttemptAtUtc` is the anchoring start (`resolveOtsAnchoringStart`). A
+ * null means nothing is known about when it started, which is NOT the same as
+ * "a long time ago" and therefore answers false.
  */
 export function isOtsGlobalBudgetExhausted(params: {
   firstAttemptAtUtc: Date | null;
@@ -76,6 +143,20 @@ export function isOtsGlobalBudgetExhausted(params: {
  * (resolveRecordOtsAnchoring); this only narrows the scan.
  */
 export const OTS_PENDING_STATUSES: readonly string[] = Object.freeze(["PENDING"]);
+
+/**
+ * The Evidence facts the aging predicates read. `otsBudgetStartUtc` is the
+ * custody-recorded start (resolveOtsBudgetStart); a caller that has not read
+ * the record's OTS custody omits it and the start is the record's creation —
+ * never later than the Worker's, so the condition can appear early, never late.
+ * `otsAnchoredAtUtc` is accepted for the existing row shapes and not read.
+ */
+export type OtsAgingRecord = {
+  otsStatus: string | null;
+  otsAnchoredAtUtc?: Date | null;
+  otsBudgetStartUtc?: Date | null;
+  createdAt: Date;
+};
 
 /**
  * IS THIS RECORD AN AGED-PENDING OTS CONDITION, RIGHT NOW?
@@ -104,11 +185,7 @@ export const OTS_PENDING_STATUSES: readonly string[] = Object.freeze(["PENDING"]
  * caller distinguishes those.
  */
 export function isOtsPendingAged(
-  evidence: {
-    otsStatus: string | null;
-    otsAnchoredAtUtc: Date | null;
-    createdAt: Date;
-  },
+  evidence: OtsAgingRecord,
   nowUtc: Date,
   /** Override for tests. Defaults to the operations warning boundary. */
   agingMs?: number,
@@ -116,10 +193,10 @@ export function isOtsPendingAged(
   const status = evidence.otsStatus;
   if (!status) return false;
   if (!OTS_PENDING_STATUSES.includes(status)) return false;
-  // The SAME fallback chain the Worker uses to decide it has spent the budget:
-  // the earliest pinned upgrade if one exists, the record's own creation
-  // otherwise, because OTS submission happens at finalize.
-  const startedAt = evidence.otsAnchoredAtUtc ?? evidence.createdAt;
+  // THE start the Worker's budget measures from (resolveOtsAnchoringStart):
+  // the custody-recorded start when the caller supplies it, the record's own
+  // creation otherwise.
+  const startedAt = resolveOtsAnchoringStart(evidence);
   const window = agingMs ?? getOtsOperationsWarningMs();
   return nowUtc.getTime() - startedAt.getTime() >= window;
 }
@@ -223,38 +300,21 @@ export function getOtsOperationsWarningMs(): number {
 }
 
 /**
- * The earliest known anchoring instant for a record.
- *
- * The SAME fallback chain the Worker uses to decide it has spent the budget:
- * the pinned upgrade attempt if one exists, the record's own creation
- * otherwise, because OTS submission happens at finalize.
- */
-function anchoringStartedAt(evidence: {
-  otsAnchoredAtUtc: Date | null;
-  createdAt: Date;
-}): Date {
-  return evidence.otsAnchoredAtUtc ?? evidence.createdAt;
-}
-
-/**
- * How long this record has been trying to anchor, in whole hours, or null.
+ * How long this record has been trying to anchor, in whole hours, or null —
+ * measured from THE anchoring start (resolveOtsAnchoringStart).
  *
  * Null when the record is not in a still-trying status at all — a settled or
  * failed proof is a different condition with its own source, and returning a
  * number for it would invite a caller to compare an age that means nothing.
  */
 export function otsPendingAgeHours(
-  evidence: {
-    otsStatus: string | null;
-    otsAnchoredAtUtc: Date | null;
-    createdAt: Date;
-  },
+  evidence: OtsAgingRecord,
   nowUtc: Date,
 ): number | null {
   const status = evidence.otsStatus;
   if (!status) return null;
   if (!OTS_PENDING_STATUSES.includes(status)) return null;
-  const elapsed = nowUtc.getTime() - anchoringStartedAt(evidence).getTime();
+  const elapsed = nowUtc.getTime() - resolveOtsAnchoringStart(evidence).getTime();
   if (elapsed < 0) return 0;
   return Math.floor(elapsed / (60 * 60 * 1000));
 }
@@ -274,11 +334,7 @@ export function otsPendingAgeHours(
  * that received `false` for both would have had to re-derive which it was.
  */
 export function otsPendingOperationalPosture(
-  evidence: {
-    otsStatus: string | null;
-    otsAnchoredAtUtc: Date | null;
-    createdAt: Date;
-  },
+  evidence: OtsAgingRecord,
   nowUtc: Date,
   policy: OtsOperationsAgingPolicy = readOtsOperationsAgingPolicy(),
 ): "NONE" | "WARNING" | "HIGH" {

@@ -127,7 +127,8 @@ test("AUD-007: app.json declares the app manifest through Expo's ios.privacyMani
     UserID: ["src/auth-context.tsx", /id: string/],
     PhotosorVideos: ["app/(stack)/capture.tsx", /video|photo/i],
     AudioData: ["app/(stack)/capture.tsx", /audio/i],
-    PreciseLocation: ["app/(stack)/capture.tsx", /getCurrentPositionAsync/],
+    // Every native capture path reads location through the ONE shared helper.
+    PreciseLocation: ["src/capture/device-location.ts", /getCurrentPositionAsync/],
     OtherUserContent: ["src/product/discussion.ts", /\w/],
     CrashData: ["src/sentry.ts", /Sentry\.init/],
   };

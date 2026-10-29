@@ -79,6 +79,7 @@ import type {
   EvidenceAnnotation,
   EvidenceAiCategorization,
   EvidenceComparisonResponse,
+  EvidenceContentArtifacts,
   EvidenceContentItem,
   EvidenceContentSummary,
   EvidencePart,
@@ -327,6 +328,10 @@ export type ReviewWorkspaceResponse = {
      */
     analysisRevision?: string | null;
     contentItems?: ReviewWorkspaceEvidenceContentItem[] | null;
+    /** Wire contract D — user items vs technical parts (absent: older API). */
+    contentArtifacts?: EvidenceContentArtifacts | null;
+    /** COMBINE — may this viewer prepare the combined review video (intelligence.run)? */
+    combinedRecordingPrepareAllowed?: boolean | null;
     contentSummary?: EvidenceContentSummary | null;
     evidenceIntelligence?: EvidenceIntelligence | null;
   };

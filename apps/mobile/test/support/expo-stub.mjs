@@ -33,6 +33,7 @@ const stableRouter = {
     calls.back += 1;
   },
   navigate: (r) => calls.push.push(r),
+  canGoBack: () => true,
 };
 export const useRouter = () => stableRouter;
 export const usePathname = () => "/";

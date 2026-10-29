@@ -327,10 +327,12 @@ export function buildUploadSessionRows(input: {
   );
   return rows([
     { label: "Acquisition", value: ce?.captureMethod },
-    { label: "Total items", value: input.itemCount != null ? String(input.itemCount) : null },
+    // Wire contract D — user items (one screen recording = one item); the
+    // stored part count below is technical.
+    { label: "Evidence items", value: input.itemCount != null ? String(input.itemCount) : null },
     { label: "Multipart upload", value: input.multipart ? "Yes" : "No" },
     {
-      label: "Part count",
+      label: "Stored parts (technical)",
       value: input.partCount != null && input.partCount > 0 ? String(input.partCount) : null,
     },
     { label: "Total size", value: fmtBytes(totalBytes) },

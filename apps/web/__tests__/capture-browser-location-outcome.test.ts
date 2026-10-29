@@ -44,10 +44,11 @@ test("permission refused (code 1) is DENIED, with no coordinates", async () => {
   assert.deepEqual(await withGeolocation(failing(1), () => requestBrowserCaptureLocation(false)), { outcome: "DENIED" });
 });
 
-test("position unavailable (2) and timeout (3) are UNAVAILABLE, never DENIED", async () => {
-  for (const code of [2, 3]) {
-    assert.deepEqual(await withGeolocation(failing(code), () => requestBrowserCaptureLocation(false)), { outcome: "UNAVAILABLE" });
-  }
+test("position unavailable (2) is UNAVAILABLE and timeout (3) is TIMEOUT — never DENIED", async () => {
+  assert.deepEqual(await withGeolocation(failing(2), () => requestBrowserCaptureLocation(false)), { outcome: "UNAVAILABLE" });
+  // 2026-10-29: a timeout is its own recorded outcome ("Location timed out"), so
+  // the screen and the record can say the browser did not answer in time.
+  assert.deepEqual(await withGeolocation(failing(3), () => requestBrowserCaptureLocation(false)), { outcome: "TIMEOUT" });
 });
 
 test("a browser without geolocation is UNAVAILABLE", async () => {

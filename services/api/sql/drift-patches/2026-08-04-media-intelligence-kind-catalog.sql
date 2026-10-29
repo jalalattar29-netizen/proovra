@@ -34,7 +34,10 @@ ALTER TABLE "media_intelligence_runs"
     'reconcile_transcript_similarity',
     -- UC-4 (mirrors migration 20280650000000_uc4_screen_intelligence): the
     -- DERIVED screen-intelligence run kind. Superset-only, idempotent.
-    'reconstruct_screen'
+    'reconstruct_screen',
+    -- 2026-10-29 (mirrors migration 20281029000000_screen_recording_combined_derivative):
+    -- the DERIVED combined screen recording run kind. Superset-only, idempotent.
+    'combine_screen_recording'
   ));
 
 COMMIT;

@@ -415,6 +415,15 @@ export async function processMediaIntelligenceJob(
     });
   }
 
+  // 2026-10-29 — ONE DERIVED combined MP4 for a legacy SEGMENTED continuous
+  // screen recording. Owns its claim/fence and its own enforced bounds.
+  if (kind === "combine_screen_recording") {
+    const { processCombineScreenRecordingJob } = await import(
+      "./combined-recording/combined-recording.handler.js"
+    );
+    return processCombineScreenRecordingJob({ jobId: job.id, teamId, evidenceId, runId });
+  }
+
   // Reserved job kinds — drain cleanly without retries. Each
   // returns success so BullMQ doesn't accumulate failures. The
   // run row (if any) stays in PENDING until the future processor

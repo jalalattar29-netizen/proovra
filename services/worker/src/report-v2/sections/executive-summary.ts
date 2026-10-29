@@ -244,7 +244,11 @@ function renderEvidenceAcquisition(vm: ReportViewModel): string {
  * no coordinates are shown but the record holds a recorded fact about location
  * (a request that was declined or produced nothing, stored coordinates that
  * failed validation, or a plan that required it), that fact is ONE row — the
- * canonical label — never an empty map. Plain absence still prints nothing.
+ * canonical label — never an empty map. Plain absence (NOT_RECORDED: a legacy
+ * record or client that recorded no outcome at all) still prints nothing.
+ * Every recorded outcome prints: declined, unavailable, timed out, not
+ * included by the submitter, and WITHHELD for an audience that may not see
+ * stored coordinates — a withheld location is never silence.
  */
 function renderLocationStateRow(vm: ReportViewModel): string {
   const ls = vm.meta.locationState;

@@ -192,6 +192,12 @@ export async function stageScreenCapture(
      * and refusing an identity that has no personal space.
      */
     teamId?: string | null;
+    /**
+     * Decision 2 — the location read BEFORE the capture started (Android's
+     * consent), or why there is none, or NOT_REQUESTED. It goes into the
+     * reservation as acquired; a retry reuses the persisted value.
+     */
+    location?: PendingScreenStaging["location"];
     /** A staging persisted by an earlier attempt (Retry, or an app restart). */
     pending?: PendingScreenStaging | null;
     /** Durable progress: called before the first request and after every step. */
@@ -207,6 +213,7 @@ export async function stageScreenCapture(
   let state: PendingScreenStaging = options.pending ?? {
     result: result as unknown as PendingScreenStaging["result"],
     teamId: options.teamId ?? null,
+    location: options.location ?? null,
     session: null,
     evidenceId: null,
     declared: [],
@@ -241,6 +248,10 @@ export async function stageScreenCapture(
             type: "PHOTO",
             mimeType: "image/png",
             deviceTimeIso: state.result.captureStartedAtUtc,
+            ...(state.location?.gps ? { gps: state.location.gps } : {}),
+            ...(!state.location?.gps && state.location?.locationRequestOutcome
+              ? { locationRequestOutcome: state.location.locationRequestOutcome }
+              : {}),
           }),
         policy,
       );

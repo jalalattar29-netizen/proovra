@@ -40,14 +40,21 @@ let otsClientIdentityCache: Promise<string | null> | null = null;
  */
 export function otsClientIdentity(): Promise<string | null> {
   otsClientIdentityCache ??= execFileAsync(resolveOtsBin(), ["--version"], { timeout: 10_000 })
-    .then((r) => {
-      const v = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().replace(/^v/i, "");
-      // `ots --version` prints e.g. "v0.7.2" (the leading v is stripped above).
-      const m = /^(d+.d+(?:.d+)?)/.exec(v);
-      return m ? `opentimestamps-client ${m[1]}` : null;
-    })
+    .then((r) => otsClientIdentityFromVersionOutput(`${r.stdout ?? ""}${r.stderr ?? ""}`))
     .catch(() => null);
   return otsClientIdentityCache;
+}
+
+/**
+ * `ots --version` output → "opentimestamps-client <x.y[.z]>", or null.
+ * (2026-10-29) The pattern had lost its backslashes (`/^(d+.d+…)/`), so it
+ * matched only a literal "d…" and every proof recorded a null client identity.
+ */
+export function otsClientIdentityFromVersionOutput(output: string): string | null {
+  // `ots --version` prints e.g. "v0.7.2"; the leading v is stripped.
+  const v = output.trim().replace(/^v/i, "");
+  const m = /^(\d+\.\d+(?:\.\d+)?)/.exec(v);
+  return m ? `opentimestamps-client ${m[1]}` : null;
 }
 
 function calendarUrl(): string | null {

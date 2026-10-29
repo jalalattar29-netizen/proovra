@@ -21,7 +21,12 @@ const CASES = [
   ["valid recorded coordinates (web capture)", { lat: 52.52, lng: 13.405, accuracyMeters: 12, locationSource: "CAPTURE_BROWSER_GEOLOCATION" }, "RECORDED"],
   ["valid recorded coordinates (mobile capture)", { lat: "51.5", lng: "-0.12", locationSource: "CLIENT_APP_DEVICE_LOCATION" }, "RECORDED"],
   ["intake capture with shared location", { lat: 48.1, lng: 11.5, locationSource: "INTAKE_LINK_GEOLOCATION", requestOutcome: "GRANTED" }, "RECORDED"],
-  ["not requested", { requestOutcome: "NOT_REQUESTED" }, "NOT_RECORDED"],
+  // A RECORDED not-requested outcome (toggle off / intake NONE) is stated, not silent.
+  ["not requested", { requestOutcome: "NOT_REQUESTED" }, "NOT_INCLUDED"],
+  ["request timed out", { requestOutcome: "TIMEOUT" }, "TIMED_OUT"],
+  // Stored coordinates an audience may not see: WITHHELD, never NOT_RECORDED.
+  ["recorded but withheld from this audience", { lat: 52.5, lng: 13.4, withheld: true }, "WITHHELD"],
+  ["zero coordinates are a real fix", { lat: 0, lng: 0 }, "RECORDED"],
   ["no opt-in / uploaded evidence without location", { lat: null, lng: null }, "NOT_RECORDED"],
   ["legacy record with no location facts", {}, "NOT_RECORDED"],
   ["persisted permission denied / declined", { requestOutcome: "DENIED" }, "NOT_SHARED"],
@@ -59,6 +64,9 @@ test("labels and tones: recorded is informational, absence is neutral with no de
       NOT_SHARED: ["Location not shared", "neutral"],
       UNAVAILABLE: ["Location unavailable", "neutral"],
       INVALID: ["Location metadata invalid", "warning"],
+      TIMED_OUT: ["Location timed out", "neutral"],
+      NOT_INCLUDED: ["Location not included", "neutral"],
+      WITHHELD: ["Location withheld", "neutral"],
     },
   );
   assert.equal(EVIDENCE_LOCATION_STATE_PRESENTATION.NOT_RECORDED.detail, null);
@@ -167,4 +175,11 @@ test("REGRESSION: legacy / no-location and required-location records are a neutr
       assert.doesNotMatch(`${said.label} ${said.detail ?? ""} ${said.requirement?.label ?? ""}`, /blocked|gesperrt|blockiert|محظور|محجوب/i);
     }
   }
+});
+
+test("WITHHELD never carries coordinates and never reads as an unmet requirement", () => {
+  const w = resolveEvidenceLocation({ lat: 52.5, lng: 13.4, withheld: true, requirement: "required" });
+  assert.equal(w.state, "WITHHELD");
+  assert.equal(w.coordinates, null);
+  assert.equal(w.requirement?.unmet, false);
 });

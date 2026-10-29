@@ -330,3 +330,220 @@ test("continuousSegmentStartOffsets refuses anything it cannot trust (never a gu
     null,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Contract A (2026-10-29) — SINGLE_FILE: ONE Start→Stop recording = ONE file.
+// Legacy SEGMENTED manifests (no recordingLayout) are covered by every case above.
+// ---------------------------------------------------------------------------
+import {
+  continuousRecordingFacts,
+  continuousCaptureManifestFactsWithRecording,
+  readContinuousRecordingFacts,
+  continuousRecordingLayoutOf,
+} from "../dist/screen-continuous-manifest.js";
+import { CAPTURE_LIMITS } from "../dist/capture-limits.js";
+import { continuousRecordingAcquisitionText } from "../dist/evidence-acquisition.js";
+
+function singleFile(over = {}, recOver = {}) {
+  return goodManifest({
+    recordingLayout: "SINGLE_FILE",
+    captureEndedAtUtc: "2026-09-17T10:02:00.000Z",
+    totalDurationMs: 120000,
+    recordedSegmentCount: 1,
+    segments: [
+      segment({
+        role: "screen_recording",
+        sizeBytes: 300 * 1024 * 1024, // above the per-segment bound, inside the session bound
+        durationMs: 120000,
+        ...recOver,
+      }),
+    ],
+    audioTracks: ["APP", "MICROPHONE"],
+    droppedFrameCount: 0,
+    pauses: [],
+    orientationTimeline: [{ atOffsetMs: 0, orientation: "portrait", widthPx: 1080, heightPx: 2400 }],
+    ...over,
+  });
+}
+
+test("SINGLE_FILE: a complete one-file recording validates, bounded by the SESSION bounds", () => {
+  const r = validateScreenContinuousManifest(singleFile());
+  assert.equal(r.ok, true, r.error);
+  assert.equal(continuousRecordingLayoutOf(r.manifest), "SINGLE_FILE");
+  assert.equal(continuousRecordingLayoutOf(goodManifest()), "SEGMENTED");
+});
+
+test("SINGLE_FILE: oversize (bytes or duration past the session bound) is refused", () => {
+  const big = validateScreenContinuousManifest(singleFile({}, { sizeBytes: CAPTURE_LIMITS.maxContinuousSessionBytes + 1 }));
+  assert.equal(big.ok, false);
+  assert.match(big.error, /session byte bound/);
+  const long = CAPTURE_LIMITS.maxContinuousSessionMs + 60_000;
+  const tooLong = validateScreenContinuousManifest(
+    singleFile(
+      { totalDurationMs: long, captureEndedAtUtc: new Date(Date.parse("2026-09-17T10:00:00.000Z") + long).toISOString() },
+      { durationMs: long },
+    ),
+  );
+  assert.equal(tooLong.ok, false);
+  assert.match(tooLong.error, /session duration bound/);
+});
+
+test("SINGLE_FILE: exactly one screen_recording at part 0 / sequence 0, recordedSegmentCount 1", () => {
+  const two = singleFile({
+    recordedSegmentCount: 2,
+    segments: [
+      segment({ role: "screen_recording", durationMs: 60000 }),
+      segment({
+        role: "screen_recording",
+        partIndex: 1,
+        sequence: 1,
+        startedAtOffsetMs: 60000,
+        durationMs: 60000,
+        expectedSha256: "b".repeat(64),
+      }),
+    ],
+  });
+  assert.equal(validateScreenContinuousManifest(two).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({}, { role: "screen_segment" })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({}, { partIndex: 1, sequence: 1 })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ recordedSegmentCount: 3 })).ok, false);
+  // A segmented (legacy) manifest may not carry the single-file role.
+  const legacy = goodManifest();
+  legacy.segments[0].role = "screen_recording";
+  assert.equal(validateScreenContinuousManifest(legacy).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ recordingLayout: "CHUNKED" })).ok, false);
+});
+
+test("SINGLE_FILE: pauses must lie within the duration and be named BROADCAST_PAUSED (never COMPLETE)", () => {
+  const paused = {
+    pauses: [{ startOffsetMs: 10000, endOffsetMs: 20000 }],
+    sessionCompleteness: "INTERRUPTED_SESSION",
+    limitations: ["BROADCAST_PAUSED"],
+  };
+  assert.equal(validateScreenContinuousManifest(singleFile(paused)).ok, true);
+  assert.equal(validateScreenContinuousManifest(singleFile({ ...paused, limitations: [] })).ok, false);
+  const bad = (pauses) => validateScreenContinuousManifest(singleFile({ ...paused, pauses })).ok;
+  assert.equal(bad([{ startOffsetMs: 110000, endOffsetMs: 200000 }]), false);
+  assert.equal(bad([{ startOffsetMs: 20000, endOffsetMs: 10000 }]), false);
+  assert.equal(bad([{ startOffsetMs: 10000, endOffsetMs: 30000 }, { startOffsetMs: 20000, endOffsetMs: 40000 }]), false);
+  // A pause is an unrecorded stretch: a COMPLETE claim over it is refused.
+  assert.equal(validateScreenContinuousManifest(singleFile({ ...paused, sessionCompleteness: "COMPLETE_SESSION" })).ok, false);
+});
+
+test("SINGLE_FILE: orientation changes are allowed in ONE file, but must be named", () => {
+  const timeline = [
+    { atOffsetMs: 0, orientation: "portrait" },
+    { atOffsetMs: 40000, orientation: "landscape", widthPx: 2400, heightPx: 1080 },
+  ];
+  const named = ["ORIENTATION_CHANGED_DURING_CAPTURE"];
+  assert.equal(validateScreenContinuousManifest(singleFile({ orientationTimeline: timeline, limitations: named })).ok, true);
+  assert.equal(validateScreenContinuousManifest(singleFile({ orientationTimeline: timeline })).ok, false);
+  // The timeline starts with the recording's initial orientation, ascending, inside the recording.
+  assert.equal(
+    validateScreenContinuousManifest(singleFile({ orientationTimeline: [{ atOffsetMs: 0, orientation: "landscape" }] })).ok,
+    false,
+  );
+  assert.equal(
+    validateScreenContinuousManifest(singleFile({ orientationTimeline: [timeline[1], timeline[0]], limitations: named })).ok,
+    false,
+  );
+  assert.equal(
+    validateScreenContinuousManifest(
+      singleFile({ orientationTimeline: [timeline[0], { atOffsetMs: 900000, orientation: "landscape" }], limitations: named }),
+    ).ok,
+    false,
+  );
+  // The encoded canvas need not match the initial orientation (rotation lives in the timeline).
+  assert.equal(validateScreenContinuousManifest(singleFile({}, { widthPx: 2400, heightPx: 1080 })).ok, true);
+});
+
+test("SINGLE_FILE: audio tracks — silent needs AUDIO_NOT_CAPTURED; a written track contradicts it", () => {
+  assert.equal(validateScreenContinuousManifest(singleFile({ audioTracks: [], limitations: ["AUDIO_NOT_CAPTURED"] })).ok, true);
+  assert.equal(validateScreenContinuousManifest(singleFile({ audioTracks: [] })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ limitations: ["AUDIO_NOT_CAPTURED"] })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ audioTracks: ["SPEAKER"] })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ audioTracks: ["APP", "APP"] })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ audioTracks: ["MICROPHONE"] })).ok, true);
+});
+
+test("SINGLE_FILE: dropped frames are counted and named FRAMES_DROPPED", () => {
+  assert.equal(validateScreenContinuousManifest(singleFile({ droppedFrameCount: 7, limitations: ["FRAMES_DROPPED"] })).ok, true);
+  assert.equal(validateScreenContinuousManifest(singleFile({ droppedFrameCount: 7 })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ droppedFrameCount: 0, limitations: ["FRAMES_DROPPED"] })).ok, false);
+  assert.equal(validateScreenContinuousManifest(singleFile({ droppedFrameCount: -1 })).ok, false);
+});
+
+test("SINGLE_FILE: COMPLETE only when finalized cleanly; an unfinished file is an honest INTERRUPTED session", () => {
+  assert.equal(validateScreenContinuousManifest(singleFile({}, { sizeBytes: 0 })).ok, false);
+  assert.equal(
+    validateScreenContinuousManifest(singleFile({ terminationReason: "INTERRUPTED", limitations: ["CAPTURE_INTERRUPTED"] })).ok,
+    false,
+  );
+  assert.equal(validateScreenContinuousManifest(singleFile({ limitations: ["SEGMENT_WRITE_FAILED"] })).ok, false);
+  const interrupted = singleFile(
+    {
+      sessionCompleteness: "INTERRUPTED_SESSION",
+      terminationReason: "UNKNOWN",
+      limitations: ["CAPTURE_INTERRUPTED", "SEGMENT_WRITE_FAILED"],
+    },
+    { durationMs: 50000 },
+  );
+  assert.equal(validateScreenContinuousManifest(interrupted).ok, true);
+  // A file is whole or not: SEGMENT_UPLOAD_LOST has no meaning for it.
+  assert.equal(
+    validateScreenContinuousManifest(singleFile({ sessionCompleteness: "INTERRUPTED_SESSION", limitations: ["SEGMENT_UPLOAD_LOST"] })).ok,
+    false,
+  );
+});
+
+test("SINGLE_FILE: start offsets keep working (part 0 at 0)", () => {
+  assert.deepEqual([...continuousSegmentStartOffsets(singleFile())], [[0, 0]]);
+});
+
+test("SINGLE_FILE: recording facts persist layout, audio, dropped frames, pauses and orientation", () => {
+  const m = singleFile({
+    pauses: [{ startOffsetMs: 10000, endOffsetMs: 20000 }],
+    droppedFrameCount: 3,
+    audioTracks: [],
+    orientationTimeline: [
+      { atOffsetMs: 0, orientation: "portrait" },
+      { atOffsetMs: 40000, orientation: "landscape" },
+    ],
+    sessionCompleteness: "INTERRUPTED_SESSION",
+    limitations: ["BROADCAST_PAUSED", "FRAMES_DROPPED", "AUDIO_NOT_CAPTURED", "ORIENTATION_CHANGED_DURING_CAPTURE"],
+  });
+  const v = validateScreenContinuousManifest(m);
+  assert.equal(v.ok, true, v.error);
+  const facts = continuousCaptureManifestFactsWithRecording(v.manifest, { manifestSha256: "c".repeat(64), manifestPartIndex: 1 });
+  const payload = JSON.parse(JSON.stringify({ stage: "manifest_facts", facts }));
+  const read = readContinuousRecordingFacts(payload);
+  assert.deepEqual(read, continuousRecordingFacts(v.manifest));
+  assert.equal(read.layout, "SINGLE_FILE");
+  assert.deepEqual(read.audioTracks, []);
+  assert.equal(read.droppedFrameCount, 3);
+  assert.deepEqual(read.pauses, [{ startOffsetMs: 10000, endOffsetMs: 20000 }]);
+  assert.equal(read.orientationTimeline.length, 2);
+  assert.equal(read.recording.partIndex, 0);
+  // Facts recorded before contract A read as the legacy layout with nothing stated.
+  const legacy = { ...facts };
+  delete legacy.continuous;
+  const old = readContinuousRecordingFacts({ stage: "manifest_facts", facts: legacy });
+  assert.equal(old.layout, "SEGMENTED");
+  assert.equal(old.audioTracks, null);
+});
+
+test("acquisition text: SINGLE_FILE never says ordered segments; legacy wording kept; audio stated", () => {
+  for (const mode of ["DIRECT_SCREEN_CAPTURE_IOS", "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS"]) {
+    const one = continuousRecordingAcquisitionText({ acquisitionMode: mode, layout: "SINGLE_FILE", audioTracks: ["APP", "MICROPHONE"] });
+    assert.doesNotMatch(one.statement, /segment/i);
+    assert.match(one.statement, /one video file/);
+    for (const text of Object.values(one.limitationText)) assert.doesNotMatch(text, /ordered segments|sequence of segments/);
+    assert.equal(one.audioStatement, "Audio: app audio and microphone recorded");
+    const silent = continuousRecordingAcquisitionText({ acquisitionMode: mode, layout: "SINGLE_FILE", audioTracks: [] });
+    assert.equal(silent.audioStatement, "No audio was recorded");
+    const legacy = continuousRecordingAcquisitionText({ acquisitionMode: mode, layout: null });
+    assert.match(legacy.statement, /ordered segments/);
+    assert.equal(legacy.audioStatement, null);
+  }
+  assert.equal(continuousRecordingAcquisitionText({ acquisitionMode: "PROOVRA_WEB_UPLOAD", layout: "SINGLE_FILE" }), null);
+});

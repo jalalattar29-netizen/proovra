@@ -248,6 +248,26 @@ export type VerifyEvidenceAsset = {
   previewDataUrl?: string | null;
   previewTextExcerpt?: string | null;
   previewCaption?: string | null;
+  /**
+   * Wire contract D (2026-10-29) — how this stored part is presented. Absent
+   * from an older API: every part is its own item.
+   */
+  artifactClass?: "ORIGINAL" | "CAPTURE_MANIFEST" | null;
+  partPresentation?: "user_item" | "recording_part" | "capture_record" | null;
+};
+
+/** Wire contract D — user items vs technical parts, as the API projected them. */
+export type VerifyContentArtifacts = {
+  userItems: Array<{
+    kind: "recording" | "file";
+    label: string | null;
+    partIndexes: number[];
+    primaryPartIndex: number;
+    layout: "SINGLE_FILE" | "SEGMENTED" | null;
+  }>;
+  technical: { originalPartCount: number; captureRecordCount: number; storedPartCount: number };
+  counts: { userItems: number };
+  recording?: { layout: "SINGLE_FILE" | "SEGMENTED"; statement: string; audioStatement: string | null } | null;
 };
 
 export type VerifyEvidenceContentSummary = {
@@ -637,6 +657,8 @@ export type VerifyResponse = {
   evidenceContent?: {
     summary?: VerifyEvidenceContentSummary;
     items?: VerifyEvidenceAsset[] | null;
+    /** Wire contract D (absent: older API). */
+    artifacts?: VerifyContentArtifacts | null;
     primaryItem?: VerifyEvidenceAsset | null;
     defaultPreviewItemId?: string | null;
     previewPolicy?: VerifyPreviewPolicy;

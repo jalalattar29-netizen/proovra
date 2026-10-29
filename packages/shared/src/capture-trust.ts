@@ -548,7 +548,14 @@ export type ProvenanceChain = {
    */
   derivedArtifacts: ReadonlyArray<{
     artifactClass: "DERIVED";
+    /** The FK anchor part (the first source of a multi-source derivative). */
     sourcePartIndex: number | null;
+    /**
+     * 2026-10-29 — EVERY source part of a multi-source derivative (a combined
+     * screen recording joins N segments), in source order. Absent for a
+     * single-source row (its source is `sourcePartIndex`).
+     */
+    sourcePartIndexes?: number[];
     assetKind: string;
     variantKey: string;
     transformation: string;

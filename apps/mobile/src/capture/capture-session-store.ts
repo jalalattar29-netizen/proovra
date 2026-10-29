@@ -30,7 +30,10 @@ import {
  * attributed to anyone, so it is removed on first read, never offered.
  */
 const LEGACY_STORAGE_KEY = "proovra.capture.session.v1";
+/** v2: ONE record per user (migrated into the v3 list on first read, never lost). */
 const STORAGE_KEY_PREFIX = "proovra.capture.session.v2:";
+/** v3: every pending record of the user, one per session. */
+const LIST_KEY_PREFIX = "proovra.capture.sessions.v3:";
 
 let captureSessionOwner: string | null = null;
 
@@ -63,6 +66,24 @@ export interface PersistedCapturedItem {
   durationMs?: number;
   /** True once the part was declared + PUT to storage (skip on resume). */
   uploaded: boolean;
+  /**
+   * The acquisition ORIGIN the mixed-origin guard reads (a screen mode for a
+   * staged screen acquisition, else absent). Persisted so a resumed screen
+   * item still blocks a camera photo from joining its record.
+   */
+  itemSourceLabel?: string | null;
+}
+
+/**
+ * The location choice a record carries (structurally the same as
+ * device-location's CarriedLocation; declared here so this store stays free
+ * of the platform imports).
+ */
+export interface PersistedCarriedLocation {
+  useLocation: boolean;
+  outcome: "GRANTED" | "DENIED" | "UNAVAILABLE" | "TIMEOUT" | null;
+  /** True when the read happened before a screen recording started. */
+  recordedAtStart: boolean;
 }
 
 /**
@@ -97,6 +118,14 @@ export interface PersistedCaptureSession {
    * leaving it behind as an unfinished draft nothing can reach.
    */
   draftId?: string | null;
+  /** The location choice (and, for a screen recording, its start outcome). */
+  location?: PersistedCarriedLocation | null;
+  /**
+   * Records captured together as SEPARATE evidence (a screen recording and
+   * the photo added beside it) share a link group; once both seal they are
+   * linked through the evidence relationships API (capture-links.ts).
+   */
+  linkGroupId?: string | null;
   /** ISO timestamp of the last persist — drives the staleness policy. */
   updatedAtIso: string;
   /** UC-AND-006 — the user this record belongs to. */
@@ -111,6 +140,8 @@ export interface CaptureSessionInput {
   items: Array<Omit<PersistedCapturedItem, never>>;
   acquisition?: PersistedScreenAcquisition | null;
   draftId?: string | null;
+  location?: PersistedCarriedLocation | null;
+  linkGroupId?: string | null;
   now?: number;
 }
 
@@ -132,9 +163,12 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
       sizeBytes: it.sizeBytes,
       durationMs: it.durationMs,
       uploaded: !!it.uploaded,
+      ...(it.itemSourceLabel ? { itemSourceLabel: it.itemSourceLabel } : {}),
     })),
     acquisition: input.acquisition ?? null,
     draftId: input.draftId ?? null,
+    location: input.location ?? null,
+    linkGroupId: input.linkGroupId ?? null,
     updatedAtIso: new Date(now).toISOString(),
   };
 }
@@ -193,6 +227,7 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
       sizeBytes: typeof it.sizeBytes === "number" ? it.sizeBytes : undefined,
       durationMs: typeof it.durationMs === "number" ? it.durationMs : undefined,
       uploaded: !!it.uploaded,
+      ...(typeof it.itemSourceLabel === "string" && it.itemSourceLabel ? { itemSourceLabel: it.itemSourceLabel } : {}),
     });
   }
   // An acquisition that does not name a mode this build knows is dropped
@@ -217,9 +252,95 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
     items,
     acquisition,
     draftId: typeof o.draftId === "string" && o.draftId ? o.draftId : null,
+    location: parsePersistedLocation(o.location),
+    linkGroupId: typeof o.linkGroupId === "string" && o.linkGroupId ? o.linkGroupId : null,
     updatedAtIso: typeof o.updatedAtIso === "string" ? o.updatedAtIso : new Date(0).toISOString(),
     ownerUserId: typeof o.ownerUserId === "string" && o.ownerUserId ? o.ownerUserId : null,
   };
+}
+
+function parsePersistedLocation(raw: unknown): PersistedCarriedLocation | null {
+  if (!raw || typeof raw !== "object") return null;
+  const l = raw as Record<string, unknown>;
+  if (typeof l.useLocation !== "boolean") return null;
+  const outcome =
+    l.outcome === "GRANTED" || l.outcome === "DENIED" || l.outcome === "UNAVAILABLE" || l.outcome === "TIMEOUT"
+      ? l.outcome
+      : null;
+  return { useLocation: l.useLocation, outcome, recordedAtStart: l.recordedAtStart === true };
+}
+
+/* ------------------------------------------------- MANY PENDING RECORDS (pure) */
+
+/**
+ * ONE PENDING RECORD PER SESSION, NEVER ONE SLOT PER USER.
+ *
+ * The store used to hold a single record per user, so staging a second screen
+ * recording — or opening Capture with a different session — overwrote the
+ * first record and orphaned its server reservation: nothing on the device
+ * could reach it any more. Records are now a list keyed by their own identity
+ * (the draft, else the direct session), and a write only ever replaces the
+ * record it names.
+ */
+export function sameCaptureRecord(
+  a: { captureSessionId?: string | null; draftId?: string | null },
+  b: { captureSessionId?: string | null; draftId?: string | null },
+): boolean {
+  if (a.draftId && b.draftId) return a.draftId === b.draftId;
+  return !!a.captureSessionId && a.captureSessionId === b.captureSessionId;
+}
+
+/** The stable identity of a record (its draft, else its session). */
+export function captureRecordKey(r: { captureSessionId: string; draftId?: string | null }): string {
+  return r.draftId || r.captureSessionId;
+}
+
+/** PURE — insert or replace exactly the record `next` names; every other record is kept. */
+export function upsertCaptureRecord(
+  list: readonly PersistedCaptureSession[],
+  next: PersistedCaptureSession,
+): PersistedCaptureSession[] {
+  const at = list.findIndex((r) => sameCaptureRecord(r, next));
+  if (at < 0) return [...list, next];
+  const out = [...list];
+  out[at] = next;
+  return out;
+}
+
+/** PURE — drop the record a key names (draft id or session id). */
+export function removeCaptureRecord(
+  list: readonly PersistedCaptureSession[],
+  key: { captureSessionId?: string | null; draftId?: string | null },
+): PersistedCaptureSession[] {
+  return list.filter(
+    (r) =>
+      !(
+        (key.draftId && r.draftId === key.draftId) ||
+        (key.captureSessionId && (r.captureSessionId === key.captureSessionId || r.draftId === key.captureSessionId))
+      ),
+  );
+}
+
+/** PURE — a stored list, defensively: malformed entries and other owners are dropped. */
+export function parseCaptureRecordList(raw: unknown, ownerUserId: string | null): PersistedCaptureSession[] {
+  const rows = raw && typeof raw === "object" ? (raw as { records?: unknown }).records : null;
+  if (!Array.isArray(rows) || !ownerUserId) return [];
+  const out: PersistedCaptureSession[] = [];
+  for (const row of rows) {
+    const rec = validatePersisted(row);
+    if (rec && isRecordOwnedBy(rec, ownerUserId)) out.push(rec);
+  }
+  return out;
+}
+
+/** PURE — newest first (the order a pending-records list is shown in). */
+export function sortCaptureRecords(list: readonly PersistedCaptureSession[]): PersistedCaptureSession[] {
+  return [...list].sort((a, b) => Date.parse(b.updatedAtIso) - Date.parse(a.updatedAtIso));
+}
+
+/** The per-user key holding the list of pending records. */
+export function captureSessionsStorageKey(userId: string): string {
+  return `${LIST_KEY_PREFIX}${userId}`;
 }
 
 /** PURE — a stored record is readable only by the user it belongs to. */
@@ -230,43 +351,119 @@ export function isRecordOwnedBy(record: PersistedCaptureSession | null, userId: 
 
 /* ----------------------------------------------------------- AsyncStorage IO */
 
+/**
+ * Upsert ONE record into the owner's list. Never replaces another record: a
+ * second recording staged while the first is pending is a second record.
+ */
 export async function saveCaptureSession(input: CaptureSessionInput): Promise<void> {
   const owner = captureSessionOwner;
   if (!owner) return; // nobody signed in: nothing may be persisted for "the device"
-  try {
-    await AsyncStorage.setItem(
-      captureSessionStorageKey(owner),
-      JSON.stringify({ ...serializeSession(input), ownerUserId: owner }),
-    );
-  } catch {
-    // Durability is best-effort; a failed persist must never break live capture.
-  }
+  await serialized(async () => {
+    try {
+      const list = await readRecordList(owner);
+      const record = { ...serializeSession(input), ownerUserId: owner };
+      await writeRecordList(owner, upsertCaptureRecord(list, record));
+    } catch {
+      // Durability is best-effort; a failed persist must never break live capture.
+    }
+  });
 }
 
-export async function loadCaptureSession(): Promise<PersistedCaptureSession | null> {
+/** Every pending record of the signed-in user, newest first. */
+export async function loadCaptureSessions(): Promise<PersistedCaptureSession[]> {
   try {
     await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // Best-effort purge of the unattributable v1 record.
   }
   const owner = captureSessionOwner;
-  if (!owner) return null;
-  try {
-    const raw = await AsyncStorage.getItem(captureSessionStorageKey(owner));
-    if (!raw) return null;
-    const record = validatePersisted(JSON.parse(raw));
-    return isRecordOwnedBy(record, owner) ? record : null;
-  } catch {
-    return null;
-  }
+  if (!owner) return [];
+  return serialized(async () => {
+    try {
+      return sortCaptureRecords(await readRecordList(owner));
+    } catch {
+      return [];
+    }
+  });
 }
 
-export async function clearCaptureSession(): Promise<void> {
+/** The most recently updated pending record (compat for single-record callers). */
+export async function loadCaptureSession(): Promise<PersistedCaptureSession | null> {
+  return (await loadCaptureSessions())[0] ?? null;
+}
+
+/** The pending record a session or draft id names, if this user holds one. */
+export async function findCaptureSession(key: {
+  captureSessionId?: string | null;
+  draftId?: string | null;
+}): Promise<PersistedCaptureSession | null> {
+  const list = await loadCaptureSessions();
+  return (
+    list.find(
+      (r) =>
+        (key.draftId && r.draftId === key.draftId) ||
+        (key.captureSessionId && r.captureSessionId === key.captureSessionId),
+    ) ?? null
+  );
+}
+
+/**
+ * Drop ONE record (by its session or draft id). Called with no key it clears
+ * every record of the user — the sign-out teardown, and nothing else.
+ */
+export async function clearCaptureSession(key?: {
+  captureSessionId?: string | null;
+  draftId?: string | null;
+}): Promise<void> {
   const owner = captureSessionOwner;
   if (!owner) return;
-  try {
+  await serialized(async () => {
+    try {
+      if (!key) {
+        await AsyncStorage.removeItem(captureSessionsStorageKey(owner));
+        await AsyncStorage.removeItem(captureSessionStorageKey(owner));
+        return;
+      }
+      const list = await readRecordList(owner);
+      await writeRecordList(owner, removeCaptureRecord(list, key));
+    } catch {
+      // A failed clear is harmless — the next resumable check re-validates.
+    }
+  });
+}
+
+/** One read-modify-write at a time: two quick persists never lose a record. */
+let queue: Promise<unknown> = Promise.resolve();
+function serialized<T>(step: () => Promise<T>): Promise<T> {
+  const run = queue.then(step, step);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+/**
+ * The owner's list — MIGRATING the v2 single slot into it the first time, so
+ * a record pending before this version is offered, never lost.
+ */
+async function readRecordList(owner: string): Promise<PersistedCaptureSession[]> {
+  const raw = await AsyncStorage.getItem(captureSessionsStorageKey(owner));
+  let list = raw ? parseCaptureRecordList(JSON.parse(raw), owner) : [];
+  const legacyRaw = await AsyncStorage.getItem(captureSessionStorageKey(owner));
+  if (legacyRaw) {
+    let legacy: PersistedCaptureSession | null = null;
+    try {
+      legacy = validatePersisted(JSON.parse(legacyRaw));
+    } catch {
+      legacy = null;
+    }
+    if (legacy && isRecordOwnedBy(legacy, owner) && !list.some((r) => sameCaptureRecord(r, legacy as PersistedCaptureSession))) {
+      list = [...list, legacy];
+    }
+    await writeRecordList(owner, list);
     await AsyncStorage.removeItem(captureSessionStorageKey(owner));
-  } catch {
-    // A failed clear is harmless — the next resumable check re-validates.
   }
+  return list;
+}
+
+async function writeRecordList(owner: string, list: readonly PersistedCaptureSession[]): Promise<void> {
+  await AsyncStorage.setItem(captureSessionsStorageKey(owner), JSON.stringify({ records: list }));
 }

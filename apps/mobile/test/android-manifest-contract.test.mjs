@@ -61,7 +61,8 @@ test("MediaProjection services are declared as internal + foregroundServiceType 
       manifest.indexOf(`android:name="${fqcn}"`),
       manifest.indexOf(`android:name="${fqcn}"`) + 220,
     );
-    assert.match(block, /android:foregroundServiceType="mediaProjection"/, `${name} missing type`);
+    // mediaProjection, plus microphone for the OPTIONAL microphone track.
+    assert.match(block, /android:foregroundServiceType="mediaProjection(\|microphone)?"/, `${name} missing type`);
     assert.match(block, /android:exported="false"/, `${name} must not be exported`);
   }
 });

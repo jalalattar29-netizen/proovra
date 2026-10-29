@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281028000000_team_archive_step_up_assurance";
+export const EXPECTED_MIGRATION_HEAD = "20281029000000_screen_recording_combined_derivative";
 
 export type MigrationRow = {
   migration_name: string;

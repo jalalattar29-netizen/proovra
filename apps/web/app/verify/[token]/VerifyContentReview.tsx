@@ -15,6 +15,7 @@ import { getReviewerArtifactRoleLabel } from "@proovra/shared";
 
 import { VERIFY_BRAND, VERIFY_TYPO } from "./_verify-theme";
 import type {
+  VerifyContentArtifacts,
   VerifyContentAccessPolicy,
   VerifyContentExposureDecision,
   VerifyEvidenceAsset,
@@ -398,8 +399,57 @@ const PANEL: CSSProperties = {
   minWidth: 0,
 };
 
+/**
+ * Wire contract D (2026-10-29) — ONE card per user item: a continuous screen
+ * recording is one item ("Screen recording"); its stored parts and any
+ * system-generated capture record are technical parts, listed separately with
+ * their digests and never presented as text evidence. An older API sends no
+ * presentation: every part stays its own item.
+ */
+export function splitVerifyItems(
+  items: VerifyEvidenceAsset[],
+  artifacts: VerifyContentArtifacts | null | undefined,
+): {
+  cards: VerifyEvidenceAsset[];
+  technical: VerifyEvidenceAsset[];
+  recording: { leadId: string; label: string; layout: "SINGLE_FILE" | "SEGMENTED"; partCount: number } | null;
+} {
+  const presentationOf = (item: VerifyEvidenceAsset) => item.partPresentation ?? "user_item";
+  const rec = artifacts?.userItems.find((u) => u.kind === "recording") ?? null;
+  const ordered = [...items].sort((a, b) => a.index - b.index);
+  const lead = rec
+    ? ordered.find((i) => i.index === rec.primaryPartIndex) ??
+      ordered.find((i) => presentationOf(i) === "recording_part") ??
+      null
+    : null;
+  const cards = [
+    ...(lead ? [lead] : []),
+    ...items.filter((i) => presentationOf(i) === "user_item"),
+  ];
+  return {
+    cards,
+    technical: ordered.filter((i) => presentationOf(i) !== "user_item"),
+    recording:
+      rec && lead
+        ? {
+            leadId: lead.id,
+            label: rec.label ?? "Screen recording",
+            layout: rec.layout ?? (rec.partIndexes.length > 1 ? "SEGMENTED" : "SINGLE_FILE"),
+            partCount: rec.partIndexes.length,
+          }
+        : null,
+  };
+}
+
+function technicalPartLabel(item: VerifyEvidenceAsset): string {
+  return item.partPresentation === "capture_record"
+    ? "Capture record (system-generated)"
+    : "Recording part (technical)";
+}
+
 export function ContentPreviewSurface({
-  items,
+  items: allItems,
+  artifacts,
   summary,
   primaryItem,
   defaultPreviewItemId,
@@ -408,6 +458,8 @@ export function ContentPreviewSurface({
   contentExposureDecision,
 }: {
   items: VerifyEvidenceAsset[];
+  /** Wire contract D — the API's projection (absent: older API). */
+  artifacts?: VerifyContentArtifacts | null;
   summary: VerifyEvidenceContentSummary;
   primaryItem: VerifyEvidenceAsset | null;
   defaultPreviewItemId: string | null;
@@ -415,16 +467,20 @@ export function ContentPreviewSurface({
   contentAccessPolicy: VerifyContentAccessPolicy;
   contentExposureDecision: VerifyContentExposureDecision;
 }) {
+  const split = useMemo(() => splitVerifyItems(allItems, artifacts), [allItems, artifacts]);
+  const items = split.cards;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(
     () =>
       items.find((item) => item.id === selectedId) ??
       items.find((item) => item.id === defaultPreviewItemId) ??
-      primaryItem ??
+      items.find((item) => item.id === primaryItem?.id) ??
       items[0] ??
       null,
     [items, selectedId, defaultPreviewItemId, primaryItem],
   );
+  const selectedIsRecording = Boolean(split.recording && selected?.id === split.recording.leadId);
+  const selectedLabel = selectedIsRecording ? split.recording!.label : selected?.label;
   const itemCount = summary?.itemCount ?? items.length;
   const description = [
     itemCount > 1 ? "Multipart evidence package" : items.length > 0 ? "Single evidence item" : null,
@@ -507,9 +563,13 @@ export function ContentPreviewSurface({
                     minWidth: 0,
                   }}
                 >
-                  <div style={{ marginBottom: 4, overflowWrap: "anywhere" }}>{item.label}</div>
+                  <div style={{ marginBottom: 4, overflowWrap: "anywhere" }}>
+                    {split.recording?.leadId === item.id ? split.recording.label : item.label}
+                  </div>
                   <div style={{ ...VERIFY_TYPO.small, fontSize: 12 }}>
-                    {evidenceKindLabel(item.kind)} • {describeEvidenceAssetRole(item)}
+                    {split.recording?.leadId === item.id
+                      ? "Screen recording • Primary evidence"
+                      : `${evidenceKindLabel(item.kind)} • ${describeEvidenceAssetRole(item)}`}
                   </div>
                 </button>
               </li>
@@ -522,7 +582,7 @@ export function ContentPreviewSurface({
         <div style={{ display: "grid", gap: 12, minWidth: 0 }}>{renderVerifyEvidenceMedia(selected)}</div>
         <div style={{ ...PANEL, alignContent: "start" }}>
           <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>Selected Evidence Item</div>
-          <div style={{ ...VERIFY_TYPO.h3, fontSize: 18, overflowWrap: "anywhere" }}>{selected?.label ?? "No item selected"}</div>
+          <div style={{ ...VERIFY_TYPO.h3, fontSize: 18, overflowWrap: "anywhere" }}>{selectedLabel ?? "No item selected"}</div>
           <div style={{ display: "grid", gap: 8, ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink }}>
             {selected ? (
               <div>
@@ -547,9 +607,19 @@ export function ContentPreviewSurface({
                 <strong>Access role:</strong> {previewRoleLabel(selected?.previewRole)}
               </div>
             ) : null}
-            {selected?.sha256 ? (
+            {selectedIsRecording && split.recording!.layout === "SEGMENTED" ? (
+              <div>
+                <strong>Stored as:</strong> {split.recording!.partCount} technical parts (digests listed under Technical parts)
+              </div>
+            ) : selected?.sha256 ? (
               <div style={VERIFY_TYPO.hash}>
                 <strong>SHA-256:</strong> {selected.sha256}
+              </div>
+            ) : null}
+            {selectedIsRecording && artifacts?.recording ? (
+              <div data-verify-recording-statement>
+                {artifacts.recording.statement}
+                {artifacts.recording.audioStatement ? ` ${artifacts.recording.audioStatement}` : ""}
               </div>
             ) : null}
             {selected?.originalPreservationNote ? (
@@ -575,6 +645,24 @@ export function ContentPreviewSurface({
           ) : null}
         </div>
       </div>
+
+      {split.technical.length > 0 ? (
+        <div style={PANEL} data-testid="verify-technical-parts">
+          <div style={{ ...VERIFY_TYPO.kicker, fontSize: 10.5 }}>Technical parts ({split.technical.length})</div>
+          <div style={{ ...VERIFY_TYPO.small, fontSize: 13 }}>
+            Stored files that make up the record. They are technical material, not separate evidence items; each keeps its own SHA-256.
+          </div>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {split.technical.map((item) => (
+              <li key={item.id} data-verify-technical-part={item.index} style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.ink, minWidth: 0 }}>
+                <strong>{technicalPartLabel(item)}</strong> — stored part {item.index + 1}
+                {item.displaySizeLabel ? ` · ${item.displaySizeLabel}` : ""}
+                <div style={{ ...VERIFY_TYPO.hash, overflowWrap: "anywhere" }}>SHA-256: {item.sha256 ?? "Not recorded"}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

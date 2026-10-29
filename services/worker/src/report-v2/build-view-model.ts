@@ -1,13 +1,13 @@
 import { INTAKE_SUBMITTED_BY_LABEL, acquisitionRecordedByQualified, intakeLinkLocationProvenanceSentence, isIntakeLinkLocationSource } from "@proovra/shared";
 import QRCode from "qrcode";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
-import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "@proovra/shared";
+import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE, tsaFailureNote } from "@proovra/shared";
 import sharp from "sharp";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
-  CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+  evidenceLocationMeaning,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   buildCaptureLocationDisplayModel,
   buildCaptureLocationPdfFallbackSvg,
@@ -272,24 +272,6 @@ function mapPublicEvidenceTypeLabel(
   });
 }
 
-function normalizeProviderFailure(value: string | null | undefined): string {
-  const raw = safe(value, "");
-  const lower = raw.toLowerCase();
-
-  if (!raw) return "";
-
-  if (
-    lower.includes("403") ||
-    lower.includes("kontingent") ||
-    lower.includes("quota") ||
-    lower.includes("verbrauch")
-  ) {
-    return "Trusted timestamp could not be obtained because the provider quota is exhausted.";
-  }
-
-  return raw;
-}
-
 function buildExecutiveRows(
   canonicalMaterials: CanonicalEvidenceMaterials,
   evidence: ReportEvidence,
@@ -501,7 +483,9 @@ function buildVerificationSummaryRows(
   contentSummary: ReportEvidenceContentSummary,
   primaryContentItem: ReportEvidenceAsset | null,
   externalMode: boolean,
-  verificationReference: string
+  verificationReference: string,
+  /** Wire contract D — stored parts (digest semantics), not user items. */
+  technicalPartCount: number = contentSummary.itemCount
 ): KeyValueRow[] {
   const explicitPrimaryItems =
     evidence.contentItems?.filter(
@@ -523,7 +507,7 @@ function buildVerificationSummaryRows(
   );
 
   const recordedDigestLabel =
-    contentSummary.itemCount > 1
+    technicalPartCount > 1
       ? "Canonical Package Digest (SHA-256)"
       : "Original File SHA-256";
 
@@ -533,7 +517,7 @@ function buildVerificationSummaryRows(
     safe(canonicalMaterials.fingerprint.fingerprintHash)
   );
 
-  if (contentSummary.itemCount > 1 && primaryContentItem?.sha256) {
+  if (technicalPartCount > 1 && primaryContentItem?.sha256) {
     add(
       multipleExplicitPrimary
         ? "Representative Primary Item SHA-256"
@@ -624,9 +608,11 @@ function buildReviewReadinessRows(
       value: timestampStatusLabelOf(canonicalMaterials.trustDecision?.decision),
     },
 
+// (2026-10-29) The bounded failure CATEGORY — the shared sentence the
+// technical appendix's "Timestamp Outcome" row states — never provider text.
 {
-  label: "RFC 3161 Note",
-  value: normalizeProviderFailure(evidence.tsaFailureReason),
+  label: "Timestamp Outcome",
+  value: tsaFailureNote(evidence.tsaFailureCode ?? null, Boolean(evidence.tsaFailureReason)) ?? "",
 },
 
 {
@@ -859,8 +845,8 @@ function buildStorageRows(
       value: otsVerificationLabelFor(canonicalMaterials.otsState.verification),
     },
     {
-      label: "RFC 3161 Note",
-      value: normalizeProviderFailure(evidence.tsaFailureReason),
+      label: "Timestamp Outcome",
+      value: tsaFailureNote(evidence.tsaFailureCode ?? null, Boolean(evidence.tsaFailureReason)) ?? "",
     },
   ].filter((row) => safe(row.value, "") !== "");
   
@@ -1121,7 +1107,11 @@ function buildTechnicalAppendixCourtRows(params: {
   custody: ReturnType<typeof splitCustodyEvents>;
   reportVersion: number;
   verificationReference: string;
+  /** Wire contract D — stored parts (digest semantics), not user items. */
+  technicalPartCount?: number;
 }): KeyValueRow[] {
+  const technicalMultipart =
+    (params.technicalPartCount ?? params.contentSummary.itemCount) > 1;
   const explicitPrimaryItems =
     params.evidence.contentItems?.filter(
       (item) => item.artifactRole === "primary_evidence"
@@ -1190,11 +1180,11 @@ function buildTechnicalAppendixCourtRows(params: {
     : "Not embedded in appendix",
 },
 {
-  label: params.contentSummary.itemCount > 1
+  label: technicalMultipart
     ? "Primary Package Digest Type"
     : "Primary Digest Type",
   value:
-    params.contentSummary.itemCount > 1
+    technicalMultipart
       ? "Canonical multipart package digest"
       : "Original file digest",
 },
@@ -1315,6 +1305,25 @@ export async function buildReportViewModel(
     parsedFingerprintSummary
   );
   const resolvedContentItems = resolveContentItems(input.evidence);
+  // Wire contract D (2026-10-29) — the counts above are USER items (one
+  // screen recording is one item). Digest semantics (package vs file digest,
+  // the multipart explanation, the timestamped-digest label) follow the
+  // STORED parts: a recording's technical parts plus its capture records. A
+  // snapshot without them stored one part per item.
+  const captureRecords = Array.isArray(input.evidence.captureRecords)
+    ? input.evidence.captureRecords
+    : [];
+  const technicalPartCount = Math.max(
+    contentSummary.itemCount,
+    resolvedContentItems.reduce(
+      (acc, item) => acc + Math.max(1, item.technicalParts?.length ?? 1),
+      0
+    ) + captureRecords.length
+  );
+  const technicalContentSummary: ReportEvidenceContentSummary =
+    technicalPartCount > contentSummary.itemCount
+      ? { ...contentSummary, itemCount: technicalPartCount, structure: "multipart" }
+      : contentSummary;
   const structureLabel =
     input.evidence.evidenceStructure?.trim() ||
     evidenceStructureLabel(contentSummary);
@@ -1471,7 +1480,7 @@ const technicalAppendix = buildTechnicalAppendixModel(
   otsEvidence,
   externalMode,
   anchorSummary,
-  contentSummary
+  technicalContentSummary
 );
 
 const { packageReady: verificationPackageAvailable } = deriveCanonicalArtifactAvailability({
@@ -1548,8 +1557,11 @@ const verificationPackageIntegrity = {
     input.evidence
   );
 
-// AUD-19 — the recorded location is printed only under the record's own
-// disclosure decision; otherwise the report holds no coordinate at all.
+// The report's AUDIENCE decides whether coordinates print. The authorized
+// report (the owner's and the full forensic package's) always prints the
+// location the submitter opted in to and the device recorded — the processor
+// passes true. Only an external projection passes false, and then the record's
+// coordinates read WITHHELD, never "not recorded".
 const recordedLocationDisclosed = input.recordedLocationDisclosed === true;
 const captureLat = recordedLocationDisclosed ? input.evidence.gps.lat : null;
 const captureLng = recordedLocationDisclosed ? input.evidence.gps.lng : null;
@@ -1595,6 +1607,8 @@ const locationState = resolveEvidenceLocation({
   requestOutcome: input.evidence.gps.requestOutcome ?? null,
   requirement: input.evidence.gps.requirement ?? null,
   providerReportedMock: input.evidence.gps.providerReportedMock === true,
+  // Stored coordinates this audience may not see: WITHHELD, never NOT_RECORDED.
+  ...(recordedLocationDisclosed ? {} : { lat: input.evidence.gps.lat, lng: input.evidence.gps.lng, withheld: true }),
 });
 const isIntakeLinkLocation = isIntakeLinkLocationSource(reportedLocationSource);
 
@@ -1608,7 +1622,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         : locationState.label,
       description: isIntakeLinkLocation
         ? `${intakeLinkLocationProvenanceSentence(reportedLocationSource)} Captured after an explicit Share click — not silently. Coordinates are evidence of what the contributor's device reported at the moment of upload, not independent proof of physical presence.`
-        : CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
+        : evidenceLocationMeaning(input.evidence.acquisitionMode ?? null),
       lat:
         captureLocationModel?.latLabel ??
         formatCaptureLocationCoordinate(captureLat),
@@ -1726,7 +1740,8 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       contentSummary,
       primaryContentItem,
       externalMode,
-      verificationReference
+      verificationReference,
+      technicalPartCount
     ),
     reviewReadinessRows: buildReviewReadinessRows(
       canonicalMaterials,
@@ -1746,6 +1761,10 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
 
     contentSummary,
     contentItems,
+    captureRecords,
+    continuousRecording: input.evidence.continuousRecording ?? null,
+    combinedRecording: input.evidence.combinedRecording ?? null,
+    technicalPartCount,
     primaryContentItem,
     structureLabel,
     presentation: {
@@ -1822,7 +1841,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     ),
     technicalFingerprintNarrative: buildFingerprintNarrative(
       parsedFingerprintSummary,
-      contentSummary
+      technicalContentSummary
     ),
     technicalAppendix,
 
@@ -1887,7 +1906,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
         externalMode,
         input.acquisition?.isIntake === true
       ),
-      timestampRows: buildTimestampRows(canonicalMaterials.timestampState, contentSummary, canonicalMaterials.trustDecision?.decision),
+      timestampRows: buildTimestampRows(canonicalMaterials.timestampState, technicalContentSummary, canonicalMaterials.trustDecision?.decision),
       otsRows: buildOtsRows(otsEvidence),
       anchorRows: buildAnchorRows(anchorSummary),
       signingKeyReference: buildPublicSigningKeyReference(
@@ -1923,6 +1942,7 @@ courtAppendixRows: buildTechnicalAppendixCourtRows({
   custody,
   reportVersion: input.version,
   verificationReference,
+  technicalPartCount,
 }),
       signingKeyLabel: buildPublicSigningKeyReference(
         input.evidence.signingKeyId,

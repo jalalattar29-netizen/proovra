@@ -63,7 +63,7 @@ export function CaptureScreenRecorderCard({
   const live = state === "recording" || state === "paused";
   return (
     <section
-      className="capture-audio-card capture-screen-card"
+      className="capture-screen-card"
       data-capture-screen-recorder
       data-screen-recorder-state={state}
       aria-labelledby="capture-screen-recorder-heading"
@@ -114,10 +114,20 @@ export function CaptureScreenRecorderCard({
         </p>
       ) : null}
 
-      <div className="capture-upload-actions">
+      {/* Its OWN action row on the canonical action primitives. It used to reuse
+          the dropzone's tile grid (.capture-upload-actions) and the legacy audio
+          card class, whose !important tile/hover rules turned the primary button
+          white-on-white on hover and removed its focus ring. */}
+      <div className="capture-screen-card__actions">
         {state === "idle" || state === "failed" ? (
           <button type="button" className="app-primary-action" onClick={onStart} disabled={disabled}>
             <MonitorUp size={16} aria-hidden="true" /> Choose what to record
+          </button>
+        ) : null}
+        {/* The primary action of each state comes first: Stop while live, Add once stopped. */}
+        {live ? (
+          <button type="button" className="app-primary-action" onClick={onStop}>
+            <Square size={16} aria-hidden="true" /> Stop
           </button>
         ) : null}
         {state === "recording" ? (
@@ -130,18 +140,13 @@ export function CaptureScreenRecorderCard({
             <Play size={16} aria-hidden="true" /> Resume
           </button>
         ) : null}
-        {live ? (
-          <button type="button" className="app-secondary-action" onClick={onStop}>
-            <Square size={16} aria-hidden="true" /> Stop
-          </button>
-        ) : null}
         {state === "stopped" && hasRecording ? (
           <button type="button" className="app-primary-action" onClick={onAdd} disabled={disabled || offline}>
             Add recording to session
           </button>
         ) : null}
         {live || state === "stopped" ? (
-          <button type="button" className="app-secondary-action" onClick={onDiscard}>
+          <button type="button" className="app-secondary-action app-secondary-action--danger" onClick={onDiscard}>
             <Trash2 size={16} aria-hidden="true" /> Discard
           </button>
         ) : null}

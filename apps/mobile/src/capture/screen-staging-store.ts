@@ -51,6 +51,11 @@ export type PendingScreenResult = {
 export type PendingScreenStaging = {
   result: PendingScreenResult;
   teamId: string | null;
+  /**
+   * Decision 2 — the reservation's location fields, fixed BEFORE the capture
+   * started (absent on a staging persisted by an older build).
+   */
+  location?: PendingScreenLocation | null;
   session: { captureSessionId: string; expiresAtUtc: string } | null;
   evidenceId: string | null;
   declared: StagedFrameDeclaration[];
@@ -58,6 +63,29 @@ export type PendingScreenStaging = {
   manifest: { manifestJson: string; manifestPartIndex: number } | null;
   updatedAtIso: string;
 };
+
+export type PendingScreenLocation = {
+  gps?: { lat: number; lng: number; accuracyMeters?: number; providerReportedMock?: boolean };
+  locationRequestOutcome?: "DENIED" | "UNAVAILABLE" | "TIMEOUT" | "NOT_REQUESTED";
+};
+
+function parseLocation(v: unknown): PendingScreenLocation | null {
+  if (!v || typeof v !== "object") return null;
+  const l = v as Record<string, unknown>;
+  const g = l.gps as Record<string, unknown> | undefined;
+  if (g && typeof g === "object" && isNum(g.lat) && isNum(g.lng)) {
+    return {
+      gps: {
+        lat: g.lat,
+        lng: g.lng,
+        ...(isNum(g.accuracyMeters) ? { accuracyMeters: g.accuracyMeters } : {}),
+        ...(g.providerReportedMock === true ? { providerReportedMock: true } : {}),
+      },
+    };
+  }
+  const o = l.locationRequestOutcome;
+  return o === "DENIED" || o === "UNAVAILABLE" || o === "TIMEOUT" || o === "NOT_REQUESTED" ? { locationRequestOutcome: o } : null;
+}
 
 export function screenStagingKey(userId: string): string {
   return `${KEY_PREFIX}${userId}`;
@@ -115,6 +143,7 @@ export function parsePendingScreenStaging(raw: unknown, ownerUserId: string | nu
       limitations: Array.isArray(r.limitations) ? r.limitations.filter((l): l is string => typeof l === "string") : [],
     },
     teamId: typeof o.teamId === "string" && o.teamId ? o.teamId : null,
+    location: parseLocation(o.location),
     session,
     evidenceId: session && typeof o.evidenceId === "string" && o.evidenceId ? o.evidenceId : null,
     declared: session ? declared : [],

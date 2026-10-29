@@ -591,6 +591,19 @@ export async function loadProvenanceChain(
   };
 }
 
+/** Derived kinds built from more than one ORIGINAL part (lineage `sources[]`). */
+const MULTI_SOURCE_DERIVED_KINDS: ReadonlyArray<string> = ["screen_recording_combined"];
+
+/** The source part indexes a multi-source lineage lists, in order; null when it lists none. */
+export function multiSourcePartIndexes(generationParameters: unknown): number[] | null {
+  const sources = (generationParameters as { sources?: unknown } | null)?.sources;
+  if (!Array.isArray(sources)) return null;
+  const out = sources
+    .map((s) => (s && typeof s === "object" ? (s as { partIndex?: unknown }).partIndex : null))
+    .filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0);
+  return out.length > 0 ? out : null;
+}
+
 export async function loadDerivedArtifacts(
   prisma: PrismaClient,
   evidenceId: string,
@@ -599,6 +612,7 @@ export async function loadDerivedArtifacts(
     where: { evidenceId },
     orderBy: [{ createdAtUtc: "asc" }],
     select: {
+      id: true,
       evidencePartId: true,
       assetKind: true,
       variantKey: true,
@@ -618,9 +632,21 @@ export async function loadDerivedArtifacts(
     select: { id: true, partIndex: true },
   });
   const indexById = new Map(parts.map((p) => [p.id, p.partIndex]));
+  // 2026-10-29 — a MULTI-SOURCE derivative (the combined screen recording) is
+  // anchored to its first source; its lineage lists every source it joined.
+  // Only those rows' (bounded) parameters are read.
+  const multi = rows.some((r) => MULTI_SOURCE_DERIVED_KINDS.includes(r.assetKind))
+    ? await prisma.evidencePartDerivedAsset.findMany({
+        where: { evidenceId, assetKind: { in: [...MULTI_SOURCE_DERIVED_KINDS] } },
+        select: { id: true, generationParameters: true },
+        take: 50,
+      })
+    : [];
+  const sourcesById = new Map(multi.map((m) => [m.id, multiSourcePartIndexes(m.generationParameters)]));
   return rows.map((r) => ({
     artifactClass: "DERIVED" as const,
     sourcePartIndex: indexById.get(r.evidencePartId) ?? null,
+    ...(sourcesById.get(r.id) ? { sourcePartIndexes: sourcesById.get(r.id)! } : {}),
     assetKind: r.assetKind,
     variantKey: r.variantKey,
     transformation: r.transformation ?? derivedAssetTransformationForKind(r.assetKind),

@@ -55,7 +55,7 @@ import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection
 import { formatUserDateTime } from "../../../../../lib/date";
 import { describeStorageProtection, presentEvidenceProtection, storedBytesVerificationRow } from "@proovra/shared";
 import { getEvidenceLifecycle } from "../../lib/evidence-delete-eligibility";
-import { parseTsaProofStatus, TSA_PROOF_STATUS_LABELS, type TsaProofStatus } from "@proovra/shared";
+import { parseTsaProofStatus, tsaProofStatusPresentation, type TsaProofStatus } from "@proovra/shared";
 import { storageProtectionClassOf } from "../../lib/evidence-library-types";
 import {
   displayAcquisition,
@@ -361,6 +361,11 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     : preservation.tsa.timestampAvailable
       ? "recorded"
       : "unavailable";
+  // (2026-10-29) THE shared label + tone per status: a requested timestamp the
+  // provider never issued is the degraded "Trusted timestamp not obtained" in
+  // the warning tone, exactly as the evidence header and completion notice say.
+  const tsaPresentation = tsaProof ? tsaProofStatusPresentation(tsaProof) : null;
+  const tsaDegraded = tsaProof === "NOT_OBTAINED";
 
   // (2026-10-15) Bitcoin anchoring: the server's verification key in the one
   // vocabulary. Only an independent Bitcoin main-chain check is a success
@@ -620,12 +625,13 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               // Phase 5 — "Timestamp proof (TSA)" is plainer than the
               // prior "TSA timestamp" + matches the Home pass.
               label: "Timestamp proof (TSA)",
-              value: tsaProof
-                ? TSA_PROOF_STATUS_LABELS[tsaProof]
+              value: tsaPresentation
+                ? tsaPresentation.label
                 : preservation.tsa.timestampAvailable
                   ? "Timestamp recorded"
                   : "Timestamp unavailable",
               state: tsaState,
+              ...(tsaDegraded ? { stateLabel: "Not obtained", tone: "amber" as AppTone } : {}),
             },
             {
               label: "Bitcoin anchoring",

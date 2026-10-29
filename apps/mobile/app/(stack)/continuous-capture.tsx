@@ -27,8 +27,9 @@
  * from an opened session (Discard, Try Again, a start failure) releases it.
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { AppState, Platform, View, StyleSheet } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { AppState, Platform, Switch, View, StyleSheet } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { requestRecordingPermissionsAsync } from "expo-audio";
 import { SCREEN_CONTINUOUS_STREAM_BOUNDS } from "@proovra/shared";
 
 import { theme } from "../../src/theme/theme";
@@ -63,10 +64,28 @@ import {
   CONTINUOUS_REVIEW_COPY,
   CONTINUOUS_SESSION_GONE,
   CONTINUOUS_STAGE_FAILURE,
+  releaseSingleFileRecording,
+  stageSingleFileRecording,
   type DeclaredSegment,
 } from "../../src/continuous-capture";
+import {
+  audioTracksLabel,
+  formatSingleFileLimits,
+  readSingleFileRecording,
+  singleFileName,
+  singleFileOutcome,
+  type SingleFileRecording,
+} from "../../src/continuous-single-file";
+import {
+  acquireLocationWithChoice,
+  locationOutcomeMessage,
+  locationParam,
+  reservationLocationFields,
+  type CarriedLocation,
+} from "../../src/capture/device-location";
+import { registerLinkedRecord } from "../../src/capture/capture-links";
 import { discardDirectCaptureSession, type DirectCaptureSession } from "../../src/direct-capture";
-import { loadCaptureSession, saveCaptureSession } from "../../src/capture/capture-session-store";
+import { captureRecordKey, findCaptureSession, saveCaptureSession } from "../../src/capture/capture-session-store";
 import {
   clearLiveContinuousSession,
   loadLiveContinuousSession,
@@ -136,6 +155,24 @@ export default function ContinuousCaptureScreen() {
   const copy = isIOS ? CONTINUOUS_PLATFORM_COPY.ios : CONTINUOUS_PLATFORM_COPY.android;
   const supported =
     (Platform.OS === "android" || isIOS) && isScreenContinuousSupported();
+
+  // Decision 2 — the Location choice made in Capture, shown and changeable
+  // HERE, and read BEFORE the recording starts (never after).
+  const params = useLocalSearchParams<{ useLocation?: string; locationRequired?: string; linkGroup?: string }>();
+  const [useLocation, setUseLocation] = useState(() => locationParam(params.useLocation));
+  const locationRequired = locationParam(params.locationRequired);
+  const linkGroup = typeof params.linkGroup === "string" && params.linkGroup ? params.linkGroup : null;
+  const [locationNote, setLocationNote] = useState<string | null>(null);
+  /** The reservation's location fields, fixed before the OS consent / picker. */
+  const locationRef = useRef<ReturnType<typeof reservationLocationFields> | null>(null);
+  const carriedLocationRef = useRef<CarriedLocation | null>(null);
+  // Optional microphone (Android: an explicit in-app choice + RECORD_AUDIO;
+  // iOS: Apple's picker carries the microphone button and IS the consent).
+  const [microphone, setMicrophone] = useState(false);
+  const [microphoneNote, setMicrophoneNote] = useState<string | null>(null);
+  // Contract B — the ONE recording file a new native build hands back.
+  const singleRef = useRef<SingleFileRecording | null>(null);
+  const [single, setSingle] = useState<SingleFileRecording | null>(null);
 
   // The ONE canonical session + evidence for the whole recording, and the segments
   // declared so far. Refs, not state, so the segment listener always sees the
@@ -282,6 +319,8 @@ export default function ContinuousCaptureScreen() {
     openingRef.current = false;
     stagedManifestRef.current = null;
     recordingIdRef.current = null;
+    singleRef.current = null;
+    setSingle(null);
   }, []);
 
   /** Release an opened-but-unstaged session: server, native recorder, local files, durable record. */
@@ -306,7 +345,12 @@ export default function ContinuousCaptureScreen() {
     openingRef.current = true;
     clearStartTimer();
     try {
-      const opened = await beginContinuousSession({ teamId });
+      // The location was read BEFORE the recording started (start()); it goes
+      // into the reservation as it was then.
+      const opened = await beginContinuousSession({
+        teamId,
+        location: locationRef.current ?? reservationLocationFields({ useLocation: false, result: null }),
+      });
       // Held at once, so a failure below releases it on the server.
       sessionRef.current = opened;
       // Bound to THIS session before anything uploads. AUD-004 (Android): the
@@ -427,8 +471,11 @@ export default function ContinuousCaptureScreen() {
           setRecovery({ kind: "ended" });
         } else if (
           isIOS
-            ? listContinuousRecordings().some((r) => !r.active && r.segmentCount > 0)
-            : getContinuousSegments().length > 0
+            ? listContinuousRecordings().some((r) => !r.active && (r.segmentCount > 0 || (r as { layout?: string }).layout === "SINGLE_FILE"))
+            : getContinuousSegments().length > 0 ||
+              // Contract B — an interrupted SINGLE_FILE ledger has no segments
+              // but blocks a new start (PENDING_RECORDING) until discarded.
+              (getContinuousLedger()?.layout === "SINGLE_FILE" && getContinuousLedger()?.active === false)
         ) {
           // UC-IOS-010 — segments on disk that no session holds (the app was
           // killed before a session opened, or a broadcast was started from
@@ -470,6 +517,45 @@ export default function ContinuousCaptureScreen() {
       setBusy(true);
       try {
         resetStreamRefs();
+        // Decision 2 — LOCATION FIRST: read before Apple's picker / Android's
+        // consent, so the location recorded is where the device was when the
+        // recording started. A failure is the person's call (Retry, record
+        // without location unless the plan requires it, or Cancel).
+        if (!locationRef.current) {
+          if (!useLocation) {
+            locationRef.current = reservationLocationFields({ useLocation: false, result: null });
+            carriedLocationRef.current = { useLocation: false, outcome: null, recordedAtStart: true };
+          } else {
+            setLocationNote("Checking location…");
+            const decision = await acquireLocationWithChoice({
+              required: locationRequired,
+              proceedLabel: "Record without location",
+            });
+            if (decision.kind === "cancel") {
+              setLocationNote(decision.result ? locationOutcomeMessage(decision.result.outcome) : null);
+              return;
+            }
+            setLocationNote(
+              decision.kind === "acquired"
+                ? "Location recorded for the start of this recording."
+                : `${locationOutcomeMessage(decision.result.outcome)} Recording without location.`,
+            );
+            locationRef.current = reservationLocationFields({ useLocation: true, result: decision.result });
+            carriedLocationRef.current = { useLocation: true, outcome: decision.result.outcome, recordedAtStart: true };
+          }
+        }
+        // Optional microphone (Android): the in-app choice, then RECORD_AUDIO.
+        let withMicrophone = false;
+        if (!isIOS && microphone) {
+          const mic = await requestRecordingPermissionsAsync().catch(() => ({ granted: false }));
+          if (!mic.granted) {
+            setMicrophoneNote(
+              "Microphone permission was not granted, so nothing was started. Turn microphone audio off to record the screen without it, or allow the microphone in Settings.",
+            );
+            return;
+          }
+          withMicrophone = true;
+        }
         // UC-AND-003 — Android 13+: ask for the notification that carries Stop.
         if (Platform.OS === "android" && !opts.notificationAcknowledged) {
           const permission = await ensureCaptureNotificationPermission();
@@ -479,7 +565,9 @@ export default function ContinuousCaptureScreen() {
           }
         }
         // The OS consent comes FIRST; no server session exists until the OS records.
-        const started = await startContinuousCapture();
+        const started = await startContinuousCapture(
+          (withMicrophone ? { microphone: true } : {}) as Parameters<typeof startContinuousCapture>[0],
+        );
         recordingIdRef.current = started.recordingId ?? null;
         if (started.awaitingSystemStart) {
           dispatch({ type: "AWAITING_SYSTEM_START" });
@@ -512,7 +600,7 @@ export default function ContinuousCaptureScreen() {
         setBusy(false);
       }
     },
-    [resetStreamRefs, openServerSession, releaseSession, clearStartTimer],
+    [resetStreamRefs, openServerSession, releaseSession, clearStartTimer, useLocation, locationRequired, microphone, isIOS],
   );
 
   /** Stop (or adopt an already-ended recording) and show the reconciled summary. */
@@ -522,6 +610,21 @@ export default function ContinuousCaptureScreen() {
       stopRequestedRef.current = true;
       const result = await stopContinuousCapture(recordingIdRef.current);
       resultRef.current = result;
+      // Contract B — a new build hands back ONE file and streamed nothing.
+      const rec = readSingleFileRecording(result);
+      if (rec) {
+        singleRef.current = rec;
+        setSingle(rec);
+        const outcome = singleFileOutcome(result, rec);
+        dispatch({
+          type: "STOPPED",
+          captured: outcome.kind === "NO_FILE" ? 0 : 1,
+          uploaded: 0,
+          completeness: outcome.kind === "COMPLETE" || outcome.kind === "BOUNDS_REACHED" ? result.sessionCompleteness : "INTERRUPTED_SESSION",
+          stopReason: result.terminationReason,
+        });
+        return;
+      }
       syncFromNative();
       await drainUploads();
       const reconciled = reconcileContinuousUploads(
@@ -575,6 +678,20 @@ export default function ContinuousCaptureScreen() {
     capturedRef.current = result.segmentCount;
     // The JS record is rebuilt from the ledger if it was lost.
     await persistLive();
+    const rec = readSingleFileRecording(result);
+    if (rec) {
+      singleRef.current = rec;
+      setSingle(rec);
+      dispatch({ type: "STARTED" });
+      dispatch({
+        type: "STOPPED",
+        captured: rec.recordingUri ? 1 : 0,
+        uploaded: plan.declared.length,
+        completeness: rec.finalized ? result.sessionCompleteness : "INTERRUPTED_SESSION",
+        stopReason: result.terminationReason,
+      });
+      return;
+    }
     const reconciled = reconcileContinuousUploads(result, plan.declared, plan.clientLimitations);
     dispatch({ type: "STARTED" });
     dispatch({
@@ -597,44 +714,79 @@ export default function ContinuousCaptureScreen() {
     // T-18 — which step failed decides what the user is told and offered.
     let step: "drain" | "stage" | "handoff" = "drain";
     try {
-      await drainUploads();
-      // UC-STR-002 / AUD-004 — retry every recorded-but-undeclared segment from
-      // disk, then stage, through the ONE recovery executor (idempotent, never
-      // destructive). A segment refused for good is stated SEGMENT_UPLOAD_LOST;
-      // a retryable failure keeps the session for Continue.
-      const deps = continuousRecoveryDeps(async (state) => {
-        declaredRef.current = state.declared;
-        stagedManifestRef.current = state.stagedManifest;
-        await persistLive();
-      });
-      const outcome = await recoverOnce(active.session.captureSessionId, () =>
-        executeContinuousRecovery(
-          {
-            kind: "RECOVER",
-            session: active.session,
-            evidenceId: active.evidenceId,
-            declared: declaredRef.current,
-            pending: undeclaredSegments(seenRef.current, declaredRef.current),
-            result,
-            clientLimitations: Array.from(clientLimitationsRef.current),
-            stagedManifest: stagedManifestRef.current,
+      let staged: { manifestJson: string; segmentCount: number; sessionCompleteness: string; sizeBytes?: number };
+      const rec = singleRef.current;
+      if (rec) {
+        // Contract A/B — ONE file: part 0 is the recording, part 1 the
+        // manifest. Durable like the segmented path: part 0 is recorded once
+        // at storage and a fixed manifest is re-sent byte for byte on retry.
+        step = "stage";
+        const at0 = declaredRef.current.find((d) => d.partIndex === 0) ?? null;
+        staged = await stageSingleFileRecording(active.session, active.evidenceId, result, rec, {
+          declared: at0 ? { sha256Hex: at0.sha256Hex, sizeBytes: at0.sizeBytes } : null,
+          existing: stagedManifestRef.current,
+          extraLimitations: Array.from(clientLimitationsRef.current),
+          onDeclared: async (d) => {
+            declaredRef.current = [
+              {
+                partIndex: 0,
+                sequence: 0,
+                sha256Hex: d.sha256Hex,
+                sizeBytes: d.sizeBytes,
+                startedAtOffsetMs: 0,
+                durationMs: rec.recordingDurationMs ?? 0,
+                widthPx: rec.widthPx ?? 1,
+                heightPx: rec.heightPx ?? 1,
+                orientation: rec.orientationTimeline[0]?.orientation ?? ((rec.widthPx ?? 0) >= (rec.heightPx ?? 1) ? "landscape" : "portrait"),
+              },
+            ];
+            await persistLive();
           },
-          {
-            ...deps,
-            stage: (...args) => {
-              step = "stage";
-              return deps.stage(...args);
+          onManifestFixed: async (fixed) => {
+            stagedManifestRef.current = fixed;
+            await persistLive();
+          },
+        });
+      } else {
+        await drainUploads();
+        // UC-STR-002 / AUD-004 — retry every recorded-but-undeclared segment from
+        // disk, then stage, through the ONE recovery executor (idempotent, never
+        // destructive). A segment refused for good is stated SEGMENT_UPLOAD_LOST;
+        // a retryable failure keeps the session for Continue.
+        const deps = continuousRecoveryDeps(async (state) => {
+          declaredRef.current = state.declared;
+          stagedManifestRef.current = state.stagedManifest;
+          await persistLive();
+        });
+        const outcome = await recoverOnce(active.session.captureSessionId, () =>
+          executeContinuousRecovery(
+            {
+              kind: "RECOVER",
+              session: active.session,
+              evidenceId: active.evidenceId,
+              declared: declaredRef.current,
+              pending: undeclaredSegments(seenRef.current, declaredRef.current),
+              result,
+              clientLimitations: Array.from(clientLimitationsRef.current),
+              stagedManifest: stagedManifestRef.current,
             },
-          },
-        ),
-      );
-      if (outcome.kind === "SESSION_GONE") {
-        // The server closed the session (expired / reaped). Nothing is
-        // deleted: the recording stays on this device until the user discards.
-        dispatch({ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE });
-        return;
+            {
+              ...deps,
+              stage: (...args) => {
+                step = "stage";
+                return deps.stage(...args);
+              },
+            },
+          ),
+        );
+        if (outcome.kind === "SESSION_GONE") {
+          // The server closed the session (expired / reaped). Nothing is
+          // deleted: the recording stays on this device until the user discards.
+          dispatch({ type: "STAGE_FAILED", message: CONTINUOUS_SESSION_GONE });
+          return;
+        }
+        staged = outcome.staged;
       }
-      const staged = outcome.staged;
 
       // The canonical draft, and the durable record the Capture surface
       // resumes. The segments are already at storage, so finalize seals
@@ -644,20 +796,30 @@ export default function ContinuousCaptureScreen() {
         Platform.OS === "ios"
           ? "DIRECT_SCREEN_CAPTURE_IOS"
           : "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
-      const item = toScreenDraftItem({
+      const baseItem = toScreenDraftItem({
         mode,
         clientItemId: active.session.captureSessionId,
         partCount: staged.segmentCount,
-        sizeBytes: continuousSessionBytes(declaredRef.current),
+        sizeBytes: staged.sizeBytes ?? continuousSessionBytes(declaredRef.current),
       });
+      // A single-file recording is ONE file, named as such (never "1 segment").
+      const item = rec
+        ? {
+            ...baseItem,
+            fileName: singleFileName(result.captureStartedAtUtc),
+            durationMs: rec.recordingDurationMs ?? null,
+          }
+        : baseItem;
+      const carried = carriedLocationRef.current ?? { useLocation: false, outcome: null, recordedAtStart: false };
       // Its id travels with the durable record, so Capture closes THIS draft at
       // finalize instead of leaving it listed as unfinished. AUD-004 — a
-      // restart after the hand-off reuses the draft it already opened.
-      const previous = await loadCaptureSession().catch(() => null);
-      const draftId =
-        previous?.captureSessionId === active.session.captureSessionId && previous.draftId
-          ? previous.draftId
-          : ((await openCaptureDraft({ items: [item] }).catch(() => null))?.id ?? null);
+      // restart after the hand-off reuses the draft it already opened. The
+      // draft carries the location CHOICE (it used to say false for every
+      // recording, and resume then switched the toggle off).
+      const previous = await findCaptureSession({ captureSessionId: active.session.captureSessionId }).catch(() => null);
+      const draftId = previous?.draftId
+        ? previous.draftId
+        : ((await openCaptureDraft({ items: [item], teamId, useLocation: carried.useLocation }).catch(() => null))?.id ?? null);
       await saveCaptureSession({
         draftId,
         captureSessionId: active.session.captureSessionId,
@@ -673,17 +835,29 @@ export default function ContinuousCaptureScreen() {
             mimeType: item.mimeType,
             partIndex: 0,
             originalFilename: item.fileName,
-            source: "SCREEN_SEGMENT",
+            source: rec ? "SCREEN_RECORDING" : "SCREEN_SEGMENT",
+            sizeBytes: item.sizeBytes,
+            durationMs: item.durationMs ?? undefined,
             uploaded: true,
+            // The ORIGIN the mixed-origin guard reads in Capture.
+            itemSourceLabel: mode,
           },
         ],
         acquisition: { mode, manifestJson: staged.manifestJson },
+        location: carried,
+        linkGroupId: linkGroup,
       });
+      if (linkGroup) {
+        await registerLinkedRecord(linkGroup, captureRecordKey({ captureSessionId: active.session.captureSessionId, draftId })).catch(
+          () => undefined,
+        );
+      }
       await clearLiveContinuousSession();
       // The session is staged: release the device spool (AUD-004 — through the
       // ledger, bound to exactly this session; AUD-006 — on iOS, the spool of
-      // exactly this session's recording).
+      // exactly this session's recording), and the one local file.
       await releaseStagedContinuousSpool(active.session.captureSessionId, recordingIdRef.current);
+      await releaseSingleFileRecording(rec);
 
       sessionRef.current = null;
       dispatch({
@@ -692,8 +866,10 @@ export default function ContinuousCaptureScreen() {
         segmentCount: staged.segmentCount,
         completeness: staged.sessionCompleteness,
       });
-      toast.addToast("Recording staged — review and finish in Capture", "success");
-      router.replace("/capture");
+      // Decision 3 — a review state with clear actions, not an immediate
+      // redirect: "Capture another" stays reachable, and this record waits,
+      // pending, in Capture.
+      toast.addToast("Recording staged — review and finish it in Capture", "success");
     } catch (err) {
       // UC-STR-001 — the session is KEPT: its segments are at storage and
       // declared. Continue retries staging; Discard releases it.
@@ -703,18 +879,33 @@ export default function ContinuousCaptureScreen() {
         message: detail ? `${CONTINUOUS_STAGE_FAILURE[step]} (${detail})` : CONTINUOUS_STAGE_FAILURE[step],
       });
     }
-  }, [drainUploads, toast, persistLive, router]);
+  }, [drainUploads, toast, persistLive, teamId, linkGroup]);
 
   const reset = useCallback(async () => {
     // Discard / Try Again / a new recording: an opened-but-unstaged session is
     // RELEASED on the server (UC-STR-004), the recorder stopped, local segment
     // files and the durable record removed.
+    // After a successful staging the session is already handed to Capture
+    // (sessionRef is null), so "Capture another" releases nothing of it: the
+    // staged record stays pending there and the next recording is a NEW one.
     await releaseSession();
+    await releaseSingleFileRecording(singleRef.current);
     resetStreamRefs();
+    // Each recording reads its own start location.
+    locationRef.current = null;
+    carriedLocationRef.current = null;
+    setLocationNote(null);
+    setMicrophoneNote(null);
     setRecovery(null);
     setNotificationDenied(false);
     dispatch({ type: "RESET" });
   }, [releaseSession, resetStreamRefs]);
+
+  /** Back to Capture, where the staged record is listed as pending. */
+  const reviewInCapture = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/capture");
+  }, [router]);
 
   const stopOrphan = useCallback(async () => {
     // AUD-006 — iOS: each recording is stopped and discarded by its own id (the
@@ -817,9 +1008,61 @@ export default function ContinuousCaptureScreen() {
             </ProovraText>
             <Bullet text={copy.consent} />
             <Bullet text="Recording continues until you stop it — anything visible can become evidence, including sensitive information." />
-            <Bullet text="The session is split into short segments that are uploaded to PROOVRA." />
+            <Bullet text="One Start-to-Stop recording is kept as one video and sealed as its own evidence record." />
+            {/* Product decision 1 — the limits are stated BEFORE recording. */}
+            <Bullet
+              text={`Limit: up to ${formatSingleFileLimits()} per recording. Reaching a limit stops the recording; it is never split or continued in a second file.`}
+            />
             <Bullet text={copy.protectedContent} />
             <Bullet text={copy.control} />
+            {isIOS ? (
+              <Bullet text="Microphone: Apple's broadcast picker has a microphone button. It is off unless you turn it on there; PROOVRA records only what you choose." />
+            ) : (
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleText}>
+                  <ProovraText variant="bodySm" weight="semibold">Record microphone audio</ProovraText>
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>
+                    {microphone ? "Your microphone is recorded with the screen. Android will ask for microphone permission." : "Off — the recording has no microphone audio."}
+                  </ProovraText>
+                </View>
+                <Switch
+                  value={microphone}
+                  onValueChange={(v) => {
+                    setMicrophone(v);
+                    setMicrophoneNote(null);
+                  }}
+                  accessibilityLabel="Record microphone audio"
+                />
+              </View>
+            )}
+            {microphoneNote ? (
+              <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{microphoneNote}</ProovraText>
+            ) : null}
+            {/* Decision 2 — the Location choice, read BEFORE the recording starts. */}
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleText}>
+                <ProovraText variant="bodySm" weight="semibold">Location</ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {useLocation
+                    ? "Included — read once, before the recording starts."
+                    : locationRequired
+                      ? "Required by the selected plan."
+                      : "Not included."}
+                </ProovraText>
+              </View>
+              <Switch
+                value={useLocation}
+                onValueChange={(v) => {
+                  setUseLocation(v);
+                  setLocationNote(null);
+                  locationRef.current = null;
+                }}
+                accessibilityLabel="Include location metadata"
+              />
+            </View>
+            {locationNote ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary} testID="continuous-location-status">{locationNote}</ProovraText>
+            ) : null}
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
               A screen recording captures what your device displayed. It does not establish that the content is true, who authored it, that an app or account shown is genuine, or that the session is free of gaps.
             </ProovraText>
@@ -827,7 +1070,12 @@ export default function ContinuousCaptureScreen() {
             <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="How screen capture works" onPress={() => router.push("/legal/screen-capture")}>
               How screen capture works
             </ProovraText>
-            <ProovraButton label="Start Continuous Capture" loading={busy} onPress={() => void start()} />
+            <ProovraButton
+              label="Start Continuous Capture"
+              loading={busy}
+              disabled={locationRequired && !useLocation}
+              onPress={() => void start()}
+            />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
         )}
@@ -845,7 +1093,14 @@ export default function ContinuousCaptureScreen() {
         {state.phase === "active" && (
           <ProovraCard style={styles.card}>
             <ProovraBadge tone="pending" label="Continuous capture active" />
-            <ProovraText variant="body" weight="semibold">{state.captured} segment(s) recorded · {state.uploaded} uploaded.</ProovraText>
+            <ProovraText variant="body" weight="semibold">
+              {state.captured > 0
+                ? `${state.captured} segment(s) recorded · ${state.uploaded} uploaded.`
+                : "Recording. The recording is uploaded after you stop."}
+            </ProovraText>
+            {locationNote ? (
+              <ProovraText variant="label" color={theme.color.ink.secondary}>{locationNote}</ProovraText>
+            ) : null}
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
               {notificationDenied && !isIOS
                 ? "Leave PROOVRA and open what you want to record. Segments upload in the background. The notification is off, so return to PROOVRA and tap Stop here when you are done."
@@ -855,7 +1110,17 @@ export default function ContinuousCaptureScreen() {
           </ProovraCard>
         )}
 
-        {state.phase === "review" && (
+        {state.phase === "review" && single && (
+          <SingleFileReview
+            rec={single}
+            result={resultRef.current}
+            notice={state.notice ?? null}
+            onContinue={() => void finalize()}
+            onDiscard={() => void reset()}
+          />
+        )}
+
+        {state.phase === "review" && !single && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" weight="semibold">{state.captured} segment(s) recorded, {state.uploaded} uploaded and ready to seal.</ProovraText>
             {state.completeness ? (
@@ -884,11 +1149,20 @@ export default function ContinuousCaptureScreen() {
         )}
 
         {state.phase === "success" && (
-          <ProovraCard style={styles.card}>
-            <ProovraBadge tone="pending" label={`${CONTINUOUS_REVIEW_COPY.staged} (${state.segmentCount} segment(s), ${state.completeness === "COMPLETE_SESSION" ? "reported complete" : "interrupted"})`} />
-            <ProovraButton label="Go to Capture" onPress={() => router.replace("/capture")} />
-            <ProovraButton label="Capture Another" variant="secondary" onPress={() => void reset()} />
-            <ProovraButton label="Done" variant="ghost" onPress={() => router.back()} />
+          <ProovraCard style={styles.card} testID="continuous-staged">
+            <ProovraBadge
+              tone="pending"
+              label={
+                single
+                  ? `${CONTINUOUS_REVIEW_COPY.staged} (one recording, ${state.completeness === "COMPLETE_SESSION" ? "reported complete" : "interrupted"})`
+                  : `${CONTINUOUS_REVIEW_COPY.staged} (${state.segmentCount} segment(s), ${state.completeness === "COMPLETE_SESSION" ? "reported complete" : "interrupted"})`
+              }
+            />
+            <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
+              This recording is its own evidence record, pending in Capture. It is not signed until you finish it there. Capturing another starts a new, separate record — this one stays pending.
+            </ProovraText>
+            <ProovraButton label="Review in Capture" onPress={reviewInCapture} />
+            <ProovraButton label="Capture another" variant="secondary" onPress={() => void reset()} />
           </ProovraCard>
         )}
 
@@ -908,6 +1182,58 @@ export default function ContinuousCaptureScreen() {
   );
 }
 
+/**
+ * The review of ONE recording file (contract B): what the device says it
+ * produced, in words — never "complete" for an interrupted or unfinished file.
+ */
+function SingleFileReview({
+  rec,
+  result,
+  notice,
+  onContinue,
+  onDiscard,
+}: {
+  rec: SingleFileRecording;
+  result: ScreenContinuousResult | null;
+  notice: string | null;
+  onContinue: () => void;
+  onDiscard: () => void;
+}) {
+  const outcome = singleFileOutcome(
+    { terminationReason: result?.terminationReason ?? "UNKNOWN", sessionCompleteness: result?.sessionCompleteness ?? "INTERRUPTED_SESSION" },
+    rec,
+  );
+  const minutes = rec.recordingDurationMs !== null ? Math.floor(rec.recordingDurationMs / 60_000) : null;
+  const seconds = rec.recordingDurationMs !== null ? Math.floor((rec.recordingDurationMs % 60_000) / 1000) : null;
+  const facts = [
+    minutes !== null && seconds !== null ? `${minutes}:${String(seconds).padStart(2, "0")} long` : null,
+    rec.recordingSizeBytes !== null ? `${(rec.recordingSizeBytes / (1024 * 1024)).toFixed(1)} MB` : null,
+    (rec.droppedFrameCount ?? 0) > 0 ? `${rec.droppedFrameCount} frame(s) the device could not write` : null,
+    (rec.droppedAudioBufferCount ?? 0) > 0 ? `${rec.droppedAudioBufferCount} audio buffer(s) the device could not write` : null,
+    rec.pauses.length > 0 ? `paused ${rec.pauses.length} time(s) — those stretches are not in the recording` : null,
+  ].filter(Boolean);
+  return (
+    <ProovraCard style={styles.card} testID="continuous-single-review">
+      <ProovraText variant="body" weight="semibold">{outcome.headline}</ProovraText>
+      <ProovraBadge
+        tone="neutral"
+        label={outcome.kind === "COMPLETE" || outcome.kind === "BOUNDS_REACHED" ? CONTINUOUS_COMPLETENESS_LABEL.complete : CONTINUOUS_COMPLETENESS_LABEL.interrupted}
+      />
+      <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{outcome.detail}</ProovraText>
+      {facts.length > 0 ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary}>{facts.join(" · ")}</ProovraText>
+      ) : null}
+      <ProovraText variant="label" color={theme.color.ink.secondary}>{audioTracksLabel(rec.audioTracks)}</ProovraText>
+      {notice ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{notice}</ProovraText> : null}
+      <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
+        Continue uploads this one recording and opens it in Capture, where Finish &amp; Sign seals it as its own evidence record. PROOVRA verifies its integrity on the server.
+      </ProovraText>
+      {outcome.kind === "NO_FILE" ? null : <ProovraButton label={CONTINUOUS_REVIEW_COPY.action} onPress={onContinue} />}
+      <ProovraButton label="Discard" variant="ghost" onPress={onDiscard} />
+    </ProovraCard>
+  );
+}
+
 function Bullet({ text }: { text: string }) {
   return (
     <View style={styles.bulletRow}>
@@ -922,4 +1248,6 @@ const styles = StyleSheet.create({
   caveat: { marginTop: theme.space.s1 },
   bulletRow: { flexDirection: "row", gap: theme.space.s2 },
   bulletText: { flex: 1 },
+  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.space.s2 },
+  toggleText: { flex: 1, gap: 2 },
 });

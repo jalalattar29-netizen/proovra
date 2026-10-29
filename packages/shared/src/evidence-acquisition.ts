@@ -554,6 +554,96 @@ export function resolveEvidenceAcquisition(input: {
   };
 }
 
+// =============================================================================
+// Contract A (2026-10-29) — a continuous screen recording's statement follows
+// the layout its VALIDATED manifest states. A SINGLE_FILE record is ONE video
+// file, so it must never read "preserved as ordered segments"; a SEGMENTED
+// record (every installed client and historical record) keeps its wording.
+// =============================================================================
+
+const SINGLE_FILE_RECORDING_TEXT: Readonly<
+  Record<"DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" | "DIRECT_SCREEN_CAPTURE_IOS", { statement: string; observedByProovra: string }>
+> = {
+  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: {
+    statement:
+      "The submitting client reported this as a recording of the device screen by the PROOVRA Android app, using Android's screen-capture consent, in a server-issued capture session. The recording is preserved as one video file; PROOVRA independently recomputed its digest and established integrity when the session was completed.",
+    observedByProovra:
+      "A server-issued capture session, the recording file as received, and its digest, recomputed by PROOVRA.",
+  },
+  DIRECT_SCREEN_CAPTURE_IOS: {
+    statement:
+      "The submitting client reported this as a recording of the device screen by the PROOVRA iOS app, through Apple's user-authorised system screen broadcast, in a server-issued capture session. The broadcast is preserved as one video file; PROOVRA independently recomputed its digest and established integrity when the session was completed.",
+    observedByProovra:
+      "A server-issued capture session, the broadcast recording file as received, and its digest, recomputed by PROOVRA.",
+  },
+};
+
+/** The limitation texts whose legacy wording names segments, for a SINGLE_FILE record. */
+const SINGLE_FILE_LIMITATION_TEXT: Readonly<Partial<Record<AcquisitionLimitationCode, string>>> = {
+  SCREEN_SESSION_CONTINUITY_LIMITED:
+    "A continuous screen recording is preserved as one video file. PROOVRA records any interruptions, pauses, dropped frames and orientation changes the capture client reported; it does not guarantee that nothing occurred while recording was paused or interrupted, and an interrupted session is recorded as such rather than as a complete one.",
+  SCREEN_IOS_SYSTEM_BROADCAST_SCOPE:
+    "iOS screen capture runs as an Apple system broadcast that the user starts and stops from Apple's own broadcast controls. The operating system omits protected (DRM) content and can pause or end the broadcast at any time; PROOVRA records only the frames Apple delivered to its broadcast extension during the authorised session, preserved as one video file, and marks an interrupted session as such rather than as a complete one.",
+};
+
+export const CONTINUOUS_RECORDING_NO_AUDIO_STATEMENT = "No audio was recorded" as const;
+
+/**
+ * The audio statement of a continuous recording, from the tracks its validated
+ * manifest says were WRITTEN. Null when the manifest did not state them (a
+ * legacy client): PROOVRA does not guess.
+ */
+export function continuousRecordingAudioStatement(audioTracks: ReadonlyArray<string> | null | undefined): string | null {
+  if (!Array.isArray(audioTracks)) return null;
+  const app = audioTracks.includes("APP");
+  const mic = audioTracks.includes("MICROPHONE");
+  if (app && mic) return "Audio: app audio and microphone recorded";
+  if (app) return "Audio: app audio recorded";
+  if (mic) return "Audio: microphone recorded";
+  return CONTINUOUS_RECORDING_NO_AUDIO_STATEMENT;
+}
+
+export type ContinuousRecordingAcquisitionText = {
+  layout: "SEGMENTED" | "SINGLE_FILE";
+  statement: string;
+  observedByProovra: string;
+  /** Null when the capture client did not state its audio tracks. */
+  audioStatement: string | null;
+  /** The limitation texts for THIS record (layout-correct wording). */
+  limitationText: Readonly<Record<AcquisitionLimitationCode, string>>;
+};
+
+/**
+ * THE statement of a continuous screen recording, given the facts of its
+ * VALIDATED manifest (`readContinuousRecordingFacts`). Null for any other mode.
+ * An unknown / absent layout is the legacy SEGMENTED layout.
+ */
+export function continuousRecordingAcquisitionText(input: {
+  acquisitionMode: string | null | undefined;
+  layout: string | null | undefined;
+  audioTracks?: ReadonlyArray<string> | null;
+}): ContinuousRecordingAcquisitionText | null {
+  const mode = input.acquisitionMode;
+  if (mode !== "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" && mode !== "DIRECT_SCREEN_CAPTURE_IOS") return null;
+  const audioStatement = continuousRecordingAudioStatement(input.audioTracks);
+  if (input.layout === "SINGLE_FILE") {
+    return {
+      layout: "SINGLE_FILE",
+      ...SINGLE_FILE_RECORDING_TEXT[mode],
+      audioStatement,
+      limitationText: { ...ACQUISITION_LIMITATION_TEXT, ...SINGLE_FILE_LIMITATION_TEXT },
+    };
+  }
+  const d = DESCRIPTORS[mode];
+  return {
+    layout: "SEGMENTED",
+    statement: d.statement,
+    observedByProovra: d.observedByProovra,
+    audioStatement,
+    limitationText: ACQUISITION_LIMITATION_TEXT,
+  };
+}
+
 /**
  * ET-INT-12 — THE "submitted by" attribution of a secure-intake record, on
  * every surface (report, package, public Verify). It is a ROLE: the workspace
@@ -691,6 +781,9 @@ export const DERIVED_ASSET_TRANSFORMATIONS = [
   "screen-ocr/v1",
   "screen-overlap-analysis/v1",
   "screen-conversation-reconstruction/v1",
+  // 2026-10-29 — ONE combined MP4 derived from a legacy SEGMENTED continuous
+  // screen recording (multi-source: lineage lists every segment it joined).
+  "screen-recording-combine/v1",
   "unspecified-legacy",
 ] as const;
 export type DerivedAssetTransformation =
@@ -717,6 +810,7 @@ const TRANSFORMATION_BY_KIND: Readonly<Record<string, DerivedAssetTransformation
   video_keyframe: "video-keyframe/v1",
   screen_crop: "screen-crop/v1",
   screen_reconstruction: "screen-conversation-reconstruction/v1",
+  screen_recording_combined: "screen-recording-combine/v1",
 };
 
 export function derivedAssetTransformationForKind(

@@ -531,5 +531,33 @@ export async function runEvidenceFinalizationFanout(
     );
   }
 
+  // (8) 2026-10-29 — the DERIVED combined screen recording. A continuous
+  // screen recording sealed by a LEGACY client is N original segments; one
+  // combined MP4 is derived from them (originals untouched). Only a record that
+  // is a segmented continuous recording qualifies (a SINGLE_FILE recording is
+  // already one file). The run's default key (`<kind>:<evidenceId>`) is
+  // generation 1, so a repeated finalization collapses onto the same run.
+  // Best-effort + non-blocking, identical to steps 1-7; historical records use
+  // the owner's Prepare route.
+  try {
+    const { combinedRecordingApplicability } = await import(
+      "./media-intelligence/combined-recording.service.js"
+    );
+    if ((await combinedRecordingApplicability(input.evidenceId)).applicable) {
+      const enqueueResult = await enqueueMediaIntelligenceAnalysis({
+        teamId: input.teamId,
+        evidenceId: input.evidenceId,
+        kind: "combine_screen_recording",
+      });
+      if (!enqueueResult.enqueued && !String(enqueueResult.reason ?? "").startsWith("job_")) {
+        result.failureReasons.push(`combined_recording:${String(enqueueResult.reason).slice(0, 80)}`);
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "combined_recording_failed";
+    result.failureReasons.push(`combined_recording:${msg.slice(0, 80)}`);
+    logger?.warn?.({ ...tag, err: msg.slice(0, 200) }, "finalize_fanout.combined_recording_failed");
+  }
+
   return result;
 }

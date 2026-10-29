@@ -218,8 +218,9 @@ describe("Phase IA-digest-policy — TSA digest thread is single-sourced", () =>
   );
 
   it("finalize callsite passes fileSha256 as the TSA digest", () => {
+    // 2026-10-29: the input kind rides along for the request log only.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /createEvidenceTimestamp\(\{\s*digestHex:\s*fileSha256\s*,?\s*\}\)/,
+      /createEvidenceTimestamp\(\{\s*digestHex:\s*fileSha256\s*,?\s*(?:inputKind:\s*tsaInputKind\s*,?\s*)?\}\)/,
     );
   });
 

@@ -146,6 +146,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281026001400_collaboration_vocabulary_normalise",
       // Collaboration Team archive and step-up assurance: passkey factor, step-up ladder columns, Organization assurance policy, session assurance, archive provenance. EXPAND.
       "20281028000000_team_archive_step_up_assurance",
+      // Combined screen recording: run kind, derived asset kind and the derived size ceiling for ONE DERIVED MP4 of a legacy segmented recording. EXPAND.
+      "20281029000000_screen_recording_combined_derivative",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

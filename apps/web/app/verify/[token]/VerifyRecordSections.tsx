@@ -441,7 +441,14 @@ export function ItemInventoryTable({ items, addToast }: { items: VerifyEvidenceA
                 <th scope="row" style={{ ...cell, fontWeight: 800 }}>
                   {item.label || `Item ${index + 1}`}
                 </th>
-                <td style={cell}>{kindWord(item.kind)}</td>
+                <td style={cell}>
+                  {/* Wire contract D — a technical part is never evidence of a kind. */}
+                  {item.partPresentation === "capture_record"
+                    ? "Capture record (system-generated)"
+                    : item.partPresentation === "recording_part"
+                      ? "Recording part (technical)"
+                      : kindWord(item.kind)}
+                </td>
                 <td style={cell}>{item.displaySizeLabel ?? "Not recorded"}</td>
                 <td style={{ ...cell, minWidth: 0 }}>
                   {item.sha256 ? (

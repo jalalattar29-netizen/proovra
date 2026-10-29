@@ -478,6 +478,37 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "every Collaboration Team read selects the whole row; its absence fails team reads, not just archive",
     ),
   ),
+
+  /**
+   * THE COMBINED SCREEN RECORDING (`20281029000000`). Three CHECK swaps; each
+   * is asserted by its DEFINITION (the pre-widening constraint has the same
+   * name and is exactly what must be refused). Without them the run row, the
+   * derived row, or a recording larger than 50 MB is rejected by the database.
+   */
+  {
+    id: "media_intelligence_runs_kind_bounded.combine_screen_recording",
+    kind: "constraint",
+    detail: 'check "media_intelligence_runs_kind_bounded" on public."media_intelligence_runs" must admit kind combine_screen_recording',
+    requiredBy:
+      "the combined-recording run is a MediaIntelligenceRun; creating it (after seal, or the owner's Prepare action) is rejected by the narrower CHECK",
+    suppliedBy: "20281029000000_screen_recording_combined_derivative",
+  },
+  {
+    id: "evidence_part_derived_assets_kind_bounded.screen_recording_combined",
+    kind: "constraint",
+    detail:
+      'check "evidence_part_derived_assets_kind_bounded" on public."evidence_part_derived_assets" must admit asset kind screen_recording_combined',
+    requiredBy: "the worker records the combined recording as a derived row of this kind; the narrower CHECK rejects the write",
+    suppliedBy: "20281029000000_screen_recording_combined_derivative",
+  },
+  {
+    id: "evidence_part_derived_assets_size_bounded.combined_ceiling",
+    kind: "constraint",
+    detail:
+      'check "evidence_part_derived_assets_size_bounded" on public."evidence_part_derived_assets" must admit size_bytes up to 671088640',
+    requiredBy: "a combined recording is up to 640 MiB; the previous 50,000,000-byte ceiling rejects every real one",
+    suppliedBy: "20281029000000_screen_recording_combined_derivative",
+  },
 ]);
 
 /**
@@ -529,6 +560,25 @@ function singleColumnUniqueProbe(table, column) {
        AND i.indisunique
        AND i.indnatts = 1
        AND a.attname = '${column}'
+     LIMIT 1`;
+}
+
+/**
+ * A CHECK constraint whose DEFINITION matches `likePattern` (a SQL LIKE
+ * pattern, quotes already doubled). Asserted by definition because a widened
+ * CHECK keeps the name of the narrower one it replaced.
+ */
+function checkDefinitionProbe(table, conname, likePattern) {
+  return `
+    SELECT 1
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+       AND t.relname = '${table}'
+       AND c.conname = '${conname}'
+       AND c.contype = 'c'
+       AND pg_get_constraintdef(c.oid) LIKE '${likePattern}'
      LIMIT 1`;
 }
 
@@ -837,6 +887,22 @@ const PROBES = Object.freeze({
      LIMIT 1`,
   "mfa_webauthn_credentials.credential_id_unique": singleColumnUniqueProbe("mfa_webauthn_credentials", "credential_id"),
   "mfa_webauthn_credentials.factor_id_unique": singleColumnUniqueProbe("mfa_webauthn_credentials", "factor_id"),
+  // 20281029000000 — the combined screen recording (CHECKs by definition).
+  "media_intelligence_runs_kind_bounded.combine_screen_recording": checkDefinitionProbe(
+    "media_intelligence_runs",
+    "media_intelligence_runs_kind_bounded",
+    "%''combine_screen_recording''%",
+  ),
+  "evidence_part_derived_assets_kind_bounded.screen_recording_combined": checkDefinitionProbe(
+    "evidence_part_derived_assets",
+    "evidence_part_derived_assets_kind_bounded",
+    "%''screen_recording_combined''%",
+  ),
+  "evidence_part_derived_assets_size_bounded.combined_ceiling": checkDefinitionProbe(
+    "evidence_part_derived_assets",
+    "evidence_part_derived_assets_size_bounded",
+    "%671088640%",
+  ),
   ...Object.fromEntries(
     RUNTIME_SCHEMA_REQUIREMENTS.filter(
       (r) => r.kind === "column" && r.suppliedBy === "20281028000000_team_archive_step_up_assurance",

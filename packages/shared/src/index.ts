@@ -270,6 +270,7 @@ export {
   MOCK_LOCATION_DETAIL,
   locationRequirementFromIntakePlan,
   parseLocationRequestOutcome,
+  evidenceLocationMeaning,
   resolveEvidenceLocation,
   EVIDENCE_LOCATION_COPY,
   evidenceLocationCopy,
@@ -2653,7 +2654,13 @@ export {
   liveDeltaMaterialsText,
 } from "./canonical-evidence-materials.js";
 export type { LiveDeltaMaterial } from "./canonical-evidence-materials.js";
-export { TSA_FAILURE_NOTES, tsaFailureNote } from "./tsa-failure-copy.js";
+export {
+  TSA_FAILURE_NOTES,
+  TSA_NOT_OBTAINED_SUPPORT_STATEMENT,
+  tsaFailureCategory,
+  tsaFailureNote,
+} from "./tsa-failure-copy.js";
+export type { TsaFailureCategory } from "./tsa-failure-copy.js";
 export type {
   CanonicalSnapshotLiveSemantics,
   CanonicalWorkspaceScope,
@@ -2830,3 +2837,9 @@ export * from "./review-event-taxonomy.js";
 
 // Members audit SEC-08 — share-grant lifetimes (owner links, external review).
 export * from "./share-grant-policy.js";
+
+// 2026-10-29 — the DERIVED combined copy of a legacy segmented screen recording.
+export * from "./screen-recording-combine.js";
+
+// 2026-10-29 — wire contract D: user evidence items vs technical artifacts.
+export * from "./evidence-artifact-projection.js";

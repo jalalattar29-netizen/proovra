@@ -57,6 +57,13 @@ const MANIFEST_STUB = dataUrl(`
   export class ContinuousManifestError extends Error {}
 `);
 
+// The single-file manifest builder (src/continuous-single-file.ts) is not what this file tests.
+const SINGLE_FILE_STUB = dataUrl(`
+  export const buildSingleFileManifest = () => ({});
+  export const singleFileName = () => "screen-recording.mp4";
+  export const singleFilePutTimeoutMs = () => 1;
+`);
+
 // The real retry rule (no imports); the native binding is not what this file tests.
 const RETRY_URL = dataUrl(compile("../src/capture/capture-retry.ts"));
 const NATIVE_STUB = dataUrl(
@@ -71,6 +78,7 @@ const load = async (file) => {
     .replace(/from ["']\.\.\/modules\/proovra-screen-capture["']/g, `from "${NATIVE_STUB}"`)
     .replace(/from ["']\.\/direct-capture["']/g, `from "${DIRECT_CAPTURE_STUB}"`)
     .replace(/from ["']\.\/continuous-manifest["']/g, `from "${MANIFEST_STUB}"`)
+    .replace(/from ["']\.\/continuous-single-file["']/g, `from "${SINGLE_FILE_STUB}"`)
     .replace(/from ["']react-native["']/g, `from "${RN_STUB}"`)
     .replace(/from ["']expo-file-system["']/g, `from "${FS_STUB}"`)
     .replace(/from ["']@proovra\/shared["']/g, `from "${SHARED_STUB}"`);
@@ -101,7 +109,7 @@ test("both screens pass the platform context's active workspace", () => {
   for (const [screenFile, call] of [
     // AUD-005 — a resumed staging keeps the workspace it was started in.
     ["../app/(stack)/screen-capture.tsx", "teamId: resume ? resume.teamId : teamId,"],
-    ["../app/(stack)/continuous-capture.tsx", "beginContinuousSession({ teamId })"],
+    ["../app/(stack)/continuous-capture.tsx", "beginContinuousSession({\n        teamId,"],
   ]) {
     const src = readFileSync(resolve(HERE, screenFile), "utf8");
     assert.match(src, /const teamId = usePlatformContext\(\)\.context\?\.activeTeamId \?\? null;/, screenFile);

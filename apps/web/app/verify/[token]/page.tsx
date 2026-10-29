@@ -1165,7 +1165,14 @@ export default function VerifyPage() {
   const locationState = data ? readVerifyLocationState(data) : null;
   const reference = recordFacts?.verificationReference ?? canonicalFacts?.reference ?? null;
   const canonicalIssuedAtUtc = canonicalFacts?.issuedAtUtc ?? null;
-  const isMultipart = (recordFacts?.itemCount ?? evidenceContentSummary?.itemCount ?? 0) > 1;
+  // Wire contract D — digest semantics follow the STORED parts (a screen
+  // recording is one item but its digest is the multipart package digest).
+  const technicalPartCount = Math.max(
+    data?.evidenceContent?.artifacts?.technical?.storedPartCount ?? 0,
+    evidenceItems.length,
+  );
+  const isMultipart =
+    technicalPartCount > 1 || (recordFacts?.itemCount ?? evidenceContentSummary?.itemCount ?? 0) > 1;
 
   const otsFacts: OtsFacts = {
     bitcoinBlockHeight: otsView.bitcoinBlockHeight,
@@ -1577,6 +1584,7 @@ export default function VerifyPage() {
                 ) : (
                   <ContentPreviewSurface
                     items={evidenceItems}
+                    artifacts={data.evidenceContent?.artifacts ?? null}
                     summary={evidenceContentSummary}
                     primaryItem={data.evidenceContent?.primaryItem ?? null}
                     defaultPreviewItemId={data.evidenceContent?.defaultPreviewItemId ?? null}
@@ -1705,7 +1713,7 @@ export default function VerifyPage() {
                       <MaterialField
                         label={
                           tsaDetails.timestampedDigestLabel ??
-                          getTimestampDigestLabel({ itemCount: evidenceContentSummary?.itemCount, tsaInputKind: tsaDetails.inputKind })
+                          getTimestampDigestLabel({ itemCount: technicalPartCount, tsaInputKind: tsaDetails.inputKind })
                         }
                         subtitle={
                           tsaDetails.timestampedDigestNote ??

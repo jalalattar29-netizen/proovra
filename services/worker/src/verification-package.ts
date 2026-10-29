@@ -89,6 +89,11 @@ import {
   serializePackageSeal,
   type PackageSealSignature,
   findForbiddenArtifactPhrases,
+  // 2026-10-29 — wire contract D: user evidence items vs technical parts.
+  projectEvidenceArtifacts,
+  SCREEN_RECORDING_COMBINED_ASSET_KIND,
+  continuousRecordingFactsFromCustody,
+  continuousRecordingAcquisitionText,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -1381,10 +1386,21 @@ export function buildPackageAcquisitionRecord(params: {
   acquisitionMode: string | null;
   signedAtUtc: string | null;
   evidenceFiles: ReadonlyArray<{ artifactClass?: string | null }>;
+  /**
+   * Contract A — the custody events, read ONLY for a continuous recording's
+   * manifest facts (layout, audio tracks). Absent ⇒ the legacy wording.
+   */
+  custody?: ReadonlyArray<{ eventType?: unknown; payload?: unknown }> | null;
 }): Record<string, unknown> {
   const acquisition =
     params.chain?.acquisition ??
     resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode });
+  const continuousFacts = continuousRecordingFactsFromCustody(params.custody ?? null);
+  const continuousText = continuousRecordingAcquisitionText({
+    acquisitionMode: acquisition.mode,
+    layout: continuousFacts?.layout ?? null,
+    audioTracks: continuousFacts?.audioTracks ?? null,
+  });
   const session = params.chain?.captureSession ?? null;
   const captureRecordCount = params.evidenceFiles.filter(
     (f) => normalizePartArtifactClass(f.artifactClass) === "CAPTURE_MANIFEST",
@@ -1405,13 +1421,14 @@ export function buildPackageAcquisitionRecord(params: {
       recorded: acquisition.recorded,
       recordedBy: acquisition.recordedBy,
       label: acquisition.label,
-      statement: acquisition.statement,
+      // Contract A — a single-file recording is "preserved as one video file".
+      statement: continuousText?.statement ?? acquisition.statement,
       // What PROOVRA observed, what was attested, and what preceded its
       // visibility — always from THE current mapping for the recorded mode.
       ...(() => {
         const wording = resolveEvidenceAcquisition({ acquisitionMode: acquisition.mode === "LEGACY_NOT_RECORDED" ? null : acquisition.mode });
         return {
-          observedByProovra: wording.observedByProovra,
+          observedByProovra: continuousText?.observedByProovra ?? wording.observedByProovra,
           attested: wording.attested,
           beforeProovraVisibility: wording.beforeProovraVisibility,
           // AUD-015 — the one observation boundary (receipt onward only).
@@ -1427,8 +1444,12 @@ export function buildPackageAcquisitionRecord(params: {
         acquisition.channelAuthorityLabel ?? resolveEvidenceAcquisition({ acquisitionMode: params.acquisitionMode }).channelAuthorityLabel,
       limitations: acquisition.limitations.map((code) => ({
         code,
-        text: ACQUISITION_LIMITATION_TEXT[code],
+        text: (continuousText?.limitationText ?? ACQUISITION_LIMITATION_TEXT)[code],
       })),
+      // Contract A — exactly which audio tracks were recorded (null: not stated).
+      ...(continuousText
+        ? { recordingLayout: continuousText.layout, audioStatement: continuousText.audioStatement }
+        : {}),
     },
     captureSession: session
       ? {
@@ -1503,6 +1524,8 @@ export function buildDerivedManifest(params: {
     items: items.map((d) => ({
       artifactClass: d.artifactClass,
       sourcePartIndex: d.sourcePartIndex,
+      // A combined recording is derived from several parts (COMBINE); absent otherwise.
+      sourcePartIndexes: d.sourcePartIndexes,
       sourceSha256AtGeneration: d.sourceSha256AtGeneration,
       assetKind: d.assetKind,
       variantKey: d.variantKey,
@@ -1512,8 +1535,31 @@ export function buildDerivedManifest(params: {
       derivedSha256: d.derivedSha256,
       status: d.status,
       generatedAtUtc: d.generatedAtUtc,
+      // COMBINE — the combined review video is named for what it is; its
+      // bytes are not in this package (only its lineage and digest).
+      ...(d.assetKind === SCREEN_RECORDING_COMBINED_ASSET_KIND
+        ? { label: COMBINED_REVIEW_VIDEO_PACKAGE_LABEL, bytesIncluded: false }
+        : {}),
     })),
   };
+}
+
+/** COMBINE — how the package names the derived combined review video. */
+export const COMBINED_REVIEW_VIDEO_PACKAGE_LABEL =
+  "Combined review video (derived from the original segments; not an original)";
+
+/** The README line for a COMPLETED combined review video (null when there is none). */
+export function combinedReviewVideoReadmeLine(
+  chain: import("@proovra/shared").ProvenanceChain | null | undefined,
+): string | null {
+  const combined = (chain?.derivedArtifacts ?? []).find(
+    (d) => d.assetKind === SCREEN_RECORDING_COMBINED_ASSET_KIND && d.status === "COMPLETED",
+  );
+  if (!combined) return null;
+  const sources = Array.isArray(combined.sourcePartIndexes) ? combined.sourcePartIndexes.length : null;
+  return `- ${COMBINED_REVIEW_VIDEO_PACKAGE_LABEL}: SHA-256 ${combined.derivedSha256 ?? "not recorded"}${
+    sources !== null ? `, from ${sources} source segment${sources === 1 ? "" : "s"}` : ""
+  }. Its lineage is in derived/derived-manifest.json; the video's bytes are not included in this package.`;
 }
 
 // Exported for focused tests / artifact harnesses that verify the emitted
@@ -1800,14 +1846,39 @@ ${established.filter(Boolean).map((l) => `- ${l}`).join("\n")}
 ${reviewer}`;
 }
 
+/**
+ * Wire contract D (2026-10-29) — how many EVIDENCE ITEMS a user sees in the
+ * package's files: one continuous screen recording is one item however many
+ * parts it was stored as; a capture record is never an item. Additive and
+ * presentation-only: the files, their paths (evidence-parts/), order and
+ * digests are unchanged, and `partCount` stays the technical file count.
+ */
+function packageUserItemCount(
+  evidenceFiles: VerificationEvidenceFile[],
+  acquisitionMode: string | null | undefined,
+): number {
+  const projection = projectEvidenceArtifacts({
+    acquisitionMode: acquisitionMode ?? null,
+    parts: evidenceFiles.map((file, index) => ({
+      partIndex: file.partIndex ?? index,
+      artifactClass: normalizePartArtifactClass(file.artifactClass),
+    })),
+  });
+  return Math.max(1, projection.counts.userItems);
+}
+
 function buildEvidenceManifest(
-  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>
+  evidenceFiles: Array<VerificationEvidenceFile & { finalName: string }>,
+  acquisitionMode?: string | null
 ): Record<string, unknown> {
   const multipart = evidenceFiles.length > 1;
 
   return {
     multipart,
+    // Technical: every stored file (originals + capture records).
     partCount: evidenceFiles.length,
+    // Wire contract D — the evidence items those files make up.
+    userItemCount: packageUserItemCount(evidenceFiles, acquisitionMode),
     files: evidenceFiles.map((file, index) => ({
       index: index + 1,
       partIndex: file.partIndex ?? index + 1,
@@ -2848,8 +2919,11 @@ Signature: ________________________
 export function buildSystemProcessDeclaration(params: {
   evidenceFiles: VerificationEvidenceFile[];
   metadata: VerificationPackageMetadata;
+  /** COMBINE — read only to name a derived combined review video. */
+  chain?: import("@proovra/shared").ProvenanceChain | null;
 }): string {
   const reviewerEvidence = buildReviewerEvidenceMetadata(params.metadata);
+  const combinedLine = combinedReviewVideoReadmeLine(params.chain ?? null);
 
   return `# PROOVRA System Process Declaration
 
@@ -2857,11 +2931,12 @@ This package documents a PROOVRA evidence record and the integrity-verification 
 
 ## Preserved originals
 
-- Included preserved item count: ${params.evidenceFiles.length}
+- Evidence items: ${packageUserItemCount(params.evidenceFiles, params.metadata.acquisitionMode)}
+- Preserved original files (technical parts, including any system-generated capture record): ${params.evidenceFiles.length}
 - Reviewer evidence type: ${safeText(reviewerEvidence.reviewerEvidenceType, "Not included")}
 - Raw evidence type enum: ${safeText(reviewerEvidence.rawEvidenceType, "Not included")}
 - Capture method: ${safeText(resolvePackageCaptureMethodLabel(params.metadata), "Not included")}
-
+${combinedLine ? `\n## Derived review files\n\n${combinedLine}\n` : ""}
 ## Integrity process
 
 1. The preserved original file(s) are stored and referenced as the source evidence.
@@ -3409,7 +3484,7 @@ export async function createVerificationPackage(data: {
       if (evidenceFilesWithFinalName.length > 1) {
         appendEntry(
           "evidence-manifest.json",
-          jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName)),
+          jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName, metadata.acquisitionMode ?? null)),
           "application/json"
         );
       }
@@ -3423,7 +3498,7 @@ export async function createVerificationPackage(data: {
 
       appendEntry(
         "evidence-manifest.json",
-        jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName)),
+        jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName, metadata.acquisitionMode ?? null)),
         "application/json"
       );
     }
@@ -3903,6 +3978,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         buildSystemProcessDeclaration({
           evidenceFiles,
           metadata,
+          chain: data.provenanceChain ?? null,
         })
       ),
       "text/markdown"
@@ -4026,6 +4102,9 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           acquisitionMode: metadata.acquisitionMode ?? null,
           signedAtUtc: metadata.signedAtUtc ?? null,
           evidenceFiles: evidenceFilesWithFinalName,
+          custody: Array.isArray(data.custody)
+            ? (data.custody as Array<{ eventType?: unknown; payload?: unknown }>)
+            : null,
         }),
       ),
       "application/json",

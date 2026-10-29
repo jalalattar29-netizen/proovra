@@ -171,6 +171,17 @@ import {
   deriveReviewState,
   deriveDecisionProjection,
   type EvidenceReviewerAlertCode,
+  // 2026-10-29 — wire contract D: user evidence items vs technical parts.
+  projectEvidenceArtifacts,
+  countEvidenceUserItems,
+  classifyEvidencePartPresentation,
+  CAPTURE_RECORD_SYSTEM_LABEL,
+  RECORDING_TECHNICAL_PART_LABEL,
+  safeAttachmentContentDisposition,
+  type EvidenceArtifactProjection,
+  type EvidencePartPresentation,
+  continuousRecordingFactsFromCustody,
+  continuousRecordingAcquisitionText,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -594,7 +605,7 @@ const CreateEvidenceBody = z.object({
     .optional(),
   // The outcome of a location request that produced no coordinates; recorded
   // in the creation custody event (canonical location state). Optional.
-  locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE"]).optional(),
+  locationRequestOutcome: z.enum(["DENIED", "UNAVAILABLE", "TIMEOUT", "NOT_REQUESTED"]).optional(),
 });
 
 const ClaimBody = z.object({
@@ -932,6 +943,14 @@ type PublicEvidenceAsset = {
   previewDataUrl?: string | null;
   previewTextExcerpt?: string | null;
   previewCaption?: string | null;
+  /**
+   * 2026-10-29 (wire contract D) — how this stored part is presented: its own
+   * user item, a technical part of ONE screen recording, or a system-generated
+   * capture record (never user evidence). The inventory lists every part; the
+   * counts and the user-facing item list follow this.
+   */
+  artifactClass: "ORIGINAL" | "CAPTURE_MANIFEST";
+  partPresentation: EvidencePartPresentation;
 };
 
 type PublicVerifyIntegrityProof = {
@@ -2915,11 +2934,88 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
   };
 }
 
-async function getEvidenceItemCount(evidenceId: string): Promise<number> {
-  const count = await prisma.evidencePart.count({
-    where: { evidenceId },
+/**
+ * 2026-10-29 (wire contract D) — the USER item count and the technical stored
+ * part count. A continuous screen recording is ONE item however many segments
+ * it was stored as; a CAPTURE_MANIFEST part is never an item. `storedPartCount`
+ * is every part row (technical sections and digest labels only).
+ */
+async function getEvidenceItemCounts(
+  evidenceId: string,
+): Promise<{ itemCount: number; storedPartCount: number; originalPartCount: number }> {
+  const [evidence, parts] = await Promise.all([
+    prisma.evidence.findUnique({ where: { id: evidenceId }, select: { acquisitionMode: true } }),
+    prisma.evidencePart.findMany({
+      where: { evidenceId },
+      select: { partIndex: true, artifactClass: true },
+    }),
+  ]);
+  const projection = projectEvidenceArtifacts({
+    acquisitionMode: evidence?.acquisitionMode ?? null,
+    parts,
   });
-  return count > 0 ? count : 1;
+  return {
+    itemCount: projection.counts.userItems > 0 ? projection.counts.userItems : 1,
+    storedPartCount: projection.technical.storedPartCount,
+    originalPartCount: projection.technical.originalPartCount,
+  };
+}
+
+async function getEvidenceItemCount(evidenceId: string): Promise<number> {
+  return (await getEvidenceItemCounts(evidenceId)).itemCount;
+}
+
+/**
+ * Contract A — a continuous screen recording's statement, from the validated
+ * manifest facts in custody, in THE shared wording; null for any other record.
+ */
+function continuousRecordingTextOf(
+  acquisitionMode: string | null | undefined,
+  custody: ReadonlyArray<{ eventType?: unknown; payload?: unknown }>,
+) {
+  const facts = continuousRecordingFactsFromCustody(custody);
+  const text = continuousRecordingAcquisitionText({
+    acquisitionMode,
+    layout: facts?.layout ?? null,
+    audioTracks: facts?.audioTracks ?? null,
+  });
+  return text
+    ? {
+        layout: text.layout,
+        statement: text.statement,
+        observedByProovra: text.observedByProovra,
+        audioStatement: text.audioStatement,
+      }
+    : null;
+}
+
+/**
+ * The wire shape of the projection: user items by part index (never a file
+ * name — the content items already carry what the surface may show) and the
+ * technical counts. Derived rows are not projected here.
+ */
+function toPublicArtifactProjection(
+  a: EvidenceArtifactProjection,
+  recording: ReturnType<typeof continuousRecordingTextOf> = null,
+) {
+  return {
+    // Contract A — a continuous recording's layout/audio statement (shared wording).
+    recording,
+    userItems: a.userItems.map((item) => ({
+      kind: item.kind,
+      label: item.kind === "recording" ? item.label : null,
+      partIndexes: item.partIndexes,
+      primaryPartIndex: item.primaryPartIndex,
+      layout: item.layout,
+    })),
+    technical: {
+      originalPartCount: a.technical.originalPartCount,
+      captureRecordCount: a.technical.captureRecordCount,
+      storedPartCount: a.technical.storedPartCount,
+      captureRecordPartIndexes: a.technical.captureRecordPartIndexes,
+    },
+    counts: a.counts,
+  };
 }
 
 /** AUD-014 — the retention authority's platform policy: COMPLIANCE Object Lock configured. */
@@ -3492,7 +3588,12 @@ function getEvidenceListOrderBy(
 }
 
 function mapEvidenceListItem(item: SelectedEvidenceListItem) {
-  const itemCount = item._count.parts > 0 ? item._count.parts : 1;
+  // Wire contract D — `_count.parts` counts ORIGINAL parts only (see
+  // EVIDENCE_LIST_SELECT); a continuous screen recording is one item.
+  const itemCount = countEvidenceUserItems({
+    acquisitionMode: item.acquisitionMode ?? null,
+    originalPartCount: item._count.parts,
+  });
   const storage = getStorageProtectionSummaryFromSnapshot({
     storageRegion: item.storageRegion,
     storageObjectLockMode: item.storageObjectLockMode,
@@ -4002,8 +4103,9 @@ const EVIDENCE_LIST_SELECT = {
       },
     },
   },
+  // Wire contract D — ORIGINAL parts only: a capture record is never an item.
   _count: {
-    select: { parts: true },
+    select: { parts: { where: { artifactClass: "ORIGINAL" } } },
   },
 } as const;
 
@@ -4313,6 +4415,8 @@ async function buildPublicEvidenceContent(params: {
     originalFileName?: string | null;
     displayFileName?: string | null;
     recordedAt?: Date | string | null;
+    /** Wire contract D — required so no caller can forget it. */
+    acquisitionMode: string | null;
   };
   parts: Array<{
     id: string;
@@ -4328,6 +4432,8 @@ async function buildPublicEvidenceContent(params: {
     storageKey: string;
     /** ET-SM-03 — the version this part was sealed at. */
     storageVersionId?: string | null;
+    /** Wire contract D — ORIGINAL | CAPTURE_MANIFEST; required. */
+    artifactClass: string | null;
   }>;
 }): Promise<{
   summary: PublicEvidenceContentSummary;
@@ -4335,11 +4441,22 @@ async function buildPublicEvidenceContent(params: {
   primaryItem: PublicEvidenceAsset | null;
   previewPolicy: PublicPreviewPolicy;
   originalUrlsIssued: number;
+  /** Wire contract D — user items vs technical parts, for every surface. */
+  artifacts: EvidenceArtifactProjection;
 }> {
   let originalUrlsIssued = 0;
   const labelKey = (key: string | null | undefined): string | null =>
     params.labelSource === "OWNER_WORKSPACE" ? key ?? null : null;
   const multipart = params.parts.length > 1;
+  const artifacts = projectEvidenceArtifacts({
+    acquisitionMode: params.evidence.acquisitionMode,
+    parts: params.parts,
+  });
+  const presentationOf = (artifactClass: string | null | undefined) =>
+    classifyEvidencePartPresentation({
+      acquisitionMode: params.evidence.acquisitionMode,
+      artifactClass,
+    });
   const singlePart = params.parts.length === 1 ? params.parts[0]! : null;
 
   const accessPolicy = params.accessPolicy;
@@ -4365,26 +4482,38 @@ async function buildPublicEvidenceContent(params: {
         params.parts.map(async (part) => {
           const kind = detectEvidenceAssetKind(part.mimeType);
           const sizeBytes = bigintToString(part.sizeBytes);
-          const resolvedRole = buildRoleDecision({
-            privateRole: part.privateRole ?? null,
-            checklistStepId: part.checklistStepId ?? null,
-            fallbackRole:
-              params.evidence.storageBucket === part.storageBucket &&
-              params.evidence.storageKey === part.storageKey
-                ? "primary_evidence"
-                : "supporting_evidence",
-            fallbackRoleSource:
-              params.evidence.storageBucket === part.storageBucket &&
-              params.evidence.storageKey === part.storageKey
-                ? "fallback_root"
-                : "fallback_first",
-          });
+          // Wire contract D — a capture record is system-generated, never a
+          // supporting evidence item: it carries no reviewer role of its own.
+          const partPresentation = presentationOf(part.artifactClass);
+          const isCaptureRecord = partPresentation === "capture_record";
+          const resolvedRole = isCaptureRecord
+            ? {
+                artifactRole: "attachment" as const,
+                roleSource: "fallback_first" as const,
+                isExplicit: false,
+                checklistStepId: null,
+                checklistStepLabel: null,
+              }
+            : buildRoleDecision({
+                privateRole: part.privateRole ?? null,
+                checklistStepId: part.checklistStepId ?? null,
+                fallbackRole:
+                  params.evidence.storageBucket === part.storageBucket &&
+                  params.evidence.storageKey === part.storageKey
+                    ? "primary_evidence"
+                    : "supporting_evidence",
+                fallbackRoleSource:
+                  params.evidence.storageBucket === part.storageBucket &&
+                  params.evidence.storageKey === part.storageKey
+                    ? "fallback_root"
+                    : "fallback_first",
+              });
           const isPrimary = isPrimaryReviewerArtifactRole(
             resolvedRole.artifactRole
           );
 
           const canPreviewThisItem =
-            canExposeContent && isPreviewableEvidenceKind(kind);
+            !isCaptureRecord && canExposeContent && isPreviewableEvidenceKind(kind);
 
           /*
            * A PREVIEW GRANT IS NOT A DOWNLOAD GRANT (2026-09-29, audit H3).
@@ -4424,12 +4553,14 @@ async function buildPublicEvidenceContent(params: {
             : null;
           if (viewUrl) originalUrlsIssued += 1;
 
-          const label = getEvidencePartDisplayLabel({
-            partIndex: part.partIndex,
-            mimeType: part.mimeType,
-            originalFileName: part.originalFileName,
-            storageKey: labelKey(part.storageKey),
-          });
+          const label = isCaptureRecord
+            ? CAPTURE_RECORD_SYSTEM_LABEL
+            : getEvidencePartDisplayLabel({
+                partIndex: part.partIndex,
+                mimeType: part.mimeType,
+                originalFileName: part.originalFileName,
+                storageKey: labelKey(part.storageKey),
+              });
 
           const preview = params.previews?.get(part.id);
 
@@ -4445,9 +4576,11 @@ async function buildPublicEvidenceContent(params: {
             sha256: part.sha256 ?? null,
             isPrimary,
             artifactRole: resolvedRole.artifactRole,
-            artifactRoleLabel: getReviewerArtifactRoleLabel(
-              resolvedRole.artifactRole
-            ),
+            artifactRoleLabel: isCaptureRecord
+              ? CAPTURE_RECORD_SYSTEM_LABEL
+              : partPresentation === "recording_part" && !isPrimary
+                ? RECORDING_TECHNICAL_PART_LABEL
+                : getReviewerArtifactRoleLabel(resolvedRole.artifactRole),
             artifactRoleSource: resolvedRole.roleSource,
             checklistStepId: resolvedRole.checklistStepId,
             checklistStepLabel: resolvedRole.checklistStepLabel,
@@ -4462,26 +4595,35 @@ async function buildPublicEvidenceContent(params: {
               : canDownload
                 ? "download_only"
                 : "metadata_only",
-            originalPreservationNote: buildOriginalPreservationNote({
-              label,
-              kind,
-            }),
-            reviewerRepresentationLabel: buildReviewerRepresentationLabel({
-              kind,
-              artifactRole: resolvedRole.artifactRole,
-            }),
-            reviewerRepresentationNote: buildReviewerRepresentationNote({
-              kind,
-              label,
-              canExposeContent: canPreviewThisItem,
-            }),
+            originalPreservationNote: isCaptureRecord
+              ? "System-generated capture record preserved with this record. It is technical material, not user evidence."
+              : buildOriginalPreservationNote({
+                  label,
+                  kind,
+                }),
+            reviewerRepresentationLabel: isCaptureRecord
+              ? CAPTURE_RECORD_SYSTEM_LABEL
+              : buildReviewerRepresentationLabel({
+                  kind,
+                  artifactRole: resolvedRole.artifactRole,
+                }),
+            reviewerRepresentationNote: isCaptureRecord
+              ? "The capture record describes how this record was captured. Its digest is listed with the technical parts."
+              : buildReviewerRepresentationNote({
+                  kind,
+                  label,
+                  canExposeContent: canPreviewThisItem,
+                }),
             verificationMaterialsNote: buildVerificationMaterialsNote({ kind }),
+            // A capture record's JSON is never shown as a content excerpt.
             previewDataUrl:
-              canExposeContent ? preview?.previewDataUrl ?? null : null,
+              canExposeContent && !isCaptureRecord ? preview?.previewDataUrl ?? null : null,
             previewTextExcerpt:
-              canExposeContent ? preview?.previewTextExcerpt ?? null : null,
+              canExposeContent && !isCaptureRecord ? preview?.previewTextExcerpt ?? null : null,
             previewCaption:
-              canExposeContent ? preview?.previewCaption ?? null : null,
+              canExposeContent && !isCaptureRecord ? preview?.previewCaption ?? null : null,
+            artifactClass: isCaptureRecord ? ("CAPTURE_MANIFEST" as const) : ("ORIGINAL" as const),
+            partPresentation,
           };
         })
       )
@@ -4606,6 +4748,11 @@ async function buildPublicEvidenceContent(params: {
                 canExposeContent ? preview?.previewTextExcerpt ?? null : null,
               previewCaption:
                 canExposeContent ? preview?.previewCaption ?? null : null,
+              artifactClass:
+                singlePart?.artifactClass === "CAPTURE_MANIFEST"
+                  ? ("CAPTURE_MANIFEST" as const)
+                  : ("ORIGINAL" as const),
+              partPresentation: presentationOf(singlePart?.artifactClass ?? "ORIGINAL"),
             };
           })(),
         ])
@@ -4644,7 +4791,22 @@ async function buildPublicEvidenceContent(params: {
   const primaryItem =
     items.find((item) => item.isPrimary) ?? (items.length > 0 ? items[0] : null);
 
-  const summary = items.reduce<PublicEvidenceContentSummary>(
+  // Wire contract D — the summary counts USER items: every part of one screen
+  // recording is counted once (as the recording), a capture record never.
+  const recordingParts = items.filter((item) => item.partPresentation === "recording_part");
+  const recordingItem: PublicEvidenceAsset | null =
+    recordingParts.length > 0
+      ? {
+          ...(recordingParts.find((item) => item.isPrimary) ?? recordingParts[0]!),
+          previewable: recordingParts.some((item) => item.previewable),
+          downloadable: recordingParts.some((item) => item.downloadable),
+        }
+      : null;
+  const userFacingItems: PublicEvidenceAsset[] = [
+    ...(recordingItem ? [recordingItem] : []),
+    ...items.filter((item) => item.partPresentation === "user_item"),
+  ];
+  const summary = userFacingItems.reduce<PublicEvidenceContentSummary>(
     (acc, item) => {
       acc.itemCount += 1;
       if (item.previewable) acc.previewableItemCount += 1;
@@ -4660,7 +4822,7 @@ async function buildPublicEvidenceContent(params: {
       return acc;
     },
     {
-      structure: multipart ? "multipart" : "single",
+      structure: userFacingItems.length > 1 ? "multipart" : "single",
       itemCount: 0,
       previewableItemCount: 0,
       downloadableItemCount: 0,
@@ -4702,6 +4864,7 @@ async function buildPublicEvidenceContent(params: {
     previewPolicy,
     /** ET-CUS-07: presigned ORIGINAL URLs in this content; callers record them. */
     originalUrlsIssued,
+    artifacts,
   };
 }
 
@@ -6873,6 +7036,14 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
         parts.map(async (part) => {
           const sizeBytes = bigintToString(part.sizeBytes);
           const kind = detectEvidenceAssetKind(part.mimeType);
+          const partDisplayName = resolveOriginalAssetDisplayName({
+            originalFileName: part.originalFileName ?? null,
+            storageKey: part.storageKey,
+            mimeType: part.mimeType,
+            recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+            partIndex: part.partIndex,
+            multipart: true,
+          });
           const url = originalDownloadAllowed
             ? await presignGetObject({
                 bucket: part.storageBucket,
@@ -6880,6 +7051,11 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
                 expiresInSeconds: 600,
                 // (2026-09-29, D14) The signed version, when recorded.
                 versionId: part.storageVersionId ?? null,
+                // RFC 6266 — each original file saves under its own safe name.
+                responseContentDisposition: safeAttachmentContentDisposition(
+                  part.originalFileName ?? partDisplayName,
+                  `part-${part.partIndex}`,
+                ),
               })
             : null;
 
@@ -6916,15 +7092,13 @@ return {
     originalFileName: part.originalFileName ?? null,
     storageKey: part.storageKey,
   }),
-  displayName: resolveOriginalAssetDisplayName({
-    originalFileName: part.originalFileName ?? null,
-    storageKey: part.storageKey,
-    mimeType: part.mimeType,
-    recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
-    partIndex: part.partIndex,
-    multipart: true,
-  }),
+  displayName: partDisplayName,
   displaySizeLabel: formatBytesForDisplay(sizeBytes),
+  // Wire contract D — user item, technical recording part, or capture record.
+  partPresentation: classifyEvidencePartPresentation({
+    acquisitionMode: evidence.acquisitionMode ?? null,
+    artifactClass: part.artifactClass,
+  }),
   isPrimary:
     evidence.storageBucket === part.storageBucket &&
     evidence.storageKey === part.storageKey,
@@ -6965,6 +7139,13 @@ return {
               }
             : null,
         parts: enrichedParts,
+        // Wire contract D — the user items these files make up.
+        artifacts: toPublicArtifactProjection(
+          projectEvidenceArtifacts({
+            acquisitionMode: evidence.acquisitionMode ?? null,
+            parts,
+          }),
+        ),
       });
     }
   );
@@ -8890,7 +9071,11 @@ return {
             originalFileName: row.originalFileName ?? null,
             type: row.type,
             mimeType: row.mimeType ?? null,
-            itemCount: row._count.parts > 0 ? row._count.parts : 1,
+            // Wire contract D — user items (ORIGINAL parts; one recording = one).
+            itemCount: countEvidenceUserItems({
+              acquisitionMode: row.acquisitionMode ?? null,
+              originalPartCount: row._count.parts,
+            }),
             createdAt: row.createdAt.toISOString(),
             matchReasons: [reason],
             matchedPartsCount: reason === "part_hash" ? 1 : 0,
@@ -9702,7 +9887,8 @@ return {
         }
 
         const [
-          itemCount,
+          // Wire contract D — user items; storedPartCount is technical.
+          { itemCount, storedPartCount },
           storage,
           anchor,
           parts,
@@ -9718,7 +9904,7 @@ return {
           callerTeamMembership,
           existingDiscussionThreadCount,
         ] = await Promise.all([
-          getEvidenceItemCount(id),
+          getEvidenceItemCounts(id),
           // COMMERCIAL AUTHORITY (2026-09-03) — the account-wide billing
           // aggregate was fetched here ONLY to find this record's workspace in
           // its `workspaces.teams` array. The capability snapshot resolves that
@@ -9745,6 +9931,7 @@ return {
             select: {
               id: true,
               partIndex: true,
+              artifactClass: true,
               originalFileName: true,
               mimeType: true,
               sizeBytes: true,
@@ -10061,6 +10248,7 @@ return {
             originalFileName: evidence.originalFileName ?? null,
             displayFileName: evidence.displayFileName ?? null,
             recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+            acquisitionMode: evidence.acquisitionMode ?? null,
           },
           parts,
         });
@@ -10416,6 +10604,21 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         const viewerMayReview = evidence.teamId
           ? (await evaluateAuthorize(req, { teamId: evidence.teamId, permission: "evidence_request.review" })).allowed
           : false;
+        // COMBINE — may this viewer start preparing the combined review video?
+        // THE authorization POST …/combined-recording/prepare applies
+        // (intelligence.run on this record in its workspace). Asked only for a
+        // record that IS a screen recording; never a reason to run anything.
+        const viewerMayPrepareCombinedRecording =
+          evidence.teamId && content.artifacts.userItems.some((u) => u.kind === "recording")
+            ? (
+                await evaluateAuthorize(req, {
+                  teamId: evidence.teamId,
+                  permission: "intelligence.run",
+                  resourceKind: "evidence",
+                  resourceId: id,
+                })
+              ).allowed
+            : false;
         // The commercial authority the review routes enforce (2026-10-23).
         const reviewIncluded = evidence.teamId
           ? await workspaceIncludesReviewCapability(evidence.teamId, "BASIC_RECORD_REVIEW")
@@ -10612,6 +10815,13 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               defaultPreviewItemId: defaultPreviewItem?.id ?? null,
               contentSummary: content.summary,
               contentItems: contentItems,
+              // Wire contract D — user items vs technical parts.
+              contentArtifacts: toPublicArtifactProjection(
+                content.artifacts,
+                continuousRecordingTextOf(evidence.acquisitionMode, allCustodyEvents),
+              ),
+              // COMBINE — the recording player's "prepare" control (see above).
+              combinedRecordingPrepareAllowed: viewerMayPrepareCombinedRecording,
               primaryContentItem: content.primaryItem,
               previewPolicy: content.previewPolicy,
               evidenceIntelligence,
@@ -10728,8 +10938,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                 digestCheckConclusive: timestampDigestMatches !== null,
                 genTimeUtc: evidence.tsaGenTimeUtc?.toISOString() ?? null,
                 failureReason: evidence.tsaFailureReason ?? null,
+                // The digest label follows the STORED parts (a multipart
+                // digest), never the user item count.
                 timestampedDigestLabel: getTimestampDigestLabel({
-                  itemCount,
+                  itemCount: storedPartCount,
                   tsaInputKind: evidence.tsaInputKind,
                 }),
               },
@@ -10842,8 +11054,11 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                 Boolean(latestReport?.displayTitleSnapshot) &&
                 latestReport?.displayTitleSnapshot !== display.displayTitle,
               itemCountDiffersFromReportSnapshot:
+                // A report issued before wire contract D snapshotted the
+                // stored part count; either count is the same record.
                 typeof latestReport?.itemCountSnapshot === "number" &&
-                latestReport.itemCountSnapshot !== itemCount,
+                latestReport.itemCountSnapshot !== itemCount &&
+                latestReport.itemCountSnapshot !== storedPartCount,
               postReportForensicEvents:
                 forensicCustodyEvents.length -
                 forensicEventsAtReportGeneration.length,
@@ -11025,6 +11240,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           select: {
             id: true,
             partIndex: true,
+            artifactClass: true,
             originalFileName: true,
             mimeType: true,
             sizeBytes: true,
@@ -11059,6 +11275,7 @@ const content = await buildPublicEvidenceContent({
     originalFileName: evidence.originalFileName ?? null,
     displayFileName: evidence.displayFileName ?? null,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+    acquisitionMode: evidence.acquisitionMode ?? null,
   },
   parts,
 });
@@ -11119,6 +11336,8 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
             defaultPreviewItemId: defaultPreviewItem?.id ?? null,
             contentSummary: content.summary,
             contentItems: content.items,
+            // Wire contract D — user items vs technical parts.
+            contentArtifacts: toPublicArtifactProjection(content.artifacts),
             primaryContentItem: content.primaryItem,
             previewPolicy: content.previewPolicy,
             evidenceIntelligence,
@@ -11313,6 +11532,7 @@ const parts = await prisma.evidencePart.findMany({
   select: {
     id: true,
     partIndex: true,
+    artifactClass: true,
     originalFileName: true,
     mimeType: true,
     sizeBytes: true,
@@ -11347,6 +11567,7 @@ const content = await buildPublicEvidenceContent({
     originalFileName: refreshed.originalFileName ?? null,
     displayFileName: refreshed.displayFileName ?? null,
     recordedAt: refreshed.capturedAtUtc ?? refreshed.createdAt,
+    acquisitionMode: refreshed.acquisitionMode ?? null,
   },
   parts,
 });
@@ -11398,6 +11619,8 @@ return reply.code(200).send({
     defaultPreviewItemId: defaultPreviewItem?.id ?? null,
     contentSummary: content.summary,
     contentItems: content.items,
+    // Wire contract D — user items vs technical parts.
+    contentArtifacts: toPublicArtifactProjection(content.artifacts),
     primaryContentItem: content.primaryItem,
     previewPolicy: content.previewPolicy,
   }),
@@ -12778,13 +13001,75 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       });
       if (!originalGate.allowed) return originalGate.reply;
 
+      // 2026-10-29 (wire contract D) — WHICH stored file is "the original".
+      // `evidence.storageKey` is part 0: for a record stored as several
+      // ORIGINAL files (a segmented screen recording, a multi-file upload) it
+      // is ONE fragment, and handing it out under its own name read as the
+      // complete original. Such a record has no single original file: the
+      // caller lists the parts (GET /v1/evidence/:id/parts, the same gate) and
+      // nothing is released here — so no download is recorded either. A
+      // record with ONE original (a single-file recording beside its capture
+      // record) releases exactly that part.
+      const originalParts = await prisma.evidencePart.findMany({
+        where: { evidenceId: id, artifactClass: "ORIGINAL" },
+        orderBy: { partIndex: "asc" },
+        select: {
+          partIndex: true,
+          storageBucket: true,
+          storageKey: true,
+          storageVersionId: true,
+          originalFileName: true,
+          mimeType: true,
+          sizeBytes: true,
+        },
+      });
+      if (originalParts.length > 1) {
+        const storedPartCount = await prisma.evidencePart.count({ where: { evidenceId: id } });
+        return reply.code(409).send({
+          code: "ORIGINAL_IS_MULTIPART",
+          message:
+            "This record's original is stored as several files. Download the original files from the parts listing; no single file is the complete original.",
+          evidenceId: id,
+          originalPartCount: originalParts.length,
+          technicalPartCount: storedPartCount,
+          partsUrl: `/v1/evidence/${id}/parts`,
+        });
+      }
+      const originalPart = originalParts[0] ?? null;
+      const releaseBucket = originalPart?.storageBucket ?? evidence.storageBucket;
+      const releaseKey = originalPart?.storageKey ?? evidence.storageKey;
+      // (2026-09-29, D14) The signed version, when recorded — never whatever a
+      // later write left latest at the key. The part's own, or the record's
+      // when the part IS the record's primary object.
+      const releaseVersionId =
+        originalPart?.storageVersionId ??
+        (releaseBucket === evidence.storageBucket && releaseKey === evidence.storageKey
+          ? (evidence.storageVersionId ?? null)
+          : null);
+      const releaseMimeType = originalPart?.mimeType ?? evidence.mimeType ?? null;
+      const releaseSizeBytes = originalPart?.sizeBytes ?? evidence.sizeBytes ?? null;
+      const releaseFileName =
+        [originalPart?.originalFileName, evidence.originalFileName, evidence.displayFileName]
+          .map((v) => (typeof v === "string" ? v.trim() : ""))
+          .find((v) => v.length > 0) ??
+        resolveOriginalAssetDisplayName({
+          originalFileName: null,
+          storageKey: releaseKey,
+          mimeType: releaseMimeType,
+          recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+          partIndex: originalPart?.partIndex ?? 0,
+          multipart: false,
+        });
+
       const url = await presignGetObject({
-        bucket: evidence.storageBucket,
-        key: evidence.storageKey,
+        bucket: releaseBucket,
+        key: releaseKey,
         expiresInSeconds: 600,
-        // (2026-09-29, D14) The signed version, when recorded — never whatever a
-        // later write left latest at the key.
-        versionId: evidence.storageVersionId ?? null,
+        versionId: releaseVersionId,
+        // RFC 6266 — saved under its own (sanitised) name. F-36: active
+        // content is never served as its declared type from the storage origin.
+        responseContentDisposition: safeAttachmentContentDisposition(releaseFileName),
+        responseContentType: presignedOriginalResponseHeaders(releaseMimeType, 1).contentType,
       });
 
       const accessedAt = new Date();
@@ -12822,7 +13107,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         actorUserId: ownerUserId,
         channel: "original",
         originalUrlsIssued: 1,
-        mimeType: evidence.mimeType ?? null,
+        mimeType: releaseMimeType,
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       });
@@ -12869,21 +13154,8 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         }
       );
 
-const matchingPrimaryPart =
-  evidence.storageBucket && evidence.storageKey
-    ? await prisma.evidencePart.findFirst({
-        where: {
-          evidenceId: id,
-          storageBucket: evidence.storageBucket,
-          storageKey: evidence.storageKey,
-        },
-        select: {
-          partIndex: true,
-          originalFileName: true,
-          mimeType: true,
-        },
-      })
-    : null;
+// The released part IS the primary part (wire contract D, above).
+const matchingPrimaryPart = originalPart;
 
 function cleanOptionalText(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -12892,38 +13164,40 @@ function cleanOptionalText(value: unknown): string | null {
 }
 
 const resolvedOriginalFileName =
-  cleanOptionalText(evidence.originalFileName) ??
   cleanOptionalText(matchingPrimaryPart?.originalFileName) ??
+  cleanOptionalText(evidence.originalFileName) ??
   null;
 
 const resolvedDisplayName =
   cleanOptionalText(evidence.displayFileName) ??
   resolveOriginalAssetDisplayName({
     originalFileName: resolvedOriginalFileName,
-    storageKey: evidence.storageKey,
-    mimeType: matchingPrimaryPart?.mimeType ?? evidence.mimeType,
+    storageKey: releaseKey,
+    mimeType: releaseMimeType,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
     partIndex: matchingPrimaryPart?.partIndex ?? 0,
     multipart: Boolean(matchingPrimaryPart),
   });
   
-  const originalKind = detectEvidenceAssetKind(evidence.mimeType);
+  const originalKind = detectEvidenceAssetKind(releaseMimeType);
 
 return reply.code(200).send({
   evidenceId: id,
-  bucket: evidence.storageBucket,
-  key: evidence.storageKey,
+  bucket: releaseBucket,
+  key: releaseKey,
+  // The name the presigned URL saves under (Content-Disposition).
+  downloadFileName: releaseFileName,
 originalFileName: resolvedOriginalFileName ?? resolvedDisplayName,
 displayName: resolvedDisplayName,
   url,
   publicUrl: isPreviewableEvidenceKind(originalKind) ? url : null,
   previewUrl: isPreviewableEvidenceKind(originalKind) ? url : null,
-  mimeType: evidence.mimeType,
+  mimeType: releaseMimeType,
   kind: originalKind,
   previewable: isPreviewableEvidenceKind(originalKind),
-          sizeBytes: evidence.sizeBytes?.toString() ?? null,
+          sizeBytes: releaseSizeBytes?.toString() ?? null,
         displaySizeLabel: formatBytesForDisplay(
-          evidence.sizeBytes?.toString() ?? null
+          releaseSizeBytes?.toString() ?? null
         ),
         lastAccessedByUserId: ownerUserId,
         lastAccessedAtUtc: accessedAt.toISOString(),
@@ -14321,7 +14595,7 @@ const snapshotTrustDecision =
   ) ??
   null;
 
-    const itemCount = await getEvidenceItemCount(id);
+    const { itemCount, storedPartCount } = await getEvidenceItemCounts(id);
 
         const parts = await prisma.evidencePart.findMany({
       where: { evidenceId: id },
@@ -14329,6 +14603,7 @@ const snapshotTrustDecision =
       select: {
         id: true,
         partIndex: true,
+        artifactClass: true,
         originalFileName: true,
         mimeType: true,
         sizeBytes: true,
@@ -14402,6 +14677,7 @@ const content = await buildPublicEvidenceContent({
     originalFileName: evidence.originalFileName ?? null,
     displayFileName: evidence.displayFileName ?? null,
     recordedAt: evidence.capturedAtUtc ?? evidence.createdAt,
+    acquisitionMode: evidence.acquisitionMode ?? null,
   },
   parts,
 });
@@ -15377,6 +15653,11 @@ outputContext: ((): CanonicalOutputContext => {
   evidenceContent: {
     summary: content.summary,
     items: content.items,
+    // Wire contract D — ONE recording item; its parts + capture record are technical.
+    artifacts: toPublicArtifactProjection(
+      content.artifacts,
+      continuousRecordingTextOf(evidence.acquisitionMode, allCustodyEvents),
+    ),
     primaryItem: content.primaryItem,
 defaultPreviewItemId: defaultPreviewItem?.id ?? null,
       previewPolicy: content.previewPolicy,
@@ -15428,7 +15709,8 @@ digestCheckConclusive: timestampDigestMatches !== null,
 timestampAvailable: timestampStatusIsPositive,
 timestampedDigestLabel:
   getTimestampDigestLabel({
-    itemCount,
+    // Stored parts (the digest's input), never the user item count.
+    itemCount: storedPartCount,
     tsaInputKind: evidence.tsaInputKind,
   }),
 timestampedDigestNote:

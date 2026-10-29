@@ -5,6 +5,8 @@ import {
 } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
+import { formatTimestampForReportUtc } from "@proovra/shared";
+import { combinedRecordingReportLine } from "../combined-recording-line.js";
 
 function buildAssetName(asset: ReportEvidenceAsset): string {
   return (
@@ -13,7 +15,55 @@ function buildAssetName(asset: ReportEvidenceAsset): string {
   );
 }
 
+/**
+ * Wire contract D (2026-10-29) — ONE continuous screen recording is ONE card.
+ * Its stored parts are TECHNICAL: listed with their own SHA-256 (in the card
+ * when few, otherwise in a register that follows the gallery). Nothing about
+ * the parts is re-hashed or reordered.
+ */
+const INLINE_TECHNICAL_PART_LIMIT = 3;
+
+function isRecording(asset: ReportEvidenceAsset): boolean {
+  return asset.userItemKind === "recording";
+}
+
+function recordingTechnicalParts(asset: ReportEvidenceAsset) {
+  return isRecording(asset) && Array.isArray(asset.technicalParts)
+    ? asset.technicalParts
+    : [];
+}
+
+function technicalPartsSummary(asset: ReportEvidenceAsset): string {
+  const n = recordingTechnicalParts(asset).length;
+  return `${n} technical part${n === 1 ? "" : "s"}`;
+}
+
+/** The card's digest row: a single-file recording's own file; never a part posing as the whole. */
+function itemDigestValue(asset: ReportEvidenceAsset): string {
+  const parts = recordingTechnicalParts(asset);
+  if (parts.length > 1) {
+    return parts.length <= INLINE_TECHNICAL_PART_LIMIT
+      ? `Stored as ${technicalPartsSummary(asset)} (hashes below)`
+      : `Stored as ${technicalPartsSummary(asset)} (see Screen Recording Technical Parts)`;
+  }
+  return asset.sha256 ?? "Not recorded";
+}
+
+function renderInlineTechnicalParts(asset: ReportEvidenceAsset): string {
+  const parts = recordingTechnicalParts(asset);
+  if (parts.length <= 1 || parts.length > INLINE_TECHNICAL_PART_LIMIT) return "";
+  return parts
+    .map((part) =>
+      renderGalleryMetaRow(
+        `Technical part ${part.partIndex + 1} SHA-256`,
+        part.sha256 ?? "Not recorded"
+      )
+    )
+    .join("");
+}
+
 function mediaKindLabel(item: PresentationEvidenceItem): string {
+  if (isRecording(item.asset)) return "Screen Recording";
   switch (item.previewRenderKind) {
     case "video":
       return "Video Evidence";
@@ -74,7 +124,8 @@ function renderGalleryMetaRow(label: string, value: string): string {
   const isHash =
     label === "SHA-256" ||
     label === "Lead Item SHA-256" ||
-    label === "Item SHA-256";
+    label === "Item SHA-256" ||
+    /^Technical part d+ SHA-256$/.test(label);
   return `
     <div class="gallery-meta-row${isHash ? " gallery-meta-row-sha" : ""}">
       <div class="gallery-meta-label">${escapeHtml(label)}</div>
@@ -155,6 +206,7 @@ function reviewerRoleLabel(asset: ReportEvidenceAsset): string {
 }
 
 function reviewerMappingLabel(asset: ReportEvidenceAsset): string {
+  if (isRecording(asset)) return "Screen recording";
   return (
     safe(asset.checklistStepLabel, "") ||
     safe(asset.reviewerRepresentationLabel, "") ||
@@ -162,7 +214,20 @@ function reviewerMappingLabel(asset: ReportEvidenceAsset): string {
   );
 }
 
-function renderSupportingCard(item: PresentationEvidenceItem): string {
+/** Contract A — exactly which audio tracks were recorded, as the manifest stated. */
+function renderRecordingAudioRow(asset: ReportEvidenceAsset, vm: ReportViewModel): string {
+  const audio = isRecording(asset) ? vm.continuousRecording?.audioStatement : null;
+  const combined =
+    isRecording(asset) && vm.combinedRecording
+      ? renderGalleryMetaRow(
+          "Derived copy",
+          combinedRecordingReportLine(vm.combinedRecording, formatTimestampForReportUtc)
+        )
+      : "";
+  return (audio ? renderGalleryMetaRow("Audio", audio) : "") + combined;
+}
+
+function renderSupportingCard(item: PresentationEvidenceItem, vm: ReportViewModel): string {
   const asset = item.asset;
   const fileName = buildAssetName(asset);
   const duplicate = asset.duplicateDigest;
@@ -184,7 +249,9 @@ function renderSupportingCard(item: PresentationEvidenceItem): string {
   ${renderGalleryMetaRow("Type", mediaKindLabel(item))}
   ${renderGalleryMetaRow("Format", safe(asset.mimeType, "N/A"))}
   ${renderGalleryMetaRow("Size", safe(asset.displaySizeLabel, "N/A"))}
-  ${renderGalleryMetaRow("Item SHA-256", asset.sha256 ?? "Not recorded")}
+  ${renderGalleryMetaRow("Item SHA-256", itemDigestValue(asset))}
+  ${renderRecordingAudioRow(asset, vm)}
+  ${renderInlineTechnicalParts(asset)}
   ${renderDuplicateDigestBadge(item)}
 </div>
           </article>
@@ -213,9 +280,10 @@ function renderMetadataOnlyCard(item: PresentationEvidenceItem): string {
 
         <div class="gallery-meta-label">Item SHA-256</div>
         <div class="gallery-meta-value gallery-sha-value">${escapeHtml(
-          asset.sha256 ?? "Not recorded"
+          itemDigestValue(asset)
         )}</div>
       </div>
+      ${renderInlineTechnicalParts(asset)}
       ${renderDuplicateDigestBadge(item)}
     </article>
   `;
@@ -315,6 +383,56 @@ function renderDuplicateDigestRegister(vm: ReportViewModel): string {
   );
 }
 
+function renderRecordingTechnicalPartsRegister(vm: ReportViewModel): string {
+  const recordings = vm.contentItems.filter(
+    (asset) => recordingTechnicalParts(asset).length > INLINE_TECHNICAL_PART_LIMIT
+  );
+  if (recordings.length === 0) return "";
+
+  return renderPageSection(
+    "Screen Recording Technical Parts",
+    `
+      <div class="duplicate-digest-register-page">
+        ${renderCallout({
+          title: "One recording, stored as technical parts",
+          body:
+            "The screen recording is one evidence item. It was preserved as the ordered parts below, each with its own SHA-256; together they are the original. The recording's capture record is listed in the Technical Appendix.",
+          tone: "neutral",
+        })}
+        <div class="gallery-secondary-list">
+          ${recordings
+            .flatMap((asset) =>
+              recordingTechnicalParts(asset).map(
+                (part) => `
+                  <article class="gallery-secondary-item">
+                    <div class="gallery-secondary-name">${escapeHtml(
+                      `Technical part ${part.partIndex + 1}`
+                    )}</div>
+                    <div class="gallery-secondary-grid">
+                      <div class="gallery-meta-label">Format</div>
+                      <div class="gallery-meta-value">${escapeHtml(safe(part.mimeType, "N/A"))}</div>
+                      <div class="gallery-meta-label">Size</div>
+                      <div class="gallery-meta-value">${escapeHtml(safe(part.displaySizeLabel, "N/A"))}</div>
+                      <div class="gallery-meta-label">SHA-256</div>
+                      <div class="gallery-meta-value gallery-sha-value">${escapeHtml(
+                        part.sha256 ?? "Not recorded"
+                      )}</div>
+                    </div>
+                  </article>
+                `
+              )
+            )
+            .join("")}
+        </div>
+      </div>
+    `,
+    {
+      pageBreakBefore: true,
+      className: "recording-technical-parts-section",
+    }
+  );
+}
+
 export function renderGallerySection(vm: ReportViewModel): string {
   const { buckets } = vm.presentation;
 
@@ -356,7 +474,7 @@ export function renderGallerySection(vm: ReportViewModel): string {
           }
 
           <div class="gallery-support-grid support-grid">
-            ${chunk.map((item) => renderSupportingCard(item)).join("")}
+            ${chunk.map((item) => renderSupportingCard(item, vm)).join("")}
           </div>
         `,
         {
@@ -400,6 +518,11 @@ export function renderGallerySection(vm: ReportViewModel): string {
       )
     );
   });
+
+  const technicalPartsRegister = renderRecordingTechnicalPartsRegister(vm);
+  if (technicalPartsRegister) {
+    pages.push(technicalPartsRegister);
+  }
 
   const duplicateRegister = renderDuplicateDigestRegister(vm);
   if (duplicateRegister) {

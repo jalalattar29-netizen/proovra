@@ -49,12 +49,15 @@ export const BITCOIN_VERIFIER_READINESS_FRESH_MS = 20 * 60 * 1000;
 /**
  * THE BITCOIN VERIFIER'S READINESS, as the worker last reported it
  * (worker_telemetry_snapshots, kind OTS, workerId `bitcoin-verifier:*`).
- * The worker publishes only while live verification is ENABLED, so:
+ * The worker publishes while live verification is ENABLED, and also while it
+ * is DISABLED but ANCHORED records are waiting for chain verification
+ * (code BTC_VERIFIER_DISABLED, 2026-10-29 — an attestation nobody can check is
+ * a condition, not silence). So:
  *   newest fresh report says ready      → RECOVERED
  *   newest fresh report says not ready  → ACTIVE (bounded code, no secret)
  *   no fresh report                     → RECOVERED: nothing currently claims
- *     the verifier is enabled-and-unavailable (verification is off, or the
- *     worker itself is down — which `platform.worker_heartbeat_stale` states).
+ *     the verifier is unavailable (verification is off with nothing waiting, or
+ *     the worker itself is down — which `platform.worker_heartbeat_stale` states).
  * Never touches the node or its credentials.
  */
 export async function observeBitcoinVerifierReadiness(now: Date): Promise<SourceObservation & { code: string | null }> {

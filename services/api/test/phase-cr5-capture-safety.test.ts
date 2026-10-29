@@ -214,7 +214,15 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // (<CaptureScreenRecorderCard/>, audit journey R02) and the leave/workspace-switch guard
 // (useCaptureLeaveGuard, UC-WEB-002) are mounted — imports and render lines; both are
 // self-contained modules in _lib/ and _hooks/, no mechanism re-absorbed into page.tsx.
-export const PRE_CR5_PAGE_BYTES = 53761;
+// LOCATION + CAPTURE UI rebaseline (2026-10-29): 53,761 → 54,441. The location
+// toggle states what the request actually returned (checking / available /
+// denied / timed out) and mounts <CaptureLocationStatus/> (retry, finish
+// without location, what inclusion means per audience); the unpublished
+// Direct Web Capture card moved below the working sources as
+// <CaptureDirectWebCaptureNote/>. Both are self-contained modules in _lib/ and
+// the location state lives in _hooks/useCaptureLocation.ts — imports, props and
+// render lines only; no mechanism re-absorbed into page.tsx.
+export const PRE_CR5_PAGE_BYTES = 54441;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never
@@ -247,7 +255,13 @@ export const PRE_CR5_PAGE_BYTES = 53761;
 // resumes into the SAME record (the server answers resumed:true with the parts present;
 // only missing items upload) instead of orphaning it; UC-WEB-005: the artifact poll
 // returns the terminal outcome it saw so a failed report is never 'still generating'.
-export const PRE_CR5_ORCH_BYTES = 42297;
+// LOCATION rebaseline (2026-10-29): 42,297 → 42,306. Finish & Sign asks the
+// extracted useCaptureLocation hook for ONE measurement and stops before any
+// record exists when it fails (the user retries or finishes without location),
+// records NOT_REQUESTED when location is off, and states a trusted timestamp
+// the provider did not issue (shared tsaCompletionNotice). The location logic
+// itself lives in _hooks/useCaptureLocation.ts; this file only calls it.
+export const PRE_CR5_ORCH_BYTES = 42306;
 // PHASE 13 rebaseline (2026-08-17): 13,423 → 13,630 — NEW-036. `StartResumableInput`
 // gained one optional pass-through flag, `multipartAlreadyInitiated`, and the one
 // line that forwards it to `MultipartUploader`. The capture orchestration runs
@@ -355,7 +369,7 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23876;
 // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
 // Rebaselined 2026-10-01: 71,631 -> 79,841 — UC-ARCH-003: completeEvidence is the ONE finalization authority (EVIDENCE_COMPLETED custody, reviewer workflow and evidence.complete audit moved in from the web route, exactly once for every channel); UC-TRUST-003 persists the signing-key fingerprint; UC-STR-002 refuses a part set that differs from the claimed seal plan.
 // Rebaselined 2026-10-07: 79,841 -> 80,111 — the TIMESTAMP_APPLIED custody payload records what the RFC 3161 validation established (tsaValidation: trust anchor, token certificates, nonce, policy) for timestamp-validation.json.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 91274; // Rebaselined 2026-10-21 (closure re-audit): 90,988 -> 91,274 — F-03: an intake record's UPLOAD_COMPLETED payload names no uploader user (the contributor has none; the link issuer is never named). Before: 2026-10-21: 84,442 -> 90,988 — F-01/F-18/F-21 (independent forward audit): intake capture context + history events in the seal transaction; one storage-protection outcome under the record lock. Before: 2026-10-20: 83,848 -> 84,442 — AUD-42: signature and RFC 3161 call moved before the workspace capacity lock. Before: 2026-10-18: 83,742 -> 83,848 — finalization writes no publication state (the retired NOT_PUBLISHED write gave way to the disclosure policy column default). Earlier 2026-10-17: 83,034 -> 83,742 — the canonical verification reference is issued inside the finalize transaction. Earlier 2026-10-15: 82,213 -> 83,034 — the EIGHT-YEAR CONTRACT: finalization locks to the record's resolved SEAL retention (the one resolver), so a repeat finalize never extends it. Earlier 2026-10-14: 81,999 -> 82,213 — the repeat-finalize path asks the one issuance decision (FREE three-record contract). Earlier: 81,775 -> 81,999 — the session COMPLETED write moved behind settleCompletedUploadSession (proves finalization before completing). 2026-10-12: up from 78,882 — retention AccessDenied is HEAD-confirmed, never assumed locked; EVIDENCE_LOCKED requires every target confirmed. 2026-10-07: down from 80,111 — the timestamp custody payload moved to services/timestamp/timestamp-custody-payload.ts
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 92332; // Rebaselined 2026-10-29 (TSA observability): 91,274 -> 92,332 — the TSA input kind is passed to the request log, and completion returns the bounded RFC 3161 outcome (tsaOutcome) for the completion notice. Before: Rebaselined 2026-10-21 (closure re-audit): 90,988 -> 91,274 — F-03: an intake record's UPLOAD_COMPLETED payload names no uploader user (the contributor has none; the link issuer is never named). Before: 2026-10-21: 84,442 -> 90,988 — F-01/F-18/F-21 (independent forward audit): intake capture context + history events in the seal transaction; one storage-protection outcome under the record lock. Before: 2026-10-20: 83,848 -> 84,442 — AUD-42: signature and RFC 3161 call moved before the workspace capacity lock. Before: 2026-10-18: 83,742 -> 83,848 — finalization writes no publication state (the retired NOT_PUBLISHED write gave way to the disclosure policy column default). Earlier 2026-10-17: 83,034 -> 83,742 — the canonical verification reference is issued inside the finalize transaction. Earlier 2026-10-15: 82,213 -> 83,034 — the EIGHT-YEAR CONTRACT: finalization locks to the record's resolved SEAL retention (the one resolver), so a repeat finalize never extends it. Earlier 2026-10-14: 81,999 -> 82,213 — the repeat-finalize path asks the one issuance decision (FREE three-record contract). Earlier: 81,775 -> 81,999 — the session COMPLETED write moved behind settleCompletedUploadSession (proves finalization before completing). 2026-10-12: up from 78,882 — retention AccessDenied is HEAD-confirmed, never assumed locked; EVIDENCE_LOCKED requires every target confirmed. 2026-10-07: down from 80,111 — the timestamp custody payload moved to services/timestamp/timestamp-custody-payload.ts
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

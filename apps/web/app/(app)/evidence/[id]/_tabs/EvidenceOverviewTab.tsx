@@ -123,6 +123,7 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         workspace={workspace}
         onOpenOriginal={() => void openOriginal()}
         onDownloadOriginal={() => void downloadOriginal()}
+        canPrepareRecording={workspace.evidence.combinedRecordingPrepareAllowed === true}
       />
 
       {/* Phase 4 — single consolidated "Record summary" panel.

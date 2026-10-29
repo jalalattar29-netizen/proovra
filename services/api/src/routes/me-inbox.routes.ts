@@ -118,7 +118,7 @@ import {
   parseOtsChainFailureCode,
   formatTimestampForReportUtc,
   OTS_FAILURE_LABELS,
-  type OtsFailureCode, tsaFailureNote } from "@proovra/shared";
+  type OtsFailureCode, TSA_NOT_OBTAINED_SUPPORT_STATEMENT, tsaFailureNote } from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 import { conditionMessageFor, conditionTextFor } from "../services/operations/condition-presentation.service.js";
 import type { Prisma } from "@prisma/client";
@@ -3577,7 +3577,9 @@ export async function buildInboxAggregation(
           tone: "high",
           title: `Trusted timestamp failed — ${evidenceLabel}`,
           message: { key: "tsa_failure", params: { evidence: evidenceLabel, code: ev.tsaFailureCode ?? null } },
-          body: `${reason} Open the evidence Integrity tab for the timestamping status and retry posture.`,
+          // 2026-10-29: there is no retry (a later token would certify a later
+          // moment), so the body states what remains supported instead.
+          body: `${reason} ${TSA_NOT_OBTAINED_SUPPORT_STATEMENT} Open the evidence Integrity tab for the timestamping status.`,
           href: `/evidence/${encodeURIComponent(ev.id)}?tab=integrity`,
           occurredAt: ev.updatedAt.toISOString(),
           dueAt: null,

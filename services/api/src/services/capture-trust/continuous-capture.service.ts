@@ -46,8 +46,9 @@
 
 import type { PrismaClient } from "@prisma/client";
 import {
-  continuousCaptureManifestFacts,
+  continuousCaptureManifestFactsWithRecording,
   continuousEndReasonFor,
+  continuousRecordingLayoutOf,
   validateScreenContinuousManifest,
   type ScreenContinuousManifest,
 } from "@proovra/shared";
@@ -131,8 +132,12 @@ export async function completeContinuousCaptureSession(
         ? { sessionWindow: { openedAtMs: locked.startedAtUtc.getTime(), nowMs: now.getTime() } }
         : {}),
     });
-    if (!validation.ok) throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID");
+    if (!validation.ok) throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID", validation.error);
     const manifest: ScreenContinuousManifest = validation.manifest;
+    // Contract A — SINGLE_FILE: ONE recording part (SCREEN_RECORDING) + the
+    // manifest part. No layout stated: the legacy segmented session, unchanged.
+    const singleFile = continuousRecordingLayoutOf(manifest) === "SINGLE_FILE";
+    const recordingSource = singleFile ? "SCREEN_RECORDING" : "SCREEN_SEGMENT";
     if (lostThrough !== null && manifest.sessionCompleteness === "COMPLETE_SESSION") {
       throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID");
     }
@@ -148,33 +153,48 @@ export async function completeContinuousCaptureSession(
     if (manifestPartIndex < 0) throw new DirectCaptureError("CONTINUOUS_MANIFEST_DIGEST_UNDECLARED");
     const manifestDecl = declarations.get(manifestPartIndex)!;
     if (manifestDecl.clientReportedSource !== null && manifestDecl.clientReportedSource !== "CONTINUOUS_MANIFEST") {
-      throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+      throw new DirectCaptureError(
+        "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+        `the manifest is declared at part ${manifestPartIndex} as ${manifestDecl.clientReportedSource}, not CONTINUOUS_MANIFEST`,
+      );
     }
 
     // 3. The server's declarations are the expected segment set: 1:1 with the
-    //    manifest on partIndex + digest, every one a SCREEN_SEGMENT, and the
-    //    manifest part after all of them.
+    //    manifest on partIndex + digest, every one a SCREEN_SEGMENT (SINGLE_FILE:
+    //    the one SCREEN_RECORDING), and the manifest part after all of them.
     const declaredByIndex = new Map<number, string>();
     for (const d of declarations.values()) {
       if (d.partIndex === manifestPartIndex) continue;
-      if (d.clientReportedSource !== null && d.clientReportedSource !== "SCREEN_SEGMENT") {
-        throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+      if (d.clientReportedSource !== null && d.clientReportedSource !== recordingSource) {
+        throw new DirectCaptureError(
+          "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+          `part ${d.partIndex} is declared as ${d.clientReportedSource}; this ${singleFile ? "single-file" : "segmented"} session expects ${recordingSource}`,
+        );
       }
       declaredByIndex.set(d.partIndex, d.sha256);
     }
     const manifestByIndex = new Map<number, string>();
     for (const s of manifest.segments) {
       if (s.partIndex >= manifestPartIndex) {
-        throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+        throw new DirectCaptureError(
+          "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+          `the manifest lists part ${s.partIndex}, at or after its own part ${manifestPartIndex}`,
+        );
       }
       manifestByIndex.set(s.partIndex, s.expectedSha256.toLowerCase());
     }
     if (manifestByIndex.size !== declaredByIndex.size) {
-      throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+      throw new DirectCaptureError(
+        "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+        `the manifest lists ${manifestByIndex.size} recording part(s); the session declared ${declaredByIndex.size}`,
+      );
     }
     for (const [idx, digest] of declaredByIndex) {
       if (manifestByIndex.get(idx) !== digest) {
-        throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+        throw new DirectCaptureError(
+          "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+          `part ${idx}: the manifest digest does not match the declared digest`,
+        );
       }
     }
     // 3b. AUD-24 (2026-10-20) — A COMPLETE SESSION MUST HAVE BEEN COUNTED. A
@@ -185,7 +205,10 @@ export async function completeContinuousCaptureSession(
     //     requires every segment to carry that count (the current apps send
     //     it); a session without it may still seal as an honest
     //     INTERRUPTED_SESSION with its loss.
-    if (manifest.sessionCompleteness === "COMPLETE_SESSION") {
+    //     Contract A — a SINGLE_FILE session has no tail to hide: its ONE file
+    //     is the whole recording (the validator requires exactly one entry and
+    //     the 1:1 check above that it is the only declared recording part).
+    if (manifest.sessionCompleteness === "COMPLETE_SESSION" && !singleFile) {
       for (const d of declarations.values()) {
         if (d.partIndex === manifestPartIndex) continue;
         if (d.recordedThrough === null) throw new DirectCaptureError("CONTINUOUS_COMPLETENESS_UNDECLARED");
@@ -211,7 +234,10 @@ export async function completeContinuousCaptureSession(
           stored = null; // an absent object is refused by the seal itself
         }
         if (stored !== null && stored !== sizeByIndex.get(p.partIndex)) {
-          throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+          throw new DirectCaptureError(
+            "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+            `part ${p.partIndex}: ${stored} bytes stored, the manifest states ${sizeByIndex.get(p.partIndex)}`,
+          );
         }
       }
     };
@@ -220,8 +246,10 @@ export async function completeContinuousCaptureSession(
       manifestPartIndex,
       // UC-STR-006 — written by the bind itself.
       endReason: continuousEndReasonFor(manifest.sessionCompleteness),
-      // UC-PROV-003 — the validated facts, recorded before the bind.
-      manifestFacts: continuousCaptureManifestFacts(manifest, {
+      // UC-PROV-003 — the validated facts, recorded before the bind. Contract A:
+      // with the recording facts (layout, audio tracks, dropped frames, pauses,
+      // orientation timeline) under `continuous`, so every output can state them.
+      manifestFacts: continuousCaptureManifestFactsWithRecording(manifest, {
         manifestSha256: manifestDigest,
         manifestPartIndex,
         declaredRecordedThroughMax,

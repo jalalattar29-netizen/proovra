@@ -198,7 +198,8 @@ describe("projectPublicVerification — the allowlist", () => {
     const hidden = project(disclosure("CANONICAL_REFERENCE", CP));
     const tm = hidden.technicalMetadata as Record<string, Record<string, unknown> | null>;
     expect(tm.network).toBeNull();
-    expect(tm.captureEnvironment).toEqual({ browserName: "Firefox", osName: "Linux" });
+    // F-27b — browser and OS details never leave (the published contract's NEVER list).
+    expect(tm.captureEnvironment).toEqual({});
     expect(tm.exif).toMatchObject({ camera: "X" });
     expect(JSON.stringify(hidden)).not.toMatch(/Germany|Bavaria|Europe\/Berlin|gpsPresent|203\.0\.x\.x|internalExifBlob/);
     const shown = project(disclosure("CANONICAL_REFERENCE", CPL));
@@ -250,6 +251,47 @@ describe("projectPublicVerification — the allowlist", () => {
     expect((cp.overview as Record<string, unknown>).totalContentSizeDisplay).toBe("121 KB");
     expect((cp.overview as Record<string, unknown>).identityLevel).toBe("Verified email account");
     expect(JSON.stringify(cp)).not.toMatch(/18 Oct 2026, 00:00 UTC|"now"/);
+  });
+
+  /*
+   * F-27 (2026-10-29). (a) A withheld identity withholds the matrix's identity
+   * rows on the RICH tier too — measured live: a VERIFICATION_ONLY page said
+   * "Authenticated email account …" beside "Withheld by the record's disclosure
+   * policy". (b) "Browser details" are NEVER public under any policy, including
+   * the capture client's browser/OS/model in the capture manifest.
+   */
+  it("F-27a: identity rows are withheld on the RICH tier while identity is withheld; a category is not personal data", () => {
+    const f = facts();
+    f.verificationMatrix = {
+      rows: [
+        { key: "account_identity", label: "Account identity", status: "VERIFIED", statement: "Authenticated email account: the account's email address was verified when the record was created.", measuredAtUtc: "2026-10-29T02:37:10.326Z" },
+        { key: "file_integrity", label: "File integrity", status: "VERIFIED", statement: "Recorded digests agree.", measuredAtUtc: null },
+      ],
+    };
+    const vo = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE"), { attributionExposed: false });
+    const rows = (vo.verificationMatrix as { rows: Array<Record<string, unknown>> }).rows;
+    expect(rows.find((r) => r.key === "account_identity")).toMatchObject({ status: "NOT_APPLICABLE", statement: "Not disclosed on this verification page." });
+    expect(rows.find((r) => r.key === "file_integrity")).toMatchObject({ status: "VERIFIED" });
+    expect(JSON.stringify(vo)).not.toMatch(/Authenticated email account/);
+    // Disclosed identity: the category stays (it is a category, not an email address).
+    (f.recordFacts as { identity: Record<string, unknown> }).identity = { disclosure: "SHOWN" };
+    const shown = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE"), { attributionExposed: true });
+    expect(JSON.stringify(shown)).toMatch(/Authenticated email account/);
+    expect(JSON.stringify(shown)).not.toMatch(/@example.test/);
+  });
+
+  it("F-27b: no browser, OS or device-model details leave, even with content preview", () => {
+    const f = facts();
+    f.captureManifest = {
+      kind: "WEB_CAPTURE",
+      client: { kind: "BROWSER_EXTENSION", appVersion: "1.2.0", platform: "desktop", browserName: "Chrome", browserVersion: "130.0.1", osVersion: "14.6", model: "MacBookPro18,3" },
+    };
+    for (const policy of [CP, CPL]) {
+      const out = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE", policy), { attributionExposed: true });
+      const text = JSON.stringify(out);
+      expect(text).not.toMatch(/Firefox|Linux|Chrome|130.0.1|14.6|MacBookPro/);
+      expect((out.captureManifest as { client: Record<string, unknown> }).client).toEqual({ kind: "BROWSER_EXTENSION", appVersion: "1.2.0", platform: "desktop" });
+    }
   });
 
   it("only a reviewer link's explicit grant hands out the original URL", () => {

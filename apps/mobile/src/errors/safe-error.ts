@@ -195,6 +195,65 @@ const SAFE_MESSAGES: Record<SafeErrorKind, string> = {
 };
 
 /**
+ * THE CAPTURE PIPELINE'S OWN REFUSALS, each with the next step.
+ *
+ * These are 409/422 answers from the direct-capture session routes. Unmapped,
+ * every one of them read "We couldn't complete that action — please review
+ * your input", which names nothing the person can review: the session state
+ * that refused them is not on screen.
+ */
+export const CAPTURE_REFUSAL_COPY: Readonly<Record<string, { title: string; message: string }>> = {
+  PART_ALREADY_DECLARED: {
+    title: "This item was already added",
+    message:
+      "The capture session already holds a file at this position. PROOVRA re-reads the session and retries; if this keeps happening, tap Finish & Sign again — nothing staged is lost.",
+  },
+  PART_LOST: {
+    title: "A file did not reach PROOVRA",
+    message:
+      "One file of this capture was recorded as lost before it uploaded. The record seals with that loss stated. Finish to keep what arrived, or discard and capture again.",
+  },
+  MANIFEST_SEAL_ROUTE_REQUIRED: {
+    title: "This screen recording must be finished from Capture",
+    message:
+      "A screen recording seals together with its capture record. Open Capture, resume the recording from your pending records, then tap Finish & Sign.",
+  },
+  CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH: {
+    title: "The recording does not match its capture record",
+    message:
+      "The files PROOVRA holds for this recording differ from what its capture record lists, so it cannot be sealed as is. Discard this recording and record it again.",
+  },
+  // Native recorder refusals (wire contract B) — nothing was started.
+  MICROPHONE_PERMISSION_REQUIRED: {
+    title: "Microphone permission is needed",
+    message:
+      "Nothing was recorded. Allow the microphone for PROOVRA in Settings, or turn microphone audio off to record the screen without it.",
+  },
+  STORAGE_LOW: {
+    title: "Not enough storage to record",
+    message:
+      "Nothing was recorded: this device does not have enough free space for a screen recording. Free up some space and start again.",
+  },
+  PENDING_RECORDING: {
+    title: "An earlier recording is still on this device",
+    message: "Discard the earlier recording before starting a new one.",
+  },
+  SESSION_ALREADY_RESERVED: {
+    title: "This capture already has a record",
+    message:
+      "The capture session already reserved its evidence record. Resume it from your pending records in Capture, or discard it to start a new one.",
+  },
+};
+
+/** Denials whose server `message` is actionable (capture-trust.routes.ts). */
+const CAPTURE_SERVER_MESSAGE_CODES: ReadonlySet<string> = new Set([
+  "PART_ALREADY_DECLARED",
+  "PART_LOST",
+  "MANIFEST_SEAL_ROUTE_REQUIRED",
+  "CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH",
+]);
+
+/**
  * Convert any thrown value to a classified, user-safe error.
  *
  * ORDER MATTERS, and it is the same order the web resolves in:
@@ -218,7 +277,24 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
   // A bare 429 is the rate-limit answer, as the web's fromStatus(429) reads it.
   // "API_ERROR" is the transport's placeholder for "the body carried no code".
   const realCode = x.code && x.code !== "API_ERROR" ? x.code : null;
-  const explained = userFacingErrorFor(realCode ?? (x.status === 429 ? "RATE_LIMITED" : null));
+  const captureCopy = realCode ? CAPTURE_REFUSAL_COPY[realCode.toUpperCase()] : undefined;
+  // The capture routes send an ACTIONABLE `message` beside these denials; it
+  // names the specific part or check, so it is preferred over the generic copy.
+  const serverActionable =
+    captureCopy && realCode && CAPTURE_SERVER_MESSAGE_CODES.has(realCode.toUpperCase())
+      ? str(asRecord(asRecord(err).body).message)
+      : undefined;
+  const explained =
+    (captureCopy
+      ? {
+          title: captureCopy.title,
+          message:
+            serverActionable && !SYNTHETIC_ERROR_MESSAGE.test(serverActionable)
+              ? serverActionable.slice(0, SERVER_MESSAGE_MAX_LENGTH)
+              : captureCopy.message,
+        }
+      : undefined) ??
+    userFacingErrorFor(realCode ?? (x.status === 429 ? "RATE_LIMITED" : null));
   if (explained) {
     return {
       kind,

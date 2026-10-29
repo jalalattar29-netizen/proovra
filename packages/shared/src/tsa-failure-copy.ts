@@ -31,17 +31,37 @@ export const TSA_FAILURE_NOTES = Object.freeze({
   UNSPECIFIED: "A trusted timestamp could not be obtained.",
 } as const);
 
+export type TsaFailureCategory = keyof typeof TSA_FAILURE_NOTES;
+
+/**
+ * The bounded CATEGORY of a recorded failure code — what operations logs group
+ * by (never the provider's text). Null when nothing failed.
+ */
+export function tsaFailureCategory(code: string | null | undefined, reasonRecorded = false): TsaFailureCategory | null {
+  const c = String(code ?? "").trim().toLowerCase();
+  if (!c) return reasonRecorded ? "UNSPECIFIED" : null;
+  if (c === "tsa_provider_quota_exceeded") return "QUOTA";
+  if (PROVIDER_DID_NOT_ISSUE.has(c) || c.startsWith("tsa_provider_")) return "NOT_ISSUED";
+  if (VALIDATION_NOT_PERFORMED.has(c)) return "NOT_VALIDATED";
+  if (VALIDATION_FAILED.has(c)) return "VALIDATION_FAILED";
+  return "UNSPECIFIED";
+}
+
 /**
  * The note for a recorded failure, or null when nothing failed. `reasonRecorded`
  * says only whether a raw reason exists (a legacy row may carry a reason and no
  * code); its text is never read.
  */
 export function tsaFailureNote(code: string | null | undefined, reasonRecorded = false): string | null {
-  const c = String(code ?? "").trim().toLowerCase();
-  if (!c) return reasonRecorded ? TSA_FAILURE_NOTES.UNSPECIFIED : null;
-  if (c === "tsa_provider_quota_exceeded") return TSA_FAILURE_NOTES.QUOTA;
-  if (PROVIDER_DID_NOT_ISSUE.has(c) || c.startsWith("tsa_provider_")) return TSA_FAILURE_NOTES.NOT_ISSUED;
-  if (VALIDATION_NOT_PERFORMED.has(c)) return TSA_FAILURE_NOTES.NOT_VALIDATED;
-  if (VALIDATION_FAILED.has(c)) return TSA_FAILURE_NOTES.VALIDATION_FAILED;
-  return TSA_FAILURE_NOTES.UNSPECIFIED;
+  const category = tsaFailureCategory(code, reasonRecorded);
+  return category ? TSA_FAILURE_NOTES[category] : null;
 }
+
+/**
+ * What stays true of a record whose trusted timestamp was not obtained, and
+ * what the platform does about it — said wherever the missing timestamp is
+ * (inbox, completion notice, runbook). There is no retry: a token issued now
+ * would certify a later moment than the sealing (tsa-no-retry gate).
+ */
+export const TSA_NOT_OBTAINED_SUPPORT_STATEMENT =
+  "The record remains sealed and signed, and OpenTimestamps anchoring proceeds independently. A trusted timestamp cannot be issued later for the sealing moment.";

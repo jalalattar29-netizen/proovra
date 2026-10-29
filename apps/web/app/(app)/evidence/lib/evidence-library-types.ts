@@ -231,6 +231,41 @@ export type EvidenceContentItem = {
   viewUrl?: string | null;
   displaySizeLabel?: string | null;
   previewRole?: "primary_preview" | "secondary_preview" | "download_only" | "metadata_only";
+  /**
+   * Wire contract D (2026-10-29) — how this stored part is presented. Absent
+   * from an older API: every part is its own item, as before.
+   */
+  artifactClass?: "ORIGINAL" | "CAPTURE_MANIFEST" | null;
+  partPresentation?: "user_item" | "recording_part" | "capture_record" | null;
+};
+
+/**
+ * Wire contract D — the API's projection of a record's stored parts into the
+ * items a person sees (one screen recording = one item) and the technical
+ * counts. Absent from an older API.
+ */
+export type EvidenceContentArtifacts = {
+  userItems: Array<{
+    kind: "recording" | "file";
+    label: string | null;
+    partIndexes: number[];
+    primaryPartIndex: number;
+    layout: "SINGLE_FILE" | "SEGMENTED" | null;
+  }>;
+  technical: {
+    originalPartCount: number;
+    captureRecordCount: number;
+    storedPartCount: number;
+    captureRecordPartIndexes: number[];
+  };
+  counts: { userItems: number };
+  /** Contract A — a continuous recording's statement, in the shared wording. */
+  recording?: {
+    layout: "SINGLE_FILE" | "SEGMENTED";
+    statement: string;
+    observedByProovra: string;
+    audioStatement: string | null;
+  } | null;
 };
 
 export type EvidenceContentSummary = {

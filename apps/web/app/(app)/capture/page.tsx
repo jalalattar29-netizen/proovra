@@ -11,7 +11,7 @@ import { CaptureSuggestionsPanel } from "./_lib/CaptureSuggestionsPanel";
 import { CaptureIntakeRail } from "./_lib/CaptureIntakeRail";
 import { CaptureOperationalSummary } from "./_lib/CaptureOperationalSummary";
 import { CaptureTrustStrip } from "./_lib/CaptureTrustStrip";
-import { CaptureDirectWebCaptureCard } from "./_lib/CaptureDirectWebCaptureCard";
+import { CaptureDirectWebCaptureCard, CaptureDirectWebCaptureNote } from "./_lib/CaptureDirectWebCaptureCard";
 import { CaptureDraftReattachNotice } from "./_lib/CaptureDraftReattachNotice";
 import { CaptureFinalReadiness } from "./_lib/CaptureFinalReadiness";
 import { CaptureActivityDisclosure } from "./_lib/CaptureActivityDisclosure";
@@ -69,6 +69,8 @@ import { useCaptureSessionOrchestration } from "./_hooks/useCaptureSessionOrches
 import { useCaptureLeaveGuard } from "./_hooks/useCaptureLeaveGuard";
 import { useCaptureScreenRecorder } from "./_hooks/useCaptureScreenRecorder";
 import { CaptureScreenRecorderCard } from "./_lib/CaptureScreenRecorderCard";
+import { captureLocationCheckLabel } from "./_lib/browser-location";
+import { CaptureLocationStatus } from "./_lib/CaptureLocationStatus";
 import { useOnlineStatus } from "../../../lib/pwa/useOnlineStatus";
 // Phase 30.10 — resumable upload adoption surface. The hook is
 // active only when NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED=true; with
@@ -231,6 +233,8 @@ function CapturePageInner() {
     busy,
     error,
     finalizeSession,
+    finalizeWithoutLocation,
+    location,
     locationPermissionDenied,
     progress,
     removeSessionItem,
@@ -857,7 +861,9 @@ onClick={async () => {
 
   <span>
     <strong>Location</strong>
-    <small>{useLocation ? "Included" : "Not included"}</small>
+    <small data-capture-location-check={useLocation ? location.check.status : "off"}>
+      {captureLocationCheckLabel(useLocation, location.check)}
+    </small>
   </span>
 
   <input
@@ -868,6 +874,12 @@ onClick={async () => {
   />
 </label>
   </div>
+  <CaptureLocationStatus
+    useLocation={useLocation}
+    location={location}
+    busy={busy}
+    onFinishWithoutLocation={() => void finalizeWithoutLocation()}
+  />
 </section>
             <CaptureRequirements
               selectedCollectionPlan={selectedCollectionPlan}
@@ -948,6 +960,9 @@ onClick={async () => {
                 }}
               />
             ) : null}
+            {/* Below the working sources, never above them: the extension
+                channel while it is not installable (see the card's PLACEMENT). */}
+            <CaptureDirectWebCaptureNote />
                         {audioRecorderOpen ? (
               <div className="capture-audio-card">
                 <div className="capture-panel-heading">

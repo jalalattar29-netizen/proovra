@@ -66,11 +66,12 @@ const PROCESSOR_SRC = read(
  */
 const DB_ALLOWED_KINDS: ReadonlyArray<string> = (() => {
   // Read from the LATEST migration that redefines the constraint. Point 5's
-  // 20271114 catalog established it; UC-4's 20280650000000 widens it again with
-  // `reconstruct_screen`, and on a clean boot the last ADD CONSTRAINT wins — so
+  // 20271114 catalog established it; UC-4's 20280650000000 widened it with
+  // `reconstruct_screen`; 20281029000000 widens it again with
+  // `combine_screen_recording`. On a clean boot the last ADD CONSTRAINT wins — so
   // the effective DB catalog is this migration's list.
   const sql = read(
-    "services/api/prisma/migrations/20280650000000_uc4_screen_intelligence/migration.sql",
+    "services/api/prisma/migrations/20281029000000_screen_recording_combined_derivative/migration.sql",
   );
   const check = sql.slice(
     sql.indexOf('ADD CONSTRAINT "media_intelligence_runs_kind_bounded"'),
@@ -161,6 +162,10 @@ const DISPOSITIONS: Record<
   // UC-4 — the derived screen-intelligence run. A producer (the derived-review
   // generate route) emits it and an explicit processor branch handles it.
   reconstruct_screen: "produced_and_processed",
+  // 2026-10-29 — the DERIVED combined screen recording. Producers: the
+  // finalization fan-out (new segmented seals) and the owner's Prepare route;
+  // an explicit processor branch handles it.
+  combine_screen_recording: "produced_and_processed",
   // Not in the queue vocabulary at all. Historical rows only.
   compute_duplicates: "legacy_only",
   compute_lineage: "legacy_only",
@@ -171,13 +176,14 @@ const DISPOSITIONS: Record<
 // ===========================================================================
 
 describe("Point 5 — media-intelligence job-kind reconciliation", () => {
-  it("the two reported numbers are 13 queue kinds and 15 run-row kinds", () => {
+  it("the two reported numbers are 14 queue kinds and 16 run-row kinds", () => {
     // Both figures measure different vocabularies. Point 5 established 12/14;
     // UC-4 added `reconstruct_screen` to the queue vocabulary + the DB catalog,
-    // so the counts are now 13 queue kinds and 15 run-row / DB-allowed kinds.
-    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toHaveLength(13);
-    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toHaveLength(15);
-    expect(DB_ALLOWED_KINDS).toHaveLength(15);
+    // so the counts were 13 / 15; 2026-10-29 added `combine_screen_recording` to
+    // both, so they are now 14 queue kinds and 16 run-row / DB-allowed kinds.
+    expect(MEDIA_INTELLIGENCE_JOB_KINDS).toHaveLength(14);
+    expect(MEDIA_INTELLIGENCE_RUN_KINDS).toHaveLength(16);
+    expect(DB_ALLOWED_KINDS).toHaveLength(16);
   });
 
   it("the difference is exactly the two legacy-only kinds", () => {

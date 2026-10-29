@@ -9,6 +9,8 @@
 
 import { describe, it, expect } from "vitest";
 
+import { TSA_NOT_OBTAINED_PRESENTATION } from "@proovra/shared";
+
 import { tsaLabel } from "../../components/evidence-outputs/ArtifactTruthHeader";
 
 const t = (status: string | null, over: Record<string, unknown> = {}) =>
@@ -23,7 +25,7 @@ describe("tsaLabel — the canonical timestamp presentation", () => {
     ["stamped, not validated", t("RECORDED_NOT_VALIDATED"), "Token recorded, not validated"],
     ["stamped without a validation time", t("STAMPED"), "Token recorded, not validated"],
     ["validated", t("STAMPED", { validated: true, validatedAtUtc: "2026-10-06T10:00:00Z" }), "Validated"],
-    ["failed at the provider", t("FAILED", { failureCode: "tsa_provider_timeout" }), "Failed — no token obtained"],
+    ["failed at the provider", t("FAILED", { failureCode: "tsa_provider_timeout" }), "Trusted timestamp not obtained"],
     ["failed, cause unknown", t("FAILED"), "Not validated"],
     ["service unavailable", t("UNAVAILABLE"), "Timestamp service unavailable"],
   ];
@@ -40,6 +42,12 @@ describe("tsaLabel — the canonical timestamp presentation", () => {
       expect(f.tone).not.toBe("ok");
       expect(f.status).not.toBe("VERIFIED");
     }
+  });
+
+  it("a provider that issued no token is THE shared degraded state, in the warning tone", () => {
+    const f = tsaLabel(t("FAILED", { failureCode: "tsa_provider_unreachable" }) as never);
+    expect(f.label).toBe(TSA_NOT_OBTAINED_PRESENTATION.label);
+    expect(f.tone).toBe("warn");
   });
 
   it("the bare 'Not available' is gone", () => {

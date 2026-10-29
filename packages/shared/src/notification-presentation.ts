@@ -575,9 +575,11 @@ const MSG = {
   otsNoMoreAttempts: t(" No further attempts will be made.", " Es werden keine weiteren Versuche unternommen.", " لن تُجرى محاولات أخرى."),
   tsaTitle: t("Trusted timestamp failed — {evidence}", "Vertrauenswürdiger Zeitstempel fehlgeschlagen — {evidence}", "فشل الطابع الزمني الموثوق — {evidence}"),
   tsaBody: t(
-    "{reason} Open the evidence Integrity tab for the timestamping status and retry posture.",
-    "{reason} Öffnen Sie den Integritäts-Tab des Beweismittels für den Zeitstempelstatus und die Wiederholungslage.",
-    "{reason} افتح تبويب السلامة للدليل للاطلاع على حالة الختم الزمني ووضع إعادة المحاولة.",
+    // 2026-10-29: no retry exists (a later token would certify a later moment),
+    // so the body says what stays true instead of promising a "retry posture".
+    "{reason} The record remains sealed and signed, and OpenTimestamps anchoring proceeds independently. A trusted timestamp cannot be issued later for the sealing moment. Open the evidence Integrity tab for the timestamping status.",
+    "{reason} Der Datensatz bleibt versiegelt und signiert, und die OpenTimestamps-Verankerung läuft unabhängig davon weiter. Ein vertrauenswürdiger Zeitstempel kann für den Zeitpunkt der Versiegelung nicht nachträglich ausgestellt werden. Öffnen Sie den Integritäts-Tab des Beweismittels für den Zeitstempelstatus.",
+    "{reason} يبقى السجل مختومًا وموقّعًا، ويستمر التثبيت عبر OpenTimestamps بشكل مستقل. لا يمكن إصدار طابع زمني موثوق لاحقًا للحظة الختم. افتح تبويب السلامة للدليل للاطلاع على حالة الختم الزمني.",
   ),
   tsaReasonFallback: t("Timestamping failed.", "Zeitstempelung fehlgeschlagen.", "فشل الختم الزمني."),
   caseTitle: t('Case assigned to you: "{case}"', "Ihnen zugewiesener Fall: „{case}“", "قضية مُسندة إليك: «{case}»"),

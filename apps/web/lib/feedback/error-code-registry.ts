@@ -291,6 +291,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // The verification page's disclosure (2026-10-18): contextual copy in the
   // one control that changes it.
   DISCLOSURE_CHANGE_NOT_PERMITTED: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
+  // Wire contract D (2026-10-29) — a multi-file original: the page lists and
+  // downloads the original files instead of one fragment.
+  ORIGINAL_IS_MULTIPART: {
+    disposition: "customer",
+    where: "apps/web/app/(app)/evidence/[id]/_hooks/useOriginalDownload.ts",
+  },
   DISCLOSURE_LOCATION_REQUIRES_CONTENT_PREVIEW: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
   DISCLOSURE_POLICY_INVALID: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },
   DISCLOSURE_RECORD_NOT_CHANGEABLE: { disposition: "customer", where: MANAGE_VERIFICATION_PAGE },

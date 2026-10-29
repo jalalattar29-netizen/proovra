@@ -31,11 +31,18 @@ export const CAPTURE_LIMITS = {
    * inside `maxEvidenceParts` (segment part indexes 0..198, manifest <= 199).
    */
   maxContinuousSegments: MAX_EVIDENCE_PARTS - 1,
-  /** Max wall-clock duration of one continuous session (ms). */
+  /**
+   * Max wall-clock duration of one continuous session (ms). A SINGLE_FILE
+   * recording (one Start→Stop = one file) is bounded by this as ONE file:
+   * reaching it STOPS the recording (BOUNDS_REACHED); it is never split.
+   */
   maxContinuousSessionMs: 50 * 60 * 1000,
-  /** Per-segment byte ceiling (native rollover; defence in depth). */
+  /** Per-segment byte ceiling (SEGMENTED layout only: native rollover; defence in depth). */
   maxContinuousSegmentBytes: 64 * 1024 * 1024,
-  /** Whole-session byte ceiling across all ORIGINAL segments. */
+  /**
+   * Whole-session byte ceiling across all ORIGINAL segments — and THE ceiling
+   * of the one recording file of a SINGLE_FILE session (never the per-segment one).
+   */
   maxContinuousSessionBytes: 512 * 1024 * 1024,
   /** Default and clamp window of one continuous segment (ms). */
   defaultContinuousSegmentMs: 6000,
