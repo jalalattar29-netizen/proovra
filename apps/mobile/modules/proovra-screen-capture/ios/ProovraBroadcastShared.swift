@@ -3,16 +3,22 @@ import ReplayKit
 import UIKit
 
 /**
- * Main-app side helpers for the UC-5 iOS broadcast pipeline: read the segment
- * files the Broadcast Upload Extension writes into the shared App Group
- * container, present Apple's system broadcast picker, and bridge Darwin
+ * Main-app side helpers for the UC-5 iOS broadcast pipeline: read the ONE
+ * recording file the Broadcast Upload Extension writes into the shared App
+ * Group container, present Apple's system broadcast picker, and bridge Darwin
  * notifications. The extension is the WRITER; this side is the READER.
  *
  * AUD-006 — the container layout (one namespace per broadcast, the binding the
  * app writes before it shows the picker, the monotonic heartbeat) is owned by
  * ProovraBroadcastSpool.swift, which the extension compiles too:
  *   uc5-broadcast/pending-binding.json
- *   uc5-broadcast/<recordingId>/{binding.json, state.json, seg-<n>.mp4|json, result.json}
+ *   uc5-broadcast/<recordingId>/{binding.json, state.json, recording.mp4|json, result.json}
+ *   (seg-<n>.mp4|json only in recordings an older, segmenting extension left behind)
+ *
+ * 2026-10-29 — one Start→Stop broadcast is ONE fragmented MP4 (layout
+ * SINGLE_FILE, wire contract B): the stop result carries recordingUri, its
+ * size/duration/canvas, the orientation timeline, pauses, dropped frames, the
+ * audio tracks actually written and whether the writer finalized the file.
  *
  * apps/mobile/test/ios-broadcast-contract.test.mjs pins this layout, the note
  * names and the device block against SampleHandler.swift and the JS/TS contract.
@@ -20,6 +26,7 @@ import UIKit
 
 /// THE Darwin note names shared with SampleHandler.swift (by value).
 enum ProovraBroadcastNotes {
+  /// LEGACY: only a segmenting extension (builds before 2026-10-29) posts it.
   static let segmentReady = "com.proovra.screencapture.ios.segmentReady"
   static let started = "com.proovra.screencapture.ios.started"
   static let finished = "com.proovra.screencapture.ios.finished"
@@ -28,6 +35,8 @@ enum ProovraBroadcastNotes {
 }
 
 /// UC-STR-001 — THE capture limits (packages/shared/src/capture-limits.ts), by value.
+/// The segment values only travel in the binding for older readers: the
+/// extension records ONE file and never rolls over.
 enum ProovraBroadcastLimits {
   static let maxSegments = 199
   static let defaultSegmentMs = 6000
@@ -75,6 +84,9 @@ struct ProovraBroadcastResult {
   let limitations: [String]
   /// The display block the extension measured (screenW/screenH/densityDpi/orientation), if it saw a frame.
   let display: [String: Any]?
+  /// THE one recording (layout SINGLE_FILE); nil for a legacy segmented recording
+  /// or a broadcast that wrote no media at all.
+  let recording: ProovraBroadcastRecordingFile?
 
   /**
    * UC-IOS-001 — THE device block of the continuity manifest, all eight keys:
@@ -93,7 +105,7 @@ struct ProovraBroadcastResult {
     for key in ["screenW", "screenH", "densityDpi", "orientation"] {
       device[key] = display?[key] ?? screen[key]
     }
-    return [
+    var map: [String: Any] = [
       "recordingId": ProovraBroadcastSpool.jsonValue(recordingId),
       "osConsentGranted": osConsentGranted,
       "captureStartedAtUtc": startedAtUtc,
@@ -105,6 +117,12 @@ struct ProovraBroadcastResult {
       "terminationReason": terminationReason,
       "limitations": limitations,
     ]
+    // Wire contract B — the ONE recording. A legacy segmented recording carries
+    // no `layout` (the JS reads it as SEGMENTED).
+    if let recording = recording {
+      for (k, v) in recording.toJsFields() { map[k] = v }
+    }
+    return map
   }
 
   static func screenDisplay() -> [String: Any] {
@@ -242,38 +260,56 @@ final class ProovraBroadcastSharedStore {
       completeness: (obj["sessionCompleteness"] as? String) ?? "INTERRUPTED_SESSION",
       terminationReason: (obj["terminationReason"] as? String) ?? "UNKNOWN",
       limitations: (obj["limitations"] as? [String]) ?? [],
-      display: obj["device"] as? [String: Any]
+      display: obj["device"] as? [String: Any],
+      recording: spool?.recordingFile(recordingId)
     )
   }
 
   /**
    * THE session summary of one recording. When result.json is missing
    * (extension killed / jetsam / still running) nothing is fabricated
-   * (UC-IOS-006): the start time is the one the extension wrote to state.json,
-   * the end and duration come from the last finalised segment, the termination
-   * is UNKNOWN, the session is INTERRUPTED with CAPTURE_INTERRUPTED, and consent
-   * is claimed only when a segment proves the broadcast ran.
+   * (UC-IOS-006): the start time is the one the extension wrote to state.json;
+   * the duration is the last heartbeat's recorded PTS span (or, for a legacy
+   * recording, the last finalised segment's end); the termination is UNKNOWN,
+   * the session is INTERRUPTED with CAPTURE_INTERRUPTED; consent is claimed only
+   * when media proves the broadcast ran; and the recording file — playable up to
+   * its last fragment — is reported finalized=false with no duration of its own.
    */
   func readResult(recordingId: String?) -> ProovraBroadcastResult {
     if let id = recordingId, let written = readWrittenResult(recordingId: id) { return written }
     let state = recordingId.map { readState(recordingId: $0) }
     let segments = recordingId.map { readNewSegments(recordingId: $0, after: -1) } ?? []
+    let recording = recordingId.flatMap { spool?.recordingFile($0) }
+    let rawState = recordingId.flatMap { spool?.readState($0) }
     let iso = ISO8601DateFormatter()
-    let lastEndMs = segments.map { $0.startedAtOffsetMs + $0.durationMs }.max() ?? 0
+    let lastSegmentEndMs = segments.map { $0.startedAtOffsetMs + $0.durationMs }.max() ?? 0
+    let recordedMs = (rawState?["recordedMs"] as? Int) ?? 0
+    let lastEndMs = recording != nil ? recordedMs : lastSegmentEndMs
     let started = state?.startedAtUtc.flatMap { iso.date(from: $0) }
     let startedAtUtc = state?.startedAtUtc ?? ""
     let endedAtUtc = started.map { iso.string(from: $0.addingTimeInterval(TimeInterval(lastEndMs) / 1000)) } ?? startedAtUtc
+    let recordingHasMedia = recording?.uri != nil
+    var limitations = ["CAPTURE_INTERRUPTED"]
+    if let rec = recording {
+      if rec.droppedFrameCount > 0 { limitations.append("FRAMES_DROPPED") }
+      if rec.audioTracks.isEmpty { limitations.append("AUDIO_NOT_CAPTURED") }
+      if !rec.pauses.isEmpty { limitations.append("BROADCAST_PAUSED") }
+      if Set(rec.orientationTimeline.compactMap { $0["orientation"] as? String }).count > 1 {
+        limitations.append("ORIENTATION_CHANGED_DURING_CAPTURE")
+      }
+    }
     return ProovraBroadcastResult(
       recordingId: state?.recordingId,
-      osConsentGranted: !segments.isEmpty,
+      osConsentGranted: !segments.isEmpty || recordingHasMedia,
       startedAtUtc: startedAtUtc,
       endedAtUtc: endedAtUtc,
-      segmentCount: segments.count,
+      segmentCount: recording != nil ? (recordingHasMedia ? 1 : 0) : segments.count,
       totalDurationMs: lastEndMs,
       completeness: "INTERRUPTED_SESSION",
       terminationReason: "UNKNOWN",
-      limitations: ["CAPTURE_INTERRUPTED"],
-      display: nil
+      limitations: limitations,
+      display: nil,
+      recording: recording
     )
   }
 }
@@ -288,7 +324,10 @@ enum ProovraBroadcastPicker {
     picker?.removeFromSuperview()
     let view = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
     view.preferredExtension = preferredExtensionBundleId
-    view.showsMicrophoneButton = false
+    // The OS picker IS the microphone consent: the user turns the microphone on
+    // or off in Apple's own sheet, and the extension writes a microphone track
+    // only when ReplayKit actually delivers microphone audio.
+    view.showsMicrophoneButton = true
     view.isHidden = true
     // UC-IOS-005 — a picker outside the view hierarchy may show nothing at all.
     let window = UIApplication.shared.connectedScenes

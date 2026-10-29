@@ -289,6 +289,103 @@ final class ProovraBroadcastSpoolTests: XCTestCase {
     XCTAssertEqual(spool.bindCaptureSession(recordingId: UUID().uuidString, captureSessionId: "cs-1"), .missing)
   }
 
+  // MARK: - THE recording (layout SINGLE_FILE, 2026-10-29)
+
+  private func recordingSidecar(finalized: Bool) -> [String: Any] {
+    return [
+      "sizeBytes": 4,
+      "durationMs": 61_000,
+      "widthPx": 1179,
+      "heightPx": 2556,
+      "orientation": "portrait",
+      "orientationTimeline": [
+        ["atOffsetMs": 0, "orientation": "portrait", "widthPx": 1179, "heightPx": 2556] as [String: Any],
+        ["atOffsetMs": 20_000, "orientation": "landscape", "widthPx": 2556, "heightPx": 1179] as [String: Any],
+      ],
+      "pauses": [["startOffsetMs": 30_000, "endOffsetMs": 34_000]],
+      "droppedFrameCount": 3,
+      "droppedAudioBufferCount": 0,
+      "audioTracks": ["APP"],
+      "finalized": finalized,
+      "limitations": ["BROADCAST_PAUSED", "FRAMES_DROPPED", "ORIENTATION_CHANGED_DURING_CAPTURE"],
+      "terminationReason": "USER_STOPPED",
+      "startedAtUtc": "2026-10-29T10:00:00Z",
+      "endedAtUtc": "2026-10-29T10:01:01Z",
+    ]
+  }
+
+  func testASingleFileRecordingIsPublishedOnceAndReadBackWithItsFacts() throws {
+    let rec = openBroadcast(at: 1)
+    XCTAssertNil(spool.recordingFile(rec.recordingId), "no media and no sidecar: no recording")
+    XCTAssertTrue(spool.isRecordingSlotFree(rec.recordingId))
+    let media = try XCTUnwrap(spool.recordingMediaURL(rec.recordingId))
+    fm.createFile(atPath: media.path, contents: Data([0x00, 0x00, 0x00, 0x18]))
+    XCTAssertFalse(spool.isRecordingSlotFree(rec.recordingId), "a written recording is never overwritten")
+    XCTAssertTrue(spool.publishRecording(rec.recordingId, sidecar: recordingSidecar(finalized: true)))
+    XCTAssertFalse(spool.publishRecording(rec.recordingId, sidecar: recordingSidecar(finalized: false)), "the first sidecar stands")
+
+    let file = try XCTUnwrap(spool.recordingFile(rec.recordingId))
+    XCTAssertEqual(file.uri, media.absoluteString)
+    XCTAssertEqual(file.sizeBytes, 4, "the size is the file's real size on disk")
+    XCTAssertEqual(file.durationMs, 61_000)
+    XCTAssertEqual(file.widthPx, 1179)
+    XCTAssertEqual(file.orientationTimeline.count, 2)
+    XCTAssertEqual(file.pauses.first?["endOffsetMs"] as? Int, 34_000)
+    XCTAssertEqual(file.droppedFrameCount, 3)
+    XCTAssertEqual(file.audioTracks, ["APP"])
+    XCTAssertTrue(file.finalized)
+    XCTAssertTrue(file.sidecarWritten)
+    let js = file.toJsFields()
+    XCTAssertEqual(js["layout"] as? String, "SINGLE_FILE")
+    XCTAssertEqual(js["recordingUri"] as? String, media.absoluteString)
+    XCTAssertEqual(js["finalized"] as? Bool, true)
+    XCTAssertEqual(spool.readRecordingSidecar(rec.recordingId)?["fileName"] as? String, ProovraBroadcastSpool.recordingMediaName)
+    // No legacy segment is invented for it.
+    XCTAssertEqual(spool.segments(rec.recordingId, after: -1).count, 0)
+    XCTAssertEqual(spool.summary(rec.recordingId, nowUptime: 2)?.hasRecordingFile, true)
+  }
+
+  func testAKilledExtensionLeavesAnUnfinalizedRecordingForRecovery() throws {
+    spool.writePendingBinding(binding(uptime: 100))
+    let rec = openBroadcast(at: 100)
+    let media = try XCTUnwrap(spool.recordingMediaURL(rec.recordingId))
+    fm.createFile(atPath: media.path, contents: Data(repeating: 0x01, count: 32))
+    // The last heartbeat before the extension was killed.
+    spool.updateState(rec.recordingId, [
+      "active": true, "heartbeatUptime": 105, "startedAtUtc": "2026-10-29T10:00:00Z",
+      "recordedMs": 9_000, "widthPx": 1179, "heightPx": 2556, "droppedFrameCount": 0,
+      "audioTracks": [String](), "orientationTimeline": [["atOffsetMs": 0, "orientation": "portrait"] as [String: Any]],
+    ])
+    let later: TimeInterval = 105 + ProovraBroadcastSpool.staleAfterSeconds + 5
+    let file = try XCTUnwrap(spool.recordingFile(rec.recordingId))
+    XCTAssertFalse(file.finalized, "a file the writer never finished is never complete")
+    XCTAssertFalse(file.sidecarWritten)
+    XCTAssertNil(file.durationMs, "no duration is claimed for an unfinished file")
+    XCTAssertEqual(file.uri, media.absoluteString, "the fragments written so far stay recoverable")
+    XCTAssertEqual(file.sizeBytes, 32)
+    XCTAssertEqual(file.widthPx, 1179)
+    XCTAssertEqual(file.audioTracks, [])
+    XCTAssertTrue(spool.recordingFile(rec.recordingId)?.toJsFields()["recordingDurationMs"] is NSNull)
+    let recoverable = spool.recoverable(nowUptime: later)
+    XCTAssertEqual(recoverable.map { $0.recording.recordingId }, [rec.recordingId], "a recording file with no segments is still a leftover")
+    XCTAssertEqual(recoverable.first?.segmentCount, 0)
+    XCTAssertEqual(recoverable.first?.hasRecordingFile, true)
+    XCTAssertEqual(recoverable.first?.finalized, false)
+  }
+
+  func testARecordingSidecarNamingAnotherRecordingIsNotItsRecording() throws {
+    let a = openBroadcast(at: 1)
+    let b = openBroadcast(at: 2)
+    XCTAssertTrue(spool.publishRecording(a.recordingId, sidecar: recordingSidecar(finalized: true)))
+    let dirA = try XCTUnwrap(spool.directory(for: a.recordingId))
+    let dirB = try XCTUnwrap(spool.directory(for: b.recordingId))
+    try fm.copyItem(at: dirA.appendingPathComponent(ProovraBroadcastSpool.recordingSidecarName),
+                    to: dirB.appendingPathComponent(ProovraBroadcastSpool.recordingSidecarName))
+    XCTAssertNil(spool.readRecordingSidecar(b.recordingId), "A's sidecar is never B's")
+    XCTAssertNil(spool.recordingFile(b.recordingId))
+    XCTAssertFalse(spool.publishRecording(UUID().uuidString, sidecar: [:]), "no sidecar for a recording that does not exist")
+  }
+
   func testDiscardRemovesOnlyTheNamedRecording() {
     let a = openBroadcast(at: 1)
     let b = openBroadcast(at: 2)

@@ -25,6 +25,18 @@ import java.io.File
 import java.io.FileOutputStream
 
 /**
+ * What one Capture Frame request did (the `status` of `onScreenFrame`). A
+ * frameIndex of -1 used to mean any of "no new image", "failed" and "stopped".
+ */
+internal const val FRAME_CAPTURED = "CAPTURED"
+/** The screen produced no new image since the last frame: nothing was saved. */
+internal const val FRAME_UNCHANGED = "UNCHANGED"
+/** The image could not be read or written (FRAME_CAPTURE_FAILED). */
+internal const val FRAME_FAILED = "FAILED"
+/** The session ended before the request was answered. */
+internal const val FRAME_STOPPED = "STOPPED"
+
+/**
  * UC-2 — the foreground service that holds one MediaProjection session and takes
  * frames ON DEMAND.
  *
@@ -82,7 +94,8 @@ class ScreenCaptureService : Service() {
     private var onStartFailedCb: ((String, String) -> Unit)? = null
     @Volatile private var stopReason: String = "USER_STOPPED"
 
-    var onFrame: ((Int, Int) -> Unit)? = null
+    /** (frameIndex or -1, frameCount, status: FRAME_CAPTURED / UNCHANGED / FAILED). */
+    var onFrame: ((Int, Int, String) -> Unit)? = null
     var onStopped: ((ScreenCaptureOutcome) -> Unit)? = null
 
     fun isActive(): Boolean = active
@@ -353,8 +366,9 @@ class ScreenCaptureService : Service() {
     val image = reader.acquireLatestImage()
     val index = frames.size
     if (image == null) {
-      // Nothing available yet; report a no-op frame so the UI stays truthful.
-      onFrame?.invoke(-1, frames.size)
+      // No new image since the last one (the screen did not change): nothing
+      // is saved, and the UI is told so — distinct from a failure.
+      onFrame?.invoke(-1, frames.size, FRAME_UNCHANGED)
       return
     }
     try {
@@ -389,14 +403,14 @@ class ScreenCaptureService : Service() {
       )
       // AUD-37 — durable before JS is told.
       FrameLedgerKeeper.update { frameLedgerWithFrame(it, frames.last(), limitations.toList()) }
-      onFrame?.invoke(index, frames.size)
+      onFrame?.invoke(index, frames.size, FRAME_CAPTURED)
     } catch (t: Throwable) {
       // UC-AND-011 — a frame we could not read or write (image read, PNG write,
       // storage full) is FRAME_CAPTURE_FAILED. It is NOT secure content: Android
       // returns FLAG_SECURE windows as black pixels without any error, so this
       // path never observes them and must not claim to.
       limitations.add("FRAME_CAPTURE_FAILED")
-      onFrame?.invoke(-1, frames.size)
+      onFrame?.invoke(-1, frames.size, FRAME_FAILED)
     } finally {
       image.close()
     }

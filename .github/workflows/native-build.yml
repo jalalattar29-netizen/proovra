@@ -67,7 +67,7 @@ jobs:
       # (ProovraBroadcastSpool: two broadcasts, stale App Group content, restart,
       # interruption, recovery, idempotent finalisation) on a real file system.
       # The package compiles the shipped files (copied in here, never a second
-      # copy in git). Refuses fewer than 22 executed (6 + 16).
+      # copy in git). Refuses fewer than 25 executed (6 + 19).
       - name: XCTest — ProovraDarwinNotify (UC-IOS-012) + ProovraBroadcastSpool (AUD-006)
         working-directory: apps/mobile/modules/proovra-screen-capture/ios-tests
         run: |
@@ -81,7 +81,7 @@ jobs:
           executed=$(echo "$line" | sed -E 's/.*Executed ([0-9]+) tests?.*/\1/')
           failures=$(echo "$line" | sed -E 's/.*with ([0-9]+) failures?.*/\1/')
           skipped=$(grep -cE "Test Case .* skipped" "$RUNNER_TEMP/xctest.log" || true)
-          if [ -z "$line" ] || [ "${executed:-0}" -lt 22 ]; then echo "::error::ios-tests XCTest executed ${executed:-0} tests (expected >= 22)"; exit 1; fi
+          if [ -z "$line" ] || [ "${executed:-0}" -lt 25 ]; then echo "::error::ios-tests XCTest executed ${executed:-0} tests (expected >= 25)"; exit 1; fi
           # Both suites must have run — a dropped target is not a smaller pass.
           for suite in ProovraDarwinNotifyTests ProovraBroadcastSpoolTests; do
             grep -qE "Test Suite .$suite. passed" "$RUNNER_TEMP/xctest.log" || { echo "::error::XCTest suite $suite did not pass"; exit 1; }

@@ -88,8 +88,22 @@ export type ScreenCaptureOptions = {
   maxFrames?: number;
 };
 
+/**
+ * What one Capture Frame request did. `frameIndex` is -1 for every status but
+ * CAPTURED, so the status is what tells them apart:
+ *  - CAPTURED  — a new frame was saved.
+ *  - UNCHANGED — the screen produced no new image since the last frame (e.g. it
+ *                did not change): nothing was saved; the UI should say so.
+ *  - FAILED    — the image could not be read or written (FRAME_CAPTURE_FAILED).
+ *  - STOPPED   — the session ended before the request was answered.
+ * Absent on native builds before 2026-10-29 (read -1 there as "no frame").
+ */
+export type ScreenFrameStatus = "CAPTURED" | "UNCHANGED" | "FAILED" | "STOPPED";
+
+export type ScreenFrameEvent = { frameIndex: number; frameCount: number; status?: ScreenFrameStatus };
+
 type NativeEvents = {
-  onScreenFrame: (e: { frameIndex: number; frameCount: number }) => void;
+  onScreenFrame: (e: ScreenFrameEvent) => void;
   onScreenCaptureStopped: (e: ScreenCaptureResult) => void;
 };
 
@@ -97,7 +111,7 @@ type NativeModuleType = {
   isSupported(): boolean;
   getState(): ScreenCaptureState;
   startCapture(options: { maxFrames: number }): Promise<ScreenCaptureStarted>;
-  captureFrame(): Promise<{ frameIndex: number; frameCount: number }>;
+  captureFrame(): Promise<ScreenFrameEvent>;
   stopCapture(): Promise<ScreenCaptureResult>;
   getRecoveredScreenCapture?(): ScreenCaptureResult | null;
   clearScreenCaptureLedger?(): Promise<void>;
@@ -147,8 +161,11 @@ export async function startScreenCapture(options: ScreenCaptureOptions = {}): Pr
   });
 }
 
-/** Capture ONE frame now (same authority as the notification's Capture Frame). */
-export async function captureScreenFrame(): Promise<{ frameIndex: number; frameCount: number }> {
+/**
+ * Capture ONE frame now (same authority as the notification's Capture Frame).
+ * `status` says whether a frame was saved (see ScreenFrameStatus).
+ */
+export async function captureScreenFrame(): Promise<ScreenFrameEvent> {
   if (Platform.OS !== "android") throw new Error("Android only.");
   return nativeModule().captureFrame();
 }
@@ -191,13 +208,30 @@ export function addScreenStoppedListener(cb: NativeEvents["onScreenCaptureStoppe
 }
 
 // ===========================================================================
-// UC-3 — CONTINUOUS (streaming) screen capture.
+// UC-3 / UC-5 — CONTINUOUS screen recording.
 //
 // Unlike the deliberate-frame mode, continuous capture RECORDS from consent until
-// Stop, splitting the recording into bounded ORIGINAL SEGMENTS (short mp4s) via
-// MediaRecorder. Each finalized segment fires `onScreenSegment` so the client can
-// upload it WHILE recording continues (bounded streaming), and `getContinuousState`
-// lets the UI reconnect after an app switch. Screen-only (no microphone/audio).
+// Stop. Wire contract B (2026-10-29): ONE Start→Stop recording is ONE video file.
+// New native builds (`layout: "SINGLE_FILE"` in the stop result):
+//   - Android: ONE MediaRecorder for the whole session; iOS: ONE AVAssetWriter
+//     writing a fragmented MP4 (a fragment every ~2 s, so an interrupted file
+//     stays playable up to its last fragment).
+//   - emit NO `onScreenSegment` events for new recordings; the stop result (and
+//     `onScreenContinuousStopped`) carries the one file: `recordingUri`, its size,
+//     duration and canvas, `orientationTimeline`, `pauses`, `droppedFrameCount`,
+//     `audioTracks` and `finalized`. `finalized: false` means the writer could not
+//     finish the file — it must never be presented as complete.
+//   - a session bound (duration / bytes / free space) STOPS the recording with
+//     BOUNDS_REACHED; it is never split.
+//   - audio: iOS writes app audio and the microphone (the user's choice in Apple's
+//     broadcast picker) only when ReplayKit delivers them; Android records the
+//     microphone only with `startContinuousCapture({ microphone: true })` after
+//     the user's in-app consent AND the RECORD_AUDIO runtime grant, and never
+//     other apps' audio. `audioTracks` states what was actually written.
+// Older native builds omit `layout` and stream bounded ORIGINAL SEGMENTS through
+// `onScreenSegment`; the legacy segment types and calls below stay so those paths
+// (and recordings they left on a device) still compile and recover.
+// `getContinuousState` lets the UI reconnect after an app switch.
 // ===========================================================================
 
 export type ScreenContinuousStopReason =
@@ -242,6 +276,10 @@ export type ScreenContinuousStarted = {
    * a broadcast that adopted this binding is this recording.
    */
   recordingId?: string;
+  /** Android, new builds: the recorder writes ONE file. */
+  layout?: ScreenContinuousLayout;
+  /** Android, new builds: the microphone was asked for (`audioTracks` in the result says if it was written). */
+  microphoneRequested?: boolean;
 };
 
 /** AUD-006 — iOS: how a broadcast recording is bound. */
@@ -273,6 +311,23 @@ export type ScreenContinuousDevice = Omit<ScreenCaptureDevice, "platform"> & {
   platform: "android" | "ios";
 };
 
+/** Wire contract A/B — the recording layout. Absent on legacy native builds ⇒ segmented. */
+export type ScreenContinuousLayout = "SINGLE_FILE";
+
+/** Wire contract A — one orientation of the recorded display (first entry = the initial one). */
+export type ScreenContinuousOrientationEntry = {
+  atOffsetMs: number;
+  orientation: "portrait" | "landscape";
+  widthPx?: number;
+  heightPx?: number;
+};
+
+/** Wire contract A — wall time with no frames (iOS broadcast pause), on the session timeline. */
+export type ScreenContinuousPause = { startOffsetMs: number; endOffsetMs: number };
+
+/** Wire contract A — an audio track ACTUALLY written to the file. */
+export type ScreenContinuousAudioTrack = "APP" | "MICROPHONE";
+
 export type ScreenContinuousResult = {
   /** AUD-006 — iOS: the recording this result belongs to (null: none ever started). */
   recordingId?: string | null;
@@ -290,6 +345,38 @@ export type ScreenContinuousResult = {
    */
   terminationDetail?: string | null;
   limitations: string[];
+  // ---- Wire contract B — the ONE recording (new native builds; legacy builds omit all) ----
+  /** "SINGLE_FILE" on new builds; absent ⇒ a legacy SEGMENTED recording (use the segment events). */
+  layout?: ScreenContinuousLayout;
+  /**
+   * file:// URI of the ONE recording. Null when no usable file exists. Android
+   * states it only for a file MediaRecorder finalised (an unfinalised MP4 is not
+   * playable). iOS also states it when the extension was killed (`finalized:
+   * false`): its fragmented MP4 plays up to the last fragment, but it is NOT a
+   * complete recording and must never be presented as one.
+   */
+  recordingUri?: string | null;
+  recordingSizeBytes?: number | null;
+  /** The recording's own duration; null when the writer never finished the file. */
+  recordingDurationMs?: number | null;
+  /** The encoded canvas (fixed for the whole file). */
+  widthPx?: number | null;
+  heightPx?: number | null;
+  orientationTimeline?: ScreenContinuousOrientationEntry[];
+  /** iOS broadcast pauses (the gap stays in the file); always [] on Android. */
+  pauses?: ScreenContinuousPause[];
+  /**
+   * Frames the writer refused (iOS: counted, never hidden — FRAMES_DROPPED when
+   * > 0). Absent on Android: MediaRecorder exposes no such count, and PROOVRA
+   * never claims a 0 it cannot observe.
+   */
+  droppedFrameCount?: number;
+  /** iOS: audio buffers the writer refused (counted, never hidden). */
+  droppedAudioBufferCount?: number;
+  /** Tracks ACTUALLY written ([] ⇒ silent, with AUDIO_NOT_CAPTURED). */
+  audioTracks?: ScreenContinuousAudioTrack[];
+  /** False ⇒ the writer could not finish the file (crash/kill/error): never complete. */
+  finalized?: boolean;
 };
 
 export type ScreenContinuousState = {
@@ -318,16 +405,29 @@ export type ScreenContinuousRecording = {
   captureSessionId: string | null;
   createdAtUtc: string;
   segmentCount: number;
+  /** "SINGLE_FILE": the broadcast wrote (or is writing) ONE recording file. */
+  layout?: "SINGLE_FILE" | "SEGMENTED";
+  /** The broadcast's recording.mp4 exists (layout SINGLE_FILE). */
+  hasRecordingFile?: boolean;
   active: boolean;
   stale: boolean;
+  /** result.json exists (the extension finished; not the same as the file being finalized). */
   finalized: boolean;
 };
 
 export type ScreenContinuousOptions = {
-  /** Per-segment duration ms (native clamps to a safe range). */
+  /** LEGACY (segmenting native builds): per-segment duration ms. New builds record one file. */
   segmentMs?: number;
-  /** Hard ceiling on segments (bounded session; native clamps to THE capture limit). */
+  /** LEGACY (segmenting native builds): ceiling on segments. */
   maxSegments?: number;
+  /**
+   * Android: record the MICROPHONE into the file. Pass true ONLY after the user
+   * chose it in PROOVRA AND the RECORD_AUDIO runtime permission was granted —
+   * native rejects with MICROPHONE_PERMISSION_REQUIRED otherwise (it never asks
+   * for the permission itself). iOS ignores it: the user turns the microphone
+   * on or off in Apple's broadcast picker, which is the consent there.
+   */
+  microphone?: boolean;
 };
 
 /**
@@ -352,6 +452,8 @@ export type ScreenContinuousLedger = {
   evidenceId: string | null;
   ownerUserId: string | null;
   state: "RECORDING" | "FINISHED" | "INTERRUPTED";
+  /** "SINGLE_FILE" for a one-file recording; null for a legacy segmented ledger. */
+  layout?: "SINGLE_FILE" | null;
   active: boolean;
   interruption: "PROCESS_DEATH" | null;
   outcome: ScreenContinuousResult & { interruption?: string | null };
@@ -374,7 +476,7 @@ type ContinuousNativeModule = {
   getContinuousLedger?(): ScreenContinuousLedger | null;
   markContinuousSegmentUploaded?(o: { captureSessionId: string; sequence: number; sha256Hex: string; sizeBytes: number }): Promise<boolean>;
   commitContinuousSpool?(o: { captureSessionId: string }): Promise<boolean>;
-  startContinuousCapture(options: { segmentMs: number; maxSegments: number }): Promise<ScreenContinuousStarted>;
+  startContinuousCapture(options: { segmentMs: number; maxSegments: number; microphone: boolean }): Promise<ScreenContinuousStarted>;
   stopContinuousCapture(recordingId?: string | null): Promise<ScreenContinuousResult>;
 };
 
@@ -443,6 +545,8 @@ export async function startContinuousCapture(
   return continuousModule().startContinuousCapture({
     segmentMs: Math.max(B.minSegmentMs, Math.min(options.segmentMs ?? DEFAULT_SEGMENT_MS, B.maxSegmentMs)),
     maxSegments: Math.max(1, Math.min(options.maxSegments ?? DEFAULT_MAX_SEGMENTS, B.maxSegments)),
+    // Explicit only: anything but `true` records no microphone.
+    microphone: options.microphone === true,
   });
 }
 
@@ -563,6 +667,7 @@ export async function bindContinuousSession(o: {
   return true;
 }
 
+/** LEGACY: only segmenting native builds emit it; new builds return ONE file in the stop result. */
 export function addScreenSegmentListener(cb: (seg: ScreenSegment) => void): Subscription {
   return emitter().addListener("onScreenSegment", cb as never) as Subscription;
 }

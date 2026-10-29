@@ -1,7 +1,9 @@
 package com.proovra.screencapture
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import expo.modules.kotlin.Promise
@@ -16,13 +18,20 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * before the user grants it), then hands the granted token to the right
  * foreground service:
  *   - UC-2: [ScreenCaptureService] — the user takes deliberate frames on demand.
- *   - UC-3: [ContinuousScreenCaptureService] — a bounded continuous recording split
- *           into ORIGINAL segments (MediaRecorder), streamed out as they finalize.
+ *   - UC-3: [ContinuousScreenCaptureService] — a bounded continuous recording as
+ *           ONE video file (MediaRecorder, layout SINGLE_FILE), returned in the
+ *           stop result; no per-segment events.
  *
  * Both share this one module and the consent/notification pattern. The module
  * trusts nothing from JS about ownership; it collects NO app inventory,
- * notifications, clipboard, contacts, hardware identifiers or AUDIO, never
- * bypasses FLAG_SECURE, and uses no overlay/Accessibility permission.
+ * notifications, clipboard, contacts or hardware identifiers, never bypasses
+ * FLAG_SECURE, and uses no overlay/Accessibility permission. The MICROPHONE is
+ * recorded only when JS passes `microphone: true` after the user's in-app
+ * consent, and only with the RECORD_AUDIO runtime grant (refused otherwise).
+ *
+ * The frame flow's `onScreenFrame` carries a `status`: CAPTURED, UNCHANGED (the
+ * screen produced no new image since the last frame — nothing was saved),
+ * FAILED (FRAME_CAPTURE_FAILED) or STOPPED, so JS can tell the user which.
  *
  * AUD-029 — every promise this module holds is a [SettleOnce]: a JS reload
  * rejects what the dead context awaited (MODULE_RELOADED), and a service
@@ -50,6 +59,7 @@ class ProovraScreenCaptureModule : Module() {
   private var continuousStopPromise: Pending? = null
   private var pendingSegmentMs: Int = ContinuousScreenCaptureService.DEFAULT_SEGMENT_MS
   private var pendingMaxSegments: Int = ContinuousScreenCaptureService.MAX_SEGMENTS
+  private var pendingMicrophone: Boolean = false
 
   // Which flow the pending consent belongs to.
   private var pendingKind: String? = null
@@ -214,6 +224,12 @@ class ProovraScreenCaptureModule : Module() {
       if (ContinuousScreenCaptureService.newRecordingBlocked()) {
         promise.reject(CodedException("PENDING_RECORDING", "An earlier recording is still on this device.", null)); return@AsyncFunction
       }
+      // The microphone only on an explicit request, and only with the runtime
+      // grant JS obtained first (never requested from here, never assumed).
+      val microphone = options["microphone"] == true
+      if (microphone && activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        promise.reject(CodedException("MICROPHONE_PERMISSION_REQUIRED", "Microphone recording needs the microphone permission.", null)); return@AsyncFunction
+      }
       val pending = Pending(promise)
       continuousStartPromise = pending
       pendingKind = "continuous"
@@ -222,6 +238,7 @@ class ProovraScreenCaptureModule : Module() {
         .coerceIn(ContinuousScreenCaptureService.MIN_SEGMENT_MS, ContinuousScreenCaptureService.MAX_SEGMENT_MS)
       pendingMaxSegments = ((options["maxSegments"] as? Number)?.toInt() ?: ContinuousScreenCaptureService.MAX_SEGMENTS)
         .coerceIn(1, ContinuousScreenCaptureService.MAX_SEGMENTS)
+      pendingMicrophone = microphone
       bindContinuousCallbacks()
       launchConsent(activity, pending)
     }
@@ -257,9 +274,15 @@ class ProovraScreenCaptureModule : Module() {
           return@OnActivityResult
         }
         ContinuousScreenCaptureService.start(
-          ctx!!, payload.resultCode, payload.data!!, pendingSegmentMs, pendingMaxSegments,
+          ctx!!, payload.resultCode, payload.data!!, pendingSegmentMs, pendingMaxSegments, pendingMicrophone,
           onStarted = { started ->
-            pending.resolveWith(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "segmentMs" to pendingSegmentMs, "maxSegments" to pendingMaxSegments))
+            pending.resolveWith(
+              mapOf(
+                "osConsentGranted" to true, "captureStartedAtUtc" to started,
+                "segmentMs" to pendingSegmentMs, "maxSegments" to pendingMaxSegments,
+                "layout" to LAYOUT_SINGLE_FILE, "microphoneRequested" to pendingMicrophone,
+              ),
+            )
             sendEvent("onScreenContinuousStarted", mapOf("captureStartedAtUtc" to started))
           },
           // UC-AND-013 — a setup failure after consent rejects; never a hung start.
@@ -284,20 +307,23 @@ class ProovraScreenCaptureModule : Module() {
   }
 
   private fun bindFrameCallbacks() {
-    ScreenCaptureService.onFrame = { i, n ->
-      framePromise?.resolveWith(mapOf("frameIndex" to i, "frameCount" to n)); framePromise = null
-      sendEvent("onScreenFrame", mapOf("frameIndex" to i, "frameCount" to n))
+    // frameIndex -1 is never ambiguous: `status` says UNCHANGED (no new image),
+    // FAILED or STOPPED.
+    ScreenCaptureService.onFrame = { i, n, status ->
+      val frame = mapOf("frameIndex" to i, "frameCount" to n, "status" to status)
+      framePromise?.resolveWith(frame); framePromise = null
+      sendEvent("onScreenFrame", frame)
     }
     ScreenCaptureService.onStopped = { outcome ->
       val js = outcome.toJsMap()
       stopPromise?.resolveWith(js); stopPromise = null
-      framePromise?.resolveWith(mapOf("frameIndex" to -1, "frameCount" to outcome.frames.size)); framePromise = null
+      framePromise?.resolveWith(mapOf("frameIndex" to -1, "frameCount" to outcome.frames.size, "status" to FRAME_STOPPED)); framePromise = null
       sendEvent("onScreenCaptureStopped", js)
     }
   }
 
+  // One recording: the result carries the file; no per-segment event is sent.
   private fun bindContinuousCallbacks() {
-    ContinuousScreenCaptureService.onSegment = { seg -> sendEvent("onScreenSegment", seg) }
     ContinuousScreenCaptureService.onStopped = { js ->
       continuousStopPromise?.resolveWith(js); continuousStopPromise = null
       sendEvent("onScreenContinuousStopped", js)

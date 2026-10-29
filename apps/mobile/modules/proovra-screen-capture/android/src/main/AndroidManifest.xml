@@ -11,6 +11,17 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!--
+    UC-3 OPTIONAL microphone track of a continuous recording. Used ONLY when JS
+    starts the recording with `microphone: true` after the user's explicit
+    in-app choice AND the RECORD_AUDIO runtime grant (the module refuses the
+    start otherwise; it never requests the permission itself). Android 11+
+    gives a foreground service the microphone only when it runs with the
+    `microphone` type, which Android 14 gates on FOREGROUND_SERVICE_MICROPHONE;
+    the service adds that type only for a microphone recording.
+  -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
   <application>
     <!-- UC-2 deliberate-frame capture service. -->
@@ -18,13 +29,14 @@
       android:name="com.proovra.screencapture.ScreenCaptureService"
       android:exported="false"
       android:foregroundServiceType="mediaProjection" />
-    <!-- UC-3 continuous (segmented) capture service. F6: this was missing, so
+    <!-- UC-3 continuous (one-file) capture service. F6: this was missing, so
          starting the continuous foreground service threw at runtime. Both
          MediaProjection services are internal (exported=false) and typed
-         mediaProjection as Android 10+/14+ require. -->
+         mediaProjection as Android 10+/14+ require; the continuous one may also
+         run as `microphone` for an explicitly requested microphone track. -->
     <service
       android:name="com.proovra.screencapture.ContinuousScreenCaptureService"
       android:exported="false"
-      android:foregroundServiceType="mediaProjection" />
+      android:foregroundServiceType="mediaProjection|microphone" />
   </application>
 </manifest>

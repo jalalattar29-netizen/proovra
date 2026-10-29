@@ -186,6 +186,111 @@ class ContinuousLedgerTest {
     assertNotNull(ledgerFromJson(ledgerToJson(fresh())))
   }
 
+  // ------------------------------------------- one recording (SINGLE_FILE) --
+
+  private val recordingPath get() = File(dir, "proovra-continuous-$startWall.mp4").absolutePath
+
+  /** The service's single-file start: the ledger names the file before it is finalised. */
+  private fun startSingleFile(audio: List<String> = emptyList()) = ContinuousLedgerKeeper.replace(
+    fresh().copy(
+      layout = LAYOUT_SINGLE_FILE,
+      recordingPath = recordingPath,
+      canvasW = 1072,
+      canvasH = 2384,
+      orientationTimeline = withOrientation(emptyList(), 0L, 1080, 2400),
+      audioTracks = audio,
+      limitations = if (audio.isEmpty()) listOf("AUDIO_NOT_CAPTURED") else emptyList(),
+    ),
+  )
+
+  @Test
+  fun aCleanSingleFileStopReportsTheOneFinalisedRecording() {
+    startSingleFile(audio = listOf(AUDIO_TRACK_MICROPHONE))
+    ContinuousLedgerKeeper.update {
+      ledgerWithSegment(
+        it,
+        seg(0).copy(path = recordingPath, durationMs = 61_000L, sizeBytes = 9_000_000L),
+      ).copy(recordingFinalized = true)
+    }
+    ContinuousLedgerKeeper.update {
+      ledgerFinished(it, "USER_STOPPED", null, emptyList(), "COMPLETE_SESSION", 61_200L, isoUtc(startWall + 61_200L))
+    }
+    ContinuousLedgerKeeper.forgetInMemory()
+    val outcome = ledgerOutcome(recoverLedger(ContinuousLedgerKeeper.get()!!, false))
+    assertEquals(LAYOUT_SINGLE_FILE, outcome["layout"])
+    assertEquals(true, outcome["finalized"])
+    assertEquals("file://$recordingPath", outcome["recordingUri"])
+    assertEquals(9_000_000L, outcome["recordingSizeBytes"])
+    assertEquals(61_000L, outcome["recordingDurationMs"])
+    assertEquals(1072, outcome["widthPx"])
+    assertEquals(listOf(AUDIO_TRACK_MICROPHONE), outcome["audioTracks"])
+    assertEquals(emptyList<Any>(), outcome["pauses"])
+    assertEquals(1, outcome["segmentCount"])
+    assertEquals("COMPLETE_SESSION", outcome["sessionCompleteness"])
+    assertFalse("Android never claims a dropped-frame count it cannot observe", outcome.containsKey("droppedFrameCount"))
+    // The one file stays until it is confirmed, committed or discarded.
+    assertTrue(blocksNewRecording(ContinuousLedgerKeeper.get(), recorderActive = false))
+  }
+
+  @Test
+  fun aProcessDeathMidRecordingIsInterruptedUnfinalisedAndNeverOffersTheFile() {
+    startSingleFile()
+    ContinuousLedgerKeeper.forgetInMemory() // died while MediaRecorder was writing (no moov box)
+    val recovered = recoverLedger(ContinuousLedgerKeeper.get()!!, recorderActive = false)
+    assertEquals(LEDGER_INTERRUPTED, recovered.state)
+    val outcome = ledgerOutcome(recovered)
+    assertEquals(false, outcome["finalized"])
+    assertNull("an unfinalised MediaRecorder MP4 is not playable: no uri", outcome["recordingUri"])
+    assertNull(outcome["recordingSizeBytes"])
+    assertNull(outcome["recordingDurationMs"])
+    assertEquals("INTERRUPTED_SESSION", outcome["sessionCompleteness"])
+    assertEquals("UNKNOWN", outcome["terminationReason"])
+    assertTrue((outcome["limitations"] as List<*>).containsAll(listOf("CAPTURE_INTERRUPTED", "AUDIO_NOT_CAPTURED")))
+    assertEquals(0, outcome["segmentCount"])
+    assertTrue("the user decides about an interrupted recording", blocksNewRecording(recovered, recorderActive = false))
+    assertTrue(interruptedRecordingPending(recovered))
+    // A finished ledger whose file could not be finalised holds nothing to keep.
+    val finishedEmpty = recovered.copy(state = LEDGER_FINISHED)
+    assertFalse(blocksNewRecording(finishedEmpty, recorderActive = false))
+  }
+
+  @Test
+  fun theOrientationTimelineIsAscendingDeduplicatedAndBounded() {
+    var tl = withOrientation(emptyList(), 0L, 1080, 2400)
+    assertEquals(listOf(LedgerOrientation(0L, "portrait", 1080, 2400)), tl)
+    assertSame("the same geometry is not a change", tl, withOrientation(tl, 500L, 1080, 2400))
+    tl = withOrientation(tl, 4_000L, 2400, 1080)
+    assertEquals("landscape", tl.last().orientation)
+    // A second change in the same millisecond replaces the entry: offsets stay strictly ascending.
+    tl = withOrientation(tl, 4_000L, 1080, 2400)
+    assertEquals(2, tl.size)
+    assertEquals(LedgerOrientation(4_000L, "portrait", 1080, 2400), tl.last())
+    var capped = withOrientation(emptyList(), 0L, 1080, 2400, max = 3)
+    for (i in 1..10) capped = withOrientation(capped, i * 1_000L, if (i % 2 == 1) 2400 else 1080, if (i % 2 == 1) 1080 else 2400, max = 3)
+    assertEquals(3, capped.size)
+    assertEquals(listOf(0L, 1_000L, 2_000L), capped.map { it.atOffsetMs })
+  }
+
+  @Test
+  fun theSingleFileLedgerRoundTripsAndALegacyLedgerReadsAsBefore() {
+    startSingleFile(audio = listOf(AUDIO_TRACK_MICROPHONE))
+    val full = ContinuousLedgerKeeper.get()!!.copy(
+      orientationTimeline = withOrientation(withOrientation(emptyList(), 0L, 1080, 2400), 7_000L, 2400, 1080),
+      recordingFinalized = true,
+    )
+    val store = LedgerStore(dir)
+    assertTrue(store.write(full))
+    assertEquals(full, store.read())
+    // A ledger written before the single-file fields existed parses unchanged.
+    val legacyJson = ledgerToJson(fresh().copy(segments = listOf(seg(0))))
+      .replace(Regex(",\"layout\":null,.*\"audioTracks\":\\[\\]\\}$"), "}")
+    assertFalse(legacyJson.contains("recordingPath"))
+    val legacy = ledgerFromJson(legacyJson)!!
+    assertNull(legacy.layout)
+    assertFalse(ledgerOutcome(legacy).containsKey("layout"))
+    assertEquals(1, ledgerOutcome(legacy)["segmentCount"])
+  }
+
   @Test
   fun miniJsonReadsWhatItWrites() {
     val v = mapOf("a" to listOf(1L, -2L, 3.5, true, null), "s" to "tab\there \"q\" \\ \u0001 \u00fc")

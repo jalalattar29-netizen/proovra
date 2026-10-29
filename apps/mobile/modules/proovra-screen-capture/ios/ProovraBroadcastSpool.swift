@@ -20,8 +20,18 @@ import Foundation
  *                              captureSessionId, createdAtUtc, adoptedAtUtc, segmentMs, maxSegments }
  *       state.json           { recordingId, active, segmentCount, startedAtUtc,
  *                              heartbeatSeq, heartbeatUptime, segmentMs, maxSegments }
- *       seg-<n>.mp4/.json    n = 0,1,2,… monotonic; a published segment is never overwritten
+ *       recording.mp4        THE recording (layout SINGLE_FILE): one fragmented MP4 per
+ *                            broadcast, never overwritten (the slot must be free to open it)
+ *       recording.json       its sidecar, written ONCE at finish: { layout, fileName, sizeBytes,
+ *                            durationMs, widthPx, heightPx, orientation, orientationTimeline,
+ *                            pauses, droppedFrameCount, droppedAudioBufferCount, audioTracks,
+ *                            finalized, limitations, terminationReason, startedAtUtc, endedAtUtc }
+ *       seg-<n>.mp4/.json    LEGACY (layout SEGMENTED, builds before 2026-10-29): read only, so
+ *                            a recording an older extension left behind is still recoverable
  *       result.json          written ONCE (first finaliser wins), carries recordingId
+ *
+ * A killed extension leaves recording.mp4 without recording.json: the file is
+ * playable up to its last movie fragment (~2 s), and is reported finalized=false.
  *
  * The extension ADOPTS the pending binding by renaming it (one atomic rename: at
  * most one broadcast can consume it), only when it is fresh. A broadcast with no
@@ -149,10 +159,57 @@ struct ProovraScreenSegment {
   }
 }
 
+/**
+ * THE one recording of a broadcast (layout SINGLE_FILE), as the app returns it
+ * (wire contract B). Read from recording.json when the extension finished it;
+ * when the extension was killed, only what is provable is stated: the file (if
+ * it exists — playable to its last fragment), its size on disk, the geometry
+ * and counters of the last heartbeat, no duration, and finalized=false.
+ */
+struct ProovraBroadcastRecordingFile {
+  let recordingId: String
+  /// file:// URI of recording.mp4, nil when no media was written.
+  let uri: String?
+  let sizeBytes: Int64?
+  /// Nil when the extension never finished the file (the playable length is the file's own).
+  let durationMs: Int?
+  let widthPx: Int?
+  let heightPx: Int?
+  let orientationTimeline: [[String: Any]]
+  let pauses: [[String: Any]]
+  let droppedFrameCount: Int
+  let droppedAudioBufferCount: Int
+  let audioTracks: [String]
+  /// True only when the extension's writer completed the file (finishWriting succeeded).
+  let finalized: Bool
+  /// recording.json exists (the extension reached its finish, cleanly or not).
+  let sidecarWritten: Bool
+
+  /// Wire contract B's recording fields (merged into the stop result).
+  func toJsFields() -> [String: Any] {
+    return [
+      "layout": "SINGLE_FILE",
+      "recordingUri": ProovraBroadcastSpool.jsonValue(uri),
+      "recordingSizeBytes": ProovraBroadcastSpool.jsonNumber(sizeBytes),
+      "recordingDurationMs": ProovraBroadcastSpool.jsonNumber(durationMs.map { Int64($0) }),
+      "widthPx": ProovraBroadcastSpool.jsonNumber(widthPx.map { Int64($0) }),
+      "heightPx": ProovraBroadcastSpool.jsonNumber(heightPx.map { Int64($0) }),
+      "orientationTimeline": orientationTimeline,
+      "pauses": pauses,
+      "droppedFrameCount": droppedFrameCount,
+      "droppedAudioBufferCount": droppedAudioBufferCount,
+      "audioTracks": audioTracks,
+      "finalized": finalized,
+    ]
+  }
+}
+
 /// A recording the app can list for explicit recovery or discard.
 struct ProovraBroadcastRecordingSummary {
   let recording: ProovraBroadcastRecording
   let segmentCount: Int
+  /// The broadcast wrote its ONE recording file (layout SINGLE_FILE).
+  let hasRecordingFile: Bool
   let active: Bool
   let stale: Bool
   let finalized: Bool
@@ -165,6 +222,8 @@ struct ProovraBroadcastRecordingSummary {
       "captureSessionId": ProovraBroadcastSpool.jsonValue(recording.captureSessionId),
       "createdAtUtc": recording.createdAtUtc,
       "segmentCount": segmentCount,
+      "layout": hasRecordingFile || segmentCount == 0 ? "SINGLE_FILE" : "SEGMENTED",
+      "hasRecordingFile": hasRecordingFile,
       "active": active,
       "stale": stale,
       "finalized": finalized,
@@ -189,6 +248,9 @@ final class ProovraBroadcastSpool {
   static let bindingName = "binding.json"
   static let stateName = "state.json"
   static let resultName = "result.json"
+  /// THE one recording of a broadcast (layout SINGLE_FILE) and its sidecar.
+  static let recordingMediaName = "recording.mp4"
+  static let recordingSidecarName = "recording.json"
   /// A binding is adoptable this long after the app wrote it — the same budget
   /// the JS gives Apple's picker (BROADCAST_START_TIMEOUT_MS, src/continuous-capture.ts).
   static let bindingFreshSeconds: TimeInterval = 120
@@ -220,6 +282,20 @@ final class ProovraBroadcastSpool {
   static func jsonValue(_ value: String?) -> Any {
     if let value = value { return value }
     return NSNull()
+  }
+
+  /// A JSON value for an optional integer: the number, or null.
+  static func jsonNumber(_ value: Int64?) -> Any {
+    if let value = value { return NSNumber(value: value) }
+    return NSNull()
+  }
+
+  /// A file's size on disk, read fresh (a new URL: resource values are cached per
+  /// URL instance). `.fileSizeKey` is not a required-reason (timestamp) API.
+  static func fileSize(_ url: URL) -> Int64? {
+    let fresh = URL(fileURLWithPath: url.path)
+    guard let size = try? fresh.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
+    return Int64(size)
   }
 
   /// Fresh = written by the app within the budget, on this boot (uptime only moves forward).
@@ -469,6 +545,76 @@ final class ProovraBroadcastSpool {
     return out
   }
 
+  // MARK: - THE recording (layout SINGLE_FILE)
+
+  func recordingMediaURL(_ recordingId: String) -> URL? {
+    return directory(for: recordingId)?.appendingPathComponent(ProovraBroadcastSpool.recordingMediaName)
+  }
+
+  /// The recording slot is free when neither recording.mp4 nor its sidecar
+  /// exists: a written recording is never overwritten.
+  func isRecordingSlotFree(_ recordingId: String) -> Bool {
+    guard let dir = directory(for: recordingId) else { return false }
+    return !fm.fileExists(atPath: dir.appendingPathComponent(ProovraBroadcastSpool.recordingMediaName).path)
+      && !fm.fileExists(atPath: dir.appendingPathComponent(ProovraBroadcastSpool.recordingSidecarName).path)
+  }
+
+  func hasRecordingMedia(_ recordingId: String) -> Bool {
+    guard let url = recordingMediaURL(recordingId) else { return false }
+    return fm.fileExists(atPath: url.path)
+  }
+
+  /// Publishes the recording's sidecar exclusively (once): false, and nothing
+  /// written, when it was already published.
+  func publishRecording(_ recordingId: String, sidecar: [String: Any]) -> Bool {
+    guard let dir = directory(for: recordingId), fm.fileExists(atPath: dir.path) else { return false }
+    var body = sidecar
+    body["recordingId"] = recordingId
+    body["layout"] = "SINGLE_FILE"
+    body["fileName"] = ProovraBroadcastSpool.recordingMediaName
+    return writeExclusively(body, to: dir.appendingPathComponent(ProovraBroadcastSpool.recordingSidecarName))
+  }
+
+  /// The sidecar of THIS recording, or nil while it has none.
+  func readRecordingSidecar(_ recordingId: String) -> [String: Any]? {
+    guard let dir = directory(for: recordingId),
+          let obj = readJson(dir.appendingPathComponent(ProovraBroadcastSpool.recordingSidecarName)),
+          (obj["recordingId"] as? String) == recordingId else { return nil }
+    return obj
+  }
+
+  /**
+   * THE recording of `recordingId`, or nil when the broadcast wrote neither a
+   * recording file nor its sidecar (a legacy segmented recording, or one killed
+   * before its first frame). The size is always the file's real size on disk.
+   * Without a sidecar (the extension was killed) the geometry and counters come
+   * from the last heartbeat's state.json, the duration is unknown and the file
+   * is NOT finalized.
+   */
+  func recordingFile(_ recordingId: String) -> ProovraBroadcastRecordingFile? {
+    guard let media = recordingMediaURL(recordingId) else { return nil }
+    let sidecar = readRecordingSidecar(recordingId)
+    let mediaExists = fm.fileExists(atPath: media.path)
+    guard mediaExists || sidecar != nil else { return nil }
+    let source = sidecar ?? readState(recordingId) ?? [:]
+    return ProovraBroadcastRecordingFile(
+      recordingId: recordingId,
+      uri: mediaExists ? media.absoluteString : nil,
+      sizeBytes: mediaExists ? ProovraBroadcastSpool.fileSize(media) : nil,
+      durationMs: sidecar.flatMap { $0["durationMs"] as? Int },
+      // 0 = no frame was ever seen: no canvas, stated as null.
+      widthPx: (source["widthPx"] as? Int).flatMap { $0 > 0 ? $0 : nil },
+      heightPx: (source["heightPx"] as? Int).flatMap { $0 > 0 ? $0 : nil },
+      orientationTimeline: (source["orientationTimeline"] as? [[String: Any]]) ?? [],
+      pauses: (source["pauses"] as? [[String: Any]]) ?? [],
+      droppedFrameCount: (source["droppedFrameCount"] as? Int) ?? 0,
+      droppedAudioBufferCount: (source["droppedAudioBufferCount"] as? Int) ?? 0,
+      audioTracks: (source["audioTracks"] as? [String]) ?? [],
+      finalized: mediaExists && ((sidecar?["finalized"] as? Bool) ?? false),
+      sidecarWritten: sidecar != nil
+    )
+  }
+
   // MARK: - result.json (finalisation)
 
   /// Writes the recording's result ONCE. Returns true when this call finalised
@@ -497,6 +643,7 @@ final class ProovraBroadcastSpool {
     return ProovraBroadcastRecordingSummary(
       recording: rec,
       segmentCount: segments(recordingId, after: -1).count,
+      hasRecordingFile: hasRecordingMedia(recordingId),
       active: live.active,
       stale: live.stale,
       finalized: readResult(recordingId) != nil
@@ -507,10 +654,10 @@ final class ProovraBroadcastSpool {
     return recordingIds().compactMap { summary($0, nowUptime: nowUptime) }
   }
 
-  /// Recordings that hold segments and are not running: kept until the user
-  /// recovers or discards them explicitly.
+  /// Recordings that hold media (the one recording file, or legacy segments)
+  /// and are not running: kept until the user recovers or discards them explicitly.
   func recoverable(nowUptime: TimeInterval) -> [ProovraBroadcastRecordingSummary] {
-    return summaries(nowUptime: nowUptime).filter { !$0.active && $0.segmentCount > 0 }
+    return summaries(nowUptime: nowUptime).filter { !$0.active && ($0.hasRecordingFile || $0.segmentCount > 0) }
   }
 
   // MARK: - IO

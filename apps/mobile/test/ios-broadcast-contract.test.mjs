@@ -15,6 +15,11 @@
  * RED on the pre-remediation tree: the Swift device map had 4 keys and the
  * validator refused it ("invalid device.screenW"); SampleHandler observed no
  * stop note; the final segment was finalised with `durationMs: 0`.
+ *
+ * 2026-10-29 — the extension writes ONE recording (layout SINGLE_FILE). The
+ * fixture's result.json keys (the legacy session summary) are unchanged; the
+ * one-file contract (writer, audio, bounds, sidecar, wire contract B) is
+ * pinned in ios-broadcast-contract-single-file.test.mjs.
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
@@ -76,7 +81,7 @@ test("UC-IOS-001: the fixture's result.json keys are exactly the keys SampleHand
 });
 
 test("UC-IOS-001: the fixture's JS result is the key set ProovraBroadcastResult.toJsMap returns — all 8 device keys", () => {
-  const toJs = shared.match(/func toJsMap\(\) -> \[String: Any\] \{\s*var device[\s\S]*?\n  \}\n/);
+  const toJs = shared.match(/func toJsMap\(\) -> \[String: Any\] \{\s*var device[\s\S]*?\n {2}\}\n/);
   assert.ok(toJs, "ProovraBroadcastResult.toJsMap not found");
   const deviceKeys = new Set([...toJs[0].matchAll(/"(platform|osVersion|model|appVersion)":/g)].map((m) => m[1]));
   for (const k of ["screenW", "screenH", "densityDpi", "orientation"]) {
@@ -84,16 +89,18 @@ test("UC-IOS-001: the fixture's JS result is the key set ProovraBroadcastResult.
     deviceKeys.add(k);
   }
   assert.deepEqual([...deviceKeys].sort(), Object.keys(fixture.jsResult.device).sort());
-  const returned = toJs[0].match(/return \[([\s\S]*?)\n    \]/);
-  assert.ok(returned, "toJsMap's returned dictionary not found");
+  const returned = toJs[0].match(/var map: \[String: Any\] = \[([\s\S]*?)\n {4}\]/);
+  assert.ok(returned, "toJsMap's session dictionary not found");
   const topKeys = [...returned[1].matchAll(/^\s{6}"(\w+)":/gm)].map((m) => m[1]).sort();
   assert.deepEqual(topKeys, Object.keys(fixture.jsResult).sort());
-  // The sidecar keys the reader requires are the ones the writer writes.
-  const sidecarWriter = handler.match(/let sidecar: \[String: Any\] = \[([\s\S]*?)\]/);
-  assert.deepEqual(
-    [...sidecarWriter[1].matchAll(/"(\w+)":/g)].map((m) => m[1]).sort(),
-    Object.keys(fixture.sidecars[0]).sort(),
-  );
+  // A legacy segmented recording stays exactly the fixture's shape: the
+  // one-file fields are merged ONLY when the broadcast wrote a recording.
+  assert.match(toJs[0], /if let recording = recording \{\s*for \(k, v\) in recording\.toJsFields\(\) \{ map\[k\] = v \}\s*\}\s*return map/);
+  // The legacy sidecar keys the segment reader requires are the fixture's.
+  const reader = spool.match(/func segments\(_ recordingId: String, after: Int\)[\s\S]*?guard ([\s\S]*?) else \{ break \}/);
+  assert.ok(reader, "the legacy segment reader was not found");
+  const readKeys = new Set([...reader[1].matchAll(/obj\["(\w+)"\]/g)].map((m) => m[1]));
+  for (const k of readKeys) assert.ok(k in fixture.sidecars[0], `the legacy reader requires ${k}, absent from the fixture`);
 });
 
 test("UC-IOS-001 / UC-IOS-004: the exact Swift result builds a manifest the SERVER validator accepts as COMPLETE", () => {
@@ -151,7 +158,10 @@ test("UC-IOS-006: a missing result is summarised as INTERRUPTED / UNKNOWN and st
 test("UC-IOS-002: the extension OBSERVES a dedicated stop note and ends the broadcast", () => {
   assert.match(handler, /stopRequestNote = "com\.proovra\.screencapture\.ios\.stopRequested"/);
   assert.match(handler, /CFNotificationCenterAddObserver\([\s\S]*?SampleHandler\.stopRequestNote as CFString/);
-  assert.match(handler, /func stopRequestedByApp\(\)[\s\S]*?finalizeSegment\(endPts: lastPts\)[\s\S]*?writeResult\(reason: "USER_STOPPED"\)[\s\S]*?finish\(message:/);
+  assert.match(handler, /func stopRequestedByApp\(\)[\s\S]*?finishRecording\(reason: "USER_STOPPED"\)[\s\S]*?finish\(message:/);
+  // Finishing = finish the ONE writer, then the sidecar and result.json.
+  assert.match(handler, /func finishRecording\(reason: String\) \{[\s\S]*?let completed = finishWriter\(\)\s*sealRecording\(reason: reason, finalized: completed\)/);
+  assert.match(handler, /func sealRecording[\s\S]*?spool\.publishRecording\(recordingId, sidecar: sidecar\)[\s\S]*?writeResult\(reason: reason/);
   assert.match(handler, /finishBroadcastWithError\(error\)/);
   assert.match(handler, /CFNotificationCenterRemoveObserver\(/);
   // The app posts THAT note (not the `finished` note it observes itself) and waits for the result.
@@ -160,7 +170,6 @@ test("UC-IOS-002: the extension OBSERVES a dedicated stop note and ends the broa
   assert.match(module, /readWrittenResult\(recordingId: id\) == nil && Date\(\) < deadline/);
   // Both sides agree on every note name.
   for (const [key, name] of Object.entries({
-    segmentReady: "com.proovra.screencapture.ios.segmentReady",
     started: "com.proovra.screencapture.ios.started",
     finished: "com.proovra.screencapture.ios.finished",
     stopRequested: "com.proovra.screencapture.ios.stopRequested",
@@ -168,30 +177,40 @@ test("UC-IOS-002: the extension OBSERVES a dedicated stop note and ends the broa
     assert.match(shared, new RegExp(`static let ${key} = "${name.replace(/\./g, "\\.")}"`), key);
     assert.ok(handler.includes(`"${name}"`), `SampleHandler lacks ${name}`);
   }
+  // segmentReady is LEGACY: the app still drains a segmenting build's spool,
+  // but the one-file extension never posts it.
+  assert.match(shared, /static let segmentReady = "com\.proovra\.screencapture\.ios\.segmentReady"/);
+  assert.ok(!handler.includes("segmentReady"), "the one-file extension posts per-segment notes again");
 });
 
-test("UC-IOS-004: one PTS clock; a segment ends where the next begins; the final one is measured", () => {
+test("UC-IOS-004: one PTS clock; the recording's duration is measured from it, never a literal 0", () => {
   assert.ok(!/durationMs:\s*0/.test(handler), "a literal zero duration is back");
   assert.ok(!/Date\(\)\.timeIntervalSince\(sessionStart/.test(handler), "offsets mix the wall clock again");
-  assert.match(handler, /let durationMs = max\(0, SampleHandler\.ms\(CMTimeSubtract\(end, startPts\)\)\)/);
-  assert.match(handler, /let offsetMs = max\(0, SampleHandler\.ms\(CMTimeSubtract\(startPts, sessionFirstPts\)\)\)/);
-  assert.match(handler, /finalizeSegment\(endPts: pts\)/, "rotation must end the segment at the next frame's PTS");
+  assert.match(handler, /private func recordedMs\(\) -> Int \{[\s\S]*?return SampleHandler\.offsetMs\(lastPts, from: sessionFirstPts\)/);
+  assert.match(handler, /private static func offsetMs\(_ pts: CMTime, from first: CMTime\) -> Int \{\s*return max\(0, ms\(CMTimeSubtract\(pts, first\)\)\)/);
+  assert.match(handler, /"durationMs": recordedMs\(\)/);
+  assert.match(handler, /w\.startSession\(atSourceTime: pts\)\s*sessionFirstPts = pts/);
 });
 
-test("UC-IOS-007: writer outcomes are checked and only a completed segment is published", () => {
+test("UC-IOS-007: writer outcomes are checked; a file the writer could not finish is never complete", () => {
   assert.match(handler, /guard w\.startWriting\(\) else/);
-  assert.match(handler, /if !input\.append\(sampleBuffer\)/);
-  assert.match(handler, /guard waited == \.success, writer\.status == \.completed else/);
+  assert.match(handler, /if input\.append\(sampleBuffer\) \{/);
+  assert.match(handler, /return waited == \.success && writer\.status == \.completed/);
   assert.match(handler, /limitations\.insert\("SEGMENT_WRITE_FAILED"\)/);
+  assert.match(handler, /if hasMedia && !finalized \{ limitations\.insert\("SEGMENT_WRITE_FAILED"\) \}/);
+  assert.match(handler, /let complete = cleanEnd && finalized && limitations\.isDisjoint\(with: SampleHandler\.incompleteLimitations\)/);
   assert.match(handler, /volumeAvailableCapacityForImportantUsage/);
 });
 
-test("UC-IOS-008 / UC-IOS-009: orientation from RPVideoSampleOrientationKey; pauses end a segment and are recorded", () => {
+test("UC-IOS-008 / UC-IOS-009: orientation from RPVideoSampleOrientationKey is RECORDED; a pause is a recorded gap", () => {
   assert.match(handler, /CMGetAttachment\(sampleBuffer, key: RPVideoSampleOrientationKey as CFString/);
-  assert.match(handler, /input\.transform = SampleHandler\.transform\(for: orientation\)/);
+  assert.match(handler, /video\.transform = SampleHandler\.transform\(for: orientation\)/);
   assert.match(handler, /limitations\.insert\("ORIENTATION_CHANGED_DURING_CAPTURE"\)/);
-  assert.match(handler, /override func broadcastPaused\(\)[\s\S]*?limitations\.insert\("BROADCAST_PAUSED"\)[\s\S]*?finalizeSegment/);
+  assert.match(handler, /override func broadcastPaused\(\)[\s\S]*?pauseStartOffsetMs = [\s\S]*?limitations\.insert\("BROADCAST_PAUSED"\)/);
   assert.match(handler, /override func broadcastResumed\(\)/);
+  // The writer keeps running through a pause: no finish, no new writer.
+  const paused = handler.match(/override func broadcastPaused\(\) \{[\s\S]*?\n {2}\}/)[0];
+  assert.ok(!/finish|startWriter|AVAssetWriter\(/.test(paused), "a pause ends or restarts the writer again");
 });
 
 test("UC-IOS-005 / UC-IOS-006 / UC-IOS-010 / UC-IOS-012 / UC-AND-014 — app-side lifecycle", () => {
@@ -258,15 +277,17 @@ test("AUD-006: the spool is ONE Foundation-only file compiled by the app, the ex
 
 test("AUD-006: the extension opens a NEW namespace per broadcast and never overwrites a segment or a result", () => {
   assert.match(handler, /spool\.openRecording\(\s*nowUptime: ProcessInfo\.processInfo\.systemUptime/);
-  assert.match(handler, /sequence = spool\.nextSequence\(recording\.recordingId\)/);
-  // No delete-then-write of a segment slot: a taken slot is refused before the writer opens it.
-  assert.ok(!/removeItem\(at: url\)\s*guard let w = try\? AVAssetWriter/.test(handler), "the extension deletes an existing segment before writing again");
-  assert.match(handler, /guard spool\.isSegmentSlotFree\(recordingId, sequence: sequence\) else \{\s*failWriter\(\)[\s\S]*?AVAssetWriter\(outputURL: url/);
-  assert.match(handler, /guard spool\.publishSegment\(recordingId, sequence: seq, sidecar: sidecar\) else/);
+  // No delete-then-write of the recording slot: a taken slot is refused before the writer opens it.
+  assert.ok(!/removeItem\(at: url\)\s*guard let w = try\? AVAssetWriter/.test(handler), "the extension deletes an existing recording before writing again");
+  assert.match(handler, /guard spool\.isRecordingSlotFree\(recordingId\) else \{\s*failWriter\(\)[\s\S]*?AVAssetWriter\(outputURL: url/);
+  // Only a file THIS broadcast created is ever removed (and only when it holds no frame).
+  assert.match(handler, /if !hasMedia, let url = recordingURL \{\s*try\? FileManager\.default\.removeItem\(at: url\)/);
+  assert.match(handler, /_ = spool\.publishRecording\(recordingId, sidecar: sidecar\)/);
   assert.match(handler, /spool\.finalize\(recordingId, result: result\)/);
   assert.ok(!/"result\.json"|"state\.json"/.test(handler), "the extension writes fixed-name files again");
   // The spool's publish/finalise are exclusive (first writer wins), and adoption is one atomic rename.
   assert.match(spool, /func writeExclusively[\s\S]*?guard !fm\.fileExists\(atPath: url\.path\)[\s\S]*?fm\.moveItem\(at: tmp, to: url\)/);
+  assert.match(spool, /func publishRecording[\s\S]*?return writeExclusively\(body, to: dir\.appendingPathComponent\(ProovraBroadcastSpool\.recordingSidecarName\)\)/);
   assert.match(spool, /fm\.moveItem\(at: pending, to: claim\)/);
   assert.match(spool, /createDirectory\(at: dir, withIntermediateDirectories: false\)/);
 });

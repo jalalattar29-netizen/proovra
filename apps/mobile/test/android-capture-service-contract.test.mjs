@@ -10,6 +10,10 @@
  * then the segment was emitted anyway; every frame failure was reported as
  * SECURE_CONTENT_OMITTED; the frame service had no display listener; a setup
  * failure after consent called finish("ERROR") and never settled the promise.
+ *
+ * 2026-10-29 — the continuous service records ONE file per session (no
+ * rollover, no restart); the one-file rules (bounds, rotation, microphone,
+ * interruption) are pinned in ios-broadcast-contract-single-file.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,14 +29,14 @@ const frames = code("ScreenCaptureService.kt");
 const module = code("ProovraScreenCaptureModule.kt");
 const decisions = code("CaptureDecisions.kt");
 
-test("UC-AND-007: a segment whose MediaRecorder.stop() threw is deleted, recorded, and never emitted", () => {
+test("UC-AND-007: a recording whose MediaRecorder.stop() threw is deleted, recorded, and never offered", () => {
   // The decision lives in CaptureDecisions.kt (JVM-unit-tested by
   // CaptureDecisionsTest.kt); the service must route stop() through it and act
   // on the discard verdict.
   assert.match(decisions, /try \{ stop\(\) \} catch \(_: Throwable\) \{ stopFailed = true \}/);
   assert.match(decisions, /if \(stopFailed\) \{\s*try \{ deleteFile\(\) \}[\s\S]*?return SegmentClose\.DISCARD_WRITE_FAILED/);
   assert.match(continuous, /closeSegment\(\s*stop = \{ r\.stop\(\) \}/);
-  assert.match(continuous, /if \(outcome == SegmentClose\.DISCARD_WRITE_FAILED\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)[\s\S]*?return\s*\}/);
+  assert.match(continuous, /if \(outcome == SegmentClose\.DISCARD_WRITE_FAILED\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)\s*return false\s*\}/);
   assert.ok(!/try \{ r\.stop\(\) \} catch \(_: Throwable\) \{\}/.test(continuous), "the swallowed stop() is back");
   // A clean stop over a lost stretch is not COMPLETE (sessionCompleteness, JVM-tested).
   assert.match(continuous, /val completeness = sessionCompleteness\(reason, limitations\)/);
@@ -55,7 +59,7 @@ test("UC-AND-012: a rotation resizes the capture surface; frames carry their own
 test("UC-AND-013: a setup failure after consent REJECTS the start (both services)", () => {
   for (const [name, src] of [["continuous", continuous], ["frames", frames]]) {
     assert.match(src, /private fun failStart\(code: String, message: String\)/, name);
-    assert.match(src, /try \{\s*beginProjection\(\)\s*\} catch \(t: Throwable\) \{\s*failStart\(/, name);
+    assert.match(src, /try \{\s*(startForegroundWithNotification\(\)\s*)?beginProjection\(\)\s*\} catch \(t: Throwable\) \{\s*failStart\(/, name);
     assert.match(src, /cb\?\.invoke\(code, message\)/, name);
     assert.ok(!/getMediaProjection\(resultCode, data\) \?: return finish\("ERROR"\)/.test(src), `${name}: the hung-start path is back`);
     // Consent / null projection / a throw are decided by obtainProjection
@@ -94,19 +98,22 @@ test("AUD-029(a): a recreated module re-binds BOTH services and rejects what a d
 test("AUD-029(b): the recorder is configured inside the encoder's capabilities", () => {
   assert.match(continuous, /MediaCodecList\(MediaCodecList\.REGULAR_CODECS\)/);
   assert.match(continuous, /getCapabilitiesForType\(MediaFormat\.MIMETYPE_VIDEO_AVC\)\.videoCapabilities/);
-  assert.match(continuous, /val config = clampEncoderConfig\(segW, segH, BITRATE, FRAME_RATE, avcEncoderCaps\(\)\)/);
-  assert.match(continuous, /segmentStartFailure = ENCODER_UNSUPPORTED_SIZE/);
+  assert.match(continuous, /val config = clampEncoderConfig\(widthPx, heightPx, BITRATE, FRAME_RATE, avcEncoderCaps\(\)\)/);
+  assert.match(continuous, /startFailure = ENCODER_UNSUPPORTED_SIZE/);
   assert.match(continuous, /r\.setVideoSize\(config\.width, config\.height\)/);
   assert.match(continuous, /r\.setVideoEncodingBitRate\(config\.bitrate\)/);
-  assert.ok(!/setVideoSize\(segW, segH\)/.test(continuous), "the raw display size reaches the encoder again");
+  assert.ok(!/setVideoSize\((segW|widthPx), (segH|heightPx)\)/.test(continuous), "the raw display size reaches the encoder again");
 });
 
-test("AUD-029(b): a rollover whose next segment cannot start is recorded and ends as ERROR", () => {
+test("AUD-029(b): a recorder that cannot start REJECTS the start with a stable code — never a silent stall", () => {
   assert.match(
     continuous,
-    /if \(!startNextSegment\(\)\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)\s*finish\("ERROR", segmentStartFailure \?: SEGMENT_START_FAILED\)\s*\}/,
+    /if \(!startRecorder\(\)\) \{\s*failStart\(startFailure \?: "RECORDER_UNAVAILABLE", "The screen recorder could not start\."\)\s*return\s*\}/,
   );
-  assert.ok(!/finalizeCurrentSegment\(\)\s*startNextSegment\(\)\s*\}/.test(continuous), "the ignored startNextSegment() is back");
+  assert.match(continuous, /startFailure = SEGMENT_START_FAILED\s*false/);
+  assert.match(continuous, /startFailure = STORAGE_LOW/);
+  // No mid-session restart exists that could stall unnoticed.
+  assert.ok(!/startNextSegment|rolloverSegment/.test(continuous), "the rollover is back");
 });
 
 test("AUD-029(c): failures carry stable codes, never raw exception prose", () => {
@@ -118,27 +125,35 @@ test("AUD-029(c): failures carry stable codes, never raw exception prose", () =>
   assert.match(continuous, /"terminationDetail" to terminationDetail/);
 });
 
-test("AUD-029: both services run as mediaProjection foreground services, declared and permitted, with no audio", () => {
+test("AUD-029: both services run as mediaProjection foreground services; audio ONLY on the continuous recorder's explicit microphone option", () => {
   const manifest = readFileSync(resolve(KT, "../../../../AndroidManifest.xml"), "utf8");
-  for (const [name, src] of [["ContinuousScreenCaptureService", continuous], ["ScreenCaptureService", frames]]) {
+  for (const [name, src, type] of [
+    ["ContinuousScreenCaptureService", continuous, "mediaProjection\\|microphone"],
+    ["ScreenCaptureService", frames, "mediaProjection"],
+  ]) {
     assert.match(src, /startForeground\(NOTIF_ID, notification, ServiceInfo\.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION\)/, name);
     assert.match(
       manifest,
-      new RegExp(`android:name="com\\.proovra\\.screencapture\\.${name}"\\s+android:exported="false"\\s+android:foregroundServiceType="mediaProjection"`),
+      new RegExp(`android:name="com\\.proovra\\.screencapture\\.${name}"\\s+android:exported="false"\\s+android:foregroundServiceType="${type}"`),
       name,
     );
   }
   assert.match(manifest, /android\.permission\.FOREGROUND_SERVICE_MEDIA_PROJECTION/);
-  assert.ok(!/RECORD_AUDIO/.test(manifest), "screen capture must not request the microphone");
-  assert.ok(!/setAudioSource/.test(continuous), "the continuous recorder configures an audio source");
+  // RECORD_AUDIO is declared for ONE use: the continuous recorder's explicit microphone option.
+  assert.equal((manifest.match(/android\.permission\.RECORD_AUDIO/g) ?? []).length, 1);
+  assert.ok(!/setAudioSource|AudioRecord|RECORD_AUDIO/.test(frames), "the frame service touches audio");
+  assert.match(continuous, /if \(withMicrophone\) r\.setAudioSource\(MediaRecorder\.AudioSource\.MIC\)/);
+  assert.match(module, /val microphone = options\["microphone"\] == true/);
 });
 
 /* ---------------------------------------------------------------- AUD-004 -- */
 
-test("AUD-004: the service writes the durable ledger at start, at every segment close (before JS hears) and at finish", () => {
-  assert.match(continuous, /ContinuousLedgerKeeper\.replace\(\s*ContinuousLedger\(/);
-  assert.match(continuous, /ContinuousLedgerKeeper\.update \{\s*ledgerWithSegment\([\s\S]*?\}\s*segments\.add\(seg\)\s*updateNotification\(seq \+ 1\)\s*onSegment\?\.invoke\(seg\)/);
-  assert.match(continuous, /ContinuousLedgerKeeper\.update \{\s*ledgerFinished\(it, reason, terminationDetail, limitations\.toList\(\), completeness, totalMs, endedAtUtc\)\s*\}\s*last = outcome\s*onStopped\?\.invoke\(outcome\)/);
+test("AUD-004: the service writes the durable ledger at start (naming the one file), at its close (before JS hears) and at finish", () => {
+  assert.match(continuous, /ContinuousLedgerKeeper\.replace\(\s*ContinuousLedger\([\s\S]*?layout = LAYOUT_SINGLE_FILE,\s*recordingPath = currentFile\?\.absolutePath,/);
+  assert.match(continuous, /ContinuousLedgerKeeper\.update \{\s*ledgerWithSegment\([\s\S]*?\)\.copy\(recordingFinalized = true\)\s*\}\s*segments\.add\(seg\)\s*return true/);
+  assert.match(continuous, /ContinuousLedgerKeeper\.update \{\s*ledgerFinished\(it, reason, terminationDetail, limitations\.toList\(\), completeness, totalMs, endedAtUtc\)\s*\.copy\(recordingFinalized = finalized, orientationTimeline = orientationTimeline, audioTracks = tracks\)\s*\}\s*last = outcome\s*onStopped\?\.invoke\(outcome\)/);
+  // New builds emit no per-segment event.
+  assert.ok(!/onSegment/.test(continuous + module), "a per-segment event is emitted again");
   // The spool lives in filesDir (cacheDir can be purged under storage pressure).
   assert.match(continuous, /fun spoolDir\(context: Context\): File = File\(context\.filesDir, SPOOL_DIR\)/);
   assert.ok(!/File\(cacheDir, "proovra-continuous-/.test(continuous), "segments are written to cacheDir again");

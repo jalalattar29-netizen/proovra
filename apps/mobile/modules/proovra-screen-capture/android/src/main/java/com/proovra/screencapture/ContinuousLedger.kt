@@ -23,6 +23,16 @@ import java.nio.file.StandardCopyOption
  * PROCESS_DEATH) — never COMPLETE. Files are deleted only when the ledger says
  * their bytes are confirmed at PROOVRA, when the bound session is committed,
  * or on an explicit discard.
+ *
+ * One recording (2026-10-29, layout SINGLE_FILE): a Start→Stop session is ONE
+ * MediaRecorder file. The ledger names that file from the moment recording
+ * starts (`recordingPath`); a clean stop that finalised it records it as
+ * segment 0 (so confirm-then-delete, commit and discard are unchanged) and
+ * `recordingFinalized = true`. A process death mid-recording leaves a file
+ * MediaRecorder never finalised (no moov box: unplayable) — recovered as
+ * INTERRUPTED with `finalized = false` and no recordingUri, and kept, like any
+ * leftover, until the user explicitly discards it. A ledger without `layout`
+ * is a legacy segmented recording and reads exactly as before.
  */
 
 internal const val LEDGER_SCHEMA = 1
@@ -32,6 +42,16 @@ internal const val LEDGER_INTERRUPTED = "INTERRUPTED"
 internal const val SEGMENT_RECORDED = "RECORDED"
 internal const val SEGMENT_UPLOADED = "UPLOADED"
 internal const val INTERRUPTION_PROCESS_DEATH = "PROCESS_DEATH"
+internal const val LAYOUT_SINGLE_FILE = "SINGLE_FILE"
+internal const val AUDIO_TRACK_MICROPHONE = "MICROPHONE"
+
+/** One orientation change of the recorded display (wire contract A's orientationTimeline). */
+internal data class LedgerOrientation(
+  val atOffsetMs: Long,
+  val orientation: String,
+  val widthPx: Int,
+  val heightPx: Int,
+)
 
 /** The recording device, as the manifest's device block states it. */
 internal data class LedgerDevice(
@@ -82,6 +102,18 @@ internal data class ContinuousLedger(
   val endedAtUtc: String? = null,
   /** The last known monotonic offset reached (segment end, or the finish). */
   val totalDurationMs: Long = 0L,
+  // ---- one recording (layout SINGLE_FILE); absent in a legacy segmented ledger ----
+  val layout: String? = null,
+  /** THE recording file, named at start (it exists before it is finalised). */
+  val recordingPath: String? = null,
+  /** True only when MediaRecorder.stop() finalised the file. */
+  val recordingFinalized: Boolean = false,
+  /** The encoder canvas (fixed for the whole recording). */
+  val canvasW: Int = 0,
+  val canvasH: Int = 0,
+  val orientationTimeline: List<LedgerOrientation> = emptyList(),
+  /** Tracks actually configured on the recorder ([] or ["MICROPHONE"]). */
+  val audioTracks: List<String> = emptyList(),
 )
 
 // ---------------------------------------------------------------- decisions --
@@ -134,13 +166,73 @@ internal fun recoverLedger(l: ContinuousLedger, recorderActive: Boolean): Contin
   )
 }
 
+/**
+ * Wire contract B — the ONE recording's fields of a stop result. The uri, size
+ * and duration are stated only for a file MediaRecorder FINALISED: an
+ * unfinalised MP4 has no moov box and is not playable, so it is never offered
+ * (finalized = false says why). Android has no pauses; MediaRecorder exposes no
+ * count of frames its encoder skipped, so `droppedFrameCount` is absent (never
+ * a claimed 0).
+ */
+internal fun recordingFieldsToJs(
+  recordingPath: String?,
+  finalized: Boolean,
+  sizeBytes: Long?,
+  durationMs: Long?,
+  canvasW: Int,
+  canvasH: Int,
+  orientationTimeline: List<LedgerOrientation>,
+  audioTracks: List<String>,
+): Map<String, Any?> = mapOf(
+  "layout" to LAYOUT_SINGLE_FILE,
+  "recordingUri" to if (finalized && recordingPath != null) "file://$recordingPath" else null,
+  "recordingSizeBytes" to if (finalized) sizeBytes else null,
+  "recordingDurationMs" to if (finalized) durationMs else null,
+  "widthPx" to if (canvasW > 0) canvasW else null,
+  "heightPx" to if (canvasH > 0) canvasH else null,
+  "orientationTimeline" to orientationTimeline.map { orientationToJs(it) },
+  "pauses" to emptyList<Map<String, Any?>>(),
+  "audioTracks" to audioTracks,
+  "finalized" to finalized,
+)
+
+internal fun orientationToJs(o: LedgerOrientation): Map<String, Any?> = mapOf(
+  "atOffsetMs" to o.atOffsetMs,
+  "orientation" to o.orientation,
+  "widthPx" to o.widthPx,
+  "heightPx" to o.heightPx,
+)
+
+/**
+ * The orientation timeline after the display reports a [widthPx]x[heightPx]
+ * geometry at [atOffsetMs]: unchanged when the geometry did not change;
+ * offsets stay strictly ascending (a second change in the same millisecond
+ * replaces the previous entry); at most [max] entries (later changes stay
+ * named by ORIENTATION_CHANGED_DURING_CAPTURE).
+ */
+internal fun withOrientation(
+  timeline: List<LedgerOrientation>,
+  atOffsetMs: Long,
+  widthPx: Int,
+  heightPx: Int,
+  max: Int = 256,
+): List<LedgerOrientation> {
+  val orientation = if (widthPx >= heightPx) "landscape" else "portrait"
+  val last = timeline.lastOrNull()
+  if (last != null && last.orientation == orientation && last.widthPx == widthPx && last.heightPx == heightPx) return timeline
+  val entry = LedgerOrientation(atOffsetMs, orientation, widthPx, heightPx)
+  if (last != null && last.atOffsetMs >= atOffsetMs) return timeline.dropLast(1) + entry.copy(atOffsetMs = last.atOffsetMs)
+  if (timeline.size >= max) return timeline
+  return timeline + entry
+}
+
 /** The session result the manifest is built from, read from the ledger alone. */
 internal fun ledgerOutcome(l: ContinuousLedger): Map<String, Any?> {
   val finished = l.state == LEDGER_FINISHED
   // Never COMPLETE unless the recorder itself recorded a clean, complete finish.
   val completeness = if (finished && l.sessionCompleteness == "COMPLETE_SESSION") "COMPLETE_SESSION" else "INTERRUPTED_SESSION"
   val limitations = if (finished || l.state == LEDGER_INTERRUPTED) l.limitations else (l.limitations + "CAPTURE_INTERRUPTED").distinct()
-  return mapOf(
+  val base = mapOf(
     "osConsentGranted" to true,
     "captureStartedAtUtc" to l.startedAtUtc,
     "captureEndedAtUtc" to (l.endedAtUtc ?: isoUtc(l.startedAtWallMs + l.totalDurationMs)),
@@ -161,6 +253,18 @@ internal fun ledgerOutcome(l: ContinuousLedger): Map<String, Any?> {
     "terminationDetail" to l.terminationDetail,
     "limitations" to limitations,
     "interruption" to l.interruption,
+  )
+  if (l.layout != LAYOUT_SINGLE_FILE) return base
+  val recording = l.segments.firstOrNull { it.sequence == 0 }
+  return base + recordingFieldsToJs(
+    recordingPath = recording?.path ?: l.recordingPath,
+    finalized = l.recordingFinalized && recording != null,
+    sizeBytes = recording?.sizeBytes,
+    durationMs = recording?.durationMs,
+    canvasW = l.canvasW,
+    canvasH = l.canvasH,
+    orientationTimeline = l.orientationTimeline,
+    audioTracks = l.audioTracks,
   )
 }
 
@@ -218,10 +322,16 @@ internal fun automaticallyDeletablePaths(l: ContinuousLedger?): List<String> =
 
 /**
  * A new recording may not overwrite a ledger that still holds segments (it
- * would orphan them); an empty ledger (nothing was ever recorded) may go.
+ * would orphan them), nor one whose single-file recording a process death
+ * interrupted (the user is told and decides; never silently replaced). An
+ * empty, finished ledger (nothing was kept) may go.
  */
 internal fun blocksNewRecording(l: ContinuousLedger?, recorderActive: Boolean): Boolean =
-  recorderActive || (l != null && l.segments.isNotEmpty())
+  recorderActive || (l != null && (l.segments.isNotEmpty() || interruptedRecordingPending(l)))
+
+/** A single-file recording that never reached its recorder's own finish. */
+internal fun interruptedRecordingPending(l: ContinuousLedger): Boolean =
+  l.layout == LAYOUT_SINGLE_FILE && l.recordingPath != null && l.state != LEDGER_FINISHED
 
 /** Segments in the shape the JS binding reads (ScreenSegment + durable state). */
 internal fun ledgerSegmentsToJs(l: ContinuousLedger): List<Map<String, Any?>> = l.segments.map { s ->
@@ -246,6 +356,7 @@ internal fun ledgerToJs(l: ContinuousLedger, recorderActive: Boolean): Map<Strin
   "evidenceId" to l.evidenceId,
   "ownerUserId" to l.ownerUserId,
   "state" to l.state,
+  "layout" to l.layout,
   "active" to recorderActive,
   "interruption" to l.interruption,
   "outcome" to ledgerOutcome(l),
@@ -295,6 +406,13 @@ internal fun ledgerToJson(l: ContinuousLedger): String = MiniJson.write(
     "interruption" to l.interruption,
     "endedAtUtc" to l.endedAtUtc,
     "totalDurationMs" to l.totalDurationMs,
+    "layout" to l.layout,
+    "recordingPath" to l.recordingPath,
+    "recordingFinalized" to l.recordingFinalized,
+    "canvasW" to l.canvasW,
+    "canvasH" to l.canvasH,
+    "orientationTimeline" to l.orientationTimeline.map { orientationToJs(it) },
+    "audioTracks" to l.audioTracks,
   ),
 )
 
@@ -338,6 +456,19 @@ internal fun ledgerFromJson(text: String): ContinuousLedger? {
   }
   val state = root.str("state") ?: return null
   if (state != LEDGER_RECORDING && state != LEDGER_FINISHED && state != LEDGER_INTERRUPTED) return null
+  // The single-file fields are optional: a legacy segmented ledger has none.
+  val timeline = mutableListOf<LedgerOrientation>()
+  for (raw in root["orientationTimeline"] as? List<*> ?: emptyList<Any?>()) {
+    val o = raw as? Map<*, *> ?: return null
+    timeline.add(
+      LedgerOrientation(
+        atOffsetMs = o.long("atOffsetMs") ?: return null,
+        orientation = o.str("orientation") ?: return null,
+        widthPx = o.int("widthPx") ?: return null,
+        heightPx = o.int("heightPx") ?: return null,
+      ),
+    )
+  }
   return ContinuousLedger(
     schema = LEDGER_SCHEMA,
     recordingId = root.str("recordingId") ?: return null,
@@ -356,6 +487,13 @@ internal fun ledgerFromJson(text: String): ContinuousLedger? {
     interruption = root.str("interruption"),
     endedAtUtc = root.str("endedAtUtc"),
     totalDurationMs = root.long("totalDurationMs") ?: 0L,
+    layout = root.str("layout"),
+    recordingPath = root.str("recordingPath"),
+    recordingFinalized = root["recordingFinalized"] as? Boolean ?: false,
+    canvasW = root.int("canvasW") ?: 0,
+    canvasH = root.int("canvasH") ?: 0,
+    orientationTimeline = timeline,
+    audioTracks = (root["audioTracks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
   )
 }
 

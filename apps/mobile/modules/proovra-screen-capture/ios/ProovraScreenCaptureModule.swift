@@ -21,6 +21,15 @@ import ReplayKit
  * broadcast, never bypasses protected (DRM) content, collects no app
  * inventory/clipboard/contacts, and uses no private API.
  *
+ * One recording (2026-10-29, wire contract B): the extension writes ONE
+ * fragmented MP4 per broadcast and emits no per-segment events for it. The stop
+ * result (and `onScreenContinuousStopped`) carries `layout: "SINGLE_FILE"`,
+ * `recordingUri`, its size/duration/canvas, `orientationTimeline`, `pauses`,
+ * `droppedFrameCount`, `audioTracks` and `finalized`. `segmentReady` /
+ * `onScreenSegment` remain only for a recording an older, segmenting extension
+ * left on the device. `startContinuousCapture({ microphone })` is ignored here:
+ * on iOS the microphone is the user's own choice in Apple's broadcast picker.
+ *
  * Remediation (2026-09-30):
  *   UC-IOS-002  stop is a real handshake: post the extension's stop note, wait
  *               (bounded) for its result.json, then drain and resolve.
@@ -48,8 +57,9 @@ public class ProovraScreenCaptureModule: Module {
   // plugin (withProovraIosScreenBroadcast).
   private static let appGroup = "group.com.jalalattar29.proovra"
   private static let extensionBundleId = "com.jalalattar29.proovra.broadcast"
-  /// How long a stop waits for the extension's result.json before summarising what exists.
-  private static let stopWaitSeconds: TimeInterval = 6
+  /// How long a stop waits for the extension's result.json before summarising
+  /// what exists: the extension may spend up to 10 s finishing the one file.
+  private static let stopWaitSeconds: TimeInterval = 15
 
   private let store = ProovraBroadcastSharedStore(appGroup: ProovraScreenCaptureModule.appGroup)
   /// UC-IOS-012 — every read of the container and every segment emission runs here.
