@@ -177,6 +177,14 @@ describe("portal sign-in — emailed code step", () => {
     expect(resendButton().hasAttribute("disabled")).toBe(true);
     expect(resendButton().getAttribute("data-disabled-reason")).toBe("You can ask for a new code in 60 seconds.");
 
+    // The countdown interval is created by a passive effect, which React may
+    // run after the heading has committed. Advancing before it exists moves a
+    // clock nothing listens to (the label stays at 60): seen on ci for
+    // 58174efa0 and reproduced in a 4-CPU Linux run (1 in 40, timer count 0).
+    // Polled with the real setTimeout: waitFor polls with setInterval, which is
+    // faked here and would count as a timer itself.
+    for (let i = 0; i < 200 && vi.getTimerCount() === 0; i += 1) await new Promise((r) => setTimeout(r, 10));
+    expect(vi.getTimerCount()).toBe(1);
     act(() => vi.advanceTimersByTime(20_000));
     expect(resendButton().getAttribute("data-disabled-reason")).toBe("You can ask for a new code in 40 seconds.");
 
