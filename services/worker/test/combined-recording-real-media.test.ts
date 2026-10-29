@@ -12,8 +12,8 @@
  *      shows: the last picture held); audio jumps the same way; seeking mid
  *      file and into the gap decodes the right original frame; the chapters
  *      say "No recording: 3.0 s".
- *   B. TRANSCODE across an orientation change 1080x1920 → 1920x1080 with a
- *      MISSING segment: one 1920x1920 letterboxed canvas, every frame kept at
+ *   B. TRANSCODE across an orientation change 360x640 → 640x360 with a
+ *      MISSING segment: one 640x640 letterboxed canvas, every frame kept at
  *      its own time (no fps resample), the missing sequence listed as a
  *      SEGMENT_MISSING gap, completeness PARTIAL with the manifest's
  *      limitations copied, seekable.
@@ -254,18 +254,21 @@ describe("REMUX — one encoding, a real 3 s gap, audio", () => {
   });
 });
 
-describe("TRANSCODE — orientation change 1080x1920 → 1920x1080 and a missing segment", () => {
+describe("TRANSCODE — orientation change 360x640 → 640x360 and a missing segment", () => {
   let outcome: Awaited<ReturnType<typeof combineSegmentFiles>>;
   const work = () => path.join(dir, "transcode");
 
+  // Small frames on purpose: the canvas rule is size-independent (largest
+  // displayed width x height, capped at 4096), and 1080p fixtures plus a
+  // 1920x1920 transcode exceeded the hook budget under full-suite load.
   beforeAll(async () => {
     await mkdir(work(), { recursive: true });
     const prevDir = dir;
     dir = work();
-    const p0 = await segment("segment-0.mp4", "1080x1920", 1, { offset: 0 });
-    const p1 = await segment("segment-1.mp4", "1080x1920", 1, { offset: 1 });
+    const p0 = await segment("segment-0.mp4", "360x640", 1, { offset: 0 });
+    const p1 = await segment("segment-1.mp4", "360x640", 1, { offset: 1 });
     // segment 2 never reached PROOVRA.
-    const l3 = await segment("segment-3.mp4", "1920x1080", 1, { offset: 3 });
+    const l3 = await segment("segment-3.mp4", "640x360", 1, { offset: 3 });
     dir = prevDir;
     outcome = await combineSegmentFiles({
       ffmpegPath: ff,
@@ -289,19 +292,19 @@ describe("TRANSCODE — orientation change 1080x1920 → 1920x1080 and a missing
     });
   });
 
-  it("re-encodes onto ONE letterboxed 1920x1920 canvas — no crop, no stretch", async () => {
+  it("re-encodes onto ONE letterboxed 640x640 canvas — no crop, no stretch", async () => {
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
     expect(outcome.lineage.mode).toBe("TRANSCODE");
-    expect(outcome.lineage.canvas).toEqual({ widthPx: 1920, heightPx: 1920, letterboxed: true });
+    expect(outcome.lineage.canvas).toEqual({ widthPx: 640, heightPx: 640, letterboxed: true });
     expect(outcome.lineage.limitations).toEqual(
       expect.arrayContaining(["SEGMENT_UPLOAD_LOST", "ORIENTATION_CHANGED_DURING_CAPTURE", "COMBINE_LETTERBOXED_TO_ONE_CANVAS", "COMBINE_RE_ENCODED", "COMBINE_SEGMENTS_MISSING"]),
     );
     const probe = await probeMediaFile(ff, outcome.outputFile, 30_000);
     expect(probe?.videoStreamCount).toBe(1);
     expect(probe?.audioStreamCount).toBe(0);
-    expect([probe?.video?.displayWidthPx, probe?.video?.displayHeightPx]).toEqual([1920, 1920]);
-    expect(outcome.lineage.sources.map((s) => [s.widthPx, s.heightPx])).toEqual([[1080, 1920], [1080, 1920], [1920, 1080]]);
+    expect([probe?.video?.displayWidthPx, probe?.video?.displayHeightPx]).toEqual([640, 640]);
+    expect(outcome.lineage.sources.map((s) => [s.widthPx, s.heightPx])).toEqual([[360, 640], [360, 640], [640, 360]]);
   });
 
   it("keeps every frame at its own time (no fps resample) and keeps the missing segment's time as a gap", async () => {
