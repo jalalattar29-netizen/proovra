@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "534e900d69dd7af5d08b20cd92d3a6cdfbbe7d32ab4b68785f275e923e10df75",
+  "capabilityRouteInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
   "totals": {
-    "routes": 1214,
+    "routes": 1219,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
     "testCallSites": 104,
@@ -871,6 +871,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/capture/direct-sessions/:id/parts",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/capture/intake-templates",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1233,6 +1239,24 @@
     },
     {
       "routeId": "GET /v1/evidence-requests/:id/events",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/evidence/:evidenceId/combined-recording",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/evidence/:evidenceId/combined-recording/download",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/evidence/:evidenceId/combined-recording/playback",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -4861,6 +4885,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/evidence/:evidenceId/combined-recording/prepare",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/evidence/:evidenceId/custody/attestations/sign",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7403,5 +7433,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "fa079e44c1e6b508cbc65c1e280cf228fcda00c4d1817ba2ce55ab66c0603c9a"
+  "contentHash": "dd90a49f59ecccc90ce46d9255f9b9a959a8fa31ceeadb3a4ed1568a2795daf9"
 }

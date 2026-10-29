@@ -3726,6 +3726,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.tables WHERE table_name='mfa_webauthn_credentials') || ':' || (SELECT count(*) FROM information_schema.columns WHERE table_name='step_up_challenges' AND column_name='method') || ':' || (SELECT count(*) FROM information_schema.columns WHERE table_name='collaboration_teams' AND column_name='archived_by_user_id')\"",
       "evidence": "COLLABORATION TEAM ARCHIVE AND STEP-UP ASSURANCE (2026-10-28). Enum value PASSKEY; mfa_factors_kind_payload_chk widened with a PASSKEY branch (existing branches verbatim); mfa_webauthn_credentials created (guarded); nullable step-up ladder, session assurance and archive provenance columns; Organization step-up policy columns with defaults that reproduce today's behaviour. Safe on either image; idempotent. ROLLBACK: code-first; every addition is ignored by the previous image. NOT APPLIED TO PRODUCTION."
+    },
+    "20281029000000_screen_recording_combined_derivative": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM pg_constraint WHERE conname='media_intelligence_runs_kind_bounded' AND pg_get_constraintdef(oid) LIKE '%combine_screen_recording%') || ':' || (SELECT count(*) FROM pg_constraint WHERE conname='evidence_part_derived_assets_kind_bounded' AND pg_get_constraintdef(oid) LIKE '%screen_recording_combined%') || ':' || (SELECT count(*) FROM pg_constraint WHERE conname='evidence_part_derived_assets_size_bounded' AND pg_get_constraintdef(oid) LIKE '%671088640%')\"",
+      "evidence": "COMBINED SCREEN RECORDING (2026-10-29). Three CHECK swaps, each to a strict superset: run kind combine_screen_recording, derived asset kind screen_recording_combined, derived size_bytes ceiling 50,000,000 -> 671,088,640 (640 MiB: the 512 MiB continuous-session bound plus combine overhead). No row rewritten; the previous image never writes the new values. Safe on either image; idempotent. ROLLBACK: code-first; re-narrowing fails only once a combined row exists (remove those rows first). NOT APPLIED TO PRODUCTION."
     }
   }
 }
