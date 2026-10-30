@@ -74,11 +74,7 @@ Each step is read-only unless it says otherwise.
 
 ## 8. Rollback
 
-```bash
-GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback --plan
-```
-
-The `<owner>` above is **an example**. Take it from the discovered image name.
+Run `scripts/deploy-prod-pull.sh` with `--rollback --plan`, with `GHCR_OWNER` set to the owner in the discovered image name. The owner is the path segment after `ghcr.io/`. Do not run it from a saved command: take the value from the running image first.
 
 **Limits of a rollback:**
 - The migration stays: it is additive, and the old image ignores it. Do not reverse it.

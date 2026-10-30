@@ -409,6 +409,18 @@ describe("the suite and CI are wired to the contract", () => {
     expect(presentLiveCredentialNames({ TSA_PASSWORD: "localhost", SENTRY_DSN: "http://k@localhost/1" })).toEqual(["TSA_PASSWORD", "SENTRY_DSN"]);
   });
 
+  it("PayPal credentials are live unless their API is the stack's own stub", () => {
+    const credentials = { PAYPAL_CLIENT_ID: "id", PAYPAL_SECRET: "secret", PAYPAL_WEBHOOK_ID: "hook" };
+    const all = ["PAYPAL_CLIENT_ID", "PAYPAL_SECRET", "PAYPAL_WEBHOOK_ID"];
+    expect(presentLiveCredentialNames({ ...credentials, PAYPAL_API_BASE: "http://127.0.0.1:8399" })).toEqual([]);
+    expect(presentLiveCredentialNames(credentials)).toEqual(all);
+    for (const live of ["https://api-m.paypal.com", "https://api-m.sandbox.paypal.com", "not a url", ""]) {
+      expect(presentLiveCredentialNames({ ...credentials, PAYPAL_API_BASE: live }), live).toEqual(all);
+    }
+    // The stub excuses PayPal alone.
+    expect(presentLiveCredentialNames({ STRIPE_SECRET_KEY: "x", PAYPAL_API_BASE: "http://127.0.0.1:8399" })).toEqual(["STRIPE_SECRET_KEY"]);
+  });
+
   it.each(["playwright-e2e.yml", "updated-report-journey.yml"])("%s declares the isolated test stack", (file) => {
     const yml = readFileSync(join(REPO, ".github/workflows", file), "utf8");
     expect(yml).toMatch(/^\s+PROOVRA_TEST_STACK: "1"$/m);

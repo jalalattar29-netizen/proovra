@@ -716,6 +716,63 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     expect(abandoned.outcome).toBe("ABANDON_NOT_ALLOWED");
   });
 
+  it("AUD-29: a capture still settling at PayPal cannot be abandoned, even with confirmation", async () => {
+    const { abandonPendingPayment } = await import("../src/services/billing/pending-payments.service.js");
+    const userId = await freshUser();
+    const row = await prisma.payment.create({
+      data: { userId, provider: "PAYPAL", providerPaymentId: `CAP-${randomUUID().slice(0, 12)}`, amountCents: 900, currency: "EUR", status: "PENDING", teamId: null },
+    });
+    const providers = {
+      PAYPAL: {
+        provider: "PAYPAL",
+        observePayment: async (providerRef: string) => ({
+          kind: "PAYMENT",
+          provider: "PAYPAL",
+          providerRef,
+          state: "PENDING",
+          amountCents: 900,
+          providerStatus: "CAPTURE_PENDING",
+          observedAtUtc: new Date(),
+        }),
+      },
+    } as never;
+    const result = await abandonPendingPayment({ account: account(userId), paymentId: row.id, confirmed: true, providers });
+    expect(result.outcome).toBe("ABANDON_NOT_ALLOWED");
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("PENDING");
+  });
+
+  it("AUD-10: a paid-plan storage size is refused while that plan is set to end, and the provider is not asked", async () => {
+    const { setPersonalPlan } = await import("../src/services/billing.service.js");
+    const userId = h.fixtures.personal.userId;
+    const subscription = await prisma.subscription.create({
+      data: {
+        userId,
+        provider: "STRIPE",
+        providerSubId: `sub_${randomUUID().slice(0, 12)}`,
+        status: "ACTIVE",
+        plan: "TEAM",
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: new Date(Date.now() + 86400000 * 10),
+        activatedAtUtc: new Date(),
+      },
+    });
+    await setPersonalPlan(userId, "TEAM");
+    try {
+      const res = await h.app.inject({
+        method: "POST",
+        url: "/v1/billing/storage-addons/checkout/stripe",
+        headers: { authorization: `Bearer ${h.fixtures.personal.token}`, "content-type": "application/json" },
+        payload: { addonKey: "TEAM_100_GB", billingCycle: "MONTHLY" },
+      });
+      expect(res.statusCode, res.body).toBe(409);
+      expect(JSON.parse(res.body).error.code).toBe("STORAGE_ADDON_PREREQUISITE_ENDING");
+      expect(S.stripeCalls).toEqual([]);
+    } finally {
+      await prisma.subscription.delete({ where: { id: subscription.id } });
+      await setPersonalPlan(userId, "FREE");
+    }
+  });
+
   it("section 10: a held SKU answers with what was found; an intentional addition is a different request", async () => {
     const { findStorageDuplicate } = await import("../src/services/billing/storage-purchase-guard.service.js");
     const userId = await freshUser();

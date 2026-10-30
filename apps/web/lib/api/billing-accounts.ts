@@ -425,6 +425,8 @@ export type PaymentAbandonResult = {
     | "ALREADY_ABANDONED"
     | "ALREADY_FINISHED"
     | "PROVIDER_ANSWERED"
+    /** The provider is still settling this payment. */
+    | "ABANDON_NOT_ALLOWED"
     /**
      * The provider could not be asked. The customer is told exactly what
      * abandoning does and does not mean, and asked again.

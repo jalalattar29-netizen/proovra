@@ -364,7 +364,9 @@ export type PaymentAbandonResult = {
      * The provider could not be asked, so the customer is told exactly what
      * abandoning does and does not mean, and asked again.
      */
-    | "ABANDON_CONFIRMATION_REQUIRED";
+    | "ABANDON_CONFIRMATION_REQUIRED"
+    /** The provider is still settling a capture, so this is not abandonable. */
+    | "ABANDON_NOT_ALLOWED";
   status: prismaPkg.PaymentStatus;
   actions: PaymentRowActions;
   /**
@@ -528,6 +530,20 @@ export async function abandonPendingPayment(input: {
     }
     return {
       outcome: "PROVIDER_ANSWERED",
+      status: row.status,
+      actions: actionsFor(row.status),
+    };
+  }
+
+  /*
+   * BILLING REMEDIATION (2026-10-30, AUD-29) — a pending capture has already
+   * taken the buyer's approval and is being settled. Reporting it as abandoned
+   * would tell them to pay again while the first payment is still landing, and
+   * no confirmation can make that true.
+   */
+  if (observation.providerStatus === "CAPTURE_PENDING") {
+    return {
+      outcome: "ABANDON_NOT_ALLOWED",
       status: row.status,
       actions: actionsFor(row.status),
     };

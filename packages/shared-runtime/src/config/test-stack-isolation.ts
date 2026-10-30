@@ -115,11 +115,20 @@ export function isStackLocalEndpoint(value: string): boolean {
   return /^[a-z0-9-]+$/.test(host) && !/^\d+$/.test(host);
 }
 
+/**
+ * PayPal credentials are only as live as the API they are sent to: the
+ * `playwright-e2e` stack points `PAYPAL_API_BASE` at its own stub on purpose.
+ * With no base set they count, because PayPal's default is its Live API.
+ */
+const PAYPAL_CREDENTIALS: ReadonlySet<string> = new Set(["PAYPAL_CLIENT_ID", "PAYPAL_SECRET", "PAYPAL_WEBHOOK_ID"]);
+
 /** Names of live-service credentials present (non-empty) in `env`. Never values. */
 export function presentLiveCredentialNames(env: Env = process.env): string[] {
+  const paypalIsLocal = isStackLocalEndpoint(env.PAYPAL_API_BASE ?? "");
   return LIVE_SERVICE_CREDENTIALS.filter((name) => {
     const value = (env[name] ?? "").trim();
     if (value.length === 0) return false;
+    if (PAYPAL_CREDENTIALS.has(name) && paypalIsLocal) return false;
     return !(LIVE_SERVICE_ENDPOINTS.has(name) && isStackLocalEndpoint(value));
   });
 }

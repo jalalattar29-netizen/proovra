@@ -166,7 +166,8 @@ for (const viewport of [
       expect(posts.filter((p) => p.path.endsWith("/abandon"))).toHaveLength(1);
       expect(JSON.parse(posts[0]!.body!).confirmed).toBe(false);
       await dialog.getByRole("button", { name: "Abandon in PROOVRA" }).click();
-      await expect(page.getByText(/Nothing was cancelled or charged at the payment provider/)).toBeVisible();
+      await expect(page.getByText(/This did not cancel anything at the payment provider/)).toBeVisible();
+      await expect(page.getByText(/Nothing was cancelled or charged/)).toHaveCount(0);
       const abandonPosts = posts.filter((p) => p.path.endsWith("/abandon"));
       expect(abandonPosts).toHaveLength(2);
       expect(JSON.parse(abandonPosts[1]!.body!).confirmed).toBe(true);

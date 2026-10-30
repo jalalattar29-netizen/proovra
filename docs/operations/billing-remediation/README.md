@@ -19,7 +19,7 @@ Finding IDs come from the audit of `569fe2e114864e2ad6d42e035e8ad2bc6edf9577`.
 | AUD-07 Double storage row | FIXED for new charges | The invoice is the one writer | convergence | Data repair R1 |
 | AUD-08 Managed payer | FIXED | A managed identity with a live charge keeps view and cancel only | `billing-account-authorization` | None |
 | AUD-09 Cancel state | FIXED | `cancel_at_period_end` projected from every fact. Schedules released before cancel. Unattempted obligations withdrawn on resume. Paid month kept after a provider cancel | convergence | None |
-| AUD-10 Eligibility | PART FIXED, DECISION | Purchases refused while the prerequisite plan is ending. D1, D2 open | route guard | Decisions |
+| AUD-10 Eligibility | PART FIXED, DECISION | Purchases refused while the prerequisite plan is ending. D1, D2 open | convergence | Decisions |
 | AUD-11 Abandon captured | FIXED | Check modes: `SETTLE` and `OBSERVE`. Abandon only observes | convergence | None |
 | AUD-12 Duplicate handling | FIXED | Supersession is durable, retried for ever, and never takes the plan | convergence | None |
 | AUD-13 Ambiguous outcomes | FIXED | Timeouts on every provider call. Idempotency keys on plan change, cancel, schedule and revise. Unknown outcomes say so | `billing-plan-transition` | None |
@@ -39,7 +39,7 @@ Finding IDs come from the audit of `569fe2e114864e2ad6d42e035e8ad2bc6edf9577`.
 | AUD-26 Webhook edges | FIXED | Storage failures no longer swallowed. FAILED recorded. Verifier outage answers 503, not a signature failure. Unattributable events marked | convergence | None |
 | AUD-27 Provider text | FIXED | Stripe errors carry status and code only | unit | None |
 | AUD-28 Customer reuse | NOT CHANGED, DECISION | Each checkout makes a separate customer. Reusing one needs a binding per payer | | D4 |
-| AUD-29 Lower items | PART | Reversal race, crash window, partial refunds, analytics on no-ops fixed. D3, D5 open | convergence | Decisions |
+| AUD-29 Lower items | PART | Reversal race, crash window, partial refunds, analytics on no-ops, abandoning a pending PayPal capture and the missing owner on admin add-on rows fixed. Three audit items not changed: see known gaps. D3, D5 open | convergence | Decisions |
 
 ## Disproven or policy
 
@@ -63,6 +63,7 @@ Defaults change no customer subscription. Continuing is safe with them.
 
 - No real-browser check of the Billing page at phone width or in either theme. Interaction is covered by render tests only.
 - Private mobile builds show generic copy for the new storage refusals. No payment behaviour was added there, and the mobile payment policy remains `COMMERCIAL_POLICY_PENDING`.
+- AUD-29, not changed: expired grants lack a timely audit record, legacy workspace TEAM never clears, and legacy payments and add-ons stay hidden. These are open audit items, not closed by this branch.
 - Two stale files stay in the mobile tree (`billing.tsx.before-plan-fix` and one under `src/ui`).
 
 ## Blocked

@@ -710,6 +710,9 @@ function BillingPageInner() {
         case "ALREADY_FINISHED":
           addToast("This payment had already finished. Nothing was changed.", "info");
           break;
+        case "ABANDON_NOT_ALLOWED":
+          addToast("Your payment provider is still processing this payment, so it cannot be abandoned. Check it again later.", "info");
+          break;
         default:
           addToast("This payment attempt is unchanged.", "info");
       }
