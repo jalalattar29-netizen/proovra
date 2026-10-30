@@ -74,6 +74,14 @@ const AUTHORITY_WRITERS: Array<{
       // state.
       "services/billing/subscription-cancellation.service.ts":
         "canonical: provider-confirmed cancel-at-period-end (never the terminal CANCELED)",
+      // BILLING REMEDIATION (2026-10-30) — the supersession decision and its
+      // retry state (never a status: the provider's cancel is applied through
+      // upsertSubscription), and the id of a Stripe schedule, which must exist
+      // locally before its phases are edited so a failure leaves it findable.
+      "services/billing/subscription-lifecycle.handlers.ts":
+        "canonical: supersession decision and durable cancel retry state; status only via upsertSubscription",
+      "services/billing/stripe-schedule.service.ts":
+        "canonical: clears the recorded id of a released schedule; never a status or a plan",
       // BILLING RESTART (2026-09-28) — the inverse of the entry above: clears
       // cancel-at-period-end ONLY after Stripe confirms
       // `cancel_at_period_end=false`. Never writes status; PayPal is refused.
@@ -206,6 +214,10 @@ const AUTHORITY_WRITERS: Array<{
       // before that decision and (b) the FAILED + obligation record of a
       // provider-ACTIVE subscription it refused (never ACTIVE — activation is
       // written by `upsertWorkspaceStorageAddon`).
+      // BILLING REMEDIATION (2026-10-30, AUD-09) — provider cancelled, month paid:
+      // records when the capacity ends, then closes it. No other status.
+      "services/billing/paid-period.service.ts":
+        "canonical: keeps the paid period after a provider cancel, closes it at period end",
       "services/billing/storage-activation.service.ts":
         "canonical: storage activation decision — refused-activation FAILED record + Stripe pre-decision PENDING record; ACTIVE only via upsertWorkspaceStorageAddon",
     },
@@ -304,6 +316,10 @@ const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
   // that stays `commercial-context.service.ts`.
   "services/billing/base-subscription.service.ts":
     "CANONICAL SELECTION: personal base-subscription discovery; no active/grace capability decision",
+  // BILLING REMEDIATION (2026-10-30, AUD-08) — presence of a charge only: whether
+  // a managed identity still needs a way to stop one. Decides no capability tier.
+  "services/billing/billing-accounts.service.ts":
+    "PRESENCE CHECK: is a managed identity still being charged; no active/grace decision",
   "services/billing/pending-checkout-attempt.service.ts":
     "MUTATION GATE: pending provider checkout discovery; catalog/live entitlement stay elsewhere",
   // PAYPAL END-TO-END (2026-09-25) — PROVIDER PROJECTION moved out of

@@ -37,9 +37,21 @@ export type WebhookSignatureCheckOk = {
 
 export type WebhookSignatureCheckFailure = {
   ok: false;
-  reason: WebhookSignatureFailureReason;
+  reason: WebhookSignatureFailureReason | "verifier_unavailable";
   errMessage: string;
 };
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-26) — the verifier could not answer. This
+ * says nothing about the signature, so it is not a security event: the delivery
+ * is refused retryably and the provider sends it again.
+ */
+export class WebhookVerifierUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebhookVerifierUnavailableError";
+  }
+}
 
 export type WebhookSignatureCheckResult =
   | WebhookSignatureCheckOk
@@ -146,6 +158,13 @@ export async function auditWebhookSignatureVerification(input: {
     await Promise.resolve(input.verify());
     return { ok: true };
   } catch (err) {
+    if (err instanceof WebhookVerifierUnavailableError) {
+      input.request.log.warn(
+        { provider: input.provider, reason: "verifier_unavailable" },
+        "webhook.signature.verifier_unavailable",
+      );
+      return { ok: false, reason: "verifier_unavailable", errMessage: err.message };
+    }
     const reason = classifyError(err);
     await bumpWebhookFailureMetric();
     // Phase O-blockers / A-4 — `timestamp_out_of_range` IS a replay

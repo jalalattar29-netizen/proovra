@@ -30,6 +30,13 @@ import {
   stripeGet,
   stripeRequestRaw,
 } from "../../stripe.service.js";
+import {
+  stripeSubscriptionEnding,
+  stripeSubscriptionPeriodEnd,
+  stripeSubscriptionPriceId,
+  stripeSubscriptionScheduleId,
+  type StripeSubscriptionLike,
+} from "../stripe-object-shapes.js";
 import type {
   BillingReconciliationProvider,
   ObservationFailure,
@@ -89,9 +96,14 @@ function subscriptionState(sub: Record<string, unknown>): ObservedState {
     case "active":
     case "trialing":
       return "SUCCEEDED";
+    // BILLING REMEDIATION (2026-10-30, AUD-02) — the same meaning as the webhook:
+    // awaiting first payment, granting nothing. This read FAILED, which
+    // reconciliation turned into PAST_DUE.
+    case "incomplete":
+      return "PENDING";
     case "past_due":
     case "unpaid":
-    case "incomplete":
+    case "paused":
       return "FAILED";
     case "incomplete_expired":
     case "canceled":
@@ -375,13 +387,16 @@ export class StripeBillingReconciliationProvider
       };
     }
 
+    const shaped = sub as unknown as StripeSubscriptionLike;
     return {
       kind: "SUBSCRIPTION",
       provider: PROVIDER,
       providerRef,
       state: subscriptionState(sub),
-      currentPeriodEndUtc: utcFromUnix(sub["current_period_end"]),
-      cancelAtPeriodEnd: sub["cancel_at_period_end"] === true,
+      currentPeriodEndUtc: stripeSubscriptionPeriodEnd(shaped),
+      cancelAtPeriodEnd: stripeSubscriptionEnding(shaped),
+      planId: stripeSubscriptionPriceId(shaped),
+      providerScheduleId: stripeSubscriptionScheduleId(shaped),
       // ET-COM-01 — NEVER the period end. `current_period_end` is a FUTURE
       // date; stamped as the ordering clock it made every later webhook
       // (cancellation, past-due) look older and be refused, so a cancelled

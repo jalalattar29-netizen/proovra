@@ -113,6 +113,10 @@ export async function syncPlanForSubscription(params: {
   /** Provider-billed currency / unit amount, when this fact carries them. */
   billedCurrency?: string | null;
   billedUnitAmountCents?: number | null;
+  /** The provider's own "will stop renewing". Undefined = this fact does not say. */
+  cancelAtPeriodEnd?: boolean;
+  /** Stripe: the schedule managing it. Undefined = this fact does not say. */
+  providerScheduleId?: string | null;
   /** Injected by tests; production cancels through the real provider client. */
   cancelSupersededAtProvider?: SupersededCanceller;
 }): Promise<SyncPlanOutcome> {
@@ -129,6 +133,8 @@ export async function syncPlanForSubscription(params: {
         observedAtUtc: params.observedAtUtc ?? null,
         billedCurrency: params.billedCurrency ?? null,
         billedUnitAmountCents: params.billedUnitAmountCents ?? null,
+        cancelAtPeriodEnd: params.cancelAtPeriodEnd,
+        providerScheduleId: params.providerScheduleId,
       },
       client,
     );
@@ -142,7 +148,7 @@ export async function syncPlanForSubscription(params: {
         where: {
           provider_providerSubId: { provider: params.provider, providerSubId: params.providerSubId },
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, supersededBySubscriptionId: true },
       });
       const wasLive =
         before?.status === prismaPkg.SubscriptionStatus.ACTIVE ||
@@ -154,6 +160,7 @@ export async function syncPlanForSubscription(params: {
               userId: params.userId,
               plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
               providerSubId: { not: "" },
+              supersededBySubscriptionId: null,
               NOT: [
                 { provider: params.provider, providerSubId: params.providerSubId },
                 // A provider-confirmed IMMEDIATE cancellation (PayPal) whose
@@ -169,13 +176,36 @@ export async function syncPlanForSubscription(params: {
             select: { id: true },
           });
       const subscription = await write(tx);
-      return { subscription, otherLive };
+      // BILLING REMEDIATION (2026-10-30, AUD-12) — the decision is durable, and
+      // written under the lock. It used to live only in this call: a failed
+      // provider cancel left a duplicate no later fact recognised as one, so
+      // the next ACTIVE read it as already live and took over the plan.
+      if (otherLive && !before?.supersededBySubscriptionId && subscription.status === prismaPkg.SubscriptionStatus.ACTIVE) {
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            supersededBySubscriptionId: otherLive.id,
+            supersessionCancelState: "PENDING",
+            supersessionCancelNextRetryAtUtc: new Date(),
+          },
+        });
+      }
+      return { subscription, otherLive, supersededBy: before?.supersededBySubscriptionId ?? null };
     });
 
-    const { subscription, otherLive } = decided;
+    const { subscription, otherLive, supersededBy } = decided;
     if (subscription.status !== prismaPkg.SubscriptionStatus.ACTIVE) {
       // The ordering rules refused the fact (older than what is recorded).
       return { outcome: "APPLIED", subscriptionId: subscription.id, status: subscription.status };
+    }
+    if (supersededBy) {
+      // Already decided. The cancel is the retry worker's; this fact grants nothing.
+      return {
+        outcome: "SUPERSEDED",
+        subscriptionId: subscription.id,
+        keptSubscriptionId: supersededBy,
+        canceledAtProvider: false,
+      };
     }
     if (otherLive) {
       const canceledAtProvider = await supersede({
@@ -207,7 +237,7 @@ export async function syncPlanForSubscription(params: {
         providerSubId: params.providerSubId,
       },
     },
-    select: { status: true, activatedAtUtc: true },
+    select: { status: true, activatedAtUtc: true, supersededBySubscriptionId: true },
   });
 
   const subscription = await write();
@@ -230,6 +260,7 @@ export async function syncPlanForSubscription(params: {
      */
     const everCarriedEntitlement =
       before !== null &&
+      !before.supersededBySubscriptionId &&
       (before.activatedAtUtc !== null ||
         before.status === prismaPkg.SubscriptionStatus.ACTIVE ||
         before.status === prismaPkg.SubscriptionStatus.PAST_DUE);
@@ -240,6 +271,7 @@ export async function syncPlanForSubscription(params: {
         userId: params.userId,
         id: { not: subscription.id },
         plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
+        supersededBySubscriptionId: null,
         status: {
           in: [
             prismaPkg.SubscriptionStatus.ACTIVE,
@@ -273,6 +305,112 @@ export async function syncPlanForSubscription(params: {
   return applied;
 }
 
+/** Minutes after a failed attempt, indexed by attempts made; then daily, for ever. */
+export const SUPERSESSION_RETRY_MINUTES = [5, 30, 120, 720] as const;
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-12) — keep asking the provider to stop
+ * every superseded duplicate it has not confirmed stopping. A duplicate bills
+ * the customer every period, so this never gives up: after the fast schedule it
+ * is MANUAL_INTERVENTION, still retried daily, and the review item stays open.
+ * The state column is the lease: only one worker's compare-and-set matches.
+ */
+export async function retrySupersededCancellations(input: {
+  limit?: number;
+  now?: Date;
+  cancel?: SupersededCanceller;
+} = {}): Promise<{ attempted: number; confirmed: number }> {
+  const now = input.now ?? new Date();
+  const cancel = input.cancel ?? cancelSupersededSubscriptionAtProvider;
+  const due = await prisma.subscription.findMany({
+    where: {
+      supersededBySubscriptionId: { not: null },
+      supersessionCancelState: { in: ["PENDING", "RETRY_SCHEDULED", "MANUAL_INTERVENTION"] },
+      supersessionCancelNextRetryAtUtc: { lte: now },
+    },
+    orderBy: { supersessionCancelNextRetryAtUtc: "asc" },
+    take: input.limit ?? 20,
+    select: {
+      id: true,
+      userId: true,
+      provider: true,
+      providerSubId: true,
+      plan: true,
+      status: true,
+      supersessionCancelState: true,
+      supersessionCancelAttemptCount: true,
+      supersessionCancelNextRetryAtUtc: true,
+    },
+  });
+  let attempted = 0;
+  let confirmed = 0;
+  for (const row of due) {
+    const attemptCount = row.supersessionCancelAttemptCount + 1;
+    const delay = SUPERSESSION_RETRY_MINUTES[attemptCount - 1] ?? 24 * 60;
+    const claimed = await prisma.subscription.updateMany({
+      where: {
+        id: row.id,
+        supersessionCancelState: row.supersessionCancelState,
+        supersessionCancelNextRetryAtUtc: row.supersessionCancelNextRetryAtUtc,
+      },
+      data: {
+        supersessionCancelAttemptCount: attemptCount,
+        supersessionCancelNextRetryAtUtc: new Date(now.getTime() + delay * 60_000),
+      },
+    });
+    if (claimed.count !== 1) continue;
+    attempted += 1;
+    if (row.status === prismaPkg.SubscriptionStatus.CANCELED) {
+      await prisma.subscription.update({
+        where: { id: row.id },
+        data: { supersessionCancelState: "CONFIRMED", supersessionCancelNextRetryAtUtc: null },
+      });
+      confirmed += 1;
+      continue;
+    }
+    let result: Awaited<ReturnType<SupersededCanceller>>;
+    try {
+      result = await cancel(row.provider, row.providerSubId);
+    } catch {
+      result = { canceled: false, observedAtUtc: null };
+    }
+    if (!result.canceled) {
+      await prisma.subscription.update({
+        where: { id: row.id },
+        data: {
+          supersessionCancelState:
+            attemptCount > SUPERSESSION_RETRY_MINUTES.length ? "MANUAL_INTERVENTION" : "RETRY_SCHEDULED",
+        },
+      });
+      continue;
+    }
+    await upsertSubscription({
+      userId: row.userId,
+      provider: row.provider,
+      providerSubId: row.providerSubId,
+      status: prismaPkg.SubscriptionStatus.CANCELED,
+      plan: row.plan,
+      observedAtUtc: result.observedAtUtc,
+    }).catch(() => undefined);
+    await prisma.subscription.update({
+      where: { id: row.id },
+      data: { supersessionCancelState: "CONFIRMED", supersessionCancelNextRetryAtUtc: null },
+    });
+    await recordBillingReviewItem({
+      userId: row.userId,
+      provider: row.provider,
+      providerResourceId: row.providerSubId,
+      product: "PLAN",
+      reason: "DUPLICATE_BASE_SUBSCRIPTION",
+      providerAction: "CANCELED_AT_PROVIDER",
+      refundReviewRequired: true,
+      detail: { supersededPlan: row.plan, retriedAttempts: attemptCount },
+    });
+    confirmed += 1;
+  }
+  return { attempted, confirmed };
+}
+
 /**
  * Cancel a superseded base subscription at its provider and record the case.
  * Returns whether the provider confirmed the cancellation. Never throws: a
@@ -303,6 +441,16 @@ async function supersede(input: {
       observedAtUtc: result.observedAtUtc,
     }).catch(() => undefined);
   }
+  await prisma.subscription.updateMany({
+    where: { provider: input.provider, providerSubId: input.providerSubId },
+    data: result.canceled
+      ? { supersessionCancelState: "CONFIRMED", supersessionCancelNextRetryAtUtc: null, supersessionCancelAttemptCount: 1 }
+      : {
+          supersessionCancelState: "RETRY_SCHEDULED",
+          supersessionCancelAttemptCount: 1,
+          supersessionCancelNextRetryAtUtc: new Date(Date.now() + SUPERSESSION_RETRY_MINUTES[0]! * 60_000),
+        },
+  });
   await recordBillingReviewItem({
     userId: input.userId,
     provider: input.provider,

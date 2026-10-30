@@ -110,8 +110,7 @@ export function owedDependentCancellationTrigger(input: {
     input.endedBases.find(
       (b) =>
         baseCarriedEntitlement(b) &&
-        storageAddonEligibleForPlan(b.plan, addon.addonKey) &&
-        (addon.teamId === null ? b.teamId === null : b.teamId === addon.teamId),
+        storageAddonEligibleForPlan(b.plan, addon.addonKey),
     ) ?? null
   );
 }

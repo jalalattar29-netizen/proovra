@@ -69,10 +69,14 @@ async function throwStripeError(res: Response): Promise<never> {
     const parsed = JSON.parse(text) as { error?: { code?: string; type?: string } };
     providerErrorName = parsed.error?.code ?? parsed.error?.type ?? null;
   } catch {
-    // keep the raw text in the message, as before
+    // An unparsed body stays out of the error entirely.
   }
+  // BILLING REMEDIATION (2026-10-30, AUD-27) — the status and Stripe's own code
+  // only. The body echoes request parameters, and this message reaches logs
+  // and DomainError messages.
+  const safeCode = providerErrorName && /^[a-z0-9_]{1,64}$/i.test(providerErrorName) ? providerErrorName : "unknown";
   throw new StripeHttpError({
-    message: `Stripe error: ${text}`,
+    message: `Stripe error: ${res.status} ${safeCode}`,
     status: res.status,
     providerErrorName,
     debugId: res.headers.get("request-id"),
@@ -81,6 +85,32 @@ async function throwStripeError(res: Response): Promise<never> {
 
 export function stripeApiBase() {
   return "https://api.stripe.com/v1";
+}
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-14a) — the API contract every request
+ * declares. Without it Stripe answers in the account's default version, which
+ * is not visible from code and changes the shape of what is read: from this
+ * version on, period fields live on subscription items, and `Charge.invoice`
+ * and `Invoice.subscription` are gone. A webhook is serialized by its ENDPOINT's
+ * version, which this header cannot set, so every parser also accepts the older
+ * shape (`stripe-object-shapes.ts`).
+ */
+export const STRIPE_API_VERSION = "2025-03-31.basil";
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-13) — no provider call may hold a request
+ * open indefinitely. A timeout on a mutating call does NOT prove Stripe did
+ * nothing, so callers treat it as an unknown outcome, never a refusal.
+ */
+export const STRIPE_REQUEST_TIMEOUT_MS = 20_000;
+
+function stripeHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    Authorization: `Bearer ${must("STRIPE_SECRET_KEY")}`,
+    "Stripe-Version": STRIPE_API_VERSION,
+    ...extra,
+  };
 }
 
 export async function stripeRequest(
@@ -97,12 +127,12 @@ export async function stripeRequest(
 ) {
   const res = await fetch(`${stripeApiBase()}${path}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${must("STRIPE_SECRET_KEY")}`,
+    headers: stripeHeaders({
       "Content-Type": "application/x-www-form-urlencoded",
       ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
-    },
+    }),
     body,
+    signal: AbortSignal.timeout(STRIPE_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -119,11 +149,9 @@ export async function stripeRequestRaw(
 ) {
   const res = await fetch(`${stripeApiBase()}${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${must("STRIPE_SECRET_KEY")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: stripeHeaders({ "Content-Type": "application/x-www-form-urlencoded" }),
     body,
+    signal: AbortSignal.timeout(STRIPE_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -253,9 +281,8 @@ export function parseStripeEvent(rawBody: Buffer): StripeEvent {
 export async function stripeGet(path: string) {
   const res = await fetch(`${stripeApiBase()}${path}`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${must("STRIPE_SECRET_KEY")}`,
-    },
+    headers: stripeHeaders(),
+    signal: AbortSignal.timeout(STRIPE_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {

@@ -509,6 +509,37 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "a combined recording is up to 640 MiB; the previous 50,000,000-byte ceiling rejects every real one",
     suppliedBy: "20281029000000_screen_recording_combined_derivative",
   },
+  // 20281030000000 — billing remediation. The API maps these columns in every
+  // subscription and payment read, so a database without them fails every
+  // billing request, not one feature.
+  {
+    id: "subscriptions.provider_schedule_id",
+    kind: "column",
+    detail: 'column public."subscriptions"."provider_schedule_id" must exist',
+    requiredBy: "every subscription read selects it through the Prisma client",
+    suppliedBy: "20281030000000_billing_remediation_convergence",
+  },
+  {
+    id: "payments.refunded_amount_cents",
+    kind: "column",
+    detail: 'column public."payments"."refunded_amount_cents" must exist',
+    requiredBy: "every payment read selects it through the Prisma client",
+    suppliedBy: "20281030000000_billing_remediation_convergence",
+  },
+  {
+    id: "payment_adjustments.table",
+    kind: "table",
+    detail: 'table public."payment_adjustments" must exist',
+    requiredBy: "a provider refund is recorded here before the payment moves; without it refund webhooks fail",
+    suppliedBy: "20281030000000_billing_remediation_convergence",
+  },
+  {
+    id: "billing_provider_binding_checks.table",
+    kind: "table",
+    detail: 'table public."billing_provider_binding_checks" must exist',
+    requiredBy: "reconciliation records a provider reference the provider does not know here",
+    suppliedBy: "20281030000000_billing_remediation_convergence",
+  },
 ]);
 
 /**
@@ -903,6 +934,21 @@ const PROBES = Object.freeze({
     "evidence_part_derived_assets_size_bounded",
     "%671088640%",
   ),
+  // 20281030000000 — billing remediation.
+  "subscriptions.provider_schedule_id": columnProbe("subscriptions", "provider_schedule_id"),
+  "payments.refunded_amount_cents": columnProbe("payments", "refunded_amount_cents"),
+  "payment_adjustments.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'payment_adjustments'
+     LIMIT 1`,
+  "billing_provider_binding_checks.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'billing_provider_binding_checks'
+     LIMIT 1`,
   ...Object.fromEntries(
     RUNTIME_SCHEMA_REQUIREMENTS.filter(
       (r) => r.kind === "column" && r.suppliedBy === "20281028000000_team_archive_step_up_assurance",

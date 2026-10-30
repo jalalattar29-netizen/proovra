@@ -25,6 +25,8 @@ import { prisma } from "../../db.js";
 export type BillingReviewReason =
   /** A base subscription became ACTIVE while another base subscription was live. */
   | "DUPLICATE_BASE_SUBSCRIPTION"
+  /** A stored provider reference the provider keeps answering 404 for. */
+  | "PROVIDER_REFERENCE_UNRESOLVED"
   /** The provider activated a storage subscription that cannot be granted. */
   | "STORAGE_ACTIVATION_REFUSED"
   /** A provider-active storage subscription with no local record (e.g. a deleted workspace). */
@@ -60,9 +62,9 @@ export async function recordBillingReviewItem(input: {
   providerAction?: BillingProviderAction;
   refundReviewRequired?: boolean;
   detail?: Record<string, string | number | boolean | null>;
-}): Promise<void> {
+}, client: Pick<prismaPkg.Prisma.TransactionClient, "billingReviewItem"> = prisma): Promise<void> {
   const providerAction = input.providerAction ?? "NONE";
-  const existing = await prisma.billingReviewItem.findUnique({
+  const existing = await client.billingReviewItem.findUnique({
     where: {
       provider_providerResourceId_reason: {
         provider: input.provider,
@@ -96,7 +98,7 @@ export async function recordBillingReviewItem(input: {
   }
   const stronger =
     existing.providerAction !== "CANCELED_AT_PROVIDER" && providerAction !== "NONE";
-  await prisma.billingReviewItem.update({
+  await client.billingReviewItem.update({
     where: { id: existing.id },
     data: {
       ...(stronger ? { providerAction } : {}),

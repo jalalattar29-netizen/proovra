@@ -28,6 +28,15 @@ export const PAYMENTS_UNAVAILABLE_CODE = "PAYMENTS_UNAVAILABLE";
 export const PAYMENTS_UNAVAILABLE_MESSAGE =
   "Payments are temporarily unavailable, and nothing was charged. Please try again later, or contact support if this continues.";
 
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-15) — a missing setting reaches this from
+ * `must()` on ANY provider call, including `/confirm` after a buyer approved and
+ * a capture, where "nothing was charged" is not known. Only a refusal proven to
+ * precede the provider request may say it.
+ */
+export const PAYMENTS_NOT_CONFIGURED_MESSAGE =
+  "Payments are temporarily unavailable. Please try again later, or contact support if this continues.";
+
 export function paymentsUnavailable(
   provider: "stripe" | "paypal",
   setting: string,
@@ -45,11 +54,13 @@ export function paymentsUnavailable(
      * (OAuth token, plan lookup) BEFORE the create request was sent, so it is
      * certain nothing was created. Distinct from an ambiguous create failure.
      */
-    | "provider_unreachable_before_create" = "not_configured",
+    | "provider_unreachable_before_create"
+    /** The provider refused this deployment's key. Retrying cannot help. */
+    | "provider_authorization_failed" = "not_configured",
 ): DomainError {
   return providerUnavailable({
     code: PAYMENTS_UNAVAILABLE_CODE,
-    message: PAYMENTS_UNAVAILABLE_MESSAGE,
+    message: reason === "not_configured" ? PAYMENTS_NOT_CONFIGURED_MESSAGE : PAYMENTS_UNAVAILABLE_MESSAGE,
     provider,
     reason,
     setting,

@@ -271,6 +271,12 @@ const JSON_HEADERS = { "content-type": "application/json" };
 
 let app: FastifyInstance;
 
+vi.mock("../src/services/rate-limit.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/services/rate-limit.js")>()),
+  // The refusals below are the subject; one user drives them all.
+  enforceRateLimit: async () => ({ allowed: true }),
+}));
+
 beforeEach(async () => {
   H.live = null;
   H.transition = { kind: "NEW_SUBSCRIPTION", targetPlan: "PRO" };

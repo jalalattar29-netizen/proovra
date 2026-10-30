@@ -525,6 +525,9 @@ export async function recordPayment(params: {
   }
 
   let payment;
+  // BILLING REMEDIATION (2026-10-30, AUD-29) — analytics describe transitions. A
+  // redelivered settlement that changed nothing is not another payment.
+  let transitioned = !existing;
   if (!existing) {
     payment = await prisma.payment
       .create({
@@ -580,7 +583,7 @@ export async function recordPayment(params: {
     });
 
     if (decision.apply) {
-      await prisma.payment.updateMany({
+      const moved = await prisma.payment.updateMany({
         // The status predicate is the compare-and-set: if another delivery
         // moved the row between the read and here, this matches nothing and
         // that other delivery's transition stands.
@@ -595,12 +598,15 @@ export async function recordPayment(params: {
             : {}),
         },
       });
+      transitioned = moved.count > 0;
     }
 
     payment = await prisma.payment.findUniqueOrThrow({
       where: { id: existing.id },
     });
   }
+
+  if (!transitioned) return payment;
 
   await trackBillingEvent({
     eventType:
@@ -643,6 +649,16 @@ export async function upsertSubscription(
      */
     billedCurrency?: string | null;
     billedUnitAmountCents?: number | null;
+    /**
+     * BILLING REMEDIATION (2026-10-30, AUD-09) — the provider's own statement
+     * that this subscription will stop renewing. Undefined = this fact does not
+     * say. It used to be written only by the cancel route, so a cancellation
+     * made at the provider, or lost to a crash after the provider agreed, was
+     * never recorded.
+     */
+    cancelAtPeriodEnd?: boolean;
+    /** Stripe: the schedule managing it. Undefined = this fact does not say. */
+    providerScheduleId?: string | null;
   },
   /**
    * BILLING PAYPAL INTEGRITY (2026-09-28) — the caller's transaction, so an
@@ -676,6 +692,9 @@ export async function upsertSubscription(
       // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — read so a landed
       // schedule can be cleared below.
       pendingPlan: true,
+      providerScheduleId: true,
+      cancelAtPeriodEnd: true,
+      canceledAtUtc: true,
     },
   });
 
@@ -742,6 +761,21 @@ export async function upsertSubscription(
   }
 
   const becomesActive = params.status === prismaPkg.SubscriptionStatus.ACTIVE;
+  // A Stripe schedule that is gone took its scheduled change with it: it landed
+  // (the plan below already matches) or someone released it at Stripe. Either
+  // way the customer must not keep being told about a change that cannot happen.
+  const scheduleGone =
+    params.provider === prismaPkg.PaymentProvider.STRIPE &&
+    params.providerScheduleId === null &&
+    Boolean(existing?.providerScheduleId);
+  const endingFact =
+    params.cancelAtPeriodEnd === undefined || params.status === prismaPkg.SubscriptionStatus.CANCELED
+      ? {}
+      : params.cancelAtPeriodEnd
+        ? { cancelAtPeriodEnd: true, ...(existing?.canceledAtUtc ? {} : { canceledAtUtc: new Date() }) }
+        : existing?.cancelAtPeriodEnd
+          ? { cancelAtPeriodEnd: false, canceledAtUtc: null }
+          : {};
   const subscription = await client.subscription.upsert({
     where: {
       provider_providerSubId: {
@@ -752,9 +786,14 @@ export async function upsertSubscription(
     update: {
       status: params.status,
       plan: params.plan,
-      currentPeriodEnd: params.currentPeriodEnd ?? null,
+      // BILLING REMEDIATION (2026-10-30, AUD-14a) — a fact that does not state
+      // the period leaves the recorded one. A downgrade needs that date, and
+      // `?? null` erased it on every payload without the field.
+      currentPeriodEnd: params.currentPeriodEnd ?? existing?.currentPeriodEnd ?? null,
       teamId,
       ...billed,
+      ...endingFact,
+      ...(params.providerScheduleId !== undefined ? { providerScheduleId: params.providerScheduleId } : {}),
       ...(params.observedAtUtc
         ? { providerStateAtUtc: params.observedAtUtc }
         : {}),
@@ -768,6 +807,7 @@ export async function upsertSubscription(
       // provider fact passes through.
       ...(existing?.pendingPlan &&
       (existing.pendingPlan === params.plan ||
+        scheduleGone ||
         params.status === prismaPkg.SubscriptionStatus.CANCELED)
         ? {
             pendingPlan: null,

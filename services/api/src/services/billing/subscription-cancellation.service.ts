@@ -42,8 +42,14 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
-import { stripeRequest } from "../stripe.service.js";
-import { cancelPayPalSubscription } from "../paypal.service.js";
+import { StripeHttpError, stripeGet, stripeRequest } from "../stripe.service.js";
+import { PayPalHttpError, cancelPayPalSubscription } from "../paypal.service.js";
+import { releaseStripeSchedule } from "./stripe-schedule.service.js";
+import {
+  stripeSubscriptionPeriodEnd,
+  stripeSubscriptionScheduleId,
+  type StripeSubscriptionLike,
+} from "./stripe-object-shapes.js";
 import { payPalSubscriptionEnded } from "./base-subscription-supersession.service.js";
 import {
   cancelDependentRecurringAddons,
@@ -98,12 +104,17 @@ export type CancellationOutcome = {
   dependentAddonsFailed: number;
 };
 
-function providerFailure(provider: prismaPkg.PaymentProvider): DomainError {
+function providerFailure(provider: prismaPkg.PaymentProvider, cause?: unknown): DomainError {
+  // BILLING REMEDIATION (2026-10-30, AUD-13) — "nothing has changed" only when
+  // the provider said no. A timeout can follow a cancellation it accepted.
+  const refused =
+    (cause instanceof StripeHttpError || cause instanceof PayPalHttpError) && cause.status >= 400 && cause.status < 500;
   return new DomainError(`Provider cancellation failed for ${provider}`, {
     httpStatus: 502,
-    publicCode: "PROVIDER_CANCELLATION_FAILED",
-    publicMessage:
-      "We could not reach the payment provider to cancel this subscription. Nothing has changed and you have not been charged again — please try again shortly.",
+    publicCode: refused ? "PROVIDER_CANCELLATION_FAILED" : "PROVIDER_CANCELLATION_OUTCOME_UNKNOWN",
+    publicMessage: refused
+      ? "Your payment provider refused this cancellation, so nothing has changed. Please try again shortly, or contact support if this continues."
+      : "We did not get an answer from your payment provider, so we cannot say yet whether this subscription was cancelled. Check Billing in a few minutes before trying again.",
     reportability: "OPERATIONAL_WARNING",
     severity: "warning",
     metadata: { provider: String(provider) },
@@ -140,6 +151,8 @@ export async function requestSubscriptionCancellation(input: {
       canceledAtUtc: true,
       userId: true,
       teamId: true,
+      providerScheduleId: true,
+      pendingPlan: true,
     },
   });
 
@@ -221,22 +234,27 @@ export async function requestSubscriptionCancellation(input: {
     // termination — while the confirmation dialog promised the period end.
     let response: Record<string, unknown>;
     try {
+      // BILLING REMEDIATION (2026-10-30, AUD-09) — a schedule would run its next
+      // phase regardless, so a scheduled downgrade is withdrawn first. Read live,
+      // because a schedule made at Stripe is not recorded here.
+      const live = (await stripeGet(`/subscriptions/${subscription.providerSubId}`)) as unknown as StripeSubscriptionLike;
+      const scheduleId = stripeSubscriptionScheduleId(live) ?? subscription.providerScheduleId;
+      if (scheduleId) await releaseStripeSchedule(scheduleId);
       const body = new URLSearchParams();
       body.append("cancel_at_period_end", "true");
       response = await stripeRequest(
         `/subscriptions/${subscription.providerSubId}`,
         body,
+        { idempotencyKey: `proovra-cancel-${subscription.id}-${new Date().toISOString().slice(0, 13)}` },
       );
     } catch (cause) {
       // NO local write. The subscription stays exactly as it was.
-      throw Object.assign(providerFailure(subscription.provider), { cause });
+      throw Object.assign(providerFailure(subscription.provider, cause), { cause });
     }
 
     // Take the period end the provider CONFIRMED, not the one we had stored.
-    const periodEnd = response["current_period_end"];
-    if (typeof periodEnd === "number" && Number.isFinite(periodEnd)) {
-      confirmedPeriodEnd = new Date(periodEnd * 1000);
-    }
+    confirmedPeriodEnd =
+      stripeSubscriptionPeriodEnd(response as unknown as StripeSubscriptionLike) ?? confirmedPeriodEnd;
     const confirmedFlag = response["cancel_at_period_end"];
     if (confirmedFlag !== true) {
       // The call succeeded but the provider did not agree to the thing we
@@ -263,7 +281,7 @@ export async function requestSubscriptionCancellation(input: {
       // confirmed, not an outage.
       const ended = await payPalSubscriptionEnded(subscription.providerSubId);
       if (!ended?.canceled) {
-        throw Object.assign(providerFailure(subscription.provider), { cause });
+        throw Object.assign(providerFailure(subscription.provider, cause), { cause });
       }
     }
   } else {
@@ -317,6 +335,12 @@ export async function requestSubscriptionCancellation(input: {
         ...(schedulesPeriodEnd && confirmedPeriodEnd
           ? { currentPeriodEnd: confirmedPeriodEnd }
           : {}),
+        // Withdrawn above: the plan ends, it does not change first.
+        providerScheduleId: null,
+        pendingPlan: null,
+        pendingPlanEffectiveAtUtc: null,
+        pendingPlanAwaitingApproval: false,
+        pendingPlanRequestedAtUtc: null,
       },
       select: { status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
     });

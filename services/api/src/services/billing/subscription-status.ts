@@ -74,6 +74,11 @@ export function observedStateFromSubscriptionStatus(
  *     `terminalizePendingPlanCheckout`); PAST_DUE and TRIALING never reopen it;
  *   * TRIALING never demotes ACTIVE or PAST_DUE.
  *
+ * BILLING REMEDIATION (2026-10-30, AUD-02) — provider times are in whole seconds
+ * and Stripe documents that they do not order events, so an equal time decides
+ * nothing except where the lifecycle has one direction: a pending row may always
+ * move on. Every other tie is refused here, and the webhook then asks Stripe.
+ *
  * `apply: true` with the same status means "refresh the other fields".
  */
 export function decideSubscriptionStatusWrite(input: {
@@ -100,7 +105,7 @@ export function decideSubscriptionStatusWrite(input: {
     return { apply: false, reason: "OBSERVATION_IS_OLDER" };
   }
   if (next === current) return { apply: true, status: next };
-  if (incoming !== null && recorded !== null && incoming === recorded) {
+  if (incoming !== null && recorded !== null && incoming === recorded && current !== S.TRIALING) {
     return { apply: false, reason: "OBSERVATION_IS_NOT_NEWER" };
   }
 

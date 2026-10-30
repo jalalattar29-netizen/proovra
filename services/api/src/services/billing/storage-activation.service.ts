@@ -37,6 +37,7 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { getStorageAddonDefinition, upsertWorkspaceStorageAddon } from "../billing.service.js";
 import { recordBillingReviewItem } from "./billing-review.service.js";
+import { keepPaidPeriodAfterProviderCancel } from "./paid-period.service.js";
 import { findLivePersonalBaseSubscription } from "./base-subscription.service.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import {
@@ -344,6 +345,13 @@ export async function applyStorageSubscriptionObservation(
     dependsOnSubscriptionId = storageAddonRequiresPaidPlan(row.addonKey)
       ? ((await findLivePersonalBaseSubscription(row.ownerUserId))?.id ?? null)
       : null;
+  }
+
+  if (
+    obs.status === prismaPkg.SubscriptionStatus.CANCELED &&
+    (await keepPaidPeriodAfterProviderCancel({ addonId: row.id, observedAtUtc: obs.observedAtUtc }))
+  ) {
+    return { outcome: "UNCHANGED", addonId: row.id, status: row.status };
   }
 
   const before = row.status;

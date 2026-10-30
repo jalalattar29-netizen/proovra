@@ -319,12 +319,21 @@ export async function bindCheckoutAttempt(input: {
 export async function recordCheckoutCreateFailure(input: {
   attemptId: string;
   rejected: boolean;
+  /** The bounded category (`plan_not_configured`, …). Never provider text. */
+  reason?: string | null;
 }): Promise<void> {
+  // BILLING REMEDIATION (2026-10-30, AUD-22) — why, on the row: a refused
+  // purchase kept no reason, so the only record of "this SKU has no price" was a
+  // log line that rotates.
+  const reason = input.reason && /^[a-z_]{1,64}$/.test(input.reason) ? input.reason : null;
   await prisma.billingCheckoutAttempt.updateMany({
     where: { id: input.attemptId, status: S.PENDING, providerResourceId: null },
-    data: input.rejected
-      ? { status: S.FAILED, checkoutState: "PROVIDER_REJECTED" }
-      : { checkoutState: "PROVIDER_OUTCOME_UNKNOWN" },
+    data: {
+      ...(input.rejected
+        ? { status: S.FAILED, checkoutState: "PROVIDER_REJECTED" }
+        : { checkoutState: "PROVIDER_OUTCOME_UNKNOWN" }),
+      ...(reason ? { metadata: { createFailureReason: reason } } : {}),
+    },
   });
 }
 

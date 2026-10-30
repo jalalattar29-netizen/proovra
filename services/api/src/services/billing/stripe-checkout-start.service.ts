@@ -98,9 +98,11 @@ async function createWithAttempt(input: {
   try {
     session = (await input.create()).session;
   } catch (error) {
+    const metadata = (error as { metadata?: { reason?: unknown } } | null)?.metadata;
     await recordCheckoutCreateFailure({
       attemptId: input.attemptId,
       rejected: isStripeCreateRejection(error),
+      reason: typeof metadata?.reason === "string" ? metadata.reason : null,
     }).catch(() => undefined);
     throw error;
   }

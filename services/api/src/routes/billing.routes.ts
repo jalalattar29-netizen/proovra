@@ -8,7 +8,7 @@ import {
   type PlanType,
 } from "@proovra/shared-billing";
 // The ONE offer catalog that says which storage rows a subject may buy.
-import { storageAddonEligibleForPlan } from "../services/billing/storage-addon-rules.js";
+import { storageAddonEligibleForPlan, storageAddonRequiresPaidPlan } from "../services/billing/storage-addon-rules.js";
 import { requireAuth } from "../middleware/auth.js";
 // BILLING DEPENDENT-CANCELLATION CONVERGENCE (2026-08-27) — `cancelPayPalSubscription`
 // and `stripeRequestRaw` are no longer imported here. This route reached the
@@ -108,6 +108,10 @@ import {
 } from "../services/billing/dependent-cancellation.service.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { acquireLease, enforceRateLimit } from "../services/rate-limit.js";
+import { findStorageDuplicate } from "../services/billing/storage-purchase-guard.service.js";
+import { keepPaidPeriodAfterProviderCancel } from "../services/billing/paid-period.service.js";
+import { findLivePersonalBaseSubscription } from "../services/billing/base-subscription.service.js";
+import { PayPalHttpError } from "../services/paypal.service.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 
@@ -164,6 +168,12 @@ const PayPalResourceIdParam = z
   .refine(isPayPalResourceId, { message: "Invalid PayPal reference" });
 
 const StorageAddonCheckoutBody = z.object({
+  /**
+   * BILLING REMEDIATION (2026-10-30) — the customer saw what they already pay for
+   * and is adding more. Absent, a purchase that may duplicate one is answered
+   * with what was found instead of a second recurring charge.
+   */
+  confirmAdditional: z.boolean().optional(),
   addonKey: StorageAddonKeySchema,
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — new add-ons are recurring.
   // The legacy ONE_TIME cycle stays readable for grandfathered rows but can no
@@ -484,7 +494,91 @@ async function assertStorageAddonAllowed(params: {
     throw err;
   }
 
+  // BILLING REMEDIATION (2026-10-30, AUD-10) — a paid-plan SKU needs the plan it
+  // is sold on. Selling a new recurring charge on a plan already set to end
+  // creates exactly the add-on the cancellation just arranged to stop. A grant
+  // holds the plan independently, so it is not "ending" here.
+  if (storageAddonRequiresPaidPlan(params.addonKey) && (scope.providerPlan ?? scope.plan) === scope.plan) {
+    const base = await findLivePersonalBaseSubscription(params.userId);
+    if (base?.cancelAtPeriodEnd) {
+      const err: Error & { statusCode?: number; code?: string } = new Error(
+        "Your plan is set to end, so this storage add-on cannot be added. Restart your plan first.",
+      );
+      err.statusCode = 409;
+      err.code = "STORAGE_ADDON_PREREQUISITE_ENDING";
+      throw err;
+    }
+  }
+
   return { scope, definition };
+}
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-24) — a checkout, capture or confirmation
+ * reaches a live provider, so each is bounded per person. The limits are far
+ * above a real buyer and well below a loop. The storage is shared across
+ * processes where Redis is configured.
+ */
+function billingMutationLimit(kind: string, max: number) {
+  return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const rate = await enforceRateLimit({
+      key: `ratelimit:billing_${kind}:${getAuthUserId(req)}`,
+      max,
+      windowSec: 300,
+    });
+    if (rate.allowed) return;
+    await reply.code(429).send(
+      createErrorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        req.id,
+        undefined,
+        "That was tried several times just now. Please wait a few minutes before trying again.",
+      ),
+    );
+  };
+}
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-23) — a return route accepts an id from a
+ * URL. Ownership was already proven by the provider object's `custom_id`, but only
+ * AFTER asking the provider, so any well-formed id went to the Live API. It must
+ * now be a reference this server stored for this person, or an attempt of theirs
+ * whose create response was lost, which is the one way a real return has no
+ * stored reference.
+ */
+async function callerOwnsPayPalReference(userId: string, ref: string): Promise<boolean> {
+  const [subscription, addon, attempt, unbound] = await Promise.all([
+    prisma.subscription.count({ where: { userId, provider: prismaPkg.PaymentProvider.PAYPAL, providerSubId: ref } }),
+    prisma.workspaceStorageAddon.count({ where: { ownerUserId: userId, externalSubscriptionId: ref } }),
+    prisma.billingCheckoutAttempt.count({
+      where: { userId, provider: prismaPkg.PaymentProvider.PAYPAL, providerResourceId: ref },
+    }),
+    prisma.billingCheckoutAttempt.count({
+      where: {
+        userId,
+        provider: prismaPkg.PaymentProvider.PAYPAL,
+        providerResourceId: null,
+        checkoutState: "PROVIDER_OUTCOME_UNKNOWN",
+        createdAt: { gte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+      },
+    }),
+  ]);
+  if (subscription + addon + attempt + unbound > 0) return true;
+  return (
+    (await prisma.workspaceStorageAddon.count({
+      where: {
+        ownerUserId: userId,
+        paymentProvider: prismaPkg.PaymentProvider.PAYPAL,
+        externalSubscriptionId: null,
+        status: prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+        createdAt: { gte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+      },
+    })) > 0
+  );
+}
+
+function isPayPalNotFound(err: unknown): boolean {
+  return err instanceof PayPalHttpError && (err.status === 404 || err.status === 422);
 }
 
 export async function billingRoutes(app: FastifyInstance) {
@@ -1027,7 +1121,8 @@ export async function billingRoutes(app: FastifyInstance) {
         // The payer is the add-on's owner. A stored `teamId` is tenancy.
         type: "PERSONAL",
         id: addon.ownerUserId,
-        capability: "BILLING_ADDON_PURCHASE",
+        // AUD-08 — stopping a charge needs no right to buy another.
+        capability: "BILLING_CANCEL",
       });
 
       if (
@@ -1077,7 +1172,7 @@ export async function billingRoutes(app: FastifyInstance) {
           error: {
             code: "PROVIDER_CANCELLATION_FAILED",
             message:
-              "We could not reach your payment provider to stop this add-on. Nothing has changed and you have not been charged again — please try again shortly.",
+              "We could not confirm with your payment provider that this add-on was stopped. It is still shown as active. Please check again shortly before retrying.",
           },
         });
       }
@@ -1085,7 +1180,10 @@ export async function billingRoutes(app: FastifyInstance) {
       // A PERIOD_END schedule leaves the capacity the customer paid for in
       // place; the terminal transition is the provider's own, by webhook or
       // reconciliation. Only a TERMINAL provider statement ends it here.
-      const updated = outcome.terminal
+      // AUD-09 — PayPal's stop ends billing, not the month already paid for.
+      const paidPeriodKept =
+        outcome.terminal && (await keepPaidPeriodAfterProviderCancel({ addonId: addon.id }));
+      const updated = outcome.terminal && !paidPeriodKept
         ? await cancelWorkspaceStorageAddon({
             addonId: addon.id,
             ownerUserId: addon.ownerUserId,
@@ -1487,7 +1585,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("payment_action", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const params = z
@@ -1545,7 +1643,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("payment_action", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const params = z
@@ -1618,7 +1716,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/checkout/stripe",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("checkout", 20)] },
     async (req, reply) => {
       const body = CheckoutBody.parse(req.body);
       const userId = getAuthUserId(req);
@@ -1827,7 +1925,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/checkout/paypal/pending/resolve",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("return", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const body = z
@@ -1872,7 +1970,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/credits/checkout/stripe",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("checkout", 20)] },
     async (req, reply) => {
       const body = EvidenceCreditCheckoutBody.parse(req.body ?? {});
       const userId = getAuthUserId(req);
@@ -1922,7 +2020,7 @@ export async function billingRoutes(app: FastifyInstance) {
   /** PayPal counterpart. Same server-owned product identity. */
   app.post(
     "/v1/billing/credits/checkout/paypal",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("checkout", 20)] },
     async (req, reply) => {
       const body = EvidenceCreditCheckoutBody.parse(req.body ?? {});
       const userId = getAuthUserId(req);
@@ -1982,7 +2080,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/credits/checkout/paypal/:orderId/capture",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("return", 20)] },
     async (req, reply) => {
       const { orderId } = z
         .object({ orderId: PayPalResourceIdParam })
@@ -1998,11 +2096,21 @@ export async function billingRoutes(app: FastifyInstance) {
         capability: "BILLING_ADDON_PURCHASE",
       });
 
-      const result = await settlePayPalEvidenceCreditOrder({
-        orderId,
-        expectedUserId: userId,
-        capture: true,
-      });
+      if (!(await callerOwnsPayPalReference(userId, orderId))) {
+        return reply.code(404).send({ outcome: "REJECTED", code: "PAYPAL_ORDER_NOT_FOUND" });
+      }
+
+      let result: Awaited<ReturnType<typeof settlePayPalEvidenceCreditOrder>>;
+      try {
+        result = await settlePayPalEvidenceCreditOrder({
+          orderId,
+          expectedUserId: userId,
+          capture: true,
+        });
+      } catch (err) {
+        if (!isPayPalNotFound(err)) throw err;
+        return reply.code(404).send({ outcome: "REJECTED", code: "PAYPAL_ORDER_NOT_FOUND" });
+      }
 
       auditBillingAction(req, {
         userId,
@@ -2053,19 +2161,31 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("return", 20)] },
     async (req, reply) => {
       const { subscriptionId } = z
         .object({ subscriptionId: PayPalResourceIdParam })
         .parse(req.params);
       const userId = getAuthUserId(req);
 
-      const result = await applyPayPalSubscriptionState({
-        subscriptionId,
-        expectedUserId: userId,
-        source: "checkout_return",
-        log: req.log,
-      });
+      if (!(await callerOwnsPayPalReference(userId, subscriptionId))) {
+        return reply.code(404).send({ outcome: "REJECTED", code: "PAYPAL_SUBSCRIPTION_NOT_FOUND" });
+      }
+
+      let result: Awaited<ReturnType<typeof applyPayPalSubscriptionState>>;
+      try {
+        result = await applyPayPalSubscriptionState({
+          subscriptionId,
+          expectedUserId: userId,
+          source: "checkout_return",
+          log: req.log,
+        });
+      } catch (err) {
+        // An expected answer about one id, not an outage: it used to surface as
+        // an unexpected 500 with a critical alert.
+        if (!isPayPalNotFound(err)) throw err;
+        return reply.code(404).send({ outcome: "REJECTED", code: "PAYPAL_SUBSCRIPTION_NOT_FOUND" });
+      }
 
       auditBillingAction(req, {
         userId,
@@ -2119,7 +2239,7 @@ export async function billingRoutes(app: FastifyInstance) {
    */
   app.post(
     "/v1/billing/checkout/paypal/returns/canceled",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("return", 20)] },
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const body = z
@@ -2167,7 +2287,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/storage-addons/checkout/stripe",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("checkout", 20)] },
     async (req, reply) => {
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
       if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
@@ -2205,6 +2325,15 @@ export async function billingRoutes(app: FastifyInstance) {
           code: "STORAGE_ADDON_CURRENCY_MISMATCH",
           details: { offeredCurrency: offerCurrency },
         });
+      }
+
+      if (!body.confirmAdditional) {
+        const duplicate = await findStorageDuplicate({
+          userId,
+          addonKey: body.addonKey,
+          provider: prismaPkg.PaymentProvider.STRIPE,
+        });
+        if (duplicate) return reply.code(409).send(duplicate);
       }
 
       const started = await startStripeStorageCheckout({
@@ -2264,7 +2393,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/checkout/paypal",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("checkout", 20)] },
     async (req, reply) => {
       const body = CheckoutBody.parse(req.body);
       const userId = getAuthUserId(req);
@@ -2358,7 +2487,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/billing/storage-addons/checkout/paypal",
-    { preHandler: requireAuthAndLegal },
+    { preHandler: [requireAuthAndLegal, billingMutationLimit("checkout", 20)] },
     async (req, reply) => {
       const body = StorageAddonCheckoutBody.parse(req.body ?? {});
       if (body.billingCycle !== prismaPkg.StorageAddonBillingCycle.MONTHLY) {
@@ -2401,6 +2530,15 @@ export async function billingRoutes(app: FastifyInstance) {
         addonKey: body.addonKey,
         currency,
       });
+      if (!body.confirmAdditional) {
+        const duplicate = await findStorageDuplicate({
+          userId,
+          addonKey: body.addonKey,
+          provider: prismaPkg.PaymentProvider.PAYPAL,
+        });
+        if (duplicate) return reply.code(409).send(duplicate);
+      }
+
       const definition = getStorageAddonDefinition(body.addonKey);
       const gated = await withPendingStorageAddonCheckoutGate({
         ownerUserId: userId,

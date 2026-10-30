@@ -48,8 +48,19 @@ import * as prismaPkg from "@prisma/client";
 import { EVIDENCE_CREDIT_PRODUCT } from "@proovra/shared-billing";
 
 import { prisma } from "../../../db.js";
-import { recordPayment, type PaymentProduct } from "../../billing.service.js";
-import { getPlanPriceCents, getStorageAddonPriceCents } from "../../billing-pricing.service.js";
+import { recordPayment, setPersonalPlan, type PaymentProduct } from "../../billing.service.js";
+import {
+  getPlanPriceCents,
+  getStorageAddonPriceCents,
+  planFromStripePriceId,
+} from "../../billing-pricing.service.js";
+import { findLivePersonalBaseSubscription } from "../base-subscription.service.js";
+import {
+  noteProviderReferenceFound,
+  noteProviderReferenceMissing,
+  referencesNotDue,
+} from "../provider-binding-check.service.js";
+import { releaseOrphanedStripeSchedule } from "../stripe-schedule.service.js";
 import { grantEvidenceCredits } from "../evidence-credits.service.js";
 import {
   attemptPayerDependentCancellations,
@@ -68,6 +79,7 @@ import {
 } from "../subscription-lifecycle.handlers.js";
 import type { BillingAccountRef } from "../billing-accounts.service.js";
 import { applyStorageSubscriptionObservation } from "../storage-activation.service.js";
+import { keepPaidPeriodAfterProviderCancel } from "../paid-period.service.js";
 import { parsePayPalStorageAddonCustomId } from "../../paypal-checkout-policy.service.js";
 import { StripeBillingReconciliationProvider } from "./stripe.provider.js";
 import { PayPalBillingReconciliationProvider } from "./paypal.provider.js";
@@ -699,8 +711,13 @@ async function reconcileSubscriptions(ctx: {
       status: true,
       currentPeriodEnd: true,
       providerStateAtUtc: true,
+      cancelAtPeriodEnd: true,
+      pendingPlan: true,
+      providerScheduleId: true,
+      supersededBySubscriptionId: true,
     },
   });
+  const notDue = await referencesNotDue(ctx.account.id);
 
   for (const binding of bindings) {
     const adapter = ctx.providers[binding.provider];
@@ -708,6 +725,9 @@ async function reconcileSubscriptions(ctx: {
       ctx.summary.unavailable += 1;
       continue;
     }
+    // BILLING REMEDIATION (2026-10-30, AUD-14) — asked and answered "not found"
+    // recently. It keeps its entitlement; it just is not asked again yet.
+    if (notDue.has(`${String(binding.provider)}:${binding.providerSubId}`)) continue;
 
     ctx.summary.checked += 1;
     const observation = await adapter.observeSubscription(binding.providerSubId);
@@ -718,8 +738,23 @@ async function reconcileSubscriptions(ctx: {
     });
 
     if (observation.state === "UNKNOWN") {
+      if (observation.failure === "NOT_FOUND") {
+        await noteProviderReferenceMissing({
+          userId: binding.userId,
+          provider: binding.provider,
+          resourceKind: "SUBSCRIPTION",
+          providerResourceId: binding.providerSubId,
+        });
+      }
       ctx.summary.unavailable += 1;
       continue;
+    }
+    await noteProviderReferenceFound({ provider: binding.provider, providerResourceId: binding.providerSubId });
+
+    // A schedule left behind by a failed phase edit holds the subscription and
+    // blocks the next plan change.
+    if (binding.providerScheduleId && !binding.pendingPlan) {
+      await releaseOrphanedStripeSchedule({ subscriptionId: binding.id, scheduleId: binding.providerScheduleId });
     }
 
     // THE ORDERING GUARD. A poll that started before a webhook landed can
@@ -747,13 +782,21 @@ async function reconcileSubscriptions(ctx: {
     const status = subscriptionStatusFromObservation(observation);
     if (!status) continue;
 
+    const isStripe = binding.provider === prismaPkg.PaymentProvider.STRIPE;
+    // AUD-01 — the price billed states the plan in force, so a landed schedule
+    // whose webhook was lost converges here too.
+    const plan = (isStripe ? planFromStripePriceId(observation.planId) : null) ?? binding.plan;
+
     if (
       status === binding.status &&
-      observation.currentPeriodEndUtc?.getTime() ===
-        binding.currentPeriodEnd?.getTime()
+      plan === binding.plan &&
+      (!isStripe || observation.cancelAtPeriodEnd === binding.cancelAtPeriodEnd) &&
+      (observation.currentPeriodEndUtc === null ||
+        observation.currentPeriodEndUtc.getTime() === binding.currentPeriodEnd?.getTime())
     ) {
       // Provider and local already agree.
       await stampProviderState(binding.id, observation.observedAtUtc);
+      if (await repairEntitlementDrift(binding)) ctx.summary.subscriptionsUpdated += 1;
       continue;
     }
 
@@ -766,13 +809,19 @@ async function reconcileSubscriptions(ctx: {
 
     await syncPlanForSubscription({
       userId: binding.userId,
-      plan: binding.plan,
+      plan,
       teamId: binding.teamId,
       provider: binding.provider,
       providerSubId: binding.providerSubId,
       status,
       currentPeriodEnd: observation.currentPeriodEndUtc,
       observedAtUtc: observation.observedAtUtc,
+      ...(isStripe
+        ? {
+            cancelAtPeriodEnd: observation.cancelAtPeriodEnd,
+            providerScheduleId: observation.providerScheduleId ?? null,
+          }
+        : {}),
     });
     await stampProviderState(binding.id, observation.observedAtUtc);
     ctx.summary.subscriptionsUpdated += 1;
@@ -782,6 +831,48 @@ async function reconcileSubscriptions(ctx: {
     // dependency rule's decision, made (and acted on, and counted as still
     // owed) by `convergeDependentCancellations` at the end of this run.
   }
+}
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-03) — the provider and the subscription
+ * row agree, but the entitlement does not: the process died between the two
+ * writes, or an older code path skipped one. "They agree" used to end the check
+ * there, so a paying customer stayed on Free indefinitely, and the next checkout
+ * then opened a second subscription.
+ *
+ * Only for the subscription that IS this person's plan, and only over a
+ * self-service plan value. `entitlements.plan` is the provider-derived plan: an
+ * internal grant is a separate row, so this cannot overwrite one.
+ */
+async function repairEntitlementDrift(binding: {
+  id: string;
+  userId: string;
+  plan: prismaPkg.PlanType;
+  status: prismaPkg.SubscriptionStatus;
+  providerSubId: string;
+  supersededBySubscriptionId: string | null;
+}): Promise<boolean> {
+  if (binding.supersededBySubscriptionId) return false;
+  const live = await findLivePersonalBaseSubscription(binding.userId);
+  if (live?.id !== binding.id) return false;
+  const entitlement = await prisma.entitlement.findFirst({
+    where: { userId: binding.userId, active: true },
+    orderBy: { createdAt: "desc" },
+    select: { plan: true },
+  });
+  if (!entitlement || entitlement.plan === binding.plan) return false;
+  const selfService: readonly prismaPkg.PlanType[] = [
+    prismaPkg.PlanType.FREE,
+    prismaPkg.PlanType.PRO,
+    prismaPkg.PlanType.TEAM,
+  ];
+  if (!selfService.includes(entitlement.plan)) return false;
+  await setPersonalPlan(binding.userId, binding.plan, {
+    actorUserId: null,
+    serviceActor: "billing_reconciliation",
+    providerSubId: binding.providerSubId,
+  });
+  return true;
 }
 
 /** Record the provider's own timestamp for the state we just applied. */
@@ -1039,8 +1130,17 @@ async function reconcileStorageAddonRow(input: {
   const observation = await adapter.observeSubscription(ref);
   noteProviderObservation({ provider, operation: "RECHECK_CHECKOUT_ATTEMPT", observation });
   if (observation.state === "UNKNOWN") {
+    if (observation.failure === "NOT_FOUND" && addon.activatedAtUtc) {
+      await noteProviderReferenceMissing({
+        userId: addon.ownerUserId,
+        provider,
+        resourceKind: "STORAGE_ADDON",
+        providerResourceId: ref,
+      });
+    }
     return unresolved(storageAttemptFailureOutcome(observation.failure));
   }
+  await noteProviderReferenceFound({ provider, providerResourceId: ref });
   if (!isNotStale(observation.observedAtUtc, addon.providerStateAtUtc)) {
     return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
   }
@@ -1100,6 +1200,16 @@ async function reconcileStorageAddonRow(input: {
   if (!next) {
     summary.actionRequired += 1;
     return { ...base, currentStatus: addon.status, outcome: "PROVIDER_MALFORMED" };
+  }
+
+  // AUD-09 — a cancellation ends future billing. The month already paid for
+  // stays until it ends: one writer decides that, shared with the webhook.
+  if (
+    next === prismaPkg.WorkspaceStorageAddonStatus.CANCELED &&
+    addon.activatedAtUtc &&
+    (await keepPaidPeriodAfterProviderCancel({ addonId: addon.id, observedAtUtc: observation.observedAtUtc }))
+  ) {
+    return { ...base, currentStatus: addon.status, outcome: "NO_CHANGE" };
   }
 
   // BILLING PAYPAL INTEGRITY (2026-09-28) — an approval nobody finished within

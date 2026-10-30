@@ -128,6 +128,27 @@ export function getStripePlanPriceId(
   return null;
 }
 
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-01) — which plan a configured Stripe price
+ * sells. The price Stripe bills is the provider's statement of the plan in force,
+ * exactly as PayPal's `plan_id` is. Metadata only records what was true when
+ * something last wrote it, and a schedule phase changes the price whether or not
+ * anyone updated the metadata. Null for a price not configured here (a
+ * grandfathered price): the caller then keeps what it already knows.
+ */
+export function planFromStripePriceId(
+  priceId: string | null | undefined,
+): typeof prismaPkg.PlanType.PRO | typeof prismaPkg.PlanType.TEAM | null {
+  const id = priceId?.trim();
+  if (!id) return null;
+  for (const plan of [prismaPkg.PlanType.PRO, prismaPkg.PlanType.TEAM] as const) {
+    for (const currency of ["USD", "EUR"] as const) {
+      if (getStripePlanPriceId(plan, currency) === id) return plan;
+    }
+  }
+  return null;
+}
+
 export function getStorageAddonPriceCents(params: {
   addonKey: prismaPkg.StorageAddonKey;
   currency: BillingCurrency;

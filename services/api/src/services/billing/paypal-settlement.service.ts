@@ -60,6 +60,7 @@ import {
   paypalGet,
 } from "../paypal.service.js";
 import { grantEvidenceCredits, reverseEvidenceCreditPurchase } from "./evidence-credits.service.js";
+import { applyPaymentAdjustment } from "./payment-adjustments.service.js";
 import { recordBillingReviewItem } from "./billing-review.service.js";
 import { applyStorageSubscriptionObservation } from "./storage-activation.service.js";
 import {
@@ -772,17 +773,8 @@ async function applyCreditRefund(input: {
     userId: input.userId,
     provider: PROVIDER,
     providerRef: input.captureId,
+    shortfallReviewDetail: { kind: input.kind },
   });
-  if (reversal.reversed && reversal.shortfall > 0) {
-    await recordBillingReviewItem({
-      userId: input.userId,
-      provider: PROVIDER,
-      providerResourceId: input.captureId,
-      product: "EVIDENCE_CREDIT",
-      reason: "CREDIT_REFUND_AFTER_CONSUMPTION",
-      detail: { kind: input.kind, creditsNotRecovered: reversal.shortfall },
-    });
-  }
   return { reversed: reversal.reversed, shortfall: reversal.shortfall };
 }
 
@@ -873,28 +865,32 @@ export async function applyPayPalRefundOrReversal(input: {
         },
       })) > 0);
 
-  const partial =
-    !reversed &&
-    (str(rec(resource?.amount)?.value) !== null || str(rec(resource?.amount)?.total) !== null) &&
-    centsFromValue(rec(resource?.amount)?.value ?? rec(resource?.amount)?.total) !== null &&
-    (centsFromValue(rec(resource?.amount)?.value ?? rec(resource?.amount)?.total) ?? 0) < payment.amountCents;
+  // BILLING REMEDIATION (2026-10-30, AUD-29) — one row per PayPal movement. Two
+  // partial refunds that together return everything now add up to a refund; a
+  // redelivery of either changes nothing. A refund resource that states no
+  // amount, or a reversal, is the whole payment.
+  const statedCents = centsFromValue(rec(resource?.amount)?.value ?? rec(resource?.amount)?.total);
+  const adjustment = await applyPaymentAdjustment({
+    paymentId: payment.id,
+    provider: PROVIDER,
+    providerAdjustmentId: str(resource?.id) ?? `${paymentRef}:${input.eventType}`,
+    kind: reversed ? "REVERSAL" : "REFUND",
+    amountCents: reversed ? payment.amountCents : (statedCents ?? payment.amountCents),
+    currency: payment.currency,
+    observedAtUtc: dateFromIso(resource?.update_time ?? resource?.create_time),
+  });
 
-  if (partial) {
+  if (!adjustment.fullyRefunded) {
     await recordBillingReviewItem({
       userId: payment.userId,
       provider: PROVIDER,
       providerResourceId: paymentRef,
       product: isCredit ? "EVIDENCE_CREDIT" : payment.product === "STORAGE_ADDON" ? "STORAGE_ADDON" : "PLAN",
       reason: "PARTIAL_REFUND",
-      detail: { eventType: input.eventType },
+      detail: { eventType: input.eventType, refundedAmountCents: adjustment.refundedAmountCents },
     });
     return { outcome: "APPLIED", product: payment.product };
   }
-
-  await prisma.payment.updateMany({
-    where: { id: payment.id, status: prismaPkg.PaymentStatus.SUCCEEDED },
-    data: { status: prismaPkg.PaymentStatus.REFUNDED },
-  });
 
   if (isCredit) {
     await applyCreditRefund({

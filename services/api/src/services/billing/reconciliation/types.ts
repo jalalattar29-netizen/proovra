@@ -175,6 +175,8 @@ export type SubscriptionObservation = {
    * and plan checks as the webhook. Server-side only; never sent to a client.
    */
   planId?: string | null;
+  /** Stripe: the schedule managing this subscription, null when none. */
+  providerScheduleId?: string | null;
   customId?: string | null;
 };
 

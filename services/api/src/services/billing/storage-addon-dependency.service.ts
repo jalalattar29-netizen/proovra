@@ -36,7 +36,9 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import {
   attemptDependentCancellations,
+  attemptPayerDependentCancellations,
   dependentAddonWhere,
+  payerOwnedAddonWhere,
   recordDependentCancellationObligations,
   UNRESOLVED_STATES,
 } from "./dependent-cancellation.service.js";
@@ -128,12 +130,22 @@ export async function cancelDependentRecurringAddons(input: {
   cancelAtProvider?: StorageAddonProviderCanceller;
   now?: Date;
 }): Promise<DependentCancellationResult> {
-  const attempt = await attemptDependentCancellations({
-    ownerUserId: input.ownerUserId,
-    teamId: input.teamId,
+  // Every subject this payer holds: an obligation recorded on a personal add-on
+  // by a legacy-scoped base is attempted here too.
+  const attempt = await attemptPayerDependentCancellations({
+    userId: input.ownerUserId,
     cancelAtProvider: input.cancelAtProvider,
     now: input.now,
   });
+  if (input.teamId) {
+    const scoped = await attemptDependentCancellations({
+      ownerUserId: input.ownerUserId,
+      teamId: input.teamId,
+      cancelAtProvider: input.cancelAtProvider,
+      now: input.now,
+    });
+    attempt.confirmed += scoped.confirmed;
+  }
 
   // What the caller reports is the state AFTER the attempt: anything still
   // unresolved is still charging, whether this attempt touched it or a lease
@@ -141,8 +153,8 @@ export async function cancelDependentRecurringAddons(input: {
   const stillOwed = await prisma.workspaceStorageAddon.count({
     where: {
       ...(input.teamId
-        ? { teamId: input.teamId }
-        : { ownerUserId: input.ownerUserId, teamId: null }),
+        ? { OR: [{ teamId: input.teamId }, payerOwnedAddonWhere(input.ownerUserId)] }
+        : payerOwnedAddonWhere(input.ownerUserId)),
       dependentCancellationState: { in: [...UNRESOLVED_STATES] },
     },
   });

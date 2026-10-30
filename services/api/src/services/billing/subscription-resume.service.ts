@@ -10,6 +10,8 @@ import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { stripeRequest } from "../stripe.service.js";
+import { withdrawUnsupportedObligations } from "./dependent-cancellation.service.js";
+import { stripeSubscriptionPeriodEnd, type StripeSubscriptionLike } from "./stripe-object-shapes.js";
 
 
 export type ResumeOutcome = {
@@ -131,11 +133,8 @@ export async function requestSubscriptionResume(input: {
       severity: "warning",
     });
   }
-  const periodEnd = response["current_period_end"];
   const confirmedPeriodEnd =
-    typeof periodEnd === "number" && Number.isFinite(periodEnd)
-      ? new Date(periodEnd * 1000)
-      : subscription.currentPeriodEnd;
+    stripeSubscriptionPeriodEnd(response as unknown as StripeSubscriptionLike) ?? subscription.currentPeriodEnd;
 
   await prisma.subscription.update({
     where: { id: subscription.id },
@@ -145,6 +144,14 @@ export async function requestSubscriptionResume(input: {
       ...(confirmedPeriodEnd ? { currentPeriodEnd: confirmedPeriodEnd } : {}),
     },
   });
+
+  // BILLING REMEDIATION (2026-10-30, AUD-09) — an obligation not yet carried out
+  // is no longer owed: the plan is back, so that add-on simply keeps running.
+  // Only one the provider already agreed to stop is reported as still ending.
+  await withdrawUnsupportedObligations({ ownerUserId: subscription.userId, teamId: null });
+  if (subscription.teamId) {
+    await withdrawUnsupportedObligations({ ownerUserId: subscription.userId, teamId: subscription.teamId });
+  }
 
   const dependentAddonsStillEnding = await prisma.workspaceStorageAddon.count({
     where: {

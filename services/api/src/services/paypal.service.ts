@@ -17,6 +17,7 @@ import {
 import { MIGRATED_SECRETS, getSecret } from "../config/runtime-secrets.js";
 import { paymentsUnavailable } from "./billing/payments-unavailable.js";
 import { DomainError } from "../errors.js";
+import { WebhookVerifierUnavailableError } from "./security/webhook-signature-audit.service.js";
 // PHASE 11 — canonical internal URL builder. Used ONLY to compose the
 // return/cancel URL (buildReturnUrl below); the PayPal API-call endpoints
 // (apiBase/must) are untouched.
@@ -40,6 +41,13 @@ function must(name: string): string {
 function apiBase() {
   return process.env.PAYPAL_API_BASE?.trim() || "https://api-m.paypal.com";
 }
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-13) — no provider call may hold a request
+ * open indefinitely. A timeout on a mutating call does NOT prove PayPal did
+ * nothing; callers treat it as an unknown outcome.
+ */
+export const PAYPAL_REQUEST_TIMEOUT_MS = 20_000;
 
 export type PayPalEnvironment = "LIVE" | "SANDBOX" | "CUSTOM";
 
@@ -136,6 +144,7 @@ export async function getPayPalAccessToken(): Promise<string> {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -406,6 +415,7 @@ export async function paypalRequest(
       ...(options.requestId ? { "PayPal-Request-Id": options.requestId } : {}),
     },
     body: method === "GET" ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -429,6 +439,7 @@ export async function paypalGet(path: string, accessToken?: string) {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -866,6 +877,7 @@ export async function cancelPayPalSubscription(
       body: JSON.stringify({
         reason: reason?.trim() || "Canceled by customer",
       }),
+      signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
     },
   );
 
@@ -886,9 +898,15 @@ export async function verifyPayPalWebhook(
   const headerValue = (value: string | string[] | undefined) =>
     Array.isArray(value) ? value[0] : value;
 
-  const token = await getPayPalAccessToken();
-
-  const res = await fetch(
+  // BILLING REMEDIATION (2026-10-30, AUD-26) — PayPal verifies by postback, so
+  // a token failure, a timeout or a 5xx proves nothing about the signature. Each
+  // is raised as "could not verify": the route answers 503 and PayPal redelivers,
+  // and no security event accuses the sender of forging a genuine webhook.
+  let token: string;
+  let res: Response;
+  try {
+    token = await getPayPalAccessToken();
+    res = await fetch(
     `${apiBase()}/v1/notifications/verify-webhook-signature`,
     {
       method: "POST",
@@ -905,12 +923,20 @@ export async function verifyPayPalWebhook(
         webhook_id: must("PAYPAL_WEBHOOK_ID"),
         webhook_event: JSON.parse(rawBody),
       }),
+      signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
     },
-  );
+    );
+  } catch (err) {
+    if (err instanceof SyntaxError || err instanceof DomainError) throw err;
+    throw new WebhookVerifierUnavailableError("PayPal webhook verification could not be reached");
+  }
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PayPal verify error: ${text}`);
+    // The body is not read: it can echo the submitted event.
+    if (res.status >= 500 || res.status === 401 || res.status === 403 || res.status === 429) {
+      throw new WebhookVerifierUnavailableError(`PayPal webhook verification answered ${res.status}`);
+    }
+    throw new Error(`PayPal verify error: ${res.status}`);
   }
 
   return (await res.json()) as { verification_status: string };
@@ -939,6 +965,7 @@ export async function capturePayPalOrder(orderId: string) {
         Prefer: "return=representation",
       },
       body: "{}",
+      signal: AbortSignal.timeout(PAYPAL_REQUEST_TIMEOUT_MS),
     },
   );
 

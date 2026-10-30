@@ -667,6 +667,9 @@ async function recheckOwned(
       outcome: r.outcome,
       locallyAbandoned: r.previousStatus === prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
       ...(r.resumeUrl ? { resumeUrl: r.resumeUrl } : {}),
+      // BILLING REMEDIATION (2026-10-30, AUD-18) — APPROVED read "waiting for
+      // your approval" and Abandon was then refused, because this was dropped.
+      ...(r.waitingFor ? { waitingFor: r.waitingFor } : {}),
     };
   }
   const r = await recheckCheckoutAttempt({

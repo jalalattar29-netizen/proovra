@@ -45,6 +45,7 @@ import {
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
+import { recordBillingReviewItem } from "./billing-review.service.js";
 
 /**
  * Structural transaction client. Accepts the global client or a Prisma
@@ -339,6 +340,13 @@ export async function reverseEvidenceCreditPurchase(params: {
   userId: string;
   provider: prismaPkg.PaymentProvider;
   providerRef: string;
+  /**
+   * When given, a shortfall's review item is written in THIS transaction.
+   * BILLING REMEDIATION (2026-10-30, AUD-29) — it was written by each caller
+   * after this committed, and the reversal's unique index then made every retry
+   * a no-op, so a crash between the two lost the review for good.
+   */
+  shortfallReviewDetail?: Record<string, string | number | boolean | null>;
 }): Promise<{ reversed: boolean; creditsRemoved: number; shortfall: number }> {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -363,11 +371,16 @@ export async function reverseEvidenceCreditPurchase(params: {
       });
       if (already) return { reversed: false, creditsRemoved: 0, shortfall: 0 };
 
-      const entitlement = await tx.entitlement.findFirst({
-        where: { userId: params.userId, active: true },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, credits: true },
-      });
+      // BILLING REMEDIATION (2026-10-30, AUD-29) — the balance is read under a
+      // row lock. A consumption committing between an unlocked read and the
+      // decrement left the wallet negative.
+      const [entitlement] = await tx.$queryRaw<Array<{ id: string; credits: number }>>`
+        SELECT id, credits FROM entitlements
+         WHERE user_id = ${params.userId}::uuid AND active = true
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE
+      `;
       const available = Math.max(0, entitlement?.credits ?? 0);
       const owed = Math.max(0, purchase.creditsDelta);
       const removable = Math.min(available, owed);
@@ -390,7 +403,21 @@ export async function reverseEvidenceCreditPurchase(params: {
           balanceAfter,
         },
       });
-      return { reversed: true, creditsRemoved: removable, shortfall: owed - removable };
+      const shortfall = owed - removable;
+      if (shortfall > 0 && params.shortfallReviewDetail) {
+        await recordBillingReviewItem(
+          {
+            userId: params.userId,
+            provider: params.provider,
+            providerResourceId: params.providerRef,
+            product: "EVIDENCE_CREDIT",
+            reason: "CREDIT_REFUND_AFTER_CONSUMPTION",
+            detail: { ...params.shortfallReviewDetail, creditsNotRecovered: shortfall },
+          },
+          tx,
+        );
+      }
+      return { reversed: true, creditsRemoved: removable, shortfall };
     });
   } catch (err) {
     if (isUniqueViolation(err)) return { reversed: false, creditsRemoved: 0, shortfall: 0 };

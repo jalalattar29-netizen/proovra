@@ -63,6 +63,8 @@ const H = vi.hoisted(() => ({
 
 vi.mock("../src/db.js", () => ({
   prisma: {
+    subscription: { count: async () => 0 },
+    workspaceStorageAddon: { count: async () => 0 },
     user: {
       findUnique: async ({ where }: { where: { id: string } }) => ({
         displayName: where.id === PERSONAL_USER ? "Reem Ammar" : null,

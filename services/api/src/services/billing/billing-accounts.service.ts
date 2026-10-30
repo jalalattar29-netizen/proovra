@@ -154,6 +154,30 @@ function has(
   return ref.capabilities.includes(capability);
 }
 
+/** What a managed identity keeps over billing that still charges them. */
+const MANAGED_PAYER_CAPABILITIES = ["BILLING_ACCOUNT_VIEW", "BILLING_AMOUNT_VIEW", "BILLING_HISTORY_VIEW", "BILLING_CANCEL"] as const;
+
+async function hasLiveSelfServiceBilling(userId: string): Promise<boolean> {
+  const [subscriptions, addons] = await Promise.all([
+    prisma.subscription.count({
+      where: {
+        userId,
+        status: { in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE] },
+      },
+    }),
+    prisma.workspaceStorageAddon.count({
+      where: {
+        ownerUserId: userId,
+        billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+        status: {
+          in: [prismaPkg.WorkspaceStorageAddonStatus.ACTIVE, prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE],
+        },
+      },
+    }),
+  ]);
+  return subscriptions + addons > 0;
+}
+
 /**
  * Enumerate every billing account this viewer may see.
  *
@@ -188,6 +212,18 @@ export async function listBillingAccountsForViewer(
       // Never the raw email as a title when a display name exists.
       displayName: user?.displayName?.trim() || "Personal",
       capabilities: [...OWNER_CAPABILITIES],
+      billingOwnerMissing: false,
+    });
+  } else if (await hasLiveSelfServiceBilling(viewerUserId)) {
+    // BILLING REMEDIATION (2026-10-30, AUD-08) — a person who became a managed
+    // identity keeps no personal space, but the subscription they started is
+    // still charging them, and every way to stop it required this account. They
+    // get exactly that: see it and cancel it. Nothing can be bought or changed.
+    accounts.push({
+      type: "PERSONAL",
+      id: viewerUserId,
+      displayName: "Personal",
+      capabilities: [...MANAGED_PAYER_CAPABILITIES],
       billingOwnerMissing: false,
     });
   }

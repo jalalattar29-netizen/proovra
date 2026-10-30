@@ -109,8 +109,7 @@ vi.mock("../src/db.js", () => {
                   }
                   return H.subscription;
                 }
-                if (call === "subscription.findUnique")
-                  return H.subscription ? { userId: "user-1" } : null;
+                if (call === "subscription.findUnique") return { userId: "user-1" };
                 if (method === "findMany") return [];
                 if (method === "count") return 0;
                 return {};
@@ -144,13 +143,13 @@ vi.mock("../src/services/stripe.service.js", () => ({
   stripeGet: async (path: string) => {
     H.providerCalls.push(`stripeGet ${path}`);
     if (H.providerFails) throw new Error("stripe unavailable");
-    return { items: { data: [{ id: "si_1" }] }, currency: "eur" };
+    return { items: { data: [{ id: "si_1", price: { id: "price_current" } }] }, currency: "eur" };
   },
   stripeRequest: async (path: string, body: URLSearchParams) => {
     H.providerCalls.push(`stripePost ${path}`);
     H.stripeBodies.push(new URLSearchParams(body));
     if (H.providerFails) throw new Error("stripe unavailable");
-    if (path === "/subscription_schedules") return { id: "sched_1" };
+    if (path === "/subscription_schedules") return { id: "sched_1", phases: [{ start_date: 1790000000 }] };
     return {
       status: "active",
       current_period_end: 1798761600,
@@ -668,9 +667,11 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
   it("schedules at the provider — it does not update the live subscription", async () => {
     await downgrade();
     expect(H.providerCalls).toEqual([
-      // a READ of the billed currency, never a write to the live subscription
+      // READS (billed currency, then item and schedule), never a write to the
+      // live subscription
       "stripeGet /subscriptions/sub_ext_1",
       "stripeGet /prices/price_PRO",
+      "stripeGet /subscriptions/sub_ext_1",
       "stripePost /subscription_schedules",
       "stripePost /subscription_schedules/sched_1",
     ]);
@@ -743,9 +744,9 @@ describe("applyPersonalPlanChange — PayPal", () => {
   });
 
   it("an approval link means the buyer has NOT agreed — nothing is claimed as done", async () => {
-    H.paypalLinks = [{ rel: "approve", href: "https://paypal.test/approve/1" }];
+    H.paypalLinks = [{ rel: "approve", href: "https://www.paypal.com/webapps/billing/subscriptions?ba_token=x" }];
     const out = await paypal("UPGRADE");
-    expect(out.approvalUrl).toBe("https://paypal.test/approve/1");
+    expect(out.approvalUrl).toBe("https://www.paypal.com/webapps/billing/subscriptions?ba_token=x");
     expect(out.providerConfirmed).toBe(false);
     expect(H.planApplied).toBeNull();
   });

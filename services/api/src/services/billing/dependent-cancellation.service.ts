@@ -50,6 +50,7 @@ import {
   storageAddonRequiresPaidPlan,
 } from "./storage-addon-rules.js";
 import { loadDependencyContext } from "./base-subscription.service.js";
+import { keepPaidPeriodAfterProviderCancel } from "./paid-period.service.js";
 
 const S = prismaPkg.DependentCancellationState;
 
@@ -160,9 +161,14 @@ export function dependentAddonWhere(input: {
   teamId: string | null;
 }): prismaPkg.Prisma.WorkspaceStorageAddonWhereInput {
   return {
+    // BILLING REMEDIATION (2026-10-30, AUD-04) — a base carries no scope of its
+    // own for this purpose: every add-on this person pays for depends on it,
+    // personal or legacy workspace-scoped. A `teamId` here used to mean "that
+    // workspace's rows only", so cancelling a legacy-scoped base left the
+    // payer's personal TEAM add-ons billing.
     ...(input.teamId
-      ? { teamId: input.teamId }
-      : { ownerUserId: input.ownerUserId, teamId: null }),
+      ? { OR: [{ teamId: input.teamId }, payerOwnedAddonWhere(input.ownerUserId)] }
+      : payerOwnedAddonWhere(input.ownerUserId)),
     billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
     externalSubscriptionId: { not: null },
     status: {
@@ -417,6 +423,8 @@ export async function attemptDependentCancellations(input: {
     });
 
     if (outcome.ok) {
+      const paidPeriodKept =
+        outcome.terminal && (await keepPaidPeriodAfterProviderCancel({ addonId: addon.id, now }));
       await prisma.workspaceStorageAddon.update({
         where: { id: addon.id },
         data: {
@@ -433,7 +441,7 @@ export async function attemptDependentCancellations(input: {
           // make, by webhook or by reconciliation.
           // A refused (FAILED) activation keeps its FAILED status: it never
           // granted anything, and the cancellation only stops the charge.
-          ...(outcome.terminal && addon.status !== prismaPkg.WorkspaceStorageAddonStatus.FAILED
+          ...(outcome.terminal && !paidPeriodKept && addon.status !== prismaPkg.WorkspaceStorageAddonStatus.FAILED
             ? { status: prismaPkg.WorkspaceStorageAddonStatus.CANCELED }
             : {}),
         },

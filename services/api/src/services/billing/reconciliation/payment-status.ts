@@ -19,8 +19,8 @@
  *     produces one transition and four no-ops.
  *
  *   * MONOTONIC. A terminal status is never replaced by a non-terminal one.
- *     The single exception is the one real later-life transition money has:
- *     SUCCEEDED -> REFUNDED.
+ *     The exceptions are the real later-life transitions money has:
+ *     SUCCEEDED -> REFUNDED, and FAILED -> SUCCEEDED when a retry pays.
  *
  *   * ORDER-INSENSITIVE. When the provider's own timestamp for an observation
  *     is older than the timestamp already recorded on the row, the observation
@@ -188,6 +188,17 @@ export function decidePaymentTransition(
     // settlement — is a stale or contradictory fact, and the recorded one
     // stands.
     if (input.current === S.SUCCEEDED && next === S.REFUNDED) {
+      return { apply: true, status: next };
+    }
+
+    /*
+     * BILLING REMEDIATION (2026-10-30, AUD-06) — a failed invoice is paid on a
+     * later retry, and it is the same invoice. The recorded failure was true
+     * when written; SUCCEEDED is the provider's newer statement that the money
+     * moved, and refusing it left a paid renewal reading "failed" for ever. The
+     * ordering guard above has already discarded an older success.
+     */
+    if (input.current === S.FAILED && next === S.SUCCEEDED) {
       return { apply: true, status: next };
     }
 

@@ -81,6 +81,7 @@ import { countOpenBillingReviewItems } from "./billing-review.service.js";
 // catalogue decision, and the ONE personal-evidence counter, both shared with
 // the enforcement path so the meter cannot disagree with the gate.
 import { storageAddonOffersForPlan } from "../workspace-usage.service.js";
+import { resolveCommercialOffer, stripeOfferAvailability } from "./commercial-offer.service.js";
 import {
   getPlanPriceCents,
   getStorageAddonCurrency,
@@ -1061,7 +1062,15 @@ function offersFor(params: {
   return storageAddonOffersForPlan(params.plan)
     .map((d) => {
       const currency = getStorageAddonCurrency({ addonKey: d.key });
+      const offer = resolveCommercialOffer({ kind: "STORAGE_ADDON", addonKey: d.key }, currency);
       return {
+        // BILLING REMEDIATION (2026-10-30, AUD-21) — per SKU and per provider, so
+        // one missing price does not hide an offer the other provider can sell,
+        // and the page does not invite a purchase that can only be refused.
+        checkoutAvailability: {
+          stripe: stripeOfferAvailability(offer).available,
+          paypal: Boolean(process.env[`PAYPAL_PLAN_STORAGE_${d.key}_${currency}`]?.trim()),
+        },
         key: d.key,
         label: d.label,
         storageBytes: d.storageBytes.toString(),

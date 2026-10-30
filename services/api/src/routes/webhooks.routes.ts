@@ -15,7 +15,6 @@ import {
 } from "../services/billing.service.js";
 // Evidence credits are granted through the canonical wallet by the shared
 // Stripe/PayPal settlement services (idempotent on the provider payment id).
-import { syncPlanForSubscription } from "../services/billing/subscription-lifecycle.handlers.js";
 // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — renewal ownership comes from
 // the AUTHORITATIVE STORED subscription row, not from provider metadata that
 // providers do not in fact put on renewal events.
@@ -52,16 +51,20 @@ import { webhookDuplicateDisposition } from "../services/billing/webhook-deliver
 // STRIPE SETTLEMENT (2026-09-28) — the session handler and its parsers are
 // shared with provider-first recovery, so both apply a session identically.
 import {
+  applyStripeSubscriptionEvent,
   dateFromUnixSeconds,
   parsePlan,
   parseStorageAddonBillingCycle,
   parseStorageAddonKey,
-  parseStripeSubscriptionStatus,
   recordStripeSessionAttemptOutcome,
   applyStripeChargeAdverseEvent,
   settleStripeCheckoutSession,
   type StripeCheckoutSession,
 } from "../services/billing/stripe-settlement.service.js";
+import {
+  stripeInvoiceSubscriptionMetadata,
+  type StripeSubscriptionLike,
+} from "../services/billing/stripe-object-shapes.js";
 
 
 function tryParseAddonContextFromCustomId(raw: unknown): {
@@ -190,6 +193,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
     const event = parseStripeEvent(rawBody);
 
+    let unattributed = false;
+
     // Phase E10.1 — DEF-038 closure. Stripe webhook event idempotency.
     // The unique index on `stripe_event_id` makes the "seen?" check
     // atomic — a duplicate insert raises Prisma P2002 which we
@@ -251,6 +256,12 @@ export async function webhooksRoutes(app: FastifyInstance) {
       }
     }
 
+    // BILLING REMEDIATION (2026-10-30, AUD-26) — every handler below runs in this
+    // try. A failure used to escape with the row still RECEIVED (and one storage
+    // failure was swallowed outright, so the event read PROCESSED while the
+    // add-on never moved). It is now FAILED with a bounded reason, and the
+    // non-2xx makes Stripe redeliver.
+    try {
     if (event.type === "checkout.session.completed") {
       // One settlement path for the webhook and for recovery. Credits are
       // granted only for a PAID session at the server price; storage is
@@ -268,7 +279,11 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
     // ET-COM-03 — a refunded or lost-disputed credit purchase takes its
     // credits back (PayPal's refunds already did; Stripe's were never read).
-    if (event.type === "charge.refunded" || event.type === "charge.dispute.closed") {
+    if (
+      event.type === "charge.refunded" ||
+      event.type === "charge.dispute.created" ||
+      event.type === "charge.dispute.closed"
+    ) {
       const adverse = await applyStripeChargeAdverseEvent({
         eventType: event.type,
         object: event.data.object,
@@ -278,6 +293,15 @@ export async function webhooksRoutes(app: FastifyInstance) {
         { provider: "STRIPE", eventId: event.id, eventType: event.type, outcome: adverse.outcome },
         "stripe.charge_adverse_event",
       );
+      // Money moved and nothing here can say whose it was. That must stay
+      // findable, not read as an ordinary processed event.
+      if (adverse.outcome === "UNATTRIBUTED") {
+        req.log.warn(
+          { provider: "STRIPE", eventId: event.id, eventType: event.type },
+          "stripe.charge_adverse_event_unattributed",
+        );
+        unattributed = true;
+      }
     }
 
     if (event.type === "checkout.session.expired") {
@@ -308,86 +332,16 @@ export async function webhooksRoutes(app: FastifyInstance) {
       event.type === "customer.subscription.updated" ||
       event.type === "customer.subscription.deleted"
     ) {
-      const subscription = event.data.object as {
-        id: string;
-        status?: string;
-        current_period_end?: number;
-        currency?: string;
-        items?: { data?: Array<{ price?: { unit_amount?: number | null; currency?: string } }> };
-        metadata?: {
-          userId?: string;
-          plan?: string;
-          teamId?: string;
-          storageAddonKey?: string;
-          billingCycle?: string;
-          currency?: string;
-          amountCents?: string;
-        };
-      };
-
-      const userId = subscription.metadata?.userId;
-      const plan = parsePlan(subscription.metadata?.plan);
-      const teamId = subscription.metadata?.teamId ?? null;
-      const storageAddonKey = parseStorageAddonKey(
-        subscription.metadata?.storageAddonKey
-      );
-      const stripeStatus = parseStripeSubscriptionStatus(subscription.status);
-      const stripeObservedAt = dateFromUnixSeconds(
-        (event as { created?: unknown }).created,
-      );
-
-      if (userId && plan) {
-        await syncPlanForSubscription({
-          userId,
-          plan,
-          teamId,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          providerSubId: subscription.id,
-          status: stripeStatus,
-          currentPeriodEnd: subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000)
-            : null,
-          observedAtUtc: stripeObservedAt,
-          // What Stripe bills: the subscription's currency and its price's
-          // unit amount — provider facts, never the display currency.
-          billedCurrency: subscription.currency ? subscription.currency.toUpperCase() : null,
-          billedUnitAmountCents:
-            typeof subscription.items?.data?.[0]?.price?.unit_amount === "number"
-              ? subscription.items.data[0].price.unit_amount
-              : null,
-        });
-      }
-
-      /**
-       * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on
-       * subscription HAS a lifecycle now: renewal, payment failure and
-       * cancellation all reach this handler, and all three used to be logged
-       * as "unsupported" and dropped.
-       */
-      const parsedCycle = parseStorageAddonBillingCycle(
-        subscription.metadata?.billingCycle
-      );
-      if (userId && storageAddonKey && parsedCycle !== null) {
-        // BILLING PAYPAL INTEGRITY (2026-09-28) — the ONE storage activation
-        // decision; a first activation is checked exactly as every other
-        // path checks it.
-        await applyStorageSubscriptionObservation({
-          provider: prismaPkg.PaymentProvider.STRIPE,
-          subscriptionId: subscription.id,
-          status: stripeStatus,
-          planId: null,
-          claimed: { userId, teamId, addonKey: storageAddonKey, attemptId: null },
-          currentPeriodEnd: subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000)
-            : null,
-          observedAtUtc: stripeObservedAt,
-          source: event.type,
-        }).catch((err: unknown) => {
-          req.log.warn(
-            { err, provider: "STRIPE", subscriptionId: subscription.id },
-            "stripe.storage_addon_subscription_sync_failed"
-          );
-        });
+      const applied = await applyStripeSubscriptionEvent({
+        subscription: event.data.object as unknown as StripeSubscriptionLike,
+        eventCreatedAtUtc: dateFromUnixSeconds((event as { created?: unknown }).created),
+        source: event.type,
+      });
+      if (applied.outcome === "IGNORED") {
+        req.log.warn(
+          { provider: "STRIPE", eventId: event.id, eventType: event.type, reason: applied.reason },
+          "stripe.subscription_event_not_applied",
+        );
       }
     }
 
@@ -403,6 +357,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
         currency?: string;
         subscription?: unknown;
         parent?: unknown;
+        subscription_details?: unknown;
+        status_transitions?: { paid_at?: number | null };
         metadata?: {
           userId?: string;
           plan?: string;
@@ -412,12 +368,14 @@ export async function webhooksRoutes(app: FastifyInstance) {
         };
       };
 
-      const storageAddonKey = parseStorageAddonKey(
-        invoice.metadata?.storageAddonKey
-      );
-      const parsedCycle = parseStorageAddonBillingCycle(
-        invoice.metadata?.billingCycle
-      );
+      // BILLING REMEDIATION (2026-10-30, AUD-07) — the first invoice of a storage
+      // subscription can arrive before any local row exists, and the invoice now
+      // writes that payment alone. Stripe copies the subscription's metadata
+      // here, which is what attributes it.
+      const subscriptionMetadata = stripeInvoiceSubscriptionMetadata(invoice);
+      const invoiceMetadata = { ...subscriptionMetadata, ...invoice.metadata };
+      const storageAddonKey = parseStorageAddonKey(invoiceMetadata.storageAddonKey);
+      const parsedCycle = parseStorageAddonBillingCycle(invoiceMetadata.billingCycle);
 
       /**
        * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — RENEWALS ARE NOW
@@ -439,8 +397,8 @@ export async function webhooksRoutes(app: FastifyInstance) {
        * attributed: an unattributable provider event is a real state, and
        * guessing an owner writes a guess into someone's financial history.
        */
-      const metadataUserId = invoice.metadata?.userId;
-      const metadataPlan = parsePlan(invoice.metadata?.plan);
+      const metadataUserId = invoiceMetadata.userId;
+      const metadataPlan = parsePlan(invoiceMetadata.plan);
 
       const stripeSubId = stripeSubscriptionIdFromInvoice(invoice);
       let subject:
@@ -453,7 +411,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
         metadataUserId && (metadataPlan || storageAddonKey)
           ? {
               userId: metadataUserId,
-              teamId: invoice.metadata?.teamId ?? null,
+              teamId: invoiceMetadata.teamId ?? null,
               product: storageAddonKey ? "STORAGE_ADDON" : "PLAN",
             }
           : null;
@@ -498,6 +456,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
           teamId: subject.teamId,
           product: subject.product,
           providerResourceId: stripeSubId,
+          observedAtUtc: paid ? dateFromUnixSeconds(invoice.status_transitions?.paid_at) : null,
         });
       } else {
         // Deliberately visible: an unbindable invoice is an operational signal,
@@ -516,11 +475,25 @@ export async function webhooksRoutes(app: FastifyInstance) {
     await prisma.stripeWebhookEvent
       .update({
         where: { stripeEventId: event.id },
-        data: { processedAt: new Date(), processingStatus: "PROCESSED" },
+        data: {
+          processedAt: new Date(),
+          processingStatus: "PROCESSED",
+          ...(unattributed ? { errorReason: "UNATTRIBUTED" } : {}),
+        },
       })
       .catch(() => null);
 
     return reply.code(200).send({ received: true });
+    } catch (err) {
+      const name = err instanceof Error ? err.name : "unknown_stripe_handler_error";
+      await prisma.stripeWebhookEvent
+        .update({
+          where: { stripeEventId: event.id },
+          data: { processingStatus: "FAILED", errorReason: name.slice(0, 120) },
+        })
+        .catch(() => null);
+      throw err;
+    }
   });
 
   app.post("/paypal", async (req: FastifyRequest, reply) => {
@@ -547,6 +520,10 @@ export async function webhooksRoutes(app: FastifyInstance) {
         }
       },
     });
+    if (!sigCheck.ok && (sigCheck.reason === "verifier_unavailable" || sigCheck.reason === "secret_misconfigured")) {
+      // Nothing is known about this delivery. PayPal redelivers on a 5xx.
+      return reply.code(503).send({ ok: false, retryable: true });
+    }
     if (!sigCheck.ok || !verification) {
       return reply.code(400).send({ message: "Invalid webhook" });
     }

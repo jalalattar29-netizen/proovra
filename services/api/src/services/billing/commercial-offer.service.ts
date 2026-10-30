@@ -44,6 +44,7 @@ import {
   getStripeStorageAddonPriceId,
   type BillingCurrency,
 } from "../billing-pricing.service.js";
+import { getSecret } from "../../config/runtime-secrets.js";
 import { stripeGet } from "../stripe.service.js";
 import { paymentsUnavailable } from "./payments-unavailable.js";
 
@@ -161,6 +162,7 @@ const verified = new Map<string, number>();
 /** Test seam: the cache is process-local. */
 export function __clearVerifiedOffersForTests(): void {
   verified.clear();
+  refused.clear();
 }
 
 /** The fields of a Stripe Price this compares. */
@@ -169,9 +171,14 @@ export type StripePriceFacts = {
   currency?: string;
   unit_amount?: number | null;
   type?: string;
-  recurring?: { interval?: string; interval_count?: number } | null;
+  recurring?: { interval?: string; interval_count?: number; usage_type?: string; meter?: string | null } | null;
   /** The Product the Price belongs to: an id, or the expanded object. */
   product?: string | { id?: string } | null;
+  billing_scheme?: string | null;
+  tiers_mode?: string | null;
+  transform_quantity?: unknown;
+  custom_unit_amount?: unknown;
+  livemode?: boolean;
 };
 
 function stripePriceProductId(price: StripePriceFacts): string | null {
@@ -193,10 +200,49 @@ export function compareStripePrice(price: StripePriceFacts, offer: CommercialOff
     if (price.type !== "recurring" || price.recurring?.interval !== "month" || (price.recurring.interval_count ?? 1) !== 1) {
       out.push("interval");
     }
+    // BILLING REMEDIATION (2026-10-30, AUD-21) — every offer is one fixed amount
+    // per month. A metered price with a matching `unit_amount` passed all of the
+    // above and would bill on usage, or nothing at all.
+    const usage = price.recurring?.usage_type;
+    if ((usage !== undefined && usage !== "licensed") || price.recurring?.meter) out.push("usage_type");
   } else if (price.type !== "one_time" || price.recurring) {
     out.push("interval");
   }
+  if ((price.billing_scheme ?? "per_unit") !== "per_unit" || price.tiers_mode) out.push("billing_scheme");
+  if (price.transform_quantity) out.push("transform_quantity");
+  if (price.custom_unit_amount) out.push("custom_unit_amount");
   return out;
+}
+
+/** The mode this deployment's key talks to, or null when it cannot be told. */
+function stripeKeyMode(): "live" | "test" | null {
+  const key = getSecret("STRIPE_SECRET_KEY") ?? "";
+  return key.startsWith("sk_live_") || key.startsWith("rk_live_")
+    ? "live"
+    : key.startsWith("sk_test_") || key.startsWith("rk_test_")
+      ? "test"
+      : null;
+}
+
+export type OfferAvailability = {
+  available: boolean;
+  /** Bounded, safe for logs and the operator; the UI shows its own sentence. */
+  reason: "OK" | "NOT_CONFIGURED" | "REFUSED_RECENTLY";
+};
+
+/** Offers Stripe's read-back refused, by price, kept as long as a success would be. */
+const refused = new Map<string, number>();
+
+/**
+ * Should the page invite this purchase? Answers from configuration and from this
+ * process's last read-back, so it makes no provider call and one bad SKU never
+ * touches another. "Available" is not a promise: the checkout still verifies.
+ */
+export function stripeOfferAvailability(offer: CommercialOffer): OfferAvailability {
+  if (!offer.stripePriceId) return { available: false, reason: "NOT_CONFIGURED" };
+  const at = refused.get(offer.stripePriceId);
+  if (at && Date.now() - at < VERIFIED_TTL_MS) return { available: false, reason: "REFUSED_RECENTLY" };
+  return { available: true, reason: "OK" };
 }
 
 async function fetchStripePrice(priceId: string): Promise<StripePriceFacts> {
@@ -235,12 +281,22 @@ export async function requireVerifiedStripePrice(
     // A configured id Stripe does not know is a configuration fault, not an
     // outage: nothing to retry until the mapping is fixed.
     if ((err as { status?: number } | null)?.status === 404) {
+      refused.set(priceId, Date.now());
       throw paymentsUnavailable("stripe", `Stripe price for ${describe} does not exist`, "plan_not_configured");
+    }
+    // AUD-22 — a rejected key is not an outage: retrying cannot help, and the
+    // operator's fix is a different one.
+    const status = (err as { status?: number } | null)?.status;
+    if (status === 401 || status === 403) {
+      throw paymentsUnavailable("stripe", `Stripe key refused for ${describe}`, "provider_authorization_failed");
     }
     throw paymentsUnavailable("stripe", `Stripe price lookup for ${describe}`, "provider_unreachable_before_create");
   }
   const mismatched = compareStripePrice(price, offer);
+  const mode = stripeKeyMode();
+  if (typeof price.livemode === "boolean" && mode && price.livemode !== (mode === "live")) mismatched.push("livemode");
   if (mismatched.length > 0) {
+    refused.set(priceId, Date.now());
     throw paymentsUnavailable(
       "stripe",
       `Stripe price for ${describe} (disagrees on ${mismatched.join(", ")}; expected ${offer.amountCents} ${offer.currency})`,
@@ -248,5 +304,6 @@ export async function requireVerifiedStripePrice(
     );
   }
   verified.set(key, Date.now());
+  refused.delete(priceId);
   return priceId;
 }

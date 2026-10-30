@@ -49,6 +49,8 @@ export type LiveBaseSubscriptionRow = {
   /** The scheduled change still awaits the buyer's approval at the provider. */
   pendingPlanAwaitingApproval?: boolean;
   pendingPlanRequestedAtUtc?: Date | null;
+  /** Stripe: the schedule carrying a scheduled change, when one was recorded. */
+  providerScheduleId?: string | null;
   teamId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -92,6 +94,7 @@ const LIVE_BASE_SELECT = {
   pendingPlanEffectiveAtUtc: true,
   pendingPlanAwaitingApproval: true,
   pendingPlanRequestedAtUtc: true,
+  providerScheduleId: true,
   teamId: true,
   createdAt: true,
   updatedAt: true,
@@ -124,6 +127,10 @@ export async function findLivePersonalBaseSubscription(
       userId,
       plan: { in: [...SELF_SERVICE_BASE_SUBSCRIPTION_PLANS] },
       providerSubId: { not: "" },
+      // BILLING REMEDIATION (2026-10-30, AUD-12) — a duplicate awaiting its
+      // provider cancellation is newer than the plan it lost to, so without this
+      // the newest-first order picked it as the customer's subscription.
+      supersededBySubscriptionId: null,
       OR: [
         { status: { in: [...LIVE_BASE_SUBSCRIPTION_STATUSES] } },
         {
@@ -194,9 +201,14 @@ export async function loadDependencyContext(
   endedBases: DependencyBase[];
 }> {
   const ending = input.endingBaseIds ?? [];
+  // BILLING REMEDIATION (2026-10-30, AUD-04) — the PAYER's bases, whichever way
+  // the row is scoped. A subscription from the old workspace-shaped TEAM model
+  // still carries a `teamId` and is still this person's plan. Selecting
+  // `teamId: null` here meant such a plan neither satisfied nor triggered the
+  // personal add-ons it paid alongside.
   const subject = input.teamId
-    ? { teamId: input.teamId }
-    : { userId: input.ownerUserId, teamId: null };
+    ? { OR: [{ teamId: input.teamId }, { userId: input.ownerUserId }] }
+    : { userId: input.ownerUserId };
   const select = {
     id: true,
     teamId: true,
@@ -213,6 +225,7 @@ export async function loadDependencyContext(
         ...subject,
         ...(ending.length > 0 ? { id: { notIn: ending } } : {}),
         providerSubId: { not: "" },
+        supersededBySubscriptionId: null,
         status: {
           in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE],
         },

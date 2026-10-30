@@ -11,11 +11,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   prisma: {
-    workspaceStorageAddon: { findMany: vi.fn(async () => [] as unknown[]) },
+    workspaceStorageAddon: {
+      findMany: vi.fn(async () => [] as unknown[]),
+      updateMany: vi.fn(async () => ({ count: 0 })),
+    },
     billingCheckoutAttempt: { findMany: vi.fn(async () => [] as unknown[]) },
     payment: { findMany: vi.fn(async () => [] as unknown[]) },
     subscription: { findMany: vi.fn(async () => [] as unknown[]) },
     evidenceCreditLedgerEntry: { findMany: vi.fn(async () => [] as unknown[]) },
+    billingProviderBindingCheck: { findMany: vi.fn(async () => [] as unknown[]) },
   },
   sync: vi.fn(),
   reconcile: vi.fn(),

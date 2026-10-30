@@ -43,12 +43,14 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
-import { stripeGet, stripeRequest } from "../stripe.service.js";
+import { StripeHttpError, stripeGet, stripeRequest } from "../stripe.service.js";
 import {
+  PayPalHttpError,
   assertPayPalPlanSellable,
   getPayPalSubscription,
   paypalRequest,
 } from "../paypal.service.js";
+import { isPayPalHostedHttpsUrl } from "./reconciliation/paypal.provider.js";
 import { currencyForPayPalBasePlanId } from "../paypal-plan-map.service.js";
 import { getPayPalPlanId } from "../paypal-checkout-policy.service.js";
 import {
@@ -60,6 +62,13 @@ import {
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { requireVerifiedStripePrice, resolveCommercialOffer } from "./commercial-offer.service.js";
+import { releaseStripeSchedule, type StripeScheduleLike } from "./stripe-schedule.service.js";
+import {
+  stripeSubscriptionItem,
+  stripeSubscriptionPeriodEnd,
+  stripeSubscriptionScheduleId,
+  type StripeSubscriptionLike,
+} from "./stripe-object-shapes.js";
 import {
   derivePersonalBaseSubscriptionState,
   findLivePersonalBaseSubscription,
@@ -274,6 +283,44 @@ export type PlanChangeOutcome = {
   providerConfirmed: boolean;
 };
 
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-13) — a provider failure that does not
+ * prove nothing happened. A timeout, a dropped connection or a 5xx can follow a
+ * change the provider accepted, so "Nothing was changed" would be a guess. The
+ * next webhook or reconciliation pass states what is true.
+ */
+function providerOutcomeUnknown(detail: string): DomainError {
+  return new DomainError(`Provider outcome unknown for the plan change: ${detail}`, {
+    httpStatus: 502,
+    publicCode: "PLAN_CHANGE_OUTCOME_UNKNOWN",
+    publicMessage:
+      "We did not get an answer from your payment provider, so we cannot say yet whether this plan change went through. Check Billing in a few minutes before trying again.",
+    reportability: "OPERATIONAL_WARNING",
+    severity: "warning",
+  });
+}
+
+/** A definite refusal (the provider said no), or an unknown outcome. */
+function classifiedProviderFailure(err: unknown, fallback: string): DomainError {
+  const detail = err instanceof Error ? err.message : fallback;
+  const refused =
+    (err instanceof StripeHttpError || err instanceof PayPalHttpError) &&
+    err.status >= 400 &&
+    err.status < 500 &&
+    err.status !== 409 &&
+    err.status !== 429;
+  return refused ? providerFailure(detail) : providerOutcomeUnknown(detail);
+}
+
+/**
+ * One idempotency key per (subscription, from, to, hour): a retry of a change
+ * whose answer was lost gets Stripe's original answer, and the same change made
+ * legitimately later is a new request rather than a replay of a stale one.
+ */
+function planChangeKey(kind: string, subscription: PersonalSubscriptionRow, target: prismaPkg.PlanType): string {
+  return `proovra-${kind}-${subscription.id}-${subscription.plan}-${target}-${new Date().toISOString().slice(0, 13)}`;
+}
+
 function providerFailure(detail: string): DomainError {
   // The provider's own message is deliberately NOT surfaced: it names
   // subscription ids, price ids and internal reasons. `detail` reaches logs.
@@ -281,7 +328,7 @@ function providerFailure(detail: string): DomainError {
     httpStatus: 502,
     publicCode: "PLAN_CHANGE_PROVIDER_FAILED",
     publicMessage:
-      "We could not reach your payment provider to change the plan. Nothing was changed — please try again.",
+      "Your payment provider refused this plan change, so nothing was changed. Please try again, or contact support if this continues.",
     reportability: "OPERATIONAL_WARNING",
     severity: "warning",
   });
@@ -309,31 +356,22 @@ function requireStripePrice(
   return priceId;
 }
 
-async function stripeSubscriptionItemId(providerSubId: string): Promise<string> {
+async function readStripeSubscription(providerSubId: string): Promise<StripeSubscriptionLike> {
   // Wrapped like every other provider call in this module. Unwrapped, a Stripe
   // outage here escaped as the provider's own Error — carrying the subscription
   // id and the provider's wording — straight past the safe-error boundary to
   // the client. Caught by the behavioural suite before it could ship.
-  let sub: { items?: { data?: Array<{ id?: string }> } };
   try {
-    sub = (await stripeGet(`/subscriptions/${providerSubId}`)) as {
-      items?: { data?: Array<{ id?: string }> };
-    };
+    return (await stripeGet(`/subscriptions/${encodeURIComponent(providerSubId)}`)) as unknown as StripeSubscriptionLike;
   } catch (err) {
     throw providerFailure(
       err instanceof Error ? err.message : "stripe subscription read failed",
     );
   }
-
-  const itemId = sub.items?.data?.[0]?.id;
-  if (!itemId) {
-    throw providerFailure("stripe subscription has no items");
-  }
-  return itemId;
 }
 
-function periodEndUnix(subscription: PersonalSubscriptionRow): number {
-  const end = subscription.currentPeriodEnd;
+function periodEndUnix(subscription: PersonalSubscriptionRow, live: StripeSubscriptionLike): number {
+  const end = stripeSubscriptionPeriodEnd(live) ?? subscription.currentPeriodEnd;
   if (!end) {
     // A schedule needs a boundary. Without a confirmed paid-through date there
     // is no "period end" to defer to, and inventing one would either take
@@ -491,9 +529,43 @@ async function applyStripePlanChange(args: {
     await requireVerifiedStripePrice(resolveCommercialOffer({ kind: "PLAN", plan: transition.targetPlan }, currency));
   }
 
+  const ownerUserId = await ownerOf(subscription.id);
+  const live = await readStripeSubscription(subscription.providerSubId);
+  const scheduleId = stripeSubscriptionScheduleId(live) ?? subscription.providerScheduleId ?? null;
+
+  // A scheduled downgrade withdrawn before it landed: the customer stays on the
+  // plan in force, so there is nothing to charge and nothing to move.
+  if (transition.kind === "UPGRADE" && transition.targetPlan === subscription.plan && subscription.pendingPlan) {
+    if (scheduleId) {
+      try {
+        await releaseStripeSchedule(scheduleId);
+      } catch (err) {
+        throw classifiedProviderFailure(err, "stripe schedule release failed");
+      }
+    }
+    await clearPendingPlan(subscription.id);
+    return {
+      kind: "UPGRADE",
+      targetPlan: transition.targetPlan,
+      effectiveAtUtc: null,
+      approvalUrl: null,
+      providerConfirmed: true,
+    };
+  }
+
   if (transition.kind === "UPGRADE") {
-    const ownerUserId = await ownerOf(subscription.id);
-    const itemId = await stripeSubscriptionItemId(subscription.providerSubId);
+    const itemId = stripeSubscriptionItem(live)?.id;
+    if (!itemId) throw providerFailure("stripe subscription has no items");
+
+    // A schedule would overwrite this change at its next phase.
+    if (scheduleId) {
+      try {
+        await releaseStripeSchedule(scheduleId);
+      } catch (err) {
+        throw classifiedProviderFailure(err, "stripe schedule release failed");
+      }
+      await clearPendingPlan(subscription.id);
+    }
 
     const body = new URLSearchParams();
     body.append("items[0][id]", itemId);
@@ -508,19 +580,13 @@ async function applyStripePlanChange(args: {
     body.append("metadata[plan]", transition.targetPlan);
     body.append("metadata[userId]", ownerUserId);
 
-    let updated: {
-      status?: string;
-      current_period_end?: number;
-    };
+    let updated: StripeSubscriptionLike;
     try {
-      updated = (await stripeRequest(
-        `/subscriptions/${subscription.providerSubId}`,
-        body,
-      )) as { status?: string; current_period_end?: number };
+      updated = (await stripeRequest(`/subscriptions/${subscription.providerSubId}`, body, {
+        idempotencyKey: planChangeKey("upgrade", subscription, transition.targetPlan),
+      })) as unknown as StripeSubscriptionLike;
     } catch (err) {
-      throw providerFailure(
-        err instanceof Error ? err.message : "stripe subscription update failed",
-      );
+      throw classifiedProviderFailure(err, "stripe subscription update failed");
     }
 
     if (String(updated.status ?? "").toLowerCase() !== "active") {
@@ -538,9 +604,7 @@ async function applyStripePlanChange(args: {
       provider: subscription.provider,
       providerSubId: subscription.providerSubId,
       status: prismaPkg.SubscriptionStatus.ACTIVE,
-      currentPeriodEnd: updated.current_period_end
-        ? new Date(updated.current_period_end * 1000)
-        : subscription.currentPeriodEnd,
+      currentPeriodEnd: stripeSubscriptionPeriodEnd(updated) ?? subscription.currentPeriodEnd,
       billedCurrency: currency,
     });
 
@@ -556,50 +620,80 @@ async function applyStripePlanChange(args: {
   }
 
   // DOWNGRADE — a schedule, so the current phase is left exactly as bought.
-  const startsAt = periodEndUnix(subscription);
+  const startsAt = periodEndUnix(subscription, live);
+  const currentPriceId = stripeSubscriptionItem(live)?.price?.id;
+  if (!currentPriceId) throw providerFailure("stripe subscription has no price");
 
-  let scheduleId: string;
+  // One schedule per subscription. A subscription already on one (a change being
+  // replaced, or a schedule left by a failed attempt) is edited, not re-created:
+  // Stripe refuses `from_subscription` for it.
+  let schedule: StripeScheduleLike;
+  let createdHere = false;
   try {
-    const created = (await stripeRequest(
-      "/subscription_schedules",
-      new URLSearchParams({ from_subscription: subscription.providerSubId }),
-    )) as { id?: string; phases?: Array<Record<string, unknown>> };
-    if (!created.id) throw new Error("stripe returned no schedule id");
-    scheduleId = created.id;
+    if (scheduleId) {
+      schedule = (await stripeGet(`/subscription_schedules/${encodeURIComponent(scheduleId)}`)) as StripeScheduleLike;
+    } else {
+      schedule = (await stripeRequest(
+        "/subscription_schedules",
+        new URLSearchParams({ from_subscription: subscription.providerSubId }),
+        { idempotencyKey: planChangeKey("schedule", subscription, transition.targetPlan) },
+      )) as StripeScheduleLike;
+      createdHere = true;
+    }
+    if (!schedule.id) throw new Error("stripe returned no schedule id");
   } catch (err) {
-    throw providerFailure(
-      err instanceof Error ? err.message : "stripe schedule creation failed",
-    );
+    throw classifiedProviderFailure(err, "stripe schedule creation failed");
+  }
+  const activeScheduleId = schedule.id;
+  // Recorded BEFORE the phases are edited: from here a failure leaves a schedule
+  // Stripe holds, and reconciliation can only release one it knows about.
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: { providerScheduleId: activeScheduleId },
+  });
+
+  const phaseStart = schedule.phases?.[0]?.start_date;
+  if (typeof phaseStart !== "number") {
+    if (createdHere) await releaseAfterFailedEdit(subscription.id, activeScheduleId);
+    throw providerFailure("stripe schedule has no current phase");
   }
 
   const phases = new URLSearchParams();
-  // The FIRST schedule phase is what they are on, ending exactly when they
-  // stop having paid for it — so `getStripePlanPriceId` here takes the CURRENT
-  // plan, not the target.
+  // Stripe replaces the whole list on update, so the phase in progress is
+  // restated, from its own start. It keeps the price actually being billed: a
+  // grandfathered amount is not moved to today's catalogue for its last days.
   //
   // Deliberately not written as "phase 0": the audit engine reads that spelling
   // as its own programme marker and flags this file as audit-authored. Stripe
   // and the engine both call things phases; only one of them is talking about
   // this code.
-  phases.append(
-    "phases[0][items][0][price]",
-    requireStripePrice(subscription.plan, currency),
-  );
-  phases.append("phases[0][items][0][quantity]", "1");
+  phases.append("phases[0][start_date]", String(phaseStart));
   phases.append("phases[0][end_date]", String(startsAt));
-  // The SECOND phase is the lower tier, from that moment on.
+  phases.append("phases[0][items][0][price]", currentPriceId);
+  phases.append("phases[0][items][0][quantity]", "1");
+  phases.append("phases[0][metadata][plan]", subscription.plan);
+  phases.append("phases[0][metadata][userId]", ownerUserId);
+  // The SECOND phase is the lower tier, from that moment on. Stripe applies its
+  // metadata to the subscription when it starts, so nothing read later has to
+  // know a schedule was involved. The plan itself still comes from the price.
   phases.append("phases[1][items][0][price]", priceId);
   phases.append("phases[1][items][0][quantity]", "1");
-  phases.append("phases[1][iterations]", "1");
+  phases.append("phases[1][duration][interval]", "month");
+  phases.append("phases[1][duration][interval_count]", "1");
+  phases.append("phases[1][metadata][plan]", transition.targetPlan);
+  phases.append("phases[1][metadata][userId]", ownerUserId);
   phases.append("end_behavior", "release");
   phases.append("proration_behavior", "none");
 
   try {
-    await stripeRequest(`/subscription_schedules/${scheduleId}`, phases);
+    await stripeRequest(`/subscription_schedules/${activeScheduleId}`, phases, {
+      idempotencyKey: planChangeKey("schedule-update", subscription, transition.targetPlan),
+    });
   } catch (err) {
-    throw providerFailure(
-      err instanceof Error ? err.message : "stripe schedule update failed",
-    );
+    // Stripe holds a schedule with no change in it. Left alone, it would block
+    // the next plan change, so it is released, or recorded for reconciliation.
+    if (createdHere) await releaseAfterFailedEdit(subscription.id, activeScheduleId);
+    throw classifiedProviderFailure(err, "stripe schedule update failed");
   }
 
   await recordPendingPlan({
@@ -615,6 +709,19 @@ async function applyStripePlanChange(args: {
     approvalUrl: null,
     providerConfirmed: true,
   };
+}
+
+/** Best effort: a failure keeps the id recorded, and reconciliation retries it. */
+async function releaseAfterFailedEdit(subscriptionId: string, scheduleId: string): Promise<void> {
+  try {
+    await releaseStripeSchedule(scheduleId);
+    await prisma.subscription.updateMany({
+      where: { id: subscriptionId, providerScheduleId: scheduleId },
+      data: { providerScheduleId: null },
+    });
+  } catch {
+    // Recorded above; `releaseOrphanedStripeSchedule` owns the retry.
+  }
 }
 
 async function applyPayPalPlanChange(args: {
@@ -665,17 +772,21 @@ async function applyPayPalPlanChange(args: {
           cancel_url: billingPayPalReturnUrl("canceled=1&provider=paypal&kind=plan"),
         },
       },
+      "POST",
+      { requestId: planChangeKey("revise", subscription, transition.targetPlan) },
     )) as { links?: Array<{ rel?: string; href?: string }> };
   } catch (err) {
-    throw providerFailure(
-      err instanceof Error ? err.message : "paypal revise failed",
-    );
+    throw classifiedProviderFailure(err, "paypal revise failed");
   }
 
-  const approvalUrl =
+  // BILLING REMEDIATION (2026-10-30, AUD-19) — this link is sent to the browser,
+  // so it must be PayPal's: an https PayPal host, nothing else. A provider
+  // response is not an open redirect.
+  const approveHref =
     revised.links?.find(
       (l) => String(l.rel ?? "").toLowerCase() === "approve",
     )?.href ?? null;
+  const approvalUrl = approveHref && isPayPalHostedHttpsUrl(approveHref) ? approveHref : null;
 
   // Nothing is in force until PayPal says so. When an approval link is
   // returned the buyer has not even agreed yet; when it is not, the change

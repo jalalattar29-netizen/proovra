@@ -47,6 +47,11 @@ import {
   type ReconciliationProviders,
 } from "../services/billing/reconciliation/reconciliation.service.js";
 import type { BillingAccountRef } from "../services/billing/billing-accounts.service.js";
+import { acquireLease } from "../services/rate-limit.js";
+import { retrySupersededCancellations } from "../services/billing/subscription-lifecycle.handlers.js";
+import { finalizeEndedStorageAddons } from "../services/billing/paid-period.service.js";
+import { sweepExcludedReferences } from "../services/billing/provider-binding-check.service.js";
+import { ABANDONED_RECHECK_WINDOW_MS } from "../services/billing/checkout-attempt-recovery.service.js";
 
 /** Accounts offered to the authority per tick. */
 export const ACCOUNT_BATCH = 20;
@@ -56,6 +61,9 @@ export const ACCOUNT_BATCH = 20;
  * before the sweep asks the provider about it.
  */
 export const ATTEMPT_SWEEP_GRACE_MS = 5 * 60 * 1000;
+
+/** Longest a crashed sweep can hold the lease. */
+const SWEEP_LEASE_MS = 30 * 60 * 1000;
 
 /**
  * The accounts whose stored bindings could need repair.
@@ -82,7 +90,12 @@ export async function selectReconciliationCandidates(
   now: Date = new Date(),
 ): Promise<BillingAccountRef[]> {
   const creditProduct = { OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }] };
-  const [attempts, pendingPayments, settledCredits, addons, subscriptions] = await Promise.all([
+  // BILLING REMEDIATION (2026-10-30, AUD-14) — a reference the provider just
+  // answered 404 for, not due again yet. A failed read writes nothing, so such a
+  // row stayed oldest-touched and took a batch slot on every tick.
+  const excluded = await sweepExcludedReferences(now);
+  const abandonedSince = new Date(now.getTime() - ABANDONED_RECHECK_WINDOW_MS);
+  const [attempts, pendingPayments, settledCredits, addons, subscriptions, abandonedAttempts, abandonedAddons] = await Promise.all([
     prisma.billingCheckoutAttempt.findMany({
       where: {
         status: prismaPkg.BillingCheckoutAttemptStatus.PENDING,
@@ -109,7 +122,7 @@ export async function selectReconciliationCandidates(
     prisma.workspaceStorageAddon.findMany({
       where: {
         billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
-        externalSubscriptionId: { not: null },
+        externalSubscriptionId: { not: null, notIn: excluded },
         status: {
           in: [
             prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
@@ -124,6 +137,7 @@ export async function selectReconciliationCandidates(
     }),
     prisma.subscription.findMany({
       where: {
+        providerSubId: { notIn: excluded },
         status: {
           in: [
             prismaPkg.SubscriptionStatus.ACTIVE,
@@ -135,6 +149,30 @@ export async function selectReconciliationCandidates(
       orderBy: { updatedAt: "asc" },
       take: limit,
       select: { userId: true },
+    }),
+    // AUD-20 — an abandoned purchase can still be approved at the provider. It
+    // left this query when it was abandoned, so a late approval whose webhook
+    // was lost waited for the customer to press a button.
+    prisma.billingCheckoutAttempt.findMany({
+      where: {
+        status: prismaPkg.BillingCheckoutAttemptStatus.ABANDONED,
+        providerResourceId: { not: null },
+        createdAt: { gte: abandonedSince },
+      },
+      orderBy: { updatedAt: "asc" },
+      take: limit,
+      select: { userId: true },
+    }),
+    prisma.workspaceStorageAddon.findMany({
+      where: {
+        billingCycle: prismaPkg.StorageAddonBillingCycle.MONTHLY,
+        externalSubscriptionId: { not: null, notIn: excluded },
+        status: prismaPkg.WorkspaceStorageAddonStatus.ABANDONED,
+        createdAt: { gte: abandonedSince },
+      },
+      orderBy: { updatedAt: "asc" },
+      take: limit,
+      select: { ownerUserId: true },
     }),
   ]);
 
@@ -160,6 +198,7 @@ export async function selectReconciliationCandidates(
     ungranted.map((p) => p.userId),
     addons.map((a) => a.ownerUserId),
     subscriptions.map((s) => s.userId),
+    [...abandonedAttempts.map((a) => a.userId), ...abandonedAddons.map((a) => a.ownerUserId)],
   ];
 
   const seen = new Set<string>();
@@ -209,7 +248,46 @@ export async function runBillingReconciliationSweep(input?: {
   discrepancies: number;
   /** Bindings the provider could not be asked about this tick. */
   unavailable: number;
+  /** Another process holds the sweep; this tick did nothing. */
+  skipped?: boolean;
 }> {
+  // BILLING REMEDIATION (2026-10-30, AUD-14) — one sweep across all processes.
+  // The writers are compare-and-set, so overlap never double-applied, but it
+  // doubled every provider read and raced the supersession retry's lease.
+  const lease = await acquireLease("billing_reconciliation_sweep", SWEEP_LEASE_MS);
+  if (!lease.acquired) {
+    return { attempted: 0, updated: 0, failed: 0, discrepancies: 0, unavailable: 0, skipped: true };
+  }
+  try {
+    return await runSweep(input);
+  } finally {
+    await lease.release();
+  }
+}
+
+async function runSweep(input?: {
+  limit?: number;
+  providers?: ReconciliationProviders;
+}): Promise<{
+  attempted: number;
+  updated: number;
+  failed: number;
+  discrepancies: number;
+  unavailable: number;
+}> {
+  // Maintenance no single account's pass would reach. Each step is isolated: a
+  // failure is logged and the account sweep below still runs.
+  await finalizeEndedStorageAddons().catch((err: unknown) => {
+    logWarn("billing.reconciliation.finalize_addons_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  await retrySupersededCancellations().catch((err: unknown) => {
+    logWarn("billing.reconciliation.supersession_retry_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+
   const candidates = await selectReconciliationCandidates(
     input?.limit ?? ACCOUNT_BATCH,
   );

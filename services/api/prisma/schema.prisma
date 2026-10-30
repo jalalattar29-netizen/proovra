@@ -1187,6 +1187,7 @@ model User {
   storageAddons                     WorkspaceStorageAddon[]
   billingCheckoutAttempts           BillingCheckoutAttempt[]
   billingReviewItems                BillingReviewItem[]
+  billingProviderBindingChecks      BillingProviderBindingCheck[]
   evidenceAiCategorizations         EvidenceAiCategorization[]
   evidenceAnnotations               EvidenceAnnotation[]
   evidenceLegalNotes                EvidenceLegalNote[]
@@ -2738,6 +2739,20 @@ model Subscription {
   billedUnitAmountCents     Int?               @map("billed_unit_amount_cents")
   pendingPlan               PlanType?          @map("pending_plan")
   pendingPlanEffectiveAtUtc DateTime?          @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
+  /// BILLING REMEDIATION (2026-10-30) — the Stripe Subscription Schedule that
+  /// carries a scheduled downgrade. Written before the schedule's phases are
+  /// edited, so a crash between the two provider calls leaves a findable
+  /// schedule rather than an unknown one. Cleared when the schedule lands or
+  /// is released.
+  providerScheduleId        String?            @map("provider_schedule_id") @db.VarChar(128)
+  /// BILLING REMEDIATION (2026-10-30) — set when this subscription activated
+  /// as a DUPLICATE of another live base. It never carries the entitlement
+  /// again, whatever later provider facts say; its cancel is retried.
+  supersededBySubscriptionId String?           @map("superseded_by_subscription_id") @db.Uuid
+  /// PENDING, RETRY_SCHEDULED, MANUAL_INTERVENTION or CONFIRMED. NULL = none.
+  supersessionCancelState   String?            @map("supersession_cancel_state") @db.VarChar(32)
+  supersessionCancelAttemptCount Int           @default(0) @map("supersession_cancel_attempt_count")
+  supersessionCancelNextRetryAtUtc DateTime?   @map("supersession_cancel_next_retry_at_utc") @db.Timestamptz(6)
   /// BILLING PAYPAL INTEGRITY (2026-09-28) — the scheduled change was asked of
   /// the provider but the buyer has not approved it yet (a PayPal `revise`
   /// that returned an approval link). Such a change is not yet the plan the
@@ -2795,15 +2810,75 @@ model Payment {
   /// The provider resource the payment belongs to (PayPal order or
   /// subscription id; Stripe session or subscription id).
   providerResourceId String?         @map("provider_resource_id") @db.VarChar(128)
+  /// BILLING REMEDIATION (2026-10-30) — money the provider returned so far, the
+  /// sum of this payment's adjustments. `status` reads REFUNDED only when all
+  /// of it was returned; `amountCents` is never edited, so the original charge
+  /// stays visible.
+  refundedAmountCents Int            @default(0) @map("refunded_amount_cents")
+  /// OPEN, WON or LOST while a provider dispute exists. NULL = never disputed.
+  disputeStatus      String?         @map("dispute_status") @db.VarChar(32)
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  adjustments PaymentAdjustment[]
 
   @@unique([provider, providerPaymentId])
   @@index([userId, product, status])
   @@index([userId])
   @@index([teamId, createdAt])
   @@map("payments")
+}
+
+/// BILLING REMEDIATION (2026-10-30) — one provider-reported movement of money
+/// on a payment. Append-only: the UNIQUE key makes a redelivered refund a no-op
+/// and two different partial refunds two rows, which a status column cannot do.
+model PaymentAdjustment {
+  id                   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId            String          @map("payment_id") @db.Uuid
+  provider             PaymentProvider
+  /// PayPal refund id; Stripe `<charge>:refunded:<cumulative cents>`.
+  providerAdjustmentId String          @map("provider_adjustment_id") @db.VarChar(191)
+  /// REFUND or REVERSAL.
+  kind                 String          @db.VarChar(24)
+  amountCents          Int             @map("amount_cents")
+  currency             String          @db.VarChar(8)
+  observedAtUtc        DateTime?       @map("observed_at_utc") @db.Timestamptz(6)
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAdjustmentId])
+  @@index([paymentId])
+  @@map("payment_adjustments")
+}
+
+/// BILLING REMEDIATION (2026-10-30) — a stored provider reference the provider
+/// says it does not know. Never revokes anything by itself: it spaces out the
+/// re-reads and gives an operator one durable row per reference. The next
+/// successful read of the reference resolves it.
+model BillingProviderBindingCheck {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String          @map("user_id") @db.Uuid
+  provider           PaymentProvider
+  /// SUBSCRIPTION or STORAGE_ADDON.
+  resourceKind       String          @map("resource_kind") @db.VarChar(24)
+  providerResourceId String          @map("provider_resource_id") @db.VarChar(191)
+  /// UNRESOLVED or RESOLVED.
+  state              String          @default("UNRESOLVED") @db.VarChar(24)
+  consecutiveMisses  Int             @default(1) @map("consecutive_misses")
+  firstMissingAtUtc  DateTime        @map("first_missing_at_utc") @db.Timestamptz(6)
+  lastMissingAtUtc   DateTime        @map("last_missing_at_utc") @db.Timestamptz(6)
+  nextCheckAtUtc     DateTime        @map("next_check_at_utc") @db.Timestamptz(6)
+  resolvedAtUtc      DateTime?       @map("resolved_at_utc") @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerResourceId])
+  @@index([state, nextCheckAtUtc])
+  @@index([userId, state])
+  @@map("billing_provider_binding_checks")
 }
 
 // Phase E10.1 — DEF-038 closure. Stripe webhook event idempotency.

@@ -253,10 +253,24 @@ export type CheckoutAttemptCheck = CheckoutAttemptReconciliation & {
   providerStatus?: string | null;
 };
 
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-11) — what a check may do at the provider.
+ *
+ *   SETTLE   complete what the buyer already approved: capture an approved
+ *            credit order. A re-check or the sweep, where finishing the
+ *            purchase is the point.
+ *   OBSERVE  read and apply only; start nothing. Abandon runs this. It used to
+ *            run the same check as a re-check, so pressing Abandon on an approved
+ *            order, before the confirmation dialog had even opened, took the
+ *            buyer's money.
+ */
+export type AttemptCheckMode = "SETTLE" | "OBSERVE";
+
 async function checkAttempt(
   attempt: LoadedAttempt,
   account: BillingAccountRef,
   deps: CheckoutRecoveryDeps,
+  mode: AttemptCheckMode = "SETTLE",
 ): Promise<CheckoutAttemptCheck> {
   const base = baseResult(attempt);
   const finish = async (
@@ -301,7 +315,6 @@ async function checkAttempt(
       settled = await (deps.settleStripeSession ?? settleStripeCheckoutSession)({
         session,
         expectedUserId: account.id,
-        applyPlanSubscription: true,
       });
     } catch {
       return finish("PROVIDER_UNAVAILABLE");
@@ -381,7 +394,7 @@ async function checkAttempt(
     const settled = await (deps.settleOrder ?? settlePayPalEvidenceCreditOrder)({
       orderId: ref,
       expectedUserId: account.id,
-      capture: true,
+      capture: mode === "SETTLE",
     });
     settledPending = settled.outcome === "PENDING";
     if (settled.outcome === "REJECTED" && settled.reason !== "AMOUNT_MISMATCH") {
@@ -460,15 +473,15 @@ export function abandonWarning(check: {
   }
   const tail =
     check.outcome === "STILL_PENDING" && check.product === "PLAN"
-      ? " PROOVRA will also ask PayPal to cancel the unapproved subscription; PayPal may keep an unapproved one on its side until it expires, but it cannot charge you without your approval. If PayPal later confirms a payment for it, PROOVRA will still apply that payment."
-      : " Abandoning only removes it from PROOVRA's open purchases so you can start again. It does not cancel, reverse or refund anything at PayPal. If PayPal later confirms a payment for it, PROOVRA will still apply that payment.";
+      ? " PROOVRA will also ask PayPal to cancel it, but PayPal may keep an unapproved subscription open and may not confirm. An old approval link may still work, so close any open PayPal tabs. If PayPal later confirms a payment for it, PROOVRA will still apply that payment."
+      : " Abandoning only removes it from PROOVRA's open purchases so you can start again. It does not cancel, reverse or refund anything at PayPal, and an old approval link may still work, so close any open PayPal tabs. If PayPal later confirms a payment for it, PROOVRA will still apply that payment.";
   switch (check.outcome) {
     case "STILL_PENDING":
-      return "PayPal still shows this checkout as waiting for your approval. Nothing is charged unless you approve it at PayPal." + tail;
+      return "PayPal still shows this checkout as waiting for your approval." + tail;
     case "NOT_PROVIDER_BOUND":
-      return "PayPal never confirmed that this checkout was created, so PROOVRA has no PayPal reference for it. Nothing can be charged without your approval at PayPal." + tail;
+      return "PayPal never confirmed that this checkout was created, so PROOVRA has no PayPal reference for it." + tail;
     case "PROVIDER_REFERENCE_NOT_FOUND":
-      return "PayPal no longer has a record of this checkout. It was not approved through PROOVRA." + tail;
+      return "PayPal does not return a record of this checkout, so PROOVRA cannot tell how it ended." + tail;
     case "PROVIDER_UNAVAILABLE":
       return "PayPal could not be reached to confirm how this checkout ended." + tail;
     default:
@@ -486,7 +499,7 @@ export async function abandonCheckoutAttempt(input: {
   const attempt = await loadOwnedCheckoutAttempt(input.account, input.attemptId);
   if (!attempt) throw notFound();
 
-  const check = await checkAttempt(attempt, input.account, input.deps);
+  const check = await checkAttempt(attempt, input.account, input.deps, "OBSERVE");
   const stillOpen =
     check.currentStatus === A.PENDING ||
     check.currentStatus === prismaPkg.SubscriptionStatus.TRIALING;
@@ -557,7 +570,7 @@ export async function abandonCheckoutAttempt(input: {
       if (stopped.outcome === "ALREADY_TERMINAL") {
         // It ended (paid, or expired) between the check and the stop: apply
         // what Stripe says instead of hiding it.
-        const again = await checkAttempt(attempt, input.account, input.deps);
+        const again = await checkAttempt(attempt, input.account, input.deps, "OBSERVE");
         return again.outcome === "UPDATED"
           ? again
           : { attemptId: attempt.id, outcome: "ALREADY_RESOLVED", cancelsAtProvider: false };
@@ -787,7 +800,7 @@ export async function expireStalePlanAttempts(input: {
   for (const row of stale) {
     const attempt = await loadOwnedCheckoutAttempt(account, row.id);
     if (!attempt) continue;
-    const check = await checkAttempt(attempt, account, input.deps);
+    const check = await checkAttempt(attempt, account, input.deps, "OBSERVE");
     if (!isExpiredApproval(check, attempt, now)) continue;
     if (await expireUnapprovedAttempt({ attempt, account, deps: input.deps })) closed += 1;
   }

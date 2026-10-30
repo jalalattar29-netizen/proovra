@@ -148,6 +148,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281028000000_team_archive_step_up_assurance",
       // Combined screen recording: run kind, derived asset kind and the derived size ceiling for ONE DERIVED MP4 of a legacy segmented recording. EXPAND.
       "20281029000000_screen_recording_combined_derivative",
+      // Billing remediation: Stripe schedule id, durable supersession retry, refund accounting, dispute state and the unresolved-provider-reference backoff. EXPAND.
+      "20281030000000_billing_remediation_convergence",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });
