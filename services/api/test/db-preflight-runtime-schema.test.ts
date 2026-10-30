@@ -92,8 +92,13 @@ function databaseWith(present: {
   teamArchiveStepUp?: StepUpState;
   // 20281029000000 — the combined screen recording's three widened CHECKs.
   combinedRecording?: { runKind?: boolean; assetKind?: boolean; sizeCeiling?: boolean };
+  // 20281030000000 — billing remediation columns and tables.
+  billingRemediation?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
+    if (/'provider_schedule_id'|'refunded_amount_cents'|'payment_adjustments'|'billing_provider_binding_checks'/.test(sql)) {
+      return present.billingRemediation === true;
+    }
     // 20281029000000 — CHECK definitions; matched before anything that names
     // the derived-asset table.
     const combined = present.combinedRecording ?? {};
@@ -272,6 +277,7 @@ const STEP_UP_APPLIED: StepUpState = {
 };
 
 const FULLY_MIGRATED = {
+  billingRemediation: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -623,6 +629,21 @@ describe("runtime schema requirements — team archive and step-up assurance (20
     expect(check).toBeDefined();
     expect(check).toContain("pg_get_constraintdef");
     expect(check).toContain("PASSKEY");
+  });
+});
+
+describe("runtime schema requirements — billing remediation (20281030000000)", () => {
+  it("an image that maps these columns is refused on a database without them", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, billingRemediation: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id).sort()).toEqual([
+      "billing_provider_binding_checks.table",
+      "payment_adjustments.table",
+      "payments.refunded_amount_cents",
+      "subscriptions.provider_schedule_id",
+    ]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281030000000_billing_remediation_convergence");
   });
 });
 

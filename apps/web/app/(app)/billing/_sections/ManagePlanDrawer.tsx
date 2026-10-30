@@ -34,6 +34,7 @@ import type {
   PlanOffer,
 } from "../../../../lib/api/billing-accounts";
 import { BillingDrawer } from "./BillingDrawer";
+import { downgradeAddonNote } from "./billingMessages";
 import { formatDate, formatMoney, presentLifecycle } from "./format";
 
 export function ManagePlanDrawer({
@@ -188,7 +189,9 @@ export function ManagePlanDrawer({
           <section>
             <h3 className="bill-section__heading">Change plan</h3>
             <ul className="bill-move-list">
-              {offers.map((offer) => (
+              {offers.map((offer) => {
+                const addonNote = downgradeAddonNote(projection, offer);
+                return (
                 <li
                   key={offer.planKey}
                   className="bill-move"
@@ -238,8 +241,14 @@ export function ManagePlanDrawer({
                           : "Takes effect at the end of the period you have already paid for."}
                     </span>
                   </p>
+                  {addonNote ? (
+                    <p className="bill-move__meta" data-billing-manage-addon-note={offer.planKey}>
+                      {addonNote}
+                    </p>
+                  ) : null}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </section>
         ) : null}

@@ -1310,7 +1310,10 @@ async function reconcileStorageAddonRow(input: {
       return { ...base, currentStatus: addon.status, outcome: "STALE_IGNORED" };
     }
     const outcome = observation.state === "PENDING" ? "STILL_PENDING" : "NO_CHANGE";
-    await noteStorageAttemptCheck(addon.id, outcome);
+    // AUD-18 — durable, like a plan attempt: the row must not read "waiting for
+    // approval" again after a reload, and approved storage is not abandonable.
+    const activating = (observation.providerStatus ?? "").toUpperCase() === "APPROVED";
+    await noteStorageAttemptCheck(addon.id, outcome, activating ? "APPROVED_AWAITING_ACTIVATION" : undefined);
     return {
       ...base,
       currentStatus: addon.status,
@@ -1364,6 +1367,7 @@ async function reconcileStorageAddonRow(input: {
 async function noteStorageAttemptCheck(
   addonId: string,
   outcome: StorageAttemptReconciliation["outcome"],
+  checkoutState?: string,
 ): Promise<void> {
   const row = await prisma.workspaceStorageAddon.findUnique({
     where: { id: addonId },
@@ -1380,6 +1384,7 @@ async function noteStorageAttemptCheck(
       data: {
         metadata: {
           ...metadata,
+          ...(checkoutState ? { checkoutState } : {}),
           lastProviderCheck: { outcome, atUtc: new Date().toISOString() },
         } as prismaPkg.Prisma.InputJsonObject,
       },

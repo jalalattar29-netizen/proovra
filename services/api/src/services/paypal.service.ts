@@ -40,12 +40,12 @@ function must(name: string): string {
 }
 
 function apiBase() {
-  const configured = process.env.PAYPAL_API_BASE?.trim();
-  if (configured) return configured;
   // BILLING REMEDIATION (2026-10-30, AUD-25) — an unset base means Live. A test
   // stack must never get there by omission.
-  if (resolveTestStackIsolation().isolated) return "https://api-m.sandbox.paypal.com";
-  return "https://api-m.paypal.com";
+  return (
+    process.env.PAYPAL_API_BASE?.trim() ||
+    (resolveTestStackIsolation().isolated ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com")
+  );
 }
 
 /**

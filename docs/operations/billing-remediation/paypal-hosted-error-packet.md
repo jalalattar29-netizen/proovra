@@ -5,7 +5,7 @@
 ## What was observed
 
 - Page: `https://www.paypal.com/webapps/billing/error`, with a generic system-error message in German.
-- Attempt: `b9f4246d-cf80-4b75-b02c-a6d0c4cfe4ac`, TEAM_500_GB, created 2026-10-30T04:19:51.842Z, provider-bound.
+- Attempt: the open TEAM_500_GB attempt from the incident, created 2026-10-30T04:19:51.842Z, provider-bound. Its id is in the incident record, not here.
 - No failed API request appears locally. That is expected: the hosted page reports nothing to PROOVRA, so it proves no cause.
 
 ## What is established from source

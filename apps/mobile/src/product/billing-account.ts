@@ -702,19 +702,28 @@ export function reconcileMessage(result: unknown): { message: string; tone: "suc
   const awaiting = stillPending.filter(
     (a) => str(a.provider) === "PAYPAL" && (str(a.waitingFor) ?? "APPROVAL") === "APPROVAL",
   ).length;
-  const inProgress = stillPending.length - awaiting;
+  const inProgress = stillPending.filter((a) => ["ACTIVATION", "PAYMENT_PROCESSING"].includes(str(a.waitingFor) ?? "")).length;
+  // An open card page is unpaid, so it is not "approved".
+  const openPage = stillPending.filter((a) => str(a.waitingFor) === "PAYMENT_PAGE").length;
+  // PROOVRA's own close of an unapproved attempt counts as an update on the
+  // server, but it is not something a provider confirmed.
+  const closedLocally = attempts.filter((a) => str(a.outcome) === "UPDATED" && str(a.currentStatus) === "ABANDONED").length;
   const unverified = attempts.filter((a) => UNVERIFIED_ATTEMPT.has(str(a.outcome) ?? "")).length;
   const unreachable = num(s.unavailable);
   const credits = num(s.creditsRestored);
-  const changed = credits + num(s.paymentsRecorded) + num(s.subscriptionsUpdated) + num(s.attemptsUpdated);
+  const changed = credits + num(s.paymentsRecorded) + num(s.subscriptionsUpdated) + Math.max(0, num(s.attemptsUpdated) - closedLocally);
   const discrepancies = num(s.discrepancies);
   const otherAction = Math.max(0, num(s.actionRequired) - unverified);
 
-  const parts = [`Checked ${count(num(s.checked), "item", "items")} with your payment provider. Nothing was charged.`];
+  // Not "Nothing was charged": an attempt check can capture an order the buyer
+  // already approved.
+  const parts = [`Checked ${count(num(s.checked), "item", "items")} with your payment provider.`];
   if (changed > 0) parts.push(`${count(changed, "record was", "records were")} updated from what the provider confirmed.`);
   if (credits > 0) parts.push(`${count(credits, "evidence credit was", "evidence credits were")} added.`);
+  if (closedLocally > 0) parts.push(`${count(closedLocally, "purchase was", "purchases were")} not approved within 24 hours, so PROOVRA closed ${closedLocally === 1 ? "it" : "them"} here. PayPal did not confirm this.`);
   if (awaiting > 0) parts.push(`${count(awaiting, "purchase is", "purchases are")} still waiting for your approval at PayPal.`);
   if (inProgress > 0) parts.push(`${count(inProgress, "purchase is", "purchases are")} approved and still being completed by the provider; PROOVRA keeps checking.`);
+  if (openPage > 0) parts.push(`${count(openPage, "card payment page is", "card payment pages are")} still open and unpaid.`);
   if (unverified > 0) parts.push(`${count(unverified, "purchase", "purchases")} could not be confirmed by the provider — see Billing activity on the web.`);
   if (unreachable > 0) parts.push(`The provider could not be reached for ${count(unreachable, "item", "items")}; those were left unchanged.`);
   if (discrepancies > 0) parts.push("Something the provider reported did not match our prices, so nothing was applied for it. Please contact support.");
@@ -722,9 +731,9 @@ export function reconcileMessage(result: unknown): { message: string; tone: "suc
   if (parts.length === 1) parts.push("Everything on this account already matches your payment provider.");
 
   const tone =
-    unreachable > 0 && changed === 0 && awaiting === 0 && unverified === 0
+    unreachable > 0 && changed === 0 && closedLocally === 0 && awaiting === 0 && openPage === 0 && unverified === 0
       ? "error"
-      : changed > 0 && awaiting + unverified + unreachable + discrepancies === 0
+      : changed > 0 && closedLocally + awaiting + openPage + unverified + unreachable + discrepancies === 0
         ? "success"
         : "info";
   return { message: parts.join(" "), tone, refresh: changed > 0 };
@@ -814,7 +823,7 @@ export const BILLING_PAGE_COPY = {
   subtitle: "Your plan, what you have used, and what you have paid.",
   viewPricing: "View pricing",
   historyTitle: "Billing history",
-  historyProviderSubtitle: "Checks your payment provider for anything we have not recorded on this account. Nothing is charged again.",
+  historyProviderSubtitle: "Checks your payment provider for anything we have not recorded on this account, and completes a purchase you already approved.",
   historyContractSubtitle: "Payments recorded against your organization's agreement.",
   recheck: "Re-check purchases and billing",
   rechecking: "Re-checking…",
@@ -837,6 +846,18 @@ export const BILLING_PAGE_COPY = {
 /** ManagePlanDrawer title by access kind. */
 export function managePlanTitle(accessKind: string): string {
   return accessKind === "CONTRACT" ? "Your agreement" : accessKind === "GRANTED" ? "Access details" : "Manage plan";
+}
+
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-13) — the provider gave no answer to a
+ * cancellation. A timeout can follow one it accepted, so "nothing has changed"
+ * would be a guess, and repeating the request before looking is the wrong advice.
+ */
+export const CANCELLATION_UNCONFIRMED_COPY =
+  "We could not confirm this cancellation with your payment provider. Check Billing in a few minutes before trying again.";
+
+export function cancellationOutcomeUnknown(err: unknown): boolean {
+  return str(obj(err).code)?.toUpperCase() === "PROVIDER_CANCELLATION_OUTCOME_UNKNOWN";
 }
 
 /**

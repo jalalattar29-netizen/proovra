@@ -68,7 +68,9 @@ describe("account re-check message", () => {
     expect(n.message).toContain("Checked 2 items");
     expect(n.message).toContain("2 purchases could not be confirmed by the provider");
     expect(n.message).not.toMatch(/settling|pending|waiting for your approval/i);
-    expect(n.message).toContain("Nothing was charged");
+    // Copy changed deliberately (AUD-19): an attempt check can capture an order
+    // the buyer already approved, so this cannot promise no charge.
+    expect(n.message).not.toContain("Nothing was charged");
   });
 
   it("401, unbound and malformed are 'could not be confirmed', and an outage is 'could not be reached'", () => {

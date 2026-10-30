@@ -94,12 +94,21 @@ export function PaymentMethodChoice({
    */
   name = "billing-payment-method",
   headingId = "billing-provider-choice",
+  /**
+   * Providers that cannot sell what is selected, by the server's offer. Disabled
+   * rather than removed, so the choice does not silently change shape, and
+   * `note` says why in a sentence.
+   */
+  unavailable = [],
+  note = null,
 }: {
   value: PaymentProvider;
   onChange: (next: PaymentProvider) => void;
   disabled?: boolean;
   name?: string;
   headingId?: string;
+  unavailable?: PaymentProvider[];
+  note?: string | null;
 }) {
   return (
     <section>
@@ -113,13 +122,15 @@ export function PaymentMethodChoice({
         data-billing-payment-choice
       >
         {OPTIONS.map((option) => {
-          const checked = value === option.provider;
+          const off = unavailable.includes(option.provider);
+          const checked = !off && value === option.provider;
           return (
             <label
               key={option.provider}
               className="bill-choice__option bill-pay"
               data-selected={checked ? "true" : "false"}
               data-billing-provider-option={option.provider}
+              data-billing-provider-unavailable={off ? "true" : undefined}
             >
               {/*
                 A NATIVE radio inside the label, so the whole row is the hit
@@ -134,7 +145,7 @@ export function PaymentMethodChoice({
                 value={option.provider}
                 checked={checked}
                 onChange={() => onChange(option.provider)}
-                disabled={disabled}
+                disabled={disabled || off}
               />
               <span className="bill-choice__body bill-pay__body">
                 {/* The accessible name. Visually hidden because the marks are
@@ -146,6 +157,13 @@ export function PaymentMethodChoice({
             </label>
           );
         })}
+      </div>
+      <div role="status" aria-live="polite">
+        {note ? (
+          <p className="bill-summary__note" data-billing-provider-note>
+            {note}
+          </p>
+        ) : null}
       </div>
       <p className="bill-summary__note">
         {/* Legally cautious, and true: no tax engine, no billing address and

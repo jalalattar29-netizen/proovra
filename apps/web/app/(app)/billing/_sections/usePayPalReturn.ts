@@ -7,6 +7,10 @@
  * server call is idempotent if it does).
  *
  * See `lib/billing/paypal-return.ts` for why the browser grants nothing here.
+ *
+ * It also reads Stripe's return. Stripe's own webhook settles that purchase, so
+ * there is nothing to ask: `returnNotice` says the customer is back and what
+ * happens next, and stays on the page until they dismiss it.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -16,11 +20,15 @@ import { reportPayPalReturnCanceled } from "../../../../lib/api/billing-accounts
 import { captureException } from "../../../../lib/sentry";
 import {
   parsePayPalReturn,
+  parseStripeReturn,
   payPalCanceledMessage,
   payPalReturnMessage,
   payPalOrderCapturePath,
   payPalSubscriptionConfirmPath,
+  payPalUnidentifiedReturn,
   stripPayPalReturnParams,
+  stripeReturnNotice,
+  type CheckoutReturnNotice,
   type PayPalReturnMessage,
 } from "../../../../lib/billing/paypal-return";
 
@@ -32,27 +40,46 @@ export const PAYPAL_RETURN_RETRY_MS = 3000;
 
 export function usePayPalReturn(input: {
   searchParams: ParamReader;
-  notify: (message: string, tone: PayPalReturnMessage["tone"]) => void;
+  notify: (message: string, tone: PayPalReturnMessage["tone"], supportReference?: string) => void;
   onSettled: () => void;
   replaceUrl: (search: string) => void;
   retryDelayMs?: number;
-}): { confirming: boolean } {
+}): { confirming: boolean; returnNotice: CheckoutReturnNotice | null; dismissReturnNotice: () => void } {
   const handled = useRef(false);
   const latest = useRef(input);
   latest.current = input;
   const [confirming, setConfirming] = useState(false);
+  const [returnNotice, setReturnNotice] = useState<CheckoutReturnNotice | null>(null);
 
   useEffect(() => {
     if (handled.current) return;
+    const search = input.searchParams.toString();
+
+    const stripe = parseStripeReturn(input.searchParams);
+    if (stripe) {
+      handled.current = true;
+      latest.current.replaceUrl(stripPayPalReturnParams(search));
+      setReturnNotice(stripeReturnNotice(stripe));
+      latest.current.onSettled();
+      return;
+    }
+
+    const unidentified = payPalUnidentifiedReturn(input.searchParams);
+    if (unidentified) {
+      handled.current = true;
+      latest.current.replaceUrl(stripPayPalReturnParams(search));
+      latest.current.notify(unidentified.message, unidentified.tone);
+      return;
+    }
+
     const ret = parsePayPalReturn(input.searchParams);
     if (!ret) return;
     handled.current = true;
 
-    const search = input.searchParams.toString();
     latest.current.replaceUrl(stripPayPalReturnParams(search));
 
     if (ret.kind === "BUYER_CANCELED") {
-      const msg = payPalCanceledMessage(ret.product);
+      const msg = payPalCanceledMessage(ret.product, { subscriptionId: ret.subscriptionId, orderId: ret.orderId });
       latest.current.notify(msg.message, msg.tone);
       // BILLING PAYPAL INTEGRITY (2026-09-28) — the buyer's cancel closes the
       // checkout on the server (provider-first), so it no longer blocks the
@@ -84,6 +111,7 @@ export function usePayPalReturn(input: {
           last = payPalReturnMessage(ret, {
             code: (err as { code?: unknown }).code ?? null,
             statusCode: (err as { statusCode?: unknown }).statusCode ?? null,
+            requestId: (err as { requestId?: unknown }).requestId ?? null,
           });
           break;
         }
@@ -92,7 +120,10 @@ export function usePayPalReturn(input: {
         await new Promise((r) => setTimeout(r, delay));
       }
       setConfirming(false);
-      if (last) latest.current.notify(last.message, last.tone);
+      if (last) {
+        if (last.supportReference) latest.current.notify(last.message, last.tone, last.supportReference);
+        else latest.current.notify(last.message, last.tone);
+      }
       latest.current.onSettled();
     })();
     // Deliberately no cleanup cancel: under StrictMode the effect is run,
@@ -102,5 +133,5 @@ export function usePayPalReturn(input: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { confirming };
+  return { confirming, returnNotice, dismissReturnNotice: () => setReturnNotice(null) };
 }

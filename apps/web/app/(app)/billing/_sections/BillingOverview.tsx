@@ -198,7 +198,13 @@ export function BillingOverview({
             variant="primary"
             size="md"
             onClick={onManagePlan}
-            disabled={!actions.planManagement.enabled || changeBusyPlan !== null}
+            /* A viewer who may only cancel (a managed identity's own account)
+               still needs the way in: the drawer offers them Cancel and nothing
+               to buy, because the server sent them no offers. */
+            disabled={
+              !(actions.planManagement.enabled || actions.canRequestCancellation) ||
+              changeBusyPlan !== null
+            }
             data-billing-plan-management={actions.planManagement.mode}
           >
             {actions.planManagement.label}

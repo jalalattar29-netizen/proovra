@@ -37,4 +37,4 @@ It uses one READ ONLY transaction with timeouts, calls no provider, and prints c
 ## The ten PayPal ids and the open attempt
 
 - **Ten 404 ids:** on first read after release, each gets a `billing_provider_binding_checks` row, and after three misses a review item. Nothing is revoked, and the rows are not deleted.
-- **Attempt `b9f4246d-cf80-4b75-b02c-a6d0c4cfe4ac`:** untouched by this release, and not to be reconciled or abandoned without approval.
+- **The open PayPal storage attempt from the incident:** untouched by this release, and not to be reconciled or abandoned without approval.

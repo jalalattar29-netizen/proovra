@@ -667,6 +667,55 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     expect(S.paypalCalls).toEqual([]);
   });
 
+  it("AUD-24: repeated confirmations are bounded per person, and the last one reaches no provider", async () => {
+    const codes: number[] = [];
+    for (let i = 0; i < 22; i++) {
+      const res = await h.app.inject({
+        method: "POST",
+        url: `/v1/billing/checkout/paypal/subscriptions/I-RATE${String(i).padStart(8, "0")}/confirm`,
+        headers: { authorization: `Bearer ${h.fixtures.personal.token}`, "content-type": "application/json" },
+        payload: {},
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes.at(-1)).toBe(429);
+    expect(S.paypalCalls).toEqual([]);
+  });
+
+  it("AUD-18: an approved storage purchase stays 'activating' after a reload and cannot be abandoned", async () => {
+    const { abandonStorageAddonAttempt, reconcileStorageAddonAttempt } = await import(
+      "../src/services/billing/reconciliation/reconciliation.service.js"
+    );
+    const userId = await freshUser();
+    const ref = `I-${randomUUID().slice(0, 12).toUpperCase()}`;
+    const row = await prisma.workspaceStorageAddon.create({
+      data: {
+        ownerUserId: userId,
+        addonKey: "PERSONAL_10_GB",
+        extraStorageBytes: 1n,
+        billingCycle: "MONTHLY",
+        status: "PENDING",
+        paymentProvider: "PAYPAL",
+        externalSubscriptionId: ref,
+        metadata: { checkoutState: "AWAITING_CUSTOMER_APPROVAL" },
+      },
+    });
+    const providers = {
+      PAYPAL: {
+        provider: "PAYPAL",
+        observePayment: async () => { throw new Error("not used"); },
+        observeSubscription: async (providerRef: string) =>
+          observation({ provider: "PAYPAL", providerRef, state: "PENDING", providerStatus: "APPROVED" }),
+      },
+    } as never;
+    const checked = await reconcileStorageAddonAttempt({ account: account(userId), attemptId: row.id, providers });
+    expect(checked.waitingFor).toBe("ACTIVATION");
+    const stored = await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: row.id } });
+    expect((stored.metadata as { checkoutState?: string }).checkoutState).toBe("APPROVED_AWAITING_ACTIVATION");
+    const abandoned = await abandonStorageAddonAttempt({ account: account(userId), attemptId: row.id, confirmed: true, providers });
+    expect(abandoned.outcome).toBe("ABANDON_NOT_ALLOWED");
+  });
+
   it("section 10: a held SKU answers with what was found; an intentional addition is a different request", async () => {
     const { findStorageDuplicate } = await import("../src/services/billing/storage-purchase-guard.service.js");
     const userId = await freshUser();

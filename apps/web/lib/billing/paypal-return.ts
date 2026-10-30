@@ -123,6 +123,8 @@ export type PayPalReturnMessage = {
   message: string;
   /** PayPal has not finished yet — ask again shortly. */
   retry: boolean;
+  /** The API's request id, for a customer who needs to quote this to support. */
+  supportReference?: string;
 };
 
 const PRODUCT_NOUN: Record<PayPalReturnProduct, string> = {
@@ -131,25 +133,93 @@ const PRODUCT_NOUN: Record<PayPalReturnProduct, string> = {
   "storage-addon": "storage add-on",
 };
 
-export function payPalCanceledMessage(prod: PayPalReturnProduct): PayPalReturnMessage {
+/**
+ * Leaving PayPal is the browser's report, and the server has not answered yet, so
+ * it says nothing about money. When PayPal named no checkout the server cannot
+ * be told which one to close, and the purchase may still show as open.
+ */
+export function payPalCanceledMessage(
+  prod: PayPalReturnProduct,
+  reference: { subscriptionId?: string | null; orderId?: string | null } = {},
+): PayPalReturnMessage {
+  const named = Boolean(reference.subscriptionId || reference.orderId);
   return {
     tone: "info",
-    message: `PayPal checkout was cancelled. Nothing was charged and your ${PRODUCT_NOUN[prod]} was not changed.`,
+    message: named
+      ? `You left PayPal before finishing, so this ${PRODUCT_NOUN[prod]} was not applied. Billing activity shows the checkout's status.`
+      : `You left PayPal before finishing, and PayPal did not say which checkout this was. This ${PRODUCT_NOUN[prod]} was not applied here, and the checkout may still show as open. You can check it or abandon it under Billing activity.`,
     retry: false,
   };
 }
 
+/** A return from PayPal that names nothing the server could confirm. */
+export function payPalUnidentifiedReturn(params: ParamReader): PayPalReturnMessage | null {
+  if (params.get("provider") !== "paypal" || params.get("success") !== "1") return null;
+  if (parsePayPalReturn(params)) return null;
+  return {
+    tone: "info",
+    message: `PayPal sent you back without saying which checkout this was, so this ${PRODUCT_NOUN[product(params)]} has not been confirmed. Check Billing activity before trying again.`,
+    retry: false,
+  };
+}
+
+/**
+ * STRIPE RETURN — BILLING REMEDIATION (2026-10-30, AUD-19).
+ *
+ * Stripe appends nothing the browser could confirm: `/billing?success=1&kind=…`
+ * only says the customer arrived back. Settlement is Stripe's webhook, so this
+ * can report that they returned and what happens next, and nothing more. In
+ * particular it claims no payment, whichever way they came back.
+ */
+export type StripeReturn = { kind: "RETURNED" | "CANCELED"; product: PayPalReturnProduct };
+
+export function parseStripeReturn(params: ParamReader): StripeReturn | null {
+  const provider = params.get("provider");
+  if (provider && provider !== "stripe") return null;
+  if (params.get("success") === "1") return { kind: "RETURNED", product: product(params) };
+  if (params.get("canceled") === "1") return { kind: "CANCELED", product: product(params) };
+  return null;
+}
+
+export type CheckoutReturnNotice = { title: string; message: string };
+
+export function stripeReturnNotice(ret: StripeReturn): CheckoutReturnNotice {
+  const noun = PRODUCT_NOUN[ret.product];
+  return ret.kind === "RETURNED"
+    ? {
+        title: "Waiting for Stripe to confirm",
+        message: `You are back from Stripe. Your ${noun} is applied only after Stripe confirms the payment, which can take a few minutes. If nothing changes, check Billing activity before paying again.`,
+      }
+    : {
+        title: "Stripe checkout not finished",
+        message: `You left Stripe checkout before finishing, so this ${noun} was not applied. Billing activity shows the checkout's status.`,
+      };
+}
+
 /** The server's settlement outcome, in the customer's words. */
 export function payPalReturnMessage(ret: PayPalReturn, response: unknown): PayPalReturnMessage {
-  if (ret.kind === "BUYER_CANCELED") return payPalCanceledMessage(ret.product);
+  if (ret.kind === "BUYER_CANCELED") {
+    return payPalCanceledMessage(ret.product, { subscriptionId: ret.subscriptionId, orderId: ret.orderId });
+  }
   const r = response && typeof response === "object" ? (response as Record<string, unknown>) : {};
   const outcome = typeof r.outcome === "string" ? r.outcome : "";
+  const reference =
+    typeof r.requestId === "string" && r.requestId.trim() ? { supportReference: r.requestId.trim() } : {};
+
+  if (r.statusCode === 429) {
+    return {
+      tone: "info",
+      message: "That was tried several times just now. Please wait a few minutes, then refresh Billing to see where this stands.",
+      retry: false,
+      ...reference,
+    };
+  }
 
   if (ret.kind === "ORDER_CAPTURE") {
     if (r.statusCode === 404 || r.statusCode === 409) {
       // The server refused: not this account's order, or not a credit order,
       // or not at this purchase's price. Nothing was captured or added.
-      return { tone: "error", message: "We could not confirm this PayPal payment for your account, so no credit was added. If you were charged, contact support.", retry: false };
+      return { tone: "error", message: "We could not confirm this PayPal payment for your account, so no credit was added. If you were charged, contact support.", retry: false, ...reference };
     }
     switch (outcome) {
       case "GRANTED":
@@ -167,7 +237,7 @@ export function payPalReturnMessage(ret: PayPalReturn, response: unknown): PayPa
         // BILLING PAYPAL INTEGRITY (2026-09-28) — true now: an approved
         // payment whose confirmation failed stays "processing" and the hourly
         // billing sweep settles it (one capture, one credit).
-        return { tone: "info", message: "We could not confirm this PayPal payment yet. PROOVRA keeps checking with PayPal automatically; if you were charged, your credit is added once PayPal confirms it.", retry: false };
+        return { tone: "info", message: "We could not confirm this PayPal payment yet. PROOVRA keeps checking with PayPal automatically; if you were charged, your credit is added once PayPal confirms it.", retry: false, ...reference };
     }
   }
 
@@ -177,6 +247,17 @@ export function payPalReturnMessage(ret: PayPalReturn, response: unknown): PayPa
       tone: "error",
       message: "PayPal activated this storage add-on, but it could not be added to this account, so PROOVRA cancelled it at PayPal. Support will review the charge — you do not need to do anything.",
       retry: false,
+      ...reference,
+    };
+  }
+  if (r.statusCode === 404 || r.statusCode === 409) {
+    // A refusal, not a delay: no later check turns this answer into a success,
+    // so "it will update automatically" would be a promise with nothing behind it.
+    return {
+      tone: "error",
+      message: `We could not match this PayPal ${noun} to your account, so it has not been applied. If you approved it or were charged, contact support.`,
+      retry: false,
+      ...reference,
     };
   }
   switch (outcome) {
@@ -196,11 +277,11 @@ export function payPalReturnMessage(ret: PayPalReturn, response: unknown): PayPa
     case "AWAITING_APPROVAL":
       return { tone: "info", message: `PayPal has not confirmed your approval of this ${noun} yet. Nothing has been charged.`, retry: true };
     case "PAYMENT_PROBLEM":
-      return { tone: "error", message: `PayPal reports a problem collecting payment for this ${noun}.`, retry: false };
+      return { tone: "error", message: `PayPal reports a problem collecting payment for this ${noun}.`, retry: false, ...reference };
     case "ENDED":
       return { tone: "info", message: `This PayPal ${noun} subscription is not active. Nothing further will be charged.`, retry: false };
     default:
-      return { tone: "error", message: `We could not confirm this PayPal ${noun} yet. It will update automatically once PayPal confirms it.`, retry: false };
+      return { tone: "error", message: `We could not confirm this PayPal ${noun} yet. If PayPal approved it, PROOVRA applies it once PayPal confirms. Check Billing activity in a few minutes before trying again.`, retry: false, ...reference };
   }
 }
 

@@ -417,6 +417,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   INSUFFICIENT_EVIDENCE_CREDITS: { disposition: "customer", where: "global" },
   SUBSCRIPTION_NOT_FOUND: { disposition: "customer", where: "global" },
   SUBSCRIPTION_ALREADY_ACTIVE: { disposition: "customer", where: "global" },
+  PLAN_ALREADY_ACTIVE: { disposition: "customer", where: "local" },
   CHECKOUT_REQUIRED: { disposition: "customer", where: "global" },
   CANCELLATION_REQUIRED: { disposition: "customer", where: "global" },
   PROVIDER_CANCELLATION_FAILED: { disposition: "customer", where: "global" },
@@ -427,6 +428,16 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // the page loaded. Both carry a customer sentence the page shows as given.
   PAYPAL_STORAGE_APPROVAL_PENDING: { disposition: "customer", where: "global" },
   STORAGE_ADDON_CURRENCY_MISMATCH: { disposition: "customer", where: "global" },
+  // BILLING REMEDIATION (2026-10-30, AUD-23) — a PayPal return naming an id this
+  // server never stored for this person, refused before PayPal is asked.
+  PAYPAL_ORDER_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 for an id taken from a URL: saying more would confirm whether it exists. lib/billing/paypal-return.ts answers by status, and the code itself is never rendered.",
+  },
+  PAYPAL_SUBSCRIPTION_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 for an id taken from a URL: saying more would confirm whether it exists. lib/billing/paypal-return.ts answers by status, and the code itself is never rendered.",
+  },
   // BILLING PAYPAL INTEGRITY (2026-09-28) — a re-check refused because one is
   // already running for the account.
   RECONCILE_IN_PROGRESS: {

@@ -4,7 +4,7 @@
 -- EXPAND / SAFE_TO_APPLY_NOW, no backfill. Nullable columns, columns with a
 -- constant default, and two new tables. No existing row is rewritten, and an
 -- image that predates this migration neither reads nor writes any of it, so it
--- is safe before the code and after a rollback. Idempotent.
+-- is safe before the code and after a rollback.
 --
 -- 1. subscriptions: the Stripe schedule behind a scheduled downgrade, and the
 --    durable retry of a superseded duplicate's provider cancellation.
@@ -27,7 +27,7 @@ ALTER TABLE "payments"
   ADD COLUMN IF NOT EXISTS "refunded_amount_cents" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS "dispute_status" VARCHAR(32);
 
-CREATE TABLE IF NOT EXISTS "payment_adjustments" (
+CREATE TABLE "payment_adjustments" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "payment_id" UUID NOT NULL,
   "provider" "PaymentProvider" NOT NULL,
@@ -46,7 +46,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "payment_adjustments_provider_provider_adjustm
 CREATE INDEX IF NOT EXISTS "payment_adjustments_payment_id_idx"
   ON "payment_adjustments"("payment_id");
 
-CREATE TABLE IF NOT EXISTS "billing_provider_binding_checks" (
+CREATE TABLE "billing_provider_binding_checks" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "user_id" UUID NOT NULL,
   "provider" "PaymentProvider" NOT NULL,

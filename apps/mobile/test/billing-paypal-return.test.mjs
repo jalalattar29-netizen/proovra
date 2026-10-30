@@ -69,6 +69,31 @@ test("a refused re-check says nothing was checked, never 'settling' or 'was chec
   }
 });
 
+test("the account re-check claims no settlement and speaks for no provider", () => {
+  const res = A.reconcileMessage({
+    outcome: "UPDATED",
+    summary: {
+      checked: 2, creditsRestored: 0, paymentsRecorded: 0, subscriptionsUpdated: 0, attemptsUpdated: 1,
+      pending: 0, actionRequired: 0, unavailable: 0, discrepancies: 0,
+      attempts: [
+        { outcome: "UPDATED", currentStatus: "ABANDONED", provider: "PAYPAL" },
+        { outcome: "STILL_PENDING", waitingFor: "PAYMENT_PAGE", provider: "STRIPE" },
+      ],
+    },
+  });
+  assert.doesNotMatch(res.message, /Nothing was charged/);
+  assert.doesNotMatch(res.message, /updated from what the provider confirmed/);
+  assert.match(res.message, /PROOVRA closed it here\. PayPal did not confirm this/);
+  assert.match(res.message, /1 card payment page is still open and unpaid/);
+  assert.doesNotMatch(res.message, /approved and still/);
+});
+
+test("a cancellation the provider never answered is recognised, by code", () => {
+  assert.equal(A.cancellationOutcomeUnknown({ code: "PROVIDER_CANCELLATION_OUTCOME_UNKNOWN" }), true);
+  assert.equal(A.cancellationOutcomeUnknown({ code: "PROVIDER_CANCELLATION_FAILED" }), false);
+  assert.doesNotMatch(A.CANCELLATION_UNCONFIRMED_COPY, /nothing has changed/i);
+});
+
 test("storage a Free account may keep is not said to end with the plan", () => {
   const lines = A.subscriptionCancelConsequence(
     {

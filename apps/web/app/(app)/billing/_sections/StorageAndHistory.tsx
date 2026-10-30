@@ -37,10 +37,17 @@ import { Card } from "../../../../components/ui/Card";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import type {
   BillingAccountProjection,
+  AttemptWaitingFor,
   BillingActivityItem,
   BillingHistoryEntry,
 } from "../../../../lib/api/billing-accounts";
-import { formatDate, formatMoney, statusLabel, statusTone } from "./format";
+import {
+  formatDate,
+  formatMoney,
+  statusLabel,
+  statusTone,
+  summarizeStorageAddons,
+} from "./format";
 
 /**
  * The billing tone vocabulary, said in the app-primitive vocabulary.
@@ -106,6 +113,7 @@ export function StorageAddonsSection({
         ) : null}
         <p className="bill-panel__note">{locked.reason}</p>
         {locked.unlockedByPlan ? (
+          projection.actions.planManagement.enabled && (
           <div className="bill-panel__actions">
             <button
               type="button"
@@ -143,6 +151,7 @@ export function StorageAddonsSection({
               View plans
             </button>
           </div>
+          )
         ) : null}
       </section>
     );
@@ -170,6 +179,14 @@ export function StorageAddonsSection({
   const hasRows = capacityRows.length > 0;
   const hasBillableActive = hasRows;
   if (!hasOffers && !hasRows && openAttempts === 0) return null;
+
+  // Each row carries its own price; the sum is what a customer holding several
+  // actually asks about, and no row can answer it.
+  const holdings = summarizeStorageAddons(addons.active);
+  const pendingSizes = holdings.skus
+    .filter((sku) => sku.pendingCount > 0)
+    .map((sku) => sku.storageLabel)
+    .join(", ");
 
   return (
     <section className="bill-panel" data-billing-storage-addons>
@@ -279,11 +296,17 @@ export function StorageAddonsSection({
         </ul>
       ) : null}
 
+      {capacityRows.length > 1 && holdings.monthlyTotals && holdings.monthlyTotals.length > 0 ? (
+        <p className="bill-panel__note" data-billing-storage-commitment>
+          Add-ons billed monthly: <bdi>{holdings.monthlyTotals.join(" + ")}</bdi> / month
+        </p>
+      ) : null}
+
       {openAttempts > 0 ? (
         <p className="bill-panel__note" data-billing-storage-open-attempts>
           {openAttempts === 1
-            ? "1 storage purchase has not completed yet and is not counted in your capacity. See Billing activity below."
-            : `${openAttempts} storage purchases have not completed yet and are not counted in your capacity. See Billing activity below.`}
+            ? `1 storage purchase (${pendingSizes}) has not completed yet and is not counted in your capacity. See Billing activity below.`
+            : `${openAttempts} storage purchases (${pendingSizes}) have not completed yet and are not counted in your capacity. See Billing activity below.`}
         </p>
       ) : null}
 
@@ -329,6 +352,7 @@ export function BillingHistorySection({
   state,
   onRetry,
   onRecheck,
+  canRecheck = true,
   recheckBusy,
   accessKind,
   onRecheckPayment,
@@ -341,6 +365,7 @@ export function BillingHistorySection({
   onAbandonAttempt,
   attemptBusyId = null,
   attemptResumeUrls = {},
+  attemptWaitingFor = {},
 }: {
   entries: BillingHistoryEntry[];
   state: "LOADING" | "READY" | "DENIED" | "ERROR";
@@ -359,6 +384,8 @@ export function BillingHistorySection({
    * subscription, no amount — so it cannot reach another customer's purchase.
    */
   onRecheck: () => void;
+  /** False for a viewer the server would refuse (a cancel-only managed identity). */
+  canRecheck?: boolean;
   recheckBusy: boolean;
   /** The server's access kind for this account. */
   accessKind: BillingAccountProjection["plan"]["accessKind"];
@@ -399,6 +426,8 @@ export function BillingHistorySection({
   attemptBusyId?: string | null;
   /** Fresh PayPal approval links learned from a re-check, by attempt id. */
   attemptResumeUrls?: Record<string, string>;
+  /** What the provider said each attempt is waiting for, at the latest check. */
+  attemptWaitingFor?: Record<string, AttemptWaitingFor>;
 }) {
   if (state === "DENIED") {
     return (
@@ -456,11 +485,12 @@ export function BillingHistorySection({
       title="Billing history"
       subtitle={
         providerBacked
-          ? "Checks your payment provider for anything we have not recorded on this account. Nothing is charged again."
+          ? "Checks your payment provider for anything we have not recorded on this account, and completes a purchase you already approved."
           : "Payments recorded against your organization's agreement."
       }
       headerAction={
         providerBacked ? (
+          canRecheck && (
           <button
             type="button"
             className="app-secondary-action app-secondary-action--lg app-secondary-action--filled"
@@ -471,6 +501,7 @@ export function BillingHistorySection({
           >
             {recheckBusy ? "Re-checking…" : "Re-check purchases and billing"}
           </button>
+          )
         ) : null
       }
       data-billing-history
@@ -486,6 +517,7 @@ export function BillingHistorySection({
           onAbandon={onAbandonAttempt}
           busyId={attemptBusyId}
           resumeUrls={attemptResumeUrls}
+          waitingFor={attemptWaitingFor}
         />
       ) : null}
       {activity.length > 0 ? (
@@ -668,10 +700,12 @@ function activityTone(state: BillingActivityItem["state"]): AppTone {
   switch (state) {
     case "AWAITING_APPROVAL":
     case "PROCESSING":
+    case "ACTIVATING":
     case "STARTING":
       return "amber";
     case "FAILED":
     case "NEEDS_REVIEW":
+    case "REFUSED":
       return "red";
     case "NOT_CONFIRMED_BY_PROVIDER":
     case "PROVIDER_NO_RECORD":
@@ -689,10 +723,16 @@ function activityTone(state: BillingActivityItem["state"]): AppTone {
  * Each row says what was being bought, with which provider, for how much,
  * when, what the provider last said, and — in the server's own words — why
  * it is not (yet) a payment or an entitlement. The only actions are the ones
- * the server allows: "Check status" (asks the provider; charges nothing) and
- * "Abandon" (a local disposition that is confirmed first and never claims to
- * cancel anything at the provider). There is deliberately no generic
- * "Cancel": hiding a row cannot stop a live provider subscription.
+ * the server allows: "Check status" (asks the provider, and may complete what
+ * the buyer already approved) and "Abandon" (a local disposition that is
+ * confirmed first and never claims to cancel anything at the provider). There is
+ * deliberately no generic "Cancel": hiding a row cannot stop a live provider
+ * subscription.
+ *
+ * BILLING REMEDIATION (2026-10-30, AUD-18) — a row the server still words as
+ * waiting for approval, but whose latest check says the buyer approved it, reads
+ * as what it is. "Waiting for your approval" beside an Abandon the server would
+ * then refuse sends the customer round a loop with no exit.
  */
 export function BillingActivityList({
   items,
@@ -700,12 +740,14 @@ export function BillingActivityList({
   onAbandon,
   busyId,
   resumeUrls,
+  waitingFor = {},
 }: {
   items: BillingActivityItem[];
   onRecheck?: (item: BillingActivityItem) => void;
   onAbandon?: (item: BillingActivityItem) => void;
   busyId: string | null;
   resumeUrls: Record<string, string>;
+  waitingFor?: Record<string, AttemptWaitingFor>;
 }) {
   return (
     <section aria-labelledby="billing-activity-heading" data-billing-activity>
@@ -722,12 +764,14 @@ export function BillingActivityList({
           const amount = formatMoney(item.amountCents ?? null, item.currency ?? null);
           const busy = busyId === item.id;
           const resumeUrl = resumeUrls[item.id] ?? null;
+          const approved = item.state === "AWAITING_APPROVAL" && waitingFor[item.id] === "ACTIVATION";
+          const state = approved ? "ACTIVATING" : item.state;
           return (
             <li
               key={item.id}
               className="bill-addon"
               data-billing-activity-item={item.product}
-              data-billing-activity-state={item.state}
+              data-billing-activity-state={state}
             >
               <div className="bill-addon__facts">
                 <span className="bill-addon__size">
@@ -748,12 +792,14 @@ export function BillingActivityList({
                     .join(" · ")}
                 </span>
                 <span className="bill-addon__meta" data-billing-activity-explanation>
-                  {item.explanation}
+                  {approved
+                    ? `You approved this at ${item.providerLabel ?? "your payment provider"}, and it has not been activated yet. It is added when the provider activates it. PROOVRA keeps checking automatically.`
+                    : item.explanation}
                 </span>
               </div>
               <div className="bill-addon__actions">
-                <AppStatusText tone={activityTone(item.state)} data-billing-activity-status={item.state}>
-                  {item.statusLabel}
+                <AppStatusText tone={activityTone(state)} data-billing-activity-status={state}>
+                  {approved ? "Activating" : item.statusLabel}
                 </AppStatusText>
                 {resumeUrl ? (
                   <a
@@ -779,7 +825,7 @@ export function BillingActivityList({
                     Check status
                   </Button>
                 ) : null}
-                {item.actions.canAbandon && onAbandon ? (
+                {item.actions.canAbandon && onAbandon && !approved ? (
                   <Button
                     variant="ghost"
                     size="sm"

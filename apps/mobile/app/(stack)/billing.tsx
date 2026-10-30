@@ -13,10 +13,11 @@
  * READ and MANAGE are here in full: plan, usage, payments, the account-wide
  * provider re-check, a payment's re-check / stop / abandon, cancelling the
  * subscription or a storage add-on, and retrying an outstanding add-on
- * cancellation. PURCHASE is not: starting or changing a plan, buying storage
- * or credits and resuming a provider checkout wait on the distribution-policy
- * decision (src/product/billing.ts). Prices and plans are shown read-only in
- * the pricing sheet.
+ * cancellation. PURCHASE is not, in a store build: starting or changing a plan,
+ * buying storage or credits and resuming a provider checkout wait on the
+ * distribution-policy decision (src/product/billing.ts). They exist only behind
+ * `externalCheckoutEnabled()`, a private-distribution build flag. Prices and
+ * plans are otherwise shown read-only in the pricing sheet.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, View } from "react-native";
@@ -51,11 +52,13 @@ import {
 import {
   ADDON_CANCEL_COPY,
   BILLING_PAGE_COPY as COPY,
+  CANCELLATION_UNCONFIRMED_COPY,
   abandonConfirmation,
   abandonMessage,
   buildAbandonBody,
   buildPaymentAbandonPath,
   buildReconcilePath,
+  cancellationOutcomeUnknown,
   parseBillingProjection,
   reconcileMessage,
   parseBillingActivity,
@@ -414,7 +417,11 @@ export default function BillingScreen() {
       setNotice(subscriptionCancelMessage(result, billingDate).message);
       refresh();
     } catch (err) {
-      setNotice(toSafeUserError(err, { message: "We could not reach your payment provider. Nothing has changed — please try again shortly." }).message);
+      setNotice(
+        cancellationOutcomeUnknown(err)
+          ? CANCELLATION_UNCONFIRMED_COPY
+          : toSafeUserError(err, { message: CANCELLATION_UNCONFIRMED_COPY }).message,
+      );
     } finally {
       setBusy(false);
     }

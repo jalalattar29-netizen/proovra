@@ -29,7 +29,7 @@
  * THIS account.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { PageShell, PageHeader, PageSection, Skeleton, useToast } from "../../../components/ui";
@@ -55,7 +55,9 @@ import {
   cancelPayment,
   abandonPayment,
   abandonCheckoutAttempt,
+  hasCapability,
   recheckCheckoutAttempt,
+  type AttemptWaitingFor,
   type BillingActivityItem,
   retryStorageCancellation,
   type BillingAccountProjection,
@@ -82,9 +84,14 @@ import { ManagePlanDrawer } from "./_sections/ManagePlanDrawer";
 import { usePayPalReturn } from "./_sections/usePayPalReturn";
 import { formatDate } from "./_sections/format";
 import {
+  describeAttemptAbandon,
   describeAttemptRecheck,
+  describeBillingError,
   describeReconciliation,
+  describeResume,
+  downgradeAddonNote,
   safeCheckoutResumeUrl,
+  safePayPalResumeUrl,
 } from "./_sections/billingMessages";
 import { apiFetch } from "../../../lib/api";
 // Route-owned presentation. Everything shared — the header, the panels, the
@@ -173,6 +180,9 @@ function BillingPageInner() {
   const [activity, setActivity] = useState<BillingActivityItem[]>([]);
   const [attemptBusyId, setAttemptBusyId] = useState<string | null>(null);
   const [attemptResumeUrls, setAttemptResumeUrls] = useState<Record<string, string>>({});
+  // What each attempt was waiting for at its latest check. Like a resume link,
+  // valid only for the answer that produced it.
+  const [attemptWaitingFor, setAttemptWaitingFor] = useState<Record<string, AttemptWaitingFor>>({});
   const [historyState, setHistoryState] =
     useState<"LOADING" | "READY" | "DENIED" | "ERROR">("LOADING");
 
@@ -192,6 +202,20 @@ function BillingPageInner() {
   const [changeBusyPlan, setChangeBusyPlan] = useState<string | null>(null);
   const [cancelAddonBusy, setCancelAddonBusy] = useState<string | null>(null);
   const [recheckBusy, setRecheckBusy] = useState(false);
+
+  // A billing failure carries the API's request id, shown as a support reference
+  // and never inside the sentence.
+  const showError = useCallback(
+    (error: { message: string; tone: "success" | "info" | "error"; supportReference?: string }) => {
+      addToast(
+        error.message,
+        error.tone,
+        undefined,
+        error.supportReference ? { supportReference: error.supportReference } : undefined,
+      );
+    },
+    [addToast],
+  );
 
   const requestedLocator = useMemo(
     () => parseBillingWorkspaceLocator(searchParams),
@@ -232,27 +256,40 @@ function BillingPageInner() {
   }, [stamp, isStale]);
 
   // ---- The selected account's projection ----------------------------------
+  //
+  // BILLING REMEDIATION (2026-10-30, AUD-16) — `keep` is a re-read of the account
+  // already on screen. The projection is only blanked when the account CHANGES:
+  // both drawers live under it, so blanking it on every refresh unmounted the
+  // checkout drawer, and with it the PayPal recovery panel a refused checkout
+  // had just opened. A failed re-read leaves the page where it is, for the same
+  // reason. It says so rather than replacing the page with an error screen.
+  const projectionRequest = useRef(0);
   const loadProjection = useCallback(
-    async (account: BillingAccountRef) => {
+    async (account: BillingAccountRef, options: { keep?: boolean } = {}) => {
       const captured = stamp();
-      setProjection(null);
+      const request = ++projectionRequest.current;
+      if (!options.keep) setProjection(null);
       try {
         const next = await readBillingAccount({
           type: account.type,
           id: account.id,
         });
-        if (isStale(captured)) return;
+        if (isStale(captured) || request !== projectionRequest.current) return;
         setProjection(next);
       } catch (err) {
-        if (isStale(captured)) return;
+        if (isStale(captured) || request !== projectionRequest.current) return;
         captureException(err, { feature: "billing_account_projection" });
+        if (options.keep) {
+          addToast("We could not refresh Billing just now. What you see may be out of date.", "info");
+          return;
+        }
         const safe = toSafeUserError(err, {
           message: "This billing account could not be loaded.",
         });
         setPhase({ kind: "ERROR", title: safe.title, message: safe.message });
       }
     },
-    [stamp, isStale],
+    [stamp, isStale, addToast],
   );
 
   const loadHistory = useCallback(
@@ -269,6 +306,7 @@ function BillingPageInner() {
         setActivity(attempts);
         // A resume link is only valid for the answer that produced it.
         setAttemptResumeUrls({});
+        setAttemptWaitingFor({});
         setHistoryState("READY");
       } catch (err) {
         if (isStale(captured)) return;
@@ -302,7 +340,7 @@ function BillingPageInner() {
 
   const refresh = useCallback(() => {
     if (!selected) return;
-    void loadProjection(selected);
+    void loadProjection(selected, { keep: true });
     void loadHistory(selected);
   }, [selected, loadProjection, loadHistory]);
 
@@ -311,10 +349,16 @@ function BillingPageInner() {
   // PayPal sends the buyer back here with its own `token` / `subscription_id`.
   // The SERVER captures the order or reads the subscription and applies it;
   // this only asks, reports the outcome and refreshes. A browser-side
-  // `success=1` grants nothing.
-  const { confirming: paypalConfirming } = usePayPalReturn({
+  // `success=1` grants nothing. Stripe's return is read here too: it has nothing
+  // to confirm, so it leaves a notice saying where the purchase stands.
+  const {
+    confirming: paypalConfirming,
+    returnNotice,
+    dismissReturnNotice,
+  } = usePayPalReturn({
     searchParams,
-    notify: addToast,
+    notify: (message, tone, supportReference) =>
+      addToast(message, tone, undefined, supportReference ? { supportReference } : undefined),
     onSettled: refresh,
     replaceUrl: (search) => router.replace(`/billing${search}`, { scroll: false }),
   });
@@ -342,15 +386,15 @@ function BillingPageInner() {
       refresh();
     } catch (err) {
       captureException(err, { feature: "billing_addon_cancel_retry" });
-      const safe = toSafeUserError(err, {
+      const safe = describeBillingError(err, {
         message:
           "We could not reach your payment provider. Nothing has changed — we will keep retrying automatically.",
       });
-      addToast(safe.message, "error");
+      showError(safe);
     } finally {
       setAddonRetryBusy(false);
     }
-  }, [selected, addonRetryBusy, addToast, refresh]);
+  }, [selected, addonRetryBusy, addToast, refresh, showError]);
 
   // ---- Cancellation ------------------------------------------------------
   /*
@@ -372,25 +416,19 @@ function BillingPageInner() {
     setCancelBusy(true);
     try {
       const result = await requestResume();
-      addToast(
-        result.result === "RESUMED"
-          ? result.dependentAddonsStillEnding > 0
-            ? "Subscription restarted. Storage add-ons that were set to end will still end."
-            : "Subscription restarted. It will renew as normal."
-          : "This subscription was not set to end; nothing changed.",
-        "success",
-      );
+      const notice = describeResume(result, projection);
+      addToast(notice.message, notice.tone);
       await refresh();
     } catch (err) {
       captureException(err, { feature: "billing_resume_subscription" });
-      const safe = toSafeUserError(err, {
+      const safe = describeBillingError(err, {
         message: "We could not restart this subscription. Nothing has changed; it is still set to end.",
       });
-      addToast(safe.message, "error");
+      showError(safe);
     } finally {
       setCancelBusy(false);
     }
-  }, [selected, projection, cancelBusy, confirm, addToast, refresh]);
+  }, [selected, projection, cancelBusy, confirm, addToast, refresh, showError]);
 
   const handleCancel = useCallback(async () => {
     if (!selected || !projection) return;
@@ -477,15 +515,19 @@ function BillingPageInner() {
       refresh();
     } catch (err) {
       captureException(err, { feature: "billing_cancel" });
-      const safe = toSafeUserError(err, {
+      // Never "nothing has changed" for a lost answer: a timeout can follow a
+      // cancellation the provider accepted.
+      const safe = describeBillingError(err, {
         message:
-          "We could not reach your payment provider. Nothing has changed — please try again shortly.",
+          "We could not confirm this cancellation with your payment provider. Check Billing in a few minutes before trying again.",
+        unknownOutcome: true,
       });
-      addToast(safe.message, "error");
+      showError(safe);
+      refresh();
     } finally {
       setCancelBusy(false);
     }
-  }, [selected, projection, confirm, addToast, refresh]);
+  }, [selected, projection, confirm, addToast, refresh, showError]);
 
   /**
    * Open whichever plan surface the SERVER says this account has.
@@ -497,7 +539,9 @@ function BillingPageInner() {
   const openPlanManagement = useCallback(() => {
     if (!projection) return;
     if (projection.actions.planManagement.mode === "CHOOSE") {
-      setCheckout({ kind: "PLAN" });
+      // A viewer who may only cancel has nothing to choose here, and the server
+      // sent them no offers to choose from.
+      if (projection.actions.planManagement.enabled) setCheckout({ kind: "PLAN" });
       return;
     }
     setManagePlanOpen(true);
@@ -580,16 +624,16 @@ function BillingPageInner() {
         }
       } catch (err) {
         captureException(err, { feature: "billing_payment_recheck" });
-        const safe = toSafeUserError(err, {
+        const safe = describeBillingError(err, {
           message:
             "We could not check this payment with your provider. Nothing has changed — try again in a moment.",
         });
-        addToast(safe.message, "error");
+        showError(safe);
       } finally {
         setPaymentBusyId(null);
       }
     },
-    [selected, paymentBusyId, addToast, loadHistory, refresh],
+    [selected, paymentBusyId, addToast, loadHistory, refresh, showError],
   );
 
   const handleCancelPayment = useCallback(
@@ -628,16 +672,16 @@ function BillingPageInner() {
         void loadHistory(selected);
       } catch (err) {
         captureException(err, { feature: "billing_payment_cancel" });
-        const safe = toSafeUserError(err, {
+        const safe = describeBillingError(err, {
           message:
             "We could not reach your payment provider, so this payment is unchanged in PROOVRA.",
         });
-        addToast(safe.message, "error");
+        showError(safe);
       } finally {
         setPaymentBusyId(null);
       }
     },
-    [selected, paymentBusyId, confirm, addToast, loadHistory],
+    [selected, paymentBusyId, confirm, addToast, loadHistory, showError],
   );
 
   /**
@@ -734,16 +778,16 @@ function BillingPageInner() {
         void loadHistory(selected);
       } catch (err) {
         captureException(err, { feature: "billing_payment_abandon" });
-        const safe = toSafeUserError(err, {
+        const safe = describeBillingError(err, {
           message:
             "We could not complete that just now. This payment attempt is unchanged in PROOVRA.",
         });
-        addToast(safe.message, "error");
+        showError(safe);
       } finally {
         setPaymentBusyId(null);
       }
     },
-    [selected, paymentBusyId, confirm, addToast, loadHistory, announceAbandonOutcome],
+    [selected, paymentBusyId, confirm, loadHistory, announceAbandonOutcome, showError],
   );
 
   /**
@@ -764,18 +808,26 @@ function BillingPageInner() {
       const notice = describeReconciliation(result);
       addToast(notice.message, notice.tone);
       // Nothing was checked when the request was refused (busy / too soon).
-      if (result.checked) refresh();
+      if (result.checked) {
+        void loadProjection(selected, { keep: true });
+        await loadHistory(selected);
+        const waiting: Record<string, AttemptWaitingFor> = {};
+        for (const attempt of result.summary?.attempts ?? []) {
+          if (attempt.waitingFor) waiting[attempt.attemptId] = attempt.waitingFor;
+        }
+        setAttemptWaitingFor(waiting);
+      }
     } catch (err) {
       captureException(err, { feature: "billing_restore" });
-      const safe = toSafeUserError(err, {
+      const safe = describeBillingError(err, {
         message:
           "We could not check with your payment provider. Your billing records are unchanged — try again in a moment.",
       });
-      addToast(safe.message, "error");
+      showError(safe);
     } finally {
       setRecheckBusy(false);
     }
-  }, [selected, recheckBusy, addToast, refresh]);
+  }, [selected, recheckBusy, addToast, loadProjection, loadHistory, showError]);
 
   // ---- Plan change -------------------------------------------------------
   //
@@ -792,9 +844,12 @@ function BillingPageInner() {
     async (offer: PlanOffer) => {
       if (changeBusyPlan) return;
 
+      // The server's sentence, and what it cannot know to say: a Team-size add-on
+      // survives this move and keeps billing.
+      const addonNote = projection ? downgradeAddonNote(projection, offer) : null;
       const ok = await confirm({
         title: offer.actionLabel + "?",
-        description: offer.effectSummary,
+        description: offer.effectSummary + (addonNote ? ` ${addonNote}` : ""),
         confirmLabel: offer.actionLabel,
         cancelLabel: "Keep current plan",
         // A downgrade is a WARNING, not a danger: nothing is destroyed by it,
@@ -814,7 +869,19 @@ function BillingPageInner() {
         // so it hands back a link instead of a done deal. Saying "changed"
         // here would be claiming something the provider has not agreed to.
         if (result.approvalUrl) {
-          window.location.assign(result.approvalUrl);
+          const approval = safePayPalResumeUrl(result.approvalUrl);
+          if (!approval) {
+            // The change is with the provider, so it is not reported as failed,
+            // and an unrecognised address is not followed.
+            captureException(new Error("Unexpected PayPal approval URL"), { feature: "billing_change_plan" });
+            addToast(
+              `We could not open PayPal's approval page for your change to ${offer.displayName}. Nothing changes until you approve it. Check Billing, or contact support if this continues.`,
+              "error",
+            );
+            refresh();
+            return;
+          }
+          window.location.assign(approval);
           return;
         }
 
@@ -841,16 +908,19 @@ function BillingPageInner() {
         refresh();
       } catch (err) {
         captureException(err, { feature: "billing_change_plan" });
-        const safe = toSafeUserError(err, {
+        // As for a cancellation: a lost answer is not proof that nothing moved.
+        const safe = describeBillingError(err, {
           message:
-            "We could not reach your payment provider. Your plan has not changed — please try again shortly.",
+            "We could not confirm this plan change with your payment provider. Check Billing in a few minutes before trying again.",
+          unknownOutcome: true,
         });
-        addToast(safe.message, "error");
+        showError(safe);
+        refresh();
       } finally {
         setChangeBusyPlan(null);
       }
     },
-    [changeBusyPlan, confirm, addToast, refresh],
+    [changeBusyPlan, confirm, addToast, refresh, projection, showError],
   );
 
   const handleCancelAddon = useCallback(
@@ -876,15 +946,17 @@ function BillingPageInner() {
         refresh();
       } catch (err) {
         captureException(err, { feature: "billing_cancel_addon" });
-        const safe = toSafeUserError(err, {
-          message: "We could not cancel that add-on. Nothing has changed.",
+        const safe = describeBillingError(err, {
+          message:
+            "We could not confirm this cancellation with your payment provider. Check Billing in a few minutes before trying again.",
+          unknownOutcome: true,
         });
-        addToast(safe.message, "error");
+        showError(safe);
       } finally {
         setCancelAddonBusy(null);
       }
     },
-    [confirm, addToast, refresh],
+    [confirm, addToast, refresh, showError],
   );
 
   /*
@@ -907,18 +979,20 @@ function BillingPageInner() {
         addToast(notice.message, notice.tone);
         await loadHistory(selected);
         if (resume) setAttemptResumeUrls((prev) => ({ ...prev, [item.id]: resume }));
-        if (result.outcome === "UPDATED") void loadProjection(selected);
+        const waitingFor = result.waitingFor;
+        if (waitingFor) setAttemptWaitingFor((prev) => ({ ...prev, [item.id]: waitingFor }));
+        if (result.outcome === "UPDATED") void loadProjection(selected, { keep: true });
       } catch (err) {
         captureException(err, { feature: "billing_checkout_attempt_recheck" });
-        const safe = toSafeUserError(err, {
+        const safe = describeBillingError(err, {
           message: "We could not check this purchase just now. Nothing was changed.",
         });
-        addToast(safe.message, "error");
+        showError(safe);
       } finally {
         setAttemptBusyId(null);
       }
     },
-    [selected, attemptBusyId, addToast, loadHistory, loadProjection],
+    [selected, attemptBusyId, addToast, loadHistory, loadProjection, showError],
   );
 
   const handleAbandonAttempt = useCallback(
@@ -940,41 +1014,25 @@ function BillingPageInner() {
           });
           if (!ok) return;
           const confirmed = await abandonCheckoutAttempt(selected, item.id, true);
-          if (confirmed.outcome === "PROVIDER_CANCEL_FAILED") {
-            addToast(
-              confirmed.warning ?? "The payment provider could not confirm this was closed, so it is still shown as open.",
-              "error",
-            );
-          } else {
-            addToast(
-              confirmed.outcome !== "ABANDONED"
-                ? "This purchase had already been resolved; nothing was changed."
-                : confirmed.cancelsAtProvider
-                  ? "Closed at the payment provider. Nothing was charged."
-                  : "Abandoned in PROOVRA. Nothing was cancelled or charged at the payment provider.",
-              confirmed.outcome === "ABANDONED" ? "success" : "info",
-            );
-          }
-        } else if (first.outcome === "ABANDON_NOT_ALLOWED") {
-          addToast(first.warning ?? "This purchase is being processed and cannot be abandoned.", "info");
-        } else if (first.outcome === "PROVIDER_STATE_RECORDED") {
-          addToast("The provider had already settled this purchase, so its answer was recorded instead.", "info");
+          const notice = describeAttemptAbandon(confirmed);
+          addToast(notice.message, notice.tone);
         } else {
-          addToast("This purchase had already been resolved; nothing was changed.", "info");
+          const notice = describeAttemptAbandon(first);
+          addToast(notice.message, notice.tone);
         }
         await loadHistory(selected);
-        void loadProjection(selected);
+        void loadProjection(selected, { keep: true });
       } catch (err) {
         captureException(err, { feature: "billing_checkout_attempt_abandon" });
-        const safe = toSafeUserError(err, {
+        const safe = describeBillingError(err, {
           message: "We could not abandon this purchase just now. Nothing was changed.",
         });
-        addToast(safe.message, "error");
+        showError(safe);
       } finally {
         setAttemptBusyId(null);
       }
     },
-    [selected, attemptBusyId, confirm, addToast, loadHistory, loadProjection],
+    [selected, attemptBusyId, confirm, addToast, loadHistory, loadProjection, showError],
   );
 
   /**
@@ -1119,6 +1177,25 @@ function BillingPageInner() {
           </p>
         </PageSection>
       ) : null}
+      {returnNotice ? (
+        <PageSection>
+          <Card
+            variant="status"
+            tone="pending"
+            role="status"
+            aria-live="polite"
+            data-billing-return-notice
+            title={returnNotice.title}
+          >
+            <p style={{ margin: 0, color: "var(--silver-ink)" }}>{returnNotice.message}</p>
+            <div style={{ marginTop: 12 }}>
+              <Button variant="ghost" size="sm" onClick={dismissReturnNotice} data-billing-return-dismiss>
+                Dismiss
+              </Button>
+            </div>
+          </Card>
+        </PageSection>
+      ) : null}
       {accounts.length > 1 ? (
         <PageSection>
           <AccountSelector
@@ -1236,7 +1313,9 @@ function BillingPageInner() {
               onAbandonAttempt={(item) => void handleAbandonAttempt(item)}
               attemptBusyId={attemptBusyId}
               attemptResumeUrls={attemptResumeUrls}
+              attemptWaitingFor={attemptWaitingFor}
               onRecheck={() => void handleAccountRecheck()}
+              canRecheck={hasCapability(selected, "BILLING_MANAGE")}
               accessKind={projection.plan.accessKind}
             />
 
@@ -1302,7 +1381,8 @@ function BillingPageInner() {
             onClose={() => setManagePlanOpen(false)}
             onChangePlan={(offer) => void handleChangePlan(offer)}
             onCancel={() => void handleCancel()}
-            onResume={() => void handleResume()}
+            /* Restarting needs BILLING_MANAGE, which a cancel-only viewer lacks. */
+            onResume={projection.actions.planManagement.enabled ? () => void handleResume() : undefined}
             changeBusyPlan={changeBusyPlan}
             cancelBusy={cancelBusy}
           />
@@ -1315,7 +1395,14 @@ function BillingPageInner() {
             projection={projection}
             onClose={() => setCheckout(null)}
             onCompleted={refresh}
-            onError={(title, message) => addToast(`${title}: ${message}`, "error")}
+            onError={(title, message, supportReference) =>
+              addToast(
+                `${title}: ${message}`,
+                "error",
+                undefined,
+                supportReference ? { supportReference } : undefined,
+              )
+            }
           />
         </>
       )}

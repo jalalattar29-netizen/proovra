@@ -25,6 +25,8 @@ export type ResumeOutcome = {
    * one is a charge the customer did not ask for here.
    */
   dependentAddonsStillEnding: number;
+  /** Which sizes, so the page can name them rather than infer them. */
+  dependentAddonKeysStillEnding: prismaPkg.StorageAddonKey[];
 };
 
 /**
@@ -100,6 +102,7 @@ export async function requestSubscriptionResume(input: {
       provider: subscription.provider,
       currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
       dependentAddonsStillEnding: 0,
+      dependentAddonKeysStillEnding: [],
     };
   }
 
@@ -153,19 +156,21 @@ export async function requestSubscriptionResume(input: {
     await withdrawUnsupportedObligations({ ownerUserId: subscription.userId, teamId: subscription.teamId });
   }
 
-  const dependentAddonsStillEnding = await prisma.workspaceStorageAddon.count({
+  const stillEnding = await prisma.workspaceStorageAddon.findMany({
     where: {
       ownerUserId: subscription.userId,
       dependentCancellationTriggeredBySubscriptionId: subscription.id,
       dependentCancellationState: { not: prismaPkg.DependentCancellationState.NONE },
       status: prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
     },
+    select: { addonKey: true },
   });
 
   return {
     result: "RESUMED",
     provider: subscription.provider,
     currentPeriodEnd: confirmedPeriodEnd?.toISOString() ?? null,
-    dependentAddonsStillEnding,
+    dependentAddonsStillEnding: stillEnding.length,
+    dependentAddonKeysStillEnding: stillEnding.map((a) => a.addonKey),
   };
 }

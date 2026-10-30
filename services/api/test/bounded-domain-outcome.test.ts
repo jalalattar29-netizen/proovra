@@ -58,13 +58,15 @@ describe("the builders", () => {
     expect(e.metadata).toEqual({ provider: "p", reason: "not_configured", setting: "P_SECRET" });
   });
 
-  it("paymentsUnavailable names no secret to the customer and says nothing was charged", () => {
+  it("paymentsUnavailable names no secret to the customer, and a missing setting claims nothing about charges", () => {
     for (const provider of ["stripe", "paypal"] as const) {
       const e = paymentsUnavailable(provider, "STRIPE_SECRET_KEY");
       expect(e.publicCode).toBe(PAYMENTS_UNAVAILABLE_CODE);
       expect(e.httpStatus).toBe(503);
       expect(e.publicMessage).not.toMatch(/STRIPE|PAYPAL|secret|key/i);
-      expect(e.publicMessage).toMatch(/nothing was charged/i);
+      // Reachable after a buyer approved: only a refusal proven to precede the
+      // provider request may say nothing was charged.
+      expect(e.publicMessage).not.toMatch(/nothing was charged/i);
       expect(e.metadata.provider).toBe(provider);
     }
   });

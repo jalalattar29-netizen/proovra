@@ -17,6 +17,7 @@
 import { planLapseCopy, recordsInTrashAllowanceCopy } from "@proovra/shared";
 import { formatUserDate } from "../../../../lib/date";
 import type {
+  ActiveStorageAddon,
   EvidenceAdmission,
   PlanLifecycle,
   UsageMeter,
@@ -39,6 +40,85 @@ export function formatMoney(
   } catch {
     return `${(amountCents / 100).toFixed(2)} ${safe}`;
   }
+}
+
+/** What this account already holds of ONE storage size. */
+export type StorageSkuHolding = {
+  addonKey: string;
+  storageLabel: string;
+  /** Live rows: capacity the account has now. */
+  activeCount: number;
+  /** Purchases that have not completed. Not capacity, and not a charge yet. */
+  pendingCount: number;
+  /** The recurring amount of the live rows, or null when it is not all known. */
+  monthlyCents: number | null;
+  currency: string | null;
+};
+
+export type StorageHoldings = {
+  skus: StorageSkuHolding[];
+  /**
+   * The recurring commitment, one figure per currency, as display strings. Null
+   * when any recurring row carries no amount: the server omits amounts from a
+   * viewer who may not see them, and a sum of the rest would understate it.
+   */
+  monthlyTotals: string[] | null;
+};
+
+/**
+ * Storage add-ons by SKU, counted from the rows the server sent.
+ *
+ * Stacking is allowed, so one customer can hold the same size several times.
+ * Nothing is derived here that the server did not state: live rows are counted,
+ * and a grandfathered one-time purchase counts as capacity but never as a
+ * recurring charge.
+ */
+export function summarizeStorageAddons(active: ActiveStorageAddon[]): StorageHoldings {
+  const bySku = new Map<string, StorageSkuHolding>();
+  const totals = new Map<string, number>();
+  let amountsKnown = true;
+
+  for (const addon of active) {
+    const status = addon.status.toUpperCase();
+    const live = status === "ACTIVE" || status === "PAST_DUE";
+    if (!live && status !== "PENDING") continue;
+
+    const held = bySku.get(addon.addonKey) ?? {
+      addonKey: addon.addonKey,
+      storageLabel: addon.storageLabel,
+      activeCount: 0,
+      pendingCount: 0,
+      monthlyCents: 0,
+      currency: addon.currency ?? null,
+    };
+    bySku.set(addon.addonKey, held);
+
+    if (!live) {
+      held.pendingCount += 1;
+      continue;
+    }
+    held.activeCount += 1;
+    // Not a recurring commitment: no further charge is coming.
+    if (addon.legacyOneTime || addon.ending) continue;
+
+    const cents = addon.priceCents;
+    if (typeof cents !== "number" || !Number.isFinite(cents) || !addon.currency) {
+      amountsKnown = false;
+      held.monthlyCents = null;
+      continue;
+    }
+    if (held.monthlyCents !== null) held.monthlyCents += cents;
+    totals.set(addon.currency, (totals.get(addon.currency) ?? 0) + cents);
+  }
+
+  return {
+    skus: [...bySku.values()],
+    monthlyTotals: amountsKnown
+      ? [...totals.entries()]
+          .map(([currency, cents]) => formatMoney(cents, currency))
+          .filter((total): total is string => total !== null)
+      : null,
+  };
 }
 
 /**

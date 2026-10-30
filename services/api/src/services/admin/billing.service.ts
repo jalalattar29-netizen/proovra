@@ -466,6 +466,7 @@ export async function buildAdminBillingDetail(
         amountCents: true,
         billingCycle: true,
         teamId: true,
+        ownerUserId: true,
         currency: true,
       },
     }),
@@ -584,14 +585,14 @@ export async function buildAdminBillingDetail(
 
   const addonMaps = await resolveSubjects(
     client,
-    addons.map((a) => ({ userId: null, teamId: a.teamId })),
+    addons.map((a) => ({ userId: a.ownerUserId, teamId: a.teamId })),
   );
 
   // Orphans first: they are the actionable ones, so a truncated list must not
   // be able to hide them behind ordinary add-ons.
   const addonRows: AdminBillingAddonRow[] = addons
     .map((a) => ({
-      ...toSubject({ userId: null, teamId: a.teamId }, addonMaps),
+      ...toSubject({ userId: a.ownerUserId, teamId: a.teamId }, addonMaps),
       id: a.id,
       amountCents: a.amountCents ?? 0,
       currency: a.currency,

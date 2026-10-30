@@ -448,6 +448,8 @@ export type ActiveStorageAddon = {
    * hold is kept when the plan ends. The cancellation copy counts only these.
    */
   endsWithPlan: boolean;
+  /** The provider will not renew it: already cancelled, or cancelling at period end. */
+  ending: boolean;
   /**
    * Whether THIS add-on can be cancelled by THIS viewer.
    *
@@ -810,6 +812,8 @@ async function activeAddonsFor(params: {
       status: true,
       activatedAtUtc: true,
       currentPeriodEnd: true,
+      canceledAtUtc: true,
+      expiresAtUtc: true,
       paymentProvider: true,
       externalSubscriptionId: true,
       amountCents: true,
@@ -832,6 +836,7 @@ async function activeAddonsFor(params: {
       billingCycle: r.billingCycle,
       legacyOneTime,
       endsWithPlan: !legacyOneTime && storageAddonRequiresPaidPlan(r.addonKey),
+      ending: !legacyOneTime && (r.canceledAtUtc !== null || r.expiresAtUtc !== null),
       canCancel:
         params.canPurchaseAddons &&
         !legacyOneTime &&

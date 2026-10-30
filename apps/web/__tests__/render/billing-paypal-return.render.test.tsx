@@ -157,7 +157,10 @@ describe("usePayPalReturn — server confirmation on return", () => {
     await waitFor(() => expect(apiFetch).toHaveBeenCalled());
     expect(apiFetch.mock.calls[0]![0]).toBe("/v1/billing/checkout/paypal/returns/canceled");
     expect(JSON.parse(String((apiFetch.mock.calls[0]![1] as { body: string }).body))).toEqual({ subscriptionId: "I-BW452GLLEP1G" });
-    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/Nothing was charged/), "info");
+    // Copy changed deliberately (AUD-19): the browser reports this before the
+    // server has answered, so it says nothing about money.
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/You left PayPal before finishing/), "info");
+    expect(notify).not.toHaveBeenCalledWith(expect.stringMatching(/charged/i), "info");
   });
 
   it("a server failure after approval is not reported as a refusal: PROOVRA keeps checking", async () => {
@@ -167,11 +170,63 @@ describe("usePayPalReturn — server confirmation on return", () => {
     expect(notify).toHaveBeenCalledWith(expect.stringMatching(/keeps checking/), "info");
   });
 
-  it("a customer cancellation calls nothing and says nothing was charged", async () => {
+  it("a customer cancellation PayPal does not identify calls nothing and says so honestly", async () => {
     const { notify, replaceUrl } = run("canceled=1&provider=paypal&kind=storage-addon");
     await waitFor(() => expect(notify).toHaveBeenCalled());
     expect(apiFetch).not.toHaveBeenCalled();
-    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/Nothing was charged/), "info");
+    // Copy changed deliberately (AUD-19): no id means the checkout may still be
+    // open, and the browser cannot speak for the money.
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/did not say which checkout this was/), "info");
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/may still show as open/), "info");
+    expect(notify).not.toHaveBeenCalledWith(expect.stringMatching(/charged/i), "info");
+    expect(replaceUrl).toHaveBeenCalledWith("");
+  });
+
+  it("a subscription the server refuses to confirm never promises to update by itself", async () => {
+    apiFetch.mockRejectedValueOnce(
+      Object.assign(new Error("not found"), { statusCode: 404, code: "PAYPAL_SUBSCRIPTION_NOT_FOUND", requestId: "req-9" }),
+    );
+    const { notify } = run("success=1&provider=paypal&kind=storage-addon&subscription_id=I-STORAGE01");
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    const [message, tone, reference] = notify.mock.calls[0]!;
+    expect(message).toMatch(/could not match this PayPal storage add-on to your account/);
+    expect(message).not.toMatch(/automatically/);
+    expect(tone).toBe("error");
+    expect(reference).toBe("req-9");
+  });
+
+  it("a refused order confirmation carries the support reference too", async () => {
+    apiFetch.mockRejectedValueOnce(Object.assign(new Error("conflict"), { statusCode: 409, requestId: "req-10" }));
+    const { notify } = run("success=1&provider=paypal&kind=credits&token=5O190127TN364715T");
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(notify.mock.calls[0]![2]).toBe("req-10");
+  });
+
+  it("a rate-limited confirmation says to wait, and does not read as a refusal", async () => {
+    apiFetch.mockRejectedValueOnce(
+      Object.assign(new Error("slow down"), { statusCode: 429, code: "RATE_LIMIT_EXCEEDED" }),
+    );
+    const { notify } = run("success=1&provider=paypal&kind=plan&subscription_id=I-BW452GLLEP1G");
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/tried several times/), "info");
+  });
+
+  it("a success return that names nothing says so, and asks the server nothing", async () => {
+    const { notify, replaceUrl } = run("success=1&provider=paypal&kind=plan");
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/has not been confirmed/), "info");
+    expect(replaceUrl).toHaveBeenCalledWith("");
+  });
+
+  it("a Stripe return leaves a pending notice, refreshes once and asks PayPal nothing", async () => {
+    const { notify, onSettled, replaceUrl, hook } = run("success=1&kind=storage-addon");
+    await waitFor(() => expect(hook.result.current.returnNotice).not.toBeNull());
+    expect(hook.result.current.returnNotice!.message).toMatch(/only after Stripe confirms/);
+    expect(hook.result.current.returnNotice!.message).toMatch(/storage add-on/);
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+    expect(onSettled).toHaveBeenCalledTimes(1);
     expect(replaceUrl).toHaveBeenCalledWith("");
   });
 

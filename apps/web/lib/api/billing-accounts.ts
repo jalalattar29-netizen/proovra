@@ -224,6 +224,12 @@ export type StorageAddonOffer = {
   priceCents: number;
   currency: "USD" | "EUR";
   billingCycle: "MONTHLY";
+  /**
+   * Whether each provider can sell THIS size today, per SKU. One missing price
+   * must not hide an offer the other provider can sell. Optional: an API older
+   * than this field omits it, and both providers then stay on offer.
+   */
+  checkoutAvailability?: { stripe: boolean; paypal: boolean };
 };
 
 export type ActiveStorageAddon = {
@@ -236,6 +242,8 @@ export type ActiveStorageAddon = {
   legacyOneTime: boolean;
   /** Cancelling the base plan also cancels this add-on (its SKU needs a paid plan). */
   endsWithPlan?: boolean;
+  /** The provider will not renew it. It keeps its capacity until it ends. */
+  ending?: boolean;
   canCancel: boolean;
   canRecheck: boolean;
   canAbandon: boolean;
@@ -552,7 +560,15 @@ export type BillingActivityItem = {
     | "PROVIDER_UNREACHABLE"
     | "PROVIDER_UNVERIFIED"
     | "PROCESSING"
+    /** Approved at PayPal; PayPal has not activated it yet. */
+    | "ACTIVATING"
     | "NEEDS_REVIEW"
+    /** The provider activated it, but it could not be granted and was stopped. */
+    | "REFUSED"
+    /** Never approved within the approval window; closed by PROOVRA, not PayPal. */
+    | "EXPIRED_UNAPPROVED"
+    /** Never confirmed by the provider, and replaced by a newer checkout. */
+    | "SUPERSEDED"
     | "FAILED"
     | "CANCELED"
     | "EXPIRED"
@@ -650,6 +666,7 @@ export type ResumeResult = {
   provider: string;
   currentPeriodEnd: string | null;
   dependentAddonsStillEnding: number;
+  dependentAddonKeysStillEnding?: string[];
 };
 
 export async function requestResume(): Promise<ResumeResult> {
@@ -729,6 +746,13 @@ export type ReconciliationResult = {
   } | null;
 };
 
+/** What a STILL_PENDING attempt is waiting for, in the provider's own terms. */
+export type AttemptWaitingFor =
+  | "APPROVAL"
+  | "ACTIVATION"
+  | "PAYMENT_PROCESSING"
+  | "PAYMENT_PAGE";
+
 /**
  * The result of checking ONE checkout attempt (any product) with its provider.
  * `resumeUrl` is present only while the provider still holds the approval
@@ -760,7 +784,7 @@ export type CheckoutAttemptResult = {
    * subscription's ACTIVATION after approval, a payment still PROCESSING, or
    * an open Stripe PAYMENT_PAGE.
    */
-  waitingFor?: "APPROVAL" | "ACTIVATION" | "PAYMENT_PROCESSING" | "PAYMENT_PAGE";
+  waitingFor?: AttemptWaitingFor;
 };
 
 export type CheckoutAttemptAbandonResult = {
@@ -781,7 +805,10 @@ export type CheckoutAttemptAbandonResult = {
   cancelsAtProvider: boolean;
 };
 
-/** Ask the provider about ONE attempt. Creates nothing, charges nothing new. */
+/**
+ * Ask the provider about ONE attempt. Creates nothing, but it is not read-only:
+ * the server may complete a purchase the buyer already approved at the provider.
+ */
 export async function recheckCheckoutAttempt(
   account: BillingAccountRef,
   attemptId: string,

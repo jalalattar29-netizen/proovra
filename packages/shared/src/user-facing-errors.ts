@@ -1162,8 +1162,8 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionHref: "/billing",
   },
   SUBSCRIPTION_ALREADY_ACTIVE: {
-    title: "This plan is already active",
-    message: "No change was needed — your subscription is already on this plan.",
+    title: "You already have a subscription",
+    message: "You already have a subscription on this account. Use Manage plan to change it instead of buying a second one.",
     severity: "info",
   },
   CHECKOUT_REQUIRED: {
@@ -1208,7 +1208,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   PAYPAL_STORAGE_APPROVAL_PENDING: {
     title: "A storage checkout is already open",
     message:
-      "A PayPal checkout for storage is already waiting for your approval. Finish it, or resolve it under Billing activity before starting another.",
+      "A PayPal storage purchase is already open on this account. Check it under Billing activity before starting another.",
     severity: "info",
     actionLabel: "View billing",
     actionHref: "/billing",

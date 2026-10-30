@@ -100,63 +100,63 @@
       "reviewedAtUtc": "2026-10-05"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:132",
+      "site": "services/api/src/services/paypal.service.ts:146",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/oauth2/token (client-credentials token). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:401",
+      "site": "services/api/src/services/paypal.service.ts:416",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — paypalRequest — PayPal REST POST/GET (orders, subscriptions, revise); sends PayPal-Request-Id for idempotent creates. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:426",
+      "site": "services/api/src/services/paypal.service.ts:442",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — paypalGet — PayPal REST GET (plans, subscriptions, orders, captures, transactions). Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:858",
+      "site": "services/api/src/services/paypal.service.ts:875",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/billing/subscriptions/:id/cancel. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:891",
+      "site": "services/api/src/services/paypal.service.ts:915",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v1/notifications/verify-webhook-signature. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/paypal.service.ts:931",
+      "site": "services/api/src/services/paypal.service.ts:963",
       "verdict": "EXTERNAL",
       "originBinding": "PayPal apiBase()",
       "evidence": "services/api/src/services/paypal.service.ts:40 — PayPal POST /v2/checkout/orders/:id/capture with PayPal-Request-Id proovra-capture-{orderId}. Re-anchored 2026-09-28: the previous paypal.service.ts entries named lines that had become comments or blank lines after edits, so the wrappers' callers surfaced as unresolved requests.",
       "reviewedAtUtc": "2026-09-28"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:120",
+      "site": "services/api/src/services/stripe.service.ts:150",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:254",
+      "site": "services/api/src/services/stripe.service.ts:282",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/stripe.service.ts:98",
+      "site": "services/api/src/services/stripe.service.ts:128",
       "verdict": "EXTERNAL",
       "originBinding": "stripeApiBase()",
       "evidence": "services/api/src/services/stripe.service.ts — Stripe's REST origin.",

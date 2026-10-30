@@ -216,14 +216,12 @@ export async function applyStripeSubscriptionEvent(input: {
     plan?.status === prismaPkg.SubscriptionStatus.TRIALING ||
     addon?.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING;
   const undecided =
-    !eventCreatedAtUtc ||
-    parseStripeSubscriptionStatus(subscription.status) === null ||
-    (recorded !== null &&
-      (eventCreatedAtUtc.getTime() < recorded.getTime() ||
-        (eventCreatedAtUtc.getTime() === recorded.getTime() && !pending)));
-  if (undecided && (recorded !== null || !eventCreatedAtUtc)) {
-    return applyLiveStripeSubscription(subscription.id, input.source);
-  }
+    recorded !== null &&
+    (parseStripeSubscriptionStatus(subscription.status) === null ||
+      (eventCreatedAtUtc !== null &&
+        (eventCreatedAtUtc.getTime() < recorded.getTime() ||
+          (eventCreatedAtUtc.getTime() === recorded.getTime() && !pending))));
+  if (undecided) return applyLiveStripeSubscription(subscription.id, input.source);
   return applyStripeSubscriptionObject({ subscription, observedAtUtc: eventCreatedAtUtc, source: input.source });
 }
 
