@@ -62,6 +62,7 @@
     "ops:redact-leaked-intake-tokens": "tsx src/scripts/redact-leaked-intake-tokens.ts",
     "ops:twilio-message-recheck": "tsx src/scripts/twilio-message-recheck.ts",
     "ops:verify-historical-billing-attempts": "tsx src/scripts/verify-historical-billing-attempts.ts",
+    "ops:verify-billing-offers": "tsx src/scripts/verify-billing-offers.ts",
     "ops:internal-plan-grant": "tsx src/scripts/internal-plan-grant.ts",
     "ops:internal-grant-rollout": "tsx src/scripts/internal-grant-rollout.ts",
     "ops:recover-evidence-outputs": "tsx src/scripts/recover-evidence-outputs.ts",

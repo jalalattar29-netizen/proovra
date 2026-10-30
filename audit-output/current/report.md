@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | f44f3ccdb548c8162d5076055a2eec01cb54f8fefaf01664351579ea3193254c |
+| engineHash    | ee7c62c10eaab5f0e953127f8fb2c4734a51ef7b7506824439a705d511301afb |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -169,5 +169,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- UNWIRED EXECUTABLE WRITERS: 1 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- UNWIRED EXECUTABLE WRITERS: 6 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
 - ArchitectureBacklog: UndisposedRoutes = 14 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)

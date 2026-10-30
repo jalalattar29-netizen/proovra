@@ -212,6 +212,10 @@
       "command": "tsx src/scripts/verify-historical-billing-attempts.ts"
     },
     {
+      "id": "services/api/package.json:ops:verify-billing-offers",
+      "command": "tsx src/scripts/verify-billing-offers.ts"
+    },
+    {
       "id": "services/api/package.json:ops:verification-disclosure-fleet",
       "command": "tsx src/scripts/verification-disclosure-fleet.ts"
     },

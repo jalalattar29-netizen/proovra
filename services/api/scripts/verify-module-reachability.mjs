@@ -115,6 +115,9 @@ const ENTRYPOINTS = Object.freeze({
     // BILLING (2026-09-28) — READ-ONLY verifier for the two historical PayPal
     // storage attempts. `pnpm --filter proovra-api ops:verify-historical-billing-attempts`
     "services/api/src/scripts/verify-historical-billing-attempts.ts",
+    // Read-only: does the configuration sell what the catalogue shows? Run in the
+    // API image, `node dist/scripts/verify-billing-offers.js`.
+    "services/api/src/scripts/verify-billing-offers.ts",
     // INTERNAL PLAN GRANT — operator CLI over the same service as the admin route
     // (pnpm --filter proovra-api ops:internal-plan-grant).
     "services/api/src/scripts/internal-plan-grant.ts",
