@@ -235,10 +235,15 @@ export async function requestSubscriptionCancellation(input: {
     let response: Record<string, unknown>;
     try {
       // BILLING REMEDIATION (2026-10-30, AUD-09) — a schedule would run its next
-      // phase regardless, so a scheduled downgrade is withdrawn first. Read live,
-      // because a schedule made at Stripe is not recorded here.
-      const live = (await stripeGet(`/subscriptions/${subscription.providerSubId}`)) as unknown as StripeSubscriptionLike;
-      const scheduleId = stripeSubscriptionScheduleId(live) ?? subscription.providerScheduleId;
+      // phase regardless, so a scheduled downgrade is withdrawn first. A change
+      // scheduled before the id was recorded is found by reading the subscription.
+      const scheduleId =
+        subscription.providerScheduleId ??
+        (subscription.pendingPlan
+          ? stripeSubscriptionScheduleId(
+              (await stripeGet(`/subscriptions/${subscription.providerSubId}`)) as unknown as StripeSubscriptionLike,
+            )
+          : null);
       if (scheduleId) await releaseStripeSchedule(scheduleId);
       const body = new URLSearchParams();
       body.append("cancel_at_period_end", "true");

@@ -473,7 +473,7 @@ export function abandonWarning(check: {
   }
   const tail =
     check.outcome === "STILL_PENDING" && check.product === "PLAN"
-      ? " PROOVRA will also ask PayPal to cancel it, but PayPal may keep an unapproved subscription open and may not confirm. An old approval link may still work, so close any open PayPal tabs. If PayPal later confirms a payment for it, PROOVRA will still apply that payment."
+      ? " PROOVRA will also ask PayPal to cancel the unapproved subscription; PayPal may keep an unapproved one on its side until it expires, but it cannot charge you without your approval. An old approval link may still work, so close any open PayPal tabs. If PayPal later confirms a payment for it, PROOVRA will still apply that payment."
       : " Abandoning only removes it from PROOVRA's open purchases so you can start again. It does not cancel, reverse or refund anything at PayPal, and an old approval link may still work, so close any open PayPal tabs. If PayPal later confirms a payment for it, PROOVRA will still apply that payment.";
   switch (check.outcome) {
     case "STILL_PENDING":

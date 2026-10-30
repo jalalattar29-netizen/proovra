@@ -203,18 +203,24 @@ export async function applyStripeSubscriptionEvent(input: {
   const [plan, addon] = await Promise.all([
     prisma.subscription.findUnique({
       where: { provider_providerSubId: { provider: STRIPE, providerSubId: subscription.id } },
-      select: { providerStateAtUtc: true },
+      select: { providerStateAtUtc: true, status: true },
     }),
     prisma.workspaceStorageAddon.findUnique({
       where: { externalSubscriptionId: subscription.id },
-      select: { providerStateAtUtc: true },
+      select: { providerStateAtUtc: true, status: true },
     }),
   ]);
   const recorded = plan?.providerStateAtUtc ?? addon?.providerStateAtUtc ?? null;
+  // A pending row only moves forward, so a tie with it is not a question.
+  const pending =
+    plan?.status === prismaPkg.SubscriptionStatus.TRIALING ||
+    addon?.status === prismaPkg.WorkspaceStorageAddonStatus.PENDING;
   const undecided =
     !eventCreatedAtUtc ||
     parseStripeSubscriptionStatus(subscription.status) === null ||
-    (recorded !== null && eventCreatedAtUtc.getTime() <= recorded.getTime());
+    (recorded !== null &&
+      (eventCreatedAtUtc.getTime() < recorded.getTime() ||
+        (eventCreatedAtUtc.getTime() === recorded.getTime() && !pending)));
   if (undecided && (recorded !== null || !eventCreatedAtUtc)) {
     return applyLiveStripeSubscription(subscription.id, input.source);
   }
@@ -514,19 +520,19 @@ async function findStripePaymentForIntent(paymentIntentId: string) {
       where: { provider_providerPaymentId: { provider: STRIPE, providerPaymentId } },
       select: ADVERSE_PAYMENT_SELECT,
     });
-  const invoices = (await stripeGet(
-    `/invoice_payments?payment[type]=payment_intent&payment[payment_intent]=${encodeURIComponent(paymentIntentId)}&limit=1`,
-  )) as { data?: Array<{ invoice?: string }> };
-  const invoiceId = invoices.data?.[0]?.invoice;
-  if (invoiceId) {
-    const payment = await byRef(invoiceId);
-    if (payment) return payment;
-  }
   const sessions = (await stripeGet(
     `/checkout/sessions?payment_intent=${encodeURIComponent(paymentIntentId)}&limit=1`,
   )) as { data?: Array<{ id?: string }> };
   const sessionId = sessions.data?.[0]?.id;
-  return sessionId ? byRef(sessionId) : null;
+  if (sessionId) {
+    const payment = await byRef(sessionId);
+    if (payment) return payment;
+  }
+  const invoices = (await stripeGet(
+    `/invoice_payments?payment[type]=payment_intent&payment[payment_intent]=${encodeURIComponent(paymentIntentId)}&limit=1`,
+  )) as { data?: Array<{ invoice?: string }> };
+  const invoiceId = invoices.data?.[0]?.invoice;
+  return invoiceId ? byRef(invoiceId) : null;
 }
 
 function reviewProduct(product: string | null): "EVIDENCE_CREDIT" | "STORAGE_ADDON" | "PLAN" {

@@ -875,6 +875,39 @@ async function repairEntitlementDrift(binding: {
   return true;
 }
 
+/**
+ * AUD-03 — the moment drift costs money. A paying customer whose entitlement
+ * reads Free is offered checkout; buying opens a second subscription, which is
+ * then superseded and charged. So a plan checkout first asks the provider about
+ * the subscription already on record. Returns the plan repaired, or null when
+ * there was nothing to repair, or the provider could not say: the supersession
+ * guard still stands behind a checkout that goes ahead.
+ */
+export async function repairEntitlementBeforeCheckout(
+  userId: string,
+  providers: ReconciliationProviders = defaultReconciliationProviders(),
+): Promise<prismaPkg.PlanType | null> {
+  const live = await findLivePersonalBaseSubscription(userId);
+  if (!live || live.status === prismaPkg.SubscriptionStatus.TRIALING) return null;
+  const entitlement = await prisma.entitlement.findFirst({
+    where: { userId, active: true },
+    orderBy: { createdAt: "desc" },
+    select: { plan: true },
+  });
+  if (entitlement?.plan === live.plan) return null;
+  const observation = await providers[live.provider]?.observeSubscription(live.providerSubId);
+  if (observation?.state !== "SUCCEEDED") return null;
+  const repaired = await repairEntitlementDrift({
+    id: live.id,
+    userId,
+    plan: live.plan,
+    status: live.status,
+    providerSubId: live.providerSubId,
+    supersededBySubscriptionId: null,
+  });
+  return repaired ? live.plan : null;
+}
+
 /** Record the provider's own timestamp for the state we just applied. */
 async function stampProviderState(
   subscriptionId: string,

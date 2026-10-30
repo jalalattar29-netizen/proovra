@@ -74,6 +74,11 @@ export const LIVE_SERVICE_CREDENTIALS = [
   "TWILIO_API_SECRET",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
+  // BILLING REMEDIATION (2026-10-30, AUD-25) — PayPal defaults to its Live API,
+  // so a stack holding these with no base URL set reaches real resources.
+  "PAYPAL_CLIENT_ID",
+  "PAYPAL_SECRET",
+  "PAYPAL_WEBHOOK_ID",
   "OPENAI_API_KEY",
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",

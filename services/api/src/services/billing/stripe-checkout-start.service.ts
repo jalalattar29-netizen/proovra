@@ -40,7 +40,10 @@ import {
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
 import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
-import { defaultReconciliationProviders } from "./reconciliation/reconciliation.service.js";
+import {
+  defaultReconciliationProviders,
+  repairEntitlementBeforeCheckout,
+} from "./reconciliation/reconciliation.service.js";
 
 const STRIPE = prismaPkg.PaymentProvider.STRIPE;
 
@@ -173,6 +176,17 @@ export async function startStripePlanCheckout(input: {
 }): Promise<StripeCheckoutStart> {
   const currency = resolveCheckoutCurrency({ requestedCurrency: input.currency });
   const amountCents = getPlanPriceCents(input.plan, currency);
+  const repaired = await repairEntitlementBeforeCheckout(input.userId).catch(() => null);
+  if (repaired) {
+    return {
+      kind: "BLOCKED",
+      httpBody: {
+        message: "We found your active subscription and your plan is now up to date. Nothing was started.",
+        code: "PLAN_ALREADY_ACTIVE",
+        details: { plan: repaired },
+      },
+    };
+  }
   // Plan attempts block across providers: an expired PayPal approval must not
   // block a card purchase either (see startPayPalPlanCheckout).
   await expireStalePlanAttempts({

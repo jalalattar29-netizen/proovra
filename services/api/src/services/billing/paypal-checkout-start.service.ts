@@ -31,7 +31,10 @@ import {
 } from "./checkout-attempts.service.js";
 import { resolvePendingProviderCheckoutAttempt } from "./pending-checkout-attempt.service.js";
 import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
-import { defaultReconciliationProviders } from "./reconciliation/reconciliation.service.js";
+import {
+  defaultReconciliationProviders,
+  repairEntitlementBeforeCheckout,
+} from "./reconciliation/reconciliation.service.js";
 
 const PAYPAL = prismaPkg.PaymentProvider.PAYPAL;
 
@@ -181,6 +184,17 @@ export async function startPayPalPlanCheckout(input: {
 }): Promise<PayPalCheckoutStart> {
   const currency = resolveCheckoutCurrency({ requestedCurrency: input.currency });
   const amountCents = getPlanPriceCents(input.plan, currency);
+  const repaired = await repairEntitlementBeforeCheckout(input.userId).catch(() => null);
+  if (repaired) {
+    return {
+      kind: "BLOCKED",
+      httpBody: {
+        message: "We found your active subscription and your plan is now up to date. Nothing was started.",
+        code: "PLAN_ALREADY_ACTIVE",
+        details: { plan: repaired },
+      },
+    };
+  }
 
   // BILLING PAYPAL INTEGRITY (2026-09-28) — an approval nobody finished within
   // the approval window is closed provider-first before it can block this

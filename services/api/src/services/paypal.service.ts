@@ -16,6 +16,7 @@ import {
 // non-migrated branch of `must()`.
 import { MIGRATED_SECRETS, getSecret } from "../config/runtime-secrets.js";
 import { paymentsUnavailable } from "./billing/payments-unavailable.js";
+import { resolveTestStackIsolation } from "@proovra/shared-runtime/isolation";
 import { DomainError } from "../errors.js";
 import { WebhookVerifierUnavailableError } from "./security/webhook-signature-audit.service.js";
 // PHASE 11 — canonical internal URL builder. Used ONLY to compose the
@@ -39,7 +40,12 @@ function must(name: string): string {
 }
 
 function apiBase() {
-  return process.env.PAYPAL_API_BASE?.trim() || "https://api-m.paypal.com";
+  const configured = process.env.PAYPAL_API_BASE?.trim();
+  if (configured) return configured;
+  // BILLING REMEDIATION (2026-10-30, AUD-25) — an unset base means Live. A test
+  // stack must never get there by omission.
+  if (resolveTestStackIsolation().isolated) return "https://api-m.sandbox.paypal.com";
+  return "https://api-m.paypal.com";
 }
 
 /**

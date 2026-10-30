@@ -677,6 +677,31 @@ describe("applyPersonalPlanChange — DOWNGRADE (Stripe)", () => {
     ]);
   });
 
+  it("AUD-01 — the update restates the current phase from its own start, with the billed price, and the next phase carries its plan", async () => {
+    await downgrade();
+    const body = H.stripeBodies.at(-1)!;
+    expect(body.get("phases[0][start_date]")).toBe("1790000000");
+    expect(body.get("phases[0][end_date]")).toBe(String(Math.floor(PERIOD_END.getTime() / 1000)));
+    // Grandfathered: the price actually billed, not today's catalogue price.
+    expect(body.get("phases[0][items][0][price]")).toBe("price_current");
+    expect(body.get("phases[0][metadata][plan]")).toBe("TEAM");
+    expect(body.get("phases[1][items][0][price]")).toBe("price_PRO");
+    expect(body.get("phases[1][duration][interval]")).toBe("month");
+    expect(body.get("phases[1][duration][interval_count]")).toBe("1");
+    expect(body.get("phases[1][metadata][plan]")).toBe("PRO");
+    expect(body.get("end_behavior")).toBe("release");
+    expect(body.get("proration_behavior")).toBe("none");
+    expect(body.has("phases[1][iterations]")).toBe(false);
+  });
+
+  it("AUD-01 — the schedule id is recorded before its phases are edited", async () => {
+    await downgrade();
+    const scheduleWrite = H.writes.findIndex((w) => w.includes("providerScheduleId"));
+    const pendingWrite = H.writes.findIndex((w) => w.includes("pendingPlan"));
+    expect(scheduleWrite).toBeGreaterThanOrEqual(0);
+    expect(scheduleWrite).toBeLessThan(pendingWrite);
+  });
+
   it("ENT-08 — a target price that disagrees with the catalogue refuses before any provider write", async () => {
     H.priceMismatch = true;
     await expect(downgrade()).rejects.toMatchObject({ publicCode: "PAYMENTS_UNAVAILABLE" });

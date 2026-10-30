@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 348,
-    "classifiedMigrations": 348,
+    "filesystemMigrations": 349,
+    "classifiedMigrations": 349,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 348,
+    "productionSnapshotUnknown": 349,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 348,
-    "classifiedMigrations": 348,
+    "filesystemMigrations": 349,
+    "classifiedMigrations": 349,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 348,
+    "productionSnapshotUnknown": 349,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 112,
+      "EXPAND": 113,
       "BACKFILL": 35,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 131,
+      "SAFE_TO_APPLY_NOW": 132,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 6
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 348
+    "ProductionMigrationStateUnknown": 349
   },
   "gateFailures": [],
   "migrations": [
@@ -26348,8 +26348,91 @@
       "evidence": "COMBINED SCREEN RECORDING (2026-10-29). Three CHECK swaps, each to a strict superset: run kind combine_screen_recording, derived asset kind screen_recording_combined, derived size_bytes ceiling 50,000,000 -> 671,088,640 (640 MiB: the 512 MiB continuous-session bound plus combine overhead). No row rewritten; the previous image never writes the new values. Safe on either image; idempotent. ROLLBACK: code-first; re-narrowing fails only once a combined row exists (remove those rows first). NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281030000000_billing_remediation_convergence",
       "order": 347,
+      "sqlPresent": true,
+      "byteLength": 3861,
+      "checksumSha256": "1bcea65f0e622d5d0186352ad40a27e951495141da5d6054b495d76c5f0892be",
+      "checksumSha256Raw": "1bcea65f0e622d5d0186352ad40a27e951495141da5d6054b495d76c5f0892be",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "billing_provider_binding_checks",
+          "payment_adjustments"
+        ],
+        "droppedTables": [],
+        "alteredTables": [
+          "payments",
+          "subscriptions"
+        ],
+        "addedColumns": [
+          "dispute_status",
+          "provider_schedule_id",
+          "refunded_amount_cents",
+          "superseded_by_subscription_id",
+          "supersession_cancel_attempt_count",
+          "supersession_cancel_next_retry_at_utc",
+          "supersession_cancel_state"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "billing_provider_binding_checks_provider_provider_resource__key",
+          "billing_provider_binding_checks_state_next_check_at_utc_idx",
+          "billing_provider_binding_checks_user_id_state_idx",
+          "payment_adjustments_payment_id_idx",
+          "payment_adjustments_provider_provider_adjustment_id_key"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name='provider_schedule_id') = 1 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='refunded_amount_cents') = 1 AND to_regclass('public.payment_adjustments') IS NOT NULL AND to_regclass('public.billing_provider_binding_checks') IS NOT NULL;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "BILLING REMEDIATION (2026-10-30). Additive only: nullable columns or constant defaults on subscriptions and payments, and two new tables. No row is rewritten and no old image reads any of it."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 348,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
