@@ -773,6 +773,126 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     }
   });
 
+  const ownedWorkspace = async (ownerUserId: string, data: Record<string, unknown> = {}) => {
+    const org = await prisma.organization.create({
+      data: { name: "Legacy container", billingOwnerUserId: ownerUserId, status: "ACTIVE", kind: "SYSTEM" } as never,
+      select: { id: true },
+    });
+    return prisma.team.create({
+      data: { name: "Legacy", ownerUserId, isPersonal: false, organizationId: org.id, workspaceKind: "OWNED", ...data } as never,
+      select: { id: true },
+    });
+  };
+
+  it("AUD-29: a due internal grant is closed and audited by the sweep step, once", async () => {
+    const { closeDueInternalGrants } = await import("../src/services/billing/internal-plan-grant.service.js");
+    const userId = await freshUser();
+    const admin = await freshUser();
+    const grant = await prisma.planGrant.create({
+      data: { userId, plan: "TEAM", source: "INTERNAL_TEST", grantedByUserId: admin, reason: "test", idempotencyKey: randomUUID(), grantedAtUtc: new Date(Date.now() - 120_000), expiresAtUtc: new Date(Date.now() - 60_000) },
+    });
+    expect(await closeDueInternalGrants(prisma)).toBeGreaterThanOrEqual(1);
+    const stored = await prisma.planGrant.findUniqueOrThrow({ where: { id: grant.id } });
+    expect(stored.revocationReason).toBe("EXPIRED");
+    expect(stored.revokedAtUtc).not.toBeNull();
+    await closeDueInternalGrants(prisma);
+    const after = await prisma.planGrant.findUniqueOrThrow({ where: { id: grant.id } });
+    expect(after.revokedAtUtc).toEqual(stored.revokedAtUtc);
+  });
+
+  it("AUD-29: a legacy workspace leaves TEAM when its own subscription ends, and only then", async () => {
+    const { syncPlanForSubscription } = await import("../src/services/billing/subscription-lifecycle.handlers.js");
+    const userId = await freshUser();
+    const team = await ownedWorkspace(userId, { billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    const live = (providerSubId: string) =>
+      prisma.subscription.create({
+        data: { userId, teamId: team.id, provider: "STRIPE", providerSubId, status: "ACTIVE", plan: "TEAM", activatedAtUtc: new Date(), currentPeriodEnd: new Date(Date.now() + 86400000) },
+      });
+    const first = `sub_${randomUUID().slice(0, 12)}`;
+    const second = `sub_${randomUUID().slice(0, 12)}`;
+    await live(first);
+    await live(second);
+    const end = (providerSubId: string) =>
+      syncPlanForSubscription({ userId, teamId: team.id, plan: "TEAM", provider: "STRIPE", providerSubId, status: "CANCELED", observedAtUtc: new Date() });
+    await end(first);
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: team.id } })).billingStatus).toBe("ACTIVE");
+    await end(second);
+    const closed = await prisma.team.findUniqueOrThrow({ where: { id: team.id } });
+    expect(closed.billingStatus).toBe("CANCELED");
+    expect(closed.billingPlan).toBe("TEAM");
+    expect(closed.billingCanceledAt).not.toBeNull();
+  });
+
+  it("AUD-29: a payer sees legacy workspace payments and add-ons; another account's stay out", async () => {
+    const { readBillingHistoryForAccount } = await import("../src/services/billing/billing-account-projection.service.js");
+    const { payerLegacyWorkspaceIds } = await import("../src/services/billing/billing-accounts.service.js");
+    const userId = await freshUser();
+    const other = await freshUser();
+    const team = await ownedWorkspace(userId);
+    const foreign = await ownedWorkspace(other);
+    expect(await payerLegacyWorkspaceIds(userId)).toContain(team.id);
+    expect(await payerLegacyWorkspaceIds(userId)).not.toContain(foreign.id);
+    const payment = (teamId: string, ref: string) =>
+      prisma.payment.create({ data: { userId, teamId, provider: "STRIPE", providerPaymentId: ref, amountCents: 100, currency: "EUR", status: "SUCCEEDED" } });
+    const mine = await payment(team.id, `pi_${randomUUID().slice(0, 10)}`);
+    const notMine = await payment(foreign.id, `pi_${randomUUID().slice(0, 10)}`);
+    const history = await readBillingHistoryForAccount({
+      account: { type: "PERSONAL", id: userId, displayName: "", capabilities: ["BILLING_HISTORY_VIEW"], billingOwnerMissing: false } as never,
+    });
+    const ids = history.map((entry) => entry.id);
+    expect(ids).toContain(mine.id);
+    expect(ids).not.toContain(notMine.id);
+  });
+
+  it("AUD-29: a plan-bound personal add-on with no plan behind it is an orphan; one with a live plan is not", async () => {
+    const { buildAdminBillingDetail } = await import("../src/services/admin/billing.service.js");
+    const addonFor = (ownerUserId: string) =>
+      prisma.workspaceStorageAddon.create({
+        data: { ownerUserId, addonKey: "TEAM_100_GB", extraStorageBytes: 1n, billingCycle: "MONTHLY", status: "ACTIVE", paymentProvider: "STRIPE", externalSubscriptionId: `sub_${randomUUID().slice(0, 12)}` },
+      });
+    const unbacked = await freshUser();
+    const backed = await freshUser();
+    await prisma.subscription.create({
+      data: { userId: backed, provider: "STRIPE", providerSubId: `sub_${randomUUID().slice(0, 12)}`, status: "ACTIVE", plan: "TEAM", activatedAtUtc: new Date() },
+    });
+    const orphan = await addonFor(unbacked);
+    const covered = await addonFor(backed);
+    const detail = await buildAdminBillingDetail({ attentionLimit: 200 }, prisma as never);
+    const rows = JSON.parse(JSON.stringify(detail)).storageAddons.rows as Array<{ id: string; orphaned: boolean }>;
+    expect(rows.find((row) => row.id === orphan.id)?.orphaned).toBe(true);
+    expect(rows.find((row) => row.id === covered.id)?.orphaned).toBe(false);
+    await prisma.workspaceStorageAddon.deleteMany({ where: { id: { in: [orphan.id, covered.id] } } });
+  });
+
+  it("AUD-14: an old pending row PayPal no longer has backs off, stays open, and is not re-asked early", async () => {
+    const { reconcileCheckoutAttempts } = await import("../src/services/billing/checkout-attempt-recovery.service.js");
+    const { emptySummary } = await import("../src/services/billing/reconciliation/types.js");
+    const userId = await freshUser();
+    const ref = `I-${randomUUID().slice(0, 12).toUpperCase()}`;
+    await prisma.subscription.create({ data: { userId, provider: "PAYPAL", providerSubId: ref, status: "TRIALING", plan: "PRO" } });
+    let reads = 0;
+    const deps = {
+      providers: {
+        PAYPAL: {
+          provider: "PAYPAL",
+          observePayment: async () => { throw new Error("not used"); },
+          observeSubscription: async (providerRef: string) => {
+            reads += 1;
+            return observation({ provider: "PAYPAL", providerRef, state: "UNKNOWN", failure: "NOT_FOUND" });
+          },
+        },
+      },
+    } as never;
+    const pass = () => reconcileCheckoutAttempts({ account: account(userId), summary: emptySummary(), deps });
+    await pass();
+    await pass();
+    expect(reads).toBe(1);
+    const check = await prisma.billingProviderBindingCheck.findFirstOrThrow({ where: { providerResourceId: ref } });
+    expect(check.state).toBe("UNRESOLVED");
+    expect(check.consecutiveMisses).toBe(1);
+    expect((await prisma.subscription.findFirstOrThrow({ where: { providerSubId: ref } })).status).toBe("TRIALING");
+  });
+
   it("section 10: a held SKU answers with what was found; an intentional addition is a different request", async () => {
     const { findStorageDuplicate } = await import("../src/services/billing/storage-purchase-guard.service.js");
     const userId = await freshUser();

@@ -50,6 +50,7 @@ import type { BillingAccountRef } from "../services/billing/billing-accounts.ser
 import { acquireLease } from "../services/rate-limit.js";
 import { retrySupersededCancellations } from "../services/billing/subscription-lifecycle.handlers.js";
 import { finalizeEndedStorageAddons } from "../services/billing/paid-period.service.js";
+import { closeDueInternalGrants } from "../services/billing/internal-plan-grant.service.js";
 import { sweepExcludedReferences } from "../services/billing/provider-binding-check.service.js";
 import { ABANDONED_RECHECK_WINDOW_MS } from "../services/billing/checkout-attempt-recovery.service.js";
 
@@ -279,6 +280,11 @@ async function runSweep(input?: {
   // failure is logged and the account sweep below still runs.
   await finalizeEndedStorageAddons().catch((err: unknown) => {
     logWarn("billing.reconciliation.finalize_addons_failed", {
+      err: err instanceof Error ? err.message : "unknown",
+    });
+  });
+  await closeDueInternalGrants(prisma).catch((err: unknown) => {
+    logWarn("billing.reconciliation.grant_expiry_failed", {
       err: err instanceof Error ? err.message : "unknown",
     });
   });

@@ -254,6 +254,34 @@ async function closeExpiredInTx(tx: Tx, userId: string, now: Date): Promise<Inte
   return closed;
 }
 
+/**
+ * BILLING REMEDIATION (2026-10-30, AUD-29) — the expiry already takes effect on
+ * every read. This closes and audits it when it happens, rather than at some
+ * later apply or revoke that may never come. One account per transaction, so
+ * one failure cannot hold back the rest.
+ */
+export async function closeDueInternalGrants(
+  db: PrismaClient,
+  now: Date = new Date(),
+  limit = 200,
+): Promise<number> {
+  const due = await db.planGrant.findMany({
+    where: { revokedAtUtc: null, expiresAtUtc: { lte: now } },
+    distinct: ["userId"],
+    orderBy: { userId: "asc" },
+    take: limit,
+    select: { userId: true },
+  });
+  let closed = 0;
+  for (const { userId } of due) {
+    closed += await db.$transaction(async (tx) => {
+      await lockSubject(tx, userId);
+      return (await closeExpiredInTx(tx, userId, now)).length;
+    });
+  }
+  return closed;
+}
+
 function isUniqueViolation(err: unknown): boolean {
   return (err as { code?: unknown } | null)?.code === "P2002";
 }

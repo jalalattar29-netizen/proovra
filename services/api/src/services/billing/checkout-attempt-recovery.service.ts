@@ -32,6 +32,11 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import {
+  noteProviderReferenceFound,
+  noteProviderReferenceMissing,
+  referencesNotDue,
+} from "./provider-binding-check.service.js";
 
 import { prisma } from "../../db.js";
 import type { BillingAccountRef } from "./billing-accounts.service.js";
@@ -704,13 +709,31 @@ export async function reconcileCheckoutAttempts(input: {
   });
 
   const ids = [...rows.map((r) => r.id), ...legacy.map((r) => r.id)];
+  const notDue = await referencesNotDue(input.account.id, now);
   const seen = new Set<string>();
   for (const id of ids) {
     const attempt = await loadOwnedCheckoutAttempt(input.account, id);
     if (!attempt || seen.has(attempt.id)) continue;
     seen.add(attempt.id);
+    const legacyReference = attempt.source === "LEGACY_SUBSCRIPTION" ? attempt.providerResourceId : null;
+    if (legacyReference && notDue.has(`${String(attempt.provider)}:${legacyReference}`)) continue;
 
     const check = await checkAttempt(attempt, input.account, input.deps);
+    // AUD-14 — it stays open and abandonable: a 404 alone closes nothing. The
+    // backoff and review are what stop it being re-asked and forgotten for ever.
+    if (legacyReference) {
+      if (check.outcome === "PROVIDER_REFERENCE_NOT_FOUND") {
+        await noteProviderReferenceMissing({
+          userId: input.account.id,
+          provider: attempt.provider,
+          resourceKind: "SUBSCRIPTION",
+          providerResourceId: legacyReference,
+          now,
+        });
+      } else {
+        await noteProviderReferenceFound({ provider: attempt.provider, providerResourceId: legacyReference, now });
+      }
+    }
     let result = withoutProviderStatus(check);
     if (isExpiredApproval(check, attempt, now)) {
       const expired = await expireUnapprovedAttempt({ attempt, account: input.account, deps: input.deps });

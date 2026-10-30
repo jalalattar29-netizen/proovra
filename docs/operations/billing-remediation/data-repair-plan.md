@@ -25,6 +25,8 @@ It uses one READ ONLY transaction with timeouts, calls no provider, and prints c
 | R7 | Refunded payments with `refunded_amount_cents` 0 | New refunds record it | Set the column to `amount_cents` only where a provider read confirms a full refund. Reports should keep treating status REFUNDED as authoritative |
 | R8 | Negative wallet | New reversals cannot produce one | Review each with its ledger. Never adjust a balance without a ledger entry |
 | R9 | Locally closed PayPal attempts that may still be approvable | The sweep re-reads them for 30 days | None automatically |
+| R10 | Owned workspace live on TEAM with no live subscription scoped to it | Nothing for existing rows. Only a subscription ending after release closes one | Read each payer's provider state first. Closing one moves that workspace to Free limits, so each needs an owner decision. Nothing is deleted |
+| R11 | Internal grants past expiry, not yet closed | **The sweep closes and audits these** | None. The count should reach zero after the first sweep |
 
 ## Rules for any repair
 

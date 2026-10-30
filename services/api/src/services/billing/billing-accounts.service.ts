@@ -361,11 +361,18 @@ export function paymentWhereForAccount(input: {
   account: BillingAccountRef;
   /** Workspace ids under an ORGANIZATION account. */
   organizationWorkspaceIds?: readonly string[];
+  /** PERSONAL: this payer's own workspaces outside any organization. */
+  legacyWorkspaceIds?: readonly string[];
 }): prismaPkg.Prisma.PaymentWhereInput {
   switch (input.account.type) {
-    case "PERSONAL":
-      // A personal payment carries no teamId. Nothing else may match.
-      return { userId: input.account.id, teamId: null };
+    case "PERSONAL": {
+      // A personal payment carries no teamId. The exception is a payment this
+      // person made under the old workspace-shaped TEAM model: they paid it, and
+      // no other billing surface can show it (AUD-29).
+      const legacy = input.legacyWorkspaceIds ?? [];
+      if (legacy.length === 0) return { userId: input.account.id, teamId: null };
+      return { userId: input.account.id, OR: [{ teamId: null }, { teamId: { in: [...legacy] } }] };
+    }
 
     case "ORGANIZATION": {
       const ids = input.organizationWorkspaceIds ?? [];
@@ -376,6 +383,19 @@ export function paymentWhereForAccount(input: {
       return { teamId: { in: [...ids] } };
     }
   }
+}
+
+/** The workspaces a payer owns outside a customer organization, whose billing is its own account's. */
+export async function payerLegacyWorkspaceIds(userId: string): Promise<string[]> {
+  const rows = await prisma.team.findMany({
+    where: {
+      ownerUserId: userId,
+      workspaceKind: { in: [prismaPkg.WorkspaceKind.PERSONAL, prismaPkg.WorkspaceKind.OWNED] },
+    },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((r) => r.id);
 }
 
 /** The non-personal workspace ids belonging to one CUSTOMER organization. */

@@ -242,6 +242,8 @@ export type ActiveStorageAddon = {
   legacyOneTime: boolean;
   /** Cancelling the base plan also cancels this add-on (its SKU needs a paid plan). */
   endsWithPlan?: boolean;
+  /** Bought under an older workspace. Its capacity belongs to that workspace. */
+  legacyWorkspace?: boolean;
   /** The provider will not renew it. It keeps its capacity until it ends. */
   ending?: boolean;
   canCancel: boolean;

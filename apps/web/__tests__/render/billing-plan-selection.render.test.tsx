@@ -1157,6 +1157,38 @@ describe("the FREE storage card", () => {
 // 7. Direction and touch targets survive all of it
 // ===========================================================================
 
+describe("storage bought for a legacy workspace", () => {
+  it("says where its storage applies, so it is not read as capacity here", () => {
+    const pro = paid("PRO", [MOVE_TEAM], {
+      storageAddons: {
+        offers: [],
+        active: [
+          {
+            id: "addon-legacy",
+            addonKey: "PERSONAL_50_GB",
+            label: "+50 GB",
+            storageLabel: "50 GB",
+            status: "ACTIVE",
+            billingCycle: "MONTHLY",
+            legacyWorkspace: true,
+            canCancel: true,
+          },
+        ],
+      },
+    } as never);
+    const { container } = render(
+      <StorageAddonsSection
+        projection={pro}
+        onManageStorage={noop}
+        onChoosePlan={noop}
+        onCancelAddon={noop}
+        cancelBusyId={null}
+      />,
+    );
+    expect(container.querySelector("[data-billing-addon-legacy]")?.textContent).toMatch(/older workspace/);
+  });
+});
+
 describe("direction and reach", () => {
   for (const dir of ["ltr", "rtl"] as const) {
     it(`renders the chooser, its marks and its CTA in ${dir}`, async () => {

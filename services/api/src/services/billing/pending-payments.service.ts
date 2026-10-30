@@ -45,6 +45,7 @@ import { bump } from "../ops/metrics.service.js";
 import {
   organizationWorkspaceIds,
   paymentWhereForAccount,
+  payerLegacyWorkspaceIds,
   type BillingAccountRef,
 } from "./billing-accounts.service.js";
 import {
@@ -206,6 +207,10 @@ async function loadScopedPayment(input: {
           organizationWorkspaceIds:
             input.account.type === "ORGANIZATION"
               ? await organizationWorkspaceIds(input.account.id)
+              : undefined,
+          legacyWorkspaceIds:
+            input.account.type === "PERSONAL"
+              ? await payerLegacyWorkspaceIds(input.account.id)
               : undefined,
         }),
       ],

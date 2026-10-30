@@ -90,6 +90,26 @@ const FINDINGS = [
     sql: `select count(*)::int as n, null::timestamptz as first_at, null::timestamptz as last_at from entitlements where credits < 0`,
   },
   {
+    id: "R10_LEGACY_WORKSPACE_TEAM_UNPAID",
+    meaning: "owned workspaces still live on TEAM with no live subscription scoped to them (AUD-29)",
+    sql: `
+      select count(*)::int as n, min(t.updated_at) as first_at, max(t.updated_at) as last_at
+        from teams t
+       where t.workspace_kind = 'OWNED' and t.billing_plan = 'TEAM'
+         and t.billing_status in ('ACTIVE', 'PAST_DUE')
+         and not exists (
+           select 1 from subscriptions s
+            where s.team_id = t.id and s.status in ('ACTIVE', 'PAST_DUE'))`,
+  },
+  {
+    id: "R11_INTERNAL_GRANTS_PAST_EXPIRY",
+    meaning: "internal grants past expiry and not yet closed; the sweep closes and audits these",
+    sql: `
+      select count(*)::int as n, min(expires_at_utc) as first_at, max(expires_at_utc) as last_at
+        from plan_grants
+       where revoked_at_utc is null and expires_at_utc <= now()`,
+  },
+  {
     id: "R9_BOUND_PAYPAL_ATTEMPTS_ABANDONED",
     meaning: "locally closed PayPal storage attempts that may still be approvable; re-read by the sweep for 30 days",
     sql: `

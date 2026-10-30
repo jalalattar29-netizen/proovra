@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
-  "consumerInventoryHash": "924b4a5798c7014b881cc07259f9bb330e92fc07e2b12e5626529da5c6a732d2",
+  "consumerInventoryHash": "9b869ae2ff7a67e137a59fe7f7e788ac4dab34bd95cbf487d1e703b104d40f34",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1219,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1448,
-    "ReachableSensitiveMutations": 1424,
-    "ClassifiedSensitiveMutations": 1424,
+    "TerminalWriters": 1449,
+    "ReachableSensitiveMutations": 1425,
+    "ClassifiedSensitiveMutations": 1425,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 24,
@@ -74,7 +74,7 @@
       "ACCOUNT_SESSION_SECURITY": 232,
       "ORGANIZATION": 33,
       "ORGANIZATION_MEMBERSHIP": 28,
-      "WORKSPACE": 71,
+      "WORKSPACE": 72,
       "WORKSPACE_MEMBERSHIP_INVITATION": 66,
       "CASE": 88,
       "EVIDENCE_CUSTODY_FINALIZATION": 333,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1271,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1272,
       "JOB_ATTRIBUTED_REACHABLE": 142,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10899,
-      "UNRESOLVED_IDENTIFIER": 1560
+      "METHOD_ON_VALUE": 10904,
+      "UNRESOLVED_IDENTIFIER": 1561
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -8524,7 +8524,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:834",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:836",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8536,7 +8536,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:818",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:820",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8632,7 +8632,7 @@
       "method": "POST",
       "route": "/v1/billing/checkout/paypal/returns/canceled",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:881",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:883",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8776,7 +8776,7 @@
       "method": "POST",
       "route": "/v1/billing/subscription/resume",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:675",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:677",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -41621,8 +41621,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/checkout-attempt-recovery.service.ts#billingCheckoutAttempt.updateMany@762",
-      "terminalLocation": "services/api/src/services/billing/checkout-attempt-recovery.service.ts:762",
+      "writerId": "services/api/src/services/billing/checkout-attempt-recovery.service.ts#billingCheckoutAttempt.updateMany@785",
+      "terminalLocation": "services/api/src/services/billing/checkout-attempt-recovery.service.ts:785",
       "file": "services/api/src/services/billing/checkout-attempt-recovery.service.ts",
       "enclosingDeclaration": "expireUnapprovedAttempt",
       "kind": "DATABASE",
@@ -42433,8 +42433,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@348",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:348",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@376",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:376",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "run",
       "kind": "DATABASE",
@@ -42500,8 +42500,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@425",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:425",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@453",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:453",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "revokeInternalPlanGrant",
       "kind": "DATABASE",
@@ -42525,6 +42525,46 @@
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/legacy-workspace-billing.service.ts#team.updateMany@24",
+      "terminalLocation": "services/api/src/services/billing/legacy-workspace-billing.service.ts:24",
+      "file": "services/api/src/services/billing/legacy-workspace-billing.service.ts",
+      "enclosingDeclaration": "endLegacyWorkspaceBilling",
+      "kind": "DATABASE",
+      "target": "team",
+      "mutationKind": "updateMany",
+      "primaryFamily": "WORKSPACE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /paypal",
+        "POST /stripe",
+        "POST /v1/billing/accounts/:type/:id/reconcile",
+        "POST /v1/billing/checkout/paypal",
+        "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+        "POST /v1/billing/credits/checkout/paypal",
+        "POST /v1/billing/subscription/plan"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts",
+        "MODULE services/api/src/routes/webhooks.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -42808,8 +42848,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.update@326",
-      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:326",
+      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.update@331",
+      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:331",
       "file": "services/api/src/services/billing/pending-payments.service.ts",
       "enclosingDeclaration": "recheckPayment",
       "kind": "DATABASE",
@@ -42841,8 +42881,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.update@721",
-      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:721",
+      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.update@726",
+      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:726",
       "file": "services/api/src/services/billing/pending-payments.service.ts",
       "enclosingDeclaration": "cancelPendingPayment",
       "kind": "DATABASE",
@@ -42874,8 +42914,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.updateMany@516",
-      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:516",
+      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.updateMany@521",
+      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:521",
       "file": "services/api/src/services/billing/pending-payments.service.ts",
       "enclosingDeclaration": "abandonPendingPayment",
       "kind": "DATABASE",
@@ -42907,8 +42947,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.updateMany@586",
-      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:586",
+      "writerId": "services/api/src/services/billing/pending-payments.service.ts#payment.updateMany@591",
+      "terminalLocation": "services/api/src/services/billing/pending-payments.service.ts:591",
       "file": "services/api/src/services/billing/pending-payments.service.ts",
       "enclosingDeclaration": "recordLocalAbandonment",
       "kind": "DATABASE",
@@ -44135,8 +44175,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@184",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:184",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@185",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:185",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "syncPlanForSubscription",
       "kind": "DATABASE",
@@ -44175,36 +44215,6 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@364",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:364",
-      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
-      "enclosingDeclaration": "retrySupersededCancellations",
-      "kind": "DATABASE",
-      "target": "subscription",
-      "mutationKind": "update",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      },
-      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
-    },
-    {
       "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@378",
       "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:378",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
@@ -44235,8 +44245,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@395",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:395",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@392",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:392",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -44265,8 +44275,38 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@350",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:350",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.update@409",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:409",
+      "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
+      "enclosingDeclaration": "retrySupersededCancellations",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+    },
+    {
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@364",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:364",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "retrySupersededCancellations",
       "kind": "DATABASE",
@@ -44295,8 +44335,8 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@444",
-      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:444",
+      "writerId": "services/api/src/services/billing/subscription-lifecycle.handlers.ts#subscription.updateMany@458",
+      "terminalLocation": "services/api/src/services/billing/subscription-lifecycle.handlers.ts:458",
       "file": "services/api/src/services/billing/subscription-lifecycle.handlers.ts",
       "enclosingDeclaration": "supersede",
       "kind": "DATABASE",
@@ -102751,6 +102791,7 @@
         "governanceReconciliationRun",
         "payment",
         "paypalWebhookEvent",
+        "planGrant",
         "stripeWebhookEvent",
         "subscription",
         "team",
@@ -102760,17 +102801,7 @@
       "modelsWritten": [],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)",
-        "services/api/src/services/admin/billing.service.ts: subscription.groupBy — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: subscription.count — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: subscription.findMany — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: subscription.findMany — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: subscription.findMany — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: payment.findMany — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: payment.groupBy — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: workspaceStorageAddon.findMany — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: governanceReconciliationRun.findMany — no tenant or self predicate",
-        "services/api/src/services/admin/billing.service.ts: subscription.aggregate — no tenant or self predicate"
+        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -107329,7 +107360,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 525,
+          "line": 527,
           "caller": "listBillingAccounts",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107339,7 +107370,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:173 (BillingScreen, MOBILE); apps/web/app/(app)/settings/_sections/BillingSection.tsx:73 (BillingSection, WEB); apps/web/lib/api/billing-accounts.ts:525 (listBillingAccounts, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:173 (BillingScreen, MOBILE); apps/web/app/(app)/settings/_sections/BillingSection.tsx:73 (BillingSection, WEB); apps/web/lib/api/billing-accounts.ts:527 (listBillingAccounts, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107420,7 +107451,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 539,
+          "line": 541,
           "caller": "readBillingAccount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107528,7 +107559,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 600,
+          "line": 602,
           "caller": "readBillingHistory",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107538,7 +107569,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:158 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:84 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:600 (readBillingHistory, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:158 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:84 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:602 (readBillingHistory, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -141958,6 +141989,7 @@
         "paypalWebhookEvent",
         "securityEvent",
         "subscription",
+        "team",
         "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
@@ -142046,6 +142078,7 @@
         "securityEvent",
         "stripeWebhookEvent",
         "subscription",
+        "team",
         "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
@@ -146970,7 +147003,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 834,
+          "line": 836,
           "caller": "abandonCheckoutAttempt",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146980,7 +147013,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:834 (abandonCheckoutAttempt, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:836 (abandonCheckoutAttempt, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147064,7 +147097,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 818,
+          "line": 820,
           "caller": "recheckCheckoutAttempt",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147074,7 +147107,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:818 (recheckCheckoutAttempt, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:820 (recheckCheckoutAttempt, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147167,7 +147200,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 452,
+          "line": 454,
           "caller": "abandonPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147177,7 +147210,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:518 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:452 (abandonPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:518 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:454 (abandonPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147266,7 +147299,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 501,
+          "line": 503,
           "caller": "cancelPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147276,7 +147309,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:495 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:126 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:501 (cancelPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:495 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:126 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:503 (cancelPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147354,7 +147387,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 483,
+          "line": 485,
           "caller": "recheckPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147364,7 +147397,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:476 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:107 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:483 (recheckPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:476 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:107 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:485 (recheckPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147443,7 +147476,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 857,
+          "line": 859,
           "caller": "reconcileAccount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147453,7 +147486,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:453 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:857 (reconcileAccount, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:453 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:859 (reconcileAccount, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147503,6 +147536,7 @@
         "operationalIncidentEvent",
         "payment",
         "subscription",
+        "team",
         "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
@@ -147564,7 +147598,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 638,
+          "line": 640,
           "caller": "retryStorageCancellation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147574,7 +147608,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:400 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:151 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:638 (retryStorageCancellation, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:400 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:151 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:640 (retryStorageCancellation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147719,7 +147753,8 @@
         "entitlement",
         "operationalIncident",
         "operationalIncidentEvent",
-        "subscription"
+        "subscription",
+        "team"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -147840,7 +147875,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 881,
+          "line": 883,
           "caller": "reportPayPalReturnCanceled",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147850,7 +147885,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:881 (reportPayPalReturnCanceled, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:883 (reportPayPalReturnCanceled, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147988,6 +148023,7 @@
         "billingReviewItem",
         "entitlement",
         "subscription",
+        "team",
         "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
@@ -148193,7 +148229,8 @@
         "billingCheckoutAttempt",
         "billingReviewItem",
         "entitlement",
-        "subscription"
+        "subscription",
+        "team"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -148763,7 +148800,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 654,
+          "line": 656,
           "caller": "requestCancellation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148773,7 +148810,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:416 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:173 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:654 (requestCancellation, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:416 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:173 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:656 (requestCancellation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148850,7 +148887,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 709,
+          "line": 711,
           "caller": "changePlan",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148860,7 +148897,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/lib/api/billing-accounts.ts:709 (changePlan, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/lib/api/billing-accounts.ts:711 (changePlan, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148896,7 +148933,8 @@
       "modelsWritten": [
         "billingReviewItem",
         "entitlement",
-        "subscription"
+        "subscription",
+        "team"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -148937,7 +148975,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 675,
+          "line": 677,
           "caller": "requestResume",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148947,7 +148985,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:675 (requestResume, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:677 (requestResume, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

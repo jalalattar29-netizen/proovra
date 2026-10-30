@@ -51,6 +51,7 @@ import { prisma } from "../../db.js";
 import {
   organizationWorkspaceIds,
   paymentWhereForAccount,
+  payerLegacyWorkspaceIds,
   type BillingAccountRef,
 } from "./billing-accounts.service.js";
 import { readEvidenceCreditWallet } from "./evidence-credits.service.js";
@@ -448,6 +449,8 @@ export type ActiveStorageAddon = {
    * hold is kept when the plan ends. The cancellation copy counts only these.
    */
   endsWithPlan: boolean;
+  /** Bought under a legacy workspace: its capacity belongs to that workspace. */
+  legacyWorkspace: boolean;
   /** The provider will not renew it: already cancelled, or cancelling at period end. */
   ending: boolean;
   /**
@@ -800,12 +803,19 @@ async function activeAddonsFor(params: {
   showAmounts: boolean;
   canPurchaseAddons: boolean;
 }): Promise<ActiveStorageAddon[]> {
+  // AUD-29 — a payer's add-on bought under a legacy workspace still bills them,
+  // and this is the only surface where they can see or stop it.
+  const legacy = params.teamId === null ? await payerLegacyWorkspaceIds(params.ownerUserId) : [];
   const rows = await prisma.workspaceStorageAddon.findMany({
-    where: { ownerUserId: params.ownerUserId, teamId: params.teamId },
+    where: {
+      ownerUserId: params.ownerUserId,
+      ...(legacy.length > 0 ? { OR: [{ teamId: null }, { teamId: { in: legacy } }] } : { teamId: params.teamId }),
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
     select: {
       id: true,
+      teamId: true,
       addonKey: true,
       extraStorageBytes: true,
       billingCycle: true,
@@ -836,6 +846,7 @@ async function activeAddonsFor(params: {
       billingCycle: r.billingCycle,
       legacyOneTime,
       endsWithPlan: !legacyOneTime && storageAddonRequiresPaidPlan(r.addonKey),
+      legacyWorkspace: r.teamId !== null && r.teamId !== params.teamId,
       ending: !legacyOneTime && (r.canceledAtUtc !== null || r.expiresAtUtc !== null),
       canCancel:
         params.canPurchaseAddons &&
@@ -2329,6 +2340,10 @@ export async function readBillingHistoryForAccount(input: {
     organizationWorkspaceIds:
       input.account.type === "ORGANIZATION"
         ? await organizationWorkspaceIds(input.account.id)
+        : undefined,
+    legacyWorkspaceIds:
+      input.account.type === "PERSONAL"
+        ? await payerLegacyWorkspaceIds(input.account.id)
         : undefined,
   });
 

@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { liveWorkspaceWhere } from "@proovra/shared-runtime";
 import { metricNotMeasured, metricValue, type Metric } from "./metric-state.js";
+import { storageAddonRequiresPaidPlan } from "../billing/storage-addon-rules.js";
 
 /**
  * PLATFORM ADMIN — BILLING CONTROL PLANE (ADM-016, ADM-030, ADM-032).
@@ -236,7 +237,7 @@ export type AdminBillingDetail = {
     activeCount: number;
     /** Recurring add-on revenue, per currency. No rate is applied. */
     mrrByCurrency: Array<{ currency: string; amountCents: number }>;
-    /** Add-ons whose owning workspace has no live subscription. */
+    /** Add-ons with no live subscription or grant behind them. */
     orphanedCount: number;
     /**
      * The add-ons themselves, orphans first. Capped at `limit`; the counts
@@ -467,6 +468,7 @@ export async function buildAdminBillingDetail(
         billingCycle: true,
         teamId: true,
         ownerUserId: true,
+        addonKey: true,
         currency: true,
       },
     }),
@@ -582,6 +584,28 @@ export async function buildAdminBillingDetail(
   // the rows it drills into come from ONE query rather than two that could
   // disagree between them.
   const orphanedAddonIds = new Set(orphanedAddons.map((a) => a.id));
+
+  // AUD-29 — the query above can only see a workspace's add-ons. A self-service
+  // size that needs a paid plan is orphaned when its payer has neither a live
+  // subscription nor an active grant.
+  const planBoundAddons = addons.filter((a) => a.teamId === null && storageAddonRequiresPaidPlan(a.addonKey));
+  if (planBoundAddons.length > 0) {
+    const owners = [...new Set(planBoundAddons.map((a) => a.ownerUserId))];
+    const [liveBases, activeGrants] = await Promise.all([
+      client.subscription.findMany({
+        where: { userId: { in: owners }, status: { in: ["ACTIVE", "TRIALING", "PAST_DUE"] }, supersededBySubscriptionId: null },
+        select: { userId: true },
+      }),
+      client.planGrant.findMany({
+        where: { userId: { in: owners }, revokedAtUtc: null, OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: new Date() } }] },
+        select: { userId: true },
+      }),
+    ]);
+    const covered = new Set([...liveBases, ...activeGrants].map((row) => row.userId));
+    for (const addon of planBoundAddons) {
+      if (!covered.has(addon.ownerUserId)) orphanedAddonIds.add(addon.id);
+    }
+  }
 
   const addonMaps = await resolveSubjects(
     client,

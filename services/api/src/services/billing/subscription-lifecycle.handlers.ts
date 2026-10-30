@@ -24,6 +24,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { endLegacyWorkspaceBilling } from "./legacy-workspace-billing.service.js";
 
 // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — `activateTeamPlan` and
 // `cancelTeamPlan` are no longer imported. They write a WORKSPACE's commercial
@@ -265,6 +266,19 @@ export async function syncPlanForSubscription(params: {
         before.status === prismaPkg.SubscriptionStatus.ACTIVE ||
         before.status === prismaPkg.SubscriptionStatus.PAST_DUE);
     if (!everCarriedEntitlement) return applied;
+
+    if (subscription.teamId) {
+      const stillPaid = await prisma.subscription.findFirst({
+        where: {
+          teamId: subscription.teamId,
+          id: { not: subscription.id },
+          supersededBySubscriptionId: null,
+          status: { in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE] },
+        },
+        select: { id: true },
+      });
+      if (!stillPaid) await endLegacyWorkspaceBilling({ teamId: subscription.teamId });
+    }
 
     const otherLive = await prisma.subscription.findFirst({
       where: {

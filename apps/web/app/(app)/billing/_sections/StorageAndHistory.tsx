@@ -259,6 +259,11 @@ export function StorageAddonsSection({
                       </>
                     ) : null}
                   </span>
+                  {addon.legacyWorkspace ? (
+                    <span className="bill-addon__meta" data-billing-addon-legacy>
+                      Bought for an older workspace. Its storage applies there.
+                    </span>
+                  ) : null}
                   <span className="bill-addon__meta">
                     {addon.legacyOneTime
                       ? // Named honestly: it never renews and it is never taken

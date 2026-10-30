@@ -313,6 +313,7 @@ const CONCERNS: Concern[] = [
     write: /billing(?:Plan|Status):\s*(?:prismaPkg\.)?(?:PlanType|TeamBillingStatus)\.\w/,
     allowed: {
       "services/enterprise-provisioning.service.ts": "canonical Team-billing writer (see phase-9-authority-writers)",
+      "services/billing/legacy-workspace-billing.service.ts": "close-only: ends a legacy OWNED workspace's TEAM status (see phase-9-authority-writers)",
     },
   },
   // ── WAVE C — url, audit, repo convergence ──────────────────────────────

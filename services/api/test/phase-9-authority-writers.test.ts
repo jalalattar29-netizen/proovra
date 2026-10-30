@@ -144,7 +144,9 @@ const AUTHORITY_WRITERS: Array<{
     write: /billing(?:Plan|Status):\s*(?:prismaPkg\.)?(?:PlanType|TeamBillingStatus)\.\w/,
     allowed: {
       "services/enterprise-provisioning.service.ts":
-        "canonical: the ONLY writer of a workspace's commercial columns — contract-managed ORGANIZATION grant, seat change and revocation",
+        "canonical: the ONLY grantor of a workspace's commercial columns — contract-managed ORGANIZATION grant, seat change and revocation",
+      "services/billing/legacy-workspace-billing.service.ts":
+        "close-only: ends an OWNED legacy workspace's TEAM status when the subscription scoped to it ends; grants nothing and cannot touch an ORGANIZATION workspace",
     },
   },
   {
