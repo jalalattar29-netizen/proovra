@@ -9,9 +9,10 @@ import assert from "node:assert/strict";
 import {
   OTS_ANCHORED_BOUNDARY,
   OTS_CHAIN_VERIFIED_BOUNDARY,
+  OTS_REPORT_CHAIN_VERIFIED_BOUNDARY,
   OTS_VERIFICATION_LABELS,
   OTS_VERIFICATION_WORDS,
-  otsBoundaryFor,
+  otsReportBoundaryFor,
   OTS_STATE_SENTENCES,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   VERIFICATION_LIMITATION,
@@ -105,7 +106,7 @@ test("BEFORE RENDERING: a payload that disagrees with the record is refused", ()
 /** The Bitcoin anchoring card as the report prints it for each state. */
 const otsCard = (facts) =>
   facts.otsState === "ANCHORED"
-    ? `Bitcoin anchoring ${OTS_VERIFICATION_WORDS[facts.otsVerification]} ${OTS_VERIFICATION_LABELS[facts.otsVerification]} ${otsBoundaryFor({ verification: facts.otsVerification }) ?? ""}`
+    ? `Bitcoin anchoring ${OTS_VERIFICATION_WORDS[facts.otsVerification]} ${OTS_VERIFICATION_LABELS[facts.otsVerification]} ${otsReportBoundaryFor({ verification: facts.otsVerification }) ?? ""}`
     : `Bitcoin anchoring Pending ${OTS_STATE_SENTENCES[facts.otsState]}`;
 
 /** The account card as the report prints it (2026-10-14). */
@@ -194,7 +195,9 @@ ${OTS_VERIFICATION_LABELS.CHAIN_VERIFIED}`, f, { reportVersion: 1 }).some((x) =>
   const v = record(chainColumnsFor(ANCHORED_PROOF));
   assert.equal(v.otsVerification, "CHAIN_VERIFIED");
   assert.deepEqual(checkRenderedReportText(goodText(v), v, { reportVersion: 1 }), []);
-  assert.ok(checkRenderedReportText(goodText(v).replace(OTS_CHAIN_VERIFIED_BOUNDARY, ""), v, { reportVersion: 1 }).some((x) => x.check === "OTS_BOUNDARY"));
+  assert.ok(checkRenderedReportText(goodText(v).replace(OTS_REPORT_CHAIN_VERIFIED_BOUNDARY, ""), v, { reportVersion: 1 }).some((x) => x.check === "OTS_BOUNDARY"));
+  // The report states its own, shorter chain-verified sentence (2026-10-30); the live surfaces' longer one does not stand in for it.
+  assert.ok(checkRenderedReportText(goodText(v).replace(OTS_REPORT_CHAIN_VERIFIED_BOUNDARY, OTS_CHAIN_VERIFIED_BOUNDARY), v, { reportVersion: 1 }).some((x) => x.check === "OTS_BOUNDARY"));
   // A proof that is not anchored may never read as verified.
   const over = checkRenderedReportText(`${goodText(pending)}
 ${OTS_VERIFICATION_LABELS.CHAIN_VERIFIED}`, pending, { reportVersion: 1 });

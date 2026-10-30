@@ -326,12 +326,6 @@ timestampDigestLabel.includes("Canonical Package Digest")
                   : ""
               }
 
-              ${renderCallout({
-                title: "Anchoring material handling",
-                body: vm.technicalAppendix.anchoringReferenceNote,
-                tone: "neutral",
-              })}
-
               ${
                 otsDetail
                   ? renderCallout({

@@ -6203,16 +6203,87 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   color: var(--app-ink-secondary);
 }
 
-/* ---- Reviewer workflow card: compact facts (2026-10-24) -----------------
- * One wrapping row of label/value pairs (the rail field pattern) instead of
- * tall summary tiles. */
-.evidence-detail-review-facts {
+/* ---- Reviewer workflow card (2026-10-30) ---------------------------------
+ * The Review section anatomy: review head, review note, facts grid, and a
+ * labelled History sub-group. Only what those shared classes leave open is
+ * set here. */
+.evidence-detail-review-workflow__heading {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 28px;
-  margin: 4px 0 12px;
+  align-items: center;
+  gap: 8px 10px;
+  min-inline-size: 0;
 }
-.evidence-detail-review-facts dd,
-.evidence-detail-review-card__title {
+/* Four, five or six facts (Due and Last activity are optional) fill balanced
+   rows — 4, 5, or 3 + 3 — never one card alone on a second row; 3 columns on
+   a narrow column, 2 on a phone. */
+.evidence-detail-review-facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
+}
+.evidence-detail-review-facts:has(> :nth-child(5)) {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.evidence-detail-review-facts:has(> :nth-child(6)) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 860px) {
+  .evidence-detail-review-facts:has(> :nth-child(5)) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .evidence-detail-review-facts,
+  .evidence-detail-review-facts:has(> :nth-child(5)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.evidence-detail-review-facts dd {
+  margin: 0;
+}
+/* History is its own bounded group, on the fact-card surface. */
+.evidence-detail-review-workflow__history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+  margin-block-start: 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-inner);
+}
+.evidence-detail-review-workflow__round {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--app-ink-secondary);
+}
+.evidence-detail-review-workflow__entry + .evidence-detail-review-workflow__entry {
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+}
+.evidence-detail-review-workflow__entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.evidence-detail-review-workflow__entry-label {
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 700;
+  color: var(--app-ink-heading);
+}
+@media (max-width: 560px) {
+  .evidence-detail-review-workflow__entry {
+    grid-template-columns: 18px minmax(0, 1fr);
+    row-gap: 2px;
+  }
+  .evidence-detail-review-workflow__entry > .evidence-detail-audit-row__time {
+    grid-column: 2;
+    justify-self: start;
+    white-space: normal;
+  }
 }

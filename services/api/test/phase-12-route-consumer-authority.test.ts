@@ -31,11 +31,9 @@
  * look like a closed classification.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore -- the generator is an .mjs authority; see capability-authority-modules.d.ts
-import { build } from "../scripts/generate-runtime-capability-map.mjs";
+import { buildCapabilityMapOffThread } from "./helpers/capability-map-off-thread";
 
 vi.setConfig({ testTimeout: 180_000 });
 
@@ -65,9 +63,17 @@ type Artifact = {
  */
 const UNDISPOSED_RATCHET = 210;
 
+/**
+ * ONE build, on a worker thread, before the first assertion. A synchronous
+ * `build()` here blocked this worker for 96s+ and could time out its own
+ * `onTaskUpdate` RPC: see buildCapabilityMapOffThread.
+ */
 let cached: Artifact | null = null;
+beforeAll(async () => {
+  cached = await buildCapabilityMapOffThread<Artifact>();
+}, 600_000);
 const artifact = (): Artifact => {
-  if (cached === null) cached = build() as Artifact;
+  if (cached === null) throw new Error("the capability map was not built");
   return cached;
 };
 

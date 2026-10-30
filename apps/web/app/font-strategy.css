@@ -16,3 +16,37 @@
   --font-header: "Inter", "Segoe UI", system-ui, sans-serif;
   --font-arabic: "Segoe UI", "Noto Naskh Arabic", system-ui, sans-serif;
 }
+
+/* The SELF-HOSTED strategy's metric-matched fallback faces: the three
+ * variables `app/fonts.google.ts` sets end in these, and they are the exact
+ * rules `next/font/google` generated for these families, so text painted
+ * before a face loads keeps its previous metrics. Declared here rather than in
+ * a stylesheet of their own; under the hermetic strategy nothing names them,
+ * and a `local()` face that is never named is never resolved.
+ */
+@font-face {
+  font-family: "Plus Jakarta Sans Fallback";
+  src: local("Arial");
+  ascent-override: 98.88%;
+  descent-override: 21.15%;
+  line-gap-override: 0%;
+  size-adjust: 104.98%;
+}
+
+@font-face {
+  font-family: "Inter Tight Fallback";
+  src: local("Arial");
+  ascent-override: 100.51%;
+  descent-override: 25.03%;
+  line-gap-override: 0%;
+  size-adjust: 96.39%;
+}
+
+@font-face {
+  font-family: "Noto Sans Arabic Fallback";
+  src: local("Arial");
+  ascent-override: 113.22%;
+  descent-override: 60.81%;
+  line-gap-override: 0%;
+  size-adjust: 121.35%;
+}

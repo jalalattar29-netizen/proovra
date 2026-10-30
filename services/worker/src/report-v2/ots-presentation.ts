@@ -27,7 +27,7 @@ import {
   otsVerificationSentence,
   OTS_VERIFICATION_WORDS,
   formatTimestampForReportUtc,
-  otsBoundaryFor,
+  otsReportBoundaryFor,
   otsChainRecordOf,
   resolveOtsAnchoring,
   type OtsAnchoring,
@@ -114,9 +114,12 @@ export function otsStatusLineFor(state: OtsState): string {
   return OTS_STATE_LABELS[state];
 }
 
-/** The boundary sentence, stated once in the technical appendix for an anchored proof. */
+/**
+ * The boundary sentence, stated once in the technical appendix for an anchored
+ * proof: the report's own wording (the rendered-report gate reads the same).
+ */
 export function otsReportBoundary(a: Pick<OtsAnchoring, "verification">): string | null {
-  return otsBoundaryFor(a);
+  return otsReportBoundaryFor(a);
 }
 
 /**

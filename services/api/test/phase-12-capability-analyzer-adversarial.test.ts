@@ -29,6 +29,8 @@ import {
   segMatch,
 } from "../scripts/capability-authority/analyzer.mjs";
 
+import { buildCapabilityMapOffThread } from "./helpers/capability-map-off-thread";
+
 // ---------------------------------------------------------------------------
 // Harness: parse a fragment and hand a chosen expression to the real resolver.
 // ---------------------------------------------------------------------------
@@ -472,23 +474,23 @@ describe("capability analyzer — route registration and authorization", () => {
 
 describe("capability authority — one authority, no parallel opinions", () => {
   /**
-   * ONE build for 37–39, then one event-loop turn.
+   * ONE build for 37–39, OFF this worker's thread.
    *
-   * `build()` walks the whole repository synchronously, in this worker, for
-   * ~30s. Called once per test it blocked the worker three times back to back
-   * with no I/O turn between them, so the reply to the worker's own
-   * `onTaskUpdate` RPC could not be read; birpc's FIXED 60s timer then fired
-   * first and vitest reported `[vitest-worker]: Timeout calling "onTaskUpdate"`
-   * — exit 1 with every test passing. The map is a pure function of the tree,
-   * so the three tests share it; the `setImmediate` lets pending replies in.
+   * `build()` walks the whole repository synchronously. Called once per test
+   * it blocked the worker three times back to back, so the reply to the
+   * worker's own `onTaskUpdate` RPC could not be read; birpc's FIXED 60s timer
+   * fired first and vitest reported `[vitest-worker]: Timeout calling
+   * "onTaskUpdate"` — exit 1 with every test passing. Sharing one build fixed
+   * that while a build took ~30s. It now takes 96–125s on a fast machine, so
+   * ONE build overruns the window on its own (an RPC sent just before it
+   * starts is timed out the moment the thread resumes, before any later
+   * `setImmediate`). It runs on a worker thread instead: see
+   * buildCapabilityMapOffThread. The map is a pure function of the tree, so
+   * the three tests still share it.
    */
-  let freshMapMemo: any = null;
-  async function freshCapabilityMap(): Promise<any> {
-    if (freshMapMemo === null) {
-      const { build } = await import("../scripts/generate-runtime-capability-map.mjs");
-      freshMapMemo = (build as () => any)();
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+  let freshMapMemo: Promise<any> | null = null;
+  function freshCapabilityMap(): Promise<any> {
+    freshMapMemo ??= buildCapabilityMapOffThread();
     return freshMapMemo;
   }
 

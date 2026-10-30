@@ -2064,10 +2064,7 @@
         "services/api/scripts/capability-authority/analyzer.mjs",
         "services/api/scripts/capability-authority/call-graph.mjs"
       ],
-      "importedBy": [
-        "services/api/test/phase-12-capability-analyzer-adversarial.test.ts",
-        "services/api/test/phase-12-route-consumer-authority.test.ts"
-      ],
+      "importedBy": [],
       "spawns": [
         "index.mjs"
       ],
@@ -4061,9 +4058,9 @@
       "role": "AUDIT_ENGINE_TEST",
       "reason": "Drives the canonical engine or validates a current artifact.",
       "imports": [
+        "services/api/test/helpers/capability-map-off-thread.ts",
         "services/api/scripts/capability-authority/routes.mjs",
-        "services/api/scripts/capability-authority/analyzer.mjs",
-        "services/api/scripts/generate-runtime-capability-map.mjs"
+        "services/api/scripts/capability-authority/analyzer.mjs"
       ],
       "importedBy": [],
       "spawns": [],
@@ -4426,7 +4423,7 @@
       "role": "AUDIT_ENGINE_TEST",
       "reason": "Drives the canonical engine or validates a current artifact.",
       "imports": [
-        "services/api/scripts/generate-runtime-capability-map.mjs"
+        "services/api/test/helpers/capability-map-off-thread.ts"
       ],
       "importedBy": [],
       "spawns": [],

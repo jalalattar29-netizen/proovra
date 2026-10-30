@@ -427,10 +427,6 @@ timestampReferenceNote:
       evidence.signatureBase64 && !externalMode
         ? "Full signature and public-key materials are included in the verification package."
         : "Signature blobs are intentionally excluded from the PDF body.",
-    anchoringReferenceNote:
-      evidence.otsProofBase64 || anchorSummary?.transactionId
-        ? "Full OpenTimestamps anchoring proofs remain available through the verification package and verification endpoint."
-        : "No additional anchoring proof payload was recorded.",
     timestampDigestLabel,
   };
 }

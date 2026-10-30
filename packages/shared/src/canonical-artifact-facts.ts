@@ -20,7 +20,7 @@ import {
   OTS_STATE_SENTENCES,
   OTS_VERIFICATION_LABELS,
   otsReportVerificationLabel,
-  otsBoundaryFor,
+  otsReportBoundaryFor,
   otsChainRecordOf,
   otsVerificationKeyOfState,
   parseOtsState,
@@ -323,7 +323,7 @@ export function checkRenderedReportText(
     if (!text.includes("Bitcoin anchoring") || !text.includes(label)) {
       out.push({ check: "OTS_ANCHORED", detail: `does not state "Bitcoin anchoring" with "${label}"` });
     }
-    const boundary = otsBoundaryFor({ verification: facts.otsVerification });
+    const boundary = otsReportBoundaryFor({ verification: facts.otsVerification });
     if (boundary && !text.includes(norm(boundary))) out.push({ check: "OTS_BOUNDARY", detail: "the anchoring boundary is not stated" });
   }
   if (facts.otsVerification !== "CHAIN_VERIFIED" && text.includes(verifiedLabel)) {

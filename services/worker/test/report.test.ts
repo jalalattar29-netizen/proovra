@@ -1,4 +1,4 @@
-import { VERIFICATION_LIMITATION } from "@proovra/shared";
+import { OTS_CHAIN_VERIFIED_BOUNDARY, OTS_REPORT_CHAIN_VERIFIED_BOUNDARY, VERIFICATION_LIMITATION } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 // LEGACY-003: the report-v2 barrel was removed — production
 // (src/processor.ts) imports the concrete modules directly, so these tests
@@ -343,7 +343,10 @@ describe("report v2 pipeline", () => {
     const html = renderReportHtml(vm);
     expect(html).toContain("Independently verified against the Bitcoin main chain");
     expect(html).toContain(`Merkle root matches Bitcoin block ${up.blockHeight}`);
-    expect(html.split("PROOVRA compared the proof&#39;s replayed commitment").length - 1).toBe(1);
+    // The report's own, shorter boundary (2026-10-30), once; the live surfaces' longer sentence not at all.
+    expect(html.split(escapeHtml(OTS_REPORT_CHAIN_VERIFIED_BOUNDARY)).length - 1).toBe(1);
+    expect(html).not.toContain(escapeHtml(OTS_CHAIN_VERIFIED_BOUNDARY));
+    expect(html).not.toContain("Anchoring material handling");
     // One report, one statement: never also "not checked".
     expect(html).not.toContain("PROOVRA has not checked it against the Bitcoin main chain");
     expect(html).not.toContain("Not independently checked against Bitcoin");

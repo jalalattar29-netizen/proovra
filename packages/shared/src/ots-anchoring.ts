@@ -1083,3 +1083,23 @@ export const OTS_REPORT_SNAPSHOT_SENTENCES: Readonly<Partial<Record<OtsVerificat
 export function otsReportVerificationLabel(key: OtsVerificationKey): string {
   return OTS_REPORT_SNAPSHOT_LABELS[key] ?? OTS_VERIFICATION_LABELS[key];
 }
+
+/**
+ * The PDF report's chain-verified boundary (2026-10-30): the same check as
+ * OTS_CHAIN_VERIFIED_BOUNDARY, said shorter for the report's closing notes.
+ * Live surfaces keep the longer sentence.
+ */
+export const OTS_REPORT_CHAIN_VERIFIED_BOUNDARY =
+  "PROOVRA checked the proof's commitment against the named block's merkle root on the Bitcoin Core node's active main chain. Reviewers can repeat the check using their own node.";
+
+/**
+ * The boundary an issued report states for an anchored proof, or null. Only a
+ * chain-verified proof gets the verification sentence; every other key keeps
+ * the attestation boundary. The renderer and the rendered-report gate both
+ * read this, so the PDF and the gate agree.
+ */
+export function otsReportBoundaryFor(a: Pick<OtsAnchoring, "verification">): string | null {
+  return parseOtsVerificationKey(a.verification) === "CHAIN_VERIFIED"
+    ? OTS_REPORT_CHAIN_VERIFIED_BOUNDARY
+    : otsBoundaryFor(a);
+}

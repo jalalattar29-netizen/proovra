@@ -14,6 +14,7 @@ import {
 } from "@proovra/shared";
 
 import { formatUserDateTimeCompact } from "../../../../../lib/date";
+import { getWorkflowStatusTone } from "../_tabs/_lib";
 
 type WorkflowActor = {
   id: string;
@@ -61,6 +62,13 @@ const ROUND_PREVIEW = 5;
  * in one compact list; and the history grouped by decision round — newest
  * round open, older rounds collapsed, five entries a round until "Show all".
  * The stored events are presented, never rewritten.
+ *
+ * 2026-10-30 — built from the Review tab's own anatomy, like the sections
+ * around it: the review head (title, the state badge in the hero's tone, and
+ * actions with room between them), the one boundary line, the facts grid of
+ * fact cards, and History as its own labelled sub-group whose rows share the
+ * "Workspace review activity" anatomy and drop the date under the entry on a
+ * phone instead of squeezing it.
  */
 export function ReviewerWorkflowCard({
   workflow,
@@ -86,21 +94,24 @@ export function ReviewerWorkflowCard({
   const rounds = groupReviewHistoryByRound(history);
   const lastActivity = history[0]?.createdAt ?? null;
   return (
-    <section id="workflow" className="evidence-detail-card" data-evidence-review-card>
-      <div className="evidence-detail-card-header">
-        <div>
-          <p className="evidence-detail-kicker">Reviewer workflow</p>
-          <h2 className="evidence-detail-review-card__title">
-            <span className="app-status-badge" data-tone="slate" data-evidence-review-state={outcome.workflowState}>
-              {outcome.workflowStateLabel}
-            </span>
-          </h2>
-          <p className="evidence-detail-muted" data-evidence-reviewer-disclaimer="true">
-            Internal review only. It never changes the evidence, its integrity, its verification, reports or packages.
-          </p>
+    <section
+      id="workflow"
+      className="evidence-detail-review-section evidence-detail-review-workflow"
+      data-evidence-review-card
+    >
+      <div className="evidence-detail-review-head">
+        <div className="evidence-detail-review-workflow__heading">
+          <h2 className="evidence-detail-review-head__title">Reviewer workflow</h2>
+          <span
+            className="app-status-badge"
+            data-tone={getWorkflowStatusTone(workflow.status)}
+            data-evidence-review-state={outcome.workflowState}
+          >
+            {outcome.workflowStateLabel}
+          </span>
         </div>
-        <div className="evidence-detail-inline-actions">
-          <button type="button" className="app-secondary-action" onClick={onRefreshEvents}>
+        <div className="evidence-detail-review-head__actions">
+          <button type="button" className="app-ghost-action" onClick={onRefreshEvents}>
             Refresh
           </button>
           <button
@@ -114,56 +125,65 @@ export function ReviewerWorkflowCard({
         </div>
       </div>
 
-      <dl className="evidence-detail-review-facts" data-evidence-review-facts>
-        <div className="evidence-detail-rail-field" data-evidence-review-fact="workflow">
-          <dt className="evidence-detail-rail-field__label">Workflow</dt>
-          <dd className="evidence-detail-rail-field__value">{outcome.workflowStateLabel}</dd>
+      <p className="evidence-detail-review-note" data-evidence-reviewer-disclaimer="true">
+        Internal review only. It never changes the evidence, its integrity, its verification, reports or packages.
+      </p>
+
+      <dl className="evidence-detail-facts-grid evidence-detail-review-facts" data-evidence-review-facts>
+        <div className="evidence-detail-fact" data-evidence-review-fact="workflow">
+          <dt className="evidence-detail-fact__label">Workflow</dt>
+          <dd className="evidence-detail-fact__value">{outcome.workflowStateLabel}</dd>
         </div>
-        <div className="evidence-detail-rail-field" data-evidence-review-fact="decision" data-evidence-review-decision={outcome.decision}>
-          <dt className="evidence-detail-rail-field__label">Decision</dt>
-          <dd className="evidence-detail-rail-field__value">{outcome.decisionLabel}</dd>
+        <div className="evidence-detail-fact" data-evidence-review-fact="decision" data-evidence-review-decision={outcome.decision}>
+          <dt className="evidence-detail-fact__label">Decision</dt>
+          <dd className="evidence-detail-fact__value">{outcome.decisionLabel}</dd>
         </div>
-        <div className="evidence-detail-rail-field" data-evidence-reviewer-assignee>
-          <dt className="evidence-detail-rail-field__label">Reviewer</dt>
-          <dd className="evidence-detail-rail-field__value">{reviewAssigneeLabel(workflow.assignedTo, viewerUserId)}</dd>
+        <div className="evidence-detail-fact" data-evidence-reviewer-assignee>
+          <dt className="evidence-detail-fact__label">Reviewer</dt>
+          <dd className="evidence-detail-fact__value">{reviewAssigneeLabel(workflow.assignedTo, viewerUserId)}</dd>
         </div>
-        <div className="evidence-detail-rail-field">
-          <dt className="evidence-detail-rail-field__label">Priority</dt>
-          <dd className="evidence-detail-rail-field__value">{reviewPriorityLabel(workflow.priority)}</dd>
+        <div className="evidence-detail-fact">
+          <dt className="evidence-detail-fact__label">Priority</dt>
+          <dd className="evidence-detail-fact__value">{reviewPriorityLabel(workflow.priority)}</dd>
         </div>
         {/* Optional facts are stated only when they exist. */}
         {workflow.dueAt ? (
-          <div className="evidence-detail-rail-field">
-            <dt className="evidence-detail-rail-field__label">Due</dt>
-            <dd className="evidence-detail-rail-field__value">
+          <div className="evidence-detail-fact">
+            <dt className="evidence-detail-fact__label">Due</dt>
+            <dd className="evidence-detail-fact__value">
               <Stamp iso={workflow.dueAt} exact={formatDateTime} />
             </dd>
           </div>
         ) : null}
         {lastActivity ? (
-          <div className="evidence-detail-rail-field">
-            <dt className="evidence-detail-rail-field__label">Last activity</dt>
-            <dd className="evidence-detail-rail-field__value">
+          <div className="evidence-detail-fact">
+            <dt className="evidence-detail-fact__label">Last activity</dt>
+            <dd className="evidence-detail-fact__value">
               <Stamp iso={lastActivity} exact={formatDateTime} />
             </dd>
           </div>
         ) : null}
       </dl>
 
-      {workflow.note ? <p className="evidence-detail-muted">{workflow.note}</p> : null}
+      {workflow.note ? (
+        <div className="evidence-detail-boundary-note">
+          <span className="evidence-detail-boundary-note__title">Workflow note</span>
+          <p className="evidence-detail-boundary-note__body">{workflow.note}</p>
+        </div>
+      ) : null}
 
-      <div className="evidence-detail-subsection">
-        <div className="evidence-detail-subsection__header">
-          <strong>History</strong>
-          <span data-evidence-review-history-count>
+      <div className="evidence-detail-review-workflow__history" aria-busy={eventsLoading}>
+        <div className="evidence-detail-review-head evidence-detail-review-head--sub">
+          <h3 className="evidence-detail-review-head__title">History</h3>
+          <span className="evidence-detail-review-head__count" data-evidence-review-history-count>
             {history.length === 1 ? "1 entry" : `${history.length} entries`}
             {rounds.length > 1 ? ` · ${rounds.length} rounds` : ""}
           </span>
         </div>
         {eventsLoading ? (
-          <p className="evidence-detail-muted">Loading history…</p>
+          <p className="evidence-detail-review-note">Loading history…</p>
         ) : history.length === 0 ? (
-          <p className="evidence-detail-muted">No history recorded yet.</p>
+          <p className="evidence-detail-review-note">No history recorded yet.</p>
         ) : (
           rounds.map((round) =>
             round.current ? (
@@ -206,8 +226,8 @@ function RoundEntries({
   const shown = all ? round.entries : round.entries.slice(0, ROUND_PREVIEW);
   return (
     <div data-evidence-review-round={round.round} data-evidence-review-round-current={round.current ? "true" : "false"}>
-      {showHeading ? <p className="evidence-detail-muted">{round.label} (current)</p> : null}
-      <ol className="evidence-detail-timeline evidence-detail-timeline--compact">
+      {showHeading ? <p className="evidence-detail-review-workflow__round">{round.label} (current)</p> : null}
+      <ol className="evidence-detail-audit-list evidence-detail-review-workflow__entries">
         {shown.map((entry) => (
           <HistoryEntry key={entry.eventIds.join(":")} entry={entry} exact={exact} />
         ))}
@@ -230,22 +250,22 @@ function RoundEntries({
 function HistoryEntry({ entry, exact }: { entry: ReviewWorkflowHistoryEntry; exact: (value: string | null | undefined) => string }) {
   return (
     <li
-      className="evidence-detail-timeline-item"
+      className="evidence-detail-audit-row evidence-detail-review-workflow__entry"
       data-evidence-workflow-entry={entry.origin}
       data-evidence-workflow-code={entry.code}
       data-evidence-workflow-event-count={entry.eventIds.length}
     >
-      <div className="evidence-detail-timeline-dot" aria-hidden="true" />
-      <div>
-        <div className="evidence-detail-item-row">
-          <strong>{entry.label}</strong>
-          <Stamp iso={entry.createdAt} exact={exact} />
-        </div>
-        <p>
+      <span className="evidence-detail-audit-row__marker" aria-hidden="true" />
+      <span className="evidence-detail-review-workflow__entry-body">
+        <strong className="evidence-detail-review-workflow__entry-label">{entry.label}</strong>
+        <span className="evidence-detail-audit-row__actor">
           {entry.origin === "SYSTEM" ? "Automatic · PROOVRA" : entry.actorLabel}
           {entry.note ? ` — ${entry.note}` : ""}
-        </p>
-      </div>
+        </span>
+      </span>
+      <span className="evidence-detail-audit-row__time">
+        <Stamp iso={entry.createdAt} exact={exact} />
+      </span>
     </li>
   );
 }

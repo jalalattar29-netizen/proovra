@@ -888,7 +888,6 @@ export type ReportViewModel = {
     timestampDigestLabel?: string | null;
     timestampReferenceNote: string;
     signatureReferenceNote: string;
-    anchoringReferenceNote: string;
   };
 
   forensicIntegrityStatement: {

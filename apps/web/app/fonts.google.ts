@@ -21,7 +21,7 @@
  * only when a page uses its characters. As before, only the requested subset
  * (latin; arabic for Noto Sans Arabic) is preloaded and owns the variable, and
  * the variable ends in the same metric-matched fallback face, declared in
- * `fonts.google.css` with the values `next/font/google` generated. The other
+ * `font-strategy.css` with the values `next/font/google` generated. The other
  * subsets' calls exist only for their `@font-face` rules, hence the `_`.
  *
  * A hermetic build can still select `fonts.system.ts` with
@@ -32,8 +32,6 @@
  */
 
 import localFont from "next/font/local";
-
-import "./fonts.google.css";
 
 export const jakarta = localFont({
   src: [
