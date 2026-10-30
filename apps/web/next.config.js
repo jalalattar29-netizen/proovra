@@ -582,13 +582,13 @@ const nextConfig = {
 
   /**
    * PHASE 12 — POINT 7 (final pass): the font strategy is chosen HERE, at
-   * resolve time, so the choice is made before the `next/font/google` loader
-   * can run.
+   * resolve time, so the choice is made before the `next/font` loader runs.
    *
-   * `next/font/google` downloads its families at BUILD time. That is a real
-   * network dependency of the build, and under the Point-7 outbound guard the
-   * twelve resulting requests were refused and the build failed — correctly,
-   * since `next/font` will not silently ship a family it could not fetch.
+   * The deployed faces are committed files (`app/fonts.google.ts`), so the
+   * build no longer reaches Google. When it did, under the Point-7 outbound
+   * guard its twelve requests were refused and the build failed; the system
+   * strategy below is still the deliberate choice for a build that must not
+   * depend on the webfont files at all.
    *
    * `FONT_STRATEGY=system` swaps the module that owns the fonts for its
    * hermetic sibling, which sets the same three CSS variables from the

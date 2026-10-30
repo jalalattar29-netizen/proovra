@@ -3,8 +3,7 @@
  *
  * Selected by `FONT_STRATEGY=system`, which `next.config.js` turns into a
  * resolver alias so this module replaces `fonts.google.ts` in the build graph
- * entirely — the `next/font/google` loader is never reached, so no request is
- * made, attempted, or blocked.
+ * entirely — no `next/font` loader runs and no font file is read or emitted.
  *
  * It is NOT a downgrade invented for tests. The stack below is the one
  * `globals.css` already declares after `--font-jakarta`, so a page rendered
