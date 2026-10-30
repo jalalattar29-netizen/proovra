@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 424,
+    "AuditFilesInventoried": 425,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -133,7 +133,7 @@
   },
   "byRole": {
     "PRODUCT_BEHAVIOR_TEST": 331,
-    "DOMAIN_AUTHORITY": 61,
+    "DOMAIN_AUTHORITY": 62,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
     "DIAGNOSTIC_NOT_AUTHORITY": 1,
@@ -3199,6 +3199,24 @@
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
       "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/helpers/capability-map-off-thread.ts",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [
+        "services/api/test/phase-12-capability-analyzer-adversarial.test.ts",
+        "services/api/test/phase-12-route-consumer-authority.test.ts"
+      ],
       "spawns": [],
       "readsArtifacts": [],
       "writesArtifacts": [],
