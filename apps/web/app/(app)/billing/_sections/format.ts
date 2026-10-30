@@ -65,6 +65,9 @@ export type StorageHoldings = {
   monthlyTotals: string[] | null;
 };
 
+/** Counted as held on this display: capacity the account still has. */
+const LIVE_ADDON_STATUSES: ReadonlySet<string> = new Set(["ACTIVE", "PAST_DUE"]);
+
 /**
  * Storage add-ons by SKU, counted from the rows the server sent.
  *
@@ -80,7 +83,7 @@ export function summarizeStorageAddons(active: ActiveStorageAddon[]): StorageHol
 
   for (const addon of active) {
     const status = addon.status.toUpperCase();
-    const live = status === "ACTIVE" || status === "PAST_DUE";
+    const live = LIVE_ADDON_STATUSES.has(status);
     if (!live && status !== "PENDING") continue;
 
     const held = bySku.get(addon.addonKey) ?? {

@@ -417,7 +417,6 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   INSUFFICIENT_EVIDENCE_CREDITS: { disposition: "customer", where: "global" },
   SUBSCRIPTION_NOT_FOUND: { disposition: "customer", where: "global" },
   SUBSCRIPTION_ALREADY_ACTIVE: { disposition: "customer", where: "global" },
-  PLAN_ALREADY_ACTIVE: { disposition: "customer", where: "local" },
   CHECKOUT_REQUIRED: { disposition: "customer", where: "global" },
   CANCELLATION_REQUIRED: { disposition: "customer", where: "global" },
   PROVIDER_CANCELLATION_FAILED: { disposition: "customer", where: "global" },

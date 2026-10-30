@@ -637,7 +637,7 @@ export function downgradeAddonNote(
   projection: BillingAccountProjection,
   offer: Pick<PlanOffer, "action" | "displayName">,
 ): string | null {
-  if (projection.plan.planKey !== "TEAM" || offer.action !== "DOWNGRADE") return null;
+  if (offer.action !== "DOWNGRADE") return null;
   const addons = paidPlanAddons(projection);
   if (addons.length === 0) return null;
   const sizes = addons.map((addon) => addon.storageLabel).join(", ");
@@ -662,7 +662,10 @@ export function describeResume(result: ResumeResult, projection: BillingAccountP
   const labels = keys.length === ending
     ? keys.map((key) => candidates.find((addon) => addon.addonKey === key)?.storageLabel ?? null)
     : [];
-  const named = labels.length > 0 && labels.every(Boolean) ? ` (${labels.join(", ")})` : "";
+  // An API from before the release sends the count alone.
+  const fallback = keys.length === 0 && candidates.length === ending ? candidates.map((addon) => addon.storageLabel) : [];
+  const shown = labels.length > 0 && labels.every(Boolean) ? labels : fallback;
+  const named = shown.length > 0 ? ` (${shown.join(", ")})` : "";
   return {
     message: `Subscription restarted. ${plural(ending, "storage add-on", "storage add-ons")}${named} set to end will still end. Add storage again if you want to keep that capacity.`,
     tone: "info",
