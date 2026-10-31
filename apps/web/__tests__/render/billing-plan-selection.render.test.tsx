@@ -1196,7 +1196,18 @@ describe("storage holdings and what stops renewing", () => {
       storageAddons: {
         offers: [],
         active: [{ ...base, id: "a", status: "ACTIVE", ending: true, endingReason: "PLAN_CHANGE" }],
-        legacyWorkspaceCapacityLabel: "100 GB",
+        legacyWorkspaces: [
+          {
+            name: "Acme archive",
+            addonCount: 2,
+            addonLabel: "200 GB",
+            usedLabel: "12 GB",
+            limitLabel: "300 GB",
+            planLabel: "100 GB",
+            limitReached: false,
+            monthly: [{ currency: "EUR", cents: 2000 }],
+          },
+        ],
       },
     } as never);
     const { container } = render(
@@ -1209,7 +1220,11 @@ describe("storage holdings and what stops renewing", () => {
       />,
     );
     expect(container.querySelector("[data-billing-addon-ending-reason='PLAN_CHANGE']")?.textContent).toMatch(/will not renew/);
-    expect(container.querySelector("[data-billing-storage-legacy-capacity]")?.textContent).toMatch(/not in the total/);
+    const older = container.querySelector("[data-billing-storage-legacy-workspaces]")?.textContent ?? "";
+    expect(older).toMatch(/Separate from the storage above/);
+    expect(older).toMatch(/Acme archive/);
+    expect(container.querySelector("[data-billing-storage-legacy-usage]")?.textContent).toMatch(/12 GB of 300 GB used, with 100 GB from its plan and 200 GB of add-ons/);
+    expect(container.querySelector("[data-billing-storage-legacy-monthly]")?.textContent).toMatch(/Billed to you: .*20.* \/ month/);
   });
 
   it("names the owner's workspace on a legacy add-on", () => {

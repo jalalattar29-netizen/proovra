@@ -403,7 +403,7 @@ export const NATIVE_DESTINATIONS = {
       "ported: current plan, credits, storage usage, active storage add-ons, the full plan catalogue, the add-on catalogue, the pay-per-evidence offer, complete payment HISTORY, subscription cancellation and per-add-on cancellation - each cancellation stating what it does and does not do (the plan runs to the end of the paid period; evidence is not deleted)",
       "a withheld payment amount renders as absent, never as zero: the server withholds amounts from a viewer who may not see them, and showing a payment as costing nothing is worse than showing it without a figure",
       "COMMERCIAL_POLICY_PENDING on exactly three TRANSACTIONS, never on the surface: SUBSCRIPTION_CHECKOUT, STORAGE_ADDON_CHECKOUT and EVIDENCE_CREDIT_CHECKOUT (POST /v1/billing/{,storage-addons/,credits/}checkout/{stripe,paypal}). These grant a digital entitlement through Stripe or PayPal and are a distribution-policy question the repository cannot answer. Nothing else waits on them.",
-      "reconcile is an operator action and is out of customer scope",
+      "a customer re-checks one open purchase from Billing activity (Check status). The account-wide reconciliation sweep is server work and has no customer control",
     ],
   },
   "/pricing": {

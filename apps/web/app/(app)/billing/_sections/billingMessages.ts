@@ -80,6 +80,11 @@ const REFUSAL_COPY: Record<string, Omit<BillingErrorNotice, "supportReference">>
     message: "You already have a subscription on this account. Use Manage plan to change it instead of buying a second one.",
     tone: "info",
   },
+  CHECKOUT_CUSTOMER_UNRESOLVED: {
+    title: "The payment service did not answer",
+    message: "No checkout was opened and nothing was charged. Try again in a moment.",
+    tone: "error",
+  },
   PLAN_CHANGE_ENDS_STORAGE: {
     title: "This plan does not include some of your storage",
     message: "Your Team-size storage stays until its paid date and then stops renewing. Review the change, then confirm it again.",

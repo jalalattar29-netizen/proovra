@@ -152,6 +152,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281030000000_billing_remediation_convergence",
       // Billing product decisions: add-on end consent, grant dependency, Stripe customer binding. EXPAND.
       "20281031000000_billing_product_decisions",
+      // Stripe customer per recurring currency, written before the provider call. EXPAND.
+      "20281101000000_stripe_customer_per_currency",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

@@ -118,6 +118,9 @@ const ENTRYPOINTS = Object.freeze({
     // Read-only: does the configuration sell what the catalogue shows? Run in the
     // API image, `node dist/scripts/verify-billing-offers.js`.
     "services/api/src/scripts/verify-billing-offers.ts",
+    // Read-only: what the billing sweep would do to existing records. Run as a
+    // one-off of the new image, `node dist/scripts/billing-automatic-effects-preview.js`.
+    "services/api/src/scripts/billing-automatic-effects-preview.ts",
     // INTERNAL PLAN GRANT — operator CLI over the same service as the admin route
     // (pnpm --filter proovra-api ops:internal-plan-grant).
     "services/api/src/scripts/internal-plan-grant.ts",

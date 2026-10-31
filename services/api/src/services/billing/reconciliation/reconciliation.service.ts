@@ -65,12 +65,18 @@ import { grantEvidenceCredits } from "../evidence-credits.service.js";
 import {
   attemptPayerDependentCancellations,
   confirmObligationFromProviderTruth,
+  owedDependentCancellations,
   payerOwnedAddonWhere,
   recordDependentCancellationObligations,
   reopenObligationFromProviderTruth,
   UNRESOLVED_STATES,
 } from "../dependent-cancellation.service.js";
 import { syncDependentCancellationConditions } from "../dependent-cancellation-conditions.service.js";
+import {
+  automaticAddonCancellationEnabled,
+  automaticPlanLoweringEnabled,
+  lowersPlan,
+} from "../automatic-effects.js";
 import { recordBillingReviewItem } from "../billing-review.service.js";
 import { noteProviderObservation } from "../provider-authorization-signal.service.js";
 import type { StorageAddonProviderCanceller } from "../storage-addon-cancellation.service.js";
@@ -263,12 +269,16 @@ async function convergeDependentCancellations(ctx: {
   // to be "does ANY cancelled subscription row exist?", which made an
   // abandoned PayPal approval, or a plan cancelled before the customer
   // resubscribed, cancel every live storage add-on at the provider.
-  const created = await recordDependentCancellationObligations(
-    { ownerUserId: scope.ownerUserId, teamId: scope.teamId },
-    prisma,
-  );
-  if (created.created > 0) {
-    ctx.summary.subscriptionsUpdated += created.created;
+  if (automaticAddonCancellationEnabled()) {
+    const created = await recordDependentCancellationObligations(
+      { ownerUserId: scope.ownerUserId, teamId: scope.teamId },
+      prisma,
+    );
+    if (created.created > 0) {
+      ctx.summary.subscriptionsUpdated += created.created;
+    }
+  } else {
+    await holdOwedAddonCancellations(scope.ownerUserId);
   }
 
   // ---- 2. Attempt every unresolved obligation ------------------------------
@@ -299,6 +309,40 @@ async function convergeDependentCancellations(ctx: {
     // conditions inside their request.
     await syncDependentCancellationConditions({ payerUserId: scope.ownerUserId });
   }
+}
+
+/** The sweep may not start a provider cancellation yet: say what it would have done. */
+async function holdOwedAddonCancellations(ownerUserId: string): Promise<void> {
+  const { owed } = await owedDependentCancellations({ ownerUserId, teamId: null }, prisma);
+  for (const { addon, trigger } of owed) {
+    if (addon.dependentCancellationState !== "NONE" || !addon.externalSubscriptionId) continue;
+    await recordBillingReviewItem({
+      userId: ownerUserId,
+      provider: addon.paymentProvider as prismaPkg.PaymentProvider,
+      providerResourceId: addon.externalSubscriptionId,
+      product: "STORAGE_ADDON",
+      reason: "AUTOMATIC_ADDON_CANCELLATION_HELD",
+      detail: { addonId: addon.id, triggerSubscriptionId: trigger!.id },
+    });
+  }
+}
+
+/** The sweep may not lower this plan yet: say what it would have done. */
+async function holdPlanLowering(input: {
+  userId: string;
+  provider: prismaPkg.PaymentProvider;
+  providerSubId: string;
+  from: prismaPkg.PlanType;
+  to: prismaPkg.PlanType;
+}): Promise<void> {
+  await recordBillingReviewItem({
+    userId: input.userId,
+    provider: input.provider,
+    providerResourceId: input.providerSubId,
+    product: "PLAN",
+    reason: "AUTOMATIC_PLAN_LOWERING_HELD",
+    detail: { from: input.from, to: input.to },
+  });
 }
 
 // ===========================================================================
@@ -785,7 +829,18 @@ async function reconcileSubscriptions(ctx: {
     const isStripe = binding.provider === prismaPkg.PaymentProvider.STRIPE;
     // AUD-01 — the price billed states the plan in force, so a landed schedule
     // whose webhook was lost converges here too.
-    const plan = (isStripe ? planFromStripePriceId(observation.planId) : null) ?? binding.plan;
+    const billed = (isStripe ? planFromStripePriceId(observation.planId) : null) ?? binding.plan;
+    const held = lowersPlan(binding.plan, billed) && !automaticPlanLoweringEnabled();
+    if (held) {
+      await holdPlanLowering({
+        userId: binding.userId,
+        provider: binding.provider,
+        providerSubId: binding.providerSubId,
+        from: binding.plan,
+        to: billed,
+      });
+    }
+    const plan = held ? binding.plan : billed;
 
     if (
       status === binding.status &&
@@ -816,6 +871,7 @@ async function reconcileSubscriptions(ctx: {
       status,
       currentPeriodEnd: observation.currentPeriodEndUtc,
       observedAtUtc: observation.observedAtUtc,
+      holdPlanLowering: !automaticPlanLoweringEnabled(),
       ...(isStripe
         ? {
             cancelAtPeriodEnd: observation.cancelAtPeriodEnd,
@@ -831,6 +887,25 @@ async function reconcileSubscriptions(ctx: {
     // dependency rule's decision, made (and acted on, and counted as still
     // owed) by `convergeDependentCancellations` at the end of this run.
   }
+}
+
+/** The owners the subscription pass would examine. For the release preview. */
+export async function ownersWithLiveSubscriptions(): Promise<string[]> {
+  const rows = await prisma.subscription.findMany({
+    where: {
+      status: { in: [prismaPkg.SubscriptionStatus.ACTIVE, prismaPkg.SubscriptionStatus.PAST_DUE] },
+      supersededBySubscriptionId: null,
+      providerSubId: { not: "" },
+    },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  return rows.map((row) => row.userId);
+}
+
+/** Whether a provider's answer ends a subscription. For the release preview. */
+export function observationEndsSubscription(observation: SubscriptionObservation): boolean {
+  return subscriptionStatusFromObservation(observation) === prismaPkg.SubscriptionStatus.CANCELED;
 }
 
 /**
@@ -849,6 +924,7 @@ async function repairEntitlementDrift(binding: {
   userId: string;
   plan: prismaPkg.PlanType;
   status: prismaPkg.SubscriptionStatus;
+  provider: prismaPkg.PaymentProvider;
   providerSubId: string;
   supersededBySubscriptionId: string | null;
 }): Promise<boolean> {
@@ -867,6 +943,16 @@ async function repairEntitlementDrift(binding: {
     prismaPkg.PlanType.TEAM,
   ];
   if (!selfService.includes(entitlement.plan)) return false;
+  if (lowersPlan(entitlement.plan, binding.plan) && !automaticPlanLoweringEnabled()) {
+    await holdPlanLowering({
+      userId: binding.userId,
+      provider: binding.provider,
+      providerSubId: binding.providerSubId,
+      from: entitlement.plan,
+      to: binding.plan,
+    });
+    return false;
+  }
   await setPersonalPlan(binding.userId, binding.plan, {
     actorUserId: null,
     serviceActor: "billing_reconciliation",
@@ -902,6 +988,7 @@ export async function repairEntitlementBeforeCheckout(
     userId,
     plan: live.plan,
     status: live.status,
+    provider: live.provider,
     providerSubId: live.providerSubId,
     supersededBySubscriptionId: null,
   });

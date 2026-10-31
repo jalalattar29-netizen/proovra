@@ -127,8 +127,47 @@ const FINDINGS = [
 // decides row by row and a provider read can change the answer.
 const AUTOMATIC = [
   {
+    id: "Q1_ADDONS_NOW_COUNTED_IN_PERSONAL_QUOTA",
+    meaning: "live add-ons stamped with the owner's personal workspace. Billed, counted by no quota until this release, which raises that personal limit",
+    sql: `
+      select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
+        from workspace_storage_addons a
+        join teams t on t.id = a.team_id
+       where a.status in ('ACTIVE','PAST_DUE') and t.owner_user_id = a.owner_user_id
+         and t.workspace_kind = 'PERSONAL'`,
+  },
+  {
+    id: "Q2_ADDONS_ON_OWNED_WORKSPACES",
+    meaning: "live add-ons counted by an older workspace's own quota. Shown per workspace, never in the personal total",
+    sql: `
+      select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
+        from workspace_storage_addons a
+        join teams t on t.id = a.team_id
+       where a.status in ('ACTIVE','PAST_DUE') and t.owner_user_id = a.owner_user_id
+         and t.workspace_kind = 'OWNED'`,
+  },
+  {
+    id: "Q3_ADDONS_COUNTED_BY_NO_QUOTA",
+    meaning: "live add-ons whose workspace now has another owner. Still billed to the buyer, counted by no quota and absent from their Billing page. Needs review",
+    sql: `
+      select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
+        from workspace_storage_addons a
+        join teams t on t.id = a.team_id
+       where a.status in ('ACTIVE','PAST_DUE') and t.owner_user_id is distinct from a.owner_user_id`,
+  },
+  {
+    id: "Q4_ADDONS_ON_ORGANIZATION_WORKSPACES",
+    meaning: "live add-ons on an organization workspace. Counted by that workspace's quota and shown on the organization's account, not the payer's Personal page",
+    sql: `
+      select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
+        from workspace_storage_addons a
+        join teams t on t.id = a.team_id
+       where a.status in ('ACTIVE','PAST_DUE') and t.owner_user_id = a.owner_user_id
+         and t.workspace_kind = 'ORGANIZATION'`,
+  },
+  {
     id: "AUTO_R3_WOULD_LOWER_PLAN",
-    meaning: "of R3, accounts whose entitlement is above the plan they pay for; repair lowers it",
+    meaning: "estimate: of R3, entitlement above the plan paid for; held until enabled. billing-automatic-effects-preview lists the exact rows",
     sql: `
       select count(*)::int as n, min(s.updated_at) as first_at, max(s.updated_at) as last_at
         from subscriptions s
@@ -138,7 +177,7 @@ const AUTOMATIC = [
   },
   {
     id: "AUTO_ADDON_CANCELLATION_WOULD_BE_OWED",
-    meaning: "paid-plan add-ons with no obligation yet whose base has ended; the sweep asks the PROVIDER to stop them",
+    meaning: "estimate: paid-plan add-ons with no obligation whose base has ended; held until enabled. billing-automatic-effects-preview lists the exact rows",
     sql: `
       select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
         from workspace_storage_addons a

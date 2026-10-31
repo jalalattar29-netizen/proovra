@@ -563,6 +563,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "a Stripe checkout resolves the billing owner's customer here",
     suppliedBy: "20281031000000_billing_product_decisions",
   },
+  // 20281101000000 — the binding is per currency and written before the call.
+  {
+    id: "billing_provider_customers.currency",
+    kind: "column",
+    detail: 'column public."billing_provider_customers"."currency" must exist',
+    requiredBy: "a Stripe checkout resolves the customer of one recurring currency here",
+    suppliedBy: "20281101000000_stripe_customer_per_currency",
+  },
 ]);
 
 /**
@@ -974,6 +982,7 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'billing_provider_binding_checks'
      LIMIT 1`,
+  "billing_provider_customers.currency": columnProbe("billing_provider_customers", "currency"),
   "billing_provider_customers.table": `
     SELECT 1
       FROM information_schema.tables

@@ -129,6 +129,14 @@ export interface BillingProjection {
     /** Each offer's OWN price and currency, as the server projected them. */
     offers: Array<{ key: string; label: string; priceCents: number | null; currency: string | null }>;
     active: ActiveAddonModel[];
+    /** Older workspaces, each with its own quota. Never part of the meter. */
+    legacyWorkspaces: Array<{
+      name: string | null;
+      addonLabel: string;
+      usedLabel: string | null;
+      limitLabel: string | null;
+      planLabel: string | null;
+    }>;
   } | null;
   storageAddonsLocked: { reason: string; unlockedByPlan: string | null } | null;
   actions: {
@@ -280,6 +288,16 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
               currency: str(offer.currency),
             };
           }).filter(offer => offer.key.length > 0),
+          legacyWorkspaces: rows(addons.legacyWorkspaces).map((raw) => {
+            const w = obj(raw);
+            return {
+              name: str(w.name),
+              addonLabel: str(w.addonLabel) ?? "Storage add-ons",
+              usedLabel: str(w.usedLabel),
+              limitLabel: str(w.limitLabel),
+              planLabel: str(w.planLabel),
+            };
+          }),
           active: rows(addons.active)
             .map((raw): ActiveAddonModel | null => {
               const a = obj(raw);

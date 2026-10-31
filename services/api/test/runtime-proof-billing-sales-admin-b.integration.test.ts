@@ -64,6 +64,15 @@ type FakeAnswer = {
   headers?: Record<string, string>;
 } | undefined;
 
+// These prove what the sweep does once it may act. The hold itself is proved in
+// billing-product-decisions.integration.test.ts.
+beforeAll(() => {
+  process.env.BILLING_AUTO_ADDON_CANCELLATION = "on";
+});
+afterAll(() => {
+  delete process.env.BILLING_AUTO_ADDON_CANCELLATION;
+});
+
 describe("K7-B — self-service billing actions (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../src/db.js")["prisma"];

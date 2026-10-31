@@ -77,7 +77,7 @@
       "machineOnlyConsumerRoutes": 7,
       "noConsumerRoutes": 211,
       "wrongOriginConsumers": 0,
-      "consumerInventoryHash": "0129f37901e753fc50749817546f82ddfda7c0c616c58c038bcacd9af8b84b16"
+      "consumerInventoryHash": "3d46fdb2e65776443b52c7e83488c8f711b992674b57bba01561c5330f7d47af"
     },
     "capabilities": {
       "totalRoutes": 1219,
@@ -157,9 +157,9 @@
       "QueueRegistryProblems": 0
     },
     "mutations": {
-      "terminalWriters": 1456,
-      "reachable": 1432,
-      "classified": 1432,
+      "terminalWriters": 1459,
+      "reachable": 1435,
+      "classified": 1435,
       "unclassified": 0,
       "moduleScopedAttribution": 0,
       "nonRequest": 24,
@@ -175,7 +175,7 @@
       "conservationHolds": true,
       "writerConservationHolds": true,
       "byWriterBucket": {
-        "ROUTE_ATTRIBUTED_REACHABLE": 1279,
+        "ROUTE_ATTRIBUTED_REACHABLE": 1282,
         "JOB_ATTRIBUTED_REACHABLE": 142,
         "MODULE_SCOPED_REACHABLE": 0,
         "REGISTERED_CLI": 7,
@@ -201,7 +201,7 @@
         "EVIDENCE_CUSTODY_FINALIZATION": 333,
         "LEGAL_HOLD_RETENTION_DELETION": 51,
         "EXTERNAL_REVIEW_INTAKE_SHARE": 93,
-        "BILLING_SUBSCRIPTION_SEAT": 101,
+        "BILLING_SUBSCRIPTION_SEAT": 104,
         "SSO_OIDC_SCIM_PROVISIONING": 57,
         "AUTOMATION_QUEUE_WEBHOOK": 116,
         "REPORT_EXPORT_REDACTION": 57,
@@ -215,8 +215,8 @@
         "UnclassifiedUnreachableProductionModules": 0,
         "ConnectedButUnreachable": 0,
         "RemovedButPresent": 0,
-        "ProductionModules": 1021,
-        "ReachableProductionModules": 1019,
+        "ProductionModules": 1023,
+        "ReachableProductionModules": 1021,
         "UnreachableProductionModules": 2,
         "UnfollowableModuleSpecifiers": 0
       },
@@ -343,8 +343,8 @@
       "binding": "CONTENT_ONLY",
       "bindingValue": null,
       "schemaVersion": null,
-      "contentHash": "6fc5774108a68b41f6f2d06a532262e00d5dd1f5123eb58228f54d3c226c8d34",
-      "byteLength": 1304921,
+      "contentHash": "d5ece0c1080cf7da8bd027f6bc2331ce13b3b9d023290bebf85a2b6fb1822a11",
+      "byteLength": 1307969,
       "present": true,
       "freshness": "BOUND_BY_CONTENT",
       "why": "One record per migration directory on disk. The source engine never classifies migrations; this is the database domain's own authority."

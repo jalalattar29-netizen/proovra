@@ -93,6 +93,12 @@ export function owedDependentCancellationTrigger(input: {
    */
   satisfyingBase: { id: string; plan: prismaPkg.PlanType } | null;
   /**
+   * The plan of a live internal grant, if there is one. A grant holds the plan
+   * independently of any subscription, so an ended subscription cannot end
+   * storage the grant still covers.
+   */
+  grantPlan?: prismaPkg.PlanType | null;
+  /**
    * BILLING DECISIONS (2026-10-31, D1) — that base, when the customer agreed to
    * a provider-confirmed downgrade that stops the plan offering this storage.
    */
@@ -108,6 +114,7 @@ export function owedDependentCancellationTrigger(input: {
   ) {
     return null;
   }
+  if (input.grantPlan && storageAddonEligibleForPlan(input.grantPlan, addon.addonKey)) return null;
   if (input.downgradingBase) return input.downgradingBase;
   if (addon.dependsOnSubscriptionId) {
     return input.endedBases.find((b) => b.id === addon.dependsOnSubscriptionId) ?? null;

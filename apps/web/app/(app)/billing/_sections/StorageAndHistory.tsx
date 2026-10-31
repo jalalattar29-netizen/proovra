@@ -47,6 +47,7 @@ import {
   statusLabel,
   statusTone,
   summarizeStorageAddons,
+  workspaceMonthlyLabel,
 } from "./format";
 
 /**
@@ -183,6 +184,7 @@ export function StorageAddonsSection({
   // Each row carries its own price; the sum is what a customer holding several
   // actually asks about, and no row can answer it.
   const holdings = summarizeStorageAddons(addons.active);
+  const legacyWorkspaces = addons.legacyWorkspaces ?? [];
   const pendingSizes = holdings.skus
     .filter((sku) => sku.pendingCount > 0)
     .map((sku) => sku.storageLabel)
@@ -314,15 +316,54 @@ export function StorageAddonsSection({
         </ul>
       ) : null}
 
-      {addons.legacyWorkspaceCapacityLabel ? (
-        <p className="bill-panel__note" data-billing-storage-legacy-capacity>
-          <bdi>{addons.legacyWorkspaceCapacityLabel}</bdi> more applies in older workspaces and is not in the total above.
-        </p>
+      {/* Each older workspace has its own quota, so its figures are stated
+          beside it and never added to the meter above. */}
+      {legacyWorkspaces.length > 0 ? (
+        <div data-billing-storage-legacy-workspaces>
+          <p className="bill-panel__note">
+            Separate from the storage above. Each older workspace has its own limit.
+          </p>
+          <ul className="bill-addon-list">
+            {legacyWorkspaces.map((workspace, index) => {
+              const monthly = workspaceMonthlyLabel(workspace);
+              return (
+                <li key={workspace.name ?? index} className="bill-addon" data-billing-storage-legacy-workspace>
+                  <span className="bill-addon__meta">
+                    <strong>
+                      <bdi>{workspace.name ?? "Older workspace"}</bdi>
+                    </strong>
+                  </span>
+                  <span className="bill-addon__meta" data-billing-storage-legacy-usage>
+                    {workspace.usedLabel && workspace.limitLabel && workspace.planLabel ? (
+                      <>
+                        <bdi>
+                          {workspace.usedLabel} of {workspace.limitLabel}
+                        </bdi>{" "}
+                        used, with <bdi>{workspace.planLabel}</bdi> from its plan and{" "}
+                        <bdi>{workspace.addonLabel}</bdi> of add-ons
+                      </>
+                    ) : (
+                      <>
+                        <bdi>{workspace.addonLabel}</bdi> of add-ons. Its usage could not be read.
+                      </>
+                    )}
+                  </span>
+                  {monthly ? (
+                    <span className="bill-addon__meta" data-billing-storage-legacy-monthly>
+                      Billed to you: <bdi>{monthly}</bdi> / month
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       ) : null}
 
       {capacityRows.length > 1 && holdings.monthlyTotals && holdings.monthlyTotals.length > 0 ? (
         <p className="bill-panel__note" data-billing-storage-commitment>
-          Add-ons billed monthly: <bdi>{holdings.monthlyTotals.join(" + ")}</bdi> / month
+          {legacyWorkspaces.length > 0 ? "All add-ons billed monthly, older workspaces included: " : "Add-ons billed monthly: "}
+          <bdi>{holdings.monthlyTotals.join(" + ")}</bdi> / month
         </p>
       ) : null}
 

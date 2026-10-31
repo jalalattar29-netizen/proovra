@@ -332,7 +332,13 @@ export async function applyStorageSubscriptionObservation(
   let dependsOnSubscriptionId: string | null | undefined;
   let dependsOnPlanGrantId: string | null | undefined;
   if (firstActivation) {
-    const refusal = await refusalReason(row, obs);
+    // Refusing stops a subscription NOW and takes its capacity, which is right for
+    // a purchase being decided and wrong for storage already in use. A row that is
+    // live with no activation stamp predates the stamp: it has nothing to refuse.
+    const alreadyLive =
+      row.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
+      row.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE;
+    const refusal = alreadyLive ? null : await refusalReason(row, obs);
     if (refusal) {
       const refused = await refuseActiveSubscription({
         row,

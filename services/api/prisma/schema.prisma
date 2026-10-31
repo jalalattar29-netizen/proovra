@@ -2879,20 +2879,27 @@ model BillingProviderCustomer {
   provider                   PaymentProvider
   /// `live` or `test`, from the key that made the provider call.
   environment                String          @db.VarChar(8)
-  providerCustomerId         String          @map("provider_customer_id") @db.VarChar(191)
-  /// ACTIVE, or CONFLICT when the provider's record does not match this owner.
+  /// The recurring currency this customer serves, in Stripe's lower case.
+  currency                   String?         @db.VarChar(3)
+  /// Null only while CREATING.
+  providerCustomerId         String?         @map("provider_customer_id") @db.VarChar(191)
+  /// CREATING before the provider has answered, ACTIVE, or CONFLICT when the
+  /// provider's record does not match this owner.
   state                      String          @default("ACTIVE") @db.VarChar(24)
   /// CREATED, ADOPTED_BASE_PLAN or ADOPTED_STORAGE.
   source                     String          @db.VarChar(24)
   /// The customer this row replaced after the provider deleted it.
   replacedProviderCustomerId String?         @map("replaced_provider_customer_id") @db.VarChar(191)
+  /// The idempotency key and metadata tag of a creation in progress.
+  creationKey                String?         @map("creation_key") @db.VarChar(64)
+  creationStartedAtUtc       DateTime?       @map("creation_started_at_utc") @db.Timestamptz(6)
   verifiedAtUtc              DateTime?       @map("verified_at_utc") @db.Timestamptz(6)
   createdAt                  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                  DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, provider, environment])
+  @@unique([userId, provider, environment, currency], map: "billing_provider_customers_owner_currency_key")
   @@unique([provider, environment, providerCustomerId], map: "billing_provider_customers_customer_key")
   @@map("billing_provider_customers")
 }

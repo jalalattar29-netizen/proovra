@@ -40,7 +40,7 @@ import {
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
 import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
-import { resolveStripeCheckoutCustomer } from "./stripe-customer-binding.service.js";
+import { StripeCustomerUnresolved, resolveStripeCheckoutCustomer } from "./stripe-customer-binding.service.js";
 import {
   defaultReconciliationProviders,
   repairEntitlementBeforeCheckout,
@@ -73,6 +73,8 @@ export type StripeCheckoutStart =
  */
 export function isStripeCreateRejection(error: unknown): boolean {
   if (isProviderCreateRejection(error)) return true;
+  // Refused before a session was asked for.
+  if (error instanceof StripeCustomerUnresolved) return true;
   return (
     error instanceof StripeHttpError &&
     error.status >= 400 &&
@@ -231,7 +233,7 @@ export async function startStripePlanCheckout(input: {
         currency,
         teamId: input.teamId ?? null,
         attemptId: gate.attemptId,
-        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency }),
+        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency, recurring: true }),
       }),
   });
   return { kind: "CREATED", attemptId: gate.attemptId, mode: "subscription", session, currency, amountCents };
@@ -276,7 +278,7 @@ export async function startStripeCreditCheckout(input: {
         teamId: null,
         productKey: "EVIDENCE_CREDIT",
         attemptId: gate.attemptId,
-        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency }),
+        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency, recurring: false }),
       }),
   });
   return { kind: "CREATED", attemptId: gate.attemptId, mode: "payment", session, currency, amountCents };
@@ -333,7 +335,7 @@ export async function startStripeStorageCheckout(input: {
         teamId: input.teamId ?? null,
         workspacePlan: input.workspacePlan,
         attemptId: gate.attemptId,
-        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency: input.currency }),
+        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency: input.currency, recurring: true }),
       }),
   });
   return { kind: "CREATED", attemptId: gate.attemptId, mode: "subscription", session, currency: input.currency, amountCents };

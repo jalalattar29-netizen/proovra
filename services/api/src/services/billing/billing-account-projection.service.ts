@@ -73,6 +73,8 @@ import {
   startOfCurrentMonthUtc,
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
+import { storageAddonQuotaWhere } from "../workspace-billing.service.js";
+import { error as logError } from "../../utils/logger.js";
 import { allowanceSlotEvidenceWhere } from "@proovra/shared-runtime";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { bump } from "../ops/metrics.service.js";
@@ -435,6 +437,22 @@ export type StorageAddonOffer = {
   billingCycle: "MONTHLY";
 };
 
+/** One older workspace's storage, by the quota enforced there. */
+export type LegacyWorkspaceStorage = {
+  name: string | null;
+  addonCount: number;
+  /** Add-on capacity counted by that workspace's quota. */
+  addonLabel: string;
+  /** Null when that workspace's usage could not be read. */
+  usedLabel: string | null;
+  limitLabel: string | null;
+  /** The base that workspace's plan gives. */
+  planLabel: string | null;
+  limitReached: boolean | null;
+  /** What these add-ons bill per month by currency. Null when amounts are withheld or unknown. */
+  monthly: Array<{ currency: string; cents: number }> | null;
+};
+
 export type ActiveStorageAddon = {
   id: string;
   addonKey: string;
@@ -453,7 +471,9 @@ export type ActiveStorageAddon = {
   endsWithPlan: boolean;
   /** Bought under a legacy workspace: its capacity belongs to that workspace. */
   legacyWorkspace: boolean;
-  /** That workspace's name. Only ever one this payer owns. */
+  /** That workspace, whose quota counts this add-on. Only ever one this payer owns. */
+  legacyWorkspaceId: string | null;
+  /** That workspace's name. */
   legacyWorkspaceName: string | null;
   storageBytes: string;
   /** The provider will not renew it: already cancelled, or cancelling at period end. */
@@ -581,7 +601,8 @@ export type BillingAccountProjection = {
   storageAddons?: {
     offers: StorageAddonOffer[];
     active: ActiveStorageAddon[];
-    legacyWorkspaceCapacityLabel: string | null;
+    /** Older workspaces this payer holds add-ons for, each by its own quota. */
+    legacyWorkspaces: LegacyWorkspaceStorage[];
   };
   /**
    * Why storage add-ons are not on offer for this account. Normal FREE
@@ -785,8 +806,7 @@ async function splitAddonCapacity(params: {
 }): Promise<{ recurring: bigint; legacy: bigint }> {
   const rows = await prisma.workspaceStorageAddon.findMany({
     where: {
-      ownerUserId: params.ownerUserId,
-      teamId: params.teamId,
+      ...storageAddonQuotaWhere(params),
       status: {
         in: [
           prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
@@ -809,11 +829,51 @@ async function splitAddonCapacity(params: {
   return { recurring, legacy };
 }
 
-function legacyWorkspaceCapacityLabel(rows: ActiveStorageAddon[]): string | null {
-  const bytes = rows
-    .filter((row) => row.legacyWorkspace && (row.status === "ACTIVE" || row.status === "PAST_DUE"))
-    .reduce((sum, row) => sum + BigInt(row.storageBytes), 0n);
-  return bytes > 0n ? formatBytesHuman(bytes) : null;
+/**
+ * Each older workspace a payer still pays add-ons for, measured by the quota
+ * that workspace is enforced at. Its usage, plan and add-ons are that workspace's
+ * alone, so they are stated per workspace and never summed into the personal
+ * meter. The cost stays with the payer, so it is stated here as well.
+ */
+async function legacyWorkspaceStorage(
+  ownerUserId: string,
+  rows: ActiveStorageAddon[],
+): Promise<LegacyWorkspaceStorage[]> {
+  const live = rows.filter(
+    (row) => row.legacyWorkspaceId !== null && (row.status === "ACTIVE" || row.status === "PAST_DUE"),
+  );
+  const out: LegacyWorkspaceStorage[] = [];
+  for (const workspaceId of new Set(live.map((row) => row.legacyWorkspaceId!))) {
+    const held = live.filter((row) => row.legacyWorkspaceId === workspaceId);
+    const usage = await resolveCommercialContext({
+      type: "OWNED_WORKSPACE",
+      teamId: workspaceId,
+      requesterUserId: ownerUserId,
+    })
+      .then((context) => getWorkspaceUsage(context.scope))
+      .catch((err: unknown) => {
+        logError("billing.legacy_workspace_usage_unavailable", err);
+        return null;
+      });
+    const monthly = new Map<string, number>();
+    let amountsKnown = true;
+    for (const row of held) {
+      if (row.legacyOneTime || row.ending) continue;
+      if (typeof row.priceCents !== "number" || !row.currency) amountsKnown = false;
+      else monthly.set(row.currency, (monthly.get(row.currency) ?? 0) + row.priceCents);
+    }
+    out.push({
+      name: held[0]!.legacyWorkspaceName,
+      addonCount: held.length,
+      addonLabel: formatBytesHuman(held.reduce((sum, row) => sum + BigInt(row.storageBytes), 0n)),
+      usedLabel: usage ? formatBytesHuman(usage.storageBytesUsed) : null,
+      limitLabel: usage ? formatBytesHuman(usage.storageBytesLimit) : null,
+      planLabel: usage ? formatBytesHuman(usage.baseStorageBytesLimit) : null,
+      limitReached: usage ? usage.isStorageLimitReached : null,
+      monthly: amountsKnown ? [...monthly.entries()].map(([currency, cents]) => ({ currency, cents })) : null,
+    });
+  }
+  return out;
 }
 
 function legacyOneTimeRow(cycle: prismaPkg.StorageAddonBillingCycle): boolean {
@@ -836,7 +896,7 @@ async function activeAddonsFor(params: {
   const select = {
       id: true,
       teamId: true,
-      team: { select: { name: true, ownerUserId: true } },
+      team: { select: { name: true, ownerUserId: true, workspaceKind: true } },
       dependentCancellationState: true,
       dependentCancellationReasonCode: true,
       addonKey: true,
@@ -879,7 +939,12 @@ async function activeAddonsFor(params: {
 
   const defs = listStorageAddonDefinitions();
   return rows.map((r) => {
-    const legacyWorkspace = r.teamId !== null && r.teamId !== params.teamId;
+    // The owner's personal workspace is the Personal subject, not an older one:
+    // its quota counts this row (`storageAddonQuotaWhere`).
+    const legacyWorkspace =
+      r.teamId !== null &&
+      r.teamId !== params.teamId &&
+      r.team?.workspaceKind !== prismaPkg.WorkspaceKind.PERSONAL;
     const endingReason =
       r.dependentCancellationReasonCode === PLAN_NO_LONGER_INCLUDES_STORAGE
         ? ("PLAN_CHANGE" as const)
@@ -902,6 +967,7 @@ async function activeAddonsFor(params: {
       legacyOneTime,
       endsWithPlan: !legacyOneTime && storageAddonRequiresPaidPlan(r.addonKey),
       legacyWorkspace,
+      legacyWorkspaceId: legacyWorkspace ? r.teamId : null,
       legacyWorkspaceName: legacyWorkspace && r.team?.ownerUserId === params.ownerUserId ? r.team.name : null,
       storageBytes: r.extraStorageBytes.toString(),
       ending,
@@ -1773,7 +1839,9 @@ export async function buildBillingAccountProjection(input: {
    * shared entitlement authority; no credit-ledger qualification is involved.
    */
   const addonsEligible = storageAddonOffersForPlan(scope.plan).length > 0;
-  const addonRows = addonsEligible
+  // What is held is stated whether or not more is on offer: a plan with nothing
+  // to buy can still be paying for add-ons, and this is where they are stopped.
+  const addonRows = addonsEligible || account.type === "PERSONAL"
     ? await activeAddonsFor({
         ownerUserId: scope.ownerUserId,
         teamId: scope.teamId,
@@ -1977,18 +2045,16 @@ export async function buildBillingAccountProjection(input: {
           },
         }
       : {}),
-    ...(addonsEligible
+    ...(addonsEligible || addonRows.length > 0
       ? {
           storageAddons: {
-            offers: canAddon
+            offers: canAddon && addonsEligible
               ? offersFor({
                   plan: scope.plan,
                 })
               : [],
             active: addonRows,
-            // Capacity paid for here but usable only in an older workspace. It
-            // is real, and it is not part of this account's total.
-            legacyWorkspaceCapacityLabel: legacyWorkspaceCapacityLabel(addonRows),
+            legacyWorkspaces: await legacyWorkspaceStorage(scope.ownerUserId, addonRows),
           },
         }
       : {}),

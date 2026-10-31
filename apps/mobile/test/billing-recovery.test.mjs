@@ -18,6 +18,19 @@ before(async () => {
 const check = (result, resumeAllowed = false) => A.describeAttemptCheck(result, { resumeAllowed });
 const CHARGE_CLAIM = /nothing (was|has been) (charged|billed)|no charge was|not been charged/i;
 
+test("an older workspace keeps its own storage figures, apart from the meter", () => {
+  const p = A.parseBillingProjection({
+    storageAddons: {
+      offers: [],
+      active: [],
+      legacyWorkspaces: [{ name: "Acme archive", addonLabel: "200 GB", usedLabel: "12 GB", limitLabel: "300 GB", planLabel: "100 GB" }],
+    },
+  });
+  assert.deepEqual(p.storageAddons.legacyWorkspaces, [
+    { name: "Acme archive", addonLabel: "200 GB", usedLabel: "12 GB", limitLabel: "300 GB", planLabel: "100 GB" },
+  ]);
+});
+
 test("the attempt paths are the account-scoped checkout-attempt routes", () => {
   assert.equal(A.buildAttemptRecheckPath("PERSONAL", "p 1", "a/1"), "/v1/billing/accounts/PERSONAL/p%201/checkout-attempts/a%2F1/recheck");
   assert.equal(A.buildAttemptAbandonPath("PERSONAL", "p1", "a1"), "/v1/billing/accounts/PERSONAL/p1/checkout-attempts/a1/abandon");

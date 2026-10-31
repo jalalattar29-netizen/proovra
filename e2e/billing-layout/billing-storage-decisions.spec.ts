@@ -40,7 +40,18 @@ async function openWithStorage(page: Page) {
   const projection = billingProjection();
   projection.storageAddons = {
     offers: [],
-    legacyWorkspaceCapacityLabel: "100 GB",
+    legacyWorkspaces: [
+      {
+        name: "An unusually long older workspace name that must wrap on a phone",
+        addonCount: 1,
+        addonLabel: "100 GB",
+        usedLabel: "12 GB",
+        limitLabel: "200 GB",
+        planLabel: "100 GB",
+        limitReached: false,
+        monthly: [{ currency: "EUR", cents: 999 }],
+      },
+    ],
     active: [
       addon({ id: "ending", ending: true, endsAtUtc: "2026-11-20T00:00:00.000Z", endingReason: "PLAN_CHANGE" }),
       addon({
@@ -78,7 +89,8 @@ for (const colorScheme of ["light", "dark"] as const) {
 
       await expect(page.locator("[data-billing-addon-ending-reason='PLAN_CHANGE']")).toContainText("will not renew");
       await expect(page.locator("[data-billing-addon-legacy]")).toContainText("older workspace");
-      await expect(page.locator("[data-billing-storage-legacy-capacity]")).toContainText("not in the total");
+      await expect(page.locator("[data-billing-storage-legacy-workspaces]")).toContainText("Separate from the storage above");
+      await expect(page.locator("[data-billing-storage-legacy-usage]")).toContainText("12 GB of 200 GB");
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -96,7 +108,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         };
         return Array.from(
           document.querySelectorAll(
-            "[data-billing-addon-legacy], [data-billing-addon-ending-reason], [data-billing-storage-legacy-capacity]",
+            "[data-billing-addon-legacy], [data-billing-addon-ending-reason], [data-billing-storage-legacy-usage]",
           ),
         ).map((el) => {
           const box = el.getBoundingClientRect();

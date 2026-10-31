@@ -141,14 +141,35 @@ function toBillingWorkspaceScope(scope: WorkspaceScope): BillingWorkspaceScope {
   };
 }
 
+/**
+ * THE add-ons one storage quota counts. The Billing meter reads this too, so the
+ * figure a customer sees and the figure enforced cannot be two answers.
+ *
+ * A null team is the Personal subject. A row stamped with the owner's PERSONAL
+ * workspace id is the same subject: asking only for `teamId: null` left it billed
+ * and counted by no quota at all. Any other workspace keeps its own add-ons.
+ */
+export function storageAddonQuotaWhere(subject: {
+  ownerUserId: string;
+  teamId: string | null;
+}): prismaPkg.Prisma.WorkspaceStorageAddonWhereInput {
+  if (subject.teamId) return { ownerUserId: subject.ownerUserId, teamId: subject.teamId };
+  return {
+    ownerUserId: subject.ownerUserId,
+    OR: [
+      { teamId: null },
+      { team: { ownerUserId: subject.ownerUserId, workspaceKind: prismaPkg.WorkspaceKind.PERSONAL } },
+    ],
+  };
+}
+
 async function getActiveWorkspaceStorageAddonBytes(params: {
   ownerUserId: string;
   teamId?: string | null;
 }): Promise<bigint> {
   const aggregate = await prisma.workspaceStorageAddon.aggregate({
     where: {
-      ownerUserId: params.ownerUserId,
-      teamId: params.teamId ?? null,
+      ...storageAddonQuotaWhere({ ownerUserId: params.ownerUserId, teamId: params.teamId ?? null }),
       status: {
         in: [
           prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,

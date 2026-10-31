@@ -340,7 +340,8 @@ export function BillingStorageCard({
 }) {
   const meter = projection.usage.storage;
   const locked = projection.storageAddonsLocked;
-  if (locked) {
+  // Add-ons still billing are shown even where no more can be bought.
+  if (locked && !projection.storageAddons?.active.length) {
     return (
       <ProovraCard testID="billing-storage-locked" style={{ gap: theme.space.s2 }}>
         <PanelTitle>Storage</PanelTitle>
@@ -367,6 +368,22 @@ export function BillingStorageCard({
       ) : null}
       {addons.active.map((a) => (
         <AddonRow key={a.id} addon={a} busy={cancelBusyId === a.id} onCancel={() => onCancelAddon(a)} />
+      ))}
+      {addons.legacyWorkspaces.length > 0 ? (
+        <ProovraText variant="label" color={theme.color.ink.secondary}>
+          Separate from the storage above. Each older workspace has its own limit.
+        </ProovraText>
+      ) : null}
+      {addons.legacyWorkspaces.map((w, index) => (
+        <FactRow
+          key={w.name ?? index}
+          label={w.name ?? "Older workspace"}
+          value={
+            w.usedLabel && w.limitLabel && w.planLabel
+              ? `${w.usedLabel} of ${w.limitLabel} (${w.planLabel} plan, ${w.addonLabel} add-ons)`
+              : `${w.addonLabel} add-ons`
+          }
+        />
       ))}
       {addons.offerCount > 0 && onBuyStorage ? (
         <ProovraButton label="Add storage" variant="secondary" fullWidth={false} onPress={onBuyStorage} />

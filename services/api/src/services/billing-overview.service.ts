@@ -152,6 +152,7 @@ export async function readBillingOverview(userId: string) {
           id: true,
           name: true,
           ownerUserId: true,
+          workspaceKind: true,
           billingPlan: true,
           billingStatus: true,
           includedSeats: true,
@@ -189,9 +190,12 @@ export async function readBillingOverview(userId: string) {
       }),
     ]);
 
+  // The same subject the quota counts (`storageAddonQuotaWhere`).
+  const personalWorkspaceId =
+    ownedTeams.find((team) => team.workspaceKind === prismaPkg.WorkspaceKind.PERSONAL)?.id ?? null;
   const activePersonalStorageAddons = allStorageAddons.filter(
     (addon) =>
-      addon.teamId === null &&
+      (addon.teamId === null || addon.teamId === personalWorkspaceId) &&
       (addon.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE ||
         addon.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE)
   );

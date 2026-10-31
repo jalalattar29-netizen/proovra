@@ -31,12 +31,15 @@ git log --oneline "$(docker inspect --format '{{ index .Config.Labels "org.openc
 
 ## 3. Migration first
 
-Two migrations, in order. Both are EXPAND, both add columns, indexes or tables only, and neither rewrites a row:
+Three migrations, in order. All are EXPAND, and none rewrites a row:
 
 1. `20281030000000_billing_remediation_convergence`
 2. `20281031000000_billing_product_decisions`
+3. `20281101000000_stripe_customer_per_currency`
 
-**Both go before the image.** An older image ignores them. A newer image without them fails every billing read, and `runtime-schema-gate` refuses to start one. The worker's `EXPECTED_MIGRATION_HEAD` is `20281031000000_billing_product_decisions`, so it also waits for both.
+The third replaces the owner key on `billing_provider_customers`, the table the second creates, so apply them together while it is empty.
+
+**All go before the image.** An older image ignores them. A newer image without them fails every billing read, and `runtime-schema-gate` refuses to start one. The worker's `EXPECTED_MIGRATION_HEAD` is `20281101000000_stripe_customer_per_currency`, so it also waits for all three.
 
 Apply it through the migration runbook (`docs/operations/internal-grant-production-rollout.md`). `deploy-prod-pull.sh` does not migrate.
 
@@ -50,9 +53,11 @@ docker exec -w /app/services/api docker-proovra-api-1 node scripts/billing-repai
 
 The script ships with the release image. Against an older image, copy it into the container first, or run it from a checkout with `DATABASE_URL` set to a read-only connection.
 
-**Before the migrations, the preview is partial.** A line that needs them prints `"count":null` with `"unavailable":"NEEDS_MIGRATION"`, and the script exits 3. That null is unknown, not zero. Those lines include R3 and `AUTO_R3_WOULD_LOWER_PLAN`, so a decision that depends on them needs a run after the migrations, which change no rows, and before the image. Exit 0 means every line was counted. Exit 2 means the run failed and its output cannot be relied on.
+Then read `automatic-effects.md` and run its preview, which decides each record with the sweep's own functions. It needs the migrations and the new image. The counts above are the earlier, coarser estimate.
 
-Approving the release approves those automatic writes and nothing else. **It does not approve any repair marked "separate approval", and it does not approve any provider cancellation beyond those listed.**
+**Before the migrations, the dry run is partial.** A line that needs them prints `"count":null` with `"unavailable":"NEEDS_MIGRATION"`, and the script exits 3. That null is unknown, not zero. Those lines include R3 and `AUTO_R3_WOULD_LOWER_PLAN`, so a decision that depends on them needs a run after the migrations, which change no rows, and before the image. Exit 0 means every line was counted. Exit 2 means the run failed and its output cannot be relied on.
+
+Approving the release approves `automatic-effects.md` section 2 and nothing else. **It does not approve lowering a plan or starting an add-on cancellation (section 1, held by default), or any repair marked "separate approval".**
 
 ## 4. API and worker
 
@@ -74,9 +79,9 @@ Deployed separately, and its state is unknown today. The API can go first: the p
 | Migration applied, old image | No change |
 | New API, old web | Buying a held storage SKU answers 409, and the old page shows a generic message. Keep this window short |
 | New API, new web | Full behaviour |
-| First sweep after release | The automatic writes in `data-repair-plan.md` run. Expect a one-off rise in `subscriptionsUpdated` and in plan-change audit rows |
+| First sweep after release | Automatic writes in `data-repair-plan.md` run, except those held by `automatic-effects.md`. Expect new `AUTOMATIC_*_HELD` review items |
 
-**Expected customer-visible changes:** add-ons cancelled through PayPal now stay until their paid date. A repeat purchase of a held SKU now asks first. Plans with drift move to the plan actually paid for, **which can lower a plan**. A new downgrade that drops Team storage asks for agreement and stops that storage renewing. A new Stripe checkout reuses the payer's customer, or creates one, **which writes to Live Stripe at the customer's own checkout**.
+**Expected customer-visible changes:** add-ons cancelled through PayPal now stay until their paid date. A repeat purchase of a held SKU now asks first. A plan below what was paid for is raised. A plan above it is **held**, not lowered, until enabled, except through a provider webhook. A new downgrade that drops Team storage asks for agreement and stops that storage renewing. A new Stripe checkout reuses the payer's customer for that currency, or creates one, **which writes to Live Stripe at the customer's own checkout**. A checkout is refused and can be retried when Stripe cannot confirm the customer. An add-on stamped with the owner's personal workspace starts counting in their personal limit, which raises it. Billing shows held add-ons even on a plan with nothing to buy, and shows each older workspace separately.
 
 ## 7. Post-release verification
 
@@ -84,7 +89,7 @@ Each step is read-only unless it says otherwise.
 
 1. Revision and health: the discovery command, `/readyz`.
 2. Offers: `docker exec docker-proovra-api-1 node dist/scripts/verify-billing-offers.js`.
-3. Data: `billing-repair-dry-run.mjs`. R3, R4 and R11 should fall after the first sweeps, and the `AUTO_` lines should match what was approved.
+3. Data: `billing-repair-dry-run.mjs`. R5 and R11 should fall after the first sweeps. R3 and R4 fall only for what raises a plan until the switches in `automatic-effects.md` are on.
 4. Logs: no `billing.reconciliation.account_failed`, and a `sweep_completed` line each hour.
 5. Provider fact to entitlement, by the account owner, only if a real purchase is wanted:
    - One storage purchase through Stripe: the page says processing, then the add-on appears, one payment row, capacity increases.
@@ -102,12 +107,13 @@ Run `scripts/deploy-prod-pull.sh` with `--rollback --plan`, with `GHCR_OWNER` se
 - Superseded rows lose their protection under the old image, because it does not read the column. Keep a rollback window short.
 - Add-ons held for their paid month stay ACTIVE until `finalizeEndedStorageAddons` runs again, so the old image will not close them. Run a re-release, or close them through the next provider webhook.
 - A provider cancellation already confirmed stays cancelled. An add-on stopped by an agreed downgrade does not resume because the image rolled back.
+- The switches do not exist in an older image, which reconciles without any hold. A rollback to one therefore starts whatever it did before, so check that against the preview first.
 - `billing_provider_customers` rows stay and are ignored. The old image goes back to one customer per checkout, so any customer created in the window stays at Stripe, unused.
 - Downgrade agreements and grant dependencies stay unread. A recorded obligation is still on the add-on row and the old retry worker still attempts it.
 
 ## 8a. Native release
 
-Mobile recovery ships only in a new build. It is separate from the API release, needs its own build and distribution, and the store build must keep its payment restrictions. Its logic and screens are covered by Node tests, and `native-build` proves it compiles. It has not been run on a device or simulator. The API must ship first, because the screens call its recovery routes.
+Mobile recovery and the older-workspace storage lines ship only in a new build. It is separate from the API release, needs its own build and distribution, and the store build must keep its payment restrictions. Its logic and screens are covered by Node tests, and `native-build` proves it compiles. It has not been run on a device or simulator. The API must ship first, because the screens call its recovery routes.
 
 ## 9. What this release does not do
 

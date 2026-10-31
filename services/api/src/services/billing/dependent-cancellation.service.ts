@@ -183,7 +183,7 @@ export function dependentAddonWhere(input: {
 
 type DependencyClient = Pick<
   prismaPkg.Prisma.TransactionClient,
-  "workspaceStorageAddon" | "subscription"
+  "workspaceStorageAddon" | "subscription" | "planGrant"
 >;
 
 /** The obligation reason an ungrantable provider-active add-on carries. */
@@ -204,6 +204,52 @@ const OBLIGATION_BASIS_REASONS: ReadonlySet<string> = new Set([
   PLAN_NO_LONGER_INCLUDES_STORAGE,
   ENTITLEMENT_GRANT_ENDED,
 ]);
+
+/**
+ * Which live add-ons of one subject owe a cancellation right now. Reads only. The
+ * sweep, the customer's cancellation and the release preview all ask here, so a
+ * preview cannot describe a different set from the one that gets cancelled.
+ */
+export async function owedDependentCancellations(
+  input: {
+    ownerUserId: string;
+    teamId: string | null;
+    /** Bases being cancelled by the caller right now. */
+    endingBaseIds?: string[];
+    now?: Date;
+  },
+  client: DependencyClient,
+) {
+  const now = input.now ?? new Date();
+  const live = await client.workspaceStorageAddon.findMany({
+    where: dependentAddonWhere(input),
+    select: {
+      id: true,
+      addonKey: true,
+      teamId: true,
+      status: true,
+      paymentProvider: true,
+      externalSubscriptionId: true,
+      activatedAtUtc: true,
+      currentPeriodEnd: true,
+      dependsOnSubscriptionId: true,
+      dependentCancellationState: true,
+    },
+  });
+  const context = await loadDependencyContext(client, input);
+  const grant = await readActiveInternalPlanGrant(client, input.ownerUserId, now);
+  const owed = live
+    .map((addon) => ({
+      addon,
+      trigger: owedDependentCancellationTrigger({
+        addon,
+        ...context,
+        grantPlan: (grant?.plan ?? null) as prismaPkg.PlanType | null,
+      }),
+    }))
+    .filter((x) => x.trigger !== null);
+  return { owed, downgradingBaseId: context.downgradingBase?.id ?? null };
+}
 
 /**
  * Persist the obligation for every add-on a base cancellation actually owes,
@@ -235,22 +281,7 @@ export async function recordDependentCancellationObligations(
   client: DependencyClient,
 ): Promise<{ created: number; alreadyOpen: number }> {
   const now = input.now ?? new Date();
-
-  const live = await client.workspaceStorageAddon.findMany({
-    where: dependentAddonWhere(input),
-    select: {
-      id: true,
-      addonKey: true,
-      teamId: true,
-      dependsOnSubscriptionId: true,
-      dependentCancellationState: true,
-    },
-  });
-  const context = await loadDependencyContext(client, input);
-
-  const owed = live
-    .map((addon) => ({ addon, trigger: owedDependentCancellationTrigger({ addon, ...context }) }))
-    .filter((x) => x.trigger !== null);
+  const { owed, downgradingBaseId } = await owedDependentCancellations({ ...input, now }, client);
 
   const fresh = owed.filter((x) => x.addon.dependentCancellationState === S.NONE);
   const alreadyOpen = owed.filter(
@@ -270,7 +301,7 @@ export async function recordDependentCancellationObligations(
         // the process dies before it does, the worker picks it up at once.
         dependentCancellationNextRetryAtUtc: now,
         dependentCancellationReasonCode:
-          trigger!.id === context.downgradingBase?.id ? PLAN_NO_LONGER_INCLUDES_STORAGE : null,
+          trigger!.id === downgradingBaseId ? PLAN_NO_LONGER_INCLUDES_STORAGE : null,
       },
     });
   }
@@ -357,6 +388,7 @@ export async function withdrawUnsupportedObligations(input: {
   if (open.length === 0) return 0;
   const context = await loadDependencyContext(prisma, input);
   const grant = await readActiveInternalPlanGrant(prisma, input.ownerUserId);
+  const grantPlan = (grant?.plan ?? null) as prismaPkg.PlanType | null;
   let withdrawn = 0;
   for (const addon of open) {
     if (addon.dependentCancellationReasonCode === UNGRANTABLE_PROVIDER_ACTIVE) continue;
@@ -368,8 +400,11 @@ export async function withdrawUnsupportedObligations(input: {
     // A paid-plan SKU with no satisfying plan and no identifiable ended base is
     // unknown, not unrelated — its obligation stands.
     const satisfied =
-      context.satisfyingBase !== null &&
-      storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey);
+      (context.satisfyingBase !== null &&
+        storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey)) ||
+      (grantPlan !== null &&
+        addon.dependentCancellationReasonCode !== ENTITLEMENT_GRANT_ENDED &&
+        storageAddonEligibleForPlan(grantPlan, addon.addonKey));
     // BILLING DECISIONS (2026-10-31) — an obligation owed for a recorded reason
     // ends only when that reason does: the downgrade was withdrawn, a plan that
     // sells the SKU was bought, or a new grant covers it. After a downgrade
@@ -387,7 +422,7 @@ export async function withdrawUnsupportedObligations(input: {
       !storageAddonRequiresPaidPlan(addon.addonKey) ||
       satisfied ||
       OBLIGATION_BASIS_REASONS.has(addon.dependentCancellationReasonCode ?? "") ||
-      (owedDependentCancellationTrigger({ addon, ...context }) === null &&
+      (owedDependentCancellationTrigger({ addon, ...context, grantPlan }) === null &&
         addon.dependsOnSubscriptionId !== null &&
         !context.endedBases.some((b) => b.id === addon.dependsOnSubscriptionId));
     if (!unsupported) continue;

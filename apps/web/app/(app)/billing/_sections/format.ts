@@ -19,6 +19,7 @@ import { formatUserDate } from "../../../../lib/date";
 import type {
   ActiveStorageAddon,
   EvidenceAdmission,
+  LegacyWorkspaceStorage,
   PlanLifecycle,
   UsageMeter,
   UsageWindow,
@@ -134,6 +135,15 @@ export function summarizeStorageAddons(active: ActiveStorageAddon[]): StorageHol
           .filter((total): total is string => total !== null)
       : null,
   };
+}
+
+/** What one older workspace's add-ons bill per month. Null when not all known. */
+export function workspaceMonthlyLabel(workspace: LegacyWorkspaceStorage): string | null {
+  if (!workspace.monthly || workspace.monthly.length === 0) return null;
+  const totals = workspace.monthly
+    .map((entry) => formatMoney(entry.cents, entry.currency))
+    .filter((total): total is string => total !== null);
+  return totals.length > 0 ? totals.join(" + ") : null;
 }
 
 /** What one size's count is made of, when it is not simply active here. */

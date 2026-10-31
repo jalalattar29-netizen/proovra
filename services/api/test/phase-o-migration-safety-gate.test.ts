@@ -342,6 +342,10 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // CONTRACT_DROP / CONTRACT_DROP_LATER in the Point-6 inventory (apply only
     // after the UC-0 image, which upserts against the composite key, is live).
     "20280602000000_derived_asset_variant_contract": new Set(["DROP_INDEX"]),
+    // STRIPE CUSTOMER PER CURRENCY (2026-11-01) — ONE guarded DROP INDEX retires
+    // the per-owner key of a table this same release creates. The per-currency
+    // key that replaces it is built first and the block RAISEs without it.
+    "20281101000000_stripe_customer_per_currency": new Set(["DROP_INDEX"]),
     // VERIFICATION PACKAGE PROFILE ROWS (2026-10-07) — ONE guarded DROP INDEX
     // retires the (evidence_id, version) unique key so a version can hold its
     // FULL_FORENSIC and EXTERNAL_DISCLOSURE rows. The two partial keys that

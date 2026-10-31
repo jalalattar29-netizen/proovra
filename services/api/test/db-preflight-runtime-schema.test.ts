@@ -96,8 +96,13 @@ function databaseWith(present: {
   billingRemediation?: boolean;
   // 20281031000000 — billing product decisions.
   billingDecisions?: boolean;
+  // 20281101000000 — Stripe customer per recurring currency.
+  customerCurrency?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
+    if (/table_name = 'billing_provider_customers'\s+AND column_name = 'currency'/.test(sql)) {
+      return present.customerCurrency === true;
+    }
     if (/'addon_end_consent_plan'|'depends_on_plan_grant_id'|'billing_provider_customers'/.test(sql)) {
       return present.billingDecisions === true;
     }
@@ -284,6 +289,7 @@ const STEP_UP_APPLIED: StepUpState = {
 const FULLY_MIGRATED = {
   billingRemediation: true,
   billingDecisions: true,
+  customerCurrency: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -650,6 +656,16 @@ describe("runtime schema requirements — billing remediation (20281030000000)",
       "subscriptions.provider_schedule_id",
     ]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281030000000_billing_remediation_convergence");
+  });
+});
+
+describe("runtime schema requirements — Stripe customer per currency (20281101000000)", () => {
+  it("an image that maps the column is refused on a database without it", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, customerCurrency: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(["billing_provider_customers.currency"]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281101000000_stripe_customer_per_currency");
   });
 });
 

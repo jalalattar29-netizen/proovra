@@ -232,6 +232,18 @@ export type StorageAddonOffer = {
   checkoutAvailability?: { stripe: boolean; paypal: boolean };
 };
 
+/** One older workspace's storage, by the quota enforced there. */
+export type LegacyWorkspaceStorage = {
+  name: string | null;
+  addonCount: number;
+  addonLabel: string;
+  usedLabel: string | null;
+  limitLabel: string | null;
+  planLabel: string | null;
+  limitReached: boolean | null;
+  monthly: Array<{ currency: string; cents: number }> | null;
+};
+
 export type ActiveStorageAddon = {
   id: string;
   addonKey: string;
@@ -328,8 +340,8 @@ export type BillingAccountProjection = {
   storageAddons?: {
     offers: StorageAddonOffer[];
     active: ActiveStorageAddon[];
-    /** Capacity paid for here but usable only in older workspaces. */
-    legacyWorkspaceCapacityLabel?: string | null;
+    /** Older workspaces this payer holds add-ons for, each by its own quota. */
+    legacyWorkspaces?: LegacyWorkspaceStorage[];
   };
   /**
    * Why storage add-ons are NOT on offer, and which tier includes them.

@@ -33,6 +33,10 @@ export type BillingReviewReason =
   | "STORAGE_SUBSCRIPTION_WITHOUT_RECORD"
   /** Stripe's record of a bound customer names another owner or environment. */
   | "PROVIDER_CUSTOMER_CONFLICT"
+  /** The sweep would have lowered a plan to what is billed. Held until enabled. */
+  | "AUTOMATIC_PLAN_LOWERING_HELD"
+  /** The sweep would have cancelled an add-on at the provider. Held until enabled. */
+  | "AUTOMATIC_ADDON_CANCELLATION_HELD"
   /** A refunded or reversed credit purchase whose credits were already consumed. */
   | "CREDIT_REFUND_AFTER_CONSUMPTION"
   /** A plan or storage payment was reversed (chargeback) or refunded. */

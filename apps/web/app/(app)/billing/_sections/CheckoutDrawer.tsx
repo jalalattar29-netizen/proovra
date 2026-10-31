@@ -779,12 +779,9 @@ export function CheckoutDrawer({
                       </div>
                     );
                   })}
-                  {projection.storageAddons?.legacyWorkspaceCapacityLabel ? (
+                  {projection.storageAddons?.legacyWorkspaces?.length ? (
                     <div className="bill-summary__row" data-billing-storage-legacy-capacity>
-                      <span>In older workspaces, not in this total</span>
-                      <span>
-                        <bdi>{projection.storageAddons.legacyWorkspaceCapacityLabel}</bdi>
-                      </span>
+                      <span>This purchase adds nothing to older workspaces</span>
                     </div>
                   ) : null}
                   {holdings.monthlyTotals && holdings.monthlyTotals.length > 0 ? (

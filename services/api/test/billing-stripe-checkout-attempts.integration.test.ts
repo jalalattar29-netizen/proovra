@@ -61,6 +61,7 @@ class FakeStripe {
   byKey = new Map<string, string>();
   calls: Array<{ method: string; path: string; key: string | null }> = [];
   createFailure: { status: number } | null = null;
+  customerFailure = false;
   loseCreateResponse = false;
   fail = new Map<string, number>();
   private seq = 0;
@@ -73,6 +74,15 @@ class FakeStripe {
     if (method === "GET" && path.startsWith("/prices/")) {
       const p = FAKE_PRICES.get(decodeURIComponent(path.slice("/prices/".length)));
       return p ? { status: 200, body: p.body } : { status: 404, body: { error: { code: "resource_missing" } } };
+    }
+    if (path === "/customers" && method === "POST") {
+      if (this.customerFailure) return { status: 500, body: { error: { type: "api_error" } } };
+      const id = key ? `cus_${key.slice(-16)}` : `cus_${++this.seq}`;
+      return { status: 200, body: { id, object: "customer", livemode: false, metadata: {} } };
+    }
+    if (path.startsWith("/customers/") && method === "GET") {
+      const id = decodeURIComponent(path.slice("/customers/".length));
+      return { status: 200, body: { id, object: "customer", livemode: false, metadata: {}, currency: null } };
     }
     if (path === "/checkout/sessions" && method === "POST") {
       if (this.createFailure) {
@@ -247,6 +257,24 @@ describe("Stripe checkout attempts (live PostgreSQL 16)", () => {
 
   afterAll(async () => {
     await harness?.cleanup();
+  });
+
+  it("a customer Stripe cannot settle refuses the checkout before any session, and the retry finishes the same creation", async () => {
+    const t = await payer();
+    const fake = new FakeStripe();
+    await withStripe(fake, async () => {
+      fake.customerFailure = true;
+      const refused = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "PRO", currency: "EUR" });
+      expect(refused.statusCode, refused.body).toBe(503);
+      expect(JSON.parse(refused.body).error.code).toBe("CHECKOUT_CUSTOMER_UNRESOLVED");
+      expect(fake.calls.filter((c) => c.path === "/checkout/sessions")).toEqual([]);
+
+      fake.customerFailure = false;
+      const retried = await call("POST", "/v1/billing/checkout/stripe", t.owner.token, { plan: "PRO", currency: "EUR" });
+      expect(retried.statusCode, retried.body).toBe(200);
+      const keys = new Set(fake.calls.filter((c) => c.path === "/customers").map((c) => c.key));
+      expect(keys.size).toBe(1);
+    });
   });
 
   it("a plan checkout commits an attempt first, uses it as the Idempotency-Key, reuses on a double click and blocks another plan on either provider", async () => {

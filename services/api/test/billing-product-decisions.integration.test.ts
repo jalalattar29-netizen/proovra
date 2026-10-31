@@ -8,6 +8,7 @@
  */
 import { randomUUID } from "node:crypto";
 
+import { formatBytesHuman } from "@proovra/shared-billing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -164,6 +165,17 @@ describe("billing product decisions (live PostgreSQL)", () => {
         ...data,
       } as never,
     });
+
+  const personalWorkspace = async (ownerUserId: string) => {
+    const org = await prisma.organization.create({
+      data: { name: "Personal container", billingOwnerUserId: ownerUserId, status: "ACTIVE", kind: "SYSTEM" } as never,
+      select: { id: true },
+    });
+    return prisma.team.create({
+      data: { name: "Personal", ownerUserId, isPersonal: true, organizationId: org.id, workspaceKind: "PERSONAL" } as never,
+      select: { id: true },
+    });
+  };
 
   const ownedWorkspace = async (ownerUserId: string, name = "Older workspace") => {
     const org = await prisma.organization.create({
@@ -393,7 +405,13 @@ describe("billing product decisions (live PostgreSQL)", () => {
             account: await resolveBillingAccountForViewer({ viewerUserId: userId, type: "PERSONAL", id: userId }),
           }),
         ),
-      ) as { storageAddons: { active: Array<Record<string, unknown>>; legacyWorkspaceCapacityLabel: string | null } };
+      ) as {
+        storageAddons: {
+          active: Array<Record<string, unknown>>;
+          legacyWorkspaces: Array<Record<string, unknown>>;
+        };
+        usage: { storage: { limitBytes: string; recurringAddonBytes: string } };
+      };
     }
 
     it("lists each add-on once, names the payer's own workspace, totals it apart, and shows nothing of another owner's", async () => {
@@ -416,7 +434,63 @@ describe("billing product decisions (live PostgreSQL)", () => {
         legacyWorkspace: false,
         legacyWorkspaceName: null,
       });
-      expect(storageAddons.legacyWorkspaceCapacityLabel).toBe("100 GB");
+      expect(storageAddons.legacyWorkspaces).toHaveLength(1);
+    });
+
+    it("states each older workspace by the quota enforced there, apart from the personal meter", async () => {
+      const { getTeamWorkspaceScope, getPersonalWorkspaceScope } = await import("../src/services/workspace-billing.service.js");
+      const { getWorkspaceUsage } = await import("../src/services/workspace-usage.service.js");
+      const payer = await freshUser("TEAM");
+      const workspace = await ownedWorkspace(payer, "Acme archive");
+      await addonOf(payer);
+      await addonOf(payer, { teamId: workspace.id, amountCents: 1500 });
+      await addonOf(payer, { teamId: workspace.id, amountCents: 500 });
+
+      const { storageAddons, usage } = await projectionFor(payer);
+      const personal = await getWorkspaceUsage(await getPersonalWorkspaceScope(payer));
+      const older = await getWorkspaceUsage(await getTeamWorkspaceScope(workspace.id));
+
+      // The personal meter is the personal quota: one add-on, not three.
+      expect(usage.storage.limitBytes).toBe(personal.storageBytesLimit.toString());
+      expect(usage.storage.recurringAddonBytes).toBe("107374182400");
+      // The workspace's line is that workspace's quota, and its cost is the payer's.
+      expect(older.storageBytesLimit - older.baseStorageBytesLimit).toBe(214_748_364_800n);
+      expect(storageAddons.legacyWorkspaces).toEqual([
+        {
+          name: "Acme archive",
+          addonCount: 2,
+          addonLabel: "200 GB",
+          usedLabel: formatBytesHuman(older.storageBytesUsed),
+          limitLabel: formatBytesHuman(older.storageBytesLimit),
+          planLabel: formatBytesHuman(older.baseStorageBytesLimit),
+          limitReached: false,
+          monthly: [{ currency: "EUR", cents: 2000 }],
+        },
+      ]);
+    });
+
+    it("an add-on stamped with the owner's personal workspace counts in the personal quota", async () => {
+      const { getPersonalWorkspaceScope } = await import("../src/services/workspace-billing.service.js");
+      const { getWorkspaceUsage } = await import("../src/services/workspace-usage.service.js");
+      const payer = await freshUser("TEAM");
+      const before = (await getWorkspaceUsage(await getPersonalWorkspaceScope(payer))).storageBytesLimit;
+      const personalTeam = await personalWorkspace(payer);
+      const addon = await addonOf(payer, { teamId: personalTeam.id });
+
+      const after = (await getWorkspaceUsage(await getPersonalWorkspaceScope(payer))).storageBytesLimit;
+      expect(after - before).toBe(107_374_182_400n);
+      const { storageAddons, usage } = await projectionFor(payer);
+      expect(usage.storage.limitBytes).toBe(after.toString());
+      expect(storageAddons.active.find((r) => r.id === addon.id)).toMatchObject({ legacyWorkspace: false });
+      expect(storageAddons.legacyWorkspaces).toEqual([]);
+    });
+
+    it("a plan with nothing on offer still shows the add-ons it is paying for", async () => {
+      const payer = await freshUser();
+      await prisma.entitlement.updateMany({ where: { userId: payer, active: true }, data: { plan: "ENTERPRISE" } });
+      const addon = await addonOf(payer, { addonKey: "PERSONAL_50_GB" });
+      const { storageAddons } = await projectionFor(payer);
+      expect(storageAddons.active.map((r) => r.id)).toEqual([addon.id]);
     });
 
     it("history names the payer's own older workspace and rewrites nothing", async () => {
@@ -653,6 +727,22 @@ describe("billing product decisions (live PostgreSQL)", () => {
         } as never,
       });
 
+    it("a live grant covers an add-on an old cancelled subscription would otherwise end", async () => {
+      const { owedDependentCancellations } = await import("../src/services/billing/dependent-cancellation.service.js");
+      const payer = await freshUser();
+      await baseOf(payer, {
+        plan: "TEAM",
+        status: "CANCELED",
+        canceledAtUtc: new Date(Date.now() - 86_400_000),
+        activatedAtUtc: new Date(Date.now() - 40 * 86_400_000),
+      });
+      await addonOf(payer);
+      const grant = await grantOf(payer);
+      expect((await owedDependentCancellations({ ownerUserId: payer, teamId: null }, prisma)).owed).toEqual([]);
+      await prisma.planGrant.update({ where: { id: grant.id }, data: { revokedAtUtc: new Date(), revokedByUserId: admin.userId, revocationReason: "ended" } as never });
+      expect((await owedDependentCancellations({ ownerUserId: payer, teamId: null }, prisma)).owed).toHaveLength(1);
+    });
+
     it("activation records the grant the SKU depended on, from the payer", async () => {
       const { applyStorageSubscriptionObservation } = await import("../src/services/billing/storage-activation.service.js");
       const payer = await freshUser();
@@ -725,6 +815,102 @@ describe("billing product decisions (live PostgreSQL)", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // The sweep and existing records
+  // ---------------------------------------------------------------------------
+  describe("what the sweep may do without a person", () => {
+    const account = (id: string) => ({ type: "PERSONAL", id }) as never;
+    const observed = (planId: string | null) => ({
+      state: "SUCCEEDED",
+      planId,
+      observedAtUtc: new Date(),
+      currentPeriodEndUtc: new Date(Date.now() + 9 * 86_400_000),
+      cancelAtPeriodEnd: false,
+      recentPayments: [],
+      providerStatus: "active",
+    });
+    const reconcile = async (id: string, planId: string | null, cancelAddonAtProvider?: (...a: never[]) => unknown) => {
+      const { reconcileBillingAccount } = await import("../src/services/billing/reconciliation/reconciliation.service.js");
+      return reconcileBillingAccount({
+        account: account(id),
+        providers: { STRIPE: { observeSubscription: async () => observed(planId) } } as never,
+        cancelAddonAtProvider: cancelAddonAtProvider as never,
+      });
+    };
+    const reviewOf = (userId: string, reason: string) => prisma.billingReviewItem.count({ where: { userId, reason } });
+    const withSwitch = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
+      process.env[name] = "on";
+      try {
+        return await run();
+      } finally {
+        delete process.env[name];
+      }
+    };
+
+    it("does not lower an entitlement until enabled, and says so", async () => {
+      const payer = await freshUser("TEAM");
+      const sub = await baseOf(payer, { plan: "PRO", status: "ACTIVE" });
+      await reconcile(payer, null);
+      const plan = async () => (await prisma.entitlement.findFirstOrThrow({ where: { userId: payer, active: true } })).plan;
+      expect(await plan()).toBe("TEAM");
+      expect(await reviewOf(payer, "AUTOMATIC_PLAN_LOWERING_HELD")).toBe(1);
+      await prisma.subscription.update({ where: { id: sub.id }, data: { providerStateAtUtc: null } });
+      await withSwitch("BILLING_AUTO_PLAN_LOWERING", () => reconcile(payer, null));
+      expect(await plan()).toBe("PRO");
+    });
+
+    it("a date change on the way past does not lower the plan either", async () => {
+      const payer = await freshUser("TEAM");
+      await baseOf(payer, { plan: "PRO", status: "ACTIVE", currentPeriodEnd: new Date(Date.now() + 86_400_000) });
+      await reconcile(payer, null);
+      expect((await prisma.entitlement.findFirstOrThrow({ where: { userId: payer, active: true } })).plan).toBe("TEAM");
+      expect(await reviewOf(payer, "AUTOMATIC_PLAN_LOWERING_HELD")).toBe(1);
+    });
+
+    it("a live add-on with no activation stamp is not refused and stopped as a first purchase", async () => {
+      const payer = await freshUser();
+      const addon = await addonOf(payer, { activatedAtUtc: null });
+      await reconcile(payer, null);
+      expect(await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).toMatchObject({
+        status: "ACTIVE",
+        dependentCancellationState: "NONE",
+      });
+    });
+
+    it("still raises an entitlement a customer paid for, which is not a reduction", async () => {
+      const payer = await freshUser("FREE");
+      await baseOf(payer, { plan: "PRO", status: "ACTIVE" });
+      await reconcile(payer, null);
+      expect((await prisma.entitlement.findFirstOrThrow({ where: { userId: payer, active: true } })).plan).toBe("PRO");
+      expect(await reviewOf(payer, "AUTOMATIC_PLAN_LOWERING_HELD")).toBe(0);
+    });
+
+    it("does not start a provider cancellation until enabled, and says so", async () => {
+      const payer = await freshUser();
+      await baseOf(payer, {
+        plan: "TEAM",
+        status: "CANCELED",
+        canceledAtUtc: new Date(Date.now() - 86_400_000),
+        activatedAtUtc: new Date(Date.now() - 40 * 86_400_000),
+      });
+      const addon = await addonOf(payer, { activatedAtUtc: new Date(Date.now() - 20 * 86_400_000) });
+      const cancels: unknown[] = [];
+      const cancel = (async (input: unknown) => {
+        cancels.push(input);
+        return { ok: true, mode: "PERIOD_END", terminal: false };
+      }) as never;
+      await reconcile(payer, null, cancel);
+      const state = async () =>
+        (await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).dependentCancellationState;
+      expect(await state()).toBe("NONE");
+      expect(cancels).toEqual([]);
+      expect(await reviewOf(payer, "AUTOMATIC_ADDON_CANCELLATION_HELD")).toBe(1);
+      await withSwitch("BILLING_AUTO_ADDON_CANCELLATION", () => reconcile(payer, null, cancel));
+      expect(cancels).toHaveLength(1);
+      expect(await state()).not.toBe("NONE");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // D4 — Stripe customer reuse
   // ---------------------------------------------------------------------------
   describe("D4: Stripe customer binding", () => {
@@ -737,17 +923,28 @@ describe("billing product decisions (live PostgreSQL)", () => {
       const byKey = new Map<string, string>();
       let created = 0;
       let down = false;
+      let answerLost = 0;
       return {
         customers,
         subscriptions,
         created: () => created,
+        keys: () => [...byKey.keys()],
         setDown: (value: boolean) => {
           down = value;
+        },
+        /** The next n creates land at Stripe and their responses never arrive. */
+        loseAnswers: (n: number) => {
+          answerLost = n;
         },
         deps: {
           environment: () => environment,
           get: async (path: string) => {
             if (down) throw new Error("stripe unavailable");
+            const search = path.match(/^\/customers\/search\?query=(.+)$/);
+            if (search) {
+              const key = decodeURIComponent(search[1]!).match(/:'(.+)'$/)![1];
+              return { data: [...customers.values()].filter((c) => c.metadata.proovraCustomerKey === key) };
+            }
             const customer = path.match(/^\/customers\/(.+)$/);
             if (customer) {
               const found = customers.get(decodeURIComponent(customer[1]!));
@@ -769,7 +966,18 @@ describe("billing product decisions (live PostgreSQL)", () => {
               created += 1;
               id = `cus_${randomUUID().slice(0, 12)}`;
               byKey.set(key, id);
-              customers.set(id, { id, livemode: environment === "live", metadata: { userId: body.get("metadata[userId]")! } });
+              customers.set(id, {
+                id,
+                livemode: environment === "live",
+                metadata: {
+                  userId: body.get("metadata[userId]")!,
+                  proovraCustomerKey: body.get("metadata[proovraCustomerKey]")!,
+                },
+              });
+            }
+            if (answerLost > 0) {
+              answerLost -= 1;
+              throw new Error("socket hang up");
             }
             return customers.get(id)!;
           },
@@ -777,14 +985,12 @@ describe("billing product decisions (live PostgreSQL)", () => {
       };
     }
 
-    const resolve = async (userId: string, stripe: ReturnType<typeof fakeStripe>, currency = "EUR") => {
+    const resolve = async (userId: string, stripe: ReturnType<typeof fakeStripe>, currency = "EUR", recurring = true) => {
       const { resolveStripeCheckoutCustomer } = await import("../src/services/billing/stripe-customer-binding.service.js");
-      return resolveStripeCheckoutCustomer({ userId, currency }, stripe.deps as never);
+      return resolveStripeCheckoutCustomer({ userId, currency, recurring }, stripe.deps as never);
     };
-    const rowFor = (userId: string, environment = "test") =>
-      prisma.billingProviderCustomer.findUnique({
-        where: { userId_provider_environment: { userId, provider: "STRIPE", environment } },
-      });
+    const rowFor = (userId: string, environment = "test", currency = "eur") =>
+      prisma.billingProviderCustomer.findFirst({ where: { userId, provider: "STRIPE", environment, currency } });
 
     it("creates once and reuses after that, sending no personal data", async () => {
       const payer = await freshUser();
@@ -793,7 +999,7 @@ describe("billing product decisions (live PostgreSQL)", () => {
       expect(first).toBeTruthy();
       expect(await resolve(payer, stripe)).toBe(first);
       expect(stripe.created()).toBe(1);
-      expect(Object.keys(stripe.customers.get(first!)!.metadata)).toEqual(["userId"]);
+      expect(Object.keys(stripe.customers.get(first!)!.metadata).sort()).toEqual(["proovraCustomerKey", "userId"]);
       expect(await rowFor(payer)).toMatchObject({ source: "CREATED", state: "ACTIVE", providerCustomerId: first });
     });
 
@@ -843,25 +1049,29 @@ describe("billing product decisions (live PostgreSQL)", () => {
       expect(stripe.created()).toBe(0);
     });
 
-    it("a subscription naming another owner is not adopted, and nothing is created", async () => {
+    it("a subscription naming another owner is not adopted: the payer gets their own customer", async () => {
       const payer = await freshUser("PRO");
       const base = await baseOf(payer, { plan: "PRO" });
       const stripe = fakeStripe();
       stripe.subscriptions.set(base.providerSubId, { customer: "cus_old", metadata: { userId: randomUUID() } });
-      expect(await resolve(payer, stripe)).toBeNull();
-      expect(await rowFor(payer)).toBeNull();
-      expect(stripe.created()).toBe(0);
+      const bound = await resolve(payer, stripe);
+      expect(bound).not.toBe("cus_old");
+      expect(await rowFor(payer)).toMatchObject({ source: "CREATED", providerCustomerId: bound });
     });
 
-    it("several add-on customers with no base choose nothing and leave their references alone", async () => {
+    it("several add-on customers offer no verified choice: a new one is bound once, and the count stops growing", async () => {
       const payer = await freshUser();
       const one = await addonOf(payer, { addonKey: "PERSONAL_50_GB" });
       const two = await addonOf(payer, { addonKey: "PERSONAL_50_GB" });
       const stripe = fakeStripe();
       stripe.subscriptions.set(one.externalSubscriptionId!, { customer: "cus_a", metadata: { userId: payer } });
       stripe.subscriptions.set(two.externalSubscriptionId!, { customer: "cus_b", metadata: { userId: payer } });
-      expect(await resolve(payer, stripe)).toBeNull();
-      expect(await rowFor(payer)).toBeNull();
+      const bound = await resolve(payer, stripe);
+      expect(bound).toBeTruthy();
+      expect(bound).not.toMatch(/cus_[ab]$/);
+      expect(await resolve(payer, stripe)).toBe(bound);
+      expect(stripe.created()).toBe(1);
+      expect((await rowFor(payer))?.source).toBe("CREATED");
     });
 
     it("one add-on customer with no base is adopted", async () => {
@@ -898,22 +1108,117 @@ describe("billing product decisions (live PostgreSQL)", () => {
       ).toBe(1);
     });
 
-    it("an outage leaves the row alone and the checkout goes without a customer", async () => {
+    it("an outage refuses the checkout, because going ahead would make another customer", async () => {
+      const { StripeCustomerUnresolved } = await import("../src/services/billing/stripe-customer-binding.service.js");
       const payer = await freshUser();
       const stripe = fakeStripe();
       const first = (await resolve(payer, stripe))!;
       stripe.setDown(true);
-      expect(await resolve(payer, stripe)).toBeNull();
+      await expect(resolve(payer, stripe)).rejects.toBeInstanceOf(StripeCustomerUnresolved);
       expect((await rowFor(payer))?.providerCustomerId).toBe(first);
     });
 
-    it("a customer billed in another currency sits this checkout out and stays bound", async () => {
+    it("each recurring currency has its own customer, reused from then on", async () => {
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      const eur = (await resolve(payer, stripe, "EUR"))!;
+      stripe.customers.get(eur)!.currency = "eur";
+      const usd = (await resolve(payer, stripe, "USD"))!;
+      expect(usd).not.toBe(eur);
+      expect(await resolve(payer, stripe, "USD")).toBe(usd);
+      expect(await resolve(payer, stripe, "EUR")).toBe(eur);
+      expect(stripe.created()).toBe(2);
+    });
+
+    it("two checkouts in two currencies cannot race for one customer's first currency", async () => {
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      const [eur, usd] = await Promise.all([resolve(payer, stripe, "EUR"), resolve(payer, stripe, "USD")]);
+      expect(eur).not.toBe(usd);
+      expect(stripe.created()).toBe(2);
+    });
+
+    it("a one-time credit purchase reuses the owner's customer in any currency", async () => {
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      const eur = (await resolve(payer, stripe, "EUR"))!;
+      stripe.customers.get(eur)!.currency = "eur";
+      expect(await resolve(payer, stripe, "USD", false)).toBe(eur);
+      expect(stripe.created()).toBe(1);
+    });
+
+    it("an adopted customer billed elsewhere is bound under its own currency, and this checkout gets its own", async () => {
+      const payer = await freshUser("TEAM");
+      const base = await baseOf(payer);
+      const stripe = fakeStripe();
+      stripe.customers.set("cus_usd", { id: "cus_usd", livemode: false, metadata: {}, currency: "usd" });
+      stripe.subscriptions.set(base.providerSubId, { customer: "cus_usd", metadata: { userId: payer } });
+      const eur = await resolve(payer, stripe, "EUR");
+      expect(eur).not.toBe("cus_usd");
+      expect(await rowFor(payer, "test", "usd")).toMatchObject({ providerCustomerId: "cus_usd", source: "ADOPTED_BASE_PLAN" });
+      expect(await resolve(payer, stripe, "USD")).toBe("cus_usd");
+    });
+
+    it("a bound customer later billed in another currency goes to review and is not rebound", async () => {
       const payer = await freshUser();
       const stripe = fakeStripe();
       const first = (await resolve(payer, stripe))!;
       stripe.customers.get(first)!.currency = "usd";
       expect(await resolve(payer, stripe, "EUR")).toBeNull();
-      expect(await resolve(payer, stripe, "USD")).toBe(first);
+      expect((await rowFor(payer))?.state).toBe("CONFLICT");
+      expect(stripe.created()).toBe(1);
+    });
+
+    it("a lost response is answered by the same key: one customer", async () => {
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      stripe.loseAnswers(1);
+      expect(await resolve(payer, stripe)).toBeTruthy();
+      expect(stripe.created()).toBe(1);
+    });
+
+    it("if the answer stays lost, the checkout is refused and the next one finishes the same creation", async () => {
+      const { StripeCustomerUnresolved } = await import("../src/services/billing/stripe-customer-binding.service.js");
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      stripe.loseAnswers(2);
+      await expect(resolve(payer, stripe)).rejects.toBeInstanceOf(StripeCustomerUnresolved);
+      expect(await rowFor(payer)).toMatchObject({ state: "CREATING", providerCustomerId: null });
+      const bound = await resolve(payer, stripe);
+      expect(bound).toBeTruthy();
+      expect(stripe.created()).toBe(1);
+      expect(await rowFor(payer)).toMatchObject({ state: "ACTIVE", providerCustomerId: bound, creationKey: null });
+    });
+
+    it("an old creation is found by its key rather than made again", async () => {
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      stripe.loseAnswers(2);
+      await resolve(payer, stripe).catch(() => undefined);
+      const row = (await rowFor(payer))!;
+      await prisma.billingProviderCustomer.update({
+        where: { id: row.id },
+        data: { creationStartedAtUtc: new Date(Date.now() - 3_600_000) },
+      });
+      const bound = await resolve(payer, stripe);
+      expect(stripe.customers.get(bound!)?.metadata.proovraCustomerKey).toBe(row.creationKey);
+      expect(stripe.created()).toBe(1);
+    });
+
+    it("an old creation that never landed gets a fresh key", async () => {
+      const payer = await freshUser();
+      const stripe = fakeStripe();
+      stripe.setDown(true);
+      await resolve(payer, stripe).catch(() => undefined);
+      stripe.setDown(false);
+      const row = (await rowFor(payer))!;
+      await prisma.billingProviderCustomer.update({
+        where: { id: row.id },
+        data: { creationStartedAtUtc: new Date(Date.now() - 3_600_000) },
+      });
+      const bound = await resolve(payer, stripe);
+      expect(stripe.customers.get(bound!)?.metadata.proovraCustomerKey).not.toBe(row.creationKey);
+      expect(stripe.created()).toBe(1);
     });
 
     it("an unrecognised key mode binds nothing", async () => {

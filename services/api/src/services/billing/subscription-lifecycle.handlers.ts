@@ -33,6 +33,7 @@ import { endLegacyWorkspaceBilling } from "./legacy-workspace-billing.service.js
 // legitimately does set an organization workspace's plan.
 import { prisma } from "../../db.js";
 import { setPersonalPlan, upsertSubscription } from "../billing.service.js";
+import { lowersPlan } from "./automatic-effects.js";
 
 /** Members audit ENT-12 — a provider fact changed the plan; the audit names the subscription. */
 const WEBHOOK_PLAN_ORIGIN = (providerSubId: string) => ({
@@ -120,7 +121,28 @@ export async function syncPlanForSubscription(params: {
   providerScheduleId?: string | null;
   /** Injected by tests; production cancels through the real provider client. */
   cancelSupersededAtProvider?: SupersededCanceller;
+  /** The sweep, while automatic lowering is off: record the fact, keep the entitlement. */
+  holdPlanLowering?: boolean;
 }): Promise<SyncPlanOutcome> {
+  const planLoweringHeld = async (plan: prismaPkg.PlanType): Promise<boolean> => {
+    if (!params.holdPlanLowering) return false;
+    const current = await prisma.entitlement.findFirst({
+      where: { userId: params.userId, active: true },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    if (!current || !lowersPlan(current.plan, plan)) return false;
+    await recordBillingReviewItem({
+      userId: params.userId,
+      provider: params.provider,
+      providerResourceId: params.providerSubId,
+      product: "PLAN",
+      reason: "AUTOMATIC_PLAN_LOWERING_HELD",
+      detail: { from: current.plan, to: plan },
+    });
+    return true;
+  };
+
   const write = (client: ActivationClient | typeof prisma = prisma) =>
     upsertSubscription(
       {
@@ -224,7 +246,9 @@ export async function syncPlanForSubscription(params: {
         canceledAtProvider,
       };
     }
-    await setPersonalPlan(params.userId, subscription.plan, WEBHOOK_PLAN_ORIGIN(params.providerSubId));
+    if (!(await planLoweringHeld(subscription.plan))) {
+      await setPersonalPlan(params.userId, subscription.plan, WEBHOOK_PLAN_ORIGIN(params.providerSubId));
+    }
     return { outcome: "APPLIED", subscriptionId: subscription.id, status: subscription.status };
   }
 
@@ -266,6 +290,8 @@ export async function syncPlanForSubscription(params: {
         before.status === prismaPkg.SubscriptionStatus.ACTIVE ||
         before.status === prismaPkg.SubscriptionStatus.PAST_DUE);
     if (!everCarriedEntitlement) return applied;
+    // Held at its lowest: a survivor's plan is restored by the drift repair.
+    if (await planLoweringHeld(prismaPkg.PlanType.FREE)) return applied;
 
     if (subscription.teamId) {
       const stillPaid = await prisma.subscription.findFirst({

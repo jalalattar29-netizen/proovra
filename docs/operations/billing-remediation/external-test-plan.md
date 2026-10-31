@@ -1,6 +1,6 @@
 # External test plan: Stripe test mode and PayPal Sandbox
 
-**Status: prepared, not executed, including S10 to S12. Needs approval.** Local tests fake both providers at their module boundary, so they cannot prove what the providers actually do. Everything here uses test or sandbox resources only, against a non-Production stack holding only test credentials.
+**Status: prepared, not executed, including S10 to S13. Needs approval.** Local tests fake both providers at their module boundary, so they cannot prove what the providers actually do. Everything here uses test or sandbox resources only, against a non-Production stack holding only test credentials.
 
 ## Isolation
 
@@ -23,8 +23,9 @@
 | S8 | Metered and yearly prices configured as an offer | Refused before any Session | 2 test prices |
 | S9 | Webhook endpoint on an older API version | Shape tolerance | 1 test endpoint |
 | S10 | Team to Pro with a Team add-on, agreeing to the end of its renewal, then advance the clock | D1: the add-on keeps its paid date and stops, the plan lands, no substitute is bought | 1 add-on, same clock |
-| S11 | Two checkouts by one owner; a checkout with a customer already billed in another currency; a deleted customer | D4: one customer reused, the documented currency refusal, safe replacement | 3 customers |
+| S11 | Two checkouts by one owner; a plan checkout in a second currency; a credit purchase in a second currency on a customer with an active subscription; a deleted customer | D4: one customer per recurring currency, one-time reuse across currencies, safe replacement | 3 customers |
 | S12 | Add-on bought under an internal grant, then the grant ends | D2: cancels at period end | 1 add-on |
+| S13 | Same idempotency key sent twice at once, and again after a dropped connection; search by `metadata['proovraCustomerKey']` after five minutes | D4: the 409 and the replay behave as documented, and the search finds the customer | 1 customer |
 
 ## PayPal Sandbox scenarios
 

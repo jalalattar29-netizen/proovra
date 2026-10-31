@@ -3750,6 +3750,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name='addon_end_consent_plan') = 1 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_storage_addons' AND column_name='depends_on_plan_grant_id') = 1 AND to_regclass('public.billing_provider_customers') IS NOT NULL;\"",
       "evidence": "BILLING PRODUCT DECISIONS (2026-10-31). Additive only: nullable columns on subscriptions and workspace_storage_addons, one index, and one new table. No row is rewritten and no old image reads any of it."
+    },
+    "20281101000000_stripe_customer_per_currency": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='billing_provider_customers' AND column_name='currency') = 1 AND to_regclass('public.billing_provider_customers_owner_currency_key') IS NOT NULL;\"",
+      "evidence": "STRIPE CUSTOMER PER CURRENCY (2026-11-01). Nullable columns on billing_provider_customers and its owner key widened to include the currency. The table comes from the previous migration of the same release, so it is expected to be empty. No row is rewritten."
     }
   }
 }
