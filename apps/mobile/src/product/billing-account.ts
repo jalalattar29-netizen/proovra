@@ -132,6 +132,7 @@ export interface BillingProjection {
     /** Older workspaces, each with its own quota. Never part of the meter. */
     legacyWorkspaces: Array<{
       name: string | null;
+      countedByNoQuota: boolean;
       addonLabel: string;
       usedLabel: string | null;
       limitLabel: string | null;
@@ -292,6 +293,7 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
             const w = obj(raw);
             return {
               name: str(w.name),
+              countedByNoQuota: w.countedByNoQuota === true,
               addonLabel: str(w.addonLabel) ?? "Storage add-ons",
               usedLabel: str(w.usedLabel),
               limitLabel: str(w.limitLabel),

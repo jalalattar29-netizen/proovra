@@ -136,6 +136,51 @@ describe("billing automatic effects preview (live PostgreSQL)", () => {
     expect(obligated.map((r) => r.id).sort()).toEqual([stripeRow.id, paypalRow.id, pastDueRow.id].sort());
   }, 150_000);
 
+  it("lists what a grant's end stops, which is what closing the grant then records", async () => {
+    const admin = await user();
+    const grant = (userId: string, expiresAtUtc: Date) =>
+      prisma.planGrant.create({
+        data: {
+          userId,
+          plan: "TEAM",
+          source: "INTERNAL_TEST",
+          reason: "Internal test access",
+          grantedByUserId: admin,
+          idempotencyKey: randomUUID(),
+          grantedAtUtc: new Date(Date.now() - 20 * day),
+          expiresAtUtc,
+        } as never,
+      });
+    const ended = await user();
+    const endedRow = await addon(ended, { dependsOnPlanGrantId: (await grant(ended, new Date(Date.now() - day))).id });
+    const ending = await user();
+    const endsAt = new Date(Date.now() + 5 * day);
+    const endingRow = await addon(ending, { dependsOnPlanGrantId: (await grant(ending, endsAt)).id });
+    const covered = await user("TEAM");
+    await subscription(covered, {});
+    const coveredRow = await addon(covered, { dependsOnPlanGrantId: (await grant(covered, new Date(Date.now() - day))).id });
+
+    const { status, lines } = runPreview(databaseUrl);
+    expect(status).toBe(0);
+    const listed = lines.filter((l) => l.action === "CANCEL_ADDON_GRANT_ENDED");
+    expect(listed.map((l) => l.addonId)).toEqual(expect.arrayContaining([endedRow.id, endingRow.id]));
+    expect(listed.map((l) => l.addonId)).not.toContain(coveredRow.id);
+    expect(listed.find((l) => l.addonId === endingRow.id)).toMatchObject({
+      grantEndsUtc: endsAt.toISOString(),
+      providerStopsRenewing: "AT_PAID_THROUGH",
+      capacityKeptUntilPaidThrough: true,
+      held: false,
+    });
+
+    const { expireInternalPlanGrants } = await import("../src/services/billing/internal-plan-grant.service.js");
+    await expireInternalPlanGrants(prisma);
+    const state = async (id: string) =>
+      (await prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id } })).dependentCancellationState;
+    expect(await state(endedRow.id)).toBe("PENDING");
+    expect(await state(endingRow.id)).toBe("NONE");
+    expect(await state(coveredRow.id)).toBe("NONE");
+  }, 150_000);
+
   it("lists a plan the sweep would lower, and only that", async () => {
     const drifted = await user("TEAM");
     const lower = await subscription(drifted, { plan: "PRO" });

@@ -148,7 +148,7 @@ const AUTOMATIC = [
   },
   {
     id: "Q3_ADDONS_COUNTED_BY_NO_QUOTA",
-    meaning: "live add-ons whose workspace now has another owner. Still billed to the buyer, counted by no quota and absent from their Billing page. Needs review",
+    meaning: "live add-ons whose workspace now has another owner. Billed to the buyer and shown on their Billing page, but counted by no quota. Needs review",
     sql: `
       select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
         from workspace_storage_addons a
@@ -157,7 +157,7 @@ const AUTOMATIC = [
   },
   {
     id: "Q4_ADDONS_ON_ORGANIZATION_WORKSPACES",
-    meaning: "live add-ons on an organization workspace. Counted by that workspace's quota and shown on the organization's account, not the payer's Personal page",
+    meaning: "live add-ons on an organization workspace. Counted by that workspace's quota and shown beside it on the payer's Personal page, never in the personal total",
     sql: `
       select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
         from workspace_storage_addons a

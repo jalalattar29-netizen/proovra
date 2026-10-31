@@ -53,7 +53,7 @@ Each write below needs no operator. Every one is idempotent: a row already conve
 | R10 | Owned workspace live on TEAM with no live subscription scoped to it | Nothing for existing rows. Only a subscription ending after release closes one | Read each payer's provider state first. Closing one moves that workspace to Free limits, so each needs an owner decision. Nothing is deleted |
 | R11 | Internal grants past expiry, not yet closed | **The sweep closes and audits these** | None. The count should reach zero after the first sweep. Add-ons bought under them have no recorded dependency, so they stay as R6 |
 | R12 | Payers with several historical Stripe customers | Nothing to existing records. Their next checkout binds one customer per the rules in the ledger, so the count stops growing | None proposed, because none is needed: old customers keep paying their own subscriptions. Merging is not authorised |
-| Q1 to Q4 | Where live add-ons are counted | Q1 rows start counting in the personal quota | Q3 rows need a person: billed to the buyer, counted by no quota, and absent from their Billing page |
+| Q1 to Q4 | Where live add-ons are counted | Q1 rows start counting in the personal quota | Q3 rows need a person: billed to the buyer and now shown to them, but counted by no quota |
 
 ## Rules for any repair
 

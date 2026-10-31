@@ -334,7 +334,12 @@ export function StorageAddonsSection({
                     </strong>
                   </span>
                   <span className="bill-addon__meta" data-billing-storage-legacy-usage>
-                    {workspace.usedLabel && workspace.limitLabel && workspace.planLabel ? (
+                    {workspace.countedByNoQuota ? (
+                      <>
+                        <bdi>{workspace.addonLabel}</bdi> of add-ons. This workspace now has another owner, so this
+                        storage counts toward no limit. It still bills you until you cancel it.
+                      </>
+                    ) : workspace.usedLabel && workspace.limitLabel && workspace.planLabel ? (
                       <>
                         <bdi>
                           {workspace.usedLabel} of {workspace.limitLabel}

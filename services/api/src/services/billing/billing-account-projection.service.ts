@@ -440,6 +440,8 @@ export type StorageAddonOffer = {
 /** One older workspace's storage, by the quota enforced there. */
 export type LegacyWorkspaceStorage = {
   name: string | null;
+  /** The workspace now has another owner: billed to the payer, and no quota counts it. */
+  countedByNoQuota: boolean;
   addonCount: number;
   /** Add-on capacity counted by that workspace's quota. */
   addonLabel: string;
@@ -475,6 +477,7 @@ export type ActiveStorageAddon = {
   legacyWorkspaceId: string | null;
   /** That workspace's name. */
   legacyWorkspaceName: string | null;
+  countedByNoQuota: boolean;
   storageBytes: string;
   /** The provider will not renew it: already cancelled, or cancelling at period end. */
   ending: boolean;
@@ -845,16 +848,17 @@ async function legacyWorkspaceStorage(
   const out: LegacyWorkspaceStorage[] = [];
   for (const workspaceId of new Set(live.map((row) => row.legacyWorkspaceId!))) {
     const held = live.filter((row) => row.legacyWorkspaceId === workspaceId);
-    const usage = await resolveCommercialContext({
-      type: "OWNED_WORKSPACE",
-      teamId: workspaceId,
-      requesterUserId: ownerUserId,
-    })
-      .then((context) => getWorkspaceUsage(context.scope))
-      .catch((err: unknown) => {
-        logError("billing.legacy_workspace_usage_unavailable", err);
-        return null;
-      });
+    // A workspace with another owner counts no add-on of this payer's, and its
+    // usage is that owner's.
+    const countedByNoQuota = held[0]!.countedByNoQuota;
+    const usage = countedByNoQuota
+      ? null
+      : await resolveCommercialContext({ type: "WORKSPACE", teamId: workspaceId, requesterUserId: ownerUserId })
+          .then((context) => getWorkspaceUsage(context.scope))
+          .catch((err: unknown) => {
+            logError("billing.legacy_workspace_usage_unavailable", err);
+            return null;
+          });
     const monthly = new Map<string, number>();
     let amountsKnown = true;
     for (const row of held) {
@@ -864,6 +868,7 @@ async function legacyWorkspaceStorage(
     }
     out.push({
       name: held[0]!.legacyWorkspaceName,
+      countedByNoQuota,
       addonCount: held.length,
       addonLabel: formatBytesHuman(held.reduce((sum, row) => sum + BigInt(row.storageBytes), 0n)),
       usedLabel: usage ? formatBytesHuman(usage.storageBytesUsed) : null,
@@ -886,12 +891,12 @@ async function activeAddonsFor(params: {
   showAmounts: boolean;
   canPurchaseAddons: boolean;
 }): Promise<ActiveStorageAddon[]> {
-  // AUD-29 — a payer's add-on bought under a legacy workspace still bills them,
-  // and this is the only surface where they can see or stop it.
-  const legacy = params.teamId === null ? await payerLegacyWorkspaceIds(params.ownerUserId) : [];
+  // AUD-29 — an add-on bills its owner whichever workspace it was bought for, a
+  // workspace since handed to someone else included, and this is the only surface
+  // where they can see or stop it. So a Personal account lists all of them.
   const scope: prismaPkg.Prisma.WorkspaceStorageAddonWhereInput = {
     ownerUserId: params.ownerUserId,
-    ...(legacy.length > 0 ? { OR: [{ teamId: null }, { teamId: { in: legacy } }] } : { teamId: params.teamId }),
+    ...(params.teamId === null ? {} : { teamId: params.teamId }),
   };
   const select = {
       id: true,
@@ -941,10 +946,11 @@ async function activeAddonsFor(params: {
   return rows.map((r) => {
     // The owner's personal workspace is the Personal subject, not an older one:
     // its quota counts this row (`storageAddonQuotaWhere`).
+    const heldByPayer = r.team?.ownerUserId === params.ownerUserId;
     const legacyWorkspace =
       r.teamId !== null &&
       r.teamId !== params.teamId &&
-      r.team?.workspaceKind !== prismaPkg.WorkspaceKind.PERSONAL;
+      !(heldByPayer && r.team?.workspaceKind === prismaPkg.WorkspaceKind.PERSONAL);
     const endingReason =
       r.dependentCancellationReasonCode === PLAN_NO_LONGER_INCLUDES_STORAGE
         ? ("PLAN_CHANGE" as const)
@@ -968,7 +974,8 @@ async function activeAddonsFor(params: {
       endsWithPlan: !legacyOneTime && storageAddonRequiresPaidPlan(r.addonKey),
       legacyWorkspace,
       legacyWorkspaceId: legacyWorkspace ? r.teamId : null,
-      legacyWorkspaceName: legacyWorkspace && r.team?.ownerUserId === params.ownerUserId ? r.team.name : null,
+      legacyWorkspaceName: legacyWorkspace && heldByPayer ? r.team!.name : null,
+      countedByNoQuota: legacyWorkspace && !heldByPayer,
       storageBytes: r.extraStorageBytes.toString(),
       ending,
       paymentDue: r.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,

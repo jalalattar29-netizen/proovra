@@ -23,11 +23,15 @@ test("an older workspace keeps its own storage figures, apart from the meter", (
     storageAddons: {
       offers: [],
       active: [],
-      legacyWorkspaces: [{ name: "Acme archive", addonLabel: "200 GB", usedLabel: "12 GB", limitLabel: "300 GB", planLabel: "100 GB" }],
+      legacyWorkspaces: [
+        { name: "Acme archive", addonLabel: "200 GB", usedLabel: "12 GB", limitLabel: "300 GB", planLabel: "100 GB" },
+        { name: null, countedByNoQuota: true, addonLabel: "100 GB", usedLabel: null, limitLabel: null, planLabel: null },
+      ],
     },
   });
   assert.deepEqual(p.storageAddons.legacyWorkspaces, [
-    { name: "Acme archive", addonLabel: "200 GB", usedLabel: "12 GB", limitLabel: "300 GB", planLabel: "100 GB" },
+    { name: "Acme archive", countedByNoQuota: false, addonLabel: "200 GB", usedLabel: "12 GB", limitLabel: "300 GB", planLabel: "100 GB" },
+    { name: null, countedByNoQuota: true, addonLabel: "100 GB", usedLabel: null, limitLabel: null, planLabel: null },
   ]);
 });
 

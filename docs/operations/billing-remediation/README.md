@@ -88,7 +88,7 @@ Finding IDs come from the audit of `569fe2e114864e2ad6d42e035e8ad2bc6edf9577`.
 - **No dark theme was implemented on web Billing.** `billing.css` has no dark rules, so a dark preference shows the same light page. The real-browser check at 390 and 1440 wide (`e2e/billing-layout`, stubbed API) proves that light page stays readable and on screen under that preference, and nothing more. Other Billing interaction is covered by render tests.
 - The mobile app is fixed to one dark appearance (`userInterfaceStyle: "dark"`), with no light mode to compare. Its screens have not been run on a device or simulator. They are covered by Node tests, and `native-build` proves they compile.
 - Each older workspace has its own quota, so its capacity never joins the personal total. Billing states each one with its own used, limit, plan and add-on figures, from the same calculation that enforces it, and the monthly total includes its cost because the payer pays it.
-- An add-on whose workspace now has another owner is billed to the buyer and counted by no quota. It needs a person (`Q3_ADDONS_COUNTED_BY_NO_QUOTA`).
+- The buyer's Personal page lists every add-on billed to them, organization workspaces included, and the monthly total includes them. One on a workspace that now has another owner is shown as counting toward no limit, and they can cancel it. Whether its capacity should count anywhere is a repair decision (`Q3_ADDONS_COUNTED_BY_NO_QUOTA`).
 - A public-store mobile build shows no checkout link. Its copy points to Billing on the web.
 
 ## Blocked outside source

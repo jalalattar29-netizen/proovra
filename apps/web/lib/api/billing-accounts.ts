@@ -235,6 +235,7 @@ export type StorageAddonOffer = {
 /** One older workspace's storage, by the quota enforced there. */
 export type LegacyWorkspaceStorage = {
   name: string | null;
+  countedByNoQuota?: boolean;
   addonCount: number;
   addonLabel: string;
   usedLabel: string | null;

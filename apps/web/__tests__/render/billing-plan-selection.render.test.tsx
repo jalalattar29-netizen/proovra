@@ -1207,6 +1207,17 @@ describe("storage holdings and what stops renewing", () => {
             limitReached: false,
             monthly: [{ currency: "EUR", cents: 2000 }],
           },
+          {
+            name: null,
+            countedByNoQuota: true,
+            addonCount: 1,
+            addonLabel: "100 GB",
+            usedLabel: null,
+            limitLabel: null,
+            planLabel: null,
+            limitReached: null,
+            monthly: [{ currency: "EUR", cents: 999 }],
+          },
         ],
       },
     } as never);
@@ -1225,6 +1236,8 @@ describe("storage holdings and what stops renewing", () => {
     expect(older).toMatch(/Acme archive/);
     expect(container.querySelector("[data-billing-storage-legacy-usage]")?.textContent).toMatch(/12 GB of 300 GB used, with 100 GB from its plan and 200 GB of add-ons/);
     expect(container.querySelector("[data-billing-storage-legacy-monthly]")?.textContent).toMatch(/Billed to you: .*20.* \/ month/);
+    const lines = container.querySelectorAll("[data-billing-storage-legacy-usage]");
+    expect(lines[1]?.textContent).toMatch(/100 GB of add-ons\. This workspace now has another owner.*counts toward no limit/);
   });
 
   it("names the owner's workspace on a legacy add-on", () => {

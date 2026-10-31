@@ -458,6 +458,7 @@ describe("billing product decisions (live PostgreSQL)", () => {
       expect(storageAddons.legacyWorkspaces).toEqual([
         {
           name: "Acme archive",
+          countedByNoQuota: false,
           addonCount: 2,
           addonLabel: "200 GB",
           usedLabel: formatBytesHuman(older.storageBytesUsed),
@@ -483,6 +484,70 @@ describe("billing product decisions (live PostgreSQL)", () => {
       expect(usage.storage.limitBytes).toBe(after.toString());
       expect(storageAddons.active.find((r) => r.id === addon.id)).toMatchObject({ legacyWorkspace: false });
       expect(storageAddons.legacyWorkspaces).toEqual([]);
+
+      // The worker's storage gate is the same quota, by either way it is reached.
+      const worker = await import("../../worker/src/workspace-billing.js");
+      const api = await getPersonalWorkspaceScope(payer);
+      expect((await worker.getPersonalWorkspaceScope(payer)).activeStorageAddonBytes).toBe(api.activeStorageAddonBytes);
+      expect((await worker.getTeamWorkspaceScope(personalTeam.id)).activeStorageAddonBytes).toBe(
+        api.activeStorageAddonBytes,
+      );
+    });
+
+    it("an add-on on a workspace with another owner stays on the buyer's page and in no meter", async () => {
+      const payer = await freshUser("TEAM");
+      const stranger = await freshUser("TEAM");
+      const handedOver = await ownedWorkspace(stranger, "Not yours");
+      const addon = await addonOf(payer, { teamId: handedOver.id, amountCents: 1500 });
+
+      const { storageAddons, usage } = await projectionFor(payer);
+      expect(usage.storage.recurringAddonBytes).toBe("0");
+      expect(storageAddons.active.find((r) => r.id === addon.id)).toMatchObject({
+        legacyWorkspace: true,
+        legacyWorkspaceName: null,
+        countedByNoQuota: true,
+        canCancel: true,
+      });
+      expect(storageAddons.legacyWorkspaces).toEqual([
+        {
+          name: null,
+          countedByNoQuota: true,
+          addonCount: 1,
+          addonLabel: "100 GB",
+          usedLabel: null,
+          limitLabel: null,
+          planLabel: null,
+          limitReached: null,
+          monthly: [{ currency: "EUR", cents: 1500 }],
+        },
+      ]);
+    });
+
+    it("an add-on on an organization workspace is billed on the payer's page, by that workspace's quota", async () => {
+      const { getTeamWorkspaceScope } = await import("../src/services/workspace-billing.service.js");
+      const { getWorkspaceUsage } = await import("../src/services/workspace-usage.service.js");
+      const payer = await freshUser("TEAM");
+      const org = await prisma.organization.create({
+        data: { name: "Customer", billingOwnerUserId: payer, status: "ACTIVE", kind: "CUSTOMER" } as never,
+        select: { id: true },
+      });
+      const workspace = await prisma.team.create({
+        data: { name: "Acme legal", ownerUserId: payer, isPersonal: false, organizationId: org.id, workspaceKind: "ORGANIZATION" } as never,
+        select: { id: true },
+      });
+      await addonOf(payer, { teamId: workspace.id });
+
+      const { storageAddons, usage } = await projectionFor(payer);
+      const quota = await getWorkspaceUsage(await getTeamWorkspaceScope(workspace.id));
+      expect(usage.storage.recurringAddonBytes).toBe("0");
+      expect(storageAddons.legacyWorkspaces).toMatchObject([
+        {
+          name: "Acme legal",
+          countedByNoQuota: false,
+          limitLabel: formatBytesHuman(quota.storageBytesLimit),
+          monthly: [{ currency: "EUR", cents: 999 }],
+        },
+      ]);
     });
 
     it("a plan with nothing on offer still shows the add-ons it is paying for", async () => {

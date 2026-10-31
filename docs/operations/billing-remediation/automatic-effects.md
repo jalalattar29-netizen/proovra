@@ -11,7 +11,7 @@ Approving a deployment does **not** approve the actions in section 1. They stay 
 | `BILLING_AUTO_PLAN_LOWERING` | The sweep leaves the plan and raises review item `AUTOMATIC_PLAN_LOWERING_HELD` | The sweep lowers it |
 | `BILLING_AUTO_ADDON_CANCELLATION` | The sweep starts no cancellation and raises review item `AUTOMATIC_ADDON_CANCELLATION_HELD` | The sweep records the obligation and calls the provider |
 
-- **They hold the sweep only.** A Stripe or PayPal webhook still applies the provider's own fact, a renewal webhook included. A customer's own cancellation, an agreed downgrade (D1) and an ended grant (D2) still record their obligations.
+- **They hold the sweep only.** Sections 2 and 3 list everything else that can lower a plan or stop an add-on.
 - **Raising a plan is never held.** A customer who paid for more than their entitlement shows is corrected at once.
 - Setting either switch is a Production configuration change and needs its own approval.
 - **Unverified on the host:** which container runs the sweep. Set a switch on both the API and worker services.
@@ -65,6 +65,21 @@ Listed so that approving the release is informed. Each is either a recorded inte
 | A3 | `REFUSE_PENDING_PURCHASE_IF_PROVIDER_ACTIVE` | A purchase still PENDING that the provider reports active on an account that cannot hold it. Stopped immediately, nothing having been granted, with a refund review item. An add-on already ACTIVE or PAST_DUE is never refused this way | None: no capacity was granted | The provider cancellation stays |
 | A4 | Dry run `AUTO_SUPERSEDED_CANCELS_DUE` | A duplicate subscription already recorded as superseded. The customer's plan is the other subscription | Not applicable | The provider cancellation stays |
 | A5 | Dry run `AUTO_ADDONS_PAST_PAID_END` | Closes a row whose provider has already cancelled it, once its paid date has passed | Paid date has passed | An older image leaves these open |
+| A6 | `CANCEL_ADDON_GRANT_ENDED` | Decision D2. An add-on recorded as depending on an internal grant, MONTHLY, ACTIVE or PAST_DUE, state `NONE`, and no live plan or other grant offers its SKU. Recorded when the expiry job closes the grant, or when an operator revokes it. `depends_on_plan_grant_id` has no backfill, so the column is empty at release and this list starts empty. Only purchases activated after the release can appear. The preview shows the grant's end for unrevoked grants that have an expiry; an operator revoke has no earlier line | As A1, from the grant's end. Reason `ENTITLEMENT_GRANT_ENDED` on the row, and an audit event for the grant | As A1 |
+
+## 3. Future provider and customer events
+
+These cannot be previewed, because they have not happened. No switch holds them. Each applies something the provider reported or the customer chose.
+
+| ID | Trigger | Effect | Paid-through | Audit |
+|---|---|---|---|---|
+| W1 | A provider webhook reports a base subscription cancelled | Plan moves to a surviving subscription's plan, or FREE. A legacy row's workspace billing ends. Add-ons are not cancelled here: the sweep finds them, and that is A1, held by its switch | The provider reports it at the end of what was paid | `setPersonalPlan` from and to audit, webhook origin |
+| W2 | A renewal webhook reports a lower plan, an agreed downgrade (D1) included | Plan moves to the plan the provider now bills | From the renewal | Same |
+| C1 | The customer cancels their plan | Add-ons that depend on it record a cancellation with the plan's | As A1 | Obligation columns |
+| C2 | The customer schedules a downgrade (D1) | Add-ons the lower plan does not offer record a cancellation | As A1 | Obligation columns, reason `PLAN_NO_LONGER_INCLUDES_STORAGE` |
+| C3 | The customer abandons an open checkout | PayPal is asked to stop a subscription that was never approved, so no paid period exists | Not applicable | Attempt row |
+
+A dev-only route also sets a plan directly. It answers 403 in Production.
 
 ## Sequence
 

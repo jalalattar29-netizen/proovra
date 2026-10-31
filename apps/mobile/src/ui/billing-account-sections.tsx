@@ -379,9 +379,11 @@ export function BillingStorageCard({
           key={w.name ?? index}
           label={w.name ?? "Older workspace"}
           value={
-            w.usedLabel && w.limitLabel && w.planLabel
-              ? `${w.usedLabel} of ${w.limitLabel} (${w.planLabel} plan, ${w.addonLabel} add-ons)`
-              : `${w.addonLabel} add-ons`
+            w.countedByNoQuota
+              ? `${w.addonLabel} add-ons. Another owner now, so this counts toward no limit and still bills you`
+              : w.usedLabel && w.limitLabel && w.planLabel
+                ? `${w.usedLabel} of ${w.limitLabel} (${w.planLabel} plan, ${w.addonLabel} add-ons)`
+                : `${w.addonLabel} add-ons`
           }
         />
       ))}

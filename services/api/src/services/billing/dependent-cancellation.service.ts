@@ -310,6 +310,43 @@ export async function recordDependentCancellationObligations(
 }
 
 /**
+ * Which live add-ons stop renewing when these grants end. Reads only, so the
+ * release preview asks the same question the grant's closing does. `now` is the
+ * moment asked about: a grant ending later is previewed at its own end.
+ */
+export async function owedGrantEndedCancellations(
+  input: { userId: string; grantIds: string[]; now: Date },
+  client: DependencyClient & Pick<prismaPkg.Prisma.TransactionClient, "planGrant">,
+) {
+  if (input.grantIds.length === 0) return [];
+  const live = await client.workspaceStorageAddon.findMany({
+    where: {
+      ...dependentAddonWhere({ ownerUserId: input.userId, teamId: null }),
+      dependsOnPlanGrantId: { in: input.grantIds },
+      dependentCancellationState: S.NONE,
+    },
+    select: {
+      id: true,
+      addonKey: true,
+      status: true,
+      paymentProvider: true,
+      activatedAtUtc: true,
+      currentPeriodEnd: true,
+    },
+  });
+  if (live.length === 0) return [];
+  const context = await loadDependencyContext(client, { ownerUserId: input.userId, teamId: null });
+  const grant = await readActiveInternalPlanGrant(client, input.userId, input.now);
+  return live.filter(
+    (addon) =>
+      !(
+        (context.satisfyingBase !== null && storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey)) ||
+        (grant !== null && storageAddonEligibleForPlan(grant.plan as prismaPkg.PlanType, addon.addonKey))
+      ),
+  );
+}
+
+/**
  * BILLING DECISIONS (2026-10-31, D2) — an internal grant ended. Add-ons recorded
  * as depending on it stop renewing unless a live plan or another grant covers
  * them. Called in the transaction that closes the grant, so the two commit
@@ -322,24 +359,9 @@ export async function recordGrantEndedObligations(
   input: { userId: string; grantIds: string[]; now: Date },
   client: DependencyClient & Pick<prismaPkg.Prisma.TransactionClient, "planGrant">,
 ): Promise<number> {
-  if (input.grantIds.length === 0) return 0;
-  const live = await client.workspaceStorageAddon.findMany({
-    where: {
-      ...dependentAddonWhere({ ownerUserId: input.userId, teamId: null }),
-      dependsOnPlanGrantId: { in: input.grantIds },
-      dependentCancellationState: S.NONE,
-    },
-    select: { id: true, addonKey: true },
-  });
-  if (live.length === 0) return 0;
-  const context = await loadDependencyContext(client, { ownerUserId: input.userId, teamId: null });
-  const grant = await readActiveInternalPlanGrant(client, input.userId, input.now);
+  const owed = await owedGrantEndedCancellations(input, client);
   let created = 0;
-  for (const addon of live) {
-    const covered =
-      (context.satisfyingBase !== null && storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey)) ||
-      (grant !== null && storageAddonEligibleForPlan(grant.plan as prismaPkg.PlanType, addon.addonKey));
-    if (covered) continue;
+  for (const addon of owed) {
     const res = await client.workspaceStorageAddon.updateMany({
       where: { id: addon.id, dependentCancellationState: S.NONE },
       data: {

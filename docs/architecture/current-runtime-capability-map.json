@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
-  "consumerInventoryHash": "3d46fdb2e65776443b52c7e83488c8f711b992674b57bba01561c5330f7d47af",
+  "consumerInventoryHash": "6c21a67d1b3ce27faaa6ce6a241b108c5edfb074cd4102818efa7cac0f894321",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1219,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10941,
-      "UNRESOLVED_IDENTIFIER": 1577
+      "METHOD_ON_VALUE": 10944,
+      "UNRESOLVED_IDENTIFIER": 1578
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -8632,7 +8632,7 @@
       "method": "POST",
       "route": "/v1/billing/checkout/paypal/returns/canceled",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:915",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:916",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8776,7 +8776,7 @@
       "method": "POST",
       "route": "/v1/billing/subscription/resume",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:704",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:705",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -41969,8 +41969,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@540",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:540",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@562",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:562",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "attemptDependentCancellations",
       "kind": "DATABASE",
@@ -42005,8 +42005,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@569",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:569",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@591",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:591",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "attemptDependentCancellations",
       "kind": "DATABASE",
@@ -42076,8 +42076,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@343",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:343",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@365",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:365",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "recordGrantEndedObligations",
       "kind": "DATABASE",
@@ -42110,8 +42110,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@429",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:429",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@451",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:451",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "withdrawUnsupportedObligations",
       "kind": "DATABASE",
@@ -42147,8 +42147,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@511",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:511",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@533",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:533",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "attemptDependentCancellations",
       "kind": "DATABASE",
@@ -42183,8 +42183,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@618",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:618",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@640",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:640",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "confirmObligationFromProviderTruth",
       "kind": "DATABASE",
@@ -42219,8 +42219,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@653",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:653",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@675",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:675",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "reopenObligationFromProviderTruth",
       "kind": "DATABASE",
@@ -107746,7 +107746,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 554,
+          "line": 555,
           "caller": "listBillingAccounts",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107756,7 +107756,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:208 (BillingScreen, MOBILE); apps/web/app/(app)/settings/_sections/BillingSection.tsx:73 (BillingSection, WEB); apps/web/lib/api/billing-accounts.ts:554 (listBillingAccounts, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:208 (BillingScreen, MOBILE); apps/web/app/(app)/settings/_sections/BillingSection.tsx:73 (BillingSection, WEB); apps/web/lib/api/billing-accounts.ts:555 (listBillingAccounts, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107837,7 +107837,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 568,
+          "line": 569,
           "caller": "readBillingAccount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107945,7 +107945,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 629,
+          "line": 630,
           "caller": "readBillingHistory",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107955,7 +107955,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:190 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:84 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:629 (readBillingHistory, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:190 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:84 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:630 (readBillingHistory, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147419,7 +147419,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 868,
+          "line": 869,
           "caller": "abandonCheckoutAttempt",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147429,7 +147429,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:662 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:868 (abandonCheckoutAttempt, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:662 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:869 (abandonCheckoutAttempt, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147522,7 +147522,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 852,
+          "line": 853,
           "caller": "recheckCheckoutAttempt",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147532,7 +147532,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:626 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:852 (recheckCheckoutAttempt, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:626 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:853 (recheckCheckoutAttempt, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147626,7 +147626,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 481,
+          "line": 482,
           "caller": "abandonPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147636,7 +147636,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:588 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:481 (abandonPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:588 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:482 (abandonPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147725,7 +147725,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 530,
+          "line": 531,
           "caller": "cancelPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147735,7 +147735,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:565 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:126 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:530 (cancelPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:565 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:126 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:531 (cancelPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147813,7 +147813,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 512,
+          "line": 513,
           "caller": "recheckPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147823,7 +147823,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:546 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:107 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:512 (recheckPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:546 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:107 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:513 (recheckPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147902,7 +147902,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 891,
+          "line": 892,
           "caller": "reconcileAccount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147912,7 +147912,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:523 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:891 (reconcileAccount, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:523 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:892 (reconcileAccount, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148025,7 +148025,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 667,
+          "line": 668,
           "caller": "retryStorageCancellation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148035,7 +148035,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:470 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:151 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:667 (retryStorageCancellation, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:470 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:151 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:668 (retryStorageCancellation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148303,7 +148303,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 915,
+          "line": 916,
           "caller": "reportPayPalReturnCanceled",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148313,7 +148313,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:915 (reportPayPalReturnCanceled, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:916 (reportPayPalReturnCanceled, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149241,7 +149241,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 683,
+          "line": 684,
           "caller": "requestCancellation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -149251,7 +149251,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:486 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:173 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:683 (requestCancellation, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:486 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:173 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:684 (requestCancellation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149329,7 +149329,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 740,
+          "line": 741,
           "caller": "changePlan",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -149339,7 +149339,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/lib/api/billing-accounts.ts:740 (changePlan, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/lib/api/billing-accounts.ts:741 (changePlan, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149418,7 +149418,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 704,
+          "line": 705,
           "caller": "requestResume",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -149428,7 +149428,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:704 (requestResume, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:705 (requestResume, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

@@ -38,7 +38,7 @@ async function main(): Promise<number> {
   const { addonCancellationModeForProvider } = await import(
     "../services/billing/storage-addon-cancellation.service.js"
   );
-  const { UNRESOLVED_STATES, owedDependentCancellations } = await import(
+  const { UNRESOLVED_STATES, owedDependentCancellations, owedGrantEndedCancellations } = await import(
     "../services/billing/dependent-cancellation.service.js"
   );
   const { findLivePersonalBaseSubscription } = await import("../services/billing/base-subscription.service.js");
@@ -117,6 +117,50 @@ async function main(): Promise<number> {
           capacityKeptUntilPaidThrough: mode === "PERIOD_END" ? addon.currentPeriodEnd !== null : paidPeriodKept(addon),
           triggerSubscriptionId: trigger!.id,
           held: !automaticAddonCancellationEnabled(),
+        },
+        { cents: facts.amountCents, currency: facts.currency },
+      );
+    }
+  }
+
+  // ---- 1b. Add-ons a grant's end stops: recorded when it closes, never held -
+  const grantDependent = await prisma.workspaceStorageAddon.findMany({
+    where: {
+      dependsOnPlanGrantId: { not: null },
+      status: { in: [prismaPkg.WorkspaceStorageAddonStatus.ACTIVE, prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE] },
+      dependentCancellationState: "NONE",
+    },
+    distinct: ["dependsOnPlanGrantId"],
+    select: { dependsOnPlanGrantId: true },
+  });
+  const endingGrants = await prisma.planGrant.findMany({
+    where: {
+      id: { in: grantDependent.map((row) => row.dependsOnPlanGrantId!) },
+      revokedAtUtc: null,
+      expiresAtUtc: { not: null },
+    },
+    select: { id: true, userId: true, expiresAtUtc: true },
+  });
+  for (const grant of endingGrants) {
+    const endsAt = grant.expiresAtUtc! > now ? grant.expiresAtUtc! : now;
+    const owed = await owedGrantEndedCancellations({ userId: grant.userId, grantIds: [grant.id], now: endsAt }, prisma);
+    for (const addon of owed) {
+      const facts = await addonFacts(addon.id);
+      const provider = addon.paymentProvider as prismaPkg.PaymentProvider;
+      const mode = addonCancellationModeForProvider(provider);
+      emit(
+        {
+          action: "CANCEL_ADDON_GRANT_ENDED",
+          provider,
+          effectiveMonth: month(endsAt),
+          addonId: addon.id,
+          addonKey: addon.addonKey,
+          status: addon.status,
+          grantEndsUtc: endsAt.toISOString(),
+          providerStopsRenewing: mode === "PERIOD_END" ? "AT_PAID_THROUGH" : "AT_GRANT_END",
+          paidThroughUtc: addon.currentPeriodEnd?.toISOString() ?? null,
+          capacityKeptUntilPaidThrough: mode === "PERIOD_END" ? addon.currentPeriodEnd !== null : paidPeriodKept(addon),
+          held: false,
         },
         { cents: facts.amountCents, currency: facts.currency },
       );
@@ -226,7 +270,7 @@ async function main(): Promise<number> {
         effectiveMonth: month(now),
         subscriptionId: live.id,
         from: entitlement?.plan ?? null,
-        to: "FREE",
+        to: "SURVIVING_PLAN_OR_FREE",
         localPeriodEndUtc: live.currentPeriodEnd?.toISOString() ?? null,
         held: !automaticPlanLoweringEnabled(),
       });

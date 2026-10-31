@@ -67,10 +67,21 @@ async function getActiveStorageAddonBytes(params: {
   ownerUserId: string;
   teamId?: string | null;
 }) {
+  // The API's `storageAddonQuotaWhere`, stated per host. A row stamped with the
+  // owner's PERSONAL workspace is the Personal subject too, or the storage gate
+  // here refuses what the Billing meter shows and the API admits.
+  const subject: prismaPkg.Prisma.WorkspaceStorageAddonWhereInput = params.teamId
+    ? { teamId: params.teamId }
+    : {
+        OR: [
+          { teamId: null },
+          { team: { ownerUserId: params.ownerUserId, workspaceKind: prismaPkg.WorkspaceKind.PERSONAL } },
+        ],
+      };
   const aggregate = await prisma.workspaceStorageAddon.aggregate({
     where: {
       ownerUserId: params.ownerUserId,
-      teamId: params.teamId ?? null,
+      ...subject,
       status: {
         in: [
           prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
