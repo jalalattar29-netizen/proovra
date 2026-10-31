@@ -45,7 +45,7 @@ Finding IDs come from the audit of `569fe2e114864e2ad6d42e035e8ad2bc6edf9577`.
 | AUD-16 Plan recovery unreachable | FIXED | Refresh keeps the drawer | `billing-recovery` render | Web must deploy |
 | AUD-17 Refusal copy | FIXED | Every named code has its own copy | `billing-recovery` render | Web must deploy |
 | AUD-18 Storage recovery | FIXED | In-path recovery on web and mobile | render, convergence, mobile `billing-recovery` | Web and native must ship |
-| AUD-19 Other recovery gaps | FIXED | Web closed earlier. Mobile activity now has Check status, Abandon, and a support path | mobile `billing-recovery`, `billing-accounts.render` | Render tests only. Continue checkout appears only on private builds; other builds point to the web |
+| AUD-19 Other recovery gaps | FIXED | Web closed earlier. Mobile activity now has Check status, Abandon, and a support path | mobile `billing-recovery`, `billing-accounts.render` | Not run on a device. Continue checkout appears only on private builds; other builds point to the web |
 | AUD-20 Abandoned attempts | FIXED | Back in the sweep for 30 days | convergence | None |
 | AUD-21 Catalogue | PARTIAL | Stricter price checks and preflight | contracts | Production prices missing |
 | AUD-22 Error collapse | FIXED | Key refusal separated from outage | contracts | None |
@@ -66,7 +66,8 @@ Finding IDs come from the audit of `569fe2e114864e2ad6d42e035e8ad2bc6edf9577`.
 
 ## Known limits of the source work
 
-- No device or real-browser check of the Billing page or mobile screens. Interaction is covered by render tests only.
+- The new Billing states were checked in a real browser at 390 and 1440 wide, under light and dark preference (`e2e/billing-layout`), against a stubbed API. The page has no dark stylesheet, so dark preference shows the light theme; that was checked for overflow and contrast. Other Billing interaction is covered by render tests.
+- The mobile screens have not been run on a device or simulator. They are covered by Node tests, and `native-build` proves they compile.
 - Capacity bought for a legacy workspace applies there. Billing shows it apart and does not add it to the personal total.
 - A public-store mobile build shows no checkout link. Its copy points to Billing on the web.
 

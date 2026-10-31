@@ -6,7 +6,7 @@
 
 ## Dry run (read-only)
 
-After the migration is applied, inside the API container:
+Inside the API container. Before the migrations it is partial: a line that needs them prints `"count":null` and the script exits 3. That null is unknown, not zero. Exit 0 means every line was counted.
 
 ```bash
 docker exec -w /app/services/api docker-proovra-api-1 node scripts/billing-repair-dry-run.mjs

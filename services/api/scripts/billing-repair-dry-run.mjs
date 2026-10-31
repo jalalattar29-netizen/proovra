@@ -6,6 +6,8 @@
 //
 // Runs in one READ ONLY transaction with a statement timeout. It changes nothing,
 // calls no provider and prints no user id, email or amount of any one person.
+// Exit 0: every line counted. Exit 3: some lines need the migrations and print
+// `"count":null` with `"unavailable":"NEEDS_MIGRATION"`. Exit 2: the run failed.
 // See docs/operations/billing-remediation/data-repair-plan.md for what each
 // finding means and which repair, if any, needs separate approval.
 
@@ -190,15 +192,28 @@ const AUTOMATIC = [
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 8000 });
 let failed = false;
+let partial = false;
 try {
   await client.connect();
   await client.query("BEGIN TRANSACTION READ ONLY");
   await client.query("SET LOCAL statement_timeout = 15000");
   await client.query("SET LOCAL lock_timeout = 2000");
   for (const finding of [...AUTOMATIC, ...FINDINGS]) {
-    const { rows } = await client.query(finding.sql);
-    const row = rows[0] ?? {};
-    console.log(JSON.stringify({ id: finding.id, count: row.n ?? 0, first: row.first_at ?? null, last: row.last_at ?? null, meaning: finding.meaning }));
+    // The preview runs before approval, so possibly before the migrations. One
+    // missing column must cost that line only, not the transaction. Nothing else
+    // is tolerated: a count that could not be read is never printed as zero.
+    await client.query("SAVEPOINT finding");
+    try {
+      const { rows } = await client.query(finding.sql);
+      const row = rows[0] ?? {};
+      console.log(JSON.stringify({ id: finding.id, count: row.n ?? 0, first: row.first_at ?? null, last: row.last_at ?? null, meaning: finding.meaning }));
+    } catch (err) {
+      if (err?.code !== "42703" && err?.code !== "42P01") throw err;
+      partial = true;
+      await client.query("ROLLBACK TO SAVEPOINT finding");
+      console.log(JSON.stringify({ id: finding.id, count: null, unavailable: "NEEDS_MIGRATION", meaning: finding.meaning }));
+    }
+    await client.query("RELEASE SAVEPOINT finding");
   }
   await client.query("ROLLBACK");
 } catch (err) {
@@ -208,4 +223,4 @@ try {
 } finally {
   await client.end().catch(() => {});
 }
-process.exit(failed ? 2 : 0);
+process.exit(failed ? 2 : partial ? 3 : 0);

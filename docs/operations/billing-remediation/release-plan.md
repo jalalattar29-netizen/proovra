@@ -24,7 +24,6 @@ git log --oneline "$(docker inspect --format '{{ index .Config.Labels "org.openc
 
 | Item | Required before | Notes |
 |---|---|---|
-| Decisions D1 to D5 in the ledger | Release, or accept the stated default | The defaults change no customer subscription |
 | Stripe webhook endpoint events | API image | Add `charge.dispute.created`, `charge.refunded`, `charge.dispute.closed` if not already enabled. Check `customer.subscription.*`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.*` |
 | Stripe API version | API image | The code sends `2025-03-31.basil`. The webhook endpoint's version is set in the Dashboard; both older and Basil payloads are parsed, so it need not change |
 | External test plan | API image, recommended | **Not executed.** Code landed on main without it, so the schedule, customer reuse and refund payloads are proven against documentation only |
@@ -43,13 +42,15 @@ Apply it through the migration runbook (`docs/operations/internal-grant-producti
 
 ## 3a. Preview what the release will write (read-only)
 
-Deploying is not only a code change: the sweep and ordinary reads then write to existing rows. **`data-repair-plan.md` lists each automatic write.** Before approving the release, run the preview from the current image's working directory. It needs the new migrations only for the lines that read their columns:
+Deploying is not only a code change: the sweep and ordinary reads then write to existing rows. **`data-repair-plan.md` lists each automatic write.** Run the preview before approving the release:
 
 ```bash
 docker exec -w /app/services/api docker-proovra-api-1 node scripts/billing-repair-dry-run.mjs
 ```
 
 The script ships with the release image. Against an older image, copy it into the container first, or run it from a checkout with `DATABASE_URL` set to a read-only connection.
+
+**Before the migrations, the preview is partial.** A line that needs them prints `"count":null` with `"unavailable":"NEEDS_MIGRATION"`, and the script exits 3. That null is unknown, not zero. Those lines include R3 and `AUTO_R3_WOULD_LOWER_PLAN`, so a decision that depends on them needs a run after the migrations, which change no rows, and before the image. Exit 0 means every line was counted. Exit 2 means the run failed and its output cannot be relied on.
 
 Approving the release approves those automatic writes and nothing else. **It does not approve any repair marked "separate approval", and it does not approve any provider cancellation beyond those listed.**
 
@@ -106,7 +107,7 @@ Run `scripts/deploy-prod-pull.sh` with `--rollback --plan`, with `GHCR_OWNER` se
 
 ## 8a. Native release
 
-Mobile recovery ships only in a new build. It is separate from the API release, needs its own build and distribution, and the store build must keep its payment restrictions. It has been render-tested only. The API must ship first, because the screens call its recovery routes.
+Mobile recovery ships only in a new build. It is separate from the API release, needs its own build and distribution, and the store build must keep its payment restrictions. Its logic and screens are covered by Node tests, and `native-build` proves it compiles. It has not been run on a device or simulator. The API must ship first, because the screens call its recovery routes.
 
 ## 9. What this release does not do
 
