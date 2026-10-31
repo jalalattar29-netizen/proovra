@@ -33,7 +33,9 @@ import { type ConditionMessage, renderConditionMessage } from "@proovra/shared";
 import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
 import {
+  ENTITLEMENT_GRANT_ENDED,
   payerOwnedAddonWhere,
+  PLAN_NO_LONGER_INCLUDES_STORAGE,
   UNGRANTABLE_PROVIDER_ACTIVE,
   UNRESOLVED_STATES,
 } from "./dependent-cancellation.service.js";
@@ -79,6 +81,16 @@ export function dependentCancellationMessage(input: {
     return input.state === S.MANUAL_INTERVENTION
       ? { code: "ops.billing.dependent_cancellation.ungrantable_manual", params: { payer } }
       : { code: "ops.billing.dependent_cancellation.ungrantable_stopping", params: { payer } };
+  }
+  // A plan change or a grant ending, not a cancellation: the customer still has
+  // a plan, so "this add-on's plan was cancelled" would be untrue here too.
+  if (
+    input.reasonCode === PLAN_NO_LONGER_INCLUDES_STORAGE ||
+    input.reasonCode === ENTITLEMENT_GRANT_ENDED
+  ) {
+    return input.state === S.MANUAL_INTERVENTION
+      ? { code: "ops.billing.dependent_cancellation.manual", params: { payer } }
+      : { code: "ops.billing.dependent_cancellation.entitlement_changed", params: { payer } };
   }
   switch (input.state) {
     case S.PENDING:

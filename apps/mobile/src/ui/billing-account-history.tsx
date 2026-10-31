@@ -3,8 +3,9 @@
  * the account-wide provider re-check, and each payment with the actions the
  * SERVER offers on it (Re-check, Cancel payment, Abandon payment attempt).
  *
- * "Resume payment" is not here: it hands the customer a provider checkout,
- * which is the pending distribution-policy decision.
+ * Continuing an open purchase hands the customer a provider checkout, which is
+ * the pending distribution-policy decision, so a check only returns a link on a
+ * private build and every other build says where to finish instead.
  */
 import React from "react";
 import { View } from "react-native";
@@ -15,8 +16,11 @@ import { ProovraEmpty } from "./patterns";
 import {
   BILLING_PAGE_COPY as COPY,
   billingStatusLabel,
+  attemptNeedsSupport,
+  billingActivityNote,
   billingStatusTone,
   formatMoney,
+  type AttemptState,
   type OpenPurchaseRow,
 } from "../product/billing-account";
 import type { PaymentRow } from "../product/billing";
@@ -27,6 +31,98 @@ export type HistoryState =
   | { kind: "READY"; rows: PaymentRow[]; openPurchases?: OpenPurchaseRow[] }
   | { kind: "DENIED" }
   | { kind: "ERROR" };
+
+/** What the last check said about one purchase. Kept across a refresh. */
+export type AttemptNotice = {
+  message: string;
+  /** Null: this answer says nothing new about where the purchase stands. */
+  state: AttemptState | null;
+  resumeUrl: string | null;
+  canAbandon: boolean;
+};
+
+export interface AttemptHandlers {
+  onCheckAttempt: (attemptId: string) => void;
+  onAbandonAttempt: (attemptId: string) => void;
+  onContinueAttempt: (attemptId: string, url: string) => void;
+  onSupport: () => void;
+  attemptBusyId: string | null;
+  attemptNotices: Readonly<Record<string, AttemptNotice>>;
+}
+
+/** The one set of recovery controls, on an activity row and on a refusal. */
+export function BillingAttemptActions({
+  attemptId,
+  label,
+  canRecheck,
+  canAbandon,
+  state,
+  handlers,
+}: {
+  attemptId: string;
+  label: string;
+  canRecheck: boolean;
+  canAbandon: boolean;
+  state: string | null;
+  handlers: AttemptHandlers;
+}) {
+  const notice = handlers.attemptNotices[attemptId];
+  const locked = handlers.attemptBusyId !== null;
+  const abandonable = canAbandon && (notice ? notice.canAbandon : true);
+  const support = attemptNeedsSupport(notice?.state ?? state);
+  return (
+    <View style={{ gap: theme.space.s1 }}>
+      {notice ? (
+        <ProovraText variant="label" color={theme.color.ink.primary} testID={`billing-attempt-notice-${attemptId}`}>
+          {notice.message}
+        </ProovraText>
+      ) : null}
+      {canRecheck || abandonable || notice?.resumeUrl || support ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+          {notice?.resumeUrl ? (
+            <ProovraButton
+              label="Continue checkout"
+              accessibilityLabel={`Continue checkout: ${label}`}
+              fullWidth={false}
+              disabled={locked}
+              onPress={() => handlers.onContinueAttempt(attemptId, notice.resumeUrl as string)}
+            />
+          ) : null}
+          {canRecheck ? (
+            <ProovraButton
+              label="Check status"
+              accessibilityLabel={`Check status: ${label}`}
+              variant="secondary"
+              fullWidth={false}
+              loading={handlers.attemptBusyId === attemptId}
+              disabled={locked}
+              onPress={() => handlers.onCheckAttempt(attemptId)}
+            />
+          ) : null}
+          {abandonable ? (
+            <ProovraButton
+              label="Abandon"
+              accessibilityLabel={`Abandon: ${label}`}
+              variant="ghost"
+              fullWidth={false}
+              disabled={locked}
+              onPress={() => handlers.onAbandonAttempt(attemptId)}
+            />
+          ) : null}
+          {support ? (
+            <ProovraButton
+              label="Contact support"
+              accessibilityLabel={`Contact support: ${label}`}
+              variant="ghost"
+              fullWidth={false}
+              onPress={handlers.onSupport}
+            />
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export function BillingHistoryCard({
   state,
@@ -39,6 +135,8 @@ export function BillingHistoryCard({
   onAbandonPayment,
   rowBusyId,
   notice,
+  attempts,
+  resumeAllowed,
 }: {
   state: HistoryState;
   accessKind: string;
@@ -50,6 +148,8 @@ export function BillingHistoryCard({
   onAbandonPayment: (row: PaymentRow) => void;
   rowBusyId: string | null;
   notice: string | null;
+  attempts: AttemptHandlers;
+  resumeAllowed: boolean;
 }) {
   const title = (
     <ProovraText variant="h3" weight="semibold">
@@ -105,7 +205,7 @@ export function BillingHistoryCard({
             Billing activity
           </ProovraText>
           <ProovraText variant="label" color={theme.color.ink.secondary}>
-            Purchases that have not produced a completed payment. Check or abandon them on Billing on the web.
+            {billingActivityNote(resumeAllowed)}
           </ProovraText>
           {state.openPurchases!.map((a) => (
             <View key={a.id} testID={`billing-activity-${a.id}`} style={{ gap: 2, paddingVertical: theme.space.s1, borderTopWidth: 1, borderTopColor: theme.color.border.subtle }}>
@@ -123,6 +223,14 @@ export function BillingHistoryCard({
               <ProovraText variant="label" color={theme.color.ink.secondary}>
                 {a.explanation}
               </ProovraText>
+              <BillingAttemptActions
+                attemptId={a.id}
+                label={a.description}
+                canRecheck={a.canRecheck}
+                canAbandon={a.canAbandon}
+                state={a.state}
+                handlers={attempts}
+              />
             </View>
           ))}
         </View>

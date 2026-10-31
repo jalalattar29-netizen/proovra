@@ -858,7 +858,7 @@ describe("the plan drawer and what add-ons do", () => {
     } as Partial<BillingAccountProjection>);
   const teamAddon = addon({ addonKey: "TEAM_100_GB", storageLabel: "100 GB", endsWithPlan: true });
 
-  it("says a Team-size add-on keeps billing after moving to Pro", () => {
+  it("says a Team-size add-on stops renewing after moving to Pro, and when", () => {
     render(
       <ManagePlanDrawer
         open
@@ -871,8 +871,8 @@ describe("the plan drawer and what add-ons do", () => {
       />,
     );
     const note = q("[data-billing-manage-addon-note='PRO']")!;
-    expect(note.textContent).toMatch(/Team-size storage add-on \(100 GB\) is not cancelled by this change/);
-    expect(note.textContent).toMatch(/will keep billing after you move to Pro/);
+    expect(note.textContent).toMatch(/Pro does not include your Team-size storage add-on \(100 GB\)/);
+    expect(note.textContent).toMatch(/stays until its paid date and then stops renewing/);
     expect(note.textContent).not.toMatch(/50 GB/);
   });
 

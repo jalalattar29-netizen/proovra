@@ -12,7 +12,7 @@
  *
  * WHAT IS PINNED
  * ---------------------------------------------------------------------------
- *   - only a platform admin can grant;
+ *   - only a platform admin holding a fresh, single-use approval can grant;
  *   - the grant enters the CANONICAL wallet — same balance column, same
  *     ledger, one increment implementation;
  *   - it is truthful: ADMIN_GRANT, no provider, no provider_ref, and it never
@@ -40,7 +40,9 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../src/db.js")["prisma"];
   let deps: FixtureDeps;
-  let admin: { userId: string; token: string };
+  let admin: { userId: string; token: string; teamId: string };
+  let adminSecret: Buffer;
+  let totp: typeof import("../src/services/security/mfa-totp.js");
   let resolveScope: typeof import("../src/services/billing-enforcement.service.js")["resolveEnforcementScopeForRequester"];
   let settle: typeof import("../src/services/billing-enforcement.service.js")["settleEvidenceCompletionFunding"];
 
@@ -49,6 +51,7 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
     url: string;
     token?: string;
     payload?: unknown;
+    challengeId?: string;
   }) =>
     harness.app.inject({
       method: opts.method,
@@ -56,6 +59,7 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
       headers: {
         ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
         ...(opts.payload ? { "content-type": "application/json" } : {}),
+        ...(opts.challengeId ? { "x-proovra-step-up-challenge-id": opts.challengeId } : {}),
       },
       ...(opts.payload ? { payload: opts.payload as never } : {}),
     });
@@ -65,12 +69,51 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
    * passing `undefined` selects the default, so an "unauthenticated" case
    * written that way silently sends the admin token and proves nothing.
    */
-  const grant = (payload: unknown, token: string | null = admin.token) =>
+  /** A real, single-use approval for crediting this account. */
+  async function approvalFor(userId: string): Promise<string> {
+    await prisma.mfaFactor.updateMany({ where: { userId: admin.userId, kind: "TOTP" }, data: { lastUsedAt: null } });
+    const started = await call({
+      method: "POST",
+      url: "/v1/identity-security/step-up/start",
+      token: admin.token,
+      payload: {
+        teamId: admin.teamId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "evidence_credit_grant",
+        resourceId: userId,
+      },
+    });
+    expect(started.statusCode, started.body).toBe(200);
+    const challengeId = (JSON.parse(started.body) as { challenge: { id: string } }).challenge.id;
+    const checked = await call({
+      method: "POST",
+      url: "/v1/identity-security/step-up/check",
+      token: admin.token,
+      payload: {
+        teamId: admin.teamId,
+        challengeId,
+        code: totp.computeTotpCode(adminSecret, totp.timeStep(Math.floor(Date.now() / 1000))),
+      },
+    });
+    expect(checked.statusCode, checked.body).toBe(200);
+    return challengeId;
+  }
+
+  const grant = async (
+    payload: Record<string, unknown>,
+    token: string | null = admin.token,
+    approved?: string,
+  ) =>
     call({
       method: "POST",
       url: "/v1/admin/billing/evidence-credits",
       token: token ?? undefined,
-      payload,
+      payload: { teamId: admin.teamId, ...payload },
+      challengeId:
+        approved ??
+        (token === admin.token && typeof payload.userId === "string"
+          ? await approvalFor(payload.userId)
+          : undefined),
     });
 
   const creditsOf = async (userId: string) =>
@@ -192,7 +235,36 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
       where: { id: staff.userId },
       data: { platformRole: "admin" },
     });
-    admin = { userId: staff.userId, token: staff.token };
+    totp = await import("../src/services/security/mfa-totp.js");
+    const org = await prisma.organization.create({
+      data: { name: `AECG anchor ${deps.tag}`, billingOwnerUserId: staff.userId, status: "ACTIVE", kind: "CUSTOMER" },
+      select: { id: true },
+    });
+    await prisma.organizationMembership.create({ data: { organizationId: org.id, userId: staff.userId, role: "ORG_OWNER" } });
+    const team = await prisma.team.create({
+      data: { name: `AECG anchor ${deps.tag}`, ownerUserId: staff.userId, isPersonal: false, organizationId: org.id, workspaceKind: "ORGANIZATION" },
+      select: { id: true },
+    });
+    await prisma.teamMember.create({ data: { teamId: team.id, userId: staff.userId, role: "OWNER", status: "ACTIVE" } });
+    const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
+    adminSecret = totp.generateTotpSecretBytes();
+    const sealed = sealSecret(adminSecret);
+    const now = new Date();
+    await prisma.mfaFactor.create({
+      data: {
+        userId: staff.userId,
+        kind: "TOTP",
+        status: "ACTIVE",
+        label: "Authenticator",
+        secretCiphertext: Buffer.from(sealed.ciphertext),
+        secretIv: Buffer.from(sealed.iv),
+        secretAuthTag: Buffer.from(sealed.authTag),
+        secretKekId: sealed.kekId,
+        verifiedAtUtc: now,
+        enrolledAt: now,
+      },
+    });
+    admin = { userId: staff.userId, token: staff.token, teamId: team.id };
   });
 
   afterAll(async () => {
@@ -379,7 +451,12 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
         idempotencyKey: "RACE-1",
       };
       // The application check can lose; the partial unique index cannot.
-      await Promise.all([grant(payload), grant(payload), grant(payload)]);
+      const approvals = [
+        await approvalFor(t.owner.userId),
+        await approvalFor(t.owner.userId),
+        await approvalFor(t.owner.userId),
+      ];
+      await Promise.all(approvals.map((approved) => grant(payload, admin.token, approved)));
       expect(await creditsOf(t.owner.userId)).toBe(7);
       expect(
         await prisma.evidenceCreditLedgerEntry.count({

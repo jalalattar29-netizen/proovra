@@ -161,13 +161,19 @@ export type EvidenceCreditGrantSource =
       grantRef: string;
     };
 
+/** Writes the audit of a grant on the client the grant itself is using. */
+export type CreditGrantAudit = (
+  client: prismaPkg.PrismaClient,
+  outcome: { granted: boolean; balanceAfter: number },
+) => Promise<void>;
+
 /**
  * THE credit-increment implementation. Both public grants come through here.
  *
- * Kept as one function deliberately: `entitlements.credits` has exactly two
- * writers in this repository — this one and
- * `consumeEvidenceCreditForCompletion` — and adding an admin path that wrote
- * its own increment would make that two-and-a-half, with the balance and the
+ * Kept as one function deliberately: `entitlements.credits` has exactly three
+ * writers in this repository — this one, `consumeEvidenceCreditForCompletion`
+ * and `reverseEvidenceCreditPurchase` — and adding an admin path that wrote
+ * its own increment would make that three-and-a-half, with the balance and the
  * ledger free to disagree in the new half.
  *
  * The transaction is the guarantee: the prior-entry check, the increment and
@@ -178,6 +184,8 @@ async function applyCreditGrant(params: {
   userId: string;
   credits: number;
   source: EvidenceCreditGrantSource;
+  /** Runs inside the grant's transaction: when it throws, nothing commits. */
+  audit?: CreditGrantAudit;
 }): Promise<{ granted: boolean; balanceAfter: number }> {
   const credits = Math.max(0, Math.floor(params.credits));
   if (credits === 0) {
@@ -203,7 +211,9 @@ async function applyCreditGrant(params: {
               select: { balanceAfter: true },
             });
       if (existing) {
-        return { granted: false, balanceAfter: existing.balanceAfter };
+        const replay = { granted: false, balanceAfter: existing.balanceAfter };
+        await params.audit?.(tx as unknown as prismaPkg.PrismaClient, replay);
+        return replay;
       }
 
       const entitlement = await tx.entitlement.findFirst({
@@ -248,14 +258,29 @@ async function applyCreditGrant(params: {
         },
       });
 
-      return { granted: true, balanceAfter: updated.credits };
+      const applied = { granted: true, balanceAfter: updated.credits };
+      await params.audit?.(tx as unknown as prismaPkg.PrismaClient, applied);
+      return applied;
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
+      // BILLING DECISIONS (2026-10-31, D3) — the audit writes in this
+      // transaction too, so a unique violation is only a lost race once the
+      // grant it raced is really there. Anything else is the audit failing,
+      // and a grant that cannot be audited does not commit.
+      if (params.source.kind === "ADMIN_GRANT") {
+        const winner = await prisma.evidenceCreditLedgerEntry.findUnique({
+          where: { grantRef: params.source.grantRef },
+          select: { id: true },
+        });
+        if (!winner) throw err;
+      }
       // A concurrent delivery of the same payment, or a concurrent retry of
       // the same grant, won the race. Either way the credit exists once.
       const wallet = await readEvidenceCreditWallet(params.userId);
-      return { granted: false, balanceAfter: wallet.availableCredits };
+      const lost = { granted: false, balanceAfter: wallet.availableCredits };
+      await params.audit?.(prisma as unknown as prismaPkg.PrismaClient, lost);
+      return lost;
     }
     throw err;
   }
@@ -275,19 +300,25 @@ async function applyCreditGrant(params: {
  * on Personal External Intake and on any other personal creation surface.
  *
  * AUTHORIZATION IS THE ROUTE'S. This service performs no authorization check
- * of its own — `requirePlatformAdmin` is the boundary — and it is not exported
- * to any non-admin surface.
+ * of its own — `requirePlatformAdmin` and a consumed step-up are the boundary —
+ * and it is not exported to any non-admin surface.
+ *
+ * BILLING DECISIONS (2026-10-31, D3) — `audit` is required and commits with the
+ * grant. It used to be written after the commit, so a failed audit left credits
+ * in a wallet with no record of who put them there.
  */
 export async function grantEvidenceCreditsByPlatformAdmin(params: {
   userId: string;
   credits: number;
   /** `<targetUserId>:<idempotencyKey>`. Minted by the route, never a client string alone. */
   grantRef: string;
+  audit: CreditGrantAudit;
 }): Promise<{ granted: boolean; balanceAfter: number }> {
   return applyCreditGrant({
     userId: params.userId,
     credits: params.credits,
     source: { kind: "ADMIN_GRANT", grantRef: params.grantRef },
+    audit: params.audit,
   });
 }
 

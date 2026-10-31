@@ -1493,6 +1493,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281029000000_screen_recording_combined_derivative",
       // Billing remediation: Stripe schedule id, supersession retry, refund accounting, reference backoff.
       "20281030000000_billing_remediation_convergence",
+      // Billing product decisions: add-on end consent, grant dependency, Stripe customer binding. EXPAND.
+      "20281031000000_billing_product_decisions",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

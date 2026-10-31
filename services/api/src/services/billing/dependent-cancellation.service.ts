@@ -51,6 +51,7 @@ import {
 } from "./storage-addon-rules.js";
 import { loadDependencyContext } from "./base-subscription.service.js";
 import { keepPaidPeriodAfterProviderCancel } from "./paid-period.service.js";
+import { readActiveInternalPlanGrant } from "@proovra/shared-runtime";
 
 const S = prismaPkg.DependentCancellationState;
 
@@ -188,6 +189,22 @@ type DependencyClient = Pick<
 /** The obligation reason an ungrantable provider-active add-on carries. */
 export const UNGRANTABLE_PROVIDER_ACTIVE = "UNGRANTABLE_PROVIDER_ACTIVE";
 
+/** BILLING DECISIONS (2026-10-31, D1) — the customer agreed to a lower plan that does not offer this SKU. */
+export const PLAN_NO_LONGER_INCLUDES_STORAGE = "PLAN_NO_LONGER_INCLUDES_STORAGE";
+
+/** BILLING DECISIONS (2026-10-31, D2) — the internal grant this SKU was bought under has ended. */
+export const ENTITLEMENT_GRANT_ENDED = "ENTITLEMENT_GRANT_ENDED";
+
+/**
+ * Reasons that say WHY a cancellation is owed. A later attempt's outcome must
+ * not overwrite them: once the plan has landed nothing else records the basis.
+ */
+const OBLIGATION_BASIS_REASONS: ReadonlySet<string> = new Set([
+  UNGRANTABLE_PROVIDER_ACTIVE,
+  PLAN_NO_LONGER_INCLUDES_STORAGE,
+  ENTITLEMENT_GRANT_ENDED,
+]);
+
 /**
  * Persist the obligation for every add-on a base cancellation actually owes,
  * atomically.
@@ -252,12 +269,58 @@ export async function recordDependentCancellationObligations(
         // Due immediately: the request itself makes the first attempt, and if
         // the process dies before it does, the worker picks it up at once.
         dependentCancellationNextRetryAtUtc: now,
-        dependentCancellationReasonCode: null,
+        dependentCancellationReasonCode:
+          trigger!.id === context.downgradingBase?.id ? PLAN_NO_LONGER_INCLUDES_STORAGE : null,
       },
     });
   }
 
   return { created: fresh.length, alreadyOpen: alreadyOpen.length };
+}
+
+/**
+ * BILLING DECISIONS (2026-10-31, D2) — an internal grant ended. Add-ons recorded
+ * as depending on it stop renewing unless a live plan or another grant covers
+ * them. Called in the transaction that closes the grant, so the two commit
+ * together; the provider attempt follows from the retry sweep.
+ *
+ * Only rows with a recorded dependency: an add-on activated before that was
+ * recorded is left as it is, and needs an owner's decision.
+ */
+export async function recordGrantEndedObligations(
+  input: { userId: string; grantIds: string[]; now: Date },
+  client: DependencyClient & Pick<prismaPkg.Prisma.TransactionClient, "planGrant">,
+): Promise<number> {
+  if (input.grantIds.length === 0) return 0;
+  const live = await client.workspaceStorageAddon.findMany({
+    where: {
+      ...dependentAddonWhere({ ownerUserId: input.userId, teamId: null }),
+      dependsOnPlanGrantId: { in: input.grantIds },
+      dependentCancellationState: S.NONE,
+    },
+    select: { id: true, addonKey: true },
+  });
+  if (live.length === 0) return 0;
+  const context = await loadDependencyContext(client, { ownerUserId: input.userId, teamId: null });
+  const grant = await readActiveInternalPlanGrant(client, input.userId, input.now);
+  let created = 0;
+  for (const addon of live) {
+    const covered =
+      (context.satisfyingBase !== null && storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey)) ||
+      (grant !== null && storageAddonEligibleForPlan(grant.plan as prismaPkg.PlanType, addon.addonKey));
+    if (covered) continue;
+    const res = await client.workspaceStorageAddon.updateMany({
+      where: { id: addon.id, dependentCancellationState: S.NONE },
+      data: {
+        dependentCancellationState: S.PENDING,
+        dependentCancellationRequestedAtUtc: input.now,
+        dependentCancellationNextRetryAtUtc: input.now,
+        dependentCancellationReasonCode: ENTITLEMENT_GRANT_ENDED,
+      },
+    });
+    created += res.count;
+  }
+  return created;
 }
 
 /**
@@ -293,6 +356,7 @@ export async function withdrawUnsupportedObligations(input: {
   });
   if (open.length === 0) return 0;
   const context = await loadDependencyContext(prisma, input);
+  const grant = await readActiveInternalPlanGrant(prisma, input.ownerUserId);
   let withdrawn = 0;
   for (const addon of open) {
     if (addon.dependentCancellationReasonCode === UNGRANTABLE_PROVIDER_ACTIVE) continue;
@@ -306,10 +370,23 @@ export async function withdrawUnsupportedObligations(input: {
     const satisfied =
       context.satisfyingBase !== null &&
       storageAddonEligibleForPlan(context.satisfyingBase.plan, addon.addonKey);
+    // BILLING DECISIONS (2026-10-31) — an obligation owed for a recorded reason
+    // ends only when that reason does: the downgrade was withdrawn, a plan that
+    // sells the SKU was bought, or a new grant covers it. After a downgrade
+    // lands there is no ended base left to point at, so the general test below
+    // would withdraw it while the add-on kept renewing.
+    if (live && OBLIGATION_BASIS_REASONS.has(addon.dependentCancellationReasonCode ?? "")) {
+      const regranted =
+        addon.dependentCancellationReasonCode === ENTITLEMENT_GRANT_ENDED &&
+        grant !== null &&
+        storageAddonEligibleForPlan(grant.plan as prismaPkg.PlanType, addon.addonKey);
+      if (!satisfied && !regranted) continue;
+    }
     const unsupported =
       !live ||
       !storageAddonRequiresPaidPlan(addon.addonKey) ||
       satisfied ||
+      OBLIGATION_BASIS_REASONS.has(addon.dependentCancellationReasonCode ?? "") ||
       (owedDependentCancellationTrigger({ addon, ...context }) === null &&
         addon.dependsOnSubscriptionId !== null &&
         !context.endedBases.some((b) => b.id === addon.dependsOnSubscriptionId));
@@ -432,7 +509,10 @@ export async function attemptDependentCancellations(input: {
           dependentCancellationConfirmedAtUtc: now,
           dependentCancellationAttemptCount: attemptCount,
           dependentCancellationNextRetryAtUtc: null,
-          dependentCancellationReasonCode: null,
+          // Why this add-on is ending stays readable after the provider agrees.
+          dependentCancellationReasonCode: OBLIGATION_BASIS_REASONS.has(addon.dependentCancellationReasonCode ?? "")
+            ? addon.dependentCancellationReasonCode
+            : null,
           dependentCancellationLeaseUntilUtc: null,
           canceledAtUtc: now,
           // Only a TERMINAL provider statement ends the capacity. A period-end
@@ -473,8 +553,8 @@ export async function attemptDependentCancellations(input: {
         // condition from that — while the provider was still charging.
         // Escalation is carried by the state (MANUAL_INTERVENTION) either way.
         dependentCancellationReasonCode:
-          addon.dependentCancellationReasonCode === UNGRANTABLE_PROVIDER_ACTIVE
-            ? UNGRANTABLE_PROVIDER_ACTIVE
+          OBLIGATION_BASIS_REASONS.has(addon.dependentCancellationReasonCode ?? "")
+            ? addon.dependentCancellationReasonCode
             : escalate
               ? ("RETRY_EXHAUSTED" satisfies AddonCancellationReasonCode)
               : outcome.reasonCode,

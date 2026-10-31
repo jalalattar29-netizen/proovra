@@ -37,6 +37,7 @@ import {
   readActiveInternalPlanGrant,
   type GrantableInternalPlan,
 } from "@proovra/shared-runtime";
+import { recordGrantEndedObligations } from "./dependent-cancellation.service.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -251,6 +252,7 @@ async function closeExpiredInTx(tx: Tx, userId: string, now: Date): Promise<Inte
     await auditGrant(tx, INTERNAL_GRANT_AUDIT.expired, v, null, scope);
     closed.push(v);
   }
+  await recordGrantEndedObligations({ userId, grantIds: closed.map((grant) => grant.id), now }, tx);
   return closed;
 }
 
@@ -463,6 +465,7 @@ export async function revokeInternalPlanGrant(
       await personalScopeOf(tx, userId),
       { correlationId: input.correlationId },
     );
+    await recordGrantEndedObligations({ userId, grantIds: [v.id], now }, tx);
     return { revoked: v, expired };
   });
 }

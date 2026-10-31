@@ -131,6 +131,8 @@ export async function createStripeCheckoutSession(params: {
   productKey?: CheckoutProductKey;
   /** Durable local checkout attempt (Idempotency-Key + metadata). */
   attemptId?: string | null;
+  /** The owner's verified Stripe customer. Absent, Stripe makes one. */
+  customerId?: string | null;
 }) {
   const currency = resolveCheckoutCurrency({
     requestedCurrency: params.currency,
@@ -153,6 +155,7 @@ export async function createStripeCheckoutSession(params: {
   searchParams.append("metadata[currency]", currency);
   searchParams.append("metadata[amountCents]", String(amountCents));
   searchParams.append("payment_method_types[]", "card");
+  if (params.customerId) searchParams.append("customer", params.customerId);
   if (params.attemptId) {
     searchParams.append("metadata[attemptId]", params.attemptId);
     searchParams.append("client_reference_id", params.attemptId);
@@ -209,6 +212,8 @@ export async function createStripeStorageAddonCheckoutSession(params: {
   workspacePlan: prismaPkg.PlanType;
   /** Durable local checkout attempt (Idempotency-Key + metadata). */
   attemptId?: string | null;
+  /** The owner's verified Stripe customer. Absent, Stripe makes one. */
+  customerId?: string | null;
 }) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — a storage add-on is a
@@ -250,6 +255,7 @@ export async function createStripeStorageAddonCheckoutSession(params: {
     billingReturnUrl(appBase, "canceled=1&kind=storage-addon")
   );
   searchParams.append("payment_method_types[]", "card");
+  if (params.customerId) searchParams.append("customer", params.customerId);
   searchParams.append("metadata[userId]", params.userId);
   searchParams.append("metadata[storageAddonKey]", params.addonKey);
   searchParams.append(

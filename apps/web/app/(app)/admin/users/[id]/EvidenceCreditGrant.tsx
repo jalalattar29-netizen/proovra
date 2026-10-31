@@ -21,8 +21,13 @@
 import * as React from "react";
 
 import { Button } from "../../../../../components/ui/Button";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../../components/identity-security/StepUpModal";
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
 
 /** Mirrors the server's bound. A form that offers more than the API accepts
  *  teaches an operator to discover limits by being refused. */
@@ -58,6 +63,11 @@ export function EvidenceCreditGrant({
   const [fieldError, setFieldError] = React.useState<Record<string, string>>({});
   const [result, setResult] = React.useState<GrantResult | null>(null);
 
+  // Step-up challenges are team-bound, and the operator's own workspace is the
+  // scope, as on the provisioning page. The approval names the account credited.
+  const teamId = useActiveWorkspaceId();
+  const stepUp = useStepUpAction({ teamId });
+
   const quantityId = React.useId();
   const reasonId = React.useId();
   const referenceId = React.useId();
@@ -86,23 +96,31 @@ export function EvidenceCreditGrant({
     }
     setFieldError(errs);
     if (Object.keys(errs).length > 0) return;
+    if (!teamId) {
+      setError("Your workspace context is still loading. Try again in a moment.");
+      return;
+    }
 
     setBusy(true);
     setError(null);
     try {
-      const res = (await apiFetch("/v1/admin/billing/evidence-credits", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          credits: n,
-          reason: reason.trim(),
-          idempotencyKey: reference.trim(),
+      const res = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/admin/billing/evidence-credits", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            userId,
+            credits: n,
+            reason: reason.trim(),
+            idempotencyKey: reference.trim(),
+          }),
         }),
-      })) as GrantResult;
+      )) as GrantResult;
       setResult(res);
       onGranted();
     } catch (err) {
+      if ((err as { code?: string })?.code === "STEP_UP_CANCEL") return;
       setError(
         toSafeUserError(err, { message: "The grant could not be completed." })
           .message,
@@ -250,6 +268,7 @@ export function EvidenceCreditGrant({
           {busy ? "Granting…" : "Grant credits"}
         </Button>
       </div>
+      <StepUpModal control={stepUp} />
     </form>
   );
 }

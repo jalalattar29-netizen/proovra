@@ -682,6 +682,21 @@ const CATALOGUE = {
       summary: `استُنفدت المحاولات التلقائية لإيقاف إضافة التخزين هذه ولم يؤكد مزوّد الدفع إيقافها، لذا قد تستمر الرسوم. أعد المحاولة من الفوترة أو تواصل مع الدعم. ${PAYER_PHRASE.ar[p.payer]}.`,
     }),
   }),
+  "ops.billing.dependent_cancellation.entitlement_changed": def({
+    params: { payer: { kind: PAYERS } },
+    en: (p) => ({
+      title: "Storage add-on no longer included is being stopped",
+      summary: `The account's plan or internal grant no longer includes this storage add-on, so stopping its renewal has been requested from the provider. It may still renew until the provider confirms; PROOVRA retries automatically. ${PAYER_PHRASE.en[p.payer]}.`,
+    }),
+    de: (p) => ({
+      title: "Nicht mehr enthaltene Speichererweiterung wird beendet",
+      summary: `Der Tarif oder die interne Freischaltung des Kontos umfasst diese Speichererweiterung nicht mehr; die Beendigung der Verlängerung wurde beim Anbieter beantragt. Bis zur Bestätigung durch den Anbieter kann sie sich weiter verlängern; PROOVRA versucht es automatisch erneut. ${PAYER_PHRASE.de[p.payer]}.`,
+    }),
+    ar: (p) => ({
+      title: "جارٍ إيقاف إضافة تخزين لم تعد مشمولة",
+      summary: `لم تعد خطة الحساب أو منحته الداخلية تشمل إضافة التخزين هذه، لذا طُلب من مزوّد الدفع إيقاف تجديدها. قد تتجدد إلى أن يؤكد المزوّد ذلك؛ ويعيد PROOVRA المحاولة تلقائيًا. ${PAYER_PHRASE.ar[p.payer]}.`,
+    }),
+  }),
   "ops.billing.dependent_cancellation.unconfirmed": def({
     params: { payer: { kind: PAYERS } },
     en: (p) => ({
@@ -1509,6 +1524,7 @@ export const CONDITION_MESSAGE_SOURCES: Readonly<Record<ConditionMessageCode, re
   "ops.billing.dependent_cancellation.retry_provider_unreachable": DEPENDENT_CANCELLATION,
   "ops.billing.dependent_cancellation.retry": DEPENDENT_CANCELLATION,
   "ops.billing.dependent_cancellation.manual": DEPENDENT_CANCELLATION,
+  "ops.billing.dependent_cancellation.entitlement_changed": DEPENDENT_CANCELLATION,
   "ops.billing.dependent_cancellation.unconfirmed": DEPENDENT_CANCELLATION,
   "ops.pipeline.report_backlog": ["pipeline.report_backlog"],
   "ops.pipeline.package_backlog": ["pipeline.package_backlog"],

@@ -31,6 +31,8 @@ export type BillingReviewReason =
   | "STORAGE_ACTIVATION_REFUSED"
   /** A provider-active storage subscription with no local record (e.g. a deleted workspace). */
   | "STORAGE_SUBSCRIPTION_WITHOUT_RECORD"
+  /** Stripe's record of a bound customer names another owner or environment. */
+  | "PROVIDER_CUSTOMER_CONFLICT"
   /** A refunded or reversed credit purchase whose credits were already consumed. */
   | "CREDIT_REFUND_AFTER_CONSUMPTION"
   /** A plan or storage payment was reversed (chargeback) or refunded. */

@@ -244,8 +244,16 @@ export type ActiveStorageAddon = {
   endsWithPlan?: boolean;
   /** Bought under an older workspace. Its capacity belongs to that workspace. */
   legacyWorkspace?: boolean;
+  /** That workspace's name, when the payer still owns it. */
+  legacyWorkspaceName?: string | null;
   /** The provider will not renew it. It keeps its capacity until it ends. */
   ending?: boolean;
+  /** A renewal payment failed and the provider is retrying. */
+  paymentDue?: boolean;
+  /** The last day it is paid for, when it is ending. */
+  endsAtUtc?: string | null;
+  /** Why it stops renewing, when that is not the customer cancelling it. */
+  endingReason?: "PLAN_CHANGE" | "GRANT_ENDED" | null;
   canCancel: boolean;
   canRecheck: boolean;
   canAbandon: boolean;
@@ -317,7 +325,12 @@ export type BillingAccountProjection = {
     actionAvailable: boolean;
     supportRequired: boolean;
   };
-  storageAddons?: { offers: StorageAddonOffer[]; active: ActiveStorageAddon[] };
+  storageAddons?: {
+    offers: StorageAddonOffer[];
+    active: ActiveStorageAddon[];
+    /** Capacity paid for here but usable only in older workspaces. */
+    legacyWorkspaceCapacityLabel?: string | null;
+  };
   /**
    * Why storage add-ons are NOT on offer, and which tier includes them.
    * Present only while they are unavailable, so its presence is the condition.
@@ -370,6 +383,8 @@ export type BillingAccountProjection = {
 export type BillingHistoryEntry = {
   id: string;
   occurredAtUtc: string;
+  /** The older workspace this payment was for, when the payer still owns it. */
+  legacyWorkspaceName?: string | null;
   description: string;
   status: string;
   amountCents?: number;
@@ -707,10 +722,15 @@ export type PlanChangeResult = {
  */
 export async function changePlan(input: {
   plan: "PRO" | "TEAM";
+  /** The customer was shown which storage stops renewing, and went ahead. */
+  confirmStorageEnding?: boolean;
 }): Promise<PlanChangeResult> {
   return (await apiFetch("/v1/billing/subscription/plan", {
     method: "POST",
-    body: JSON.stringify({ plan: input.plan }),
+    body: JSON.stringify({
+      plan: input.plan,
+      ...(input.confirmStorageEnding ? { confirmStorageEnding: true } : {}),
+    }),
   })) as PlanChangeResult;
 }
 

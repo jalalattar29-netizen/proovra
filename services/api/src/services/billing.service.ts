@@ -888,6 +888,7 @@ export async function upsertWorkspaceStorageAddon(params: {
    * activation. Undefined leaves the recorded value.
    */
   dependsOnSubscriptionId?: string | null;
+  dependsOnPlanGrantId?: string | null;
 }) {
   /**
    * BILLING COMMERCIAL CORRECTNESS (2026-08-27) — BOTH cycles are writable
@@ -1009,6 +1010,9 @@ export async function upsertWorkspaceStorageAddon(params: {
     ),
     ...(params.observedAtUtc
       ? { providerStateAtUtc: params.observedAtUtc }
+      : {}),
+    ...(params.dependsOnPlanGrantId !== undefined
+      ? { dependsOnPlanGrantId: params.dependsOnPlanGrantId }
       : {}),
     ...(params.dependsOnSubscriptionId !== undefined
       ? { dependsOnSubscriptionId: params.dependsOnSubscriptionId }

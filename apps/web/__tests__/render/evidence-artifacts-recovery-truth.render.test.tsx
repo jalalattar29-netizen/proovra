@@ -312,6 +312,26 @@ describe("controls stay honest", () => {
   });
 });
 
+describe("D5 — a credit-funded record says its credit is safe when an output fails", () => {
+  const FAILED: Out = { state: "RETRYABLE_FAILURE", action: "RETRY", actionUnavailableReason: null };
+  const PACKAGE: Out = { state: "RETRYABLE_FAILURE", action: "NONE", actionUnavailableReason: "FOLLOWS_REPORT" };
+  const funded = (recordFunding: string) => {
+    const ws = workspace(FAILED, PACKAGE);
+    (ws.artifactStatus as { recordFunding?: string }).recordFunding = recordFunding;
+    return ws;
+  };
+
+  it("states that retrying uses no further credit", () => {
+    const { container } = mount(funded("EVIDENCE_CREDIT"));
+    expect(container.querySelector("[data-evidence-credit-note]")?.textContent).toMatch(/no further credit/);
+  });
+
+  it("says nothing about credits on a plan-funded record", () => {
+    const { container } = mount(funded("PLAN"));
+    expect(container.querySelector("[data-evidence-credit-note]")).toBeNull();
+  });
+});
+
 describe("AUD-011 — the status projection says a stored file is gone (no download needed)", () => {
   const MISSING: Out = { state: "ARTIFACT_MISSING", action: "RECOVER", actionUnavailableReason: null, version: 1 };
 

@@ -94,8 +94,13 @@ function databaseWith(present: {
   combinedRecording?: { runKind?: boolean; assetKind?: boolean; sizeCeiling?: boolean };
   // 20281030000000 — billing remediation columns and tables.
   billingRemediation?: boolean;
+  // 20281031000000 — billing product decisions.
+  billingDecisions?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
+    if (/'addon_end_consent_plan'|'depends_on_plan_grant_id'|'billing_provider_customers'/.test(sql)) {
+      return present.billingDecisions === true;
+    }
     if (/'provider_schedule_id'|'refunded_amount_cents'|'payment_adjustments'|'billing_provider_binding_checks'/.test(sql)) {
       return present.billingRemediation === true;
     }
@@ -278,6 +283,7 @@ const STEP_UP_APPLIED: StepUpState = {
 
 const FULLY_MIGRATED = {
   billingRemediation: true,
+  billingDecisions: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -644,6 +650,20 @@ describe("runtime schema requirements — billing remediation (20281030000000)",
       "subscriptions.provider_schedule_id",
     ]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281030000000_billing_remediation_convergence");
+  });
+});
+
+describe("runtime schema requirements — billing product decisions (20281031000000)", () => {
+  it("an image that maps these columns is refused on a database without them", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, billingDecisions: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id).sort()).toEqual([
+      "billing_provider_customers.table",
+      "subscriptions.addon_end_consent_plan",
+      "workspace_storage_addons.depends_on_plan_grant_id",
+    ]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281031000000_billing_product_decisions");
   });
 });
 

@@ -44,6 +44,7 @@ import {
   cancelStorageAddonAtProvider,
   type StorageAddonProviderCanceller,
 } from "./storage-addon-cancellation.service.js";
+import { readActiveInternalPlanGrant } from "@proovra/shared-runtime";
 import {
   storageAddonEligibleForPlan,
   storageAddonFreeEligible,
@@ -329,6 +330,7 @@ export async function applyStorageSubscriptionObservation(
     obs.status === prismaPkg.SubscriptionStatus.ACTIVE && !row.activatedAtUtc;
 
   let dependsOnSubscriptionId: string | null | undefined;
+  let dependsOnPlanGrantId: string | null | undefined;
   if (firstActivation) {
     const refusal = await refusalReason(row, obs);
     if (refusal) {
@@ -342,9 +344,17 @@ export async function applyStorageSubscriptionObservation(
       });
       return { outcome: "REFUSED", addonId: row.id, reason: refusal, canceledAtProvider: refused.canceledAtProvider };
     }
-    dependsOnSubscriptionId = storageAddonRequiresPaidPlan(row.addonKey)
-      ? ((await findLivePersonalBaseSubscription(row.ownerUserId))?.id ?? null)
-      : null;
+    const requiresPlan = storageAddonRequiresPaidPlan(row.addonKey);
+    const base = requiresPlan ? await findLivePersonalBaseSubscription(row.ownerUserId) : null;
+    dependsOnSubscriptionId = base?.id ?? null;
+    // BILLING DECISIONS (2026-10-31, D2) — when the paid plan does not offer this
+    // SKU, the grant does. Read from the payer, never from a selected workspace.
+    const grant =
+      requiresPlan && !(base && storageAddonEligibleForPlan(base.plan, row.addonKey))
+        ? await readActiveInternalPlanGrant(prisma, row.ownerUserId)
+        : null;
+    dependsOnPlanGrantId =
+      grant && storageAddonEligibleForPlan(grant.plan as prismaPkg.PlanType, row.addonKey) ? grant.id : null;
   }
 
   if (
@@ -369,6 +379,7 @@ export async function applyStorageSubscriptionObservation(
     observedAtUtc: obs.observedAtUtc,
     metadata: { source: obs.source },
     ...(dependsOnSubscriptionId !== undefined ? { dependsOnSubscriptionId } : {}),
+    ...(dependsOnPlanGrantId !== undefined ? { dependsOnPlanGrantId } : {}),
   });
   if (firstActivation && updated.status === prismaPkg.WorkspaceStorageAddonStatus.ACTIVE) {
     return { outcome: "GRANTED", addonId: updated.id, status: updated.status };

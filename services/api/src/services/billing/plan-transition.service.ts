@@ -40,6 +40,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
+import { formatBytesHuman } from "@proovra/shared-billing";
 
 import { prisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
@@ -74,6 +75,12 @@ import {
   findLivePersonalBaseSubscription,
   type LiveBaseSubscriptionRow,
 } from "./base-subscription.service.js";
+import {
+  dependentAddonWhere,
+  recordDependentCancellationObligations,
+} from "./dependent-cancellation.service.js";
+import { cancelDependentRecurringAddons } from "./storage-addon-dependency.service.js";
+import { storageAddonEligibleForPlan, storageAddonRequiresPaidPlan } from "./storage-addon-rules.js";
 
 /** The plans a person may hold self-service, in order. */
 const SELF_SERVICE_LADDER: readonly prismaPkg.PlanType[] = [
@@ -267,6 +274,102 @@ export async function resolvePersonalPlanTransition(input: {
   return to > from
     ? { kind: "UPGRADE", targetPlan: input.targetPlan, subscription }
     : { kind: "DOWNGRADE", targetPlan: input.targetPlan, subscription };
+}
+
+/** What a downgrade would stop renewing, with each add-on's paid-through date. */
+export type StorageEndingWithPlanChange = {
+  addonKey: prismaPkg.StorageAddonKey;
+  storageLabel: string;
+  paidThroughUtc: string | null;
+};
+
+/**
+ * BILLING DECISIONS (2026-10-31, D1) — the live recurring add-ons the target plan
+ * does not offer and that are not already ending.
+ */
+async function storageTheTargetPlanDrops(userId: string, targetPlan: prismaPkg.PlanType) {
+  const rows = await prisma.workspaceStorageAddon.findMany({
+    where: { ...dependentAddonWhere({ ownerUserId: userId, teamId: null }), canceledAtUtc: null, expiresAtUtc: null },
+    select: {
+      id: true,
+      addonKey: true,
+      extraStorageBytes: true,
+      paymentProvider: true,
+      externalSubscriptionId: true,
+      currentPeriodEnd: true,
+      dependentCancellationState: true,
+    },
+  });
+  return rows.filter(
+    (row) => storageAddonRequiresPaidPlan(row.addonKey) && !storageAddonEligibleForPlan(targetPlan, row.addonKey),
+  );
+}
+
+/**
+ * Before a downgrade reaches the provider: can its storage be stopped, and has
+ * the customer agreed to that?
+ *
+ * Asked first, because the plan change and the add-on are separate provider
+ * subscriptions and cannot move atomically. An add-on nothing can cancel is
+ * refused here rather than left renewing on a plan that no longer sells it. The
+ * agreement is recorded BEFORE the provider call, so a crash after the provider
+ * accepts still leaves the sweep everything it needs to finish the work.
+ */
+export async function prepareDowngradeStorage(input: {
+  userId: string;
+  subscriptionId: string;
+  targetPlan: prismaPkg.PlanType;
+  confirmed: boolean;
+}): Promise<{ agreed: boolean; ending: StorageEndingWithPlanChange[] }> {
+  const rows = await storageTheTargetPlanDrops(input.userId, input.targetPlan);
+  const ending = rows.map((row) => ({
+    addonKey: row.addonKey,
+    storageLabel: formatBytesHuman(row.extraStorageBytes),
+    paidThroughUtc: row.currentPeriodEnd?.toISOString() ?? null,
+  }));
+  if (rows.length === 0) return { agreed: false, ending };
+  const cannotBeStopped = rows.some(
+    (row) =>
+      !row.paymentProvider ||
+      !row.externalSubscriptionId ||
+      row.dependentCancellationState === prismaPkg.DependentCancellationState.MANUAL_INTERVENTION,
+  );
+  if (cannotBeStopped) {
+    throw new DomainError("A dependent add-on cannot be stopped at its provider", {
+      httpStatus: 409,
+      publicCode: "PLAN_CHANGE_STORAGE_MUST_END_FIRST",
+      publicMessage:
+        "This plan does not include your Team storage, and we cannot stop that add-on from here. Nothing was changed. Contact support to end the add-on, then change your plan.",
+      reportability: "EXPECTED_DENIAL",
+      severity: "info",
+    });
+  }
+  if (!input.confirmed) return { agreed: false, ending };
+  await prisma.subscription.update({
+    where: { id: input.subscriptionId },
+    data: { addonEndConsentPlan: input.targetPlan, addonEndConsentAtUtc: new Date() },
+  });
+  return { agreed: true, ending };
+}
+
+/** The provider did not take the change: the agreement goes with it. */
+export async function withdrawDowngradeStorageAgreement(subscriptionId: string): Promise<void> {
+  await prisma.subscription.updateMany({
+    where: { id: subscriptionId, pendingPlan: null },
+    data: { addonEndConsentPlan: null, addonEndConsentAtUtc: null },
+  });
+}
+
+/**
+ * The provider confirmed the downgrade. The durable obligations are written, and
+ * the first attempt made. A failure here is not the customer's: the retry sweep
+ * owns it from the moment the obligation exists, and the sweep records it if this
+ * never runs.
+ */
+export async function scheduleDowngradeStorageEnd(userId: string): Promise<{ scheduled: number; retrying: number }> {
+  await recordDependentCancellationObligations({ ownerUserId: userId, teamId: null }, prisma);
+  const result = await cancelDependentRecurringAddons({ ownerUserId: userId, teamId: null });
+  return { scheduled: result.scheduled, retrying: result.failed };
 }
 
 export type PlanChangeOutcome = {
@@ -862,6 +965,8 @@ export async function clearPendingPlan(subscriptionId: string): Promise<void> {
       pendingPlanEffectiveAtUtc: null,
       pendingPlanAwaitingApproval: false,
       pendingPlanRequestedAtUtc: null,
+      addonEndConsentPlan: null,
+      addonEndConsentAtUtc: null,
     },
   });
 }
@@ -890,6 +995,8 @@ export async function expireUnapprovedPlanChange(
       pendingPlanEffectiveAtUtc: null,
       pendingPlanAwaitingApproval: false,
       pendingPlanRequestedAtUtc: null,
+      addonEndConsentPlan: null,
+      addonEndConsentAtUtc: null,
     },
   });
   return cleared.count > 0;

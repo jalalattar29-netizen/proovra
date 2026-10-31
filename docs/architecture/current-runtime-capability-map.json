@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
-  "consumerInventoryHash": "9b869ae2ff7a67e137a59fe7f7e788ac4dab34bd95cbf487d1e703b104d40f34",
+  "consumerInventoryHash": "0129f37901e753fc50749817546f82ddfda7c0c616c58c038bcacd9af8b84b16",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1219,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1449,
-    "ReachableSensitiveMutations": 1425,
-    "ClassifiedSensitiveMutations": 1425,
+    "TerminalWriters": 1456,
+    "ReachableSensitiveMutations": 1432,
+    "ClassifiedSensitiveMutations": 1432,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 24,
@@ -74,13 +74,13 @@
       "ACCOUNT_SESSION_SECURITY": 232,
       "ORGANIZATION": 33,
       "ORGANIZATION_MEMBERSHIP": 28,
-      "WORKSPACE": 72,
+      "WORKSPACE": 73,
       "WORKSPACE_MEMBERSHIP_INVITATION": 66,
       "CASE": 88,
       "EVIDENCE_CUSTODY_FINALIZATION": 333,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 93,
-      "BILLING_SUBSCRIPTION_SEAT": 95,
+      "BILLING_SUBSCRIPTION_SEAT": 101,
       "SSO_OIDC_SCIM_PROVISIONING": 57,
       "AUTOMATION_QUEUE_WEBHOOK": 116,
       "REPORT_EXPORT_REDACTION": 57,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1272,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1279,
       "JOB_ATTRIBUTED_REACHABLE": 142,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 10904,
-      "UNRESOLVED_IDENTIFIER": 1561
+      "METHOD_ON_VALUE": 10920,
+      "UNRESOLVED_IDENTIFIER": 1563
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": false,
@@ -161,7 +161,7 @@
       "NO_DATA_ACCESS": 54
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 383,
+    "OrganizationRoutesMeasured": 384,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
@@ -1828,7 +1828,7 @@
       "method": "GET",
       "route": "/v1/billing/accounts",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:173",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:208",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1840,7 +1840,7 @@
       "method": "GET",
       "route": "/v1/billing/accounts/:type/:id",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:149",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:177",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1852,7 +1852,7 @@
       "method": "GET",
       "route": "/v1/billing/accounts/:type/:id/history",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:158",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:190",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -1876,7 +1876,7 @@
       "method": "GET",
       "route": "/v1/billing/pricing",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:199",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:236",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -7756,7 +7756,7 @@
       "method": "POST",
       "route": "/v1/admin/billing/evidence-credits",
       "registeringFile": "services/api/src/routes/admin-billing.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx:93",
+      "productConsumer": "apps/web/app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx:108",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8524,7 +8524,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:836",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:662",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8536,7 +8536,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:820",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:626",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8548,7 +8548,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:518",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:588",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8560,7 +8560,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:495",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:565",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8572,7 +8572,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/payments/:paymentId/recheck",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:476",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:546",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8584,7 +8584,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/reconcile",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:453",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:523",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8596,7 +8596,7 @@
       "method": "POST",
       "route": "/v1/billing/accounts/:type/:id/retry-storage-cancellation",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:400",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:470",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8608,7 +8608,7 @@
       "method": "POST",
       "route": "/v1/billing/checkout/paypal",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8632,7 +8632,7 @@
       "method": "POST",
       "route": "/v1/billing/checkout/paypal/returns/canceled",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:883",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:903",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8644,7 +8644,7 @@
       "method": "POST",
       "route": "/v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:303",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8656,7 +8656,7 @@
       "method": "POST",
       "route": "/v1/billing/checkout/stripe",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8668,7 +8668,7 @@
       "method": "POST",
       "route": "/v1/billing/credits/checkout/paypal",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8680,7 +8680,7 @@
       "method": "POST",
       "route": "/v1/billing/credits/checkout/paypal/:orderId/capture",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:303",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8692,7 +8692,7 @@
       "method": "POST",
       "route": "/v1/billing/credits/checkout/stripe",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8716,7 +8716,7 @@
       "method": "POST",
       "route": "/v1/billing/storage-addons/cancel",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:436",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:506",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8728,7 +8728,7 @@
       "method": "POST",
       "route": "/v1/billing/storage-addons/checkout/paypal",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8740,7 +8740,7 @@
       "method": "POST",
       "route": "/v1/billing/storage-addons/checkout/stripe",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8752,7 +8752,7 @@
       "method": "POST",
       "route": "/v1/billing/subscription/cancel",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:416",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:486",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8764,7 +8764,7 @@
       "method": "POST",
       "route": "/v1/billing/subscription/plan",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:352",
+      "productConsumer": "apps/mobile/app/(stack)/billing.tsx:408",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8776,7 +8776,7 @@
       "method": "POST",
       "route": "/v1/billing/subscription/resume",
       "registeringFile": "services/api/src/routes/billing.routes.ts",
-      "productConsumer": "apps/web/lib/api/billing-accounts.ts:677",
+      "productConsumer": "apps/web/lib/api/billing-accounts.ts:692",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -18988,6 +18988,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -20022,6 +20023,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -21079,6 +21081,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -22136,6 +22139,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -23170,6 +23174,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -24227,6 +24232,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -25261,6 +25267,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -27274,8 +27281,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.update@1191",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:1191",
+      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.update@1238",
+      "terminalLocation": "services/api/src/routes/billing.routes.ts:1238",
       "file": "services/api/src/routes/billing.routes.ts",
       "enclosingDeclaration": "billingRoutes",
       "kind": "DATABASE",
@@ -39963,8 +39970,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalSubscription@384",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:384",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.createPayPalSubscription@390",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:390",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createPayPalCheckout",
       "kind": "EXTERNAL",
@@ -39997,8 +40004,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@191",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:191",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@194",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:194",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createStripeCheckoutSession",
       "kind": "EXTERNAL",
@@ -40031,8 +40038,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@294",
-      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:294",
+      "writerId": "services/api/src/services/billing-checkout.service.ts#PAYMENT.stripeRequest@300",
+      "terminalLocation": "services/api/src/services/billing-checkout.service.ts:300",
       "file": "services/api/src/services/billing-checkout.service.ts",
       "enclosingDeclaration": "createStripeStorageAddonCheckoutSession",
       "kind": "EXTERNAL",
@@ -41383,8 +41390,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#team.update@1149",
-      "terminalLocation": "services/api/src/services/billing.service.ts:1149",
+      "writerId": "services/api/src/services/billing.service.ts#team.update@1153",
+      "terminalLocation": "services/api/src/services/billing.service.ts:1153",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "refreshTeamSeatState",
       "kind": "DATABASE",
@@ -41420,8 +41427,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.create@1035",
-      "terminalLocation": "services/api/src/services/billing.service.ts:1035",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.create@1039",
+      "terminalLocation": "services/api/src/services/billing.service.ts:1039",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -41460,8 +41467,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@1096",
-      "terminalLocation": "services/api/src/services/billing.service.ts:1096",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.update@1100",
+      "terminalLocation": "services/api/src/services/billing.service.ts:1100",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "cancelWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -41493,8 +41500,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.updateMany@1020",
-      "terminalLocation": "services/api/src/services/billing.service.ts:1020",
+      "writerId": "services/api/src/services/billing.service.ts#workspaceStorageAddon.updateMany@1024",
+      "terminalLocation": "services/api/src/services/billing.service.ts:1024",
       "file": "services/api/src/services/billing.service.ts",
       "enclosingDeclaration": "upsertWorkspaceStorageAddon",
       "kind": "DATABASE",
@@ -41533,8 +41540,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.create@79",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:79",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.create@81",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:81",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -41551,8 +41558,11 @@
         "POST /v1/billing/checkout/paypal",
         "POST /v1/billing/checkout/paypal/returns/canceled",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+        "POST /v1/billing/checkout/stripe",
         "POST /v1/billing/credits/checkout/paypal",
         "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/stripe",
         "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
@@ -41577,8 +41587,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@101",
-      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:101",
+      "writerId": "services/api/src/services/billing/billing-review.service.ts#billingReviewItem.update@103",
+      "terminalLocation": "services/api/src/services/billing/billing-review.service.ts:103",
       "file": "services/api/src/services/billing/billing-review.service.ts",
       "enclosingDeclaration": "recordBillingReviewItem",
       "kind": "DATABASE",
@@ -41595,8 +41605,11 @@
         "POST /v1/billing/checkout/paypal",
         "POST /v1/billing/checkout/paypal/returns/canceled",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
+        "POST /v1/billing/checkout/stripe",
         "POST /v1/billing/credits/checkout/paypal",
         "POST /v1/billing/credits/checkout/paypal/:orderId/capture",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/stripe",
         "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
@@ -41956,8 +41969,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@428",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:428",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@505",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:505",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "attemptDependentCancellations",
       "kind": "DATABASE",
@@ -41968,7 +41981,8 @@
       "entryRoutes": [
         "POST /v1/billing/accounts/:type/:id/reconcile",
         "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
-        "POST /v1/billing/subscription/cancel"
+        "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -41991,8 +42005,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@454",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:454",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.update@534",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:534",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "attemptDependentCancellations",
       "kind": "DATABASE",
@@ -42003,7 +42017,8 @@
       "entryRoutes": [
         "POST /v1/billing/accounts/:type/:id/reconcile",
         "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
-        "POST /v1/billing/subscription/cancel"
+        "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42026,8 +42041,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@246",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:246",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@263",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:263",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "recordDependentCancellationObligations",
       "kind": "DATABASE",
@@ -42037,7 +42052,8 @@
       "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/billing/accounts/:type/:id/reconcile",
-        "POST /v1/billing/subscription/cancel"
+        "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42060,8 +42076,42 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@317",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:317",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@312",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:312",
+      "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
+      "enclosingDeclaration": "recordGrantEndedObligations",
+      "kind": "DATABASE",
+      "target": "workspaceStorageAddon",
+      "mutationKind": "updateMany",
+      "primaryFamily": "WORKSPACE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@394",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:394",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "withdrawUnsupportedObligations",
       "kind": "DATABASE",
@@ -42073,6 +42123,7 @@
         "POST /v1/billing/accounts/:type/:id/reconcile",
         "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
         "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan",
         "POST /v1/billing/subscription/resume"
       ],
       "entryJobs": [],
@@ -42096,8 +42147,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@399",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:399",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@476",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:476",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "attemptDependentCancellations",
       "kind": "DATABASE",
@@ -42108,7 +42159,8 @@
       "entryRoutes": [
         "POST /v1/billing/accounts/:type/:id/reconcile",
         "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation",
-        "POST /v1/billing/subscription/cancel"
+        "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42131,8 +42183,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@503",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:503",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@583",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:583",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "confirmObligationFromProviderTruth",
       "kind": "DATABASE",
@@ -42167,8 +42219,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@538",
-      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:538",
+      "writerId": "services/api/src/services/billing/dependent-cancellation.service.ts#workspaceStorageAddon.updateMany@618",
+      "terminalLocation": "services/api/src/services/billing/dependent-cancellation.service.ts:618",
       "file": "services/api/src/services/billing/dependent-cancellation.service.ts",
       "enclosingDeclaration": "reopenObligationFromProviderTruth",
       "kind": "DATABASE",
@@ -42203,8 +42255,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@227",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:227",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@237",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:237",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "applyCreditGrant",
       "kind": "DATABASE",
@@ -42242,8 +42294,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@389",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:389",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.update@420",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:420",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "reverseEvidenceCreditPurchase",
       "kind": "DATABASE",
@@ -42278,8 +42330,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.updateMany@461",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:461",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#entitlement.updateMany@492",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:492",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "consumeEvidenceCreditForCompletion",
       "kind": "DATABASE",
@@ -42318,8 +42370,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@233",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:233",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@243",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:243",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "applyCreditGrant",
       "kind": "DATABASE",
@@ -42357,8 +42409,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@396",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:396",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@427",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:427",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "reverseEvidenceCreditPurchase",
       "kind": "DATABASE",
@@ -42393,8 +42445,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@488",
-      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:488",
+      "writerId": "services/api/src/services/billing/evidence-credits.service.ts#evidenceCreditLedgerEntry.create@519",
+      "terminalLocation": "services/api/src/services/billing/evidence-credits.service.ts:519",
       "file": "services/api/src/services/billing/evidence-credits.service.ts",
       "enclosingDeclaration": "consumeEvidenceCreditForCompletion",
       "kind": "DATABASE",
@@ -42433,8 +42485,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@376",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:376",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@378",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:378",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "run",
       "kind": "DATABASE",
@@ -42466,8 +42518,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@246",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:246",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@247",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:247",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "closeExpiredInTx",
       "kind": "DATABASE",
@@ -42500,8 +42552,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@453",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:453",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@455",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:455",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "revokeInternalPlanGrant",
       "kind": "DATABASE",
@@ -42592,7 +42644,8 @@
         "POST /v1/billing/checkout/paypal/returns/canceled",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
         "POST /v1/billing/storage-addons/cancel",
-        "POST /v1/billing/subscription/cancel"
+        "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -42980,8 +43033,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.paypalRequest@763",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:763",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.paypalRequest@866",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:866",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyPayPalPlanChange",
       "kind": "EXTERNAL",
@@ -43013,8 +43066,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@585",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:585",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@688",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:688",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -43046,8 +43099,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@636",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:636",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@739",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:739",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -43079,8 +43132,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@689",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:689",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@792",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:792",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -43112,8 +43165,41 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@650",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:650",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@348",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:348",
+      "file": "services/api/src/services/billing/plan-transition.service.ts",
+      "enclosingDeclaration": "prepareDowngradeStorage",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/subscription/plan"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@753",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:753",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "DATABASE",
@@ -43145,8 +43231,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@828",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:828",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@931",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:931",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "recordPendingPlan",
       "kind": "DATABASE",
@@ -43178,8 +43264,76 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@718",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:718",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@1007",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:1007",
+      "file": "services/api/src/services/billing/plan-transition.service.ts",
+      "enclosingDeclaration": "markPlanChangeApproved",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /paypal",
+        "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts",
+        "MODULE services/api/src/routes/webhooks.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@357",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:357",
+      "file": "services/api/src/services/billing/plan-transition.service.ts",
+      "enclosingDeclaration": "withdrawDowngradeStorageAgreement",
+      "kind": "DATABASE",
+      "target": "subscription",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/subscription/plan"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@821",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:821",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "releaseAfterFailedEdit",
       "kind": "DATABASE",
@@ -43211,8 +43365,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@858",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:858",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@961",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:961",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "clearPendingPlan",
       "kind": "DATABASE",
@@ -43244,8 +43398,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@882",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:882",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@987",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:987",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "expireUnapprovedPlanChange",
       "kind": "DATABASE",
@@ -43268,41 +43422,6 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@900",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:900",
-      "file": "services/api/src/services/billing/plan-transition.service.ts",
-      "enclosingDeclaration": "markPlanChangeApproved",
-      "kind": "DATABASE",
-      "target": "subscription",
-      "mutationKind": "updateMany",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /paypal",
-        "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/billing.routes.ts",
-        "MODULE services/api/src/routes/webhooks.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -43666,8 +43785,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.create@214",
-      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:214",
+      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.create@215",
+      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:215",
       "file": "services/api/src/services/billing/storage-activation.service.ts",
       "enclosingDeclaration": "refuseActiveSubscription",
       "kind": "DATABASE",
@@ -43706,8 +43825,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.create@262",
-      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:262",
+      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.create@263",
+      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:263",
       "file": "services/api/src/services/billing/storage-activation.service.ts",
       "enclosingDeclaration": "applyStorageSubscriptionObservation",
       "kind": "DATABASE",
@@ -43746,8 +43865,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.update@199",
-      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:199",
+      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.update@200",
+      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:200",
       "file": "services/api/src/services/billing/storage-activation.service.ts",
       "enclosingDeclaration": "refuseActiveSubscription",
       "kind": "DATABASE",
@@ -43786,8 +43905,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.update@315",
-      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:315",
+      "writerId": "services/api/src/services/billing/storage-activation.service.ts#workspaceStorageAddon.update@316",
+      "terminalLocation": "services/api/src/services/billing/storage-activation.service.ts:316",
       "file": "services/api/src/services/billing/storage-activation.service.ts",
       "enclosingDeclaration": "applyStorageSubscriptionObservation",
       "kind": "DATABASE",
@@ -43845,7 +43964,8 @@
         "POST /v1/billing/checkout/paypal/returns/canceled",
         "POST /v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
         "POST /v1/billing/storage-addons/cancel",
-        "POST /v1/billing/subscription/cancel"
+        "POST /v1/billing/subscription/cancel",
+        "POST /v1/billing/subscription/plan"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -43869,8 +43989,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/stripe-checkout-start.service.ts#PAYMENT.createStripeCheckoutSession@227",
-      "terminalLocation": "services/api/src/services/billing/stripe-checkout-start.service.ts:227",
+      "writerId": "services/api/src/services/billing/stripe-checkout-start.service.ts#PAYMENT.createStripeCheckoutSession@228",
+      "terminalLocation": "services/api/src/services/billing/stripe-checkout-start.service.ts:228",
       "file": "services/api/src/services/billing/stripe-checkout-start.service.ts",
       "enclosingDeclaration": "startStripePlanCheckout",
       "kind": "EXTERNAL",
@@ -43902,8 +44022,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/stripe-checkout-start.service.ts#PAYMENT.createStripeCheckoutSession@270",
-      "terminalLocation": "services/api/src/services/billing/stripe-checkout-start.service.ts:270",
+      "writerId": "services/api/src/services/billing/stripe-checkout-start.service.ts#PAYMENT.createStripeCheckoutSession@272",
+      "terminalLocation": "services/api/src/services/billing/stripe-checkout-start.service.ts:272",
       "file": "services/api/src/services/billing/stripe-checkout-start.service.ts",
       "enclosingDeclaration": "startStripeCreditCheckout",
       "kind": "EXTERNAL",
@@ -43928,6 +44048,146 @@
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/stripe-customer-binding.service.ts#billingProviderCustomer.create@191",
+      "terminalLocation": "services/api/src/services/billing/stripe-customer-binding.service.ts:191",
+      "file": "services/api/src/services/billing/stripe-customer-binding.service.ts",
+      "enclosingDeclaration": "bind",
+      "kind": "DATABASE",
+      "target": "billingProviderCustomer",
+      "mutationKind": "create",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/checkout/stripe",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/stripe"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/stripe-customer-binding.service.ts#billingProviderCustomer.update@260",
+      "terminalLocation": "services/api/src/services/billing/stripe-customer-binding.service.ts:260",
+      "file": "services/api/src/services/billing/stripe-customer-binding.service.ts",
+      "enclosingDeclaration": "resolveStripeCheckoutCustomer",
+      "kind": "DATABASE",
+      "target": "billingProviderCustomer",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/checkout/stripe",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/stripe"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/stripe-customer-binding.service.ts#billingProviderCustomer.updateMany@217",
+      "terminalLocation": "services/api/src/services/billing/stripe-customer-binding.service.ts:217",
+      "file": "services/api/src/services/billing/stripe-customer-binding.service.ts",
+      "enclosingDeclaration": "markConflict",
+      "kind": "DATABASE",
+      "target": "billingProviderCustomer",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/checkout/stripe",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/stripe"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/stripe-customer-binding.service.ts#billingProviderCustomer.updateMany@268",
+      "terminalLocation": "services/api/src/services/billing/stripe-customer-binding.service.ts:268",
+      "file": "services/api/src/services/billing/stripe-customer-binding.service.ts",
+      "enclosingDeclaration": "resolveStripeCheckoutCustomer",
+      "kind": "DATABASE",
+      "target": "billingProviderCustomer",
+      "mutationKind": "updateMany",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/billing/checkout/stripe",
+        "POST /v1/billing/credits/checkout/stripe",
+        "POST /v1/billing/storage-addons/checkout/stripe"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
         "payloadVersionAuthority": "NOT_APPLICABLE",
@@ -55036,6 +55296,7 @@
         "PATCH /v1/security-policy",
         "PATCH /v1/teams/:id",
         "PATCH /v1/teams/:id/members/:memberId",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -55330,6 +55591,7 @@
         "PATCH /v1/security-policy",
         "PATCH /v1/teams/:id",
         "PATCH /v1/teams/:id/members/:memberId",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -63114,6 +63376,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -64147,6 +64410,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -65171,6 +65435,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -66195,6 +66460,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -67228,6 +67494,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -68253,6 +68520,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -69286,6 +69554,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -70319,6 +70588,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -71343,6 +71613,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -72368,6 +72639,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -73916,6 +74188,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -74941,6 +75214,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -75966,6 +76240,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -76991,6 +77266,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -78016,6 +78292,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -79041,6 +79318,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -80066,6 +80344,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -81091,6 +81370,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -90259,6 +90539,7 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/evidence-credits",
         "POST /v1/admin/billing/internal-plan-grants",
         "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
@@ -102751,7 +103032,7 @@
       "method": "GET",
       "path": "/v1/admin/billing/detail",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:84",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:89",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -102814,7 +103095,7 @@
       "method": "GET",
       "path": "/v1/admin/billing/internal-plan-grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:378",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:404",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -107331,7 +107612,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:593",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:608",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -107344,7 +107625,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 173,
+          "line": 208,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -107360,7 +107641,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 527,
+          "line": 542,
           "caller": "listBillingAccounts",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107370,7 +107651,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:173 (BillingScreen, MOBILE); apps/web/app/(app)/settings/_sections/BillingSection.tsx:73 (BillingSection, WEB); apps/web/lib/api/billing-accounts.ts:527 (listBillingAccounts, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:208 (BillingScreen, MOBILE); apps/web/app/(app)/settings/_sections/BillingSection.tsx:73 (BillingSection, WEB); apps/web/lib/api/billing-accounts.ts:542 (listBillingAccounts, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107414,7 +107695,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts/:type/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:611",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:626",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -107427,7 +107708,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 149,
+          "line": 177,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -107451,7 +107732,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 541,
+          "line": 556,
           "caller": "readBillingAccount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107461,7 +107742,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:149 (BillingScreen, MOBILE); apps/web/app/(app)/organizations/[id]/setup/page.tsx:331 (OrganizationSetupInner, WEB); apps/web/app/(app)/settings/_sections/BillingSection.tsx:84 (BillingSection, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:177 (BillingScreen, MOBILE); apps/web/app/(app)/organizations/[id]/setup/page.tsx:331 (OrganizationSetupInner, WEB); apps/web/app/(app)/settings/_sections/BillingSection.tsx:84 (BillingSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107530,7 +107811,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts/:type/:id/history",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:651",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:666",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -107543,7 +107824,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 158,
+          "line": 190,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -107559,7 +107840,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 602,
+          "line": 617,
           "caller": "readBillingHistory",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107569,7 +107850,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:158 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:84 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:602 (readBillingHistory, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:190 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:84 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:617 (readBillingHistory, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107619,7 +107900,7 @@
       "method": "GET",
       "path": "/v1/billing/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:730",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:745",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107730,7 +108011,7 @@
       "method": "GET",
       "path": "/v1/billing/pricing",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:708",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:723",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -107739,7 +108020,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 199,
+          "line": 236,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -107757,7 +108038,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:199 (BillingScreen, MOBILE); apps/web/app/pricing/page.tsx:187 (MarketingPricingPage, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:236 (BillingScreen, MOBILE); apps/web/app/pricing/page.tsx:187 (MarketingPricingPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107786,7 +108067,7 @@
       "method": "GET",
       "path": "/v1/billing/subscription",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:774",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:789",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -142197,7 +142478,7 @@
       "method": "POST",
       "path": "/v1/admin/billing/evidence-credits",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:134",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:143",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -142210,7 +142491,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx",
-          "line": 93,
+          "line": 108,
           "caller": "submit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -142220,7 +142501,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx:93 (submit, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/users/[id]/EvidenceCreditGrant.tsx:108 (submit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -142236,21 +142517,31 @@
         "adminAuditLog",
         "entitlement",
         "evidenceCreditLedgerEntry",
+        "externalIdentityMapping",
+        "mfaFactor",
+        "organizationSecurityPolicy",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
+        "team",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "analyticsEvent",
         "entitlement",
-        "evidenceCreditLedgerEntry"
+        "evidenceCreditLedgerEntry",
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)"
+        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
-      "crossTenantRefusalSemantics": "refuses with 404",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -142259,7 +142550,7 @@
       "method": "POST",
       "path": "/v1/admin/billing/internal-plan-grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:291",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:317",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -142294,19 +142585,25 @@
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
+        "subscription",
         "team",
-        "user"
+        "user",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "planGrant",
         "securityEvent",
-        "stepUpChallenge"
+        "stepUpChallenge",
+        "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/base-subscription.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/base-subscription.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -142319,7 +142616,7 @@
       "method": "POST",
       "path": "/v1/admin/billing/internal-plan-grants/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:336",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:362",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -142354,19 +142651,25 @@
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
+        "subscription",
         "team",
-        "user"
+        "user",
+        "workspaceStorageAddon"
       ],
       "modelsWritten": [
         "adminAuditLog",
         "planGrant",
         "securityEvent",
-        "stepUpChallenge"
+        "stepUpChallenge",
+        "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/base-subscription.service.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/billing/base-subscription.service.ts: subscription.findMany — no tenant or self predicate",
+        "services/api/src/services/billing/dependent-cancellation.service.ts: workspaceStorageAddon.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -146992,7 +147295,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1455",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1502",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -147002,8 +147305,16 @@
       ],
       "productConsumers": [
         {
+          "file": "apps/mobile/app/(stack)/billing.tsx",
+          "line": 662,
+          "caller": "BillingScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 836,
+          "line": 856,
           "caller": "abandonCheckoutAttempt",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147013,7 +147324,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:836 (abandonCheckoutAttempt, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:662 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:856 (abandonCheckoutAttempt, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147038,6 +147349,7 @@
         "organizationMembership",
         "organizationSecurityPolicy",
         "payment",
+        "planGrant",
         "ssoConnection",
         "subscription",
         "team",
@@ -147086,7 +147398,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1429",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1476",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -147096,8 +147408,16 @@
       ],
       "productConsumers": [
         {
+          "file": "apps/mobile/app/(stack)/billing.tsx",
+          "line": 626,
+          "caller": "BillingScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 820,
+          "line": 840,
           "caller": "recheckCheckoutAttempt",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147107,7 +147427,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:820 (recheckCheckoutAttempt, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:626 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:840 (recheckCheckoutAttempt, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147132,6 +147452,7 @@
         "organizationMembership",
         "organizationSecurityPolicy",
         "payment",
+        "planGrant",
         "ssoConnection",
         "subscription",
         "team",
@@ -147179,7 +147500,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1644",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1691",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147192,7 +147513,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 518,
+          "line": 588,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -147200,7 +147521,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 454,
+          "line": 469,
           "caller": "abandonPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147210,7 +147531,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:518 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:454 (abandonPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:588 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:469 (abandonPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147270,7 +147591,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1586",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1633",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147283,7 +147604,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 495,
+          "line": 565,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -147299,7 +147620,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 503,
+          "line": 518,
           "caller": "cancelPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147309,7 +147630,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:495 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:126 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:503 (cancelPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:565 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:126 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:518 (cancelPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147358,7 +147679,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/payments/:paymentId/recheck",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1510",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1557",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147371,7 +147692,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 476,
+          "line": 546,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -147387,7 +147708,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 485,
+          "line": 500,
           "caller": "recheckPayment",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147397,7 +147718,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:476 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:107 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:485 (recheckPayment, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:546 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:107 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:500 (recheckPayment, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147455,7 +147776,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1274",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1321",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147468,7 +147789,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 453,
+          "line": 523,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -147476,7 +147797,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 859,
+          "line": 879,
           "caller": "reconcileAccount",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147486,7 +147807,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:453 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:859 (reconcileAccount, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:523 (BillingScreen, MOBILE); apps/web/lib/api/billing-accounts.ts:879 (reconcileAccount, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147515,6 +147836,7 @@
         "organizationMembership",
         "organizationSecurityPolicy",
         "payment",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -147569,7 +147891,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/retry-storage-cancellation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1837",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1884",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147582,7 +147904,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 400,
+          "line": 470,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -147598,7 +147920,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 640,
+          "line": 655,
           "caller": "retryStorageCancellation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147608,7 +147930,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:400 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:151 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:640 (retryStorageCancellation, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:470 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:151 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:655 (retryStorageCancellation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147627,6 +147949,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "ssoConnection",
         "subscription",
         "user",
@@ -147661,7 +147984,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2394",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2440",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147674,7 +147997,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -147682,7 +148005,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 365,
+          "line": 421,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -147698,7 +148021,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
-          "line": 434,
+          "line": 437,
           "caller": "startCheckout",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147708,7 +148031,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/mobile/app/(stack)/billing.tsx:365 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:331 (resolvePendingPayPal, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/mobile/app/(stack)/billing.tsx:421 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:331 (resolvePendingPayPal, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147782,7 +148105,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal/pending/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1926",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1973",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147862,7 +148185,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal/returns/canceled",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2240",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2287",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147875,7 +148198,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 883,
+          "line": 903,
           "caller": "reportPayPalReturnCanceled",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147885,7 +148208,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:883 (reportPayPalReturnCanceled, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:903 (reportPayPalReturnCanceled, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147910,6 +148233,7 @@
         "organizationMembership",
         "organizationSecurityPolicy",
         "payment",
+        "planGrant",
         "ssoConnection",
         "subscription",
         "team",
@@ -147958,7 +148282,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2162",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2209",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -147969,7 +148293,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 303,
+          "line": 352,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -147987,7 +148311,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:303 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/usePayPalReturn.ts:107 (usePayPalReturn, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/usePayPalReturn.ts:107 (usePayPalReturn, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148054,7 +148378,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1717",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1764",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148067,7 +148391,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148075,7 +148399,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 365,
+          "line": 421,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148083,7 +148407,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
-          "line": 417,
+          "line": 420,
           "caller": "startCheckout",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148093,7 +148417,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/mobile/app/(stack)/billing.tsx:365 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:417 (startCheckout, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/mobile/app/(stack)/billing.tsx:421 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:420 (startCheckout, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148110,6 +148434,8 @@
       "modelsRead": [
         "adminAuditLog",
         "billingCheckoutAttempt",
+        "billingProviderCustomer",
+        "billingReviewItem",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -148133,6 +148459,8 @@
         "adminAuditLog",
         "analyticsEvent",
         "billingCheckoutAttempt",
+        "billingProviderCustomer",
+        "billingReviewItem",
         "entitlement",
         "operationalIncident",
         "operationalIncidentEvent",
@@ -148164,7 +148492,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2021",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2068",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148177,7 +148505,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148185,7 +148513,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
-          "line": 398,
+          "line": 401,
           "caller": "startCheckout",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148195,7 +148523,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:398 (startCheckout, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:401 (startCheckout, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148253,7 +148581,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/paypal/:orderId/capture",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2081",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2128",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148266,7 +148594,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 303,
+          "line": 352,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148284,7 +148612,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:303 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/usePayPalReturn.ts:106 (usePayPalReturn, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/usePayPalReturn.ts:106 (usePayPalReturn, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148342,7 +148670,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1971",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2018",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148355,7 +148683,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148363,7 +148691,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
-          "line": 392,
+          "line": 395,
           "caller": "startCheckout",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148373,7 +148701,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:392 (startCheckout, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:395 (startCheckout, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148390,6 +148718,8 @@
       "modelsRead": [
         "adminAuditLog",
         "billingCheckoutAttempt",
+        "billingProviderCustomer",
+        "billingReviewItem",
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
@@ -148400,7 +148730,9 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
-        "billingCheckoutAttempt"
+        "billingCheckoutAttempt",
+        "billingProviderCustomer",
+        "billingReviewItem"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -148419,7 +148751,7 @@
       "method": "POST",
       "path": "/v1/billing/plan",
       "productionRegistered": false,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2667",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2712",
       "authorizationClass": "DEVELOPMENT_ONLY",
       "authorizationEvidence": [
         "registered only inside `if (devAuthEnabled())` — production registration is zero"
@@ -148429,7 +148761,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "DEVELOPMENT_ONLY",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:2667 — registered only inside `if (devAuthEnabled())` — production registration is zero",
+      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:2712 — registered only inside `if (devAuthEnabled())` — production registration is zero",
       "dispositionReason": "registered only behind the development auth gate",
       "replacement": null,
       "result": "DISPOSED_DEVELOPMENT_ONLY",
@@ -148490,7 +148822,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1086",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1133",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148503,7 +148835,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 436,
+          "line": 506,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -148519,7 +148851,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/page.tsx",
-          "line": 944,
+          "line": 948,
           "caller": "BillingPageInner",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148529,7 +148861,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:436 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:176 (BillingSections, MOBILE); apps/web/app/(app)/billing/page.tsx:944 (BillingPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:506 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:176 (BillingSections, MOBILE); apps/web/app/(app)/billing/page.tsx:948 (BillingPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148581,7 +148913,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2488",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2534",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148594,7 +148926,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148602,7 +148934,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
-          "line": 377,
+          "line": 380,
           "caller": "buyStorage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148612,7 +148944,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:377 (buyStorage, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:380 (buyStorage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148677,7 +149009,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2288",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2335",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148690,7 +149022,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148698,7 +149030,7 @@
         },
         {
           "file": "apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx",
-          "line": 371,
+          "line": 374,
           "caller": "buyStorage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148708,7 +149040,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:371 (buyStorage, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/app/(app)/billing/_sections/CheckoutDrawer.tsx:374 (buyStorage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148724,6 +149056,8 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "billingCheckoutAttempt",
+        "billingProviderCustomer",
+        "billingReviewItem",
         "enterpriseContract",
         "entitlement",
         "evidence",
@@ -148743,6 +149077,8 @@
       ],
       "modelsWritten": [
         "billingCheckoutAttempt",
+        "billingProviderCustomer",
+        "billingReviewItem",
         "entitlement"
       ],
       "tenantBindingResolved": true,
@@ -148771,7 +149107,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:931",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:978",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148784,7 +149120,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 416,
+          "line": 486,
           "caller": "BillingScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -148800,7 +149136,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 656,
+          "line": 671,
           "caller": "requestCancellation",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148810,7 +149146,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:416 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:173 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:656 (requestCancellation, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:486 (BillingScreen, MOBILE); apps/mobile/src/ui/billing-sections.tsx:173 (BillingSections, MOBILE); apps/web/lib/api/billing-accounts.ts:671 (requestCancellation, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148829,6 +149165,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "ssoConnection",
         "subscription",
         "user",
@@ -148866,7 +149203,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/plan",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:821",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:836",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148879,7 +149216,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/billing.tsx",
-          "line": 352,
+          "line": 408,
           "caller": "declared-by-review",
           "class": "MOBILE",
           "primitive": "declared",
@@ -148887,7 +149224,7 @@
         },
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 711,
+          "line": 728,
           "caller": "changePlan",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148897,7 +149234,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:352 (declared-by-review, MOBILE); apps/web/lib/api/billing-accounts.ts:711 (changePlan, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/billing.tsx:408 (declared-by-review, MOBILE); apps/web/lib/api/billing-accounts.ts:728 (changePlan, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148934,7 +149271,8 @@
         "billingReviewItem",
         "entitlement",
         "subscription",
-        "team"
+        "team",
+        "workspaceStorageAddon"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -148962,7 +149300,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1034",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1081",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148975,7 +149313,7 @@
       "productConsumers": [
         {
           "file": "apps/web/lib/api/billing-accounts.ts",
-          "line": 677,
+          "line": 692,
           "caller": "requestResume",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148985,7 +149323,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:677 (requestResume, WEB)",
+      "dispositionEvidence": "apps/web/lib/api/billing-accounts.ts:692 (requestResume, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -149004,6 +149342,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "ssoConnection",
         "subscription",
         "user",

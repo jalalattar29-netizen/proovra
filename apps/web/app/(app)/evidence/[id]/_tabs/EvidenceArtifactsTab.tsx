@@ -353,6 +353,15 @@ function ArtifactLifecyclePanel({
     </>
   );
   const { workspace } = ctx;
+  // BILLING DECISIONS (2026-10-31, D5) — the credit was spent when this record
+  // was signed, for this record. A failed output neither loses it nor costs another.
+  const creditFunded = workspace.artifactStatus.recordFunding === "EVIDENCE_CREDIT";
+  const creditNote = creditFunded ? (
+    <p data-evidence-credit-note>
+      An evidence credit paid for this record, and that stays true. Retrying
+      uses no further credit.
+    </p>
+  ) : null;
   const newVersion = workspace.artifactStatus.outputs.newVersion;
   const newVersionInFlight =
     output.state === "READY" && newVersion?.reason === "IN_PROGRESS";
@@ -452,13 +461,15 @@ function ArtifactLifecyclePanel({
           data-evidence-output-state={output.state}
         >
           <strong>
-            Your current plan includes a report and verification package for
-            this record
+            {creditFunded
+              ? "An evidence credit already paid for this record's report and verification package"
+              : "Your current plan includes a report and verification package for this record"}
           </strong>
           <p>
-            Nothing has been generated for it yet — records captured before this
-            entitlement applied are not produced automatically. Generating uses
-            no evidence credit; it does use workspace storage.
+            {creditFunded
+              ? "Nothing has been generated for it yet. "
+              : "Nothing has been generated for it yet — records captured before this entitlement applied are not produced automatically. "}
+            Generating uses no evidence credit; it does use workspace storage.
           </p>
           {action}
         </div>
@@ -539,6 +550,7 @@ function ArtifactLifecyclePanel({
             {output.attemptCount ? ` (attempt ${output.attemptCount})` : ""}. The
             evidence record and its integrity state are unaffected.
           </p>
+          {creditNote}
           {action}
         </div>
       );
@@ -574,6 +586,7 @@ function ArtifactLifecyclePanel({
           ) : reasonCopy ? null : (
             <p>{terminalFailureCopy(output.terminalReasonClass)}</p>
           )}
+          {creditNote}
           {action}
         </div>
       );

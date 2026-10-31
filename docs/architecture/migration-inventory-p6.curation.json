@@ -3742,6 +3742,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name='provider_schedule_id') = 1 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='refunded_amount_cents') = 1 AND to_regclass('public.payment_adjustments') IS NOT NULL AND to_regclass('public.billing_provider_binding_checks') IS NOT NULL;\"",
       "evidence": "BILLING REMEDIATION (2026-10-30). Additive only: nullable columns or constant defaults on subscriptions and payments, and two new tables. No row is rewritten and no old image reads any of it."
+    },
+    "20281031000000_billing_product_decisions": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name='addon_end_consent_plan') = 1 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_storage_addons' AND column_name='depends_on_plan_grant_id') = 1 AND to_regclass('public.billing_provider_customers') IS NOT NULL;\"",
+      "evidence": "BILLING PRODUCT DECISIONS (2026-10-31). Additive only: nullable columns on subscriptions and workspace_storage_addons, one index, and one new table. No row is rewritten and no old image reads any of it."
     }
   }
 }

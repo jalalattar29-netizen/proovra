@@ -398,11 +398,11 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:352",
+      "site": "apps/mobile/app/(stack)/billing.tsx:408",
       "helper": "checkoutRequest(purchase, provider, currency).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:349",
-        "apps/mobile/app/(stack)/billing.tsx:352",
+        "apps/mobile/app/(stack)/billing.tsx:400",
+        "apps/mobile/app/(stack)/billing.tsx:408",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [
@@ -418,11 +418,11 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:365",
+      "site": "apps/mobile/app/(stack)/billing.tsx:421",
       "helper": "checkoutRequest({ ...purchase, transition: false }, provider, currency).path — the CHECKOUT_REQUIRED fallback of a plan transition",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:364",
-        "apps/mobile/app/(stack)/billing.tsx:365"
+        "apps/mobile/app/(stack)/billing.tsx:420",
+        "apps/mobile/app/(stack)/billing.tsx:421"
       ],
       "routes": [
         "POST /v1/billing/checkout/stripe",
@@ -432,12 +432,12 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/billing.tsx:303",
+      "site": "apps/mobile/app/(stack)/billing.tsx:352",
       "helper": "payPalReturnConfirmation(response, provider).path — a closed route table (apps/mobile/src/product/billing-purchase.ts)",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/billing.tsx:293",
-        "apps/mobile/app/(stack)/billing.tsx:303",
-        "apps/mobile/app/(stack)/billing.tsx:376",
+        "apps/mobile/app/(stack)/billing.tsx:343",
+        "apps/mobile/app/(stack)/billing.tsx:352",
+        "apps/mobile/app/(stack)/billing.tsx:408",
         "apps/mobile/src/product/billing-purchase.ts"
       ],
       "routes": [

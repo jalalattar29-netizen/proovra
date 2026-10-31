@@ -261,7 +261,20 @@ export function StorageAddonsSection({
                   </span>
                   {addon.legacyWorkspace ? (
                     <span className="bill-addon__meta" data-billing-addon-legacy>
-                      Bought for an older workspace. Its storage applies there.
+                      {addon.legacyWorkspaceName ? (
+                        <>
+                          Bought for <bdi>{addon.legacyWorkspaceName}</bdi>, an older workspace. Its storage applies there.
+                        </>
+                      ) : (
+                        "Bought for an older workspace. Its storage applies there."
+                      )}
+                    </span>
+                  ) : null}
+                  {addon.endingReason ? (
+                    <span className="bill-addon__meta" data-billing-addon-ending-reason={addon.endingReason}>
+                      {addon.endingReason === "PLAN_CHANGE"
+                        ? "Your plan change does not include this size, so it will not renew."
+                        : "The access that included this size has ended, so it will not renew."}
                     </span>
                   ) : null}
                   <span className="bill-addon__meta">
@@ -299,6 +312,12 @@ export function StorageAddonsSection({
             );
           })}
         </ul>
+      ) : null}
+
+      {addons.legacyWorkspaceCapacityLabel ? (
+        <p className="bill-panel__note" data-billing-storage-legacy-capacity>
+          <bdi>{addons.legacyWorkspaceCapacityLabel}</bdi> more applies in older workspaces and is not in the total above.
+        </p>
       ) : null}
 
       {capacityRows.length > 1 && holdings.monthlyTotals && holdings.monthlyTotals.length > 0 ? (
@@ -593,6 +612,12 @@ export function BillingHistorySection({
                       <div className="bill-history__what">
                         <span className="app-table__primary">
                           {entry.description}
+                          {entry.legacyWorkspaceName ? (
+                            <>
+                              {" · "}
+                              <bdi data-billing-history-workspace>{entry.legacyWorkspaceName}</bdi>
+                            </>
+                          ) : null}
                         </span>
                         <span className="bill-history__when">
                           {when ?? "Date unavailable"}

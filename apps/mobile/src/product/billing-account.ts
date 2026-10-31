@@ -20,6 +20,8 @@
 import { planLapseCopy, recordsInTrashAllowanceCopy, PLAN_LAPSE_STATES, type PlanLapseState } from "@proovra/shared";
 import type { ProovraStatusTone } from "@proovra/ui";
 
+import { verifiedCheckoutUrl } from "./billing-purchase";
+
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const rows = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -724,7 +726,7 @@ export function reconcileMessage(result: unknown): { message: string; tone: "suc
   if (awaiting > 0) parts.push(`${count(awaiting, "purchase is", "purchases are")} still waiting for your approval at PayPal.`);
   if (inProgress > 0) parts.push(`${count(inProgress, "purchase is", "purchases are")} approved and still being completed by the provider; PROOVRA keeps checking.`);
   if (openPage > 0) parts.push(`${count(openPage, "card payment page is", "card payment pages are")} still open and unpaid.`);
-  if (unverified > 0) parts.push(`${count(unverified, "purchase", "purchases")} could not be confirmed by the provider — see Billing activity on the web.`);
+  if (unverified > 0) parts.push(`${count(unverified, "purchase", "purchases")} could not be confirmed by the provider — see Billing activity for what that means and what you can do.`);
   if (unreachable > 0) parts.push(`The provider could not be reached for ${count(unreachable, "item", "items")}; those were left unchanged.`);
   if (discrepancies > 0) parts.push("Something the provider reported did not match our prices, so nothing was applied for it. Please contact support.");
   if (otherAction > 0) parts.push("Some storage cancellations are still outstanding; we keep retrying them.");
@@ -744,7 +746,9 @@ export function abandonMessage(outcome: string | null): { message: string; tone:
   switch (outcome) {
     case "ABANDONED":
     case "ALREADY_ABANDONED":
-      return { message: "This payment attempt was removed from your active Billing view. Nothing was canceled or changed at your payment provider.", tone: "success" };
+      return { message: "This payment attempt was removed from your active Billing view. This did not cancel anything at your payment provider. If your provider later confirms a payment, PROOVRA still applies it.", tone: "success" };
+    case "ABANDON_NOT_ALLOWED":
+      return { message: "Your provider has this payment and is still settling it, so it cannot be abandoned. PROOVRA keeps checking.", tone: "info" };
     case "PROVIDER_ANSWERED":
       return { message: "Your payment provider told us what actually happened to this payment, so we recorded that instead.", tone: "info" };
     case "ALREADY_FINISHED":
@@ -867,11 +871,16 @@ export function cancellationOutcomeUnknown(err: unknown): boolean {
  */
 export type OpenPurchaseRow = {
   id: string;
+  /** The server's activity state. Words come from `statusLabel`; this only picks a way forward. */
+  state: string | null;
   description: string;
   statusLabel: string;
   explanation: string;
   providerLabel: string | null;
   createdAtUtc: string | null;
+  /** The server's own affordances for this purchase. */
+  canRecheck: boolean;
+  canAbandon: boolean;
 };
 
 export function parseBillingActivity(body: unknown): OpenPurchaseRow[] {
@@ -882,10 +891,274 @@ export function parseBillingActivity(body: unknown): OpenPurchaseRow[] {
     .filter((a) => str(a.id) && str(a.description) && str(a.statusLabel))
     .map((a) => ({
       id: str(a.id)!,
+      state: str(a.state),
       description: str(a.description)!,
       statusLabel: str(a.statusLabel)!,
       explanation: str(a.explanation) ?? "",
       providerLabel: str(a.providerLabel),
       createdAtUtc: str(a.createdAtUtc),
+      canRecheck: obj(a.actions).canRecheck === true,
+      canAbandon: obj(a.actions).canAbandon === true,
     }));
+}
+
+// ---------------------------------------------------------------------------
+// BillingActivity + StorageRecoveryPanel — one open purchase, resolved here
+// ---------------------------------------------------------------------------
+
+/**
+ * BILLING REMEDIATION (2026-10-31, AUD-19) — the same endpoints and the same
+ * words as the web (billingMessages.ts). Check status and Abandon start nothing,
+ * so they are on every build. Continue hands the customer back to a provider
+ * checkout, so it stays behind `externalCheckoutEnabled()`; `resumeAllowed`
+ * carries that answer in, and a build without it is told where to finish.
+ */
+export function buildAttemptRecheckPath(type: string, id: string, attemptId: string): string {
+  return `/v1/billing/accounts/${encodeURIComponent(type)}/${encodeURIComponent(id)}/checkout-attempts/${encodeURIComponent(attemptId)}/recheck`;
+}
+export function buildAttemptAbandonPath(type: string, id: string, attemptId: string): string {
+  return `/v1/billing/accounts/${encodeURIComponent(type)}/${encodeURIComponent(id)}/checkout-attempts/${encodeURIComponent(attemptId)}/abandon`;
+}
+
+export type AttemptState =
+  | "WAITING_APPROVAL"
+  | "ACTIVATING"
+  | "PROCESSING"
+  | "PAYMENT_PAGE"
+  | "PAID"
+  | "FAILED"
+  | "CLOSED"
+  /** PROOVRA closed it. The provider did not, and may still complete it. */
+  | "CLOSED_LOCALLY"
+  | "UNRESOLVED";
+
+/** billingMessages.ts `attemptStateOf`. */
+export function attemptStateOf(result: unknown): AttemptState {
+  const r = obj(result);
+  const outcome = str(r.outcome);
+  if (outcome === "STILL_PENDING") {
+    switch (str(r.waitingFor)) {
+      case "ACTIVATION":
+        return "ACTIVATING";
+      case "PAYMENT_PROCESSING":
+        return "PROCESSING";
+      case "PAYMENT_PAGE":
+        return "PAYMENT_PAGE";
+      default:
+        return "WAITING_APPROVAL";
+    }
+  }
+  if (outcome === "UPDATED" || outcome === "NO_CHANGE" || outcome === "STALE_IGNORED") {
+    switch ((str(r.currentStatus) ?? "").toUpperCase()) {
+      case "ACTIVE":
+      case "COMPLETED":
+      case "SUCCEEDED":
+        return "PAID";
+      case "FAILED":
+        return "FAILED";
+      case "CANCELED":
+      case "CANCELLED":
+      case "EXPIRED":
+        return "CLOSED";
+      case "ABANDONED":
+        return "CLOSED_LOCALLY";
+    }
+  }
+  return "UNRESOLVED";
+}
+
+export type AttemptCheck = {
+  message: string;
+  tone: "success" | "info" | "error";
+  state: AttemptState;
+  /** Still open, so another purchase of this size would risk a second charge. */
+  blocked: boolean;
+  /** Abandon is refused once the buyer has approved, so it is not offered. */
+  canAbandon: boolean;
+  /** The provider's own payment page, only on a build that may hand one over. */
+  resumeUrl: string | null;
+};
+
+const SETTLED_ATTEMPTS: ReadonlySet<AttemptState> = new Set(["PAID", "FAILED", "CLOSED", "CLOSED_LOCALLY"]);
+
+function pendingWords(provider: string, stripe: boolean, waitingFor: string | null, hasResume: boolean, resumeOffered: boolean): string {
+  if (stripe) {
+    if (!hasResume) return "Stripe shows this payment as still settling. Nothing more is needed from you right now.";
+    return resumeOffered
+      ? "The Stripe payment page is still open and unpaid. You can continue checkout, or abandon it."
+      : "The Stripe payment page is still open and unpaid. To finish it, use Billing on the web, or abandon it here.";
+  }
+  if (waitingFor === "ACTIVATION") return `You approved this at ${provider} and ${provider} is activating it. PROOVRA keeps checking automatically; nothing more is needed from you.`;
+  if (waitingFor === "PAYMENT_PROCESSING") return `${provider} is still processing this payment. PROOVRA keeps checking automatically; nothing more is needed from you.`;
+  if (hasResume && resumeOffered) return `${provider} still shows this waiting for your approval. You can continue at ${provider}, or abandon it.`;
+  if (hasResume) return `${provider} still shows this waiting for your approval. To finish it, use Billing on the web, or abandon it here.`;
+  return `${provider} still shows this waiting for your approval. Nothing is charged unless you approve it; you can abandon it. Approvals not completed within 24 hours are closed automatically.`;
+}
+
+/** ONE attempt's "Check status" result, and what may happen next. */
+export function describeAttemptCheck(result: unknown, options: { resumeAllowed: boolean }): AttemptCheck {
+  const r = obj(result);
+  const stripe = str(r.provider) === "STRIPE";
+  const provider = stripe ? "Stripe" : "PayPal";
+  const state = attemptStateOf(result);
+  const outcome = str(r.outcome);
+  const providerResume = outcome === "STILL_PENDING" ? verifiedCheckoutUrl(r.resumeUrl) : null;
+  const resumeUrl = options.resumeAllowed ? providerResume : null;
+
+  let message: string;
+  let tone: AttemptCheck["tone"] = "info";
+  if (state === "PAID") {
+    message = `${provider} confirmed this purchase. Billing is updated.`;
+    tone = "success";
+  } else if (state === "FAILED") {
+    message = `${provider} reports this purchase failed, so nothing was added to your account.`;
+    tone = "error";
+  } else if (state === "CLOSED") {
+    message = `${provider} reports this purchase was cancelled or expired, so nothing was added to your account.`;
+  } else if (state === "CLOSED_LOCALLY") {
+    message = `This was not approved within 24 hours, so PROOVRA closed it here. ${provider} did not confirm this and nothing was cancelled there. If ${provider} later confirms a payment, PROOVRA still applies it.`;
+  } else if (outcome === "STILL_PENDING") {
+    message = pendingWords(provider, stripe, str(r.waitingFor), providerResume !== null, options.resumeAllowed);
+  } else if (outcome === "UPDATED") {
+    message = `${provider} confirmed a new status for this purchase. Billing is updated.`;
+    tone = "success";
+  } else if (outcome === "NO_CHANGE" || outcome === "STALE_IGNORED") {
+    message = `${provider} confirmed nothing has changed for this purchase.`;
+  } else if (outcome === "NOT_PROVIDER_BOUND") {
+    message = stripe
+      ? "Stripe never confirmed this checkout was created, so there is nothing to pay. You can abandon it."
+      : "PayPal never confirmed this checkout was created, so there is nothing to approve. Nothing can be charged without your approval. You can abandon it.";
+  } else if (outcome === "PROVIDER_REFERENCE_NOT_FOUND") {
+    message = stripe
+      ? "Stripe has no record of this checkout any more. You can abandon it."
+      : "PayPal has no record of this checkout any more. It was not approved through PROOVRA. You can abandon it.";
+  } else if (outcome === "PROVIDER_UNAVAILABLE") {
+    message = `${provider} could not be reached, so this purchase's status is unknown. Billing here is unchanged — try again later.`;
+    tone = "error";
+  } else {
+    message = `${provider} could not confirm this checkout. Billing here is unchanged. If this continues, contact support.`;
+    tone = "error";
+  }
+
+  const settled = SETTLED_ATTEMPTS.has(state);
+  return {
+    message,
+    tone,
+    state,
+    blocked: !settled,
+    canAbandon: !settled && state !== "ACTIVATING" && state !== "PROCESSING",
+    resumeUrl,
+  };
+}
+
+/**
+ * What abandoning ONE attempt did. Never "nothing was charged" for a local
+ * abandon: PROOVRA did not ask the provider to stop anything, so it cannot speak
+ * for the provider. `resolved` means the attempt no longer blocks a purchase.
+ */
+export function describeAttemptAbandon(result: unknown): {
+  message: string;
+  tone: "success" | "info" | "error";
+  resolved: boolean;
+  canAbandon: boolean;
+  state: AttemptState | null;
+} {
+  const r = obj(result);
+  switch (str(r.outcome)) {
+    case "PROVIDER_CANCEL_FAILED":
+      return { message: str(r.warning) ?? "The payment provider could not confirm this was closed, so it is still shown as open.", tone: "error", resolved: false, canAbandon: true, state: "UNRESOLVED" };
+    case "ABANDONED":
+      return {
+        message: r.cancelsAtProvider === true
+          ? "Closed at the payment provider, so this checkout can no longer be paid."
+          : "Removed from your open purchases in PROOVRA. This did not cancel anything at the payment provider. If the provider later confirms a payment, PROOVRA still applies it.",
+        tone: "success",
+        resolved: true,
+        canAbandon: false,
+        state: null,
+      };
+    case "ABANDON_NOT_ALLOWED":
+      return { message: str(r.warning) ?? "This purchase is being processed and cannot be abandoned.", tone: "info", resolved: false, canAbandon: false, state: "PROCESSING" };
+    case "PROVIDER_STATE_RECORDED":
+      return { message: "The provider had already settled this purchase, so its answer was recorded instead.", tone: "info", resolved: true, canAbandon: false, state: null };
+    default:
+      return { message: "This purchase had already been resolved; nothing was changed.", tone: "info", resolved: true, canAbandon: false, state: null };
+  }
+}
+
+export const ATTEMPT_ABANDON_FALLBACK_WARNING =
+  "Abandoning only removes this from PROOVRA's open purchases. It does not cancel anything at the payment provider.";
+
+/** The server's confirmation, as the two facts the sheet needs. */
+export function attemptAbandonConfirmation(result: unknown): { warning: string; cancelsAtProvider: boolean } {
+  const r = obj(result);
+  return { warning: str(r.warning) ?? ATTEMPT_ABANDON_FALLBACK_WARNING, cancelsAtProvider: r.cancelsAtProvider === true };
+}
+
+/** The line above the activity rows, by what this build may do. */
+export function billingActivityNote(resumeAllowed: boolean): string {
+  return resumeAllowed
+    ? "Purchases that have not produced a completed payment. Check where each one stands, continue one that is still open, or abandon it."
+    : "Purchases that have not produced a completed payment. Check where each one stands or abandon it here. To finish an open purchase, use Billing on the web.";
+}
+
+/** States only a person can move on from: the row offers Support, not a dead end. */
+export function attemptNeedsSupport(state: string | null): boolean {
+  return state === "NEEDS_REVIEW" || state === "REFUSED" || state === "PROVIDER_UNVERIFIED" || state === "UNRESOLVED";
+}
+
+/** The refusal's way forward (CheckoutDrawer.tsx), read from its details only. */
+export type StorageRefusalAction =
+  | { kind: "CONFIRM_ADDITIONAL"; activeCount: number }
+  | { kind: "RECOVER"; attemptId: string; pendingProvider: string; createdAtUtc: string | null };
+
+export function storageRefusalAction(err: unknown): StorageRefusalAction | null {
+  const details = obj(obj(err).details);
+  if (details.retry === "CONFIRM_ADDITIONAL") return { kind: "CONFIRM_ADDITIONAL", activeCount: num(details.activeCount) ?? 1 };
+  const attemptId = str(details.attemptId);
+  if (details.retry === "RECONCILE_STORAGE_ATTEMPT" && attemptId) {
+    return { kind: "RECOVER", attemptId, pendingProvider: str(details.pendingProvider) ?? "PAYPAL", createdAtUtc: str(details.createdAtUtc) };
+  }
+  return null;
+}
+
+/** "Open", never "waiting for your approval": the refusal does not say which. */
+export function storageRecoveryIntroduction(pendingProvider: string, started: string | null): string {
+  const where = pendingProvider === "STRIPE" ? "by card" : pendingProvider === "PAYPAL" ? "with PayPal" : "with your payment provider";
+  return `A storage purchase is already open ${where}${started ? ` (started ${started})` : ""}. Check it before buying again, so you are not billed twice.`;
+}
+
+export function storageAdditionalPrompt(activeCount: number, price: string | null): string {
+  return `You already have ${activeCount} of this size. Adding another starts a separate recurring charge${price ? ` of ${price} per month` : ""} on top of what you pay now, and adds more storage.`;
+}
+
+/**
+ * billingMessages.ts REFUSAL_COPY: each of these is a state of the account, not
+ * a mistake in what the customer entered, and the OUTCOME_UNKNOWN ones must
+ * never read "nothing changed".
+ */
+const REFUSAL_COPY: Readonly<Record<string, string>> = {
+  PAYPAL_APPROVAL_PENDING: "A PayPal checkout for this plan is already open. Finish it at PayPal, or check it under Billing activity before starting another.",
+  PAYPAL_DIFFERENT_PLAN_PENDING: "A PayPal checkout for a different plan is already open. Check it under Billing activity before choosing another plan.",
+  PLAN_CHECKOUT_ALREADY_OPEN: "A checkout for a plan is already open. Finish it, or resolve it under Billing activity before starting another.",
+  CHECKOUT_IN_PROGRESS: "This checkout is already starting. Wait a moment, then look at Billing activity before trying again.",
+  PLAN_ALREADY_ACTIVE: "We found your active subscription and updated this account. Nothing was started, and you have not been charged for a new plan.",
+  STORAGE_ADDON_ALREADY_HELD: "You already pay for this storage size. Buying it again adds another recurring charge and more storage.",
+  STORAGE_PURCHASE_PENDING: "This storage size already has a purchase open with your other payment method. Check that purchase before starting another, so you are not billed twice.",
+  PAYPAL_STORAGE_APPROVAL_PENDING: "A PayPal storage purchase is already open on this account. Check its status under Billing activity before starting another.",
+  PLAN_CHANGE_ENDS_STORAGE: "This plan does not include some of your storage. It stays until its paid date and then stops renewing. Nothing was changed. Review and confirm this change under Billing on the web.",
+  PLAN_CHANGE_STORAGE_MUST_END_FIRST: "This plan does not include your Team storage, and we cannot stop that add-on from here. Nothing was changed. Contact support to end the add-on, then change your plan.",
+  STORAGE_ADDON_PREREQUISITE_ENDING: "Your plan is set to end, so this storage add-on cannot be added. Restart your plan first, then add storage.",
+  STORAGE_ADDON_NOT_INCLUDED: "Extra storage is not available for this account.",
+  STORAGE_ADDON_NOT_OFFERED: "This storage size is not available on your current plan. Choose from the sizes shown here.",
+  CHECKOUT_TARGET_NOT_SUPPORTED: "Subscriptions and storage add-ons are bought for your Personal Workspace, not for another workspace.",
+  PLAN_CHANGE_OUTCOME_UNKNOWN: "We did not get an answer from your payment provider, so we cannot say yet whether this plan change went through. Check Billing in a few minutes before trying again.",
+  BILLING_ATTEMPT_BUSY: "This purchase is being checked right now. Wait a moment, then look again.",
+  RATE_LIMIT_EXCEEDED: "That was tried several times just now. Please wait a few minutes, then check Billing before trying again.",
+};
+
+/** The sentence for a billing refusal, or null when the code has none of its own. */
+export function billingRefusalMessage(err: unknown): string | null {
+  const code = str(obj(err).code)?.toUpperCase();
+  return (code ? REFUSAL_COPY[code] : undefined) ?? null;
 }

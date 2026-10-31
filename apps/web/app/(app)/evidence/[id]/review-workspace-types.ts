@@ -524,6 +524,8 @@ export type ReviewWorkspaceResponse = {
     evidenceId: string;
     status: string | null;
     finalized: boolean;
+    /** How this record's completion was paid for. Null when it could not be read. */
+    recordFunding?: "PLAN" | "EVIDENCE_CREDIT" | null;
     /**
      * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the canonical
      * three-axis projection. THE thing the UI renders.

@@ -56,6 +56,8 @@ import {
 } from "./billing-accounts.service.js";
 import { readEvidenceCreditWallet } from "./evidence-credits.service.js";
 import {
+  ENTITLEMENT_GRANT_ENDED,
+  PLAN_NO_LONGER_INCLUDES_STORAGE,
   summarizeDependentCancellations,
   type DependentCancellationSummary,
 } from "./dependent-cancellation.service.js";
@@ -451,8 +453,17 @@ export type ActiveStorageAddon = {
   endsWithPlan: boolean;
   /** Bought under a legacy workspace: its capacity belongs to that workspace. */
   legacyWorkspace: boolean;
+  /** That workspace's name. Only ever one this payer owns. */
+  legacyWorkspaceName: string | null;
+  storageBytes: string;
   /** The provider will not renew it: already cancelled, or cancelling at period end. */
   ending: boolean;
+  /** A renewal payment failed and the provider is retrying. */
+  paymentDue: boolean;
+  /** The last day it is paid for, when it is ending. */
+  endsAtUtc: string | null;
+  /** Why it stops renewing, when that is not the customer cancelling it. */
+  endingReason: "PLAN_CHANGE" | "GRANT_ENDED" | null;
   /**
    * Whether THIS add-on can be cancelled by THIS viewer.
    *
@@ -570,6 +581,7 @@ export type BillingAccountProjection = {
   storageAddons?: {
     offers: StorageAddonOffer[];
     active: ActiveStorageAddon[];
+    legacyWorkspaceCapacityLabel: string | null;
   };
   /**
    * Why storage add-ons are not on offer for this account. Normal FREE
@@ -797,6 +809,17 @@ async function splitAddonCapacity(params: {
   return { recurring, legacy };
 }
 
+function legacyWorkspaceCapacityLabel(rows: ActiveStorageAddon[]): string | null {
+  const bytes = rows
+    .filter((row) => row.legacyWorkspace && (row.status === "ACTIVE" || row.status === "PAST_DUE"))
+    .reduce((sum, row) => sum + BigInt(row.storageBytes), 0n);
+  return bytes > 0n ? formatBytesHuman(bytes) : null;
+}
+
+function legacyOneTimeRow(cycle: prismaPkg.StorageAddonBillingCycle): boolean {
+  return cycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME;
+}
+
 async function activeAddonsFor(params: {
   ownerUserId: string;
   teamId: string | null;
@@ -806,16 +829,16 @@ async function activeAddonsFor(params: {
   // AUD-29 — a payer's add-on bought under a legacy workspace still bills them,
   // and this is the only surface where they can see or stop it.
   const legacy = params.teamId === null ? await payerLegacyWorkspaceIds(params.ownerUserId) : [];
-  const rows = await prisma.workspaceStorageAddon.findMany({
-    where: {
-      ownerUserId: params.ownerUserId,
-      ...(legacy.length > 0 ? { OR: [{ teamId: null }, { teamId: { in: legacy } }] } : { teamId: params.teamId }),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: {
+  const scope: prismaPkg.Prisma.WorkspaceStorageAddonWhereInput = {
+    ownerUserId: params.ownerUserId,
+    ...(legacy.length > 0 ? { OR: [{ teamId: null }, { teamId: { in: legacy } }] } : { teamId: params.teamId }),
+  };
+  const select = {
       id: true,
       teamId: true,
+      team: { select: { name: true, ownerUserId: true } },
+      dependentCancellationState: true,
+      dependentCancellationReasonCode: true,
       addonKey: true,
       extraStorageBytes: true,
       billingCycle: true,
@@ -829,11 +852,43 @@ async function activeAddonsFor(params: {
       amountCents: true,
       currency: true,
       createdAt: true,
-    },
-  });
+  } as const;
+  // BILLING DECISIONS (2026-10-31) — everything held or in progress, then recent
+  // history. A row cut off by the history limit would vanish from the totals.
+  const [current, recent] = await Promise.all([
+    prisma.workspaceStorageAddon.findMany({
+      where: {
+        ...scope,
+        status: {
+          in: [
+            prismaPkg.WorkspaceStorageAddonStatus.ACTIVE,
+            prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+            prismaPkg.WorkspaceStorageAddonStatus.PENDING,
+          ],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select,
+    }),
+    prisma.workspaceStorageAddon.findMany({ where: scope, orderBy: { createdAt: "desc" }, take: 50, select }),
+  ]);
+  const rows = [...new Map([...current, ...recent].map((r) => [r.id, r])).values()].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+  );
 
   const defs = listStorageAddonDefinitions();
   return rows.map((r) => {
+    const legacyWorkspace = r.teamId !== null && r.teamId !== params.teamId;
+    const endingReason =
+      r.dependentCancellationReasonCode === PLAN_NO_LONGER_INCLUDES_STORAGE
+        ? ("PLAN_CHANGE" as const)
+        : r.dependentCancellationReasonCode === ENTITLEMENT_GRANT_ENDED
+          ? ("GRANT_ENDED" as const)
+          : null;
+    const ending =
+      !legacyOneTimeRow(r.billingCycle) &&
+      (r.canceledAtUtc !== null || r.expiresAtUtc !== null || endingReason !== null);
     const def = defs.find((d) => d.key === r.addonKey);
     const legacyOneTime =
       r.billingCycle === prismaPkg.StorageAddonBillingCycle.ONE_TIME;
@@ -846,8 +901,13 @@ async function activeAddonsFor(params: {
       billingCycle: r.billingCycle,
       legacyOneTime,
       endsWithPlan: !legacyOneTime && storageAddonRequiresPaidPlan(r.addonKey),
-      legacyWorkspace: r.teamId !== null && r.teamId !== params.teamId,
-      ending: !legacyOneTime && (r.canceledAtUtc !== null || r.expiresAtUtc !== null),
+      legacyWorkspace,
+      legacyWorkspaceName: legacyWorkspace && r.team?.ownerUserId === params.ownerUserId ? r.team.name : null,
+      storageBytes: r.extraStorageBytes.toString(),
+      ending,
+      paymentDue: r.status === prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE,
+      endsAtUtc: ending ? iso(r.expiresAtUtc ?? r.currentPeriodEnd) : null,
+      endingReason,
       canCancel:
         params.canPurchaseAddons &&
         !legacyOneTime &&
@@ -1713,6 +1773,14 @@ export async function buildBillingAccountProjection(input: {
    * shared entitlement authority; no credit-ledger qualification is involved.
    */
   const addonsEligible = storageAddonOffersForPlan(scope.plan).length > 0;
+  const addonRows = addonsEligible
+    ? await activeAddonsFor({
+        ownerUserId: scope.ownerUserId,
+        teamId: scope.teamId,
+        showAmounts,
+        canPurchaseAddons: canAddon,
+      })
+    : [];
 
   // THE banner decision, made once, on the server.
   const storageFull = storage.state === "MEASURED" && storage.limitReached;
@@ -1917,12 +1985,10 @@ export async function buildBillingAccountProjection(input: {
                   plan: scope.plan,
                 })
               : [],
-            active: await activeAddonsFor({
-              ownerUserId: scope.ownerUserId,
-              teamId: scope.teamId,
-              showAmounts,
-              canPurchaseAddons: canAddon,
-            }),
+            active: addonRows,
+            // Capacity paid for here but usable only in an older workspace. It
+            // is real, and it is not part of this account's total.
+            legacyWorkspaceCapacityLabel: legacyWorkspaceCapacityLabel(addonRows),
           },
         }
       : {}),
@@ -2280,6 +2346,8 @@ async function buildOrganizationProjection(input: {
 export type BillingHistoryEntry = {
   id: string;
   occurredAtUtc: string;
+  /** The older workspace this payment was for. Only ever one the payer owns. */
+  legacyWorkspaceName?: string;
   /**
    * WHAT WAS BOUGHT. Never a provider payload.
    *
@@ -2364,6 +2432,24 @@ export async function readBillingHistoryForAccount(input: {
   });
 
   const describe = await buildPaymentDescriber(rows);
+  // Read from the workspace at display time: the payment row is history and is
+  // not rewritten. A workspace the payer no longer owns is not named.
+  const legacyTeamIds = [...new Set(rows.map((r) => r.teamId).filter((id): id is string => id !== null))];
+  const legacyNames =
+    input.account.type === "PERSONAL" && legacyTeamIds.length > 0
+      ? new Map(
+          (
+            await prisma.team.findMany({
+              where: {
+                id: { in: legacyTeamIds },
+                ownerUserId: input.account.id,
+                workspaceKind: prismaPkg.WorkspaceKind.OWNED,
+              },
+              select: { id: true, name: true },
+            })
+          ).map((team) => [team.id, team.name]),
+        )
+      : new Map<string, string>();
   const viewerMayCancel = input.account.capabilities.includes("BILLING_CANCEL");
   // Built ONCE for the page rather than per row. Constructing an adapter opens
   // nothing and reads no secret — the credential is read at call time — but a
@@ -2373,6 +2459,7 @@ export async function readBillingHistoryForAccount(input: {
   return rows.map((r) => ({
     id: r.id,
     occurredAtUtc: r.createdAt.toISOString(),
+    ...(r.teamId && legacyNames.has(r.teamId) ? { legacyWorkspaceName: legacyNames.get(r.teamId)! } : {}),
     description: describe(r),
     status: r.status,
     providerLabel: providerLabel(r.provider),

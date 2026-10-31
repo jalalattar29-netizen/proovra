@@ -40,6 +40,7 @@ import {
 } from "./checkout-attempts.service.js";
 import { isStripeHostedCheckoutUrl } from "./reconciliation/stripe.provider.js";
 import { expireStalePlanAttempts } from "./checkout-attempt-recovery.service.js";
+import { resolveStripeCheckoutCustomer } from "./stripe-customer-binding.service.js";
 import {
   defaultReconciliationProviders,
   repairEntitlementBeforeCheckout,
@@ -223,13 +224,14 @@ export async function startStripePlanCheckout(input: {
   }
   const session = await createWithAttempt({
     attemptId: gate.attemptId,
-    create: () =>
+    create: async () =>
       createStripeCheckoutSession({
         userId: input.userId,
         plan: input.plan,
         currency,
         teamId: input.teamId ?? null,
         attemptId: gate.attemptId,
+        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency }),
       }),
   });
   return { kind: "CREATED", attemptId: gate.attemptId, mode: "subscription", session, currency, amountCents };
@@ -266,7 +268,7 @@ export async function startStripeCreditCheckout(input: {
   }
   const session = await createWithAttempt({
     attemptId: gate.attemptId,
-    create: () =>
+    create: async () =>
       createStripeCheckoutSession({
         userId: input.userId,
         plan: prismaPkg.PlanType.PAYG,
@@ -274,6 +276,7 @@ export async function startStripeCreditCheckout(input: {
         teamId: null,
         productKey: "EVIDENCE_CREDIT",
         attemptId: gate.attemptId,
+        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency }),
       }),
   });
   return { kind: "CREATED", attemptId: gate.attemptId, mode: "payment", session, currency, amountCents };
@@ -321,7 +324,7 @@ export async function startStripeStorageCheckout(input: {
   }
   const session = await createWithAttempt({
     attemptId: gate.attemptId,
-    create: () =>
+    create: async () =>
       createStripeStorageAddonCheckoutSession({
         userId: input.userId,
         addonKey: input.addonKey,
@@ -330,6 +333,7 @@ export async function startStripeStorageCheckout(input: {
         teamId: input.teamId ?? null,
         workspacePlan: input.workspacePlan,
         attemptId: gate.attemptId,
+        customerId: await resolveStripeCheckoutCustomer({ userId: input.userId, currency: input.currency }),
       }),
   });
   return { kind: "CREATED", attemptId: gate.attemptId, mode: "subscription", session, currency: input.currency, amountCents };

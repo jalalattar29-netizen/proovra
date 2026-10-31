@@ -82,6 +82,9 @@ import { requestSubscriptionResume } from "../services/billing/subscription-resu
 // decides what a requested plan change IS. No route compares plans itself.
 import {
   applyPersonalPlanChange,
+  prepareDowngradeStorage,
+  scheduleDowngradeStorageEnd,
+  withdrawDowngradeStorageAgreement,
   assertSelfServicePlan,
   findLivePersonalSubscription,
   resolvePersonalPlanTransition,
@@ -174,6 +177,12 @@ const StorageAddonCheckoutBody = z.object({
    * with what was found instead of a second recurring charge.
    */
   confirmAdditional: z.boolean().optional(),
+  /**
+   * BILLING DECISIONS (2026-10-31, section C) — how many of this size the
+   * customer saw when they confirmed. A different count means another tab or
+   * device changed things since, so the confirmation no longer describes them.
+   */
+  heldCount: z.number().int().min(0).max(1000).optional(),
   addonKey: StorageAddonKeySchema,
   // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — new add-ons are recurring.
   // The legacy ONE_TIME cycle stays readable for grandfathered rows but can no
@@ -203,6 +212,12 @@ const StorageAddonCheckoutBody = z.object({
 const ChangePlanBody = z.object({
   plan: z.enum(["FREE", "PRO", "TEAM"]),
   currency: CurrencySchema.optional(),
+  /**
+   * BILLING DECISIONS (2026-10-31, D1) — the customer read which storage the
+   * lower plan does not include and that it will stop renewing. Absent, such a
+   * downgrade is answered with that list and nothing is asked of the provider.
+   */
+  confirmStorageEnding: z.boolean().optional(),
 });
 
 /**
@@ -888,11 +903,40 @@ export async function billingRoutes(app: FastifyInstance) {
         });
       }
 
+      const storage =
+        transition.kind === "DOWNGRADE"
+          ? await prepareDowngradeStorage({
+              userId,
+              subscriptionId: transition.subscription.id,
+              targetPlan: transition.targetPlan,
+              confirmed: body.confirmStorageEnding === true,
+            })
+          : null;
+      if (storage && storage.ending.length > 0 && !storage.agreed) {
+        return reply.code(409).send({
+          message:
+            "This plan does not include some of your storage. It stays until its paid date and then stops renewing. Confirm to continue.",
+          code: "PLAN_CHANGE_ENDS_STORAGE",
+          details: { ending: storage.ending, retry: "CONFIRM_STORAGE_ENDING" },
+        });
+      }
+
       // The provider decides. A failure throws and NOTHING local changes.
       const outcome = await applyPersonalPlanChange({
         transition,
         currency: body.currency ?? null,
+      }).catch(async (err: unknown) => {
+        if (storage?.agreed) {
+          await withdrawDowngradeStorageAgreement(transition.subscription.id).catch(() => undefined);
+        }
+        throw err;
       });
+      const storageEnd = storage?.agreed && outcome.approvalUrl === null
+        ? await scheduleDowngradeStorageEnd(userId).catch((err: unknown) => {
+            req.log.warn({ err }, "billing.downgrade_storage_end_deferred");
+            return null;
+          })
+        : null;
 
       auditBillingAction(req, {
         userId,
@@ -924,6 +968,9 @@ export async function billingRoutes(app: FastifyInstance) {
         effectiveAtUtc: outcome.effectiveAtUtc,
         approvalUrl: outcome.approvalUrl,
         providerConfirmed: outcome.providerConfirmed,
+        ...(storage?.agreed
+          ? { storageEnding: { addons: storage.ending, retrying: storageEnd?.retrying ?? null } }
+          : {}),
       });
     },
   );
@@ -2327,14 +2374,13 @@ export async function billingRoutes(app: FastifyInstance) {
         });
       }
 
-      if (!body.confirmAdditional) {
-        const duplicate = await findStorageDuplicate({
-          userId,
-          addonKey: body.addonKey,
-          provider: prismaPkg.PaymentProvider.STRIPE,
-        });
-        if (duplicate) return reply.code(409).send(duplicate);
-      }
+      const stripeDuplicate = await findStorageDuplicate({
+        userId,
+        addonKey: body.addonKey,
+        provider: prismaPkg.PaymentProvider.STRIPE,
+        confirmation: body.confirmAdditional ? { heldCount: body.heldCount ?? null } : null,
+      });
+      if (stripeDuplicate) return reply.code(409).send(stripeDuplicate);
 
       const started = await startStripeStorageCheckout({
         userId,
@@ -2530,14 +2576,13 @@ export async function billingRoutes(app: FastifyInstance) {
         addonKey: body.addonKey,
         currency,
       });
-      if (!body.confirmAdditional) {
-        const duplicate = await findStorageDuplicate({
-          userId,
-          addonKey: body.addonKey,
-          provider: prismaPkg.PaymentProvider.PAYPAL,
-        });
-        if (duplicate) return reply.code(409).send(duplicate);
-      }
+      const paypalDuplicate = await findStorageDuplicate({
+        userId,
+        addonKey: body.addonKey,
+        provider: prismaPkg.PaymentProvider.PAYPAL,
+        confirmation: body.confirmAdditional ? { heldCount: body.heldCount ?? null } : null,
+      });
+      if (paypalDuplicate) return reply.code(409).send(paypalDuplicate);
 
       const definition = getStorageAddonDefinition(body.addonKey);
       const gated = await withPendingStorageAddonCheckoutGate({

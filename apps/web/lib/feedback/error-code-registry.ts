@@ -427,6 +427,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // the page loaded. Both carry a customer sentence the page shows as given.
   PAYPAL_STORAGE_APPROVAL_PENDING: { disposition: "customer", where: "global" },
   STORAGE_ADDON_CURRENCY_MISMATCH: { disposition: "customer", where: "global" },
+  // BILLING DECISIONS (2026-10-31, D1) — a downgrade that drops storage, answered
+  // before the provider is asked, with its own Billing copy.
+  PLAN_CHANGE_ENDS_STORAGE: {
+    disposition: "customer",
+    where: "apps/web/app/(app)/billing/_sections/billingMessages.ts",
+  },
   // BILLING REMEDIATION (2026-10-30, AUD-23) — a PayPal return naming an id this
   // server never stored for this person, refused before PayPal is asked.
   PAYPAL_ORDER_NOT_FOUND: {

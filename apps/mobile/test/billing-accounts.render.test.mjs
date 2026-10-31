@@ -208,3 +208,215 @@ test("the account re-check never calls a provider 404 'settling'", async () => {
   assert.match(res.message, /2 purchases could not be confirmed/);
   assert.match(res.message, /Checked 2 items/);
 });
+
+/* ---- BILLING REMEDIATION (2026-10-31, AUD-19) — recovery on the row ---- */
+
+const openAttempt = (over = {}) => ({
+  id: "a-1",
+  product: "STORAGE",
+  description: "+50 GB storage add-on",
+  providerLabel: "PayPal",
+  createdAtUtc: "2026-09-26T09:46:37.000Z",
+  state: "AWAITING_APPROVAL",
+  statusLabel: "Waiting for approval",
+  explanation: "This is waiting for your approval at PayPal.",
+  recurring: true,
+  lastCheckedAtUtc: null,
+  actions: { canRecheck: true, canAbandon: true },
+  ...over,
+});
+
+function openPurchaseAccount(activity) {
+  routes["/v1/billing/accounts"] = () => ({ body: { accounts: [{ type: "PERSONAL", id: "p-1", displayName: "Me" }] } });
+  routes["/v1/billing/accounts/PERSONAL/p-1"] = () => ({ body: { plan: { planKey: "FREE" } } });
+  routes["/v1/billing/accounts/PERSONAL/p-1/history"] = () => ({ body: { items: [], activity: activity() } });
+}
+
+const ATTEMPT = "/v1/billing/accounts/PERSONAL/p-1/checkout-attempts/a-1";
+const posted = (suffix) => requests.filter((p) => p === `${ATTEMPT}/${suffix}`).length;
+const LABEL = "+50 GB storage add-on";
+const drain = async () => { for (let i = 0; i < 4; i += 1) await settle(); };
+
+test("Check status answers on the row, survives the refresh it causes, and the row stays mounted", async () => {
+  openPurchaseAccount(() => [openAttempt()]);
+  routes[`${ATTEMPT}/recheck`] = () => ({ body: { outcome: "STILL_PENDING", provider: "PAYPAL", waitingFor: "ACTIVATION" } });
+  const r = await render();
+  await r.press(`Check status: ${LABEL}`);
+  await drain();
+  assert.equal(posted("recheck"), 1);
+  assert.ok(r.hasText("You approved this at PayPal and PayPal is activating it."), "the answer is shown");
+  assert.equal(r.byTestId("billing-activity-a-1").length, 1, "the row is still there after the re-read");
+  assert.equal(r.byLabel(`Abandon: ${LABEL}`).length, 0, "abandon is not offered once approved");
+});
+
+test("settlement clears the row with the server's next read, and says so", async () => {
+  let open = true;
+  openPurchaseAccount(() => (open ? [openAttempt()] : []));
+  routes[`${ATTEMPT}/recheck`] = () => {
+    open = false;
+    return { body: { outcome: "UPDATED", provider: "PAYPAL", currentStatus: "ACTIVE" } };
+  };
+  const r = await render();
+  await r.press(`Check status: ${LABEL}`);
+  await drain();
+  assert.equal(r.byTestId("billing-activity-a-1").length, 0);
+  assert.equal(r.byTestId("billing-notice").length, 1);
+  assert.ok(r.hasText("PayPal confirmed this purchase. Billing is updated."));
+});
+
+test("Abandon asks the server first, and only the confirmation records it", async () => {
+  let open = true;
+  openPurchaseAccount(() => (open ? [openAttempt()] : []));
+  const bodies = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).endsWith("/abandon")) bodies.push(init?.body);
+    return realFetch(url, init);
+  };
+  routes[`${ATTEMPT}/abandon`] = () => {
+    if (bodies.at(-1) !== JSON.stringify({ confirmed: true })) {
+      return { body: { outcome: "ABANDON_CONFIRMATION_REQUIRED", cancelsAtProvider: false, warning: "This only changes PROOVRA." } };
+    }
+    open = false;
+    return { body: { outcome: "ABANDONED", cancelsAtProvider: false } };
+  };
+  const r = await render();
+  await r.press(`Abandon: ${LABEL}`);
+  await drain();
+  assert.ok(r.hasText("This only changes PROOVRA."));
+  assert.equal(posted("abandon"), 1);
+  await r.press("Abandon in PROOVRA");
+  await drain();
+  assert.equal(posted("abandon"), 2);
+  assert.ok(r.hasText("This did not cancel anything at the payment provider."));
+  assert.ok(!r.hasText("Nothing was charged"));
+});
+
+test("a refused action leaves the purchase open and names what happened", async () => {
+  openPurchaseAccount(() => [openAttempt()]);
+  routes[`${ATTEMPT}/recheck`] = () => ({ status: 409, body: { error: { code: "BILLING_ATTEMPT_BUSY", message: "x" } } });
+  const r = await render();
+  await r.press(`Check status: ${LABEL}`);
+  await drain();
+  assert.ok(r.hasText("This purchase is being checked right now."));
+  assert.equal(r.byLabel(`Check status: ${LABEL}`).length, 1, "the way forward is still there");
+});
+
+test("a store build offers no Continue, even when the check returned a link, and says where to finish", async () => {
+  openPurchaseAccount(() => [openAttempt()]);
+  routes[`${ATTEMPT}/recheck`] = () => ({
+    body: { outcome: "STILL_PENDING", provider: "PAYPAL", waitingFor: "APPROVAL", resumeUrl: "https://www.paypal.com/webapps/billing/subscriptions?ba_token=x" },
+  });
+  const r = await render();
+  assert.ok(r.hasText("To finish an open purchase, use Billing on the web."));
+  await r.press(`Check status: ${LABEL}`);
+  await drain();
+  assert.equal(r.byLabel(`Continue checkout: ${LABEL}`).length, 0);
+  assert.ok(r.hasText("To finish it, use Billing on the web, or abandon it here."));
+});
+
+test("a purchase stopped for review offers Support instead of a dead end", async () => {
+  openPurchaseAccount(() => [openAttempt({ state: "REFUSED", statusLabel: "Stopped for review", actions: { canRecheck: false, canAbandon: false } })]);
+  const r = await render();
+  assert.equal(r.byLabel(`Contact support: ${LABEL}`).length, 1);
+  assert.equal(r.byLabel(`Check status: ${LABEL}`).length, 0);
+});
+
+/* ---- the private distribution: the same recovery, plus Continue ---- */
+
+async function privateBuild(run) {
+  const saved = { d: process.env.EXPO_PUBLIC_DISTRIBUTION, b: process.env.EXPO_PUBLIC_PRIVATE_BILLING };
+  process.env.EXPO_PUBLIC_DISTRIBUTION = "PRIVATE";
+  process.env.EXPO_PUBLIC_PRIVATE_BILLING = "enabled";
+  try {
+    await run();
+  } finally {
+    if (saved.d === undefined) delete process.env.EXPO_PUBLIC_DISTRIBUTION; else process.env.EXPO_PUBLIC_DISTRIBUTION = saved.d;
+    if (saved.b === undefined) delete process.env.EXPO_PUBLIC_PRIVATE_BILLING; else process.env.EXPO_PUBLIC_PRIVATE_BILLING = saved.b;
+  }
+}
+
+/** The next sheet opens when the last one has gone; the renderer has no animation to end. */
+const dismissSheets = (r) =>
+  act(async () => {
+    for (const n of r.root.findAll((x) => typeof x.props?.onDismiss === "function")) n.props.onDismiss();
+  });
+
+function storageOffer() {
+  routes["/v1/billing/accounts"] = () => ({ body: { accounts: [{ type: "PERSONAL", id: "p-1", displayName: "Me" }] } });
+  routes["/v1/billing/accounts/PERSONAL/p-1"] = () => ({
+    body: {
+      plan: { planKey: "FREE" },
+      storageAddons: { offers: [{ key: "PERSONAL_50_GB", label: "+50 GB", priceCents: 900, currency: "EUR" }], active: [] },
+    },
+  });
+}
+
+test("private build: Continue opens the provider's page, then asks the server again", async () => {
+  await privateBuild(async () => {
+    openPurchaseAccount(() => [openAttempt()]);
+    routes[`${ATTEMPT}/recheck`] = () => ({
+      body: { outcome: "STILL_PENDING", provider: "PAYPAL", waitingFor: "APPROVAL", resumeUrl: "https://www.paypal.com/webapps/billing/subscriptions?ba_token=x" },
+    });
+    const r = await render();
+    await r.press(`Check status: ${LABEL}`);
+    await drain();
+    await r.press(`Continue checkout: ${LABEL}`);
+    await drain();
+    assert.equal(posted("recheck"), 2);
+  });
+});
+
+test("private build: a purchase open with the other provider is resolved where it was refused", async () => {
+  await privateBuild(async () => {
+    storageOffer();
+    routes["/v1/billing/accounts/PERSONAL/p-1/history"] = () => ({ body: { items: [], activity: [openAttempt()] } });
+    routes["/v1/billing/storage-addons/checkout/stripe"] = () => ({
+      status: 409,
+      body: { error: { code: "STORAGE_PURCHASE_PENDING", message: "x", details: { retry: "RECONCILE_STORAGE_ATTEMPT", attemptId: "a-1", pendingProvider: "PAYPAL", createdAtUtc: "2026-10-30T00:00:00Z" } } },
+    });
+    routes[`${ATTEMPT}/recheck`] = () => ({ body: { outcome: "UPDATED", provider: "PAYPAL", currentStatus: "CANCELED" } });
+    const r = await render();
+    await r.press("Add storage");
+    await drain();
+    await r.press("Buy +50 GB · 9.00 EUR/month");
+    await drain();
+    await dismissSheets(r);
+    await r.press("Pay with Stripe");
+    await drain();
+    assert.equal(r.byTestId("billing-storage-recovery").length, 1);
+    await r.press("Check status: open storage purchase");
+    await drain();
+    assert.equal(r.byTestId("billing-storage-recovery").length, 0, "a finished attempt no longer blocks");
+  });
+});
+
+test("private build: buying a held size asks once more, then sends the decision", async () => {
+  await privateBuild(async () => {
+    storageOffer();
+    routes["/v1/billing/accounts/PERSONAL/p-1/history"] = () => ({ body: { items: [], activity: [] } });
+    const sent = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith("/storage-addons/checkout/stripe")) sent.push(JSON.parse(init.body));
+      return realFetch(url, init);
+    };
+    routes["/v1/billing/storage-addons/checkout/stripe"] = () =>
+      sent.at(-1)?.confirmAdditional === true
+        ? { body: { session: { url: "https://checkout.stripe.com/c/pay/cs_2" } } }
+        : { status: 409, body: { error: { code: "STORAGE_ADDON_ALREADY_HELD", message: "x", details: { retry: "CONFIRM_ADDITIONAL", activeCount: 1 } } } };
+    const r = await render();
+    await r.press("Add storage");
+    await drain();
+    await r.press("Buy +50 GB · 9.00 EUR/month");
+    await drain();
+    await dismissSheets(r);
+    await r.press("Pay with Stripe");
+    await drain();
+    assert.equal(r.byTestId("billing-storage-additional").length, 1);
+    assert.equal(sent.length, 1, "nothing is resent without an answer");
+    await r.press("Add another");
+    await drain();
+    assert.equal(sent.at(-1).confirmAdditional, true);
+  });
+});

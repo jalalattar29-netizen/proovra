@@ -212,6 +212,7 @@ const FAMILY_RULES = Object.freeze([
    */
   [/^billingReviewItem$/, "BILLING_SUBSCRIPTION_SEAT"],
   [/^billingProviderBindingCheck$/, "BILLING_SUBSCRIPTION_SEAT"],
+  [/^billingProviderCustomer$/, "BILLING_SUBSCRIPTION_SEAT"],
   /**
    * INTERNAL PLAN GRANT (2026-10-02) — provider-independent, reversible plan
    * access for a Personal account, written ONLY by

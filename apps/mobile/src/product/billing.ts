@@ -19,6 +19,13 @@
  *     No provider call, no purchase, and no store takes a position on letting
  *     a customer STOP paying. BUILT.
  *
+ *   RECOVER AN OPEN PURCHASE — asking where it stands, or dropping it here
+ *     POST /v1/billing/accounts/:type/:id/checkout-attempts/:id/recheck
+ *     POST /v1/billing/accounts/:type/:id/checkout-attempts/:id/abandon
+ *     Starts nothing: a check can only complete what the buyer already
+ *     approved at the provider. BUILT. Continuing a provider checkout does
+ *     hand one over, so it is private-distribution only, like the row below.
+ *
  *   PURCHASE — a new digital entitlement, through Stripe or PayPal
  *     POST /v1/billing/checkout/{stripe,paypal}
  *     POST /v1/billing/storage-addons/checkout/{stripe,paypal}

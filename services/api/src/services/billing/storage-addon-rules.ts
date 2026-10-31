@@ -87,8 +87,16 @@ export function owedDependentCancellationTrigger(input: {
     teamId: string | null;
     dependsOnSubscriptionId: string | null;
   };
-  /** A live, NOT-ending base plan of the subject, if one exists. */
+  /**
+   * A live, NOT-ending base plan of the subject, if one exists. Its `plan` is
+   * the plan it is moving to when the customer agreed to a downgrade.
+   */
   satisfyingBase: { id: string; plan: prismaPkg.PlanType } | null;
+  /**
+   * BILLING DECISIONS (2026-10-31, D1) — that base, when the customer agreed to
+   * a provider-confirmed downgrade that stops the plan offering this storage.
+   */
+  downgradingBase?: DependencyBase | null;
   /** Bases of the subject that have ended or are scheduled to end. */
   endedBases: DependencyBase[];
 }): DependencyBase | null {
@@ -100,6 +108,7 @@ export function owedDependentCancellationTrigger(input: {
   ) {
     return null;
   }
+  if (input.downgradingBase) return input.downgradingBase;
   if (addon.dependsOnSubscriptionId) {
     return input.endedBases.find((b) => b.id === addon.dependsOnSubscriptionId) ?? null;
   }

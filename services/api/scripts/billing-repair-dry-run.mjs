@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// BILLING REPAIR DRY RUN — READ-ONLY. Lists existing records this release does not
-// fix by itself, as counts and shortened references for an operator to review.
+// BILLING REPAIR DRY RUN — READ-ONLY. Previews what the release writes by itself,
+// and lists existing records it does not fix, as counts for an operator to review.
 //
 //   node scripts/billing-repair-dry-run.mjs
 //
@@ -120,6 +120,74 @@ const FINDINGS = [
   },
 ];
 
+// What the sweep and ordinary reads will write by themselves once the release is
+// deployed (data-repair-plan.md, section A). A preview, not a promise: the code
+// decides row by row and a provider read can change the answer.
+const AUTOMATIC = [
+  {
+    id: "AUTO_R3_WOULD_LOWER_PLAN",
+    meaning: "of R3, accounts whose entitlement is above the plan they pay for; repair lowers it",
+    sql: `
+      select count(*)::int as n, min(s.updated_at) as first_at, max(s.updated_at) as last_at
+        from subscriptions s
+        join entitlements e on e.user_id = s.user_id and e.active
+       where s.status in ('ACTIVE','PAST_DUE') and s.superseded_by_subscription_id is null
+         and e.plan = 'TEAM' and s.plan = 'PRO'`,
+  },
+  {
+    id: "AUTO_ADDON_CANCELLATION_WOULD_BE_OWED",
+    meaning: "paid-plan add-ons with no obligation yet whose base has ended; the sweep asks the PROVIDER to stop them",
+    sql: `
+      select count(*)::int as n, min(a.created_at) as first_at, max(a.created_at) as last_at
+        from workspace_storage_addons a
+       where a.addon_key in ('TEAM_100_GB','TEAM_500_GB','TEAM_1_TB')
+         and a.status in ('ACTIVE','PAST_DUE') and a.billing_cycle = 'MONTHLY'
+         and a.external_subscription_id is not null
+         and a.dependent_cancellation_state = 'NONE'
+         and not exists (select 1 from subscriptions s
+                          where s.user_id = a.owner_user_id and s.plan = 'TEAM'
+                            and s.status in ('ACTIVE','PAST_DUE') and s.cancel_at_period_end = false)
+         and exists (select 1 from subscriptions s
+                      where s.user_id = a.owner_user_id and s.plan = 'TEAM'
+                        and (s.status = 'CANCELED' or s.cancel_at_period_end = true or s.canceled_at_utc is not null))`,
+  },
+  {
+    id: "AUTO_ADDON_OBLIGATIONS_OPEN",
+    meaning: "cancellation obligations already open; retried against the provider",
+    sql: `
+      select count(*)::int as n, min(dependent_cancellation_requested_at_utc) as first_at, max(dependent_cancellation_requested_at_utc) as last_at
+        from workspace_storage_addons
+       where dependent_cancellation_state in ('PENDING','RETRY_SCHEDULED','ACTION_REQUIRED','MANUAL_INTERVENTION')`,
+  },
+  {
+    id: "AUTO_ADDONS_PAST_PAID_END",
+    meaning: "add-ons past their paid date, closed by the sweep",
+    sql: `
+      select count(*)::int as n, min(expires_at_utc) as first_at, max(expires_at_utc) as last_at
+        from workspace_storage_addons
+       where status in ('ACTIVE','PAST_DUE') and expires_at_utc <= now()`,
+  },
+  {
+    id: "AUTO_SUPERSEDED_CANCELS_DUE",
+    meaning: "superseded duplicates whose provider cancellation is due",
+    sql: `
+      select count(*)::int as n, min(supersession_cancel_next_retry_at_utc) as first_at, max(supersession_cancel_next_retry_at_utc) as last_at
+        from subscriptions
+       where superseded_by_subscription_id is not null
+         and supersession_cancel_next_retry_at_utc <= now()`,
+  },
+  {
+    id: "AUTO_PROVIDER_REFERENCES_NOT_YET_CHECKED",
+    meaning: "upper bound on new binding-check rows: live provider references not yet checked; only a 404 writes one",
+    sql: `
+      select count(*)::int as n, min(s.created_at) as first_at, max(s.created_at) as last_at
+        from subscriptions s
+       where s.status in ('ACTIVE','PAST_DUE') and s.provider_sub_id <> ''
+         and not exists (select 1 from billing_provider_binding_checks c
+                          where c.provider = s.provider and c.provider_resource_id = s.provider_sub_id)`,
+  },
+];
+
 const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 8000 });
 let failed = false;
 try {
@@ -127,7 +195,7 @@ try {
   await client.query("BEGIN TRANSACTION READ ONLY");
   await client.query("SET LOCAL statement_timeout = 15000");
   await client.query("SET LOCAL lock_timeout = 2000");
-  for (const finding of FINDINGS) {
+  for (const finding of [...AUTOMATIC, ...FINDINGS]) {
     const { rows } = await client.query(finding.sql);
     const row = rows[0] ?? {};
     console.log(JSON.stringify({ id: finding.id, count: row.n ?? 0, first: row.first_at ?? null, last: row.last_at ?? null, meaning: finding.meaning }));

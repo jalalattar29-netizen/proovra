@@ -11,10 +11,11 @@
  * selected account.
  *
  * READ and MANAGE are here in full: plan, usage, payments, the account-wide
- * provider re-check, a payment's re-check / stop / abandon, cancelling the
- * subscription or a storage add-on, and retrying an outstanding add-on
- * cancellation. PURCHASE is not, in a store build: starting or changing a plan,
- * buying storage or credits and resuming a provider checkout wait on the
+ * provider re-check, a payment's re-check / stop / abandon, checking or
+ * abandoning an open purchase, cancelling the subscription or a storage add-on,
+ * and retrying an outstanding add-on cancellation. PURCHASE is not, in a store
+ * build: starting or changing a plan, buying storage or credits and continuing
+ * a provider checkout wait on the
  * distribution-policy decision (src/product/billing.ts). They exist only behind
  * `externalCheckoutEnabled()`, a private-distribution build flag. Prices and
  * plans are otherwise shown read-only in the pricing sheet.
@@ -22,7 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
 import { checkoutApprovalUrl, checkoutRequest, externalCheckoutEnabled, payPalReturnConfirmation, payPalReturnNotice, verifiedCheckoutUrl, type PurchaseIntent, type PurchaseProvider } from "../../src/product/billing-purchase";
@@ -55,14 +56,24 @@ import {
   CANCELLATION_UNCONFIRMED_COPY,
   abandonConfirmation,
   abandonMessage,
+  attemptAbandonConfirmation,
+  billingRefusalMessage,
   buildAbandonBody,
+  buildAttemptAbandonPath,
+  buildAttemptRecheckPath,
   buildPaymentAbandonPath,
   buildReconcilePath,
   cancellationOutcomeUnknown,
+  describeAttemptAbandon,
+  describeAttemptCheck,
+  formatMoney,
   parseBillingProjection,
   reconcileMessage,
   parseBillingActivity,
   retryStorageMessage,
+  storageAdditionalPrompt,
+  storageRecoveryIntroduction,
+  storageRefusalAction,
   subscriptionCancelConsequence,
   subscriptionCancelMessage,
   type ActiveAddonModel,
@@ -100,7 +111,7 @@ import {
   BillingSupportStrip,
   billingDate,
 } from "../../src/ui/billing-account-sections";
-import { BillingHistoryCard, type HistoryState } from "../../src/ui/billing-account-history";
+import { BillingAttemptActions, BillingHistoryCard, type AttemptNotice, type HistoryState } from "../../src/ui/billing-account-history";
 import { ManagePlanSheet, PricingSheet } from "../../src/ui/billing-plan-sheets";
 
 type Phase = { kind: "LOADING" } | { kind: "NO_ACCOUNTS" } | { kind: "READY" } | { kind: "ERROR"; error: SafeError };
@@ -110,7 +121,11 @@ type Confirm =
   | { kind: "addon"; addon: ActiveAddonModel }
   | { kind: "payment-cancel"; row: PaymentRow }
   | { kind: "payment-abandon"; row: PaymentRow; message: string }
+  | { kind: "attempt-abandon"; attemptId: string; warning: string; cancelsAtProvider: boolean }
   | null;
+
+/** A refused storage purchase whose way forward is the attempt it names. */
+type StorageRecovery = { attemptId: string; pendingProvider: string; createdAtUtc: string | null };
 
 export default function BillingScreen() {
   const router = useRouter();
@@ -142,24 +157,44 @@ export default function BillingScreen() {
   const [recheckBusy, setRecheckBusy] = useState(false);
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
   const [addonBusyId, setAddonBusyId] = useState<string | null>(null);
+  const [attemptBusyId, setAttemptBusyId] = useState<string | null>(null);
+  const [attemptNotices, setAttemptNotices] = useState<Record<string, AttemptNotice>>({});
+  const [recovery, setRecovery] = useState<StorageRecovery | null>(null);
+  const [additional, setAdditional] = useState<{ provider: PurchaseProvider; activeCount: number } | null>(null);
+  const projectionRead = useRef(0);
+  const historyRead = useRef(0);
 
-  const loadProjection = useCallback(async (account: BillingAccountRef) => {
-    setProjection(null);
+  /*
+   * BILLING REMEDIATION (2026-10-31, AUD-19) — a BACKGROUND read keeps what is on
+   * screen. Clearing it unmounted the cards mid-action and collapsed the page
+   * behind a recovery answer; only a change of account starts from nothing. The
+   * counter drops a slower answer that a newer read has already replaced.
+   */
+  const loadProjection = useCallback(async (account: BillingAccountRef, background = false) => {
+    const read = ++projectionRead.current;
+    if (!background) setProjection(null);
     try {
-      setProjection(parseBillingProjection(await apiFetch(buildBillingAccountPath(account.type, account.id))));
+      const next = parseBillingProjection(await apiFetch(buildBillingAccountPath(account.type, account.id)));
+      if (read === projectionRead.current) setProjection(next);
     } catch (err) {
-      setPhase({ kind: "ERROR", error: toSafeUserError(err, { message: "This billing account could not be loaded." }) });
+      if (read !== projectionRead.current) return;
+      if (background) setNotice("We could not refresh Billing just now, so this may be out of date.");
+      else setPhase({ kind: "ERROR", error: toSafeUserError(err, { message: "This billing account could not be loaded." }) });
     }
   }, []);
 
-  const loadHistory = useCallback(async (account: BillingAccountRef) => {
-    setHistory({ kind: "LOADING" });
+  const loadHistory = useCallback(async (account: BillingAccountRef, background = false) => {
+    const read = ++historyRead.current;
+    if (!background) setHistory({ kind: "LOADING" });
     try {
       const body = await apiFetch(buildBillingHistoryPath(account.type, account.id));
+      if (read !== historyRead.current) return;
       setHistory({ kind: "READY", rows: parsePaymentHistory(body), openPurchases: parseBillingActivity(body) });
     } catch (err) {
+      if (read !== historyRead.current) return;
       // A missing capability is a DENIAL, never an empty list.
-      setHistory({ kind: (err as { statusCode?: number } | null)?.statusCode === 403 ? "DENIED" : "ERROR" });
+      const denied = (err as { statusCode?: number } | null)?.statusCode === 403;
+      if (denied || !background) setHistory({ kind: denied ? "DENIED" : "ERROR" });
     }
   }, []);
 
@@ -190,6 +225,8 @@ export default function BillingScreen() {
 
   useEffect(() => {
     if (!selected) return;
+    setAttemptNotices({});
+    setRecovery(null);
     void loadProjection(selected);
     void loadHistory(selected);
   }, [selected, loadProjection, loadHistory]);
@@ -207,9 +244,21 @@ export default function BillingScreen() {
 
   const refresh = useCallback(() => {
     if (!selected) return;
-    void loadProjection(selected);
-    void loadHistory(selected);
+    void loadProjection(selected, true);
+    void loadHistory(selected, true);
   }, [selected, loadProjection, loadHistory]);
+
+  // Back from another screen: re-read, so an open purchase is where the server
+  // says it is. The first focus is the mount, which has already loaded.
+  const refreshOnFocus = useRef(refresh);
+  refreshOnFocus.current = refresh;
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) refreshOnFocus.current();
+      focused.current = true;
+    }, []),
+  );
 
   const openSupport = useCallback(() => {
     if (projection?.actions.contactAccountManager) {
@@ -326,7 +375,7 @@ export default function BillingScreen() {
     offerPurchase({ kind: "PLAN", plan, transition: projection.plan.accessKind === "SUBSCRIPTION" });
   }, [projection, selected, offerPurchase]);
 
-  const executePurchase = useCallback(async (provider: PurchaseProvider) => {
+  const executePurchase = useCallback(async (provider: PurchaseProvider, confirmAdditional = false) => {
     if (checkoutInFlight.current) return;
 
     if (
@@ -344,9 +393,16 @@ export default function BillingScreen() {
     checkoutInFlight.current = true;
     setPurchaseBusy(true);
     setPurchaseError(null);
+    setAdditional(null);
     setNotice(null);
     try {
-      const request = checkoutRequest(purchase, provider, catalogue?.currency);
+      const request = checkoutRequest(
+        purchase.kind === "STORAGE" && confirmAdditional
+          ? { ...purchase, confirmAdditional, ...(additional ? { heldCount: additional.activeCount } : {}) }
+          : purchase,
+        provider,
+        catalogue?.currency,
+      );
       let response: unknown;
       try {
         response = await apiFetch(request.path, { method: "POST", body: JSON.stringify(request.body) });
@@ -383,12 +439,26 @@ export default function BillingScreen() {
         refresh();
       }
     } catch (err) {
-      setPurchaseError(toSafeUserError(err, { message: "Checkout could not be started. No purchase was confirmed. Check pending payments before retrying." }).message);
+      // A storage refusal with a way forward is answered by that way forward.
+      const action = purchase.kind === "STORAGE" ? storageRefusalAction(err) : null;
+      if (action?.kind === "CONFIRM_ADDITIONAL") {
+        setAdditional({ provider, activeCount: action.activeCount });
+      } else if (action?.kind === "RECOVER") {
+        setRecovery({ attemptId: action.attemptId, pendingProvider: action.pendingProvider, createdAtUtc: action.createdAtUtc });
+        setPurchase(null);
+        refresh();
+      } else {
+        setPurchaseError(
+          billingRefusalMessage(err) ??
+            toSafeUserError(err, { message: "Checkout could not be started. No purchase was confirmed. Check pending payments before retrying." }).message,
+        );
+        refresh();
+      }
     } finally {
       checkoutInFlight.current = false;
       setPurchaseBusy(false);
     }
-  }, [purchase, selected, privateCheckout, catalogue, refresh]);
+  }, [purchase, selected, privateCheckout, catalogue, refresh, additional]);
 
   /* ---------------------------------------------------------- actions */
 
@@ -535,6 +605,95 @@ export default function BillingScreen() {
     [selected, loadHistory],
   );
 
+  const noteAttempt = useCallback((attemptId: string, next: AttemptNotice) => {
+    setAttemptNotices((prev) => ({ ...prev, [attemptId]: next }));
+  }, []);
+
+  /** A failed action says what went wrong and leaves the last answer's controls alone. */
+  const noteAttemptFailure = useCallback((attemptId: string, err: unknown, message: string) => {
+    const text = billingRefusalMessage(err) ?? toSafeUserError(err, { message }).message;
+    setAttemptNotices((prev) => ({
+      ...prev,
+      [attemptId]: { ...(prev[attemptId] ?? { state: null, resumeUrl: null, canAbandon: true }), message: text },
+    }));
+  }, []);
+
+  const checkAttempt = useCallback(
+    async (attemptId: string) => {
+      if (!selected || attemptBusyId) return;
+      setAttemptBusyId(attemptId);
+      try {
+        const result = await apiFetch(buildAttemptRecheckPath(selected.type, selected.id, attemptId), { method: "POST", body: "{}" });
+        const check = describeAttemptCheck(result, { resumeAllowed: privateCheckout });
+        noteAttempt(attemptId, { message: check.message, state: check.state, resumeUrl: check.resumeUrl, canAbandon: check.canAbandon });
+        if (!check.blocked) {
+          setRecovery((prev) => (prev?.attemptId === attemptId ? null : prev));
+          setNotice(check.message);
+        }
+        refresh();
+      } catch (err) {
+        noteAttemptFailure(attemptId, err, "We could not check this purchase just now. Try again in a moment.");
+      } finally {
+        setAttemptBusyId(null);
+      }
+    },
+    [selected, attemptBusyId, privateCheckout, noteAttempt, noteAttemptFailure, refresh],
+  );
+
+  /** The provider's own page, on a build that may hand one over; then ask the server. */
+  const continueAttempt = useCallback(
+    (attemptId: string, url: string) => {
+      const checked = verifiedCheckoutUrl(url);
+      if (!privateCheckout || !checked) return;
+      void WebBrowser.openBrowserAsync(checked)
+        .then(() => checkAttempt(attemptId))
+        .catch(() => setNotice("Could not open the payment provider. Check status before trying again."));
+    },
+    [privateCheckout, checkAttempt],
+  );
+
+  /** TWO STEPS, as for a payment: only the server's answer asks the customer. */
+  const abandonAttempt = useCallback(
+    async (attemptId: string, confirmed: boolean) => {
+      if (!selected) return;
+      setConfirm(null);
+      setAttemptBusyId(attemptId);
+      try {
+        const result = await apiFetch(buildAttemptAbandonPath(selected.type, selected.id, attemptId), {
+          method: "POST",
+          body: JSON.stringify(buildAbandonBody(confirmed)),
+        });
+        if ((result as { outcome?: string } | null)?.outcome === "ABANDON_CONFIRMATION_REQUIRED") {
+          setConfirm({ kind: "attempt-abandon", attemptId, ...attemptAbandonConfirmation(result) });
+          return;
+        }
+        const done = describeAttemptAbandon(result);
+        noteAttempt(attemptId, { message: done.message, state: done.state, resumeUrl: null, canAbandon: done.canAbandon });
+        if (done.resolved) {
+          setRecovery((prev) => (prev?.attemptId === attemptId ? null : prev));
+          setNotice(done.message);
+        }
+        refresh();
+      } catch (err) {
+        noteAttemptFailure(attemptId, err, "We could not abandon this purchase just now. It is still open.");
+      } finally {
+        setAttemptBusyId(null);
+      }
+    },
+    [selected, noteAttempt, noteAttemptFailure, refresh],
+  );
+
+  const attemptHandlers = {
+    onCheckAttempt: (attemptId: string) => void checkAttempt(attemptId),
+    onAbandonAttempt: (attemptId: string) => void abandonAttempt(attemptId, false),
+    onContinueAttempt: continueAttempt,
+    onSupport: openSupport,
+    attemptBusyId,
+    attemptNotices,
+  };
+  const recoveryRow = history.kind === "READY" ? history.openPurchases?.find((a) => a.id === recovery?.attemptId) ?? null : null;
+  const additionalOffer = purchase?.kind === "STORAGE" ? projection?.storageAddons?.offers.find((o) => o.key === purchase.addonKey) ?? null : null;
+
   /* ------------------------------------------------------------ render */
 
   const pricingRelevant = phase.kind !== "NO_ACCOUNTS" && selected !== null && projection?.plan.accessKind !== "CONTRACT";
@@ -590,6 +749,22 @@ export default function BillingScreen() {
                 </ProovraText>
               ) : null}
 
+              {recovery ? (
+                <ProovraCard testID="billing-storage-recovery" style={{ gap: theme.space.s2 }}>
+                  <ProovraText variant="bodySm">
+                    {storageRecoveryIntroduction(recovery.pendingProvider, billingDate(recovery.createdAtUtc))}
+                  </ProovraText>
+                  <BillingAttemptActions
+                    attemptId={recovery.attemptId}
+                    label="open storage purchase"
+                    canRecheck={recoveryRow ? recoveryRow.canRecheck : true}
+                    canAbandon={recoveryRow ? recoveryRow.canAbandon : true}
+                    state={recoveryRow?.state ?? null}
+                    handlers={attemptHandlers}
+                  />
+                </ProovraCard>
+              ) : null}
+
               <BillingActionRequired projection={projection} onRetry={() => void retryStorageCancellation()} onSupport={() => router.push("/support")} busy={busy} />
 
               <BillingOverviewCard
@@ -631,6 +806,8 @@ export default function BillingScreen() {
                 onAbandonPayment={(row) => void abandonPayment(row, false)}
                 rowBusyId={rowBusyId}
                 notice={historyNotice}
+                attempts={attemptHandlers}
+                resumeAllowed={privateCheckout}
               />
 
               <BillingSupportStrip projection={projection} onPress={openSupport} />
@@ -699,6 +876,7 @@ export default function BillingScreen() {
           if (!purchaseBusy) {
             setPurchase(null);
             setPurchaseError(null);
+            setAdditional(null);
           }
         }}
         onDismiss={finishCheckoutDismiss}
@@ -708,9 +886,20 @@ export default function BillingScreen() {
           {purchaseError ? (
             <ProovraText variant="bodySm" color={theme.color.status.risk.fg} testID="billing-purchase-error">{purchaseError}</ProovraText>
           ) : null}
-          <ProovraButton label="Pay with Stripe" loading={purchaseBusy} onPress={() => void executePurchase("stripe")} />
-          <ProovraButton label="Pay with PayPal" loading={purchaseBusy} onPress={() => void executePurchase("paypal")} />
-          <ProovraButton label="Cancel" variant="ghost" onPress={() => { if (!purchaseBusy) { setPurchase(null); setPurchaseError(null); } }} />
+          {additional ? (
+            <>
+              <ProovraText variant="bodySm" testID="billing-storage-additional">
+                {storageAdditionalPrompt(additional.activeCount, formatMoney(additionalOffer?.priceCents, additionalOffer?.currency))}
+              </ProovraText>
+              <ProovraButton label="Add another" loading={purchaseBusy} onPress={() => void executePurchase(additional.provider, true)} />
+            </>
+          ) : (
+            <>
+              <ProovraButton label="Pay with Stripe" loading={purchaseBusy} onPress={() => void executePurchase("stripe")} />
+              <ProovraButton label="Pay with PayPal" loading={purchaseBusy} onPress={() => void executePurchase("paypal")} />
+            </>
+          )}
+          <ProovraButton label="Cancel" variant="ghost" onPress={() => { if (!purchaseBusy) { setPurchase(null); setPurchaseError(null); setAdditional(null); } }} />
         </View>
       </ProovraSheet>
       <ProovraConfirmSheet
@@ -724,7 +913,9 @@ export default function BillingScreen() {
                 ? PAYMENT_CANCEL_COPY.title
                 : confirm?.kind === "payment-abandon"
                   ? "Abandon this payment attempt?"
-                  : ""
+                  : confirm?.kind === "attempt-abandon"
+                    ? "Abandon this purchase?"
+                    : ""
         }
         consequence={
           confirm?.kind === "subscription" && projection
@@ -735,7 +926,9 @@ export default function BillingScreen() {
                 ? PAYMENT_CANCEL_COPY.body
                 : confirm?.kind === "payment-abandon"
                   ? confirm.message
-                  : undefined
+                  : confirm?.kind === "attempt-abandon"
+                    ? confirm.warning
+                    : undefined
         }
         confirmLabel={
           confirm?.kind === "subscription"
@@ -744,7 +937,9 @@ export default function BillingScreen() {
               ? ADDON_CANCEL_COPY.confirm
               : confirm?.kind === "payment-cancel"
                 ? PAYMENT_CANCEL_COPY.confirm
-                : "Abandon local attempt"
+                : confirm?.kind === "attempt-abandon"
+                  ? confirm.cancelsAtProvider ? "Close checkout" : "Abandon in PROOVRA"
+                  : "Abandon local attempt"
         }
         cancelLabel={
           confirm?.kind === "subscription"
@@ -753,17 +948,20 @@ export default function BillingScreen() {
               ? ADDON_CANCEL_COPY.cancel
               : confirm?.kind === "payment-cancel"
                 ? PAYMENT_CANCEL_COPY.cancel
-                : "Keep pending"
+                : confirm?.kind === "attempt-abandon"
+                  ? "Keep it"
+                  : "Keep pending"
         }
         // An abandonment is a warning, not a destruction: nothing is deleted and no money moves.
-        tone={confirm?.kind === "payment-abandon" ? "warning" : "danger"}
-        busy={busy || rowBusyId !== null}
+        tone={confirm?.kind === "payment-abandon" || confirm?.kind === "attempt-abandon" ? "warning" : "danger"}
+        busy={busy || rowBusyId !== null || attemptBusyId !== null}
         onConfirm={() => {
           const c = confirm;
           if (!c) return;
           if (c.kind === "subscription") void cancelSubscription();
           else if (c.kind === "addon") void cancelAddon(c.addon);
           else if (c.kind === "payment-cancel") void stopPayment(c.row);
+          else if (c.kind === "attempt-abandon") void abandonAttempt(c.attemptId, true);
           else void abandonPayment(c.row, true);
         }}
         onCancel={() => setConfirm(null)}

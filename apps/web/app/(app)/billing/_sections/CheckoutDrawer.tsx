@@ -37,7 +37,7 @@ import type {
   PlanOffer,
   StorageAddonOffer,
 } from "../../../../lib/api/billing-accounts";
-import { formatMoney, summarizeStorageAddons } from "./format";
+import { formatMoney, holdingQualifiers, summarizeStorageAddons } from "./format";
 import { BillingDrawer } from "./BillingDrawer";
 import {
   PaymentMethodChoice,
@@ -363,8 +363,11 @@ export function CheckoutDrawer({
       billingCycle: "MONTHLY",
       currency: selectedOffer.currency,
       // Only ever the customer's second press, after seeing what they already
-      // pay for. It is never set on a first attempt.
-      ...(confirmAdditional ? { confirmAdditional: true } : {}),
+      // pay for. It is never set on a first attempt. The count is the one they
+      // were shown, so a purchase made elsewhere since then asks them again.
+      ...(confirmAdditional
+        ? { confirmAdditional: true, heldCount: heldPrompt?.activeCount ?? selectedHolding?.activeCount ?? 0 }
+        : {}),
     });
     return provider === "STRIPE"
       ? send(() =>
@@ -766,6 +769,7 @@ export function CheckoutDrawer({
                           {sku.pendingCount > 0 && sku.activeCount > 0
                             ? `${sku.pendingCount} not completed · `
                             : null}
+                          {holdingQualifiers(sku).map((part) => `${part} · `).join("")}
                           {sku.activeCount > 0 && monthly ? (
                             <>
                               <bdi>{monthly}</bdi> / month
@@ -775,6 +779,14 @@ export function CheckoutDrawer({
                       </div>
                     );
                   })}
+                  {projection.storageAddons?.legacyWorkspaceCapacityLabel ? (
+                    <div className="bill-summary__row" data-billing-storage-legacy-capacity>
+                      <span>In older workspaces, not in this total</span>
+                      <span>
+                        <bdi>{projection.storageAddons.legacyWorkspaceCapacityLabel}</bdi>
+                      </span>
+                    </div>
+                  ) : null}
                   {holdings.monthlyTotals && holdings.monthlyTotals.length > 0 ? (
                     <div
                       className="bill-summary__row bill-summary__row--total"
@@ -872,6 +884,38 @@ export function CheckoutDrawer({
                 <p className="bill-choice__meta" role="status" aria-live="polite">
                   {storageAdditionalPrompt(heldPrompt.activeCount, selectedOffer)}
                 </p>
+                {selectedOffer ? (
+                  <dl className="bill-summary__note" data-billing-storage-additional-effect>
+                    {projection.usage.storage.state === "MEASURED" ? (
+                      <div className="bill-summary__row">
+                        <dt>Capacity now</dt>
+                        <dd>
+                          <bdi>{projection.usage.storage.limitLabel}</bdi>
+                        </dd>
+                      </div>
+                    ) : null}
+                    {holdings.monthlyTotals && holdings.monthlyTotals.length > 0 ? (
+                      <div className="bill-summary__row">
+                        <dt>Add-ons billed now</dt>
+                        <dd>
+                          <bdi>{holdings.monthlyTotals.join(" + ")}</bdi> / month
+                        </dd>
+                      </div>
+                    ) : null}
+                    <div className="bill-summary__row">
+                      <dt>This adds</dt>
+                      <dd>
+                        <bdi>{selectedOffer.storageLabel}</bdi>
+                        {formatMoney(selectedOffer.priceCents, selectedOffer.currency) ? (
+                          <>
+                            {" · "}
+                            <bdi>{formatMoney(selectedOffer.priceCents, selectedOffer.currency)}</bdi> / month
+                          </>
+                        ) : null}
+                      </dd>
+                    </div>
+                  </dl>
+                ) : null}
                 <div className="bill-panel__actions">
                   <Button
                     variant="secondary"

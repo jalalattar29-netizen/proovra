@@ -866,7 +866,11 @@ function BillingPageInner() {
 
       setChangeBusyPlan(offer.planKey);
       try {
-        const result = await changePlan({ plan: offer.planKey });
+        // The confirmation above named the storage this plan does not include.
+        const result = await changePlan({
+          plan: offer.planKey,
+          ...(addonNote ? { confirmStorageEnding: true } : {}),
+        });
 
         // PayPal cannot revise an agreement without the buyer's authorisation,
         // so it hands back a link instead of a done deal. Saying "changed"

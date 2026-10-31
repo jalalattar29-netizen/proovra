@@ -33,6 +33,7 @@ import {
   EvidenceDetailCard,
 } from "../../app/(app)/billing/_sections/BillingOverview";
 import { StorageAddonsSection } from "../../app/(app)/billing/_sections/StorageAndHistory";
+import { holdingQualifiers, summarizeStorageAddons } from "../../app/(app)/billing/_sections/format";
 import type {
   BillingAccountProjection,
   PlanOffer,
@@ -1156,6 +1157,80 @@ describe("the FREE storage card", () => {
 // ===========================================================================
 // 7. Direction and touch targets survive all of it
 // ===========================================================================
+
+describe("storage holdings and what stops renewing", () => {
+  const base = {
+    addonKey: "TEAM_100_GB",
+    label: "+100 GB",
+    storageLabel: "100 GB",
+    billingCycle: "MONTHLY",
+    legacyOneTime: false,
+    canCancel: true,
+    canRecheck: false,
+    canAbandon: false,
+    attemptReference: "SA-1",
+    paymentProvider: "STRIPE",
+    providerReference: null,
+    createdAtUtc: "2026-10-01T00:00:00.000Z",
+    activatedAtUtc: "2026-10-01T00:00:00.000Z",
+    currentPeriodEndUtc: "2026-11-01T00:00:00.000Z",
+    priceCents: 999,
+    currency: "EUR",
+  };
+
+  it("counts legacy, past-due and ending rows apart, and leaves ending ones out of the commitment", () => {
+    const holdings = summarizeStorageAddons([
+      { ...base, id: "a", status: "ACTIVE" },
+      { ...base, id: "b", status: "ACTIVE", legacyWorkspace: true },
+      { ...base, id: "c", status: "PAST_DUE", paymentDue: true },
+      { ...base, id: "d", status: "ACTIVE", ending: true, endingReason: "PLAN_CHANGE" },
+    ] as never);
+    const [sku] = holdings.skus;
+    expect(sku).toMatchObject({ activeCount: 4, legacyWorkspaceCount: 1, pastDueCount: 1, endingCount: 1 });
+    expect(holdingQualifiers(sku!)).toEqual(["1 in an older workspace", "1 payment due", "1 ending"]);
+    expect(sku!.monthlyCents).toBe(2997);
+  });
+
+  it("says why an add-on will not renew, and where older capacity applies", () => {
+    const team = paid("PRO", [MOVE_TEAM], {
+      storageAddons: {
+        offers: [],
+        active: [{ ...base, id: "a", status: "ACTIVE", ending: true, endingReason: "PLAN_CHANGE" }],
+        legacyWorkspaceCapacityLabel: "100 GB",
+      },
+    } as never);
+    const { container } = render(
+      <StorageAddonsSection
+        projection={team}
+        onManageStorage={noop}
+        onChoosePlan={noop}
+        onCancelAddon={noop}
+        cancelBusyId={null}
+      />,
+    );
+    expect(container.querySelector("[data-billing-addon-ending-reason='PLAN_CHANGE']")?.textContent).toMatch(/will not renew/);
+    expect(container.querySelector("[data-billing-storage-legacy-capacity]")?.textContent).toMatch(/not in the total/);
+  });
+
+  it("names the owner's workspace on a legacy add-on", () => {
+    const pro = paid("PRO", [MOVE_TEAM], {
+      storageAddons: {
+        offers: [],
+        active: [{ ...base, id: "a", status: "ACTIVE", legacyWorkspace: true, legacyWorkspaceName: "Acme archive" }],
+      },
+    } as never);
+    const { container } = render(
+      <StorageAddonsSection
+        projection={pro}
+        onManageStorage={noop}
+        onChoosePlan={noop}
+        onCancelAddon={noop}
+        cancelBusyId={null}
+      />,
+    );
+    expect(container.querySelector("[data-billing-addon-legacy]")?.textContent).toContain("Acme archive");
+  });
+});
 
 describe("storage bought for a legacy workspace", () => {
   it("says where its storage applies, so it is not read as capacity here", () => {

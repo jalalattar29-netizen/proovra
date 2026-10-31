@@ -63,6 +63,11 @@ import { requireStepUpForSensitiveAction } from "../services/identity-security/s
  * refund and confiscate.
  */
 const grantBodySchema = z.object({
+  /**
+   * The operator's own workspace: step-up challenges are team-bound, and the
+   * approval names the account being credited, not this workspace.
+   */
+  teamId: z.string().uuid(),
   userId: z.string().uuid(),
   credits: z.number().int().min(1).max(500),
   /** Why. Recorded in the audit trail; required, because "no reason" is not one. */
@@ -130,6 +135,10 @@ export async function adminBillingRoutes(app: FastifyInstance) {
   // cross-tenant write. No per-tenant authorizeOrFail applies: the subject is
   // a PERSONAL account, not a workspace, and no workspace role — OWNER, ADMIN,
   // billing manager or organization admin — carries this authority.
+  //
+  // BILLING DECISIONS (2026-10-31, D3) — credits are spendable value, so this
+  // takes the same fresh, single-use CAPABILITY_GRANT approval an internal plan
+  // grant does. A retry needs a new approval and still moves nothing.
   // =========================================================================
   app.post(
     "/v1/admin/billing/evidence-credits",
@@ -173,6 +182,17 @@ export async function adminBillingRoutes(app: FastifyInstance) {
           );
       }
 
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actorUserId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "evidence_credit_grant",
+        resourceId: target.id,
+      });
+      if (gate.sent) return;
+
       // The wallet's own reader, before and after, so the audit records the
       // movement rather than an assumption about it.
       await ensureEntitlement(target.id);
@@ -190,38 +210,44 @@ export async function adminBillingRoutes(app: FastifyInstance) {
        * check winning a race.
        */
       const grantRef = `${target.id}:${body.idempotencyKey}`;
+      const previousBalanceOf = (outcome: { granted: boolean; balanceAfter: number }) =>
+        outcome.granted ? outcome.balanceAfter - body.credits : outcome.balanceAfter;
       const result = await grantEvidenceCreditsByPlatformAdmin({
         userId: target.id,
         credits: body.credits,
         grantRef,
-      });
-
-      await emitPlatformAudit({
-        action: "billing.evidence_credits_granted",
-        outcome: "success",
-        sourceApp: "API",
-        actorUserId,
-        resourceType: "billing_credit",
-        resourceId: target.id,
-        correlationId: req.id ?? null,
-        metadata: {
-          targetUserId: target.id,
-          credits: body.credits,
-          reason: body.reason,
-          grantRef,
-          previousBalance: before.availableCredits,
-          resultingBalance: result.balanceAfter,
-          // `false` is the honest record of a RETRY: the key already existed,
-          // so this request moved nothing.
-          applied: result.granted,
-        },
+        audit: (client, outcome) =>
+          emitPlatformAudit(
+            {
+              action: "billing.evidence_credits_granted",
+              outcome: "success",
+              sourceApp: "API",
+              actorUserId,
+              authMethod: gate.method ?? null,
+              resourceType: "billing_credit",
+              resourceId: target.id,
+              correlationId: req.id ?? null,
+              metadata: {
+                targetUserId: target.id,
+                credits: body.credits,
+                reason: body.reason,
+                grantRef,
+                previousBalance: previousBalanceOf(outcome),
+                resultingBalance: outcome.balanceAfter,
+                // `false` is the honest record of a RETRY: the key already
+                // existed, so this request moved nothing.
+                applied: outcome.granted,
+              },
+            },
+            client,
+          ),
       });
 
       return reply.code(200).send({
         userId: target.id,
         credits: body.credits,
         applied: result.granted,
-        previousBalance: before.availableCredits,
+        previousBalance: result.granted ? previousBalanceOf(result) : before.availableCredits,
         balanceAfter: result.balanceAfter,
         grantRef,
       });

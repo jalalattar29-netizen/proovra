@@ -14,11 +14,17 @@
  * Without the statement, any live add-on of this SKU or any open purchase on
  * EITHER provider answers 409 with what it found. An open purchase also blocks
  * across providers here, which the per-provider gates cannot see.
+ *
+ * BILLING DECISIONS (2026-10-31, section C) — the statement covers what the
+ * customer saw, and nothing else. An open purchase on the other provider answers
+ * 409 even with it, because that purchase may be the very storage they are
+ * adding, and a count that moved since they confirmed asks them again.
  */
 
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
+import { payerLegacyWorkspaceIds } from "./billing-accounts.service.js";
 import { APPROVAL_EXPIRY_MS } from "./checkout-attempt-recovery.service.js";
 
 const LIVE = [prismaPkg.WorkspaceStorageAddonStatus.ACTIVE, prismaPkg.WorkspaceStorageAddonStatus.PAST_DUE];
@@ -40,14 +46,24 @@ export async function findStorageDuplicate(input: {
   userId: string;
   addonKey: prismaPkg.StorageAddonKey;
   provider: prismaPkg.PaymentProvider;
+  /** The customer's statement. A null count comes from a client that sends none. */
+  confirmation?: { heldCount: number | null } | null;
   now?: Date;
 }): Promise<StorageDuplicateFinding | null> {
   const now = input.now ?? new Date();
   const since = new Date(now.getTime() - APPROVAL_EXPIRY_MS);
+  const legacy = await payerLegacyWorkspaceIds(input.userId);
 
   const [activeCount, openPayPal, openStripe] = await Promise.all([
+    // The same rows Billing lists for this payer, so the count they confirm can
+    // match it. A row of a workspace they no longer own is not theirs to stack.
     prisma.workspaceStorageAddon.count({
-      where: { ownerUserId: input.userId, addonKey: input.addonKey, status: { in: LIVE } },
+      where: {
+        ownerUserId: input.userId,
+        addonKey: input.addonKey,
+        status: { in: LIVE },
+        OR: [{ teamId: null }, { teamId: { in: legacy } }],
+      },
     }),
     prisma.workspaceStorageAddon.findFirst({
       where: {
@@ -97,7 +113,10 @@ export async function findStorageDuplicate(input: {
       },
     };
   }
-  if (activeCount > 0) {
+  const confirmed =
+    input.confirmation != null &&
+    (input.confirmation.heldCount === null || input.confirmation.heldCount === activeCount);
+  if (activeCount > 0 && !confirmed) {
     return {
       code: "STORAGE_ADDON_ALREADY_HELD",
       message:

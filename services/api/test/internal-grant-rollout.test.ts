@@ -150,6 +150,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281029000000_screen_recording_combined_derivative",
       // Billing remediation: Stripe schedule id, durable supersession retry, refund accounting, dispute state and the unresolved-provider-reference backoff. EXPAND.
       "20281030000000_billing_remediation_convergence",
+      // Billing product decisions: add-on end consent, grant dependency, Stripe customer binding. EXPAND.
+      "20281031000000_billing_product_decisions",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

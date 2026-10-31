@@ -299,6 +299,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
       const body = {
         userId: customer.owner.userId,
         credits: 5,
+        teamId: op.stepUpTeamId,
         reason: "Goodwill after incident INC-1042",
         idempotencyKey: "INC-1042",
       };
@@ -307,6 +308,9 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         url: "/v1/admin/billing/evidence-credits",
         token: op.token,
         payload: body,
+        headers: {
+          "x-proovra-step-up-challenge-id": await approvedStepUp(op, "CAPABILITY_GRANT", "evidence_credit_grant", customer.owner.userId),
+        },
       });
       expect(res.statusCode, res.body).toBe(200);
       const grantRef = `${customer.owner.userId}:INC-1042`;
@@ -358,6 +362,9 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         url: "/v1/admin/billing/evidence-credits",
         token: op.token,
         payload: body,
+        headers: {
+          "x-proovra-step-up-challenge-id": await approvedStepUp(op, "CAPABILITY_GRANT", "evidence_credit_grant", customer.owner.userId),
+        },
       });
       expect(retry.statusCode).toBe(200);
       expect(json(retry)).toMatchObject({ applied: false, previousBalance: 7, balanceAfter: 7 });
@@ -377,7 +384,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         method: "POST",
         url: "/v1/admin/billing/evidence-credits",
         token: harness.fixtures.teamA.ownerToken,
-        payload: { userId: customer.owner.userId, credits: 50, reason: "self-help", idempotencyKey: "SELF-1" },
+        payload: { teamId: harness.fixtures.teamA.teamId, userId: customer.owner.userId, credits: 50, reason: "self-help", idempotencyKey: "SELF-1" },
       });
       expect(refused.statusCode).toBe(403);
       expect(json(refused).error.code).toBe("FORBIDDEN");
@@ -386,7 +393,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         method: "POST",
         url: "/v1/admin/billing/evidence-credits",
         token: op.token,
-        payload: { userId: randomUUID(), credits: 1, reason: "typo", idempotencyKey: "TYPO-1" },
+        payload: { teamId: op.stepUpTeamId, userId: randomUUID(), credits: 1, reason: "typo", idempotencyKey: "TYPO-1" },
       });
       expect(missing.statusCode).toBe(404);
       expect(json(missing).error.code).toBe("USER_NOT_FOUND");

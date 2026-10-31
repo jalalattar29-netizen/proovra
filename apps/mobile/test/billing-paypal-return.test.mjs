@@ -42,9 +42,9 @@ test("a PayPal checkout names the server confirmation to run when the browser cl
 
 test("the confirmation is described truthfully — closed without approving is not a payment", () => {
   assert.match(P.payPalReturnNotice("ORDER_CAPTURE", { outcome: "GRANTED" }), /credit has been added/);
-  assert.match(P.payPalReturnNotice("ORDER_CAPTURE", { outcome: "PENDING", reason: "AWAITING_APPROVAL" }), /nothing has been charged/);
+  assert.match(P.payPalReturnNotice("ORDER_CAPTURE", { outcome: "PENDING", reason: "AWAITING_APPROVAL" }), /Nothing is charged unless you approve it/);
   assert.match(P.payPalReturnNotice("ORDER_CAPTURE", { outcome: "PENDING", reason: "CAPTURE_PENDING" }), /keeps checking/);
-  assert.match(P.payPalReturnNotice("SUBSCRIPTION_CONFIRM", { outcome: "AWAITING_APPROVAL" }), /nothing has been charged/);
+  assert.match(P.payPalReturnNotice("SUBSCRIPTION_CONFIRM", { outcome: "AWAITING_APPROVAL" }), /Nothing is charged unless you approve it/);
   assert.match(P.payPalReturnNotice("SUBSCRIPTION_CONFIRM", { outcome: "PENDING" }), /activating/);
   assert.match(P.payPalReturnNotice("SUBSCRIPTION_CONFIRM", { outcome: "ACTIVE", superseded: true }), /second PayPal subscription was cancelled/);
   assert.match(P.payPalReturnNotice("SUBSCRIPTION_CONFIRM", null, { code: "PAYPAL_STORAGE_ACTIVATION_REFUSED", statusCode: 409 }), /cancelled it at PayPal/);

@@ -5,15 +5,15 @@ export type PurchaseIntent =
   | { kind: "CREDITS" }
   /** `currency` is the SELECTED OFFER's own currency (storage SKUs are priced
    * in one currency each). Never the pricing catalogue's display currency. */
-  | { kind: "STORAGE"; addonKey: string; currency?: string | null };
+  | { kind: "STORAGE"; addonKey: string; currency?: string | null; confirmAdditional?: boolean; heldCount?: number };
 
 export function externalCheckoutEnabled(): boolean {
   return process.env.EXPO_PUBLIC_DISTRIBUTION === "PRIVATE" &&
     process.env.EXPO_PUBLIC_PRIVATE_BILLING === "enabled";
 }
 
-export function checkoutRequest(intent: PurchaseIntent, provider: PurchaseProvider, currency?: string | null): { path: string; body: Record<string, string> } {
-  const body: Record<string, string> = {};
+export function checkoutRequest(intent: PurchaseIntent, provider: PurchaseProvider, currency?: string | null): { path: string; body: Record<string, string | boolean | number> } {
+  const body: Record<string, string | boolean | number> = {};
   if (currency === "EUR" || currency === "USD") body.currency = currency;
   if (intent.kind === "PLAN") {
     body.plan = intent.plan;
@@ -28,6 +28,12 @@ export function checkoutRequest(intent: PurchaseIntent, provider: PurchaseProvid
   if (intent.currency === "EUR" || intent.currency === "USD") body.currency = intent.currency;
   body.addonKey = intent.addonKey;
   body.billingCycle = "MONTHLY";
+  // Stacking is a decision, not a retry: sent only after the customer said yes
+  // to the second charge, never on a first attempt.
+  if (intent.confirmAdditional === true) {
+    body.confirmAdditional = true;
+    if (typeof intent.heldCount === "number") body.heldCount = intent.heldCount;
+  }
   return { path: `/v1/billing/storage-addons/checkout/${provider}`, body };
 }
 
@@ -100,12 +106,12 @@ export function payPalReturnNotice(
         return "Payment received. Your evidence credit has been added.";
       case "PENDING":
         return r.reason === "AWAITING_APPROVAL"
-          ? "PayPal has not confirmed this payment — nothing has been charged."
+          ? "PayPal still shows this waiting for your approval. Nothing is charged unless you approve it."
           : "PayPal is still processing this payment. PROOVRA keeps checking automatically; your credit is added when it settles.";
       case "FAILED":
         return "PayPal declined this payment, so no credit was added.";
       case "CANCELED":
-        return "This PayPal payment was cancelled. Nothing was charged.";
+        return "This PayPal payment was cancelled, so no credit was added.";
       default:
         return "We could not confirm this PayPal payment yet. PROOVRA keeps checking automatically.";
     }
@@ -118,7 +124,7 @@ export function payPalReturnNotice(
     case "PENDING":
       return "You approved this at PayPal and PayPal is activating it. PROOVRA keeps checking automatically.";
     case "AWAITING_APPROVAL":
-      return "PayPal has not confirmed your approval — nothing has been charged. An approval not completed within 24 hours is closed automatically.";
+      return "PayPal still shows this waiting for your approval. Nothing is charged unless you approve it. An approval not completed within 24 hours is closed automatically.";
     case "PAYMENT_PROBLEM":
       return "PayPal reports a problem collecting this payment.";
     case "ENDED":

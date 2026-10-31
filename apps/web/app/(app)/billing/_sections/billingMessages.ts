@@ -80,6 +80,16 @@ const REFUSAL_COPY: Record<string, Omit<BillingErrorNotice, "supportReference">>
     message: "You already have a subscription on this account. Use Manage plan to change it instead of buying a second one.",
     tone: "info",
   },
+  PLAN_CHANGE_ENDS_STORAGE: {
+    title: "This plan does not include some of your storage",
+    message: "Your Team-size storage stays until its paid date and then stops renewing. Review the change, then confirm it again.",
+    tone: "info",
+  },
+  PLAN_CHANGE_STORAGE_MUST_END_FIRST: {
+    title: "End your storage add-on first",
+    message: "This plan does not include your Team storage, and we cannot stop that add-on from here. Nothing was changed. Contact support to end the add-on, then change your plan.",
+    tone: "error",
+  },
   STORAGE_ADDON_ALREADY_HELD: {
     title: "You already pay for this size",
     message: "You already pay for this storage size. Buying it again adds another recurring charge and more storage.",
@@ -642,7 +652,7 @@ export function downgradeAddonNote(
   if (addons.length === 0) return null;
   const sizes = addons.map((addon) => addon.storageLabel).join(", ");
   const one = addons.length === 1;
-  return `Your Team-size storage add-on${one ? "" : "s"} (${sizes}) ${one ? "is" : "are"} not cancelled by this change and will keep billing after you move to ${offer.displayName}. Cancel ${one ? "it" : "them"} under Storage if you no longer want the capacity.`;
+  return `${offer.displayName} does not include your Team-size storage add-on${one ? "" : "s"} (${sizes}). If you continue, ${one ? "it stays until its" : "they stay until their"} paid date and then ${one ? "stops" : "stop"} renewing. Nothing replaces ${one ? "it" : "them"} and your evidence is kept, but you cannot add more while you are over your storage limit.`;
 }
 
 /**

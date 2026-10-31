@@ -1072,7 +1072,7 @@ test("a scheduled downgrade is stated before the plan can be misread", () => {
 test("changing plan is a different act from starting a checkout", () => {
   const page = read(PAGE);
   // Collapsing them is how a PRO customer wanting TEAM ended up paying twice.
-  assert.match(page, /changePlan\(\{ plan: offer\.planKey \}\)/);
+  assert.match(page, /changePlan\(\{\s*plan: offer\.planKey,/);
   assert.match(page, /onChangePlan=/);
   // The confirmation text is the SERVER's, not a sentence assembled here.
   assert.match(page, /description: offer\.effectSummary/);

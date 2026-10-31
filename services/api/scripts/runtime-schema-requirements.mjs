@@ -540,6 +540,29 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "reconciliation records a provider reference the provider does not know here",
     suppliedBy: "20281030000000_billing_remediation_convergence",
   },
+  // 20281031000000 — billing product decisions. Both columns are mapped in every
+  // subscription and add-on read.
+  {
+    id: "subscriptions.addon_end_consent_plan",
+    kind: "column",
+    detail: 'column public."subscriptions"."addon_end_consent_plan" must exist',
+    requiredBy: "every subscription read selects it through the Prisma client",
+    suppliedBy: "20281031000000_billing_product_decisions",
+  },
+  {
+    id: "workspace_storage_addons.depends_on_plan_grant_id",
+    kind: "column",
+    detail: 'column public."workspace_storage_addons"."depends_on_plan_grant_id" must exist',
+    requiredBy: "every storage add-on read selects it through the Prisma client",
+    suppliedBy: "20281031000000_billing_product_decisions",
+  },
+  {
+    id: "billing_provider_customers.table",
+    kind: "table",
+    detail: 'table public."billing_provider_customers" must exist',
+    requiredBy: "a Stripe checkout resolves the billing owner's customer here",
+    suppliedBy: "20281031000000_billing_product_decisions",
+  },
 ]);
 
 /**
@@ -937,6 +960,8 @@ const PROBES = Object.freeze({
   // 20281030000000 — billing remediation.
   "subscriptions.provider_schedule_id": columnProbe("subscriptions", "provider_schedule_id"),
   "payments.refunded_amount_cents": columnProbe("payments", "refunded_amount_cents"),
+  "subscriptions.addon_end_consent_plan": columnProbe("subscriptions", "addon_end_consent_plan"),
+  "workspace_storage_addons.depends_on_plan_grant_id": columnProbe("workspace_storage_addons", "depends_on_plan_grant_id"),
   "payment_adjustments.table": `
     SELECT 1
       FROM information_schema.tables
@@ -948,6 +973,12 @@ const PROBES = Object.freeze({
       FROM information_schema.tables
      WHERE table_schema = 'public'
        AND table_name = 'billing_provider_binding_checks'
+     LIMIT 1`,
+  "billing_provider_customers.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'billing_provider_customers'
      LIMIT 1`,
   ...Object.fromEntries(
     RUNTIME_SCHEMA_REQUIREMENTS.filter(

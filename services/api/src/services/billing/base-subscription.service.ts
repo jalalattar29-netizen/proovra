@@ -198,6 +198,7 @@ export async function loadDependencyContext(
   input: { ownerUserId: string; teamId: string | null; endingBaseIds?: string[] },
 ): Promise<{
   satisfyingBase: { id: string; plan: prismaPkg.PlanType } | null;
+  downgradingBase: DependencyBase | null;
   endedBases: DependencyBase[];
 }> {
   const ending = input.endingBaseIds ?? [];
@@ -233,7 +234,12 @@ export async function loadDependencyContext(
         canceledAtUtc: null,
       },
       orderBy: { createdAt: "desc" },
-      select: { id: true, plan: true },
+      select: {
+        ...select,
+        pendingPlan: true,
+        pendingPlanAwaitingApproval: true,
+        addonEndConsentPlan: true,
+      },
     }),
     client.subscription.findMany({
       where: {
@@ -250,6 +256,20 @@ export async function loadDependencyContext(
       select,
     }),
   ]);
-  return { satisfyingBase: satisfying, endedBases: ended };
+  // BILLING DECISIONS (2026-10-31, D1) — the plan this base is moving to decides
+  // only when the customer agreed to what it does to their storage. A downgrade
+  // scheduled without that agreement keeps today's behaviour: nothing it did not
+  // tell them about ends because of it.
+  const movingTo =
+    satisfying?.pendingPlan &&
+    !satisfying.pendingPlanAwaitingApproval &&
+    satisfying.addonEndConsentPlan === satisfying.pendingPlan
+      ? satisfying.pendingPlan
+      : null;
+  return {
+    satisfyingBase: satisfying ? { id: satisfying.id, plan: movingTo ?? satisfying.plan } : null,
+    downgradingBase: movingTo ? satisfying : null,
+    endedBases: ended,
+  };
 }
 

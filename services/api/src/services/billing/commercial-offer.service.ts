@@ -215,7 +215,7 @@ export function compareStripePrice(price: StripePriceFacts, offer: CommercialOff
 }
 
 /** The mode this deployment's key talks to, or null when it cannot be told. */
-function stripeKeyMode(): "live" | "test" | null {
+export function stripeKeyMode(): "live" | "test" | null {
   const key = getSecret("STRIPE_SECRET_KEY") ?? "";
   return key.startsWith("sk_live_") || key.startsWith("rk_live_")
     ? "live"

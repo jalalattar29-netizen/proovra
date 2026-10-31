@@ -50,6 +50,12 @@ export type StorageSkuHolding = {
   activeCount: number;
   /** Purchases that have not completed. Not capacity, and not a charge yet. */
   pendingCount: number;
+  /** Of `activeCount`: usable only in an older workspace. */
+  legacyWorkspaceCount: number;
+  /** Of `activeCount`: a payment failed and the provider is retrying. */
+  pastDueCount: number;
+  /** Of `activeCount`: will not renew. */
+  endingCount: number;
   /** The recurring amount of the live rows, or null when it is not all known. */
   monthlyCents: number | null;
   currency: string | null;
@@ -91,6 +97,9 @@ export function summarizeStorageAddons(active: ActiveStorageAddon[]): StorageHol
       storageLabel: addon.storageLabel,
       activeCount: 0,
       pendingCount: 0,
+      legacyWorkspaceCount: 0,
+      pastDueCount: 0,
+      endingCount: 0,
       monthlyCents: 0,
       currency: addon.currency ?? null,
     };
@@ -101,6 +110,9 @@ export function summarizeStorageAddons(active: ActiveStorageAddon[]): StorageHol
       continue;
     }
     held.activeCount += 1;
+    if (addon.legacyWorkspace) held.legacyWorkspaceCount += 1;
+    if (addon.paymentDue) held.pastDueCount += 1;
+    if (addon.ending) held.endingCount += 1;
     // Not a recurring commitment: no further charge is coming.
     if (addon.legacyOneTime || addon.ending) continue;
 
@@ -122,6 +134,15 @@ export function summarizeStorageAddons(active: ActiveStorageAddon[]): StorageHol
           .filter((total): total is string => total !== null)
       : null,
   };
+}
+
+/** What one size's count is made of, when it is not simply active here. */
+export function holdingQualifiers(sku: StorageSkuHolding): string[] {
+  return [
+    sku.legacyWorkspaceCount > 0 ? `${sku.legacyWorkspaceCount} in an older workspace` : null,
+    sku.pastDueCount > 0 ? `${sku.pastDueCount} payment due` : null,
+    sku.endingCount > 0 ? `${sku.endingCount} ending` : null,
+  ].filter((part): part is string => part !== null);
 }
 
 /**

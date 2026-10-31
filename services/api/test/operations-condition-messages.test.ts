@@ -44,6 +44,7 @@ const SAMPLE: Record<ConditionMessageCode, Record<string, unknown>> = {
   "ops.billing.dependent_cancellation.ungrantable_manual": { payer: "personal" },
   "ops.billing.dependent_cancellation.ungrantable_stopping": { payer: "workspace" },
   "ops.billing.dependent_cancellation.pending": { payer: "workspace" },
+  "ops.billing.dependent_cancellation.entitlement_changed": { payer: "personal" },
   "ops.billing.dependent_cancellation.retry_provider_unreachable": { payer: "personal" },
   "ops.billing.dependent_cancellation.retry": { payer: "workspace" },
   "ops.billing.dependent_cancellation.manual": { payer: "personal" },

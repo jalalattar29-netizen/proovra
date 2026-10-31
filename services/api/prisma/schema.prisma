@@ -1188,6 +1188,7 @@ model User {
   billingCheckoutAttempts           BillingCheckoutAttempt[]
   billingReviewItems                BillingReviewItem[]
   billingProviderBindingChecks      BillingProviderBindingCheck[]
+  billingProviderCustomers          BillingProviderCustomer[]
   evidenceAiCategorizations         EvidenceAiCategorization[]
   evidenceAnnotations               EvidenceAnnotation[]
   evidenceLegalNotes                EvidenceLegalNote[]
@@ -2130,6 +2131,10 @@ model WorkspaceStorageAddon {
   /// does not need a paid plan (a Free account may hold it), or a legacy row,
   /// which the dependency rule decides from its SKU.
   dependsOnSubscriptionId                        String?                     @map("depends_on_subscription_id") @db.Uuid
+  /// BILLING DECISIONS (2026-10-31, D2) — the internal plan grant that made this
+  /// SKU available, recorded at activation. NULL on rows activated before this
+  /// existed: those keep today's behaviour until an owner decides otherwise.
+  dependsOnPlanGrantId                           String?                     @map("depends_on_plan_grant_id") @db.Uuid
   metadata                                       Json?
   createdAt                                      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                                      DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -2145,6 +2150,7 @@ model WorkspaceStorageAddon {
   @@index([currentPeriodEnd])
   @@index([expiresAtUtc])
   @@index([canceledAtUtc])
+  @@index([dependsOnPlanGrantId])
   @@map("workspace_storage_addons")
 }
 
@@ -2667,10 +2673,12 @@ model EvidenceCreditLedgerEntry {
   id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId       String                  @map("user_id") @db.Uuid
   entryType    EvidenceCreditEntryType @map("entry_type")
-  /// Signed movement: positive for PURCHASE / REVERSAL, negative for CONSUMPTION.
+  /// Signed movement: positive for PURCHASE and ADMIN_GRANT, negative for
+  /// CONSUMPTION and for the REVERSAL that removes credits a provider refunded.
   creditsDelta Int                     @map("credits_delta")
-  /// Set on CONSUMPTION and on the REVERSAL that undoes one. UNIQUE — the
-  /// per-Evidence idempotency key.
+  /// Set on CONSUMPTION only. UNIQUE — the per-Evidence idempotency key. A spend
+  /// commits in the record's finalization transaction, so a completion that
+  /// fails leaves no entry to undo, and a retried output never reaches it.
   evidenceId   String?                 @unique @map("evidence_id") @db.Uuid
   /// Provider payment identity for a PURCHASE. Never a raw provider payload.
   provider     PaymentProvider?
@@ -2739,6 +2747,12 @@ model Subscription {
   billedUnitAmountCents     Int?               @map("billed_unit_amount_cents")
   pendingPlan               PlanType?          @map("pending_plan")
   pendingPlanEffectiveAtUtc DateTime?          @map("pending_plan_effective_at_utc") @db.Timestamptz(6)
+  /// BILLING DECISIONS (2026-10-31, D1) — the plan the customer agreed to move
+  /// to knowing plan-only storage would stop renewing. Only a pending change
+  /// matching this ends add-ons, so a change scheduled before this existed, on
+  /// terms that did not say so, never does.
+  addonEndConsentPlan       PlanType?          @map("addon_end_consent_plan")
+  addonEndConsentAtUtc      DateTime?          @map("addon_end_consent_at_utc") @db.Timestamptz(6)
   /// BILLING REMEDIATION (2026-10-30) — the Stripe Subscription Schedule that
   /// carries a scheduled downgrade. Written before the schedule's phases are
   /// edited, so a crash between the two provider calls leaves a findable
@@ -2856,6 +2870,33 @@ model PaymentAdjustment {
 /// says it does not know. Never revokes anything by itself: it spaces out the
 /// re-reads and gives an operator one durable row per reference. The next
 /// successful read of the reference resolves it.
+/// BILLING DECISIONS (2026-10-31, D4) — one billing owner's customer at one
+/// provider environment. A row is only ever written after the provider confirmed
+/// the customer, and it never moves between owners or between test and live.
+model BillingProviderCustomer {
+  id                         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                     String          @map("user_id") @db.Uuid
+  provider                   PaymentProvider
+  /// `live` or `test`, from the key that made the provider call.
+  environment                String          @db.VarChar(8)
+  providerCustomerId         String          @map("provider_customer_id") @db.VarChar(191)
+  /// ACTIVE, or CONFLICT when the provider's record does not match this owner.
+  state                      String          @default("ACTIVE") @db.VarChar(24)
+  /// CREATED, ADOPTED_BASE_PLAN or ADOPTED_STORAGE.
+  source                     String          @db.VarChar(24)
+  /// The customer this row replaced after the provider deleted it.
+  replacedProviderCustomerId String?         @map("replaced_provider_customer_id") @db.VarChar(191)
+  verifiedAtUtc              DateTime?       @map("verified_at_utc") @db.Timestamptz(6)
+  createdAt                  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, environment])
+  @@unique([provider, environment, providerCustomerId], map: "billing_provider_customers_customer_key")
+  @@map("billing_provider_customers")
+}
+
 model BillingProviderBindingCheck {
   id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId             String          @map("user_id") @db.Uuid

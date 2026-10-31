@@ -67,7 +67,10 @@ import {
   type ReportFreshness,
   projectOutputProgress,
 } from "@proovra/shared";
+import type { EvidenceFundingSource } from "@proovra/shared-billing";
+
 import { prisma } from "../db.js";
+import { resolveEvidenceFunding } from "./billing/evidence-credits.service.js";
 import {
   loadEvidenceOutputFacts,
   type NewVersionStorageEstimate,
@@ -211,6 +214,12 @@ export interface EvidenceArtifactStatus {
   evidenceId: string;
   status: prismaPkg.EvidenceStatus | null;
   finalized: boolean;
+  /**
+   * BILLING DECISIONS (2026-10-31, D5) — how this record's completion was paid
+   * for, from the ledger. A credit-funded record's outputs are already paid for,
+   * so a failed one is said to cost nothing to retry. Null when not readable.
+   */
+  recordFunding: EvidenceFundingSource | null;
   /**
    * The canonical output lifecycle for this record. New consumers read this;
    * the legacy booleans below are kept in agreement with it.
@@ -684,6 +693,7 @@ export async function buildEvidenceArtifactStatus(params: {
     evidenceId,
     status: params.evidenceStatus,
     finalized,
+    recordFunding: await resolveEvidenceFunding(evidenceId).catch(() => null),
     outputs: {
       report: reportOutput,
       verificationPackage: packageOutput,
