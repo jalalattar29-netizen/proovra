@@ -91,9 +91,12 @@ export default defineConfig({
    * The JSON report is the durable accounting input: the aggregate job reads
    * the four shard reports and proves 97 unique tests ran with no index missing
    * and none run twice. `list` stays so a human reading the log sees no change.
+   * `github` is CI only: it turns a failure into a check annotation, which can
+   * be read without the sign-in that job logs and artifacts require.
    */
   reporter: [
     ["list"],
+    ...(process.env.CI ? ([["github"]] as [["github"]]) : []),
     [
       "json",
       {
