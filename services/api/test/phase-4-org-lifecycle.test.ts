@@ -36,6 +36,8 @@ function makeTx() {
     {},
     {
       get(_t, model: string) {
+        // The termination lock resume serialises on.
+        if (model === "$executeRaw") return async () => 0;
         /**
          * ARCH-004 (2026-08-07) — the transaction client now also carries
          * `$queryRawUnsafe`, because Organization suspension/resume moves

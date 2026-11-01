@@ -42,7 +42,11 @@ import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import { provisionMembership } from "./identity/membership-provisioning.service.js";
 // PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2).
-import { upsertEnterpriseContract } from "./organization/enterprise-contract.service.js";
+import {
+  updateEnterpriseContractTermsTx,
+  upsertEnterpriseContract,
+  type EnterpriseContractTerms,
+} from "./organization/enterprise-contract.service.js";
 // Macro-Wave A2 — durable owner-invite delivery: outbox row committed in
 // the SAME transaction as the ORG_OWNER invite, inline first email attempt
 // after commit (raw token in memory only), worker-driven rotation retries
@@ -73,6 +77,11 @@ export class EnterpriseProvisioningError extends Error {
     // ORG_NOT_FOUND, which would tell an operator to go looking for a row
     // that is right there.
     | "NOT_CUSTOMER_ORGANIZATION"
+    // PROV-010 / BILLING-006 — a plan grant is not a way round the lifecycle.
+    | "ORG_NOT_ACTIVE"
+    | "OWNER_NOT_PENDING"
+    | "CONTRACT_NOT_GRANTABLE"
+    | "SEATS_REQUIRED"
     // PHASE 4 §7.1 (2026-07-22) — idempotency outcomes.
     | "IDEMPOTENCY_CONFLICT"
     | "PROVISIONING_IN_PROGRESS";
@@ -116,41 +125,46 @@ export async function grantEnterprisePlanToOrg(
 ): Promise<GrantEnterprisePlanResult> {
   const plan: GrantablePlan = input.plan ?? "ENTERPRISE";
 
-  // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — seats come from the
-  // CONTRACT when one states them.
-  //
-  // This was `input.seats ?? getPlanCapabilities(plan).includedSeats`, so an
-  // Enterprise organization whose contract said 400 seats was provisioned with
-  // the catalog placeholder of 5 unless the caller happened to repeat the
-  // number. The contract is the purchased right; the catalog default applies
-  // only when neither the caller nor the contract states one.
-  const contractSeats = await (async () => {
-    try {
-      const row = await client.enterpriseContract.findUnique({
-        where: { organizationId: input.orgId },
-        select: { status: true, seatCount: true },
-      });
-      if (row && row.status === "ACTIVE" && (row.seatCount ?? 0) > 0) {
-        return row.seatCount as number;
-      }
-    } catch {
-      // Migration-window tolerant: a missing table means no contract yet.
-    }
-    return null;
-  })();
-
-  const seats =
-    input.seats ?? contractSeats ?? getPlanCapabilities(plan).includedSeats;
-
   const result = await client.$transaction(async (tx) => {
     const org = await tx.organization.findUnique({
       where: { id: input.orgId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!org) {
       throw new EnterpriseProvisioningError(
         "ORG_NOT_FOUND",
         "Organization not found.",
+      );
+    }
+    // Serialise with termination, which holds this lock while it writes.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`enterprise-termination:${input.orgId}`}))`;
+    /*
+     * PROV-010 / BILLING-006 — A PLAN GRANT IS NOT A WAY ROUND THE LIFECYCLE.
+     *
+     * This checked only that the organization existed, then wrote ACTIVE over a
+     * TERMINATED contract, over closed workspaces and over a termination still
+     * running. And it read seats only from an ACTIVE contract, so repairing a
+     * suspended 400-seat customer without repeating the number made them a
+     * 5-seat one. The grant applies to an operating organization whose contract
+     * can take it, and silence about seats means what the contract says, or
+     * nothing: the catalog placeholder is never a contract term.
+     */
+    if (org.status !== "ACTIVE") {
+      throw new EnterpriseProvisioningError(
+        "ORG_NOT_ACTIVE",
+        "The plan can be granted only to an active organization.",
+      );
+    }
+    const contract = await tx.enterpriseContract.findUnique({
+      where: { organizationId: input.orgId },
+      select: { status: true, seatCount: true },
+    });
+    if (contract?.status === "TERMINATED" || contract?.status === "SUSPENDED") {
+      throw new EnterpriseProvisioningError(
+        "CONTRACT_NOT_GRANTABLE",
+        contract.status === "TERMINATED"
+          ? "A terminated contract is final."
+          : "This contract is suspended. Resume the organization to reinstate it.",
       );
     }
     /*
@@ -173,12 +187,18 @@ export async function grantEnterprisePlanToOrg(
      */
 
     const workspaces = await tx.team.findMany({
-      where: { organizationId: input.orgId },
+      where: { organizationId: input.orgId, closedAtUtc: null },
       select: {
         id: true,
         isPersonal: true,
       },
     });
+    if (workspaces.length === 0) {
+      throw new EnterpriseProvisioningError(
+        "ORG_HAS_NO_WORKSPACES",
+        "This organization has no workspace yet. Its owner's acceptance creates it.",
+      );
+    }
 
     /*
      * The guard reads the workspaces this grant is about to rewrite, rather
@@ -188,6 +208,14 @@ export async function grantEnterprisePlanToOrg(
       throw new EnterpriseProvisioningError(
         "NOT_CUSTOMER_ORGANIZATION",
         "Plan grants apply to customer organizations, not to a personal space container.",
+      );
+    }
+
+    const seats = input.seats ?? contract?.seatCount ?? null;
+    if (seats === null || seats <= 0) {
+      throw new EnterpriseProvisioningError(
+        "SEATS_REQUIRED",
+        "This contract states no seats. State how many were sold.",
       );
     }
 
@@ -248,8 +276,9 @@ export async function grantEnterprisePlanToOrg(
       },
     });
 
-    return { workspacesUpdated: workspaces.length, workspaceIds: workspaces.map((w) => w.id) };
+    return { workspacesUpdated: workspaces.length, workspaceIds: workspaces.map((w) => w.id), seats };
   });
+  const { seats } = result;
 
   // Members re-audit ENT-05 / defect 14 — one seat answer. The canonical
   // resolver reads the commercial context the grant just committed, so it runs
@@ -281,6 +310,69 @@ export async function grantEnterprisePlanToOrg(
   };
 }
 
+/**
+ * BILLING-002 — state the terms of a sold contract, for every workspace of the
+ * organization. Seats also move `Team.includedSeats`, and the seat posture is
+ * persisted after commit by the one canonical writer, like a plan grant.
+ */
+export async function updateEnterpriseContractTerms(
+  input: {
+    organizationId: string;
+    actorUserId: string;
+    terms: EnterpriseContractTerms;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ organizationId: string; changed: string[] }> {
+  const result = await client.$transaction(async (tx) => {
+    const { changed, seatCountChanged } = await updateEnterpriseContractTermsTx(tx, {
+      organizationId: input.organizationId,
+      terms: input.terms,
+    });
+    const workspaces = await tx.team.findMany({
+      where: { organizationId: input.organizationId, closedAtUtc: null },
+      select: { id: true },
+    });
+    if (seatCountChanged) {
+      await tx.team.updateMany({
+        where: { id: { in: workspaces.map((w) => w.id) } },
+        data: { includedSeats: input.terms.seatCount as number },
+      });
+    }
+    if (Object.keys(changed).length > 0) {
+      await emitOrgAuditEvent(tx, {
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        eventType: "ENTERPRISE_CONTRACT_TERMS_UPDATED",
+        targetType: "organization",
+        targetId: input.organizationId,
+        metadata: { changed: JSON.parse(JSON.stringify(changed)) },
+      });
+    }
+    return { changed, seatCountChanged, workspaceIds: workspaces.map((w) => w.id) };
+  });
+
+  if (result.seatCountChanged) {
+    for (const workspaceId of result.workspaceIds) {
+      await refreshTeamSeatState(workspaceId, client as never);
+    }
+  }
+  const changed = Object.keys(result.changed);
+  if (changed.length > 0) {
+    await emitTenantAudit({
+      action: "ENTERPRISE_CONTRACT_TERMS_UPDATED",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      actorAuthority: "PLATFORM_ADMIN",
+      organizationId: input.organizationId,
+      resourceType: "enterprise_contract",
+      resourceId: input.organizationId,
+      metadata: { changed: JSON.parse(JSON.stringify(result.changed)) },
+    }, client).catch(() => null);
+  }
+  return { organizationId: input.organizationId, changed };
+}
+
 // =============================================================================
 // PHASE 4 §7.1 (2026-07-22) — idempotent Enterprise provisioning.
 //
@@ -298,7 +390,10 @@ export async function grantEnterprisePlanToOrg(
 //      them: one runs, the loser replays/receives PROVISIONING_IN_PROGRESS.
 //   5. failed attempt → the request row is FAILED; a same-key+same-payload
 //      retry re-runs the (single-transaction) provisioning safely — a
-//      failed attempt leaves no partial customer.
+//      failed attempt leaves no partial customer. The COMPLETED row commits in
+//      the provisioning transaction (PROV-006), so there is no moment at which a
+//      customer exists and the request says otherwise, and nothing after that
+//      commit can fail the request.
 // =============================================================================
 
 /** Deterministic hash of the provisioning payload (identity-relevant fields). */
@@ -309,6 +404,7 @@ function provisioningPayloadHash(input: {
   workspaceName?: string;
   region?: string | null;
   externalContractRef?: string | null;
+  terms?: ProvisioningContractTerms;
 }): string {
   return createHash("sha256")
     .update(
@@ -319,6 +415,7 @@ function provisioningPayloadHash(input: {
         workspaceName: input.workspaceName?.trim() ?? null,
         region: input.region ?? null,
         externalContractRef: input.externalContractRef ?? null,
+        ...(input.terms ? { terms: input.terms } : {}),
       }),
     )
     .digest("hex");
@@ -463,35 +560,27 @@ export async function provisionEnterpriseCustomerIdempotent(
       seats: input.seats,
       workspaceName: input.workspaceName,
       actorUserId: input.actorUserId,
+      region: input.region,
+      externalContractRef: input.externalContractRef,
+      terms: input.terms,
+      provisioningRequestId: requestId,
     };
     const result = deps.provision
       ? await deps.provision(args, client)
       : await provisionEnterpriseCustomer(args, client);
 
-    // Region is contract state (§7.2) — record it on the contract row.
-    if (input.region) {
-      const delegate = (client as { enterpriseContract?: unknown }).enterpriseContract;
-      if (delegate) {
-        try {
-          await client.enterpriseContract.update({
-            where: { organizationId: result.organizationId },
-            data: { region: input.region.slice(0, 40) },
-          });
-        } catch (err) {
-          const code = (err as { code?: string })?.code;
-          if (code !== "P2021" && code !== "P2022" && code !== "P2025") throw err;
-        }
-      }
-    }
-
-    await client.enterpriseProvisioningRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "COMPLETED",
-        resultOrganizationId: result.organizationId,
-        resultJson: redactProvisioningResult(result) as never,
-      },
-    });
+    // The request completed with the customer; this adds what only the send
+    // could know. Best effort, because everything that matters has committed.
+    await client.enterpriseProvisioningRequest
+      .update({
+        where: { id: requestId },
+        data: {
+          status: "COMPLETED",
+          resultOrganizationId: result.organizationId,
+          resultJson: redactProvisioningResult(result) as never,
+        },
+      })
+      .catch(() => null);
 
     // Advisory duplicate report (rule 3): same normalized name among
     // OTHER CUSTOMER orgs — never auto-merged, operator reviews.
@@ -525,12 +614,28 @@ export async function provisionEnterpriseCustomerIdempotent(
   }
 }
 
+export type ProvisioningContractTerms = Pick<
+  EnterpriseContractTerms,
+  | "evidenceRecordsPerMonth"
+  | "aiOperationsPerMonth"
+  | "collaborationTeamsMax"
+  | "collaborationTeamMembersMax"
+  | "legalHoldEnabled"
+  | "reviewerOperationsEnabled"
+>;
+
 export type ProvisionEnterpriseCustomerInput = {
   organizationName: string;
   ownerEmail: string;
   seats?: number;
   workspaceName?: string;
   actorUserId: string;
+  region?: string | null;
+  externalContractRef?: string | null;
+  /** What the contract sold, recorded with the customer. */
+  terms?: ProvisioningContractTerms;
+  /** The idempotent request this run completes, in its own transaction. */
+  provisioningRequestId?: string;
 };
 
 export type ProvisionEnterpriseCustomerResult = {
@@ -617,6 +722,9 @@ export async function provisionEnterpriseCustomer(
       activationState: "OWNER_INVITED",
       seatCount: seats,
       contractOwnerUserId: null,
+      ...(input.region ? { region: input.region.slice(0, 40) } : {}),
+      ...(input.externalContractRef ? { externalContractRef: input.externalContractRef } : {}),
+      ...input.terms,
     });
 
     const invite = await tx.organizationInvite.create({
@@ -674,9 +782,30 @@ export async function provisionEnterpriseCustomer(
       initiatedByUserId: input.actorUserId,
     });
 
+    // PROV-006 — the customer and the record that it exists commit as one, so a
+    // crash after this point replays the customer instead of creating another.
+    if (input.provisioningRequestId) {
+      await tx.enterpriseProvisioningRequest.update({
+        where: { id: input.provisioningRequestId },
+        data: {
+          status: "COMPLETED",
+          resultOrganizationId: org.id,
+          resultJson: {
+            organizationId: org.id,
+            ownerInviteToken: null,
+            inviteUrl: null,
+            oneTimeSecretRedacted: true,
+            provisioned: false,
+            pendingOwner: true,
+          },
+        },
+      });
+    }
+
     return { organizationId: org.id, inviteId: invite.id, deliveryId };
   });
 
+  // Nothing after the commit can fail provisioning: the customer exists.
   await emitTenantAudit({
     action: "ENTERPRISE_PROVISIONED",
     outcome: "success",
@@ -691,7 +820,7 @@ export async function provisionEnterpriseCustomer(
       provisioned: false,
       pendingOwner: true,
     },
-  }, client);
+  }, client).catch(() => null);
 
   // Macro-Wave A2 — inline FIRST delivery attempt (never throws; on
   // failure the outbox row stays PENDING and the worker-driven sweep
@@ -720,6 +849,140 @@ export async function provisionEnterpriseCustomer(
     ownerInviteDelivery,
     provisioned: false,
     pendingOwner: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PROV-005 — the operator's way back when a first owner's invitation fails.
+// ---------------------------------------------------------------------------
+
+/**
+ * Invitation routes are scoped to organization members, and a pending-owner
+ * organization has none, so nobody at all could resend or revoke its invitation.
+ * Once it expired or bounced, the customer was stranded, and provisioning again
+ * made a second organization. This revokes what is open and mints a new
+ * invitation, optionally to a corrected address. It applies only while the
+ * contract is still waiting for its first owner.
+ */
+export async function reissueEnterpriseOwnerInvite(
+  input: { organizationId: string; actorUserId: string; ownerEmail?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<{
+  organizationId: string;
+  email: string;
+  inviteUrl: string;
+  ownerInviteDelivery: Awaited<ReturnType<typeof attemptInitialOrgInviteDelivery>>;
+}> {
+  const token = newInviteToken();
+  const tokenHash = hashInviteToken(token);
+  const expiresAt = inviteExpiresAt();
+
+  const issued = await client.$transaction(async (tx) => {
+    const org = await tx.organization.findUnique({
+      where: { id: input.organizationId },
+      select: { id: true, name: true, status: true, pendingEnterpriseSeats: true },
+    });
+    if (!org) {
+      throw new EnterpriseProvisioningError("ORG_NOT_FOUND", "Organization not found.");
+    }
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`enterprise-termination:${input.organizationId}`}))`;
+    const contract = await tx.enterpriseContract.findUnique({
+      where: { organizationId: input.organizationId },
+      select: { status: true },
+    });
+    const workspaces = await tx.team.count({ where: { organizationId: input.organizationId } });
+    if (
+      org.status !== "ACTIVE" ||
+      org.pendingEnterpriseSeats === null ||
+      contract?.status !== "PENDING_ACTIVATION" ||
+      workspaces !== 0
+    ) {
+      throw new EnterpriseProvisioningError(
+        "OWNER_NOT_PENDING",
+        "This organization is not waiting for its first owner.",
+      );
+    }
+    const open = await tx.organizationInvite.findMany({
+      where: {
+        organizationId: input.organizationId,
+        role: "ORG_OWNER",
+        acceptedAt: null,
+        revokedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, email: true },
+    });
+    const email = input.ownerEmail?.trim().toLowerCase() || open[0]?.email;
+    if (!email) {
+      throw new EnterpriseProvisioningError(
+        "OWNER_NOT_PENDING",
+        "State the owner's address: no invitation is open.",
+      );
+    }
+    if (open.length > 0) {
+      // The delivery sweeper cancels a revoked invitation's outbox row.
+      await tx.organizationInvite.updateMany({
+        where: { id: { in: open.map((i) => i.id) } },
+        data: { revokedAt: new Date(), revokedByUserId: input.actorUserId },
+      });
+    }
+    const invite = await tx.organizationInvite.create({
+      data: {
+        organizationId: input.organizationId,
+        email,
+        role: "ORG_OWNER",
+        token: null,
+        tokenHash,
+        invitedByUserId: input.actorUserId,
+        expiresAt,
+      },
+      select: { id: true },
+    });
+    await emitOrgAuditEvent(tx, {
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      eventType: "ENTERPRISE_OWNER_INVITE_REISSUED",
+      targetType: "organization_invite",
+      targetId: invite.id,
+      metadata: { inviteId: invite.id, revokedInviteIds: open.map((i) => i.id), email },
+    });
+    const { deliveryId } = await recordOrgInviteDeliveryPending(tx, {
+      inviteId: invite.id,
+      organizationId: input.organizationId,
+      email,
+      initiatedByUserId: input.actorUserId,
+    });
+    return { deliveryId, email, organizationName: org.name };
+  });
+
+  await emitTenantAudit({
+    action: "ENTERPRISE_OWNER_INVITE_REISSUED",
+    outcome: "success",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    actorAuthority: "PLATFORM_ADMIN",
+    organizationId: input.organizationId,
+    resourceType: "organization",
+    resourceId: input.organizationId,
+    metadata: { email: issued.email },
+  }, client).catch(() => null);
+
+  const ownerInviteDelivery = await attemptInitialOrgInviteDelivery(
+    {
+      deliveryId: issued.deliveryId,
+      rawToken: token,
+      organizationName: issued.organizationName,
+      role: "ORG_OWNER",
+      inviterDisplay: null,
+      expiresAt,
+    },
+    client,
+  );
+  return {
+    organizationId: input.organizationId,
+    email: issued.email,
+    inviteUrl: `/org-invites/${token}/accept`,
+    ownerInviteDelivery,
   };
 }
 

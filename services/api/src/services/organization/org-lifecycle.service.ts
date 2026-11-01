@@ -50,6 +50,8 @@ import {
   suspendAllOrganizationMemberships,
 } from "../identity/org-membership-lifecycle.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
+import { reinstateEnterpriseContractTx } from "./enterprise-contract.service.js";
+import { isContractTerminationClosure } from "./enterprise-termination.service.js";
 
 /** SSO/SCIM string-status marker written by suspend, reverted by resume. */
 export const ORG_SUSPENSION_STATUS = "SUSPENDED";
@@ -330,18 +332,48 @@ export async function resumeOrganization(input: {
   apiCredentialsRestored: number;
   /** ARCH-004 — how many governance memberships this resume reinstated. */
   governanceMembershipsRestored: number;
+  /** PROV-009 — the status a withdrawn termination's contract returned to. */
+  contractReinstatedTo: string | null;
 }> {
   const { organizationId, actorUserId } = input;
 
   const result = await prisma.$transaction(async (tx) => {
     const org = await loadCustomerOrg(tx, organizationId);
-    if (org.status !== "SUSPENDED") {
-      // ARCHIVED is permanent; ACTIVE has nothing to resume.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`enterprise-termination:${organizationId}`}))`;
+    // A scheduled termination is withdrawn first, by its own operator action.
+    const termination = await tx.organizationClosureRequest.findFirst({
+      where: {
+        organizationId,
+        status: { in: ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"] },
+      },
+      select: { reason: true },
+    });
+    if (isContractTerminationClosure(termination?.reason)) {
+      throw lifecycleError(
+        409,
+        "TERMINATION_SCHEDULED",
+        "This organization has a termination scheduled. Withdraw the termination first",
+      );
+    }
+    /*
+     * PROV-009 / BILLING-005 — THE WAY BACK FROM A WITHDRAWN TERMINATION.
+     *
+     * Termination suspends the contract and leaves the organization ACTIVE, so
+     * this function refused the organization for not being SUSPENDED, and even
+     * when it was, it restored the organization and left the contract granting
+     * nothing. Resuming is the explicit act that returns the contract.
+     */
+    const contract = await reinstateEnterpriseContractTx(tx as never, { organizationId });
+    if (org.status !== "SUSPENDED" && !contract) {
+      // ARCHIVED is permanent; ACTIVE with a live contract has nothing to resume.
       throw lifecycleError(
         409,
         "ORG_NOT_SUSPENDED",
         "Only a suspended organization can be resumed",
       );
+    }
+    if (org.status === "ARCHIVED") {
+      throw lifecycleError(409, "ORG_NOT_SUSPENDED", "An archived organization cannot be resumed");
     }
 
     await tx.organization.update({
@@ -436,6 +468,7 @@ export async function resumeOrganization(input: {
         scimTokensRestored,
         apiCredentialsRestored,
         governanceMembershipsRestored,
+        contractReinstatedTo: contract?.reinstatedTo ?? null,
       },
     });
 
@@ -444,6 +477,7 @@ export async function resumeOrganization(input: {
       scimTokensRestored,
       apiCredentialsRestored,
       governanceMembershipsRestored,
+      contractReinstatedTo: contract?.reinstatedTo ?? null,
       previousStatus: org.status,
       organizationName: org.name,
     };

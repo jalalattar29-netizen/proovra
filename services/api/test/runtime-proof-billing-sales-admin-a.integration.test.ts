@@ -803,6 +803,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
           teamId: harness.fixtures.teamA.teamId,
           organizationName: name,
           ownerEmail: owner.email,
+          seats: 10,
         },
       });
       expect(refused.statusCode).toBe(403);
@@ -815,7 +816,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         method: "POST",
         url: "/v1/admin/enterprise/provision",
         token: op.token,
-        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} A`, ownerEmail: owner.email },
+        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} A`, ownerEmail: owner.email, seats: 10 },
         headers: { "x-proovra-step-up-challenge-id": first },
       });
       expect(created.statusCode, created.body).toBe(201);
@@ -825,7 +826,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         method: "POST",
         url: "/v1/admin/enterprise/provision",
         token: op.token,
-        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} B`, ownerEmail: owner.email },
+        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} B`, ownerEmail: owner.email, seats: 10 },
         headers: { "x-proovra-step-up-challenge-id": second },
       });
       expect(conflict.statusCode).toBe(409);

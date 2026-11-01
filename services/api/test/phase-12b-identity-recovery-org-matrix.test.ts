@@ -108,7 +108,8 @@ vi.mock("../src/db.js", () => ({
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
 // Members re-audit ENT-05 — the org workspaces route projects the canonical
 // seat state; this in-memory matrix is about identity recovery, not seats.
-vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   resolveWorkspaceSeatState: async () => ({
     plan: "ENTERPRISE",
     used: 3,
@@ -608,6 +609,8 @@ vi.mock("../src/services/organization/org-invite-acceptance.service.js", () => (
   },
 }));
 vi.mock("../src/services/workspace/workspace-lifecycle.service.js", () => ({
+  OrganizationOwnershipTransferError: class extends Error {},
+  transferOrganizationWorkspaceOwnersTx: async () => ({ workspaceIds: [] }),
   suspendOrganizationWorkspace: async () => ({ suspended: true }),
   resumeOrganizationWorkspace: async () => ({ resumed: true }),
 }));
@@ -888,6 +891,9 @@ function makeDb() {
   for (const m of MODELS) store.set(m, []);
   const db: Record<string, unknown> = {
     __store: store,
+    // The owners lock: a behaviour of PostgreSQL, proven in
+    // org-ownership-continuity.integration.test.ts.
+    $executeRaw: async () => 0,
     $transaction: async (arg: unknown) =>
       Array.isArray(arg)
         ? Promise.all(arg)
@@ -3491,7 +3497,9 @@ describe("SYSTEM 8 — organization identity", () => {
     expect(promote.statusCode).toBe(403);
     expect(membershipRow(MEMBERSHIP_TARGET)!.role).toBe("ORG_SECURITY_ADMIN");
 
-    // The LAST ORG_OWNER can never be demoted — ADMIN_3 is now the only one.
+    // The LAST ORG_OWNER can never be demoted — ADMIN_3 is now the only one. The
+    // role check is asked again under the owners lock (AUTHZ-008), so a caller
+    // who stopped being an owner is refused before the count is reached.
     H.orgAccess = { kind: "ok", role: "ORG_OWNER" };
     membershipRow(MEMBERSHIP_ADMIN)!.role = "ORG_ADMIN";
     const demoteLast = await app.inject({
@@ -3500,8 +3508,8 @@ describe("SYSTEM 8 — organization identity", () => {
       headers: JSON_HEADERS,
       payload: { role: "ORG_ADMIN" },
     });
-    expect(demoteLast.statusCode).toBe(409);
-    expect(JSON.parse(demoteLast.body).message).toContain("last ORG_OWNER");
+    expect(demoteLast.statusCode).toBe(403);
+    expect(membershipRow(MEMBERSHIP_OWNER)!.role).toBe("ORG_OWNER");
   });
 
   it("member removal off-boards through the canonical orchestrator and revokes sessions", async () => {
@@ -3561,7 +3569,7 @@ describe("SYSTEM 8 — organization identity", () => {
       method: "DELETE",
       url: ORGS(ORG) + "/members/" + MEMBERSHIP_OWNER,
     });
-    expect(lastOwner.statusCode).toBe(409);
+    expect(lastOwner.statusCode).toBe(403);
     expect(membershipRow(MEMBERSHIP_OWNER)).toBeTruthy();
     expect(H.writes).not.toContain("removeOrganizationMembership");
   });
@@ -3651,8 +3659,8 @@ describe("SYSTEM 8 — organization identity", () => {
       headers: JSON_HEADERS,
       payload: { targetUserId: SUBJECT },
     });
-    expect(ok.statusCode).toBe(200);
-    expect(JSON.parse(ok.body)).toEqual({
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(JSON.parse(ok.body)).toMatchObject({
       transferred: true,
       newOwnerUserId: SUBJECT,
       billingOwnerTransferred: true,
@@ -3731,6 +3739,8 @@ describe("SYSTEM 8 — organization identity", () => {
   });
 
   it("closure request enters COOLING_OFF once, then a second open request is a bounded conflict", async () => {
+    // Self-service closure is for an organization with no contract (PROV-014).
+    rows("enterpriseContract").length = 0;
     const res = await app.inject({
       method: "POST",
       url: ORGS(ORG) + "/closure",

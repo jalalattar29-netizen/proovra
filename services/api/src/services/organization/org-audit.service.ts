@@ -85,6 +85,12 @@ export const ORG_AUDIT_EVENT_TYPES = [
   //   ENTERPRISE_PROVISIONED: a platform admin provisioned a new
   //     enterprise customer (org + owner [+ workspace]).
   "ORG_PLAN_GRANTED",
+  // BILLING-002 — an operator stated or changed contract terms.
+  //   { changed: { [term]: { from, to } } }
+  "ENTERPRISE_CONTRACT_TERMS_UPDATED",
+  // PROV-005 — an operator reissued a pending owner's invitation.
+  //   { revokedInviteIds: string[], inviteId: string }
+  "ENTERPRISE_OWNER_INVITE_REISSUED",
   "ENTERPRISE_PROVISIONED",
   // Phase 3 — Enterprise Identity: DNS-verified domain ownership lifecycle.
   //   DOMAIN_ADDED:    an org admin registered a domain + received the DNS

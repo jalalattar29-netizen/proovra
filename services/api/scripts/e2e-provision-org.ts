@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   // account's other sessions.
   const session = await prisma.authenticatedSession.findFirst({
     where: { userId: owner.id, revokedAtUtc: null },
-    orderBy: { idpAuthAtUtc: "desc" },
+    orderBy: { issuedAtUtc: "desc" },
     select: { sessionIdHash: true },
   });
   const accepted = await acceptOrganizationInvite({

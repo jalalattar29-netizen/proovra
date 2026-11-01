@@ -41,12 +41,13 @@ Without it, the `SWITCHES` line reports how many subscriptions were not checked 
 
 ### Actions that can lower a plan
 
-Switch: `BILLING_AUTO_PLAN_LOWERING`. All three need a provider read that succeeded and is not older than the row's last provider fact. All three take effect at the sweep that finds them: **there is no paid-through protection, because the provider is already billing less or nothing.**
+Switch: `BILLING_AUTO_PLAN_LOWERING`. P1 to P3 need a provider read that succeeded and is not older than the row's last provider fact, and take effect at the sweep that finds them: **there is no paid-through protection, because the provider is already billing less or nothing.**
 
 | ID | Preview action | Exact predicate | Audit | Rollback limit |
 |---|---|---|---|---|
 | P1 | `LOWER_ENTITLEMENT_TO_SUBSCRIPTION` | `findLivePersonalBaseSubscription` returns this subscription (not superseded, `provider_sub_id` set, ACTIVE or PAST_DUE), and the active entitlement's plan ranks above the subscription's plan, and that plan is FREE, PRO or TEAM. In practice TEAM to PRO | `setPersonalPlan` writes the from and to audit, with service actor `billing_reconciliation` | An older image leaves the lowered plan as it is. Restoring it is a manual plan change, and the sweep repeats the lowering while the switch is on |
 | P2 | `LOWER_SUBSCRIPTION_TO_BILLED_PRICE` | Stripe only. `planFromStripePriceId` of the billed price ranks below the row's plan. Includes a downgrade past its date (R4), and any other row billed lower than it says | Same, plus the subscription row's updated plan | Same. The provider's price stays what it was: nothing is changed there |
+| P4 | `END_ENTERPRISE_CONTRACT_AT_TERM` | An ACTIVE `enterprise_contracts` row whose `ends_at_utc` has passed. With the switch on, `contractTermHasEnded` makes it grant nothing the moment the date passes; there is no sweep and no provider. With the switch off the date is a recorded term and the customer keeps what they hold | Nothing is written: the contract stays ACTIVE and the effect ends if the date moves. No audit row. An operator extends the term or terminates the contract | Turning the switch off, or moving the date, restores the customer at once |
 | P3 | `END_PLAN_PROVIDER_REPORTS_ENDED` | The provider reports cancelled or expired while the row is ACTIVE or PAST_DUE. The plan moves to a surviving subscription's plan, or to FREE | Same | Same. Add-ons that depended on it then fall under A1 |
 
 ### Actions that cancel an add-on at the provider

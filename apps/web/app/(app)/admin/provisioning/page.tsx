@@ -87,7 +87,9 @@ type ProvisionPendingResult = {
   pendingOwner: true;
 };
 
-type ProvisionResult = ProvisionProvisionedResult | ProvisionPendingResult;
+type ProvisionResult = (ProvisionProvisionedResult | ProvisionPendingResult) & {
+  possibleDuplicateOrganizationIds?: string[];
+};
 
 type GrantPlanResult = {
   organizationId: string;
@@ -145,7 +147,7 @@ function AdminProvisioningInner() {
           <PageHeader
             eyebrow="Platform admin"
             title="Provision enterprise customer"
-            subtitle="Activate an enterprise customer end-to-end — no manual database edits. Create the organization and its enterprise workspace (or invite the owner), then grant the ENTERPRISE plan. Every action requires a fresh step-up approval and is written to the platform audit log."
+            subtitle="Activate an enterprise customer end-to-end — no manual database edits. Create the organization and its contract and invite the owner; the owner's acceptance creates the enterprise workspace. Every action requires a fresh step-up approval and is written to the platform audit log."
           />
         </div>
       }
@@ -160,7 +162,7 @@ function AdminProvisioningInner() {
         <>
           <PageSection
             title="Provision new enterprise customer"
-            description="Stand up a brand-new organization and its enterprise workspace, or invite an owner who doesn't have an account yet."
+            description="Stand up a brand-new organization and invite its owner by email, whether or not they already have an account."
           >
             <ProvisionPanel
               teamId={teamId}
@@ -316,6 +318,7 @@ function ProvisionPanel({
   const idempotencyRef = useRef<{ sig: string; key: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ProvisionResult | null>(null);
+  const [duplicates, setDuplicates] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
 
   const submit = useCallback(async () => {
@@ -334,15 +337,11 @@ function ProvisionPanel({
       return;
     }
 
-    // Optional numeric seats — only send when the operator typed a value.
-    let seatsValue: number | undefined;
-    if (seats.trim().length > 0) {
-      const parsed = Number(seats.trim());
-      if (!Number.isInteger(parsed) || parsed < 1) {
-        setError("Seats must be a whole number of 1 or more.");
-        return;
-      }
-      seatsValue = parsed;
+    // Required: left blank, the contract used to be signed for the catalog's five.
+    const seatsValue = Number(seats.trim());
+    if (seats.trim().length === 0 || !Number.isInteger(seatsValue) || seatsValue < 1) {
+      setError("State the seats sold, as a whole number of 1 or more.");
+      return;
     }
 
     const workspace = workspaceName.trim();
@@ -365,8 +364,8 @@ function ProvisionPanel({
      */
     const ok = await confirm({
       title: "Provision this enterprise customer?",
-      description: `Creates the organization "${name}" on the ENTERPRISE plan${
-        seatsValue !== undefined ? ` with ${seatsValue} seat${seatsValue === 1 ? "" : "s"}` : ""
+      description: `Creates the organization "${name}" on the ENTERPRISE plan with ${seatsValue} seat${
+        seatsValue === 1 ? "" : "s"
       }${workspace ? `, with a workspace named "${workspace}"` : ""}, and invites ${email} as its owner by email. The invitation is external and cannot be recalled; a duplicate submission with the same details is replayed, not repeated.`,
       confirmLabel: "Provision customer",
       tone: "warning",
@@ -386,7 +385,7 @@ function ProvisionPanel({
             teamId,
             organizationName: name,
             ownerEmail: email,
-            ...(seatsValue !== undefined ? { seats: seatsValue } : {}),
+            seats: seatsValue,
             ...(workspace ? { workspaceName: workspace } : {}),
           }),
         })) as ProvisionResult;
@@ -394,6 +393,7 @@ function ProvisionPanel({
       if (isStale(captured)) return;
 
       setResult(res);
+      setDuplicates(res.possibleDuplicateOrganizationIds ?? []);
       if (res.organizationId) onOrganizationProvisioned(res.organizationId);
       addToast(
         isProvisioned(res)
@@ -482,7 +482,7 @@ function ProvisionPanel({
         </label>
 
         <label style={labelStyle}>
-          <span>Seats (optional)</span>
+          <span>Seats sold</span>
           <input
             className="adm-input"
             type="number"
@@ -521,6 +521,17 @@ function ProvisionPanel({
       {error ? (
         <Card variant="status" tone="risk" padding="compact" data-testid="provision-error">
           {error}
+        </Card>
+      ) : null}
+
+      {duplicates.length > 0 ? (
+        <Card variant="status" tone="risk" padding="compact" data-testid="provision-possible-duplicates">
+          Another customer has this name. Check it is not the same one:{" "}
+          {duplicates.map((orgId) => (
+            <Link key={orgId} href={`/admin/customers/${orgId}`} className="adm-mono" style={{ marginRight: 8 }}>
+              {orgId.slice(0, 8)}
+            </Link>
+          ))}
         </Card>
       ) : null}
 

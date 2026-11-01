@@ -93,6 +93,10 @@ import {
   transferOrganizationWorkspaceOwnersTx,
 } from "../services/workspace/workspace-lifecycle.service.js";
 import { transferEnterpriseContractOwnerTx } from "../services/organization/enterprise-contract.service.js";
+import {
+  CONTRACT_TERMINATION_REASON_PREFIX,
+  isContractTerminationClosure,
+} from "../services/organization/enterprise-termination.service.js";
 import { refreshTeamSeatState } from "../services/billing.service.js";
 // PHASE 5 §8 (2026-07-22) — canonical invite acceptance (idempotent +
 // concurrency-safe claim).
@@ -1600,7 +1604,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
           target.role === "ORG_OWNER" || newRole === "ORG_OWNER";
         if (
           involvesOwnerRole &&
-          !(await callerIsLiveOwnerTx(tx, orgId, userId))
+          (access.role !== "ORG_OWNER" || !(await callerIsLiveOwnerTx(tx, orgId, userId)))
         ) {
           return { kind: "owner_change_requires_owner" as const };
         }
@@ -1732,7 +1736,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
         if (
           target.role === "ORG_OWNER" &&
-          !(await callerIsLiveOwnerTx(tx, orgId, userId))
+          (access.role !== "ORG_OWNER" || !(await callerIsLiveOwnerTx(tx, orgId, userId)))
         ) {
           return { kind: "owner_remove_requires_owner" as const };
         }
@@ -2508,6 +2512,20 @@ export async function organizationsRoutes(app: FastifyInstance) {
   // preflight before PROCESSING. Execution archives — never deletes.
   // -------------------------------------------------------------------------
   const ORG_CLOSURE_CONFIRMATION_PHRASE = "close this organization";
+  /**
+   * What a customer sees of a closure request. A termination's reason is the
+   * operator's private note (non-payment, abuse), so the tenant gets the fact
+   * and the date, and is told which kind of closure it is.
+   */
+  const tenantClosureView = <T extends { reason: string | null } | null>(row: T) => {
+    if (!row) return row;
+    const termination = isContractTerminationClosure(row.reason);
+    return {
+      ...row,
+      reason: termination ? null : row.reason,
+      kind: termination ? ("CONTRACT_TERMINATION" as const) : ("SELF_SERVICE" as const),
+    };
+  };
   const ORG_CLOSURE_SELECT = {
     id: true,
     status: true,
@@ -2540,17 +2558,24 @@ export async function organizationsRoutes(app: FastifyInstance) {
         }
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
-      const [latest, preflight] = await Promise.all([
+      const [latest, preflight, contract] = await Promise.all([
         prisma.organizationClosureRequest.findFirst({
           where: { organizationId: orgId },
           select: ORG_CLOSURE_SELECT,
           orderBy: { requestedAtUtc: "desc" },
         }),
         evaluateOrganizationClosurePreflight(orgId, userId),
+        prisma.enterpriseContract.findUnique({
+          where: { organizationId: orgId },
+          select: { status: true },
+        }),
       ]);
       return reply.code(200).send({
-        request: latest,
+        request: tenantClosureView(latest),
         blockers: preflight.blockers,
+        // PROV-014 — a contract ends through the account manager, so the owner
+        // panel says that instead of offering a closure that cannot complete.
+        contractManaged: contract !== null && contract.status !== "TERMINATED",
         confirmationPhrase: ORG_CLOSURE_CONFIRMATION_PHRASE,
         coolingOffDays: Math.round(ORG_CLOSURE_COOLING_OFF_MS / 86_400_000),
       });
@@ -2616,10 +2641,29 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
 
+      const contract = await prisma.enterpriseContract.findUnique({
+        where: { organizationId: orgId },
+        select: { status: true },
+      });
+      if (contract && contract.status !== "TERMINATED") {
+        return reply.code(409).send({
+          error: {
+            code: "CONTRACT_MANAGED_CLOSURE",
+            message:
+              "This organization is under contract. Contact your account manager to close it.",
+          },
+        });
+      }
+
+      // BLOCKED counts here only for a termination: it is waiting, not finished,
+      // and a second closure must not open beside it (PROV-003).
       const open = await prisma.organizationClosureRequest.findFirst({
         where: {
           organizationId: orgId,
-          status: { in: [...ACTIVE_ORG_CLOSURE_STATUSES] },
+          OR: [
+            { status: { in: [...ACTIVE_ORG_CLOSURE_STATUSES] } },
+            { status: "BLOCKED", reason: { startsWith: CONTRACT_TERMINATION_REASON_PREFIX } },
+          ],
         },
         select: { id: true },
       });
@@ -2748,12 +2792,34 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
 
+      /*
+       * PROV-003 — A CUSTOMER CANNOT UNDO AN OPERATOR'S TERMINATION.
+       *
+       * Termination reuses this table, and the owner's cancel updated any open
+       * row, so an operator could believe offboarding was scheduled while the
+       * customer had quietly cancelled it.
+       */
+      const closure = await prisma.organizationClosureRequest.findFirst({
+        where: { id: params.requestId, organizationId: params.id },
+        select: { reason: true },
+      });
+      if (isContractTerminationClosure(closure?.reason)) {
+        return reply.code(409).send({
+          error: {
+            code: "TERMINATION_OPERATOR_CONTROLLED",
+            message: "This closure was arranged with PROOVRA. Contact your account manager.",
+          },
+        });
+      }
+
       const cancelled = await prisma.$transaction(async (tx) => {
         const upd = await tx.organizationClosureRequest.updateMany({
           where: {
             id: params.requestId,
             organizationId: params.id,
             status: { in: [...CANCELLABLE_ORG_CLOSURE_STATUSES] },
+            // Re-read in the write, so a termination cannot slip in by id.
+            NOT: { reason: { startsWith: CONTRACT_TERMINATION_REASON_PREFIX } },
           },
           data: { status: "CANCELLED", cancelledAtUtc: new Date() },
         });
@@ -2800,7 +2866,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         where: { id: params.requestId, organizationId: params.id },
         select: ORG_CLOSURE_SELECT,
       });
-      return reply.code(200).send({ request: row });
+      return reply.code(200).send({ request: tenantClosureView(row) });
     },
   );
 

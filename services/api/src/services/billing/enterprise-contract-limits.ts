@@ -30,6 +30,7 @@
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import { resolveWorkspaceMemberCeiling } from "@proovra/shared-billing";
 import type { EnterpriseContractProjection } from "../organization/enterprise-contract.service.js";
+import { automaticPlanLoweringEnabled } from "./automatic-effects.js";
 
 const BYTES_PER_GB = 1024n * 1024n * 1024n;
 
@@ -112,6 +113,42 @@ export const NO_CONTRACT_LIMITS: EnterpriseContractLimits = {
   legacyDerived: false,
 };
 
+/**
+ * Has a contract run past its end date, in a way that may take effect?
+ *
+ * Whether rights end by themselves on the date is an open commercial decision
+ * (BIL-R10), and an ending contract is automatic plan lowering, so it stays
+ * behind the same switch as every other one (`automatic-effects.ts`) and is
+ * listed by `billing-automatic-effects-preview`. Until that is on, the date is
+ * a recorded term: the customer keeps what they hold, and an operator ends the
+ * contract deliberately. `deriveEnterpriseAuthority` takes the same answer, so
+ * the two authorities cannot disagree about one date.
+ */
+export function contractTermHasEnded(
+  contract: { endsAtUtc: Date | null },
+  now: Date = new Date(),
+): boolean {
+  return (
+    automaticPlanLoweringEnabled() &&
+    contract.endsAtUtc !== null &&
+    contract.endsAtUtc.getTime() <= now.getTime()
+  );
+}
+
+/**
+ * True for an ENTERPRISE subject no ACTIVE contract governs. The Enterprise
+ * catalog row carries no evidence or AI ceiling because the contract states
+ * them, so falling back to it would turn "the contract grants nothing" into
+ * "no limit at all" (BILLING-007). Reading and exporting what exists is not
+ * affected: only new evidence and AI spend ask this.
+ */
+export function enterpriseContractWithheld(input: {
+  plan: Parameters<typeof getPlanCapabilities>[0];
+  contract: EnterpriseContractLimits | null | undefined;
+}): boolean {
+  return input.plan === "ENTERPRISE" && input.contract?.contractGovernsCapability !== true;
+}
+
 function positiveOrNull(value: number | null | undefined): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return null;
@@ -133,7 +170,7 @@ export function resolveEnterpriseContractLimits(
   // FAIL CLOSED. DRAFT / PENDING_ACTIVATION have not begun; SUSPENDED and
   // TERMINATED have ended. None of them may grant capability, and none of
   // their stored numbers may raise a limit.
-  if (contract.status !== "ACTIVE") {
+  if (contract.status !== "ACTIVE" || contractTermHasEnded(contract)) {
     return { ...NO_CONTRACT_LIMITS, legacyDerived: contract.legacyDerived };
   }
 
@@ -209,19 +246,17 @@ export function resolveEffectiveContractSeats(input: {
  * WCR-07 — the effective ceiling on ACTIVE Collaboration Teams in one
  * workspace.
  *
- * The catalog's ENTERPRISE row carries 1000, which is a placeholder standing in
- * for "a lot", not a term anybody signed. Where the contract states a number it
- * wins outright — above OR below the placeholder — for the same reason the
- * storage resolver does not take a `max()`: a contract is the purchased right,
- * and reconciling it against a placeholder either sells capacity nobody agreed
- * to or withholds capacity somebody paid for.
+ * Where the contract states a number it wins outright — above OR below the
+ * catalog — for the same reason the storage resolver does not take a `max()`:
+ * a contract is the purchased right.
  *
- * SILENCE IS NOT A TERM (members ledger M5, 2026-10-28). On ENTERPRISE the
- * catalog row (1000 Teams / 500 per Team) is a placeholder nobody signed: an
- * ACTIVE contract that states no Collaboration Team figure grants none, and
- * the gates answer ENTERPRISE_CONTRACT_REQUIRED until the figure is set.
- * Operator note: before this ships, every ACTIVE contract's two figures are
- * set (readiness query in the migration deployment plan).
+ * ACCEPTED DECISION CT-10 (`members-and-access-model.md`). Without an ACTIVE
+ * contract there is no capacity (typed ENTERPRISE_CONTRACT_REQUIRED). An ACTIVE
+ * contract that names no collaboration limits takes the Enterprise contract
+ * defaults published in the catalogue (1000 Collaboration Teams, 500 members
+ * each); those defaults are the standard contract terms, and setting the
+ * contract fields changes them. Silence is what an Enterprise contract says when
+ * it sold the standard terms.
  */
 export function resolveEffectiveCollaborationTeamLimit(input: {
   plan: Parameters<typeof getPlanCapabilities>[0];
@@ -234,9 +269,8 @@ export function resolveEffectiveCollaborationTeamLimit(input: {
   ) {
     return input.contract.collaborationTeams;
   }
-  // CT-10 / M5 — on ENTERPRISE only a stated contract figure grants capacity
-  // (typed upstream as ENTERPRISE_CONTRACT_REQUIRED); never the placeholder.
-  if (input.plan === "ENTERPRISE") return 0;
+  // CT-10 — no ACTIVE contract, no capacity (typed upstream).
+  if (enterpriseContractWithheld(input)) return 0;
   return getPlanCapabilities(input.plan).maxCollaborationTeamsPerWorkspace;
 }
 
@@ -263,7 +297,7 @@ export function resolveEffectiveCollaborationMemberLimit(input: {
   ) {
     return input.contract.collaborationTeamMembers;
   }
-  if (input.plan === "ENTERPRISE") return 0;
+  if (enterpriseContractWithheld(input)) return 0;
   return getPlanCapabilities(input.plan).maxAcceptedMembersPerCollaborationTeam;
 }
 
@@ -336,6 +370,7 @@ export function resolveEffectiveContractAiCap(input: {
   ) {
     return input.contract?.aiOperationsPerMonth;
   }
+  if (enterpriseContractWithheld(input)) return 0;
   return getPlanCapabilities(input.plan).aiAdvisoryMonthlyOperations;
 }
 

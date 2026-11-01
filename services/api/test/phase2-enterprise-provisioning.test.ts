@@ -284,8 +284,11 @@ function makeClient(seed: {
       create: vi.fn(async ({ data }: DelegateArgs) => ({ id: nextId("osp"), ...rec(data) })),
     },
     enterpriseContract: {
+      findUnique: vi.fn(async () => null),
       upsert: vi.fn(async ({ create }: DelegateArgs & { create?: JsonRecord }) => ({ id: nextId("ec"), ...rec(create) })),
     },
+    // The termination lock a plan grant serialises on.
+    $executeRaw: vi.fn(async () => 0),
     // Macro-Wave A2 — durable invite-delivery outbox rows. The delivery
     // service creates the row in the SAME tx as the invite and the inline
     // first attempt reads/updates it after commit.
@@ -404,7 +407,7 @@ describe("grantEnterprisePlanToOrg", () => {
     expect(refreshTeamSeatStateMock.mock.calls.map(([id]) => id).sort()).toEqual(["t1", "t2"]);
   });
 
-  it("defaults seats to the plan catalog includedSeats when omitted", async () => {
+  it("BILLING-006 — a contract silent on seats is refused: the catalog placeholder is never a term", async () => {
     const { client, teams } = makeClient({
       orgs: [{ id: "org-b", name: "B", status: "ACTIVE", billingOwnerUserId: null }],
       teams: [
@@ -423,20 +426,29 @@ describe("grantEnterprisePlanToOrg", () => {
       ],
     });
 
-    const res = await grantEnterprisePlanToOrg(
-      { orgId: "org-b", actorUserId: "admin-1" },
-      client,
-    );
-
-    const expectedSeats = getPlanCapabilities("ENTERPRISE").includedSeats;
-    expect(res.seats).toBe(expectedSeats);
-    expect(teams.get("t1")!.includedSeats).toBe(expectedSeats);
+    await expect(
+      grantEnterprisePlanToOrg({ orgId: "org-b", actorUserId: "admin-1" }, client),
+    ).rejects.toMatchObject({ code: "SEATS_REQUIRED" });
+    expect(teams.get("t1")!.billingPlan).toBe("FREE");
   });
 
   it("writes an org audit row AND a platform audit row", async () => {
     const { client } = makeClient({
       orgs: [{ id: "org-c", name: "C", status: "ACTIVE", billingOwnerUserId: null }],
-      teams: [],
+      teams: [
+        {
+          id: "t1",
+          organizationId: "org-c",
+          ownerUserId: "u1",
+          billingOwnerUserId: "u1",
+          name: "WS",
+          billingPlan: "FREE",
+          billingStatus: "INACTIVE",
+          includedSeats: 0,
+          overSeatLimit: false,
+          memberCount: 1,
+        },
+      ],
     });
 
     await grantEnterprisePlanToOrg(
@@ -796,12 +808,14 @@ describe("enterprise capability + gate wiring", () => {
     expect(src).toContain("requireStepUpForSensitiveAction");
     expect(src).toContain('"/v1/admin/orgs/:id/plan"');
     expect(src).toContain('"/v1/admin/enterprise/provision"');
-    // One step-up gate per endpoint: plan grant, provision, the PHASE 4 §7.6
+    // One step-up gate per endpoint: plan grant, provision, contract terms, owner
+    // reissue, the PHASE 4 §7.6
     // shared suspend/resume handler (one loop body), and the members audit
     // LIFE-16 shared terminate / terminate-cancel handler (one loop body).
     const gateCount = (src.match(/requireStepUpForSensitiveAction\(/g) ?? [])
       .length;
-    expect(gateCount).toBe(4);
+    // BILLING-002 contract terms and PROV-005 owner reissue add one each.
+    expect(gateCount).toBe(6);
     expect(src).toContain("`/v1/admin/orgs/:id/${leg}`");
   });
 

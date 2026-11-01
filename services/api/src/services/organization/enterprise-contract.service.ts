@@ -53,8 +53,8 @@ export type EnterpriseContractProjection = {
    * Seats and storage resolved from the contract; collaboration did not, so
    * an Enterprise group ceiling came from a flat catalog constant that could
    * sit BELOW the contracted seat count. `null` means the contract is silent
-   * and the catalog default governs — the same meaning the two allowances
-   * above carry, deliberately, so there is one convention to learn.
+   * and the catalog default governs (decision CT-10) — the same meaning the two
+   * allowances above carry, deliberately, so there is one convention to learn.
    */
   collaborationTeamsMax: number | null;
   collaborationTeamMembersMax: number | null;
@@ -85,6 +85,8 @@ export type EnterpriseContractProjection = {
   billingCustomerRef: string | null;
   billingSubscriptionRef: string | null;
   contractOwnerUserId: string | null;
+  /** The sales or CRM reference the contract was signed under. */
+  externalContractRef: string | null;
   /** True when this projection came from the legacy fallback, not a row. */
   legacyDerived: boolean;
 };
@@ -105,6 +107,7 @@ export type EnterpriseContractProjection = {
 function normalizeContractAllowance(
   value: number | null | undefined,
   field:
+    | "storageGb"
     | "evidenceRecordsPerMonth"
     | "aiOperationsPerMonth"
     | "collaborationTeamsMax"
@@ -117,6 +120,166 @@ function normalizeContractAllowance(
     );
   }
   return value;
+}
+
+export class EnterpriseContractError extends Error {
+  constructor(
+    readonly code:
+      | "ENTERPRISE_CONTRACT_REQUIRED"
+      | "CONTRACT_ALREADY_TERMINATED"
+      | "INVALID_CONTRACT_TERM",
+    readonly httpStatus: 400 | 409,
+    message: string,
+  ) {
+    super(message);
+    this.name = "EnterpriseContractError";
+  }
+}
+
+/**
+ * The terms of a sold contract. Everything a sales agreement states and an
+ * enforcement path reads. Omitted leaves a term as it is. `null` clears one back
+ * to what silence means for it: the published catalogue default for an allowance
+ * (CT-10), not granted for Legal Hold, included for reviewer operations. Seats
+ * have no null: an Enterprise contract with no seat count admits nobody, which
+ * is a state a contract can be left in but never one an operator writes.
+ */
+export type EnterpriseContractTerms = {
+  seatCount?: number;
+  storageGb?: number | null;
+  evidenceRecordsPerMonth?: number | null;
+  aiOperationsPerMonth?: number | null;
+  collaborationTeamsMax?: number | null;
+  collaborationTeamMembersMax?: number | null;
+  legalHoldEnabled?: boolean | null;
+  reviewerOperationsEnabled?: boolean | null;
+  assignmentRequiresTeamPlacement?: boolean | null;
+  effectiveAtUtc?: Date | null;
+  endsAtUtc?: Date | null;
+  region?: string | null;
+  planVersion?: string | null;
+  billingCustomerRef?: string | null;
+  billingSubscriptionRef?: string | null;
+  externalContractRef?: string | null;
+};
+
+const CONTRACT_TERM_FIELDS = [
+  "seatCount",
+  "storageGb",
+  "evidenceRecordsPerMonth",
+  "aiOperationsPerMonth",
+  "collaborationTeamsMax",
+  "collaborationTeamMembersMax",
+  "legalHoldEnabled",
+  "reviewerOperationsEnabled",
+  "assignmentRequiresTeamPlacement",
+  "effectiveAtUtc",
+  "endsAtUtc",
+  "region",
+  "planVersion",
+  "billingCustomerRef",
+  "billingSubscriptionRef",
+  "externalContractRef",
+] as const;
+
+function normalizeContractTerms(terms: EnterpriseContractTerms): EnterpriseContractTerms {
+  const seatCount = terms.seatCount;
+  if (seatCount !== undefined && (!Number.isInteger(seatCount) || seatCount <= 0)) {
+    throw new EnterpriseContractError(
+      "INVALID_CONTRACT_TERM",
+      400,
+      "Seats must be a positive whole number.",
+    );
+  }
+  const normalized: EnterpriseContractTerms = { ...terms };
+  try {
+    for (const field of [
+      "storageGb",
+      "evidenceRecordsPerMonth",
+      "aiOperationsPerMonth",
+      "collaborationTeamsMax",
+      "collaborationTeamMembersMax",
+    ] as const) {
+      if (terms[field] !== undefined) {
+        normalized[field] = normalizeContractAllowance(terms[field], field);
+      }
+    }
+  } catch (err) {
+    throw new EnterpriseContractError("INVALID_CONTRACT_TERM", 400, (err as Error).message);
+  }
+  return normalized;
+}
+
+/** The fields this write actually names, in the row's own shape. */
+function stateTerms(terms: EnterpriseContractTerms): Partial<EnterpriseContractTerms> {
+  return Object.fromEntries(
+    CONTRACT_TERM_FIELDS.filter((field) => terms[field] !== undefined).map((field) => [
+      field,
+      terms[field],
+    ]),
+  );
+}
+
+/**
+ * THE operator writer of contract terms (BILLING-002, PROV-002).
+ *
+ * Enforcement of every term existed and nothing could set one, so a sold Legal
+ * Hold, a contracted storage figure or a stated collaboration limit needed direct
+ * production SQL. The route in front of this is platform admin plus step-up, and
+ * the terms and their before-and-after go into the organization's audit in the
+ * same transaction. A TERMINATED contract is final and takes no more terms.
+ */
+export async function updateEnterpriseContractTermsTx(
+  tx: TxClient,
+  input: { organizationId: string; terms: EnterpriseContractTerms },
+): Promise<{
+  changed: Partial<Record<keyof EnterpriseContractTerms, { from: unknown; to: unknown }>>;
+  seatCountChanged: boolean;
+}> {
+  const terms = normalizeContractTerms(input.terms);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`enterprise-termination:${input.organizationId}`}))`;
+  const row = await tx.enterpriseContract.findUnique({
+    where: { organizationId: input.organizationId },
+  });
+  if (!row) {
+    throw new EnterpriseContractError(
+      "ENTERPRISE_CONTRACT_REQUIRED",
+      409,
+      "This organization has no contract.",
+    );
+  }
+  if (row.status === "TERMINATED") {
+    throw new EnterpriseContractError(
+      "CONTRACT_ALREADY_TERMINATED",
+      409,
+      "A terminated contract is final.",
+    );
+  }
+  const effective = terms.effectiveAtUtc !== undefined ? terms.effectiveAtUtc : row.effectiveAtUtc;
+  const ends = terms.endsAtUtc !== undefined ? terms.endsAtUtc : row.endsAtUtc;
+  if (effective && ends && ends.getTime() <= effective.getTime()) {
+    throw new EnterpriseContractError(
+      "INVALID_CONTRACT_TERM",
+      400,
+      "A contract must end after it takes effect.",
+    );
+  }
+
+  const stated = stateTerms(terms);
+  const changed: Partial<Record<keyof EnterpriseContractTerms, { from: unknown; to: unknown }>> = {};
+  for (const [field, to] of Object.entries(stated) as Array<[keyof EnterpriseContractTerms, unknown]>) {
+    const from = (row as unknown as Record<string, unknown>)[field] ?? null;
+    const same =
+      from instanceof Date && to instanceof Date ? from.getTime() === to.getTime() : from === to;
+    if (!same) changed[field] = { from, to };
+  }
+  if (Object.keys(changed).length > 0) {
+    await tx.enterpriseContract.update({
+      where: { organizationId: input.organizationId },
+      data: stated as never,
+    });
+  }
+  return { changed, seatCountChanged: changed.seatCount !== undefined };
 }
 
 export async function resolveEnterpriseContract(
@@ -165,6 +328,7 @@ export async function resolveEnterpriseContract(
           billingCustomerRef: row.billingCustomerRef,
           billingSubscriptionRef: row.billingSubscriptionRef,
           contractOwnerUserId: row.contractOwnerUserId,
+          externalContractRef: row.externalContractRef,
           legacyDerived: false,
         };
       }
@@ -224,6 +388,7 @@ export async function resolveEnterpriseContract(
     billingCustomerRef: null,
     billingSubscriptionRef: null,
     contractOwnerUserId: org.billingOwnerUserId ?? null,
+    externalContractRef: null,
     legacyDerived: true,
   };
 }
@@ -243,18 +408,50 @@ export async function transitionEnterpriseContractStatusTx(
     organizationId: string;
     to: "SUSPENDED" | "TERMINATED";
     terminationReason?: string | null;
+    /** What the contract was, recorded when a termination begins. */
+    statusBeforeTermination?: EnterpriseContractProjection["status"];
   },
 ): Promise<void> {
   await tx.enterpriseContract.updateMany({
     where: { organizationId: input.organizationId, status: { not: "TERMINATED" } },
     data: {
       status: input.to,
-      ...(input.to === "TERMINATED" ? { terminatedAtUtc: new Date() } : {}),
+      ...(input.to === "TERMINATED"
+        ? { terminatedAtUtc: new Date(), statusBeforeTermination: null }
+        : {}),
+      ...(input.statusBeforeTermination !== undefined
+        ? { statusBeforeTermination: input.statusBeforeTermination }
+        : {}),
       ...(input.terminationReason !== undefined
         ? { terminationReason: input.terminationReason?.slice(0, 400) ?? null }
         : {}),
     },
   });
+}
+
+/**
+ * The way back from a withdrawn termination (PROV-009, BILLING-005): an explicit
+ * operator act, through `resumeOrganization`. Seats and terms were never touched,
+ * so restoring the status restores the contract. Nothing leaves TERMINATED.
+ */
+export async function reinstateEnterpriseContractTx(
+  tx: TxClient,
+  input: { organizationId: string },
+): Promise<{ reinstatedTo: EnterpriseContractProjection["status"] } | null> {
+  const row = await tx.enterpriseContract.findUnique({
+    where: { organizationId: input.organizationId },
+    select: { status: true, activationState: true, statusBeforeTermination: true },
+  });
+  if (row?.status !== "SUSPENDED") return null;
+  // A termination withdrawn before this column existed recorded no prior status.
+  const to =
+    row.statusBeforeTermination ??
+    (row.activationState === "ACTIVATED" ? "ACTIVE" : "PENDING_ACTIVATION");
+  await tx.enterpriseContract.update({
+    where: { organizationId: input.organizationId },
+    data: { status: to, statusBeforeTermination: null, terminationReason: null },
+  });
+  return { reinstatedTo: to };
 }
 
 /** PROV-011 — the contract owner follows an organization ownership transfer. */
@@ -309,11 +506,24 @@ export async function upsertEnterpriseContract(
     contractOwnerUserId?: string | null;
     effectiveAtUtc?: Date | null;
     region?: string | null;
+    externalContractRef?: string | null;
   },
 ): Promise<void> {
   const delegate = (tx as { enterpriseContract?: unknown }).enterpriseContract;
   if (!delegate) return;
   try {
+    // TERMINATED is final, and this writer used to step straight over it.
+    const existing = await tx.enterpriseContract.findUnique({
+      where: { organizationId: input.organizationId },
+      select: { status: true },
+    });
+    if (existing?.status === "TERMINATED") {
+      throw new EnterpriseContractError(
+        "CONTRACT_ALREADY_TERMINATED",
+        409,
+        "A terminated contract is final.",
+      );
+    }
     await tx.enterpriseContract.upsert({
       where: { organizationId: input.organizationId },
       update: {
@@ -364,6 +574,10 @@ export async function upsertEnterpriseContract(
         ...(input.effectiveAtUtc !== undefined
           ? { effectiveAtUtc: input.effectiveAtUtc }
           : {}),
+        ...(input.region !== undefined ? { region: input.region } : {}),
+        ...(input.externalContractRef !== undefined
+          ? { externalContractRef: input.externalContractRef }
+          : {}),
       },
       create: {
         organizationId: input.organizationId,
@@ -391,6 +605,7 @@ export async function upsertEnterpriseContract(
         contractOwnerUserId: input.contractOwnerUserId ?? null,
         effectiveAtUtc: input.effectiveAtUtc ?? new Date(),
         region: input.region ?? null,
+        externalContractRef: input.externalContractRef ?? null,
       },
     });
   } catch (err) {
