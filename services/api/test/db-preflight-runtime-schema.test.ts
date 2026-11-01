@@ -98,8 +98,11 @@ function databaseWith(present: {
   billingDecisions?: boolean;
   // 20281101000000 — Stripe customer per recurring currency.
   customerCurrency?: boolean;
+  // 20281102000000 — destruction governance truth.
+  destructionTruth?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
+    if (sql.includes("execution_requested_at_utc")) return present.destructionTruth === true;
     if (/table_name = 'billing_provider_customers'\s+AND column_name = 'currency'/.test(sql)) {
       return present.customerCurrency === true;
     }
@@ -290,6 +293,7 @@ const FULLY_MIGRATED = {
   billingRemediation: true,
   billingDecisions: true,
   customerCurrency: true,
+  destructionTruth: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -656,6 +660,14 @@ describe("runtime schema requirements — billing remediation (20281030000000)",
       "subscriptions.provider_schedule_id",
     ]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281030000000_billing_remediation_convergence");
+  });
+});
+
+describe("runtime schema requirements — destruction governance truth", () => {
+  it("names the migration when the column is missing", async () => {
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, destructionTruth: false }));
+    expect(result.missing.map((m) => m.id)).toEqual(["destruction_reviews.execution_requested_at_utc"]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281102000000");
   });
 });
 

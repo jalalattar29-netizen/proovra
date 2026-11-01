@@ -157,6 +157,30 @@ describe("retention decisions stick, certificates tell the truth (live PostgreSQ
       expect((await prisma.destructionReview.findUniqueOrThrow({ where: { id: laterReview.id } })).status).toBe("DEFERRED");
     });
 
+    it("a trash-sweep review a person declined does not come back on the next tick", async () => {
+      const trash = await import("../../worker/src/governance/trash-grace-reconciler.js");
+      const storage = {
+        listObjectVersions: async () => [],
+        deleteObjectVersion: async () => ({ ok: true }),
+        listKeysUnderPrefix: async () => [],
+      };
+      const tick = () =>
+        trash.runTrashGraceReconciliation({ storage: storage as never, trigger: "test" } as never);
+      const ev = await record(trashed());
+      await tick();
+      const open = await prisma.destructionReview.findFirstOrThrow({ where: { evidenceId: ev.id } });
+      expect(open.reason, "the canonical vocabulary").toBe("retention_expired");
+      await reviews.transitionDestructionReview({
+        teamId: A().teamId,
+        id: open.id,
+        actorUserId: A().ownerUserId,
+        nextStatus: "CANCELLED",
+      });
+      await tick();
+      await tick();
+      expect(await prisma.destructionReview.count({ where: { evidenceId: ev.id } })).toBe(1);
+    });
+
     it("an APPROVED review still gates downloads: a person has decided", async () => {
       const ev = await record(trashed());
       await prisma.evidence.update({ where: { id: ev.id }, data: { lifecycleState: "ACTIVE", deletedAt: null, deleteScheduledForUtc: null } });

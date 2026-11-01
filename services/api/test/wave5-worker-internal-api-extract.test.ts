@@ -269,21 +269,21 @@ describe("Wave 5 — worker branches use the helper and never throw on body.succ
   });
 });
 
-describe("Wave 5 — deferral note for archive-tier-auto-transition.worker", () => {
-  // Verification flagged services/worker/src/governance/archive-tier-auto-transition.worker.ts:105
-  // as another cross-import, but it is shielded by `.catch(() => null)`
-  // and a fallback PENDING-row writer. It is deferred per the
-  // recommendation; this test acts as a tripwire so the deferral is
-  // visible and the file is not assumed clean.
+describe("Wave 5 — archive-tier-auto-transition.worker no longer reaches into the API", () => {
+  // This was a deferred cross-import shielded by `.catch(() => null)`, and the
+  // path never existed from the worker, so every run took the fallback and wrote a
+  // PENDING label nothing processed (GOV-016). It now tags the sealed version with
+  // the worker's own client.
   const arch = readWorker(
     "src/governance/archive-tier-auto-transition.worker.ts",
   );
 
-  it("still contains the deferred cross-import (out of scope this PR)", () => {
-    expect(arch).toMatch(/api\/src\/services\/lifecycle\/archive-tier\.service/);
+  it("has no import of the API source tree", () => {
+    expect(arch).not.toMatch(/import\(\s*"\.\.\/\.\.\/api\/src/);
   });
 
-  it("the cross-import is shielded by .catch(() => null) so it cannot crash the worker", () => {
-    expect(arch).toMatch(/\.catch\(\s*\(\)\s*=>\s*null\s*\)/);
+  it("writes COMPLETED only after the tag landed", () => {
+    expect(arch.indexOf("PutObjectTaggingCommand({")).toBeGreaterThan(-1);
+    expect(arch.indexOf("PutObjectTaggingCommand({")).toBeLessThan(arch.lastIndexOf('state: "COMPLETED"'));
   });
 });

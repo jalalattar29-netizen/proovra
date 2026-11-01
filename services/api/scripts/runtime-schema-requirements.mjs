@@ -571,6 +571,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "a Stripe checkout resolves the customer of one recurring currency here",
     suppliedBy: "20281101000000_stripe_customer_per_currency",
   },
+  // 20281102000000 — a review reaches storage only after a person asks for it.
+  {
+    id: "destruction_reviews.execution_requested_at_utc",
+    kind: "column",
+    detail: 'column public."destruction_reviews"."execution_requested_at_utc" must exist',
+    requiredBy: "the destruction sweep and executor read this to see that a person asked for execution",
+    suppliedBy: "20281102000000_destruction_governance_truth",
+  },
 ]);
 
 /**
@@ -983,6 +991,7 @@ const PROBES = Object.freeze({
        AND table_name = 'billing_provider_binding_checks'
      LIMIT 1`,
   "billing_provider_customers.currency": columnProbe("billing_provider_customers", "currency"),
+  "destruction_reviews.execution_requested_at_utc": columnProbe("destruction_reviews", "execution_requested_at_utc"),
   "billing_provider_customers.table": `
     SELECT 1
       FROM information_schema.tables

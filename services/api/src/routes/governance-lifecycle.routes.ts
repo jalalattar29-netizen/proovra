@@ -763,11 +763,11 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         storageRetentionTruth: barriers?.storageRetentionTruth ?? null,
         executionEnabled,
         guidance:
-          blockedBy.length > 0
-            ? "One or more blockers prevent destruction. Holds must be released, retention must end, or an immutable policy must be superseded before this can proceed."
-            : executionEnabled
+          blockedBy.length === 0
+            ? executionEnabled
               ? "No blockers detected. Destruction will proceed when an authorised person transitions this review to EXECUTED with a step-up token."
-              : "No blockers detected, but destruction execution is switched off on this deployment. Nothing will be destroyed until it is switched on.",
+              : "No blockers detected, but destruction execution is switched off on this deployment. Nothing will be destroyed until it is switched on."
+            : "One or more blockers prevent destruction. Holds must be released, retention must end, or an immutable policy must be superseded before this can proceed.",
       });
     },
   );
@@ -901,7 +901,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           // wording without coordinating with the governance UX
           // copy review.
           "This certificate is an operational traceability record. It is not a legal admissibility statement.",
-          "Destruction removes every stored object the record owned: the original, its parts, reports, verification packages, redactions and derived files, along with text and analysis derived from them. Evidence record tombstones, custody events, lifecycle ledger entries, destruction audit logs, notes people wrote about the record and the capture facts sealed in its signed fingerprint (time, location, file name) PERSIST and are intentionally not erased.",
+          "Destruction removes every stored object the record owned: the original, its parts, reports, verification packages, redactions and derived files, along with text and analysis derived from them. Evidence record tombstones, custody events, lifecycle event ledger entries, destruction audit logs, notes people wrote about the record and the capture facts sealed in its signed fingerprint (time, location, file name) PERSIST and are intentionally not erased.",
           "This certificate does not assert cryptographic proof of total erasure across replicas, backups, or downstream third-party systems. Coordinate with platform operations for compliance attestations.",
         ],
       });

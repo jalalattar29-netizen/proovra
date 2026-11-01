@@ -468,6 +468,15 @@ export async function listRecordsCommittedToDestruction(
   client: PrismaClient = defaultPrisma,
 ): Promise<string[]> {
   if (hold.scope === "EVIDENCE") return [];
+  const linked =
+    hold.scope === "CASE" && hold.caseId
+      ? (
+          await client.caseEvidenceLink.findMany({
+            where: { caseId: hold.caseId },
+            select: { evidenceId: true },
+          })
+        ).map((l) => l.evidenceId)
+      : null;
   const rows = await client.evidence.findMany({
     where: {
       teamId: hold.teamId,
@@ -475,9 +484,7 @@ export async function listRecordsCommittedToDestruction(
         { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: { not: null } },
         { destructionPartialAtUtc: { not: null }, destroyedAtUtc: null },
       ],
-      ...(hold.scope === "CASE" && hold.caseId
-        ? { caseLinks: { some: { caseId: hold.caseId } } }
-        : {}),
+      ...(linked ? { id: { in: linked } } : {}),
     },
     select: { id: true },
     take: 200,

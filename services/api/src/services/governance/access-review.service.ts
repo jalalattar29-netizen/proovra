@@ -112,11 +112,11 @@ export async function createCampaign(
   }
   const prisma = input.prisma ?? defaultPrisma;
   for (const item of input.items) {
-    const member = await prisma.teamMember.findFirst({
+    // A fact about the campaign's data, not a gate on the caller.
+    const members = await prisma.teamMember.count({
       where: { teamId: input.teamId, userId: item.subjectUserId },
-      select: { id: true },
     });
-    if (!member) return { ok: false, denial: "SUBJECT_NOT_A_MEMBER" };
+    if (members === 0) return { ok: false, denial: "SUBJECT_NOT_A_MEMBER" };
     const grant = parseGrantRef(item.grantRef);
     if (!grant || !(await grantExists(prisma, input.teamId, item.subjectUserId, grant))) {
       return { ok: false, denial: "GRANT_NOT_RECOGNISED" };

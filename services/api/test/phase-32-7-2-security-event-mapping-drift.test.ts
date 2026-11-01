@@ -1497,6 +1497,7 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281031000000_billing_product_decisions",
       // Stripe customer per recurring currency, written before the provider call. EXPAND.
       "20281101000000_stripe_customer_per_currency",
+      "20281102000000_destruction_governance_truth",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */
