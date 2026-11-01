@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
+  "capabilityRouteInventoryHash": "eb4f7102777fd9d0012ce9b83921be3795a50130e6a063c11589386a08bb825c",
   "totals": {
-    "routes": 1219,
+    "routes": 1220,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
-    "testCallSites": 104,
+    "testCallSites": 106,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -4121,6 +4121,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/auth/mfa/enrollment/complete",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/auth/mfa/verify",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7433,5 +7439,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "dd90a49f59ecccc90ce46d9255f9b9a959a8fa31ceeadb3a4ed1568a2795daf9"
+  "contentHash": "bbf8004c2f14e9f75223949a0d61327a079ed62c33503b2931ac3767c68a98aa"
 }
