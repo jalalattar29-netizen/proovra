@@ -7,7 +7,7 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import * as FileSystem from "expo-file-system";
-import { shareFile } from "../lib/share-file";
+import { exportFileUri, shareFile } from "../lib/share-file";
 import { View } from "react-native";
 
 import { apiFetch } from "../api";
@@ -88,8 +88,8 @@ export function WorkspaceAuditSection({ teamId }: { teamId: string }) {
       );
       // The web downloads a JSON FILE; the phone shares one (not the JSON pasted as text).
       const filename = `workspace-audit-${teamId}.json`;
-      if (!FileSystem.cacheDirectory) throw new Error("A writable temporary directory is not available on this device.");
-      const uri = `${FileSystem.cacheDirectory}${filename}`;
+      const uri = await exportFileUri(filename);
+      if (!uri) throw new Error("A writable temporary directory is not available on this device.");
       await FileSystem.writeAsStringAsync(uri, JSON.stringify(page.raw, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
       await shareFile(uri, { mimeType: "application/json", dialogTitle: filename, uti: "public.json" });
     } catch (err) {

@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system";
 import { buildEvidenceBulkRequest, type EvidenceBulkActionName } from "@proovra/shared";
 
 import { apiFetch } from "../../src/api";
-import { shareFile } from "../../src/lib/share-file";
+import { exportFileUri, shareFile } from "../../src/lib/share-file";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
 import { theme } from "../../src/theme/theme";
@@ -456,11 +456,13 @@ export default function EvidenceLibraryScreen() {
           body: JSON.stringify(buildEvidenceBulkRequest({ action, evidenceIds: ids, caseId })),
         }),
       );
-      if (response.csv && FileSystem.cacheDirectory) {
+      if (response.csv) {
         const filename = safeCsvFilename(response.fileName);
-        const uri = `${FileSystem.cacheDirectory}${filename}`;
-        await FileSystem.writeAsStringAsync(uri, response.csv, { encoding: FileSystem.EncodingType.UTF8 });
-        await shareFile(uri, { mimeType: "text/csv", dialogTitle: filename, uti: "public.comma-separated-values-text" });
+        const uri = await exportFileUri(filename);
+        if (uri) {
+          await FileSystem.writeAsStringAsync(uri, response.csv, { encoding: FileSystem.EncodingType.UTF8 });
+          await shareFile(uri, { mimeType: "text/csv", dialogTitle: filename, uti: "public.comma-separated-values-text" });
+        }
       }
       if (action !== "EXPORT_METADATA_CSV") await loadPage(serverFilters, currentCursor);
       if (inspectorId && ids.includes(inspectorId)) await loadInspector(inspectorId);

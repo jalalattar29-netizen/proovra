@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, setAuthToken, setSessionEndHandler } from "./api";
+import { clearAccountResidue } from "./auth/account-residue";
 import type { SessionEndReason } from "./auth/session-end";
 import { isAuthError } from "./errors/safe-error";
 import {
@@ -48,6 +49,7 @@ function purgeStoredToken() {
   setAuthToken(null);
   void SecureStore.deleteItemAsync("proovra-token");
   void SecureStore.deleteItemAsync("proovra-auth-mode");
+  clearAccountResidue();
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -124,8 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setAuthMode(null);
-        void SecureStore.deleteItemAsync("proovra-token");
-        void SecureStore.deleteItemAsync("proovra-auth-mode");
+        purgeStoredToken();
         dispatchBoot({ type: "SIGNED_OUT" });
       }
     },

@@ -111,6 +111,7 @@ export const readAsStringAsync = async (uri, options) => {
   return options?.encoding === "base64" ? slice.toString("base64") : slice.toString("utf8");
 };
 export const copyAsync = async () => {};
+export const makeDirectoryAsync = async () => {};
 // Every local deletion is recorded on globalThis.__DELETED__ (array of URIs).
 export const deleteAsync = async (uri) => {
   (globalThis.__DELETED__ ??= []).push(uri);
@@ -176,6 +177,12 @@ const AsyncStorage = {
   },
   async removeItem(k) {
     store.delete(k);
+  },
+  async getAllKeys() {
+    return [...store.keys()];
+  },
+  async multiRemove(keys) {
+    for (const k of keys) store.delete(k);
   },
   __reset() {
     store.clear();

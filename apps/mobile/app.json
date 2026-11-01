@@ -160,6 +160,7 @@
     },
     "android": {
       "package": "com.jalalattar29.proovra",
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",

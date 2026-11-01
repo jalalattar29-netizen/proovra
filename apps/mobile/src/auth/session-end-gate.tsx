@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import { useRouter } from "expo-router";
 
 import { useAuth } from "../auth-context";
+import { stopCaptureOnSessionEnd } from "../capture/capture-teardown";
 
 export function SessionEndGate() {
   const { sessionEndReason } = useAuth();
@@ -16,6 +17,7 @@ export function SessionEndGate() {
 
   useEffect(() => {
     if (!sessionEndReason) return;
+    void stopCaptureOnSessionEnd();
     if (router.canDismiss()) router.dismissAll();
     router.replace("/(stack)/auth");
   }, [sessionEndReason, router]);

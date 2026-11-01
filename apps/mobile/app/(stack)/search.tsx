@@ -19,6 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { formatLocalDueInput, parseLocalDueInput } from "../../src/product/team-responsibility";
 import { apiFetch } from "../../src/api";
+import { useAuth } from "../../src/auth-context";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
 import {
@@ -109,6 +110,7 @@ export default function SearchScreen() {
   const params = useLocalSearchParams<{ q?: string }>();
   const { loading: ctxLoading, context } = usePlatformContext();
   const teamId = context?.activeTeamId ?? null;
+  const userId = useAuth().user?.id ?? null;
 
   // The committed search — what the last submit asked for. The web honours
   // `/search?q=…` deep links by seeding both the draft and the live query.
@@ -294,28 +296,29 @@ export default function SearchScreen() {
 
   /* ------------------------------------------------------- recent searches */
   const [recent, setRecent] = useState<string[]>([]);
+  const recentKey = teamId && userId ? searchRecentKey(userId, teamId) : null;
   useEffect(() => {
     setRecent([]);
-    if (!teamId) return;
+    if (!recentKey) return;
     let alive = true;
-    AsyncStorage.getItem(searchRecentKey(teamId))
+    AsyncStorage.getItem(recentKey)
       .then((raw) => alive && setRecent(parseRecentSearches(raw)))
       .catch(() => undefined);
     return () => {
       alive = false;
     };
-  }, [teamId]);
+  }, [recentKey]);
   const writeRecent = useCallback(
     (next: string[]) => {
       setRecent(next);
-      if (teamId) void AsyncStorage.setItem(searchRecentKey(teamId), JSON.stringify(next)).catch(() => undefined);
+      if (recentKey) void AsyncStorage.setItem(recentKey, JSON.stringify(next)).catch(() => undefined);
     },
-    [teamId],
+    [recentKey],
   );
   const clearRecent = useCallback(() => {
     setRecent([]);
-    if (teamId) void AsyncStorage.removeItem(searchRecentKey(teamId)).catch(() => undefined);
-  }, [teamId]);
+    if (recentKey) void AsyncStorage.removeItem(recentKey).catch(() => undefined);
+  }, [recentKey]);
 
   /** Submit / pick: the query becomes the live search and joins the history. */
   const runQuery = useCallback(
