@@ -311,7 +311,7 @@ import {
   workspaceIncludesReviewCapability,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
