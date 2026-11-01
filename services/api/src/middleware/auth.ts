@@ -28,6 +28,7 @@ import { prisma } from "../db.js";
 import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
 import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
 import { bindRequestSession } from "../services/auth/request-session-context.js";
+import { trustedClientIpKey } from "./client-ip.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -287,6 +288,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
           issuedAtSec: iat,
           lastSeenAtMs: sessionRow?.lastSeenAtUtc ? sessionRow.lastSeenAtUtc.getTime() : Date.now(),
           mfaAtSec: typeof payload.mfaAt === "number" ? payload.mfaAt : null,
+          clientIp: trustedClientIpKey(req),
         });
       }
 

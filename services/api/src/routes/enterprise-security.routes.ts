@@ -336,7 +336,13 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; details?: unknown };
       if (e.code === "POLICY_VERSION_CONFLICT") return reply.code(409).send({ error: { code: e.code, details: e.details } });
-      if (e.code === "SSO_REQUIRED_NO_ACTIVE_CONNECTION") return reply.code(409).send({ error: { code: e.code } });
+      if (
+        e.code === "SSO_REQUIRED_NO_ACTIVE_CONNECTION" ||
+        e.code === "RESTRICTED_IP_RANGE_INVALID" ||
+        e.code === "RESTRICTED_IP_EXCLUDES_ACTOR"
+      ) {
+        return reply.code(409).send({ error: { code: e.code } });
+      }
       if (e.code === "ORG_SECURITY_POLICY_NOT_APPLICABLE") return reply.code(404).send({ error: { code: "NOT_FOUND" } });
       throw err;
     }

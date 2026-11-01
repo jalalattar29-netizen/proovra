@@ -29,6 +29,8 @@ export type RequestSessionFacts = {
   lastSeenAtMs: number;
   /** Set only when a second factor was verified for this session. */
   mfaAtSec: number | null;
+  /** The resolved client address of this request, for network policy. */
+  clientIp: string | null;
 };
 
 export type WorkspaceGateDecision = { allowed: boolean; reason?: string };

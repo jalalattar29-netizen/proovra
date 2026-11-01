@@ -29,7 +29,8 @@ import { isDomainError } from "../../errors.js";
 import { gateSecurityAction } from "../governance/policy-runtime-gates.service.js";
 import { enforceSessionTimeoutPolicy } from "../identity-security/session-timeout-policy.service.js";
 import { getMfaPolicy } from "../identity-security/mfa-policy.service.js";
-import { evaluateOrgContextForSession } from "./org-security-policy.service.js";
+import { evaluateOrgContextForSession, organizationIdForPolicy } from "./org-security-policy.service.js";
+import { ipInRanges } from "../access-control/ip-ranges.js";
 
 export async function evaluateSessionInWorkspace(
   session: RequestSessionFacts,
@@ -58,6 +59,20 @@ export async function evaluateSessionInWorkspace(
     client,
   );
   if (!orgGate.allowed) return { allowed: false, reason: orgGate.reason };
+
+  // IDENT-017 — a stored network restriction governs a session in this
+  // Organization, on every request, from wherever that request comes.
+  const organizationId = await organizationIdForPolicy(teamId, client);
+  if (organizationId) {
+    const policy = await client.organizationSecurityPolicy.findUnique({
+      where: { organizationId },
+      select: { restrictedIpRanges: true },
+    });
+    const ranges = policy?.restrictedIpRanges ?? [];
+    if (ranges.length > 0 && !ipInRanges(session.clientIp, ranges)) {
+      return { allowed: false, reason: "network_restricted" };
+    }
+  }
 
   const timeout = await enforceSessionTimeoutPolicy(
     {

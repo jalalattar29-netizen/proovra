@@ -200,6 +200,7 @@ describe("Organization security policy per workspace (live PostgreSQL)", () => {
       issuedAtSec: Math.floor(Date.now() / 1000),
       lastSeenAtMs: Date.now(),
       mfaAtSec: null,
+      clientIp: "127.0.0.1",
     });
     const decision = await evaluateMemberAccess({
       teamId: org.workspaceId,

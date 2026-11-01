@@ -266,6 +266,10 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
       else if (code === "POLICY_VERSION_CONFLICT") setError("The policy was changed elsewhere. Reload and reapply your change.");
       else if (code === "SSO_REQUIRED_NO_ACTIVE_CONNECTION") {
         setError("Activate an SSO connection before requiring SSO. Without one, nobody in this organization could sign in.");
+      } else if (code === "RESTRICTED_IP_RANGE_INVALID") {
+        setError("Each restricted range must be an IP address or a CIDR block, such as 203.0.113.0/24.");
+      } else if (code === "RESTRICTED_IP_EXCLUDES_ACTOR") {
+        setError("These ranges do not include the address you are connected from, so saving them would lock you out.");
       } else if (err instanceof ApiError) setError(err.message);
       else setError(toSafeUserError(err, { message: "Failed to update security policy." }).message);
     } finally {

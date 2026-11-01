@@ -74,6 +74,7 @@ export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
 // asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
 import { isAccountClosed } from "../identity/account-closed.js";
+import { ipInRanges } from "./ip-ranges.js";
 // P0 remediation (2026-07-21) — SCIM deactivation revokes sessions
 // immediately (same primitive as RBAC suspend).
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
@@ -760,16 +761,10 @@ export async function authenticateScimRequest(
   if (row.organization.status !== "ACTIVE" || row.team.closedAtUtc !== null) {
     return { ok: false, reason: "organization_inactive" };
   }
-  if (row.ipAllowlist.length > 0 && input.remoteIp) {
-    // Phase 26 keeps this as a simple equality / prefix check. CIDR
-    // matching is a Phase 27 enhancement.
-    const matched = row.ipAllowlist.some(
-      (entry) =>
-        input.remoteIp === entry || input.remoteIp?.startsWith(entry),
-    );
-    if (!matched) {
-      return { ok: false, reason: "ip_not_allowed" };
-    }
+  // IDENT-021 — parsed networks, and a caller with no known address is not on
+  // the list.
+  if (row.ipAllowlist.length > 0 && !ipInRanges(input.remoteIp, row.ipAllowlist)) {
+    return { ok: false, reason: "ip_not_allowed" };
   }
   // Touch lastUsedAtUtc best-effort.
   client.scimProvisioningToken

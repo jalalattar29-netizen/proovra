@@ -1,3 +1,4 @@
+import { evaluateExistingAccountLink } from "./security/enterprise-account-linking.service.js";
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
 import { prisma } from "../db.js";
 import { AuthProvider } from "@prisma/client";
@@ -311,16 +312,44 @@ export async function changePasswordForUser(params: {
   return { ok: true };
 }
 
+/**
+ * IDENT-013 — an IdP or directory can create a row for any address its
+ * organization names. A reset on such a row would hand the mailbox owner a
+ * working account the organization's IdP can also sign in to, so it is refused
+ * until that organization has proved the domain. A row with a password, or one
+ * from an organization holding the domain, is an ordinary account.
+ */
+async function isUnprovenDirectoryAccount(user: {
+  id: string;
+  email: string | null;
+  passwordHash: string | null;
+  providerUserId: string;
+}): Promise<boolean> {
+  if (user.passwordHash || !/^(sso|saml|scim)-/.test(user.providerUserId)) return false;
+  const mapping = await prisma.externalIdentityMapping.findFirst({
+    where: { userId: user.id, unlinkedAtUtc: null },
+    select: { teamId: true },
+  });
+  if (!mapping || !user.email) return true;
+  const proven = await evaluateExistingAccountLink({ teamId: mapping.teamId, email: user.email });
+  return !proven.ok;
+}
+
 export async function createPasswordResetTokenForEmail(emailRaw: string) {
   const email = normalizeEmail(emailRaw);
 
+  // Email is not unique across rows. A row with a password is the person's own,
+  // so a row an IdP created for the same address cannot divert their reset.
   const user = await prisma.user.findFirst({
-    where: { email }
+    where: { email },
+    orderBy: [{ passwordHash: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
   });
 
   if (!user) return null;
 
   if (user.provider !== AuthProvider.EMAIL) return null;
+
+  if (await isUnprovenDirectoryAccount(user)) return null;
 
   const rawToken = randomBytes(32).toString("hex");
 
