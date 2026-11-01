@@ -753,6 +753,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
             "destruction_certificate",
             "audit_log_references",
             "human_authored_notes_pending_policy",
+            "sealed_capture_facts_pending_policy",
           ],
           irreversible: review.status !== "EXECUTED",
           lifecycleEventCount,
@@ -900,7 +901,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           // wording without coordinating with the governance UX
           // copy review.
           "This certificate is an operational traceability record. It is not a legal admissibility statement.",
-          "Destruction removes every stored object the record owned: the original, its parts, reports, verification packages, redactions and derived files, along with text and analysis derived from them. Evidence record tombstones, custody events, lifecycle ledger entries, destruction audit logs and notes people wrote about the record PERSIST and are intentionally not erased.",
+          "Destruction removes every stored object the record owned: the original, its parts, reports, verification packages, redactions and derived files, along with text and analysis derived from them. Evidence record tombstones, custody events, lifecycle ledger entries, destruction audit logs, notes people wrote about the record and the capture facts sealed in its signed fingerprint (time, location, file name) PERSIST and are intentionally not erased.",
           "This certificate does not assert cryptographic proof of total erasure across replicas, backups, or downstream third-party systems. Coordinate with platform operations for compliance attestations.",
         ],
       });

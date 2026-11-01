@@ -61,9 +61,10 @@
  * certifications — those ARE the audit record of a record that used to exist,
  * and the old purge deleted them, which is why a purged record left no trace
  * that anything had ever been destroyed. What does not survive is content:
- * storage pointers are cleared, and the part / report / verification-package
- * rows are removed because the objects they address no longer exist and a
- * dangling pointer is worse than no pointer.
+ * storage pointers and the record's own descriptive fields are cleared, the part
+ * / report / verification-package rows are removed because the objects they
+ * address no longer exist, and everything derived from the content is deleted.
+ * tombstone-classification.ts is the inventory, table by table.
  *
  * PORTS
  * ---------------------------------------------------------------------------
@@ -133,6 +134,7 @@ export const DESTRUCTION_RETAINED_BY_DESIGN = Object.freeze([
   "audit_logs",
   "anchors_and_certifications",
   "human_authored_notes_pending_policy",
+  "sealed_capture_facts_pending_policy",
 ] as const);
 
 /** One destroyed issued artifact, by identity and digest (AUD-49). */
@@ -999,6 +1001,53 @@ export async function executeEvidenceDestruction(
       where: { evidenceId: evidence.id },
     });
 
+    // EVID-016 — the graph answers by filename and by extracted value. Its nodes
+    // and edges stay as history, stale and with the text gone, and they go in
+    // this transaction so a destroyed record is never searchable between sweeps.
+    const entityIds = (
+      await tx.evidenceEntity.findMany({ where: { evidenceId: evidence.id }, select: { id: true } })
+    ).map((e) => e.id);
+    const graphNodeIds = (
+      await tx.investigationGraphNode.findMany({
+        where: {
+          OR: [
+            { nodeKind: "EVIDENCE", externalId: evidence.id },
+            { nodeKind: "EXTRACTED_ENTITY", externalId: { in: entityIds } },
+          ],
+        },
+        select: { id: true },
+      })
+    ).map((n) => n.id);
+    if (graphNodeIds.length > 0) {
+      await tx.investigationGraphNode.updateMany({
+        where: { id: { in: graphNodeIds } },
+        data: { staleAtUtc: now, safeLabel: null, updatedAtUtc: now },
+      });
+      await tx.investigationGraphEdge.updateMany({
+        where: { OR: [{ sourceNodeId: { in: graphNodeIds } }, { targetNodeId: { in: graphNodeIds } }] },
+        data: { staleAtUtc: now, safeSummary: null, updatedAtUtc: now },
+      });
+    }
+
+    // GOV-010 — the rest of what PROOVRA derived from the content. See
+    // tombstone-classification.ts: a contract test holds this list to the schema.
+    await tx.evidenceEntity.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceAiCategorization.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceSimilarity.deleteMany({
+      where: { OR: [{ sourceEvidenceId: evidence.id }, { targetEvidenceId: evidence.id }] },
+    });
+    await tx.mediaIntelligenceSignal.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.mediaIntelligenceEntity.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.mediaIntelligenceRecord.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.videoTimelineEvent.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.videoTrack.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.videoFrame.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidencePartExifSummary.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceUploadSession.updateMany({
+      where: { evidenceId: evidence.id },
+      data: { originalFileName: null },
+    });
+
     // The tombstone. The row stays; the content pointers do not.
     // ET-SEC-12 — the tombstone is written only over THIS executor's own
     // decided claim. Any other state (a claim lost to a takeover, a record moved
@@ -1014,6 +1063,18 @@ export async function executeEvidenceDestruction(
         storageKey: null,
         sizeBytes: BigInt(0),
         activeDestructionReviewId: null,
+        // GOV-010 — EVIDENCE_TOMBSTONE_CLEARED_FIELDS, by name so a reader sees
+        // exactly what goes. EVIDENCE_TOMBSTONE_SEALED_FIELDS stay: database
+        // triggers hold them permanent, including on this write.
+        title: null,
+        internalNotes: null,
+        intakePlanJson: prismaPkg.Prisma.DbNull,
+        originalFileName: null,
+        displayFileName: null,
+        submittedByEmail: null,
+        technicalMetadata: prismaPkg.Prisma.DbNull,
+        captureEnvironment: prismaPkg.Prisma.DbNull,
+        intakeCustomerId: null,
       },
     });
     if (tombstoned.count !== 1) {
