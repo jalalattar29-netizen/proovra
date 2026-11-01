@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
-  "consumerInventoryHash": "6c21a67d1b3ce27faaa6ce6a241b108c5edfb074cd4102818efa7cac0f894321",
+  "consumerInventoryHash": "20e7988acf3086ffc3901f4cc0e0383c817b78208b9d39e21d3ef67921e9663d",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1219,
@@ -106702,7 +106702,7 @@
       "method": "GET",
       "path": "/v1/auth/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1761",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1764",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -106737,7 +106737,7 @@
         },
         {
           "file": "apps/web/app/auth/mfa-challenge/page.tsx",
-          "line": 141,
+          "line": 111,
           "caller": "handleSubmit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106897,7 +106897,7 @@
       "method": "GET",
       "path": "/v1/auth/session-light",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1807",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1810",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -146119,7 +146119,7 @@
       "method": "POST",
       "path": "/v1/auth/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1685",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1688",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "resolveSessionCredential -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146206,15 +146206,7 @@
         },
         {
           "file": "apps/web/app/auth/mfa-challenge/page.tsx",
-          "line": 79,
-          "caller": "MfaChallengeBody",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        },
-        {
-          "file": "apps/web/app/auth/mfa-challenge/page.tsx",
-          "line": 131,
+          "line": 101,
           "caller": "handleSubmit",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -146224,7 +146216,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:125 (verifyMfa, MOBILE); apps/web/app/auth/mfa-challenge/page.tsx:79 (MfaChallengeBody, WEB); apps/web/app/auth/mfa-challenge/page.tsx:131 (handleSubmit, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:125 (verifyMfa, MOBILE); apps/web/app/auth/mfa-challenge/page.tsx:101 (handleSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
