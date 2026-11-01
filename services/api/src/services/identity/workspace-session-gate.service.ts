@@ -74,8 +74,8 @@ export async function evaluateSessionInWorkspace(
   // session with no verified second factor does not enter a workspace whose
   // policy requires one for this person's role.
   if (session.mfaAtSec === null) {
-    const member = await client.teamMember.findUnique({
-      where: { teamId_userId: { teamId, userId: session.userId } },
+    const member = await client.teamMember.findFirst({
+      where: { teamId, userId: session.userId, status: "ACTIVE" },
       select: { role: true },
     });
     if (member) {

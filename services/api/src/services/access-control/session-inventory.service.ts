@@ -215,8 +215,9 @@ export async function sessionsOfWorkspaceWhere(
   teamId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<Prisma.AuthenticatedSessionWhereInput> {
+  // Every status: a suspended member's session is still theirs to end.
   const members = await client.teamMember.findMany({
-    where: { teamId },
+    where: { teamId, status: { in: ["ACTIVE", "SUSPENDED", "REVOKED"] } },
     select: { userId: true },
   });
   return { OR: [{ teamId }, { userId: { in: members.map((m) => m.userId) } }] };
