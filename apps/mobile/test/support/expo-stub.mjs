@@ -13,8 +13,10 @@ export const calls = {
   replace: [],
   back: 0,
   dismissAll: 0,
+  redirect: null,
   openURL: [],
   reset() {
+    calls.redirect = null;
     calls.push = [];
     calls.replace = [];
     calls.back = 0;
@@ -57,7 +59,10 @@ export const Tabs = Object.assign(({ children }) => children ?? null, {
   Screen: () => null,
 });
 export const Link = ({ children }) => children ?? null;
-export const Redirect = () => null;
+export const Redirect = ({ href }) => {
+  calls.redirect = href;
+  return null;
+};
 
 /* ---------------------------------------------------------------- expo-audio */
 export const RecordingPresets = { HIGH_QUALITY: {} };
@@ -150,7 +155,7 @@ export const getCurrentPositionAsync = async () => {
 export const getDocumentAsync = async () => globalThis.__DOC_PICK__ ?? { canceled: true, assets: null };
 
 /* --------------------------------------------------------------- expo-linking */
-export const useURL = () => null;
+export const useURL = () => globalThis.__EXPO_URL__ ?? null;
 export const openURL = async (url) => {
   calls.openURL.push(url);
   return true;

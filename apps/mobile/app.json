@@ -179,7 +179,12 @@
             {
               "scheme": "https",
               "host": "www.proovra.com",
-              "pathPrefix": "/portal"
+              "path": "/portal"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/portal/accept"
             },
             {
               "scheme": "https",
@@ -224,7 +229,12 @@
             {
               "scheme": "https",
               "host": "proovra.com",
-              "pathPrefix": "/portal"
+              "path": "/portal"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/portal/accept"
             },
             {
               "scheme": "https",
