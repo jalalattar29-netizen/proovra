@@ -202,6 +202,8 @@ export const CHAIN_TRANSFER_STATES = [
 export type ChainTransferState = (typeof CHAIN_TRANSFER_STATES)[number];
 
 export type ChainTransferProjection = {
+  /** OUTGOING is this workspace's transfer; INCOMING is one it may accept or reject. */
+  direction?: "OUTGOING" | "INCOMING";
   id: string;
   teamId: string;
   fromOrganizationId: string;

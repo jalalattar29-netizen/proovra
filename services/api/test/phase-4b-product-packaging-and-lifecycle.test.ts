@@ -1343,11 +1343,13 @@ describe("14. Chain transfer state machine", () => {
         findMany: async () => [],
         update: async () => ({}),
       },
+      organization: { findUnique: async () => ({ id: "org-two" }) },
     });
     const result = await initiateChainTransfer({
       prisma: prisma as never,
       teamId: "team-1",
       fromOrganizationId: "org-1",
+      toOrganizationId: "org-two",
       toOrganizationSlug: "org-two",
       evidenceIds: ["ev-1"],
       initiatedByUserId: "user-1",
@@ -1360,11 +1362,15 @@ describe("14. Chain transfer state machine", () => {
     let updatedState: string | undefined;
     const prisma = makePrismaStub({
       chainTransfer: {
-        findFirst: async () => ({
+        findUnique: async () => ({
           id: "xfer-1",
+          teamId: "team-sender",
           state: "INITIATED",
           fromOrganizationId: "org-1",
+          toOrganizationId: "org-two",
           toOrganizationSlug: "org-two",
+          evidenceIds: [],
+          expiresAtUtc: null,
         }),
         updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
@@ -1373,6 +1379,7 @@ describe("14. Chain transfer state machine", () => {
         create: async () => ({ id: "xfer-1" }),
         findMany: async () => [],
       },
+      team: { findUnique: async () => ({ organizationId: "org-two" }) },
     });
     const result = await acceptChainTransfer({
       prisma: prisma as never,

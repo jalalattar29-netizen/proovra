@@ -50,16 +50,19 @@ describe("chain transfer custody (live PostgreSQL 16)", () => {
     const A = h.fixtures.teamA;
     const r1 = await record(A);
     const r2 = await record(A);
+    const B = h.fixtures.teamB;
+    const receiving = (await record(B)).organizationId;
     const init = await svc.initiateChainTransfer({
       teamId: A.teamId,
       fromOrganizationId: r1.organizationId,
+      toOrganizationId: receiving,
       toOrganizationSlug: "receiving-org",
       evidenceIds: [r1.id, r2.id],
       initiatedByUserId: A.ownerUserId,
     });
     expect(init.ok).toBe(true);
     const transferId = (init as { transferId: string }).transferId;
-    expect(await svc.acceptChainTransfer({ teamId: A.teamId, transferId, acceptingUserId: A.ownerUserId })).toEqual({ ok: true });
+    expect(await svc.acceptChainTransfer({ teamId: B.teamId, transferId, acceptingUserId: B.ownerUserId })).toEqual({ ok: true });
     expect(
       await svc.completeChainTransfer({ teamId: A.teamId, transferId, packageId: randomUUID(), actorUserId: A.ownerUserId }),
     ).toEqual({ ok: true });
@@ -81,6 +84,7 @@ describe("chain transfer custody (live PostgreSQL 16)", () => {
       await svc.initiateChainTransfer({
         teamId: A.teamId,
         fromOrganizationId: mine.organizationId,
+        toOrganizationId: theirs.organizationId,
         toOrganizationSlug: "receiving-org",
         evidenceIds: [mine.id, theirs.id],
         initiatedByUserId: A.ownerUserId,
@@ -90,6 +94,7 @@ describe("chain transfer custody (live PostgreSQL 16)", () => {
       await svc.initiateChainTransfer({
         teamId: A.teamId,
         fromOrganizationId: theirs.organizationId,
+        toOrganizationId: mine.organizationId,
         toOrganizationSlug: "receiving-org",
         evidenceIds: [mine.id],
         initiatedByUserId: A.ownerUserId,
@@ -97,5 +102,98 @@ describe("chain transfer custody (live PostgreSQL 16)", () => {
     ).toEqual({ ok: false, denial: "INVALID_ORGANIZATION" });
     expect(await transferEvents(theirs.id)).toHaveLength(0);
     expect(await transferEvents(mine.id)).toHaveLength(0);
+  });
+
+  describe("AUTHZ-007: acceptance is the recipient's act", () => {
+    async function outgoing() {
+      const A = h.fixtures.teamA;
+      const r = await record(A);
+      const receiving = (await record(h.fixtures.teamB)).organizationId;
+      const init = await svc.initiateChainTransfer({
+        teamId: A.teamId,
+        fromOrganizationId: r.organizationId,
+        toOrganizationId: receiving,
+        evidenceIds: [r.id],
+        initiatedByUserId: A.ownerUserId,
+      });
+      if (!init.ok) throw new Error(init.denial);
+      return { evidenceId: r.id, transferId: init.transferId, receiving };
+    }
+
+    it("the sender cannot accept or reject its own transfer, and custody records nothing", async () => {
+      const A = h.fixtures.teamA;
+      const { evidenceId, transferId } = await outgoing();
+      expect(await svc.acceptChainTransfer({ teamId: A.teamId, transferId, acceptingUserId: A.ownerUserId })).toEqual({
+        ok: false,
+        denial: "NOT_FOUND",
+      });
+      expect(await svc.rejectChainTransfer({ teamId: A.teamId, transferId, rejectingUserId: A.ownerUserId })).toEqual({
+        ok: false,
+        denial: "NOT_FOUND",
+      });
+      const row = await prisma.chainTransfer.findUniqueOrThrow({ where: { id: transferId } });
+      expect(row).toMatchObject({ state: "INITIATED", acceptedByUserId: null });
+      expect((await transferEvents(evidenceId)).map((e) => (e.payload as { state: string }).state)).toEqual(["INITIATED"]);
+    });
+
+    it("a third organization reads it as not found", async () => {
+      const { transferId } = await outgoing();
+      const p = h.fixtures.personal;
+      expect(await svc.acceptChainTransfer({ teamId: p.teamId, transferId, acceptingUserId: p.userId })).toEqual({
+        ok: false,
+        denial: "NOT_FOUND",
+      });
+    });
+
+    it("POSITIVE: a member of the receiving organization accepts, and custody names that organization", async () => {
+      const B = h.fixtures.teamB;
+      const { evidenceId, transferId, receiving } = await outgoing();
+      expect((await svc.listChainTransfers({ teamId: B.teamId })).find((t) => t.id === transferId)?.direction).toBe("INCOMING");
+      expect(await svc.acceptChainTransfer({ teamId: B.teamId, transferId, acceptingUserId: B.ownerUserId })).toEqual({ ok: true });
+      const accepted = (await transferEvents(evidenceId)).at(-1)!.payload as Record<string, unknown>;
+      expect(accepted).toMatchObject({
+        state: "ACCEPTED",
+        actorUserId: B.ownerUserId,
+        actorOrganizationId: receiving,
+        toOrganizationId: receiving,
+      });
+    });
+
+    it("a transfer to a made-up organization or to itself is refused", async () => {
+      const A = h.fixtures.teamA;
+      const r = await record(A);
+      for (const toOrganizationId of [randomUUID(), r.organizationId]) {
+        expect(
+          await svc.initiateChainTransfer({
+            teamId: A.teamId,
+            fromOrganizationId: r.organizationId,
+            toOrganizationId,
+            evidenceIds: [r.id],
+            initiatedByUserId: A.ownerUserId,
+          }),
+        ).toEqual({ ok: false, denial: "INVALID_ORGANIZATION" });
+      }
+      expect(await transferEvents(r.id)).toHaveLength(0);
+    });
+
+    it("a legacy transfer with no resolved recipient can no longer be accepted by anyone", async () => {
+      const A = h.fixtures.teamA;
+      const r = await record(A);
+      const legacy = await prisma.chainTransfer.create({
+        data: {
+          teamId: A.teamId,
+          fromOrganizationId: r.organizationId,
+          toOrganizationSlug: "unresolved-org",
+          evidenceIds: [r.id],
+          state: "INITIATED",
+          initiatedByUserId: A.ownerUserId,
+        },
+        select: { id: true },
+      });
+      expect(await svc.acceptChainTransfer({ teamId: A.teamId, transferId: legacy.id, acceptingUserId: A.ownerUserId })).toEqual({
+        ok: false,
+        denial: "NOT_FOUND",
+      });
+    });
   });
 });

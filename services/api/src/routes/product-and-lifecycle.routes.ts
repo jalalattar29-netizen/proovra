@@ -794,7 +794,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const transfers = await listChainTransfers({ teamId: ctx.teamId });
-      return reply.code(200).send({ transfers });
+      const team = await prisma.team.findUnique({
+        where: { id: ctx.teamId },
+        select: { organizationId: true },
+      });
+      // A sender names the recipient by this id, so the recipient has to see it.
+      return reply.code(200).send({ transfers, organizationId: team?.organizationId ?? null });
     },
   );
 
@@ -824,18 +829,25 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
       const body = z
         .object({
-          fromOrganizationId: z.string().uuid(),
-          toOrganizationSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/),
+          // Optional: the workspace's own organization unless a caller states it.
+          fromOrganizationId: z.string().uuid().optional(),
+          toOrganizationId: z.string().uuid(),
+          toOrganizationSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/).optional(),
           evidenceIds: z.array(z.string().uuid()).min(1).max(500),
           caseId: z.string().uuid().nullable().optional(),
-          reasonNote: z.string().min(1).max(400).optional(),
+          reasonNote: z.string().min(1).max(400).nullable().optional(),
           expiresAtUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body);
+      const sender = await prisma.team.findUnique({
+        where: { id: ctx.teamId },
+        select: { organizationId: true },
+      });
       const res = await initiateChainTransfer({
         teamId: ctx.teamId,
-        fromOrganizationId: body.fromOrganizationId,
-        toOrganizationSlug: body.toOrganizationSlug,
+        fromOrganizationId: body.fromOrganizationId ?? sender?.organizationId ?? "",
+        toOrganizationId: body.toOrganizationId,
+        toOrganizationSlug: body.toOrganizationSlug ?? null,
         evidenceIds: body.evidenceIds,
         caseId: body.caseId ?? null,
         reasonNote: body.reasonNote ?? null,
@@ -854,16 +866,14 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({ acceptingOrgId: z.string().uuid().optional() })
-        .parse(req.body ?? {});
       const res = await acceptChainTransfer({
         teamId: ctx.teamId,
         transferId: id,
         acceptingUserId: ctx.userId,
-        acceptingOrgId: body.acceptingOrgId ?? null,
       });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
+      if (!res.ok) {
+        return reply.code(res.denial === "NOT_FOUND" ? 404 : 409).send({ denial: res.denial });
+      }
       return reply.code(200).send({ ok: true });
     },
   );
