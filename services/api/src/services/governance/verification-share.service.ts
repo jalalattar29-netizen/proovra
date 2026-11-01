@@ -262,6 +262,27 @@ export async function createVerificationLink(
 }
 
 /**
+ * What a rotate or renew would reissue, read before the workspace is asked.
+ * Null when the link is not on this record; the service answers that itself.
+ */
+export async function loadLinkGrantForShare(
+  evidenceId: string,
+  linkId: string,
+  client: PrismaClient = defaultPrisma,
+  now: Date = new Date(),
+): Promise<{ grantsOriginal: boolean; rotatable: boolean; renewable: boolean } | null> {
+  const row = (await client.verificationShareToken.findFirst({
+    where: { id: linkId, evidenceId },
+  })) as VerificationShareRow | null;
+  if (!row) return null;
+  return {
+    grantsOriginal: row.purpose === "OWNER_SHARE" && row.projection === "STANDARD" && row.allowOriginalDownload === true,
+    rotatable: verificationShareStateOf(row, now) === "ACTIVE",
+    renewable: row.purpose === "OWNER_SHARE" && row.revokedAtUtc === null,
+  };
+}
+
+/**
  * UC-OUT-005 — THE WORKSPACE a record is published in: its team, or — for a
  * legacy Personal record stored with team_id NULL — its owner's personal
  * workspace (the rule the report and package writers already use). Null only

@@ -394,6 +394,7 @@ import {
 // See `custody-events-observability.ts` for the rationale.
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { recordOriginalRelease, evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
+import { narrowPublicDisclosureAtRead } from "../services/governance/public-disclosure-governance.service.js";
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
 // canonical membership+lifecycle+capability for workspace-bound evidence).
@@ -3748,25 +3749,6 @@ async function originalReleaseForViewer(evidenceId: string, userId: string): Pro
     recordDenial: false,
   });
   return decision.allowed;
-}
-
-/**
- * May the public Verify page include presigned ORIGINAL urls (2026-09-29,
- * audit M2)? The surface policy decides whether downloads are offered at all;
- * export eligibility (legal hold of any scope, trashed / destruction-bound
- * lifecycle, an active destruction review) can only withdraw them.
- */
-async function originalReleaseForPublic(evidenceId: string): Promise<boolean> {
-  const row = await prisma.evidence.findUnique({
-    where: { id: evidenceId },
-    select: { teamId: true },
-  });
-  if (!row) return false;
-  const { checkExportEligibility } = await import(
-    "../services/governance-lifecycle/export-governance.service.js"
-  );
-  const eligibility = await checkExportEligibility({ teamId: row.teamId ?? null, evidenceId });
-  return eligibility.outcome === "ALLOWED";
 }
 
 async function assertArtifactDownloadAllowed(
@@ -14113,13 +14095,20 @@ action: "evidence.certification_requested",
      * fields leave this route.
      */
     const recordDisclosurePolicy = parseVerificationDisclosurePolicy(evidence);
-    const disclosure = resolvePublicVerifyDisclosure({
-      identifierKind,
-      recordPolicy: recordDisclosurePolicy,
-      share:
-        identifierKind === "REVIEWER_SHARE" && shareLink
-          ? { projection: shareLink.projection, allowOriginalDownload: shareLink.allowOriginalDownload === true }
-          : null,
+    // REPORT-001 — what was decided when the link was made is asked again here:
+    // a workspace policy changed since then applies to this answer.
+    const disclosure = await narrowPublicDisclosureAtRead({
+      disclosure: resolvePublicVerifyDisclosure({
+        identifierKind,
+        recordPolicy: recordDisclosurePolicy,
+        share:
+          identifierKind === "REVIEWER_SHARE" && shareLink
+            ? { projection: shareLink.projection, allowOriginalDownload: shareLink.allowOriginalDownload === true }
+            : null,
+      }),
+      evidenceId: evidence.id,
+      teamId: evidence.teamId ?? null,
+      shareCreatedByUserId: shareLink?.createdByUserId ?? null,
     });
     {
       const evidenceStatus = evidence.status as
@@ -14410,17 +14399,6 @@ const richVerifyEntitled =
     .catch(() => false));
 // The answer describes the record NOW; no shared cache may hold it.
 reply.header("Cache-Control", "no-store");
-/*
- * ET-PKG-07 — THE LINK IS USED HERE, once every gate above has passed and an
- * answer is about to be given. The use is counted and dated; with a use limit
- * the increment is conditional, so the request that would exceed it gets the
- * same 410 a spent link gets. What the caller is told about the link is its
- * kind and when it stops working — never its audience or who made it.
- */
-if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt))) {
-  return reply.code(410).send(verificationLinkGoneBody("EXHAUSTED"));
-}
-
     const allCustodyEvents = await prisma.custodyEvent.findMany({
       where: { evidenceId: id },
       orderBy: { sequence: "asc" },
@@ -14663,7 +14641,8 @@ const publicVerifyAccessPolicy = resolveEvidenceContentAccessPolicyForSurface({
 const content = await buildPublicEvidenceContent({
   accessPolicy: publicVerifyAccessPolicy,
   labelSource: "PUBLIC",
-  originalReleaseAllowed: disclosure.originalDownload ? await originalReleaseForPublic(evidence.id) : false,
+  // The disclosure above already asked the workspace and export eligibility.
+  originalReleaseAllowed: disclosure.originalDownload,
   previews: reportPreviewMap,
   evidence: {
     id: evidence.id,
@@ -15526,7 +15505,11 @@ const canonicalVerificationFacts = {
       },
       lastUpdatedAtUtc: latestReport?.generatedAtUtc ? new Date(latestReport.generatedAtUtc).toISOString() : null,
       limitations: [
-        "This page verifies the record and its artifacts. It does not publish the original evidence files.",
+        // REPORT-010 — read from this answer's own decision, so a link that
+        // really offers the files never carries a sentence denying it.
+        disclosure.originalDownload
+          ? "This page verifies the record and its artifacts. This reviewer link also offers the original evidence files its creator granted."
+          : "This page verifies the record and its artifacts. It does not publish the original evidence files.",
         "Verification states what PROOVRA's records and stored proofs show; it is not a legal finding.",
       ],
     };
@@ -15767,6 +15750,18 @@ const body =
  * actually carries), the analytics view, the debounced VERIFY_VIEWED custody
  * event and the success audit.
  */
+/*
+ * ET-PKG-07 — THE LINK IS USED HERE, once every gate above has passed and the
+ * answer is built, so a request that fails on the way does not spend a use
+ * (REPORT-013). The use is counted and dated; with a use limit the increment is
+ * conditional, so the request that would exceed it gets the same 410 a spent
+ * link gets, and the URLs built for it never leave. What the caller is told
+ * about the link is its kind and when it stops working — never its audience or
+ * who made it.
+ */
+if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt))) {
+  return reply.code(410).send(verificationLinkGoneBody("EXHAUSTED"));
+}
 const originalUrlsIssued = Array.isArray((body.evidenceContent as { items?: unknown[] } | undefined)?.items)
   ? ((body.evidenceContent as { items: Array<{ viewUrl?: unknown }> }).items).filter((i) => typeof i.viewUrl === "string").length
   : 0;

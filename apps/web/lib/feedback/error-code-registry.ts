@@ -520,6 +520,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   SCIM_GROUP_PROJECTION_NO_DIRECTORY: { disposition: "customer", where: "global" },
   DELEGATED_ADMIN_TIERS_RETIRED: { disposition: "customer", where: "global" },
   VERIFICATION_LINK_NOT_RENEWABLE: { disposition: "customer", where: "global" },
+  PUBLIC_VERIFY_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
+  ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_NOT_FOUND: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_NOT_RENEWABLE: { disposition: "customer", where: "global" },

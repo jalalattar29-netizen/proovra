@@ -15,11 +15,11 @@
  * the 404 a missing record gets. The workspace is the record's own, never the
  * request's.
  *
- * PUBLICATION. A link works only while the record is PUBLISHED, and a record
- * is never published automatically. Creating the first link on an unpublished
- * record IS the owner's act of publishing it: it goes through the publication
- * authority (custody event, and the step-up every publish requires). Creating
- * further links on a published record publishes nothing new.
+ * WORKSPACE GOVERNANCE (REPORT-001). The permission lets a member manage links;
+ * it does not outrank the workspace. Create, rotate and renew each hand out a
+ * capability, so each asks evaluatePublicDisclosureGrant first, and a link that
+ * grants original files also needs a fresh step-up on all three. A reviewer
+ * link never publishes the record or changes its disclosure policy.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -30,6 +30,10 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import {
+  evaluatePublicDisclosureGrant,
+  type PublicDisclosureGrantAction,
+} from "../services/governance/public-disclosure-governance.service.js";
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { resolveEvidenceOperationAccess } from "../services/evidence/evidence-record-access.service.js";
 import {
@@ -39,6 +43,7 @@ import {
   createVerificationLink,
   legacyVerifyLinkInventory,
   listVerificationLinks,
+  loadLinkGrantForShare,
   loadRecordForShare,
   recordIsShareable,
   resolveShareWorkspaceId,
@@ -133,6 +138,60 @@ async function authorizeShare(req: FastifyRequest, reply: FastifyReply, evidence
   return { actorUserId, record };
 }
 
+/**
+ * The workspace's decision on handing out this link. False when a refusal has
+ * been sent. The decision comes first so a refused request spends no step-up.
+ */
+async function governShareGrant(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  input: {
+    record: { id: string; teamId: string | null; ownerUserId?: string | null };
+    actorUserId: string;
+    action: PublicDisclosureGrantAction;
+    grantsOriginal: boolean;
+  },
+): Promise<boolean> {
+  const ua = req.headers["user-agent"];
+  const decision = await evaluatePublicDisclosureGrant({
+    ...input,
+    ip: req.ip,
+    userAgent: typeof ua === "string" ? ua : null,
+  });
+  if (decision.allowed) return true;
+  audit(req, {
+    actorUserId: input.actorUserId,
+    teamId: input.record.teamId,
+    evidenceId: input.record.id,
+    action: `verification.${input.action}`,
+    outcome: "denied",
+    denialReason: decision.reason,
+    metadata: { grantsOriginal: input.grantsOriginal },
+  });
+  reply.code(decision.statusCode).send({ code: decision.code, reason: decision.reason });
+  return false;
+}
+
+/** A fresh step-up for a link that hands out originals. False when a refusal was sent. */
+async function stepUpForOriginalGrant(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  input: { record: { id: string; teamId: string | null; ownerUserId?: string | null }; actorUserId: string },
+): Promise<boolean> {
+  const workspaceId = await resolveShareWorkspaceId(input.record);
+  if (!workspaceId) return true;
+  const gate = await requireStepUpForSensitiveAction({
+    req,
+    reply,
+    teamId: workspaceId,
+    userId: input.actorUserId,
+    purpose: "PUBLIC_VERIFY_PUBLISH",
+    resourceKind: "evidence",
+    resourceId: input.record.id,
+  });
+  return !gate.sent;
+}
+
 function shareErrorToReply(err: unknown, reply: FastifyReply): FastifyReply {
   if (err instanceof VerificationShareError) {
     // Each refusal is written out whole — `code: "<LITERAL>"` — because the
@@ -176,6 +235,17 @@ export async function verificationShareRoutes(app: FastifyInstance) {
     const record = ctx.record;
     if (!recordIsShareable(record)) {
       return reply.code(409).send({ code: "RECORD_NOT_SHAREABLE" });
+    }
+
+    if (
+      !(await governShareGrant(req, reply, {
+        record,
+        actorUserId: ctx.actorUserId,
+        action: "share_link_create",
+        grantsOriginal: body.allowOriginalDownload && body.projection === "STANDARD",
+      }))
+    ) {
+      return reply;
     }
 
     // (2026-10-18) A reviewer share never publishes or changes the record's
@@ -280,6 +350,16 @@ export async function verificationShareRoutes(app: FastifyInstance) {
     const ctx = await authorizeShare(req, reply, id);
     if (!ctx) return reply;
     try {
+      // An expired link comes back to life here, so it is an issuance. A link
+      // that is missing or revoked gets the service's own answer below.
+      const grant = await loadLinkGrantForShare(id, linkId);
+      if (grant?.renewable) {
+        const held = { record: ctx.record, actorUserId: ctx.actorUserId };
+        if (!(await governShareGrant(req, reply, { ...held, action: "share_link_renew", grantsOriginal: grant.grantsOriginal }))) {
+          return reply;
+        }
+        if (grant.grantsOriginal && !(await stepUpForOriginalGrant(req, reply, held))) return reply;
+      }
       const renewed = await renewVerificationLink({ record: ctx.record, linkId, actorUserId: ctx.actorUserId, days: body.days });
       await emitTenantAudit({
         action: "verification.link_renewed",
@@ -305,6 +385,15 @@ export async function verificationShareRoutes(app: FastifyInstance) {
     const ctx = await authorizeShare(req, reply, id);
     if (!ctx) return reply;
     try {
+      // A rotation mints a new token that keeps the grant, for whoever rotates.
+      const grant = await loadLinkGrantForShare(id, linkId);
+      if (grant?.rotatable) {
+        const held = { record: ctx.record, actorUserId: ctx.actorUserId };
+        if (!(await governShareGrant(req, reply, { ...held, action: "share_link_rotate", grantsOriginal: grant.grantsOriginal }))) {
+          return reply;
+        }
+        if (grant.grantsOriginal && !(await stepUpForOriginalGrant(req, reply, held))) return reply;
+      }
       const rotated = await rotateVerificationLink({ record: ctx.record, linkId, actorUserId: ctx.actorUserId });
       audit(req, {
         actorUserId: ctx.actorUserId,

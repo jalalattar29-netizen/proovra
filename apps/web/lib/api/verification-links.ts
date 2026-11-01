@@ -108,16 +108,27 @@ export function revokeVerificationLink(evidenceId: string, linkId: string): Prom
 }
 
 /** Members audit SEC-08 — an explicit, audited renewal (at most 30 days from now). */
-export function renewVerificationLink(evidenceId: string, linkId: string, days: number): Promise<{ link: VerificationLink }> {
+export function renewVerificationLink(
+  evidenceId: string,
+  linkId: string,
+  days: number,
+  headers?: Record<string, string>,
+): Promise<{ link: VerificationLink }> {
   return apiFetch(`${base(evidenceId)}/${encodeURIComponent(linkId)}/renew`, {
     method: "POST",
+    ...(headers ? { headers } : {}),
     body: JSON.stringify({ days }),
   }) as Promise<{ link: VerificationLink }>;
 }
 
-export function rotateVerificationLink(evidenceId: string, linkId: string): Promise<CreatedVerificationLink> {
+export function rotateVerificationLink(
+  evidenceId: string,
+  linkId: string,
+  headers?: Record<string, string>,
+): Promise<CreatedVerificationLink> {
   return apiFetch(`${base(evidenceId)}/${encodeURIComponent(linkId)}/rotate`, {
     method: "POST",
+    ...(headers ? { headers } : {}),
   }) as Promise<CreatedVerificationLink>;
 }
 

@@ -692,6 +692,12 @@ export type EvaluateVerificationPolicyInput = {
   organizationId?: string | null;
   departmentId?: string | null;
   workspaceId?: string | null;
+  /**
+   * False for a page read: an anonymous view of an unrestricted record is not
+   * a governance event, and one audit row per view would grow without bound.
+   * A BLOCK or WARN is still recorded.
+   */
+  recordCleanEvaluation?: boolean;
 };
 
 export async function evaluateVerificationPolicy(
@@ -752,13 +758,15 @@ export async function evaluateVerificationPolicy(
     }
   }
 
-  await emitEvaluationAudit(
-    prisma,
-    input.teamId,
-    "verification",
-    result,
-    `action=${input.action.toLowerCase()}`,
-  );
+  if (input.recordCleanEvaluation !== false || result.decision !== "ALLOW") {
+    await emitEvaluationAudit(
+      prisma,
+      input.teamId,
+      "verification",
+      result,
+      `action=${input.action.toLowerCase()}`,
+    );
+  }
   return result;
 }
 

@@ -257,11 +257,15 @@ export function ReviewerSharesPanel({
     if (!ok) return;
     setBusy(link.id);
     try {
-      await renewVerificationLink(evidenceId, link.id, 30);
+      // A share that grants original files asks for a fresh identity check here,
+      // as it did when it was created. Other shares pass straight through.
+      await stepUp.runStepUpAction((headers) => renewVerificationLink(evidenceId, link.id, 30, headers));
       await load();
       addToast("Reviewer share renewed for 30 days", "success");
     } catch (err) {
-      notifyApiError(addToast, err, { message: "The reviewer share could not be renewed." });
+      if ((err as { code?: string } | null)?.code !== "STEP_UP_CANCEL") {
+        notifyApiError(addToast, err, { message: "The reviewer share could not be renewed." });
+      }
     } finally {
       setBusy(null);
     }
@@ -277,12 +281,14 @@ export function ReviewerSharesPanel({
     if (!ok) return;
     setBusy(link.id);
     try {
-      const result = await rotateVerificationLink(evidenceId, link.id);
+      const result = await stepUp.runStepUpAction((headers) => rotateVerificationLink(evidenceId, link.id, headers));
       setCreated(result);
       await load();
       addToast("Reviewer share replaced", "success");
     } catch (err) {
-      notifyApiError(addToast, err, { message: "The reviewer share could not be replaced." });
+      if ((err as { code?: string } | null)?.code !== "STEP_UP_CANCEL") {
+        notifyApiError(addToast, err, { message: "The reviewer share could not be replaced." });
+      }
     } finally {
       setBusy(null);
     }
@@ -649,7 +655,7 @@ export function ReviewerSharesPanel({
                 </label>
                 <p className="app-field__help" id="verification-link-original-download-help">
                   {projection === "STANDARD"
-                    ? "The reviewer can download the original files, subject to your export controls. Granting it asks you to confirm your identity."
+                    ? "The reviewer can download the original files while your workspace's policy allows it. If that policy changes, this share stops offering them. Granting it asks you to confirm your identity."
                     : "Available only with the Content preview profile."}
                 </p>
               </div>

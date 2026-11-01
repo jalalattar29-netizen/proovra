@@ -47,6 +47,7 @@ import {
   resolveEvidenceOperationAccess,
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
+import { evaluatePublicDisclosureGrant } from "../services/governance/public-disclosure-governance.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   DisclosurePolicyInvalid,
@@ -397,8 +398,24 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
     const current = await readVerificationDisclosure(id);
     if (!current) return reply.code(404).send(NOT_FOUND);
     if (disclosureWidens(current, body)) {
-      const row = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true } });
-      if (row?.teamId) {
+      const row = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true, ownerUserId: true } });
+      if (!row) return reply.code(404).send(NOT_FOUND);
+      // Showing more of a record to anyone with its reference is new
+      // publication: the workspace decides it, as it does a reviewer link.
+      // Narrowing never asks, so a workspace can always withdraw.
+      const ua = req.headers["user-agent"];
+      const governed = await evaluatePublicDisclosureGrant({
+        record: { id, teamId: row.teamId, ownerUserId: row.ownerUserId },
+        actorUserId,
+        action: "disclosure_widen",
+        grantsOriginal: false,
+        ip: req.ip,
+        userAgent: typeof ua === "string" ? ua : null,
+      });
+      if (!governed.allowed) {
+        return reply.code(governed.statusCode).send({ code: governed.code, reason: governed.reason });
+      }
+      if (row.teamId) {
         const gate = await requireStepUpForSensitiveAction({
           req,
           reply,

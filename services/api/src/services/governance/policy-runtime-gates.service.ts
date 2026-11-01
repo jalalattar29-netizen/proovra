@@ -185,6 +185,7 @@ export type GateVerificationActionInput = {
   organizationId?: string | null;
   departmentId?: string | null;
   workspaceId?: string | null;
+  recordCleanEvaluation?: boolean;
 };
 
 export async function gateVerificationAction(
@@ -198,6 +199,7 @@ export async function gateVerificationAction(
     organizationId: input.organizationId,
     departmentId: input.departmentId,
     workspaceId: input.workspaceId,
+    recordCleanEvaluation: input.recordCleanEvaluation,
   };
   const result = await evaluateVerificationPolicy(evalInput);
   return collapse(result.decision, result.reason);
