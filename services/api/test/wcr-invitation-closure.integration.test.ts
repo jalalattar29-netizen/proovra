@@ -346,6 +346,7 @@ describe("WCR closure — workspace invitation + seat authority (live PostgreSQL
           displayName: "Newcomer",
           provider: "EMAIL",
           providerUserId: email,
+          emailVerifiedAt: new Date(),
         },
         select: { id: true },
       });

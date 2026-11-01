@@ -140,6 +140,24 @@ function makeTx(seed: { orgs?: Org[]; teams?: Team[] }) {
         return { id: t.id };
       }),
     },
+    // The accept handler has already written the ORG_OWNER membership; the
+    // orchestrator re-reads it and adds the workspace leg with its provenance.
+    organizationMembership: {
+      findFirst: vi.fn(async () => ({ id: "org-member-1", role: "ORG_OWNER" })),
+    },
+    teamMember: {
+      findUnique: vi.fn(async () => null),
+      upsert: vi.fn(async ({ where, create }: DelegateArgs & { create?: unknown }) => {
+        const key = (where as { teamId_userId: { teamId: string; userId: string } }).teamId_userId;
+        const t = teams.get(key.teamId)!;
+        const row = create as { userId: string; role: string };
+        t.memberRoles.push({ userId: row.userId, role: row.role });
+        t.memberCount = t.memberRoles.length;
+        return { id: "member-1" };
+      }),
+    },
+    membershipGrant: { create: vi.fn(async () => ({ id: "grant-1" })) },
+    user: { update: vi.fn(async () => ({})) },
   };
 
   return { tx, orgs, teams };

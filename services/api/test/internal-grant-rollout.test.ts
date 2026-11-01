@@ -154,6 +154,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281031000000_billing_product_decisions",
       // Stripe customer per recurring currency, written before the provider call. EXPAND.
       "20281101000000_stripe_customer_per_currency",
+      // PROV-001: when a password was proven with its mailbox, and the workspace name waiting on an owner invitation. EXPAND.
+      "20281104000000_account_credential_proof",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

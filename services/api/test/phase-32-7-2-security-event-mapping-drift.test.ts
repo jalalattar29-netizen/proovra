@@ -1497,6 +1497,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281031000000_billing_product_decisions",
       // Stripe customer per recurring currency, written before the provider call. EXPAND.
       "20281101000000_stripe_customer_per_currency",
+      // PROV-001: when a password was proven with its mailbox, and the workspace name waiting on an owner invitation. EXPAND.
+      "20281104000000_account_credential_proof",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

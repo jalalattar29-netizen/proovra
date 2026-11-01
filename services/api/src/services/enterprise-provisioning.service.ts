@@ -40,7 +40,7 @@ import { hashInviteToken } from "../routes/organizations.routes.js";
 import { emitOrgAuditEvent } from "./organization/org-audit.service.js";
 import { emitTenantAudit } from "./audit/tenant-audit.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
-import { grantOrganizationMembership } from "./identity/membership-provisioning.service.js";
+import { provisionMembership } from "./identity/membership-provisioning.service.js";
 // PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2).
 import { upsertEnterpriseContract } from "./organization/enterprise-contract.service.js";
 // Macro-Wave A2 — durable owner-invite delivery: outbox row committed in
@@ -328,7 +328,6 @@ function provisioningPayloadHash(input: {
 function redactProvisioningResult(
   result: ProvisionEnterpriseCustomerResult,
 ): Record<string, unknown> {
-  if (result.provisioned) return { ...result };
   // Macro-Wave A2 — `inviteUrl` EMBEDS the raw token, so it is redacted
   // from the durable snapshot exactly like `ownerInviteToken` (raw
   // acceptance tokens must never persist in any durable metadata).
@@ -534,40 +533,28 @@ export type ProvisionEnterpriseCustomerInput = {
   actorUserId: string;
 };
 
-export type ProvisionEnterpriseCustomerResult =
-  | {
-      organizationId: string;
-      workspaceId: string;
-      ownerUserId: string;
-      provisioned: true;
-    }
-  | {
-      organizationId: string;
-      ownerInviteToken: string;
-      inviteUrl: string;
-      /** Macro-Wave A2 — durable delivery state of the owner invite
-       *  (PENDING/SENT/FAILED + attempts). Safe: never a token/URL. */
-      ownerInviteDelivery?: {
-        deliveryId: string;
-        status: "PENDING" | "SENT" | "FAILED" | "CANCELLED";
-        attempts: number;
-        lastError: string | null;
-      } | null;
-      provisioned: false;
-      pendingOwner: true;
-    };
+export type ProvisionEnterpriseCustomerResult = {
+  organizationId: string;
+  ownerInviteToken: string;
+  inviteUrl: string;
+  /** Macro-Wave A2 — durable delivery state of the owner invite
+   *  (PENDING/SENT/FAILED + attempts). Safe: never a token/URL. */
+  ownerInviteDelivery?: {
+    deliveryId: string;
+    status: "PENDING" | "SENT" | "FAILED" | "CANCELLED";
+    attempts: number;
+    lastError: string | null;
+  } | null;
+  provisioned: false;
+  pendingOwner: true;
+};
 
 /**
- * Provision a brand-new enterprise customer in ONE transaction.
- *
- *   - Owner user EXISTS   → create Organization + enterprise Team(workspace)
- *                           owned by that user, ORG_OWNER membership, set
- *                           org.billingOwnerUserId. Returns provisioned:true.
- *   - Owner user MISSING  → create Organization (billingOwnerUserId null) +
- *                           a canonical ORG_OWNER invite for ownerEmail. No
- *                           workspace (Team.ownerUserId is required). Returns
- *                           provisioned:false, the raw invite token (once),
- *                           and pendingOwner:true.
+ * Provision a brand-new enterprise customer in ONE transaction: the
+ * Organization (billingOwnerUserId null), its PENDING_ACTIVATION contract and
+ * a canonical ORG_OWNER invite for ownerEmail. No workspace
+ * (Team.ownerUserId is required); acceptance creates it. Returns
+ * provisioned:false, the raw invite token (once), and pendingOwner:true.
  */
 export async function provisionEnterpriseCustomer(
   input: ProvisionEnterpriseCustomerInput,
@@ -576,125 +563,23 @@ export async function provisionEnterpriseCustomer(
   const seats = input.seats ?? getPlanCapabilities("ENTERPRISE").includedSeats;
   const email = input.ownerEmail.trim().toLowerCase();
 
-  // `email` is not a unique column on User in this schema (auth is by
-  // provider), so we resolve by findFirst — the same lookup SCIM uses.
-  const owner = await client.user.findFirst({
-    where: { email },
-    select: { id: true },
-  });
+  /*
+   * PROV-001 — OWNERSHIP IS NEVER BOUND BY MATCHING AN ADDRESS.
+   *
+   * This looked the address up in `users` and, on a match, made that account
+   * ORG_OWNER, workspace OWNER and contract owner on the spot. `users.email` is
+   * neither unique nor proven: anyone can register a customer's address before
+   * the customer does, so the operator's own typing handed the organization to
+   * a stranger. Even with no attacker the owner was whichever row the database
+   * returned first, and nobody told them they owned anything.
+   *
+   * There is one path now. Every first owner, with or without an account,
+   * receives the ORG_OWNER invitation at that address, and acceptance is where
+   * mailbox control, a verified account and a proven credential are checked.
+   */
 
-  if (owner) {
-    const result = await client.$transaction(async (tx) => {
-      const org = await tx.organization.create({
-        data: {
-          name: input.organizationName,
-          billingOwnerUserId: owner.id,
-          status: "ACTIVE",
-          // P1 domain remediation (2026-07-21) — sales-provisioned orgs are
-          // REAL customer Enterprise Organizations.
-          kind: "CUSTOMER",
-        },
-        select: { id: true },
-      });
-
-      // PHASE 10 §3 (2026-07-23) — every CUSTOMER Organization MUST have an
-      // EXPLICIT provisioned security policy (a missing policy fails closed at
-      // read time). Create the baseline STANDARD posture transactionally so the
-      // org is never left in a fail-closed state. Idempotent-safe: one row per
-      // org (unique organizationId). The org admin tightens it via the policy
-      // routes; the fields default to the explicit STANDARD baseline.
-      await (tx.organizationSecurityPolicy.create as unknown as (a: unknown) => Promise<unknown>)({
-        data: { organizationId: org.id, policyVersion: 1 },
-      });
-
-      // PHASE 3 (2026-07-21) — canonical orchestrator: enterprise first owner.
-      await grantOrganizationMembership(tx, {
-        organizationId: org.id,
-        userId: owner.id,
-        role: "ORG_OWNER",
-        source: "ENTERPRISE_BOOTSTRAP",
-        intent: "ENTERPRISE_FIRST_OWNER",
-        actorUserId: null,
-        externalRef: `enterprise-provisioning:${org.id}`,
-      });
-
-      // PHASE 4 (2026-07-22) — canonical Enterprise contract state (§7.2):
-      // owner exists → the contract is ACTIVE and ACTIVATED at provisioning.
-      await upsertEnterpriseContract(tx, {
-        organizationId: org.id,
-        status: "ACTIVE",
-        activationState: "ACTIVATED",
-        seatCount: seats,
-        contractOwnerUserId: owner.id,
-      });
-
-      const workspace = await tx.team.create({
-        data: {
-          name: input.workspaceName ?? input.organizationName,
-          ownerUserId: owner.id,
-          billingOwnerUserId: owner.id,
-          organizationId: org.id,
-          billingPlan: "ENTERPRISE",
-          billingStatus: TeamBillingStatus.ACTIVE,
-          includedSeats: seats,
-          // P1 domain remediation (2026-07-21) — explicit canonical kind.
-          workspaceKind: "ORGANIZATION",
-          members: {
-            create: {
-              userId: owner.id,
-              role: TeamRole.OWNER,
-            },
-          },
-        },
-        select: { id: true },
-      });
-
-      await emitOrgAuditEvent(tx, {
-        organizationId: org.id,
-        actorUserId: input.actorUserId,
-        eventType: "ENTERPRISE_PROVISIONED",
-        targetType: "organization",
-        targetId: org.id,
-        metadata: {
-          organizationName: input.organizationName,
-          ownerUserId: owner.id,
-          workspaceId: workspace.id,
-          seats,
-          provisioned: true,
-        },
-      });
-
-      return { organizationId: org.id, workspaceId: workspace.id };
-    });
-
-    await emitTenantAudit({
-      action: "ENTERPRISE_PROVISIONED",
-      outcome: "success",
-      sourceApp: "API",
-      actorUserId: input.actorUserId,
-      organizationId: result.organizationId,
-      workspaceId: result.workspaceId,
-      resourceType: "organization",
-      resourceId: result.organizationId,
-      metadata: {
-        ownerUserId: owner.id,
-        ownerEmail: email,
-        seats,
-        provisioned: true,
-      },
-    }, client);
-
-    return {
-      organizationId: result.organizationId,
-      workspaceId: result.workspaceId,
-      ownerUserId: owner.id,
-      provisioned: true,
-    };
-  }
-
-  // Owner does not exist yet — create the org and a canonical ORG_OWNER
-  // invite. No workspace: Team.ownerUserId is a required non-null column,
-  // so we cannot create a workspace before an owner exists.
+  // No workspace yet: Team.ownerUserId is a required non-null column, so the
+  // workspace is created when the owner accepts.
   const token = newInviteToken();
   const tokenHash = hashInviteToken(token);
   const expiresAt = inviteExpiresAt();
@@ -712,6 +597,7 @@ export async function provisionEnterpriseCustomer(
         // When this ORG_OWNER invite is accepted, the accept handler mints
         // the ENTERPRISE workspace with these seats and clears the marker.
         pendingEnterpriseSeats: seats,
+        pendingEnterpriseWorkspaceName: input.workspaceName?.trim() || null,
       },
       select: { id: true },
     });
@@ -901,6 +787,7 @@ export async function completeEnterpriseProvisioningOnOwnerAccept(
       name: true,
       billingOwnerUserId: true,
       pendingEnterpriseSeats: true,
+      pendingEnterpriseWorkspaceName: true,
     },
   });
 
@@ -922,7 +809,7 @@ export async function completeEnterpriseProvisioningOnOwnerAccept(
 
   const workspace = await tx.team.create({
     data: {
-      name: org.name,
+      name: org.pendingEnterpriseWorkspaceName ?? org.name,
       ownerUserId: input.userId,
       billingOwnerUserId: input.userId,
       organizationId: input.organizationId,
@@ -932,14 +819,31 @@ export async function completeEnterpriseProvisioningOnOwnerAccept(
       overSeatLimit: false,
       // P1 domain remediation (2026-07-21) — explicit canonical kind.
       workspaceKind: "ORGANIZATION",
-      members: {
-        create: {
-          userId: input.userId,
-          role: TeamRole.OWNER,
-        },
-      },
     },
     select: { id: true },
+  });
+
+  // PROV-023 — through the orchestrator, so the first owner's membership has
+  // its provenance row like every other grant. The ORG_OWNER membership already
+  // exists; this adds the workspace leg.
+  await provisionMembership(tx, {
+    intent: "ENTERPRISE_FIRST_OWNER",
+    source: "ENTERPRISE_BOOTSTRAP",
+    userId: input.userId,
+    organizationId: input.organizationId,
+    organizationRole: "ORG_OWNER",
+    workspace: { teamId: workspace.id, role: TeamRole.OWNER },
+    actorUserId: input.actorUserId,
+    externalRef: `enterprise-provisioning:${input.organizationId}`,
+    accessReason: "enterprise first owner",
+  });
+
+  // PROV-004 — the owner lands in the organization they just took on. The setup
+  // wizard is an Enterprise surface gated on the ACTIVE workspace, which would
+  // still be their Personal space, and it answered them with an upgrade prompt.
+  await tx.user.update({
+    where: { id: input.userId },
+    data: { currentWorkspaceId: workspace.id },
   });
 
   await tx.organization.update({
@@ -948,6 +852,7 @@ export async function completeEnterpriseProvisioningOnOwnerAccept(
       // Only claim billing ownership if the org has none yet.
       billingOwnerUserId: org.billingOwnerUserId ?? input.userId,
       pendingEnterpriseSeats: null,
+      pendingEnterpriseWorkspaceName: null,
     },
   });
 

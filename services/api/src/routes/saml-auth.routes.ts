@@ -104,6 +104,7 @@ import { hashSessionId } from "../services/identity-security/session-revocation.
 import { organizationIdForPolicy, resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
 import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
+import { withSeatClaimRetry } from "../services/billing/workspace-seats.service.js";
 import { enforceSsoLoginPolicy } from "../services/access-control/sso-login-policy.service.js";
 import {
   evaluateOrganizationIdentityAuthority,
@@ -957,7 +958,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
             samlPolicy.policy.managedIdentityRequired
           ) {
             try {
-              await prisma.$transaction((tx) =>
+              await withSeatClaimRetry(() => prisma.$transaction((tx) =>
                 provisionManagedMembership(tx, {
                   userId: result.userId,
                   managingTeamId: conn.teamId,
@@ -972,13 +973,17 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
                   seatPolicy: "ENFORCE",
                   seatTeamId: conn.teamId,
                 }),
-              );
+              ));
             } catch (e) {
               await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
               const code = (e as { code?: string })?.code;
               return bounceToSamlError(
                 reply,
-                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
+                code === "MANAGED_SEAT_LIMIT_REACHED"
+                  ? "seat_limit_reached"
+                  : code === "WORKSPACE_SEAT_CONTENTION"
+                    ? "seat_contention"
+                    : "managed_identity_conflict",
                 attempt.redirectAfter,
               );
             }
@@ -1046,7 +1051,11 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           err instanceof SamlAssertionError
             ? err.code.toLowerCase()
             : err instanceof SamlMappingError
-              ? err.code.toLowerCase()
+              ? err.code === "SAML_SEAT_LIMIT_REACHED"
+                ? "seat_limit_reached"
+                : err.code === "SAML_SEAT_CONTENTION"
+                  ? "seat_contention"
+                  : err.code.toLowerCase()
               : "saml_acs_failed";
 
         await markCallbackFailed(

@@ -6,12 +6,11 @@
  *   1. grantEnterprisePlanToOrg flips EVERY workspace (Team) of an org to
  *      ENTERPRISE with the resolved seat count, ACTIVE billing status, and
  *      a recomputed overSeatLimit; writes an org + platform audit row.
- *   2. provisionEnterpriseCustomer (existing owner) creates an Organization,
- *      an ENTERPRISE workspace owned by the user, an ORG_OWNER membership,
- *      and sets org.billingOwnerUserId.
- *   3. provisionEnterpriseCustomer (missing owner) creates an Organization
- *      and a canonical ORG_OWNER invite (hashed token, 7-day expiry, no
- *      workspace) and returns the raw token once.
+ *   2. provisionEnterpriseCustomer binds nothing to an account that happens
+ *      to hold the owner's address (PROV-001).
+ *   3. provisionEnterpriseCustomer creates an Organization and a canonical
+ *      ORG_OWNER invite (hashed token, 7-day expiry, no workspace) and
+ *      returns the raw token once.
  *   4. The admin routes are gated by requirePlatformAdmin — a non-admin
  *      gets 403 and never reaches provisioning.
  *   5. Audit rows are written for every mutation.
@@ -122,6 +121,7 @@ type Org = {
   status: string;
   billingOwnerUserId: string | null;
   pendingEnterpriseSeats: number | null;
+  pendingEnterpriseWorkspaceName?: string | null;
 };
 
 /**
@@ -194,6 +194,7 @@ function makeClient(seed: {
           status: String(d.status),
           billingOwnerUserId: str(d.billingOwnerUserId),
           pendingEnterpriseSeats: typeof d.pendingEnterpriseSeats === "number" ? d.pendingEnterpriseSeats : null,
+          pendingEnterpriseWorkspaceName: typeof d.pendingEnterpriseWorkspaceName === "string" ? d.pendingEnterpriseWorkspaceName : null,
         };
         orgs.set(org.id, org);
         return { id: org.id };
@@ -477,8 +478,11 @@ describe("grantEnterprisePlanToOrg", () => {
 // provisionEnterpriseCustomer — existing owner
 // ---------------------------------------------------------------------------
 
-describe("provisionEnterpriseCustomer — existing owner", () => {
-  it("creates an org, an ENTERPRISE workspace owned by the user, and an ORG_OWNER membership", async () => {
+describe("provisionEnterpriseCustomer — an account already on the address", () => {
+  // PROV-001: a matching row proves nothing, because users.email is neither
+  // unique nor verified. The owner is invited like anyone else, and binding is
+  // proven against PostgreSQL in prov-001-owner-binding.integration.test.ts.
+  it("invites the address and binds no organization, workspace or owner to the matching row", async () => {
     const { client, orgs, teams, memberships } = makeClient({
       users: [{ id: "user-9", email: "owner@acme.test" }],
     });
@@ -493,31 +497,14 @@ describe("provisionEnterpriseCustomer — existing owner", () => {
       client,
     );
 
-    expect(res).toMatchObject({
-      provisioned: true,
-      ownerUserId: "user-9",
-    });
-    if (!res.provisioned) throw new Error("expected provisioned");
-
-    const org = orgs.get(res.organizationId)!;
-    expect(org.billingOwnerUserId).toBe("user-9");
-
-    const ws = teams.get(res.workspaceId)!;
-    expect(ws.ownerUserId).toBe("user-9");
-    expect(ws.billingPlan).toBe("ENTERPRISE");
-    expect(ws.billingStatus).toBe("ACTIVE");
-    expect(ws.includedSeats).toBe(25);
-
-    expect(memberships).toContainEqual(
-      expect.objectContaining({ userId: "user-9", role: "ORG_OWNER" }),
-    );
-    expect(appendPlatformAuditLogMock).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "ENTERPRISE_PROVISIONED" }),
-    );
+    expect(res).toMatchObject({ provisioned: false, pendingOwner: true });
+    expect(orgs.get(res.organizationId)!.billingOwnerUserId).toBeNull();
+    expect(teams.size).toBe(0);
+    expect(memberships).toHaveLength(0);
   });
 
-  it("uses workspaceName when supplied, else the org name", async () => {
-    const { client, teams } = makeClient({
+  it("keeps the requested workspace name for the owner's acceptance", async () => {
+    const { client, orgs } = makeClient({
       users: [{ id: "user-9", email: "owner@acme.test" }],
     });
     const res = await provisionEnterpriseCustomer(
@@ -529,8 +516,7 @@ describe("provisionEnterpriseCustomer — existing owner", () => {
       },
       client,
     );
-    if (!res.provisioned) throw new Error("expected provisioned");
-    expect(teams.get(res.workspaceId)!.name).toBe("Acme HQ");
+    expect(orgs.get(res.organizationId)!.pendingEnterpriseWorkspaceName).toBe("Acme HQ");
   });
 });
 

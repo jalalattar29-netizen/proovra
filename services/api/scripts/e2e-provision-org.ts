@@ -35,6 +35,8 @@
  */
 import { prisma } from "../src/db.js";
 import { provisionEnterpriseCustomer } from "../src/services/enterprise-provisioning.service.js";
+import { acceptOrganizationInvite } from "../src/services/organization/org-invite-acceptance.service.js";
+import { hashInviteToken } from "../src/routes/organizations.routes.js";
 
 function arg(name: string): string | null {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`));
@@ -90,11 +92,23 @@ async function main(): Promise<void> {
     actorUserId: owner.id,
   });
 
-  if (!result.provisioned) {
+  // Every first owner is invited (PROV-001), so the fixture accepts as the
+  // owner, from the session the spec is already holding: acceptance ends the
+  // account's other sessions.
+  const session = await prisma.authenticatedSession.findFirst({
+    where: { userId: owner.id, revokedAtUtc: null },
+    orderBy: { idpAuthAtUtc: "desc" },
+    select: { sessionIdHash: true },
+  });
+  const accepted = await acceptOrganizationInvite({
+    tokenHash: hashInviteToken(result.ownerInviteToken),
+    userId: owner.id,
+    sessionIdHash: session?.sessionIdHash ?? null,
+  });
+  if (accepted.kind !== "ok" || !accepted.enterpriseWorkspaceId) {
     console.error(
-      "e2e-provision-org: owner user was not found by the provisioner, so it " +
-        "created an invite instead of a workspace — the account must exist " +
-        "and be verified before provisioning.",
+      `e2e-provision-org: the owner could not accept (${accepted.kind}) — the ` +
+        "account must exist with a verified address and proven credential.",
     );
     process.exit(5);
   }
@@ -103,8 +117,8 @@ async function main(): Promise<void> {
   console.log(
     JSON.stringify({
       organizationId: result.organizationId,
-      workspaceId: result.workspaceId,
-      ownerUserId: result.ownerUserId,
+      workspaceId: accepted.enterpriseWorkspaceId,
+      ownerUserId: owner.id,
     }),
   );
 }

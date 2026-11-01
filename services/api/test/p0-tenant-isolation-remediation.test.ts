@@ -24,9 +24,16 @@
  * scenario and record calls for assertion.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+// The seat claim itself is proven against PostgreSQL in
+// seat-claim-authority.integration.test.ts; this suite is about the account link.
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  claimWorkspaceSeatTx: async () => ({ outcome: "CLAIMED" }),
+}));
 
 import { evaluateExistingAccountLink } from "../src/services/security/enterprise-account-linking.service.js";
 import {
@@ -61,6 +68,10 @@ function fakePrisma(handlers: Record<string, Handler>) {
         // Raw helpers ($executeRaw, $queryRaw, …) — benign async no-ops so
         // fire-and-forget audit paths (advisory locks, hash chains) never
         // crash the scenario under test.
+        if (model === "$queryRaw") {
+          // The one raw read the seat claim consumes: PostgreSQL answers one row.
+          return async () => [{ locked: true }];
+        }
         if (model.startsWith("$")) {
           return async () => [];
         }

@@ -57,8 +57,9 @@ import {
 // inert while the membership is not ACTIVE, back with a restore.
 import { endStandingReach, releaseWorkOnSuspension } from "./standing-reach.js";
 import {
-  resolveWorkspaceSeatState,
-  workspaceSeatsAdmit,
+  WorkspaceSeatContendedError,
+  claimWorkspaceSeatTx,
+  type WorkspaceSeatClaim,
 } from "../billing/workspace-seats.service.js";
 import {
   BillingLimitError,
@@ -651,18 +652,16 @@ async function assertReinstatementFitsCapacityTx(
    * indefinitely: past the bound it is refused as retryable contention rather
    * than holding a connection.
    */
-  await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
+  let claim: WorkspaceSeatClaim;
   try {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`}))`;
+    claim = await claimWorkspaceSeatTx(tx, { workspaceId, userId, wait: "BOUNDED" });
   } catch (err) {
-    if ((err as { meta?: { code?: string }; code?: string })?.meta?.code === "55P03" || /lock timeout/i.test(String((err as Error)?.message))) {
+    if (err instanceof WorkspaceSeatContendedError) {
       throw new RbacError("workspace_seat_contention");
     }
     throw err;
   }
-  await tx.$executeRaw`SET LOCAL lock_timeout = 0`;
-  const seats = await resolveWorkspaceSeatState(workspaceId, tx);
-  if (!workspaceSeatsAdmit(seats)) throw new RbacError("workspace_seat_limit_reached");
+  if (claim.outcome === "REFUSED") throw new RbacError("workspace_seat_limit_reached");
   const groups = await tx.collaborationTeamMember.findMany({
     where: {
       userId,

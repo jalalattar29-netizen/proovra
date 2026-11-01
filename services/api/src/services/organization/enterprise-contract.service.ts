@@ -257,6 +257,18 @@ export async function transitionEnterpriseContractStatusTx(
   });
 }
 
+/** PROV-011 — the contract owner follows an organization ownership transfer. */
+export async function transferEnterpriseContractOwnerTx(
+  tx: TxClient,
+  input: { organizationId: string; fromUserId: string; toUserId: string },
+): Promise<boolean> {
+  const moved = await tx.enterpriseContract.updateMany({
+    where: { organizationId: input.organizationId, contractOwnerUserId: input.fromUserId },
+    data: { contractOwnerUserId: input.toUserId },
+  });
+  return moved.count > 0;
+}
+
 /**
  * Idempotent contract activation — called by enterprise provisioning
  * inside its transaction. Upserts the single contract row for the org.

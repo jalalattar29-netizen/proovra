@@ -84,6 +84,8 @@ export async function seedUser(
       lastName: label,
       provider: "EMAIL",
       providerUserId: email,
+      // A signed-in person has proven this address; invitations rely on it.
+      emailVerifiedAt: new Date(),
     },
     select: { id: true },
   });
@@ -389,6 +391,8 @@ export async function seedOrganizationTenant(
     data: {
       organizationId: org.id,
       status: opts.contractStatus ?? "ACTIVE",
+      // A signed contract states its seats; silence admits nobody (BILLING-011).
+      seatCount: 100,
       ...(opts.contractCollaboration === null
         ? {}
         : {

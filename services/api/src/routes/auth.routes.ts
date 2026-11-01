@@ -22,6 +22,8 @@ import {
 } from "../services/email-password-auth.service.js";
 import {
   dispatchVerificationEmail,
+  EmailVerifyBody,
+  passwordProofRefusal,
   processResendVerification,
   confirmVerificationToken,
 } from "../services/email-verification.service.js";
@@ -1296,7 +1298,6 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // EV4 — email verification: consume the link, auto-sign-in.
-  // Business logic lives in email-verification.service.ts.
   app.post("/v1/auth/email/verify", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `auth:email-verify:ip:${readClientIp(req)}`,
@@ -1308,7 +1309,7 @@ export async function authRoutes(app: FastifyInstance) {
       return replyRateLimited(reply, rl.resetAtMs);
     }
 
-    const parsed = z.object({ token: z.string().min(1).max(256) }).safeParse(req.body);
+    const parsed = EmailVerifyBody.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({
         error: {
@@ -1319,7 +1320,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    const result = await confirmVerificationToken(parsed.data.token);
+    const result = await confirmVerificationToken(parsed.data.token, parsed.data);
     if (!result.ok) {
       auditAuthEvent(req, {
         userId: null,
@@ -1328,6 +1329,8 @@ export async function authRoutes(app: FastifyInstance) {
         severity: "info",
         metadata: { reason: result.reason },
       });
+      const proof = passwordProofRefusal(result.reason);
+      if (proof) return reply.code(403).send(proof);
       return reply.code(400).send({
         error: {
           code: "INVALID_OR_EXPIRED",

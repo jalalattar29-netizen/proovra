@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../providers";
@@ -20,6 +20,10 @@ import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
  *     three required legal acceptances (the register form already
  *     showed them but couldn't record them without a session), and
  *     bounce to /home. Auto-sign-in per product spec.
+ *   - 403 EMAIL_VERIFICATION_PASSWORD_REQUIRED → the link is good and stays
+ *     good; a first verification needs the account's password beside it, so a
+ *     person who never opened this account cannot switch on a password somebody
+ *     else chose. They are pointed at "forgot password" instead.
  *   - 400 INVALID_OR_EXPIRED → show a calm "link no longer works"
  *     card with a Resend affordance + "Back to sign in" link.
  *   - 429 RATE_LIMITED → reuse the invalid-or-expired UI; the message
@@ -34,6 +38,7 @@ import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 
 type VerifyState =
   | "loading"
+  | "password"
   | "success"
   | "invalid"
   | "missing-token"
@@ -77,6 +82,9 @@ function VerifyEmailPageContent() {
   );
   const [resendEmail, setResendEmail] = useState("");
   const [resendBusy, setResendBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Avoid double-firing the verify POST under React StrictMode dev
   // double-invocation — the backend would correctly reject the
@@ -84,15 +92,15 @@ function VerifyEmailPageContent() {
   // would flicker to "invalid" before the success render lands.
   const hasFiredRef = useRef(false);
 
-  useEffect(() => {
-    if (!token || hasFiredRef.current) return;
-    hasFiredRef.current = true;
-
-    (async () => {
+  const submit = useCallback(
+    async (withPassword?: string) => {
       try {
         const data = (await apiFetch(
           "/v1/auth/email/verify",
-          { method: "POST", body: JSON.stringify({ token }) },
+          {
+            method: "POST",
+            body: JSON.stringify(withPassword ? { token, password: withPassword } : { token }),
+          },
           { auth: false },
         )) as { token?: string } | null;
 
@@ -143,6 +151,15 @@ function VerifyEmailPageContent() {
         // ApiError with code INVALID_OR_EXPIRED or RATE_LIMITED both
         // resolve to the same calm fallback.
         const code = err instanceof ApiError ? err.code : "NETWORK_ERROR";
+        if (code === "EMAIL_VERIFICATION_PASSWORD_REQUIRED") {
+          setState("password");
+          return;
+        }
+        if (code === "EMAIL_VERIFICATION_PASSWORD_INCORRECT") {
+          setState("password");
+          setPasswordError("That is not the password chosen for this account.");
+          return;
+        }
         // Log to console for debug only — never to the UI.
         if (typeof window !== "undefined" && (window as { __DEV__?: boolean }).__DEV__) {
           // eslint-disable-next-line no-console
@@ -150,8 +167,26 @@ function VerifyEmailPageContent() {
         }
         setState("invalid");
       }
-    })();
-  }, [token, router, setToken]);
+    },
+    [token, router, setToken],
+  );
+
+  useEffect(() => {
+    if (!token || hasFiredRef.current) return;
+    hasFiredRef.current = true;
+    void submit();
+  }, [token, submit]);
+
+  const onSubmitPassword = async () => {
+    if (passwordBusy || !password) return;
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      await submit(password);
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
 
   const onResend = async () => {
     if (resendBusy) return;
@@ -206,6 +241,14 @@ function VerifyEmailPageContent() {
                 <div className="relative z-10 p-8 lg:p-9">
                   {state === "loading" ? (
                     <VerifyLoadingCard />
+                  ) : state === "password" ? (
+                    <VerifyPasswordCard
+                      password={password}
+                      onPasswordChange={setPassword}
+                      onSubmit={onSubmitPassword}
+                      busy={passwordBusy}
+                      error={passwordError}
+                    />
                   ) : state === "success" ? (
                     <VerifySuccessCard onContinue={() => router.push("/home")} />
                   ) : state === "missing-token" ? (
@@ -307,6 +350,90 @@ function VerifyLoadingCard() {
       <Eyebrow label="Verifying" />
       <Heading>Verifying your email</Heading>
       <Body>One moment while we confirm the verification link.</Body>
+    </div>
+  );
+}
+
+function VerifyPasswordCard({
+  password,
+  onPasswordChange,
+  onSubmit,
+  busy,
+  error,
+}: {
+  password: string;
+  onPasswordChange: (v: string) => void;
+  onSubmit: () => void;
+  busy: boolean;
+  error: string | null;
+}) {
+  return (
+    <div>
+      <Eyebrow label="One more step" />
+      <Heading>Confirm your password</Heading>
+      <Body>
+        Enter the password you chose when you created this account to finish
+        verifying your email.
+      </Body>
+      <div className="mt-6">
+        <label
+          htmlFor="verify-password"
+          className="block text-[12px] font-semibold uppercase tracking-[0.18em]"
+          style={{ color: "#7A687D" }}
+        >
+          Password
+        </label>
+        <input
+          id="verify-password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => onPasswordChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSubmit();
+          }}
+          disabled={busy}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "verify-password-error" : undefined}
+          data-testid="verify-password-input"
+          className="mt-2 w-full rounded-2xl px-4 py-3 text-[15px]"
+          style={{
+            color: "#1B1230",
+            background: "rgba(255,255,255,0.84)",
+            border: "1px solid rgba(255,255,255,0.44)",
+            boxShadow: "0 12px 28px rgba(6,16,22,0.08)",
+          }}
+        />
+        {error ? (
+          <p
+            id="verify-password-error"
+            role="alert"
+            className="mt-2 text-[14px]"
+            style={{ color: "#A32D2D" }}
+            data-testid="verify-password-error"
+          >
+            {error}
+          </p>
+        ) : null}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <PrimaryButton onClick={onSubmit} disabled={busy || !password}>
+            {busy ? "Verifying…" : "Verify my email"}
+          </PrimaryButton>
+        </div>
+      </div>
+      <Body>
+        Did you not create this account, or forgot the password?{" "}
+        <Link
+          href="/forgot-password"
+          className="auth-link"
+          style={{ color: "var(--accent-600, #6d28d9)", fontWeight: 600 }}
+          data-testid="verify-forgot-password"
+        >
+          Set a new password
+        </Link>{" "}
+        from a link sent to this address. It replaces any password already on
+        the account.
+      </Body>
     </div>
   );
 }

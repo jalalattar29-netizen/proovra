@@ -25,7 +25,14 @@
  * layer that the gated route calls.
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The seat claim itself is proven against PostgreSQL in
+// seat-claim-authority.integration.test.ts; this suite is about what surrounds it.
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  claimWorkspaceSeatTx: async () => ({ outcome: "CLAIMED" }),
+}));
 
 import { interpretScimUserPatch } from "@proovra/shared";
 import {
@@ -427,6 +434,10 @@ function makeFake() {
 
     async $executeRaw() {
       return 0;
+    },
+    // The seat claim's advisory lock; PostgreSQL answers one row.
+    async $queryRaw() {
+      return [{ locked: true }];
     },
     async $transaction(fn: (tx: unknown) => Promise<unknown>) {
       return fn(fake);

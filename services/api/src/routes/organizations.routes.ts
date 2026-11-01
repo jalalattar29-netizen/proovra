@@ -54,6 +54,7 @@ import {
 import { revokeAllSessionsForUser } from "../services/identity-security/session-revocation.service.js";
 // ARCH-004 — governance-membership transitions have ONE orchestrator.
 import {
+  lockOrganizationOwnersTx,
   restoreOrganizationMembership,
   suspendOrganizationMembership,
 } from "../services/identity/org-membership-lifecycle.service.js";
@@ -67,7 +68,10 @@ import {
 } from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
-import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
+import {
+  resolveWorkspaceSeatState,
+  withSeatClaimRetry,
+} from "../services/billing/workspace-seats.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   verifyAccountStepUp,
@@ -83,9 +87,13 @@ import {
 // for every non-enterprise accept (guarded on pendingEnterpriseSeats).
 // PHASE 4 §7.5 (2026-07-22) — organization-workspace suspend/resume.
 import {
+  OrganizationOwnershipTransferError,
   resumeOrganizationWorkspace,
   suspendOrganizationWorkspace,
+  transferOrganizationWorkspaceOwnersTx,
 } from "../services/workspace/workspace-lifecycle.service.js";
+import { transferEnterpriseContractOwnerTx } from "../services/organization/enterprise-contract.service.js";
+import { refreshTeamSeatState } from "../services/billing.service.js";
 // PHASE 5 §8 (2026-07-22) — canonical invite acceptance (idempotent +
 // concurrency-safe claim).
 import { acceptOrganizationInvite } from "../services/organization/org-invite-acceptance.service.js";
@@ -106,6 +114,33 @@ import {
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 
 const UuidParam = z.string().uuid();
+
+/**
+ * Re-asked under the owners lock. The route's role check ran before the lock,
+ * and an owner demoted while waiting must not go on to act as one (AUTHZ-008).
+ */
+async function callerIsLiveOwnerTx(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const held = await tx.organizationMembership.count({
+    where: { organizationId, userId, role: "ORG_OWNER", status: "ACTIVE" },
+  });
+  return held > 0;
+}
+
+/** Does this person hold a live workspace of the organization as its OWNER? */
+async function ownsLiveOrganizationWorkspaceTx(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const owned = await tx.team.count({
+    where: { organizationId, isPersonal: false, closedAtUtc: null, ownerUserId: userId },
+  });
+  return owned > 0;
+}
 
 // ---------------------------------------------------------------------------
 // Phase 2.7X Stage 4 — write-endpoint schemas.
@@ -1059,17 +1094,14 @@ export async function organizationsRoutes(app: FastifyInstance) {
   // org at the invited role.
   //
   // Stage 5 hardening:
-  //   - Email-match enforcement: when BOTH the invite has an email
-  //     AND the caller has an email, they MUST match (case-insensitive
-  //     compare after trim). If they don't, return 403 and emit an
-  //     ORG_INVITE_ACCEPT_REJECTED audit event (reason="email_mismatch").
+  //   - Email-match enforcement: the caller's verified address MUST equal the
+  //     invited one (case-insensitive compare after trim). An account with no
+  //     address fails the comparison; guest sign-in is retired and possession
+  //     of the token alone is not proof (PROV-021). A failure returns 403 and
+  //     emits an ORG_INVITE_ACCEPT_REJECTED audit event.
   //   - Other rejection paths (expired/revoked/already_accepted/not_found)
   //     also emit ORG_INVITE_ACCEPT_REJECTED so the org audit timeline
   //     surfaces token-enumeration / hijack pressure.
-  //
-  // Backward compat for guest sessions (no email): the email-match
-  // step is SKIPPED when the caller has no email. Possession of the
-  // token is the proof. Tested by the Stage 4 e2e suite.
   // -------------------------------------------------------------------------
   app.post(
     "/v1/org-invites/:token/accept",
@@ -1089,6 +1121,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const result = await acceptOrganizationInvite({
         tokenHash: hashInviteToken(token),
         userId,
+        sessionIdHash: req.user?.sessionIdHash ?? null,
       });
 
       if (result.kind === "not_found") {
@@ -1107,6 +1140,24 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply
           .code(403)
           .send({ message: "Invite email does not match your account." });
+      }
+      if (result.kind === "email_unverified") {
+        return reply.code(403).send({
+          error: { code: "EMAIL_NOT_VERIFIED" },
+          message: "Verify your email address, then accept this invitation.",
+        });
+      }
+      /*
+       * PROV-001 — nothing is wrong with the invitation, which stays valid. The
+       * person resets their password from the mailbox the invitation went to,
+       * which ends every other session, and accepts.
+       */
+      if (result.kind === "credential_proof_required") {
+        return reply.code(403).send({
+          error: { code: "ACCOUNT_PASSWORD_PROOF_REQUIRED" },
+          message:
+            "To take ownership of this organization, set a new password from the reset email, then open this invitation again.",
+        });
       }
       if (result.kind === "org_unavailable") {
         // §8.1 — archived/suspended target; same class as revoked/expired
@@ -1533,9 +1584,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
+        await lockOrganizationOwnersTx(tx, orgId);
         const target = await tx.organizationMembership.findFirst({
           where: { id: memberId, organizationId: orgId },
-          select: { id: true, userId: true, role: true },
+          select: { id: true, userId: true, role: true, status: true },
         });
         if (!target) {
           return { kind: "not_found" as const };
@@ -1546,8 +1598,15 @@ export async function organizationsRoutes(app: FastifyInstance) {
         // Only ORG_OWNER can change role TO or FROM ORG_OWNER.
         const involvesOwnerRole =
           target.role === "ORG_OWNER" || newRole === "ORG_OWNER";
-        if (involvesOwnerRole && access.role !== "ORG_OWNER") {
+        if (
+          involvesOwnerRole &&
+          !(await callerIsLiveOwnerTx(tx, orgId, userId))
+        ) {
           return { kind: "owner_change_requires_owner" as const };
+        }
+        // PROV-012 — ownership never lands on a suspended or removed membership.
+        if (newRole === "ORG_OWNER" && target.status !== "ACTIVE") {
+          return { kind: "owner_target_not_active" as const };
         }
         // Cannot demote the last ORG_OWNER.
         if (target.role === "ORG_OWNER" && newRole !== "ORG_OWNER") {
@@ -1608,6 +1667,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
             message:
               "Only ORG_OWNER can change a membership to or from ORG_OWNER.",
           });
+        case "owner_target_not_active":
+          return reply.code(409).send({
+            error: { code: "OWNER_TARGET_NOT_ACTIVE" },
+            message: "Only an active member can become an owner.",
+          });
         case "last_owner_protected":
           return reply
             .code(409)
@@ -1655,6 +1719,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
+        await lockOrganizationOwnersTx(tx, orgId);
         const target = await tx.organizationMembership.findFirst({
           where: { id: memberId, organizationId: orgId },
           select: { id: true, userId: true, role: true },
@@ -1665,8 +1730,16 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (target.userId === userId) {
           return { kind: "self_remove_blocked" as const };
         }
-        if (target.role === "ORG_OWNER" && access.role !== "ORG_OWNER") {
+        if (
+          target.role === "ORG_OWNER" &&
+          !(await callerIsLiveOwnerTx(tx, orgId, userId))
+        ) {
           return { kind: "owner_remove_requires_owner" as const };
+        }
+        // PROV-011 — removal revokes the workspace memberships below, and an
+        // owner's would leave the workspace with no live owner.
+        if (await ownsLiveOrganizationWorkspaceTx(tx, orgId, target.userId)) {
+          return { kind: "workspace_owner_protected" as const };
         }
         if (target.role === "ORG_OWNER") {
           // ARCH-004 — as above: only a LIVE owner counts toward the
@@ -1779,6 +1852,12 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return reply
             .code(409)
             .send({ message: "Cannot remove the last ORG_OWNER." });
+        case "workspace_owner_protected":
+          return reply.code(409).send({
+            error: { code: "OWNERSHIP_TRANSFER_REQUIRED" },
+            message:
+              "This person owns a workspace of the organization. Transfer ownership first.",
+          });
         case "ok":
           return reply
             .code(200)
@@ -1865,41 +1944,46 @@ export async function organizationsRoutes(app: FastifyInstance) {
             .code(403)
             .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
         }
-        // Suspending the last live owner would leave the Organization with
-        // nobody able to administer it — the same protection removal has.
-        if (action === "suspend" && target.role === "ORG_OWNER") {
-          const liveOwners = await prisma.organizationMembership.count({
-            where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
-          });
-          if (liveOwners <= 1) {
-            return reply
-              .code(409)
-              .send({ message: "Cannot suspend the last ORG_OWNER." });
+        const transition = {
+          organizationId: orgId,
+          membershipId: target.id,
+          actorUserId: userId,
+          source: "MANUAL" as const,
+          reason: body.reason ?? null,
+          ...(body.expectedGeneration !== undefined
+            ? { expectedGeneration: body.expectedGeneration }
+            : {}),
+        };
+        const decided = await prisma.$transaction(async (tx) => {
+          await lockOrganizationOwnersTx(tx, orgId);
+          if (target.role === "ORG_OWNER" && !(await callerIsLiveOwnerTx(tx, orgId, userId))) {
+            return { kind: "owner_required" as const };
           }
+          // Suspending the last live owner would leave the Organization with
+          // nobody able to administer it — the same protection removal has.
+          if (action === "suspend" && target.role === "ORG_OWNER") {
+            const liveOwners = await tx.organizationMembership.count({
+              where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
+            });
+            if (liveOwners <= 1) return { kind: "last_owner" as const };
+          }
+          const moved =
+            action === "suspend"
+              ? await suspendOrganizationMembership({ ...transition, prisma: tx as never })
+              : await restoreOrganizationMembership({ ...transition, prisma: tx as never });
+          return { kind: "moved" as const, outcome: moved };
+        });
+        if (decided.kind === "owner_required") {
+          return reply
+            .code(403)
+            .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
         }
-
-        const outcome =
-          action === "suspend"
-            ? await suspendOrganizationMembership({
-                organizationId: orgId,
-                membershipId: target.id,
-                actorUserId: userId,
-                source: "MANUAL",
-                reason: body.reason ?? null,
-                ...(body.expectedGeneration !== undefined
-                  ? { expectedGeneration: body.expectedGeneration }
-                  : {}),
-              })
-            : await restoreOrganizationMembership({
-                organizationId: orgId,
-                membershipId: target.id,
-                actorUserId: userId,
-                source: "MANUAL",
-                reason: body.reason ?? null,
-                ...(body.expectedGeneration !== undefined
-                  ? { expectedGeneration: body.expectedGeneration }
-                  : {}),
-              });
+        if (decided.kind === "last_owner") {
+          return reply
+            .code(409)
+            .send({ message: "Cannot suspend the last ORG_OWNER." });
+        }
+        const outcome = decided.outcome;
 
         if (!outcome.ok) {
           switch (outcome.reason) {
@@ -2006,7 +2090,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (!membership) {
           return { kind: "not_found" as const };
         }
-        if (membership.role === "ORG_OWNER") {
+        if (
+          membership.role === "ORG_OWNER" ||
+          // PROV-011 — leaving would revoke the only OWNER of that workspace.
+          (await ownsLiveOrganizationWorkspaceTx(tx, orgId, userId))
+        ) {
           return { kind: "ownership_transfer_required" as const };
         }
 
@@ -2184,7 +2272,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
 
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await withSeatClaimRetry(() => prisma.$transaction(async (tx) => {
+        await lockOrganizationOwnersTx(tx, orgId);
         // PHASE 13 §1.4 (NEW-024) — the caller lookup was STATUS-BLIND.
         //
         // It matched on `organizationId + userId + role: "ORG_OWNER"` only, so
@@ -2206,9 +2295,28 @@ export async function organizationsRoutes(app: FastifyInstance) {
         if (!caller) return { kind: "owner_required" as const };
         const target = await tx.organizationMembership.findFirst({
           where: { organizationId: orgId, userId: body.targetUserId },
-          select: { id: true, role: true },
+          select: { id: true, role: true, status: true },
         });
         if (!target) return { kind: "target_not_member" as const };
+        // PROV-012 — removal keeps a REVOKED row, and neither a removed nor a
+        // suspended person passes any organization check, so handing them
+        // ownership would leave the Organization with no usable owner.
+        if (target.status !== "ACTIVE") return { kind: "target_not_active" as const };
+
+        // PROV-011 — the workspace owners and the contract owner move with the
+        // organization owner, in this transaction. A workspace with no seat for
+        // the outgoing owner throws, which rolls every leg back.
+        const workspaces = await transferOrganizationWorkspaceOwnersTx(tx, {
+          organizationId: orgId,
+          fromUserId: userId,
+          toUserId: body.targetUserId,
+          actorUserId: userId,
+        });
+        const contractOwnerTransferred = await transferEnterpriseContractOwnerTx(tx as never, {
+          organizationId: orgId,
+          fromUserId: userId,
+          toUserId: body.targetUserId,
+        });
 
         // Atomic swap — never zero owners, never two.
         // PHASE 3 — canonical orchestrator: atomic ownership swap (both
@@ -2250,6 +2358,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
             toUserId: body.targetUserId,
             previousTargetRole: target.role,
             billingOwnerTransferred,
+            contractOwnerTransferred,
+            workspacesTransferred: workspaces.workspaceIds,
           },
         });
         // Both parties see the transfer on their own activity timelines; the
@@ -2273,9 +2383,37 @@ export async function organizationsRoutes(app: FastifyInstance) {
             tx as never,
           );
         }
-        return { kind: "ok" as const, billingOwnerTransferred };
+        return {
+          kind: "ok" as const,
+          billingOwnerTransferred,
+          contractOwnerTransferred,
+          workspaceIds: workspaces.workspaceIds,
+        };
+      })).catch((err: unknown) => {
+        if (err instanceof OrganizationOwnershipTransferError) {
+          return { kind: "workspace_cannot_take_owner" as const, workspaceId: err.workspaceId };
+        }
+        throw err;
       });
 
+      if (result.kind === "workspace_cannot_take_owner") {
+        return reply.code(409).send({
+          error: {
+            code: "WORKSPACE_SEAT_LIMIT_REACHED",
+            message:
+              "A workspace has no seat for this change, or the new owner is suspended there. Nothing was transferred.",
+            details: { workspaceId: result.workspaceId },
+          },
+        });
+      }
+      if (result.kind === "target_not_active") {
+        return reply.code(409).send({
+          error: {
+            code: "OWNER_TARGET_NOT_ACTIVE",
+            message: "Only an active member can become the owner.",
+          },
+        });
+      }
       if (result.kind === "owner_required") {
         return reply.code(403).send({ error: { code: "owner_required" } });
       }
@@ -2286,10 +2424,18 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
 
+      // After commit, like the plan grant: the canonical resolver reads what the
+      // transfer just wrote.
+      for (const workspaceId of result.workspaceIds) {
+        await refreshTeamSeatState(workspaceId, prisma as never);
+      }
+
       return reply.code(200).send({
         transferred: true,
         newOwnerUserId: body.targetUserId,
         billingOwnerTransferred: result.billingOwnerTransferred,
+        contractOwnerTransferred: result.contractOwnerTransferred,
+        workspacesTransferred: result.workspaceIds.length,
       });
     },
   );

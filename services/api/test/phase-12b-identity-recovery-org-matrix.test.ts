@@ -736,6 +736,7 @@ const MODELS = [
   "organizationMembership",
   "organizationInvite",
   "organizationDomain",
+  "enterpriseContract",
   "organizationPolicy",
   "organizationAuditEvent",
   "organizationClosureRequest",
@@ -1049,6 +1050,8 @@ function seed(): void {
     updatedAt: now,
   };
   rows("organization").push(orgRow, { ...orgRow, id: OTHER_ORG, name: "Other Org" });
+  // A signed contract states its seats; one that does not admits nobody.
+  rows("enterpriseContract").push({ organizationId: ORG, status: "ACTIVE", seatCount: 100 });
   rows("team").push(
     {
       id: TEAM,
@@ -2844,10 +2847,9 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
      * organization holds an ACTIVE contract stating seats, that number wins
      * here too, which is the behaviour a provisioned Enterprise org wants.
      */
-    // Members audit ENT-04 (2026-10-25) — 500 → no cap. The catalog ENTERPRISE
-    // "ceiling" was a placeholder pool; only an ACTIVE contract seat count
-    // bounds a workspace as a whole, and this fixture holds none.
-    expect(body.seatPreview).toMatchObject({ used: 4, included: 0, hasSeatCap: false });
+    // Members audit ENT-04 (2026-10-25) — only an ACTIVE contract seat count
+    // bounds a workspace as a whole, and this fixture's states 100.
+    expect(body.seatPreview).toMatchObject({ used: 4, included: 100, hasSeatCap: true });
     // Zero writes, zero INVITATION audit, and never a token on the dry run.
     expect(rows("organizationInvite")).toHaveLength(before);
     /*

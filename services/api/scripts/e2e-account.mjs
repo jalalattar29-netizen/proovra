@@ -70,7 +70,7 @@ const client = new pg.Client({ connectionString: url });
 await client.connect();
 try {
   const verified = await client.query(
-    'UPDATE "users" SET "email_verified_at" = now() WHERE "email" = $1',
+    'UPDATE "users" SET "email_verified_at" = now(), "credential_proven_at_utc" = now() WHERE "email" = $1',
     [email],
   );
   if (!verified.rowCount) {

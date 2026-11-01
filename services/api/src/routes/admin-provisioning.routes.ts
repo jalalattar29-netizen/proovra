@@ -142,9 +142,8 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // POST /v1/admin/enterprise/provision
   //
-  // Provision a new enterprise customer: create the Organization and either
-  // an enterprise workspace (existing owner) or an ORG_OWNER invite (owner
-  // does not exist yet).
+  // Provision a new enterprise customer: create the Organization, its contract
+  // and the ORG_OWNER invite. The owner's acceptance creates the workspace.
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/admin/enterprise/provision",

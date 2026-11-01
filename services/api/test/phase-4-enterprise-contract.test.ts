@@ -117,11 +117,12 @@ describe("Phase 4 — every enterprise activation path writes the contract", () 
     "utf8",
   );
 
-  it("four upsertEnterpriseContract sites with the right states", () => {
+  it("three upsertEnterpriseContract sites with the right states", () => {
+    // PROV-001 — one provisioning path: invite, then activate on acceptance.
     const sites = SRC.match(/upsertEnterpriseContract\(tx,/g) ?? [];
-    expect(sites.length).toBe(4);
+    expect(sites.length).toBe(3);
     expect(SRC).toMatch(/status:\s*"PENDING_ACTIVATION",\s*\r?\n\s*activationState:\s*"OWNER_INVITED"/);
     const activeSites = SRC.match(/status:\s*"ACTIVE",\s*\r?\n\s*\s*activationState:\s*"ACTIVATED"/g) ?? [];
-    expect(activeSites.length).toBe(3);
+    expect(activeSites.length).toBe(2);
   });
 });

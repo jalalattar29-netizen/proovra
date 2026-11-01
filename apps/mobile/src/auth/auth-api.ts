@@ -87,10 +87,10 @@ export async function registerAccount(input: {
   return { verificationSent: data["verificationSent"] === true, email: String(data["email"] ?? input.email) };
 }
 
-export async function verifyEmail(token: string): Promise<AuthSession> {
+export async function verifyEmail(token: string, password?: string): Promise<AuthSession> {
   const data = await apiFetch("/v1/auth/email/verify", {
     method: "POST",
-    body: JSON.stringify({ token }),
+    body: JSON.stringify(password ? { token, password } : { token }),
   });
   return { token: String(data["token"] ?? ""), user: (data["user"] as AuthUser | null) ?? null };
 }

@@ -70,7 +70,7 @@ describe("Members re-audit D1a — workspace invitations (live PostgreSQL)", () 
 
   async function user(email: string) {
     const u = await prisma.user.create({
-      data: { email, firstName: "D1a", lastName: "Invitee", provider: "EMAIL", providerUserId: email },
+      data: { email, firstName: "D1a", lastName: "Invitee", provider: "EMAIL", providerUserId: email, emailVerifiedAt: new Date() },
       select: { id: true },
     });
     await prisma.userLegalAcceptance.createMany({
