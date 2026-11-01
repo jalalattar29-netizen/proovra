@@ -22,6 +22,7 @@ The runbooks are numbered (00–29) by introduction order; this index gives the 
 | governance-reconciliation | `29-governance-reconciliation.md` | E10.2 |
 | TSA-provider-failure | `30-tsa-provider-failure.md` | E10.2 |
 | OTS-anchor-delay | `31-ots-anchor-delay.md` | E10.2 |
+| Organization-data-return | `32-organization-data-return.md` | GOV-015 |
 | report-render-failure | `12-failed-upload-report-package.md` (Failed report section) | E10 |
 | verification-package-failure | `12-failed-upload-report-package.md` (Failed package section) | E10 |
 | AI-provider-outage | `16-ai-unavailable.md` | E10 |

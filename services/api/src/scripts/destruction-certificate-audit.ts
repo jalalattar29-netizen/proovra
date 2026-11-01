@@ -21,7 +21,10 @@ import { HeadObjectCommand, ListObjectVersionsCommand } from "@aws-sdk/client-s3
 
 import { prisma } from "../db.js";
 import { s3 } from "../storage.js";
-import { evidenceOwnedStoragePrefixes } from "@proovra/shared-runtime";
+import {
+  DESTRUCTION_CERTIFICATE_VERSIONS_WITH_VERIFIED_DELETION,
+  evidenceOwnedStoragePrefixes,
+} from "@proovra/shared-runtime";
 
 type Finding = {
   evidence: string;
@@ -112,7 +115,7 @@ async function main() {
         if (r.latest !== null) latest = Math.max(latest ?? 0, r.latest);
       }
       // V3 and later verified that no object version remained (AUD-49: V4).
-      const v2 = !(["PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3", "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4"] as Array<string | null>).includes(certificateVersion);
+      const v2 = !(DESTRUCTION_CERTIFICATE_VERSIONS_WITH_VERIFIED_DELETION as readonly (string | null)[]).includes(certificateVersion);
       findings.push({
         evidence: ev.id.slice(0, 8),
         certificateVersion,

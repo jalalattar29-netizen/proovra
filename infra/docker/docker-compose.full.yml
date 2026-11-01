@@ -111,6 +111,7 @@ services:
       # a period unset or >= 2920 days, on a bucket created with Object Lock
       # (minio-init above: `mc mb --with-lock`). Passed through, never defaulted.
       S3_OBJECT_LOCK_ENABLED: ${S3_OBJECT_LOCK_ENABLED}
+      DESTRUCTION_EXECUTION_ENABLED: ${DESTRUCTION_EXECUTION_ENABLED:-false}
       S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE}
       S3_OBJECT_LOCK_RETAIN_DAYS: ${S3_OBJECT_LOCK_RETAIN_DAYS:-}
       SIGNING_KEY_ID: ${SIGNING_KEY_ID}
@@ -245,6 +246,7 @@ services:
       S3_ALLOW_INSECURE: ${S3_ALLOW_INSECURE}
       # AUD-010 — same contract as the API (see above).
       S3_OBJECT_LOCK_ENABLED: ${S3_OBJECT_LOCK_ENABLED}
+      DESTRUCTION_EXECUTION_ENABLED: ${DESTRUCTION_EXECUTION_ENABLED:-false}
       S3_OBJECT_LOCK_MODE: ${S3_OBJECT_LOCK_MODE}
       S3_OBJECT_LOCK_RETAIN_DAYS: ${S3_OBJECT_LOCK_RETAIN_DAYS:-}
       WORKER_BUILD_INFO: ${WORKER_BUILD_INFO}
