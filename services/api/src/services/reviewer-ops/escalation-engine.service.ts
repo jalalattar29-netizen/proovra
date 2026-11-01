@@ -45,6 +45,7 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordIncident } from "../observability/incident.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
   AssigneeEligibilityError,
   assertWorkAssigneeEligible,
@@ -350,11 +351,13 @@ export async function createEscalation(
 
   const now = new Date();
   const summary = sanitiseSummary(input.safeSummary);
+  const uniqueFingerprint = () =>
+    createHash("sha256").update(`${input.workflowId}:${input.reason}:${now.toISOString()}:${randomUUID()}`).digest("hex").slice(0, 64);
   // A deliberate escalation (bypassDedup) is its OWN row: the per-day
   // fingerprint would make a second one the same day collide with the first
   // on (team_id, fingerprint) — a 500 instead of an escalation (2026-10-23).
-  const fingerprint = input.bypassDedup
-    ? createHash("sha256").update(`${input.workflowId}:${input.reason}:${now.toISOString()}:${randomUUID()}`).digest("hex").slice(0, 64)
+  let fingerprint = input.bypassDedup
+    ? uniqueFingerprint()
     : buildFingerprint({
         workflowId: input.workflowId,
         reason: input.reason,
@@ -366,7 +369,15 @@ export async function createEscalation(
     const existing = await client.reviewEscalation.findUnique({
       where: { teamId_fingerprint: { teamId: input.teamId, fingerprint } },
     });
-    if (existing) {
+    // WORKFLOW-020: the dedupe holds a repeat against something still open. A
+    // PERSON raising the same reason after it was resolved is a new escalation;
+    // handing them back the resolved row opened nothing and answered 200. The
+    // automatic sweeps keep the old answer, which is their storm protection.
+    const reraisedByPerson =
+      existing !== null &&
+      isTerminalReviewEscalationStatus(existing.status as ReviewEscalationStatus) &&
+      !!input.createdByUserId;
+    if (existing && !reraisedByPerson) {
       bump("reviewer_escalation_duplicate_blocked_total");
       return {
         ok: true,
@@ -374,6 +385,7 @@ export async function createEscalation(
         escalation: projectEscalation(existing),
       };
     }
+    if (reraisedByPerson) fingerprint = uniqueFingerprint();
   }
 
   // An escalation gives its assignee work, so the ONE assignee rule decides
@@ -572,12 +584,22 @@ type TransitionContext = {
   actorUserId: string;
 };
 
+/**
+ * An actor is reached by the record rule like everywhere else; a null actor is
+ * PROOVRA's own resolve and reads the row as a machine.
+ */
 async function loadAndAssertOpen(
-  ctx: Pick<TransitionContext, "escalationId" | "teamId">,
+  ctx: Pick<TransitionContext, "escalationId" | "teamId"> & { actorUserId: string | null },
   client: PrismaClient,
 ): Promise<DbEscalation> {
   const row = await client.reviewEscalation.findFirst({
-    where: { id: ctx.escalationId, teamId: ctx.teamId },
+    where: {
+      id: ctx.escalationId,
+      teamId: ctx.teamId,
+      ...(ctx.actorUserId
+        ? { workflow: { evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId) } }
+        : {}),
+    },
   });
   if (!row) throw new EscalationEngineError("REVIEW_ESCALATION_NOT_FOUND");
   if (isTerminalReviewEscalationStatus(row.status as ReviewEscalationStatus)) {
@@ -617,6 +639,7 @@ export async function acknowledgeEscalation(
     severity: "INFO",
     details: { escalationId: row.id, actorUserId: input.actorUserId },
   });
+  await auditEscalationMove("reviewer.escalation.acknowledge", row, input, client);
   return projectEscalation(updated);
 }
 
@@ -650,6 +673,9 @@ export async function reassignEscalation(
       newAssigneeUserId: input.newAssigneeUserId,
       actorUserId: input.actorUserId,
     },
+  });
+  await auditEscalationMove("reviewer.escalation.reassign", row, input, client, {
+    newAssigneeUserId: input.newAssigneeUserId,
   });
   return projectEscalation(updated);
 }
@@ -736,7 +762,31 @@ export async function suppressEscalation(
     severity: "INFO",
     details: { escalationId: row.id, actorUserId: input.actorUserId },
   });
+  await auditEscalationMove("reviewer.escalation.suppress", row, input, client);
   return projectEscalation(updated);
+}
+
+/** Every escalation move leaves a tenant audit row, as create and resolve do (WF-R10). */
+async function auditEscalationMove(
+  action: string,
+  row: { id: string; workflowId: string },
+  input: TransitionContext,
+  client: PrismaClient,
+  extra: Record<string, string> = {},
+): Promise<void> {
+  await emitTenantAudit(
+    {
+      action,
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "review_escalation",
+      resourceId: row.id,
+      metadata: { workflowId: row.workflowId, ...extra },
+    },
+    client,
+  );
 }
 
 // -----------------------------------------------------------------------------
@@ -750,6 +800,8 @@ export type ListEscalationsInput = {
   reason?: ReviewEscalationReason;
   assignedToUserId?: string;
   limit?: number;
+  /** The reader. A closed record's escalation is not listed (WORKFLOW-003). */
+  viewerUserId: string;
 };
 
 export async function listEscalations(
@@ -760,6 +812,7 @@ export async function listEscalations(
   const rows = await client.reviewEscalation.findMany({
     where: {
       teamId: input.teamId,
+      workflow: { evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId) },
       ...(input.status && input.status !== "ALL"
         ? { status: input.status }
         : {}),

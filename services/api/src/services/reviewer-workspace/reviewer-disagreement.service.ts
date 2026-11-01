@@ -26,6 +26,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { hiddenWorkflowIdsInWorkspace } from "../access/record-reach.js";
 // Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary disagreement mutation.
@@ -272,11 +273,15 @@ export async function listDisagreements(input: {
   forUserId?: string;
   state?: DisagreementState;
   limit?: number;
+  /** The reader. A disagreement over a closed record is not listed (WORKFLOW-003). */
+  viewerUserId: string;
 }) {
   const prisma = input.prisma ?? defaultPrisma;
+  const closed = await hiddenWorkflowIdsInWorkspace(input.teamId, input.viewerUserId, prisma);
   return prisma.reviewerDisagreement.findMany({
     where: {
       teamId: input.teamId,
+      ...(closed.length > 0 ? { workflowId: { notIn: closed } } : {}),
       ...(input.state ? { state: input.state } : {}),
       ...(input.forUserId
         ? {

@@ -77,13 +77,17 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
     actorUserId: string,
     hours: { firstReviewHours: number; completionHours: number; dueSoonHours: number },
   ) {
-    const { upsertWorkspaceSlaPolicy } = await import(
+    const { slaOverridesToPolicyPatch } = await import(
       "../src/services/reviewer-ops/sla-policy.service.js"
     );
-    return upsertWorkspaceSlaPolicy({
+    const { loadWorkspaceGovernancePolicyVersion, updateWorkspaceGovernancePolicyWithVersion } = await import(
+      "../src/services/governance.service.js"
+    );
+    return updateWorkspaceGovernancePolicyWithVersion({
       teamId,
       actorUserId,
-      overrides: hours,
+      patch: slaOverridesToPolicyPatch(hours),
+      expectedVersion: await loadWorkspaceGovernancePolicyVersion(teamId),
     });
   }
 

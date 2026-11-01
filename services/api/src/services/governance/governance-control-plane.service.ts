@@ -33,7 +33,7 @@ import {
   incidentInReach,
   viewerReachInWorkspace,
 } from "../access/record-reach.js";
-import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -559,8 +559,7 @@ export async function buildGovernanceControlPlane(input: {
         // workspace rewrites ITS incidents' team_id to NULL via
         // `ON DELETE SET NULL`, the same arm returned every other tenant's
         // orphans into this workspace's read.
-        ...workspaceIncidentWhere(input.teamId),
-        ...incidentInReach(reach),
+        ...workspaceIncidentWhereWith(input.teamId, incidentInReach(reach)),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
         category: { in: ["GOVERNANCE", "PACKAGE", "REPORT"] },
       },

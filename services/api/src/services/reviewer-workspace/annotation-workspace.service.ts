@@ -24,6 +24,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 
 export type AnnotationDenialReason =
   | "WORKSPACE_NOT_FOUND"
@@ -67,13 +68,19 @@ export async function listAnnotationsForEvidence(input: {
   prisma?: PrismaClient;
   teamId: string;
   evidenceId: string;
+  /** The reader. A closed record answers like an absent one (WORKFLOW-003). */
+  viewerUserId: string;
 }): Promise<
   | { ok: true; annotations: AnnotationRow[] }
   | { ok: false; denial: AnnotationDenialReason }
 > {
   const prisma = input.prisma ?? defaultPrisma;
   const evidence = await prisma.evidence.findFirst({
-    where: { id: input.evidenceId, teamId: input.teamId },
+    where: {
+      id: input.evidenceId,
+      teamId: input.teamId,
+      AND: [evidenceVisibleThroughCasesWhere(input.viewerUserId)],
+    },
     select: { id: true },
   });
   if (!evidence) return { ok: false, denial: "EVIDENCE_NOT_FOUND" };
@@ -131,7 +138,11 @@ export async function postAnnotationReply(input: {
     return { ok: false, denial: "ANNOTATION_NESTING_INVALID" };
   }
   const parent = await prisma.evidenceAnnotation.findFirst({
-    where: { id: input.parentAnnotationId, deletedAt: null },
+    where: {
+      id: input.parentAnnotationId,
+      deletedAt: null,
+      evidence: evidenceVisibleThroughCasesWhere(input.authorUserId),
+    },
     select: {
       id: true,
       evidenceId: true,
@@ -170,7 +181,11 @@ export async function resolveAnnotation(input: {
 > {
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.evidenceAnnotation.findFirst({
-    where: { id: input.annotationId, deletedAt: null },
+    where: {
+      id: input.annotationId,
+      deletedAt: null,
+      evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
+    },
     select: {
       id: true,
       resolvedAtUtc: true,
@@ -215,7 +230,10 @@ export async function bulkResolveAnnotations(input: {
       id: { in: input.annotationIds as string[] },
       deletedAt: null,
       resolvedAtUtc: null,
-      evidence: { teamId: input.teamId },
+      evidence: {
+        teamId: input.teamId,
+        AND: [evidenceVisibleThroughCasesWhere(input.actorUserId)],
+      },
     },
     select: { id: true },
   });

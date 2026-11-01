@@ -38,6 +38,7 @@ const SERVER_SRC = readSource("../src/server.ts");
 const REVIEW_OPS_ROUTES = readSource(
   "../src/routes/review-operations.routes.ts",
 );
+const REVIEW_GATE = readSource("../src/services/reviewer-ops/review-action-gate.ts");
 const CONSOLE_UI = readSource(
   "../../../apps/web/components/reviewer-experience/ReviewerConsole.tsx",
 );
@@ -107,32 +108,29 @@ describe("Phase C0 — reviewer console aggregator (source contract)", () => {
 });
 
 describe("Phase C0 — sensitive review decision step-up enforcement", () => {
-  it("review-operations decision endpoint imports the step-up middleware", () => {
-    expect(REVIEW_OPS_ROUTES).toContain("requireStepUpForSensitiveAction");
-    expect(REVIEW_OPS_ROUTES).toContain("loadWorkspaceReviewerOpsFlags");
+  it("the review-operations decision endpoint asks the one review gate", () => {
+    expect(REVIEW_OPS_ROUTES).toContain("enforceReviewActionGate");
+    expect(REVIEW_GATE).toContain("requireStepUpForSensitiveAction");
+    expect(REVIEW_GATE).toContain("loadWorkspaceReviewerOpsFlags");
   });
 
-  it("the decision handler gates APPROVE_INTERNAL on requireStepUpForApprove", () => {
-    expect(REVIEW_OPS_ROUTES).toMatch(
-      /body\.decision\s*===\s*"APPROVE_INTERNAL"/,
-    );
-    expect(REVIEW_OPS_ROUTES).toContain('"requireStepUpForApprove"');
-    expect(REVIEW_OPS_ROUTES).toContain('"REVIEW_APPROVAL_HIGH_RISK"');
+  it("APPROVE_INTERNAL answers to requireStepUpForApprove", () => {
+    expect(REVIEW_OPS_ROUTES).toMatch(/gateForVerdict\(body\.decision\)/);
+    expect(REVIEW_GATE).toContain('"APPROVE_INTERNAL"');
+    expect(REVIEW_GATE).toContain('"requireStepUpForApprove"');
+    expect(REVIEW_GATE).toContain('"REVIEW_APPROVAL_HIGH_RISK"');
   });
 
-  it("the decision handler gates REJECT_INSUFFICIENT on requireStepUpForReject", () => {
-    expect(REVIEW_OPS_ROUTES).toMatch(
-      /body\.decision\s*===\s*"REJECT_INSUFFICIENT"/,
-    );
-    expect(REVIEW_OPS_ROUTES).toContain('"requireStepUpForReject"');
-    expect(REVIEW_OPS_ROUTES).toContain('"REVIEWER_OPS_REJECT"');
+  it("REJECT_INSUFFICIENT answers to requireStepUpForReject", () => {
+    expect(REVIEW_GATE).toContain('"REJECT_INSUFFICIENT"');
+    expect(REVIEW_GATE).toContain('"requireStepUpForReject"');
+    expect(REVIEW_GATE).toContain('"REVIEWER_OPS_REJECT"');
   });
 
   it("step-up flag-off is a true no-op (request proceeds, no 401)", () => {
-    // The handler reads the flag and only invokes
-    // `requireStepUpForSensitiveAction` when the flag is set. We
-    // assert the conditional structure exists.
-    expect(REVIEW_OPS_ROUTES).toMatch(/if \(flags\[flagKey\]\)/);
+    // The gate reads the flag and only invokes
+    // `requireStepUpForSensitiveAction` when the flag is set.
+    expect(REVIEW_GATE).toMatch(/if \(!flags\[gate\.flag\]\) return true/);
   });
 });
 

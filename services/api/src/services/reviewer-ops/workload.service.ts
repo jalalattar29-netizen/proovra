@@ -23,6 +23,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
@@ -40,13 +41,22 @@ export type ReviewerWorkloadCounts = ReviewerWorkloadCountsInput & {
  * Compute live workload counts for a single reviewer (no snapshot write).
  */
 export async function computeReviewerWorkload(
-  input: { teamId: string; reviewerUserId: string },
+  input: {
+    teamId: string;
+    reviewerUserId: string;
+    /** The person reading these numbers. Absent on the machine snapshot writer. */
+    viewerUserId?: string;
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerWorkloadCounts> {
+  const reach = input.viewerUserId
+    ? { evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId) }
+    : {};
   const [active, overdue, dueSoon, escalated, needsInfo] = await Promise.all([
     client.evidenceReviewWorkflow.count({
       where: {
         teamId: input.teamId,
+        ...reach,
         assignedToUserId: input.reviewerUserId,
         status: {
           notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
@@ -56,6 +66,7 @@ export async function computeReviewerWorkload(
     client.evidenceReviewWorkflow.count({
       where: {
         teamId: input.teamId,
+        ...reach,
         assignedToUserId: input.reviewerUserId,
         slaStatus: { in: ["OVERDUE", "BREACHED"] },
       },
@@ -63,6 +74,7 @@ export async function computeReviewerWorkload(
     client.evidenceReviewWorkflow.count({
       where: {
         teamId: input.teamId,
+        ...reach,
         assignedToUserId: input.reviewerUserId,
         slaStatus: "DUE_SOON",
       },
@@ -70,6 +82,7 @@ export async function computeReviewerWorkload(
     client.evidenceReviewWorkflow.count({
       where: {
         teamId: input.teamId,
+        ...reach,
         assignedToUserId: input.reviewerUserId,
         OR: [
           { status: "ESCALATED" },
@@ -80,6 +93,7 @@ export async function computeReviewerWorkload(
     client.evidenceReviewWorkflow.count({
       where: {
         teamId: input.teamId,
+        ...reach,
         assignedToUserId: input.reviewerUserId,
         status: "NEEDS_INFO",
       },

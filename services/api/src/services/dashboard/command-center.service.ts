@@ -32,7 +32,7 @@ import { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring } from "@proovra
  * tenant every other tenant's orphaned incidents. Every other dashboard
  * service had already converged here.
  */
-import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 import {
   DESTRUCTION_REVIEW_AWAITING_DECISION,
   DESTRUCTION_REVIEW_PROPOSED,
@@ -2442,8 +2442,7 @@ async function runTimeline(
     Promise.resolve(opsCounters.recentEscalations),
     prisma.operationalIncident.findMany({
       where: {
-        ...workspaceIncidentWhere(teamId),
-        AND: [incidentInReach(reach)],
+        ...workspaceIncidentWhereWith(teamId, incidentInReach(reach)),
         firstSeenAtUtc: { gte: since14d },
       },
       orderBy: { firstSeenAtUtc: "desc" },
@@ -2920,8 +2919,7 @@ async function runIncidents(
   try {
     const incidents = await prisma.operationalIncident.findMany({
       where: {
-        ...workspaceIncidentWhere(teamId),
-        AND: [incidentInReach(reach)],
+        ...workspaceIncidentWhereWith(teamId, incidentInReach(reach)),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
       },
       orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }],
@@ -5042,8 +5040,7 @@ async function runCrossCaseIntelligenceV2(
     // Shared failed pattern — multiple cases affected by same incident category.
     const incidentSample = await prisma.operationalIncident.findMany({
       where: {
-        ...workspaceIncidentWhere(teamId),
-        AND: [incidentInReach(reach)],
+        ...workspaceIncidentWhereWith(teamId, incidentInReach(reach)),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
         category: { in: ["REPORT", "PACKAGE"] },
         relatedEvidenceId: { not: null },
@@ -5328,8 +5325,7 @@ async function runReconstructedTimeline(
     const [incidents, escalations, security] = await Promise.all([
       prisma.operationalIncident.findMany({
         where: {
-          ...workspaceIncidentWhere(teamId),
-        AND: [incidentInReach(reach)],
+          ...workspaceIncidentWhereWith(teamId, incidentInReach(reach)),
           firstSeenAtUtc: { gte: since },
         },
         orderBy: { firstSeenAtUtc: "desc" },

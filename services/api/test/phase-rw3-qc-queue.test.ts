@@ -140,9 +140,9 @@ describe("Phase RW3-3 — route source contract", () => {
     );
   });
 
-  it("forwards teamId into countPendingQcSamples (no extra fields)", () => {
+  it("forwards teamId and the reader into countPendingQcSamples", () => {
     expect(ROUTE_SRC).toMatch(
-      /countPendingQcSamples\(\s*\{\s*teamId:\s*q\.teamId\s*\}\s*\)/,
+      /countPendingQcSamples\(\s*\{\s*teamId:\s*q\.teamId,\s*viewerUserId:\s*ctx\.actorUserId\s*\}\s*\)/,
     );
   });
 
@@ -287,7 +287,7 @@ describe("Phase RW3-3 — count returns zero when no samples", () => {
   it("empty workspace → pendingCount === 0 (honest zero)", async () => {
     qcSampleCountMock.mockResolvedValueOnce(0);
 
-    const result = await qcMod.countPendingQcSamples({ teamId: TEAM_ID });
+    const result = await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
 
     expect(result).toEqual({ pendingCount: 0 });
     expect(qcSampleCountMock).toHaveBeenCalledTimes(1);
@@ -298,7 +298,7 @@ describe("Phase RW3-3 — count returns correct N when pending", () => {
   it("non-zero pending samples → pendingCount reflects the count", async () => {
     qcSampleCountMock.mockResolvedValueOnce(7);
 
-    const result = await qcMod.countPendingQcSamples({ teamId: TEAM_ID });
+    const result = await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
 
     expect(result).toEqual({ pendingCount: 7 });
   });
@@ -306,7 +306,7 @@ describe("Phase RW3-3 — count returns correct N when pending", () => {
   it("only SAMPLED and ASSIGNED states are counted (VERDICT_RENDERED excluded)", async () => {
     qcSampleCountMock.mockResolvedValueOnce(0);
 
-    await qcMod.countPendingQcSamples({ teamId: TEAM_ID });
+    await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
 
     const call = qcSampleCountMock.mock.calls[0]![0] as {
       where: { teamId: string; state: { in: string[] } };
@@ -320,7 +320,7 @@ describe("Phase RW3-3 — team scoping (no cross-team leakage)", () => {
   it("Prisma count is always scoped to the requested teamId", async () => {
     qcSampleCountMock.mockResolvedValueOnce(3);
 
-    await qcMod.countPendingQcSamples({ teamId: TEAM_ID });
+    await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
 
     const call = qcSampleCountMock.mock.calls[0]![0] as {
       where: Record<string, unknown>;
@@ -335,8 +335,8 @@ describe("Phase RW3-3 — team scoping (no cross-team leakage)", () => {
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(5);
 
-    const a = await qcMod.countPendingQcSamples({ teamId: TEAM_ID });
-    const b = await qcMod.countPendingQcSamples({ teamId: OTHER_TEAM_ID });
+    const a = await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
+    const b = await qcMod.countPendingQcSamples({ teamId: OTHER_TEAM_ID, viewerUserId: null });
 
     expect(a).toEqual({ pendingCount: 2 });
     expect(b).toEqual({ pendingCount: 5 });
@@ -349,7 +349,7 @@ describe("Phase RW3-3 — bounded projection (no PII)", () => {
   it("returns ONLY { pendingCount } (no row ids, no extra fields)", async () => {
     qcSampleCountMock.mockResolvedValueOnce(4);
 
-    const result = await qcMod.countPendingQcSamples({ teamId: TEAM_ID });
+    const result = await qcMod.countPendingQcSamples({ teamId: TEAM_ID, viewerUserId: null });
 
     expect(Object.keys(result).sort()).toEqual(["pendingCount"]);
     expect(typeof result.pendingCount).toBe("number");

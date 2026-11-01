@@ -152,6 +152,18 @@ export type GovernancePolicyPatch = Partial<{
   // Phase 14 — governance approval flags.
   requirePublicationApproval: boolean;
   requireLegalHoldReleaseApproval: boolean;
+  // The review SLA overrides and step-up flags are the same policy row, so they
+  // go through this one versioned writer too (WORKFLOW-002).
+  defaultAssignmentDueHours: number | null;
+  defaultFirstResponseDueHours: number | null;
+  defaultCompletionDueHours: number | null;
+  defaultEscalationDueHours: number | null;
+  defaultDueSoonHours: number | null;
+  requireStepUpForApprove: boolean;
+  requireStepUpForReject: boolean;
+  requireStepUpForEscalationResolve: boolean;
+  requireStepUpForBulk: boolean;
+  reviewerInactivityHours: number | null;
 }>;
 
 export type UpdateGovernancePolicyInput = {

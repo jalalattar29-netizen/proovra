@@ -48,6 +48,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { bump } from "../ops/metrics.service.js";
 
 // =============================================================================
@@ -334,6 +335,7 @@ export async function projectQueueIntelligence(
       where: {
         teamId: input.teamId,
         id: { in: requested as string[] },
+        evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
       },
       include: {
         evidence: true,

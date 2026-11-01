@@ -159,7 +159,7 @@ export async function buildReviewerOpsRuntimeProbe(input: {
     }),
     prisma.workflowReviewDecision.count({ where: { teamId } }),
     prisma.reviewerDisagreement.count({ where: { teamId } }),
-    countPendingQcSamples({ teamId, prisma }),
+    countPendingQcSamples({ teamId, prisma, viewerUserId: null }),
     getQcAccuracy7d({ teamId, prisma }),
     prisma.workflowReviewDecision.findMany({
       where: { teamId, decidedAt: { gte: sinceWeek } },

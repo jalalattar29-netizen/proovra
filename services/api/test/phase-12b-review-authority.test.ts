@@ -34,6 +34,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // ---------------------------------------------------------------------------
 
 vi.mock("../src/db.js", () => ({ prisma: {} }));
+// The permission check itself is proved on real rows in
+// review-door-authority.integration.test.ts.
+vi.mock("../src/services/identity/access-policy.service.js", () => ({
+  evaluateMemberAccess: async () => ({ allowed: true }),
+}));
 
 const notifyNeedsMoreInfoMock = vi.fn(async () => null);
 vi.mock(

@@ -769,7 +769,7 @@ export async function recordLifecycleTransition(
     return updated;
   }
 
-  // Reopen / Close: the move, its event and its custody entry are one
+  // Reopen / Close: the move, its event and its audit entry are one
   // transaction (ET-CUS-12, 2026-10-23).
   const updated = await client.$transaction(async (txc) => {
     const tx = txc as unknown as PrismaClient;
@@ -1055,8 +1055,9 @@ export async function bulkReviewAction(
     try {
       // Verify the evidence is in the caller's workspace before doing
       // anything — bulk cannot leak workflows from another workspace.
-      const workflow = await client.evidenceReviewWorkflow.findUnique({
-        where: { evidenceId },
+      // A record closed to the actor by a restricted case gets the same row.
+      const workflow = await client.evidenceReviewWorkflow.findFirst({
+        where: { evidenceId, evidence: evidenceVisibleThroughCasesWhere(input.actorUserId) },
         select: { id: true, teamId: true, status: true },
       });
       if (!workflow || workflow.teamId !== input.teamId) {

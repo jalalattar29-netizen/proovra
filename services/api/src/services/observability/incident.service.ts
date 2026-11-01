@@ -78,6 +78,7 @@ import {
   scopeForDeclaration,
   scopeForWorkspaceId,
   workspaceIncidentWhere,
+  workspaceIncidentWhereWith,
   resolveIncidentSourceWorkspace,
 } from "./incident-scope.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -1946,8 +1947,7 @@ export async function listIncidents(
       // `scope = WORKSPACE` as well as the workspace id, so a platform
       // incident and an unclassified orphan are both outside this list by
       // construction rather than by a filter somebody has to remember.
-      ...workspaceIncidentWhere(input.teamId),
-      AND: [input.incidentReach],
+      ...workspaceIncidentWhereWith(input.teamId, input.incidentReach),
       ...slaWhere(input.sla ?? null, input.now ?? new Date()),
       ...(input.resolvedSince
         ? { status: prismaPkg.IncidentStatus.RESOLVED, resolvedAtUtc: { gte: input.resolvedSince } }

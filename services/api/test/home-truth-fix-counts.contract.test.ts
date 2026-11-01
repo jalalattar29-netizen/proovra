@@ -182,10 +182,10 @@ describe("HOME-TRUTH-FIX — Reports/Packages KPI uses evidence-distinct counts"
     expect(COMMAND_CENTER).toMatch(/packageVersionsTotal/);
     // Both raw-row counts MUST exclude soft-deleted evidence too.
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.report\.count\(\{\s*\n?\s*where:\s*\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}/,
+      /prisma\.report\.count\(\{\s*\n?\s*where:\s*\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null,\s*AND:\s*\[reach\.evidence\]\s*\}\s*\}/,
     );
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.verificationPackage\.count\(\{\s*\n?\s*where:\s*primaryPublishedPackageWhere\(\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}\)/,
+      /prisma\.verificationPackage\.count\(\{\s*\n?\s*where:\s*primaryPublishedPackageWhere\(\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null,\s*AND:\s*\[reach\.evidence\]\s*\}\s*\}\)/,
     );
   });
 

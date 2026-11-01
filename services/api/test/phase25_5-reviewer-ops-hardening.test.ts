@@ -215,25 +215,26 @@ describe("Phase 25.5 — reminder engine", () => {
 
 describe("Phase 25.5 — step-up wiring", () => {
   const src = readSource("../src/routes/reviewer-ops.routes.ts");
+  const gate = readSource("../src/services/reviewer-ops/review-action-gate.ts");
 
-  it("enforceStepUpIfFlagged helper exists and reads workspace flags", () => {
-    expect(src).toMatch(/enforceStepUpIfFlagged/);
-    expect(src).toMatch(/loadWorkspaceReviewerOpsFlags/);
-    expect(src).toMatch(/STEP_UP_FLAG_BY_GATE/);
+  it("the one review gate exists and reads workspace flags", () => {
+    expect(src).toMatch(/enforceReviewActionGate/);
+    expect(gate).toMatch(/loadWorkspaceReviewerOpsFlags/);
+    expect(gate).toMatch(/flags\[gate\.flag\]/);
   });
 
-  it("approve / reject / escalation-resolve / escalation-suppress routes invoke the gate", () => {
+  it("approve / reject / escalation-resolve / escalation-suppress / bulk / decisions invoke the gate", () => {
     // Count distinct call sites in the routes file.
     const matches =
-      src.match(/await enforceStepUpIfFlagged\(/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(5);
+      src.match(/await enforceReviewActionGate\(/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(6);
   });
 
   it("the gate maps to the right shared step-up purposes", () => {
-    expect(src).toMatch(/REVIEW_APPROVAL_HIGH_RISK/);
-    expect(src).toMatch(/REVIEWER_OPS_REJECT/);
-    expect(src).toMatch(/REVIEWER_OPS_ESCALATION_RESOLVE/);
-    expect(src).toMatch(/REVIEWER_OPS_BULK_ACTION/);
+    expect(gate).toMatch(/REVIEW_APPROVAL_HIGH_RISK/);
+    expect(gate).toMatch(/REVIEWER_OPS_REJECT/);
+    expect(gate).toMatch(/REVIEWER_OPS_ESCALATION_RESOLVE/);
+    expect(gate).toMatch(/REVIEWER_OPS_BULK_ACTION/);
   });
 
   it("SLA policy edit route requires GOVERNANCE_POLICY_UPDATE step-up", () => {

@@ -114,6 +114,22 @@ export function evidenceIdInReach(reach: ViewerReach): { evidenceId?: { notIn: s
   return reach.hidden.evidenceIds.length > 0 ? { evidenceId: { notIn: reach.hidden.evidenceIds } } : {};
 }
 
+/**
+ * The review workflows of closed records, for rows that name a workflow with no
+ * relation to it (disagreements, QC samples).
+ */
+export async function hiddenWorkflowIdsInWorkspace(
+  workspaceId: string,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "evidenceReviewWorkflow"> = defaultPrisma,
+): Promise<string[]> {
+  const rows = await client.evidenceReviewWorkflow.findMany({
+    where: { teamId: workspaceId, NOT: { evidence: evidenceVisibleThroughCasesWhere(callerUserId) } },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
 export async function accessibleWorkspaceIdsFor(
   userId: string,
   client: PrismaClient = defaultPrisma,

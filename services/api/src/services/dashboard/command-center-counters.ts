@@ -54,7 +54,7 @@ export {
 
 import { prisma } from "../../db.js";
 import { evidenceIdInReach, incidentInReach, type ViewerReach } from "../access/record-reach.js";
-import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 import type { OwedOutputEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
@@ -455,8 +455,7 @@ export async function loadOperationsCounters(
       .groupBy({
         by: ["category"],
         where: {
-          ...workspaceIncidentWhere(teamId),
-          ...incidentInReach(reach),
+          ...workspaceIncidentWhereWith(teamId, incidentInReach(reach)),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
         },
         _count: { _all: true },

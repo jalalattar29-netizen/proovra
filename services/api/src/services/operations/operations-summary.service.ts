@@ -43,7 +43,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { incidentInReach, type ViewerReach } from "../access/record-reach.js";
-import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { workspaceIncidentWhere, workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 import { UNRESOLVED_INCIDENT_STATUSES } from "./incident-open-statuses.js";
 import {
   projectConditionGroups,
@@ -278,8 +278,7 @@ export async function buildOperationsSummary(
         // construction. The summary is what Home and Operations both count
         // from; a row that leaks in here is a number two surfaces agree on and
         // both get wrong.
-        ...workspaceIncidentWhere(input.workspaceId),
-        ...incidentInReach(input.reach),
+        ...workspaceIncidentWhereWith(input.workspaceId, incidentInReach(input.reach)),
         status: { in: [...UNRESOLVED_STATUSES] },
       },
       select: {

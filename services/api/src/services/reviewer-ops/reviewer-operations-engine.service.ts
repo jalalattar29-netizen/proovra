@@ -689,11 +689,15 @@ export type ReviewerOpsWorkspaceProjection = {
 };
 
 export async function getReviewerOpsWorkspace(
-  input: { teamId: string; workflowId: string },
+  input: { teamId: string; workflowId: string; viewerUserId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerOpsWorkspaceProjection> {
   const row = await client.evidenceReviewWorkflow.findFirst({
-    where: { id: input.workflowId, teamId: input.teamId },
+    where: {
+      id: input.workflowId,
+      teamId: input.teamId,
+      evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId),
+    },
   });
   if (!row) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
   const open = await findOpenEscalationForWorkflow(
@@ -743,13 +747,22 @@ function requireHuman(ctx: LifecycleActorContext): void {
   }
 }
 
+/**
+ * Every lifecycle action loads its workflow here, so reach is decided where the
+ * row is read and no route can act on a record it cannot open: a record closed
+ * by a restricted case answers exactly like a missing workflow (WORKFLOW-003).
+ */
 async function loadWorkflowOrThrow(
   ctx: LifecycleActorContext,
   workflowId: string,
   client: PrismaClient,
 ): Promise<DbWorkflow> {
   const row = await client.evidenceReviewWorkflow.findFirst({
-    where: { id: workflowId, teamId: ctx.teamId },
+    where: {
+      id: workflowId,
+      teamId: ctx.teamId,
+      evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId),
+    },
   });
   if (!row) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
   return row;
@@ -774,6 +787,7 @@ async function recordDecisionViaAuthority(
         case "rationale_required":
           throw new ReviewerOpsError("REVIEW_NOTE_REQUIRED");
         case "adjudicator_role_required":
+        case "reviewer_required":
           throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", {
             reason: err.code,
           });
@@ -1551,6 +1565,7 @@ async function runReconcileInner(
           lastReviewedAt: true,
           slaStatus: true,
           activeEscalationId: true,
+          dueAt: true,
         },
       });
       const nowMs = Date.now();
@@ -1587,6 +1602,27 @@ async function runReconcileInner(
           !wf.activeEscalationId
         ) {
           const top = classification.reasons[0]!;
+          // A person already dealt with this breach (WORKFLOW-005). Resolve
+          // and suppress clear the active pointer while slaStatus stays
+          // BREACHED, so this sweep read "breached, nothing raised" and opened
+          // a new HIGH escalation and incident, then again every UTC day.
+          // A later deadline that breaches again is a new breach and is raised.
+          if (top.code === "sla_overdue_no_escalation") {
+            const latest = await client.reviewEscalation.findFirst({
+              where: { teamId: input.teamId, workflowId: wf.id },
+              orderBy: { createdAt: "desc" },
+              select: { status: true, resolvedAtUtc: true, suppressedAtUtc: true },
+            });
+            const closedAt = latest?.resolvedAtUtc ?? latest?.suppressedAtUtc ?? null;
+            if (
+              latest &&
+              (latest.status === "RESOLVED" || latest.status === "SUPPRESSED") &&
+              closedAt &&
+              (!wf.dueAt || closedAt >= wf.dueAt)
+            ) {
+              continue;
+            }
+          }
           const res = await createEscalation(
             {
               teamId: input.teamId,

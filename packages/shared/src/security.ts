@@ -241,6 +241,7 @@ export const SECURITY_EVENT_TYPES = [
   "reviewer_saved_view_created",
   "reviewer_saved_view_deleted",
   "reviewer_sla_policy_updated",
+  "reviewer_decision_projection_repaired",
   "reviewer_governance_flags_updated",
   // Phase 26 — Enterprise identity governance.
   "sso_connection_created",

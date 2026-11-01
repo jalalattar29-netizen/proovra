@@ -33,6 +33,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 import {
   ReviewerOpsError,
@@ -290,7 +291,11 @@ async function runOne(
       // produce the same record: the move, the escalation routed to the
       // admins, its event and its audit in one transaction.
       const wf = await client.evidenceReviewWorkflow.findFirst({
-        where: { id: workflowId, teamId: ctx.teamId },
+        where: {
+          id: workflowId,
+          teamId: ctx.teamId,
+          evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId),
+        },
         select: { evidenceId: true },
       });
       if (!wf) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
@@ -337,7 +342,11 @@ async function runOne(
       // findFirstOrThrow, whose Prisma error surfaced as an invalid transition
       // with Prisma's own text as the message.
       const wf = await client.evidenceReviewWorkflow.findFirst({
-        where: { id: workflowId, teamId: ctx.teamId },
+        where: {
+          id: workflowId,
+          teamId: ctx.teamId,
+          evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId),
+        },
         select: { evidenceId: true },
       });
       if (!wf) throw new ReviewerOpsError("REVIEW_WORKFLOW_NOT_FOUND");
@@ -366,7 +375,11 @@ async function runOne(
             ? "URGENT"
             : "NORMAL";
       const row = await client.evidenceReviewWorkflow.findFirst({
-        where: { id: workflowId, teamId: ctx.teamId },
+        where: {
+          id: workflowId,
+          teamId: ctx.teamId,
+          evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId),
+        },
         select: { id: true, priority: true, evidenceId: true, status: true },
       });
       if (!row) {

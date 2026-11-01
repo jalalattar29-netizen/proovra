@@ -23,6 +23,8 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { hiddenWorkflowIdsInWorkspace } from "../access/record-reach.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { resolveReviewerRole } from "./reviewer-roles.js";
 import { getQcAccuracy7d } from "./qc-sample.service.js";
 import { getReviewerMetrics7d } from "./reviewer-metrics.service.js";
@@ -48,6 +50,11 @@ export async function projectReviewerWorkspace(
   if (!roleResolution.role) return null;
 
   const sinceWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // Counts the reader can act on: a closed record's review is not counted
+  // (WORKFLOW-003). Disagreements and QC samples name a workflow, not a record.
+  const evidence = evidenceVisibleThroughCasesWhere(input.userId);
+  const closedWorkflowIds = await hiddenWorkflowIdsInWorkspace(input.teamId, input.userId, prisma);
+  const notClosed = closedWorkflowIds.length > 0 ? { workflowId: { notIn: closedWorkflowIds } } : {};
 
   const [
     assigned,
@@ -63,20 +70,21 @@ export async function projectReviewerWorkspace(
     activeReview,
   ] = await Promise.all([
     prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, assignedToUserId: input.userId, status: { in: ["ASSIGNED", "QUEUED"] } },
+      where: { teamId: input.teamId, evidence, assignedToUserId: input.userId, status: { in: ["ASSIGNED", "QUEUED"] } },
     }),
     prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, assignedToUserId: null, status: "QUEUED" },
+      where: { teamId: input.teamId, evidence, assignedToUserId: null, status: "QUEUED" },
     }),
     prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, status: "IN_REVIEW" },
+      where: { teamId: input.teamId, evidence, status: "IN_REVIEW" },
     }),
     prisma.evidenceReviewWorkflow.count({
-      where: { teamId: input.teamId, status: "ESCALATED" },
+      where: { teamId: input.teamId, evidence, status: "ESCALATED" },
     }),
     prisma.evidenceReviewWorkflow.count({
       where: {
         teamId: input.teamId,
+        evidence,
         status: { in: ["APPROVED_INTERNAL", "REJECTED_INSUFFICIENT", "CLOSED"] },
       },
     }),
@@ -84,6 +92,7 @@ export async function projectReviewerWorkspace(
     prisma.reviewerDisagreement.count({
       where: {
         teamId: input.teamId,
+        ...notClosed,
         challengerUserId: input.userId,
         state: { in: ["FILED", "UNDER_SECOND_REVIEW", "UNDER_SUPERVISOR_REVIEW"] },
       },
@@ -91,12 +100,14 @@ export async function projectReviewerWorkspace(
     prisma.reviewerDisagreement.count({
       where: {
         teamId: input.teamId,
+        ...notClosed,
         state: { in: ["UNDER_SECOND_REVIEW", "UNDER_SUPERVISOR_REVIEW"] },
       },
     }),
     prisma.reviewerDisagreement.count({
       where: {
         teamId: input.teamId,
+        ...notClosed,
         resolvedAtUtc: { gte: sinceWeek },
       },
     }),
@@ -104,6 +115,7 @@ export async function projectReviewerWorkspace(
     prisma.evidenceReviewWorkflow.findFirst({
       where: {
         teamId: input.teamId,
+        evidence,
         assignedToUserId: input.userId,
         status: { in: ["ASSIGNED", "IN_REVIEW"] },
       },
@@ -119,7 +131,7 @@ export async function projectReviewerWorkspace(
 
   // Pending QC samples — visible to QC reviewers + supervisors.
   const pendingSamples = await prisma.qcSample.count({
-    where: { teamId: input.teamId, state: { in: ["SAMPLED", "ASSIGNED", "IN_PROGRESS"] } },
+    where: { teamId: input.teamId, ...notClosed, state: { in: ["SAMPLED", "ASSIGNED", "IN_PROGRESS"] } },
   });
 
   return {
