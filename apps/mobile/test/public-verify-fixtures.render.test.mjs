@@ -266,13 +266,16 @@ test("a /verify/package/<id> link is the web package page — never the verifica
     if (String(url).includes("/public/verify/")) asked = String(url);
     return prevFetch(url, init);
   };
+  M.calls.reset();
   try {
     const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
     await r.type("Verification token or public verification ID", "https://www.proovra.com/verify/package/pkg_42");
     await r.press("Open verification");
     for (let i = 0; i < 3; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
     assert.equal(asked, null);
-    assert.deepEqual(globalThis.__LINKING_OPENED__, ["https://www.proovra.example/verify/package/pkg_42"]);
+    // An in-app browser: the app claims this path, so the system could bring it straight back.
+    assert.deepEqual(M.calls.openURL, ["https://www.proovra.example/verify/package/pkg_42"]);
+    assert.deepEqual(globalThis.__LINKING_OPENED__, []);
     r.unmount();
   } finally {
     if (prev === undefined) delete process.env.EXPO_PUBLIC_WEB_BASE;
