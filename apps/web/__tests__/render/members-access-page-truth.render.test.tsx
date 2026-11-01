@@ -107,6 +107,8 @@ async function mount() {
   render(<TeamDetailPage />);
   await screen.findByTestId("people-kpis");
   await screen.findByTestId("people-roster");
+  // The roster section renders while its rows are still loading.
+  await waitFor(() => expect(screen.queryByTestId("people-loading")).toBeNull());
 }
 const pendingFigure = () => screen.getByTestId("people-pending-invite-count");
 const pendingCard = () => pendingFigure().closest(".app-metric-card") as HTMLElement;

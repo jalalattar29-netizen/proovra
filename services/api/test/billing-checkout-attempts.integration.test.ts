@@ -70,6 +70,8 @@ class FakePayPal {
   createFailure: { status: number } | null = null;
   calls: Array<{ method: string; url: string; body: string | null; requestId: string | null }> = [];
   captureStatus = "COMPLETED";
+  /** While set, a subscription read reports `entered` and waits for `released`. */
+  readGate: { entered: () => void; released: Promise<void> } | null = null;
   /** What each configured plan bills (the catalogue defaults). */
   planPrices: Record<string, { value: string; currency_code: string }> = {
     "P-PRO-USD": { value: "19.00", currency_code: "USD" },
@@ -266,6 +268,11 @@ describe("Billing checkout attempts + activity (live PostgreSQL 16)", () => {
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
       if (!url.startsWith(PAYPAL)) return realFetch(input as never, init);
+      const gate = fake.readGate;
+      if (gate && (init?.method ?? "GET") === "GET" && url.includes("/v1/billing/subscriptions/")) {
+        gate.entered();
+        await gate.released;
+      }
       const headers = new Headers(init?.headers);
       const out = fake.answer(
         init?.method ?? "GET",
@@ -757,13 +764,54 @@ describe("Billing checkout attempts + activity (live PostgreSQL 16)", () => {
 
   it("a repeated click on one attempt's action is refused while the first runs", async () => {
     const t = await payer();
+    const fake = new FakePayPal();
+    await withPayPal(fake, async () => {
+      const created = await call("POST", "/v1/billing/checkout/paypal", t.owner.token, { plan: "PRO", currency: "USD" });
+      const subId = json(created).subscription.id as string;
+      const attempt = await prisma.billingCheckoutAttempt.findFirstOrThrow({ where: { userId: t.owner.userId } });
+      const url = `/v1/billing/accounts/PERSONAL/${t.owner.userId}/checkout-attempts/${attempt.id}/recheck`;
+      const providerReads = () =>
+        fake.calls.filter((c) => c.method === "GET" && c.url.endsWith(`/v1/billing/subscriptions/${subId}`)).length;
+
+      // The first click is held inside its provider read, so the second one
+      // arrives while the lease is certainly held.
+      let entered!: () => void;
+      let release!: () => void;
+      const inProvider = new Promise<void>((resolve) => (entered = resolve));
+      fake.readGate = { entered, released: new Promise<void>((resolve) => (release = resolve)) };
+      const readsBefore = providerReads();
+      const first = call("POST", url, t.owner.token, {});
+      await inProvider;
+
+      const second = await call("POST", url, t.owner.token, {});
+      expect(second.statusCode, second.body).toBe(409);
+
+      release();
+      const done = await first;
+      expect(done.statusCode, done.body).toBe(200);
+      expect(json(done)).toMatchObject({ product: "PLAN", outcome: "STILL_PENDING" });
+      const readsByOneAction = providerReads() - readsBefore;
+      expect(readsByOneAction).toBeGreaterThan(0);
+
+      // The refused click reached no provider, and the lease ends with the
+      // action, so the next click is answered and reads once more.
+      fake.readGate = null;
+      const third = await call("POST", url, t.owner.token, {});
+      expect(third.statusCode, third.body).toBe(200);
+      expect(providerReads() - readsBefore).toBe(readsByOneAction * 2);
+    });
+  });
+
+  it("two clicks that do not overlap on an unbound attempt are both answered", async () => {
+    const t = await payer();
     const plan = await prisma.billingCheckoutAttempt.create({
       data: { userId: t.owner.userId, product: "PLAN", provider: "PAYPAL", planKey: "PRO", amountCents: 1900, currency: "USD", checkoutState: "PROVIDER_OUTCOME_UNKNOWN" },
     });
     const url = `/v1/billing/accounts/PERSONAL/${t.owner.userId}/checkout-attempts/${plan.id}/recheck`;
-    const [a, b] = await Promise.all([call("POST", url, t.owner.token, {}), call("POST", url, t.owner.token, {})]);
-    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
-    const ok = a.statusCode === 200 ? a : b;
-    expect(json(ok)).toMatchObject({ outcome: "NOT_PROVIDER_BOUND", currentStatus: "PENDING" });
+    for (let click = 0; click < 2; click += 1) {
+      const res = await call("POST", url, t.owner.token, {});
+      expect(res.statusCode, res.body).toBe(200);
+      expect(json(res)).toMatchObject({ outcome: "NOT_PROVIDER_BOUND", currentStatus: "PENDING" });
+    }
   });
 });
