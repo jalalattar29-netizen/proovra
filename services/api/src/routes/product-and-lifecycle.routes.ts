@@ -78,6 +78,11 @@ import {
   listLifecycleLegalHoldsLegacyShape,
   placeCanonicalLegalHold,
   releaseLegalHoldAnyStore,
+  approveLegalHoldRelease,
+  legalHoldReleaseRefusal,
+  listRecordsCommittedToDestruction,
+  projectCanonicalLegalHold,
+  requestLegalHoldRelease,
 } from "../services/governance/legal-hold.service.js";
 import {
   listArchiveTransitions,
@@ -1426,7 +1431,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           reason: body.reason,
           expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
         });
-        return reply.code(201).send({ holdId: hold.id });
+        return reply.code(201).send({
+          holdId: hold.id,
+          // GOV-013 — anything this hold arrived too late to protect, by name.
+          alreadyCommittedToDestruction: await listRecordsCommittedToDestruction(hold),
+        });
       } catch (err) {
         if (err instanceof LegalHoldError) {
           return reply.code(err.statusCode === 404 ? 409 : err.statusCode).send({
@@ -1471,14 +1480,21 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const body = z
         .object({
           reason: z.string().min(1).max(600).optional(),
-          // CLUSTER 8 — release note, optimistic concurrency and the
-          // approval acknowledgement now apply to EVERY scope, not just the
-          // case-scoped surface that used to enforce them.
+          // CLUSTER 8 — release note and optimistic concurrency apply to EVERY
+          // scope, not just the case-scoped surface that used to enforce them.
           releaseNote: z.string().min(1).max(4000).optional(),
           expectedVersion: z.number().int().min(1).optional(),
-          approvalAcknowledged: z.boolean().optional(),
         })
         .parse(req.body ?? {});
+
+      // GOV-011 — refused before step-up is offered, by the second person's
+      // recorded approval and nothing the caller can say about itself.
+      const refusal = await legalHoldReleaseRefusal({
+        teamId: ctx.teamId,
+        holdId: id,
+        actorUserId: ctx.userId,
+      });
+      if (refusal) return reply.code(403).send({ denial: refusal.toUpperCase() });
 
       // CLUSTER 8 — releasing a hold is a sensitive custody action.
       // LEGAL_HOLD_RELEASE is in the MFA force-list and the sibling
@@ -1501,7 +1517,6 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           actorUserId: ctx.userId,
           releaseNote: body.releaseNote ?? body.reason ?? "Released by operator.",
           expectedVersion: body.expectedVersion ?? null,
-          approvalAcknowledged: body.approvalAcknowledged === true,
         });
         return reply.code(200).send({ ok: true });
       } catch (err) {
@@ -1511,6 +1526,87 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
               err.code === "hold_not_found"
                 ? "NOT_FOUND"
                 : err.code.toUpperCase(),
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // GOV-011 — a hold under release approval: one person asks, a second approves.
+  app.post(
+    "/v1/lifecycle/legal-holds/:id/release-request",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.legal_hold.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z.object({ note: z.string().min(1).max(4000) }).parse(req.body ?? {});
+      try {
+        const hold = await requestLegalHoldRelease({
+          teamId: ctx.teamId,
+          holdId: id,
+          actorUserId: ctx.userId,
+          note: body.note,
+        });
+        return reply.code(200).send({ hold: projectCanonicalLegalHold(hold) });
+      } catch (err) {
+        if (err instanceof LegalHoldError) {
+          return reply.code(err.statusCode).send({
+            denial: err.code === "hold_not_found" ? "NOT_FOUND" : err.code.toUpperCase(),
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/lifecycle/legal-holds/:id/release-approval",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.legal_hold.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const stepUpGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "LEGAL_HOLD_RELEASE",
+        resourceKind: "evidence_legal_hold",
+        resourceId: id,
+      });
+      if (stepUpGate.sent) return;
+      try {
+        const hold = await approveLegalHoldRelease({
+          teamId: ctx.teamId,
+          holdId: id,
+          actorUserId: ctx.userId,
+        });
+        return reply.code(200).send({ hold: projectCanonicalLegalHold(hold) });
+      } catch (err) {
+        if (err instanceof LegalHoldError) {
+          return reply.code(err.statusCode).send({
+            denial: err.code === "hold_not_found" ? "NOT_FOUND" : err.code.toUpperCase(),
           });
         }
         throw err;

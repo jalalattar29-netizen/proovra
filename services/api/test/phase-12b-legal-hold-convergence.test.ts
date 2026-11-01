@@ -961,20 +961,28 @@ describe("PHASE 12B CLUSTER 8 — one release command", () => {
     expect(
       (await evaluateEffectiveLegalHold(gated, { teamId: TEAM, evidenceId: EVIDENCE })).held,
     ).toBe(true);
-    // With an explicit acknowledgement the release proceeds and is attributed.
-    const released = await releaseCanonicalLegalHold(
-      {
-        teamId: TEAM,
-        holdId: "canon-1",
-        actorUserId: USER,
-        releaseNote: "approved by counsel",
-        approvalAcknowledged: true,
+    // GOV-011 — a recorded approval by a second person is what releases it, and
+    // the record names that person, not the one who released it.
+    const SECOND_PERSON = "second-person-user";
+    const held = gated.evidenceLegalHold as unknown as {
+      updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<unknown>;
+    };
+    await held.updateMany({
+      where: { id: "canon-1" },
+      data: {
+        releaseApprovalState: "APPROVED",
+        releaseApprovedByUserId: SECOND_PERSON,
+        releaseApprovedAtUtc: new Date(),
       },
+    });
+    const released = await releaseCanonicalLegalHold(
+      { teamId: TEAM, holdId: "canon-1", actorUserId: USER, releaseNote: "approved by counsel" },
       gated,
     );
     expect(released.status).toBe("RELEASED");
     expect(released.releaseApprovalState).toBe("APPROVED");
-    expect(released.releaseApprovedByUserId).toBe(USER);
+    expect(released.releaseApprovedByUserId).toBe(SECOND_PERSON);
+    expect(released.releasedByUserId).toBe(USER);
   });
 
   it("REFUSES a stale release (optimistic concurrency, 409)", async () => {

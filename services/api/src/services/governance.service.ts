@@ -520,8 +520,6 @@ export type ReleaseLegalHoldInput = {
   releaseNote: string;
   /** CLUSTER 8 — optimistic concurrency; a stale value is a 409. */
   expectedVersion?: number | null;
-  /** CLUSTER 8 — operator confirmation when the approval gate is armed. */
-  approvalAcknowledged?: boolean;
 };
 
 /**
@@ -543,7 +541,6 @@ export async function releaseLegalHold(
         actorUserId: input.actorUserId,
         releaseNote: input.releaseNote,
         expectedVersion: input.expectedVersion ?? null,
-        approvalAcknowledged: input.approvalAcknowledged === true,
       },
       client,
     );

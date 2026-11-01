@@ -77,6 +77,7 @@ const H = vi.hoisted(() => ({
   /** Canonical Legal-Hold authority outcomes. */
   holdPlaceError: null as string | null,
   holdReleaseError: null as string | null,
+  holdReleaseApproved: false,
   holdExists: true,
 
   /** Exchange side-effect ledgers — a denial must leave ALL of these empty. */
@@ -241,6 +242,8 @@ vi.mock("../src/services/governance/legal-hold.service.js", () => {
       releaseNote: null,
     };
   },
+  legalHoldReleaseRefusal: async () =>
+    H.requireLegalHoldReleaseApproval && !H.holdReleaseApproved ? "release_approval_required" : null,
   releaseLegalHoldAnyStore: async () => {
     if (H.holdReleaseError) throw new FakeLegalHoldError(H.holdReleaseError, 409);
     H.writes.push("releaseLegalHoldAnyStore");
@@ -395,6 +398,7 @@ beforeEach(async () => {
   H.requireLegalHoldReleaseApproval = false;
   H.holdPlaceError = null;
   H.holdReleaseError = null;
+  H.holdReleaseApproved = false;
   H.holdExists = true;
   H.deliveryFound = true;
   H.signedUrlsMinted.length = 0;
@@ -618,11 +622,22 @@ describe("Trust residue — Legal-Hold compatibility adapters", () => {
     // The gate ran before step-up was even offered.
     expect(H.stepUpCalls).toEqual([]);
 
-    const ok = await gov.inject({
+    // A caller's own acknowledgement satisfies nothing (GOV-011).
+    const acknowledged = await gov.inject({
       method: "POST",
       url: `/v1/governance/case-legal-holds/${HOLD}/release`,
       headers: json,
       payload: { teamId: TEAM, releaseNote: "Matter closed", approvalAcknowledged: true },
+    });
+    expect(acknowledged.statusCode).toBe(412);
+    expect(H.writes).toEqual([]);
+
+    H.holdReleaseApproved = true;
+    const ok = await gov.inject({
+      method: "POST",
+      url: `/v1/governance/case-legal-holds/${HOLD}/release`,
+      headers: json,
+      payload: { teamId: TEAM, releaseNote: "Matter closed" },
     });
     expect(ok.statusCode).toBe(200);
     expect(H.writes).toEqual(["releaseLegalHoldAnyStore"]);
