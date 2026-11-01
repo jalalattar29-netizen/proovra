@@ -115,7 +115,7 @@ describe("intake lifecycle remediation (live PostgreSQL 16)", () => {
     const { t, sessionId } = await openConsent(link.rawToken);
     const part = await h.app.inject({
       method: "POST", url: `/v1/external-intake/${t}/sessions/${sessionId}/parts`,
-      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "c.txt", checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
+      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "c.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
     });
     expect(part.statusCode, part.body).toBe(201);
     // While the reservation is live it holds the slot (3/3): the owner is refused.

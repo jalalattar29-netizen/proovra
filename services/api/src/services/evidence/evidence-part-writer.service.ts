@@ -26,6 +26,7 @@
  */
 import { Prisma, type PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
+import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
@@ -174,10 +175,12 @@ export async function writeEvidencePart(
       if (input.onExistingIndex === "REFUSE") throw new EvidencePartWriteRefused("PART_INDEX_TAKEN");
       return { part: existing, created: false, evidence };
     }
-    if (typeof input.maxPartCount === "number" && input.maxPartCount > 0) {
-      const held = await tx.evidencePart.count({ where: { evidenceId: input.evidenceId } });
-      if (held >= input.maxPartCount) throw new EvidencePartWriteRefused("PART_COUNT_EXCEEDED");
-    }
+    // INGEST-004 — THE record bound (ET-ACQ-07) holds here for every door, the
+    // resumable bridge included; a link's own cap can only be lower.
+    const cap = Math.min(input.maxPartCount && input.maxPartCount > 0 ? input.maxPartCount : MAX_EVIDENCE_PARTS, MAX_EVIDENCE_PARTS);
+    if (input.partIndex >= MAX_EVIDENCE_PARTS) throw new EvidencePartWriteRefused("PART_COUNT_EXCEEDED");
+    const held = await tx.evidencePart.count({ where: { evidenceId: input.evidenceId } });
+    if (held >= cap) throw new EvidencePartWriteRefused("PART_COUNT_EXCEEDED");
     const part = await tx.evidencePart.create({
       data: { ...input.data, evidenceId: input.evidenceId, partIndex: input.partIndex },
     });

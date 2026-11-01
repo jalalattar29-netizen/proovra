@@ -50,7 +50,8 @@ import {
   hmacForIntake,
   lookupHashForIntakeToken,
 } from "./workflow-intake-token.service.js";
-import { isIpAddressAllowed } from "@proovra/shared";
+import { isIpAddressAllowed, MAX_EVIDENCE_PARTS } from "@proovra/shared";
+import { getUploadSizeLimits } from "./reliability/upload-limits.service.js";
 
 // -----------------------------------------------------------------------------
 // Errors
@@ -180,6 +181,8 @@ export type ExternalIntakeLinkPublicView = {
   consentDisclosureText: string | null;
   allowedAcceptedKinds: string[];
   maxFileCountPerSession: number | null;
+  maxBytesPerSession: string | null;
+  maxFileBytes: number;
   expiresAtUtc: string;
   // Operator-chosen location-collection policy for THIS link. Drives
   // the contributor page geolocation UX (NONE = no prompt, OPTIONAL =
@@ -254,7 +257,10 @@ export function projectIntakeLinkForExternalView(
     consentPolicyVersion: link.consentPolicyVersion,
     consentDisclosureText: link.consentDisclosureText,
     allowedAcceptedKinds: link.allowedAcceptedKinds,
-    maxFileCountPerSession: link.maxFileCountPerSession,
+    // ING-R05 — what a contributor is told before anything is transferred.
+    maxFileCountPerSession: link.maxFileCountPerSession ?? MAX_EVIDENCE_PARTS,
+    maxBytesPerSession: link.maxBytesPerSession == null ? null : link.maxBytesPerSession.toString(),
+    maxFileBytes: getUploadSizeLimits().maxUploadFileSizeBytes,
     expiresAtUtc: link.expiresAtUtc.toISOString(),
     locationPolicy: link.locationPolicy,
   };

@@ -41,6 +41,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
 
 import { requireInternalServiceAuth } from "../middleware/internal-service-auth.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -77,7 +78,8 @@ const CreateSessionBodySchema = z
     teamId: z.string().uuid(),
     evidenceId: z.string().uuid(),
     expectedPartCount: z.number().int().min(1).max(10_000),
-    expectedTotalBytes: z.number().int().min(0).max(50 * 1024 ** 3).optional(),
+    // The ceiling is the service's (getUploadSizeLimits), answered with a typed refusal.
+    expectedTotalBytes: z.number().int().min(0).optional(),
     expectedSha256: z
       .string()
       .regex(/^[a-f0-9]{64}$/i)
@@ -88,7 +90,8 @@ const CreateSessionBodySchema = z
     // Phase 30.12 — upload-session → EvidencePart bridge metadata.
     // When supplied (all three), completeStorageMultipart will
     // create a bridging EvidencePart row on success.
-    targetPartIndex: z.number().int().min(0).max(9_999).optional(),
+    // INGEST-004 — the one record bound (ET-ACQ-07).
+    targetPartIndex: z.number().int().min(0).max(MAX_EVIDENCE_PARTS - 1).optional(),
     originalFileName: z.string().min(1).max(255).optional(),
     expectedMimeType: z.string().min(1).max(128).optional(),
   })
@@ -137,6 +140,8 @@ const MultipartPresignBodySchema = z
   .object({
     teamId: z.string().uuid(),
     expiresInSeconds: z.number().int().min(60).max(900).optional(),
+    /** The chunk's exact size, signed into the URL. */
+    sizeBytes: z.number().int().min(0).optional(),
   })
   .strict();
 
@@ -707,6 +712,7 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         sessionId,
         partIndex,
         expiresInSeconds: body.expiresInSeconds,
+        sizeBytes: body.sizeBytes ?? null,
       });
       if (!result.ok) {
         return sendDenial(reply, result.reason);

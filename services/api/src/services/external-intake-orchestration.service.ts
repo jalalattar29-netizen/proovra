@@ -151,6 +151,8 @@ export type AddExternalPartInput = SessionLinkPair & {
   sizeBytesHint?: number | null;
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
+  /** The file's exact size, signed into the upload URL. */
+  sizeBytes?: number | null;
   checklistStepId?: string | null;
   privateRole?: string | null;
   privateNote?: string | null;
@@ -691,6 +693,7 @@ export async function addExternalEvidencePart(
     contentType: part.mimeType ?? input.mimeType,
     checksumSha256Base64: input.checksumSha256Base64 ?? null,
     contentMd5Base64: input.contentMd5Base64 ?? null,
+    contentLength: input.sizeBytes ?? null,
     expiresInSeconds: 600,
   });
 

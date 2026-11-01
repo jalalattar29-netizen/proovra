@@ -258,8 +258,9 @@ describe("Phase 30.5 — input validation contracts", () => {
     );
   });
 
-  it("expectedTotalBytes is bounded to 50 GiB at the route layer (defense in depth)", () => {
-    expect(ROUTES_SRC).toMatch(/expectedTotalBytes[\s\S]*?50\s*\*\s*1024\s*\*\*\s*3/);
+  it("expectedTotalBytes answers to the one effective limit, in the service (OPS-021)", () => {
+    const service = readFileSync(new URL("../src/services/uploads/upload-session.service.ts", import.meta.url), "utf8");
+    expect(service).toContain("input.expectedTotalBytes > getUploadSizeLimits().maxUploadFileSizeBytes");
   });
 
   it("clientSha256 + serverSha256 + expectedSha256 enforce 64-char hex at the route layer", () => {

@@ -258,6 +258,7 @@ describe("one creation + finalization authority across channels (live PostgreSQL
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "statement.jpg",
+      sizeBytes: bytes.length,
       checksumSha256Base64: createHash("sha256").update(bytes).digest("base64"),
       webkitRelativePath: null,
     });

@@ -358,6 +358,8 @@ export function buildIntakePartBody(input: {
   originalFileName?: string | null;
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
+  /** The file's exact size: required with the checksum, signed into the upload URL. */
+  sizeBytes?: number | null;
   durationMs?: number | null;
   /** The checklist step this file is assigned to (parts schema: string ≤120, nullable). */
   checklistStepId?: string | null;
@@ -372,6 +374,7 @@ export function buildIntakePartBody(input: {
   if (input.originalFileName) body.originalFileName = input.originalFileName;
   if (input.checksumSha256Base64) body.checksumSha256Base64 = input.checksumSha256Base64;
   if (input.contentMd5Base64) body.contentMd5Base64 = input.contentMd5Base64;
+  if (typeof input.sizeBytes === "number") body.sizeBytes = input.sizeBytes;
   if (typeof input.durationMs === "number") body.durationMs = input.durationMs;
   if (input.checklistStepId) body.checklistStepId = input.checklistStepId.slice(0, 120);
   // The web always sends these two keys (null when unknown) and the schema

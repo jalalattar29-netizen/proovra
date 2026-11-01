@@ -510,7 +510,7 @@ export function StepRules({ state, errors, onPatch }: StepProps) {
         <Field
           label="Maximum files per submission"
           htmlFor={FIELD_IDS.maxFiles}
-          help={`Between ${MAX_FILES_MIN} and ${MAX_FILES_MAX}. Leave blank for no per-submission cap.`}
+          help={`Between ${MAX_FILES_MIN} and ${MAX_FILES_MAX}. Leave blank for the limit of ${MAX_FILES_MAX} files.`}
           error={errors.maxFiles ?? null}
         >
           <input

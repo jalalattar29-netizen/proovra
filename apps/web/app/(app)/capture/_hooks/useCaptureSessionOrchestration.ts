@@ -132,6 +132,10 @@ async function runResumableItemUpload(input: {
   const { evidenceId, evidenceTeamId, item, index, resumable, setSessionItems } =
     input;
   const expectedPartCount = planChunks(item.file.size).length;
+  const clientDigest = item.clientSignals?.clientHintSha256Base64 ?? null;
+  const expectedSha256 = clientDigest
+    ? Array.from(atob(clientDigest), (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+    : null;
   // 1. Create the upload session.
   const sessionRes = (await apiFetch("/v1/uploads/sessions", {
     method: "POST",
@@ -139,6 +143,11 @@ async function runResumableItemUpload(input: {
       teamId: evidenceTeamId,
       evidenceId,
       expectedPartCount,
+      // INGEST-006 — the size and digest of what was selected, so the server
+      // proves the stored object is that file. Without them a part ends HASHED,
+      // never VERIFIED, and corruption in transit would seal as the original.
+      expectedTotalBytes: item.file.size,
+      ...(expectedSha256 ? { expectedSha256 } : {}),
       idempotencyKey: `capture:${evidenceId}:${index}`,
       targetPartIndex: index,
       originalFileName: item.relativePath || item.file.name,
@@ -858,6 +867,7 @@ export function useCaptureSessionOrchestration({
             originalFileName: item.relativePath || item.file.name,
             checksumSha256Base64: integrity.checksumSha256Base64,
             contentMd5Base64: integrity.contentMd5Base64,
+            sizeBytes: item.file.size,
             privateRole: item.role?.trim() || undefined,
             privateNote: item.privateNote?.trim() || undefined,
             checklistStepId: item.checklistStepId || undefined,

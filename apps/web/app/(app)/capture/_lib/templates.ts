@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_EVIDENCE_SIZE_BYTES } from "@proovra/shared"
 import type { CollectionPlanTemplate } from "./types";
 
 export const COLLECTION_PLAN_TEMPLATES: CollectionPlanTemplate[] = [
@@ -248,7 +249,8 @@ export const ROLE_SUGGESTIONS = [
 
 export const MAX_SESSION_FILES = 50;
 export const MAX_SINGLE_FILE_BYTES = 500 * 1024 * 1024;
-export const MAX_SESSION_BYTES = 2 * 1024 * 1024 * 1024;
+/** One record can seal this much, so a session cannot stage more (INGEST-002). */
+export const MAX_SESSION_BYTES = DEFAULT_MAX_EVIDENCE_SIZE_BYTES;
 
 export const GENERIC_EVIDENCE_UPLOAD_ACCEPT =
   "image/*,video/*,audio/*,application/pdf,text/*,application/json,application/xml,text/xml,application/zip,application/x-zip-compressed,.csv,.log,.txt,.rtf,.doc,.docx,.xls,.xlsx,.eml,.msg,.zip,.json,.xml";

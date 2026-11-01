@@ -22,6 +22,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z } from "zod";
+import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
 import {
   CUSTOMER_ID_MAX_LENGTH,
   INTAKE_LINK_LOCATION_POLICIES,
@@ -131,7 +132,8 @@ const CreateBody = z
           "customerId may contain letters, digits and the separators . _ - / : # and spaces",
       }),
     maxUses: z.number().int().min(1).max(10_000).optional(),
-    maxFileCountPerSession: z.number().int().min(1).max(500).nullable().optional(),
+    // INGEST-004 — a record holds at most MAX_EVIDENCE_PARTS, so a link cannot promise more.
+    maxFileCountPerSession: z.number().int().min(1).max(MAX_EVIDENCE_PARTS).nullable().optional(),
     maxBytesPerSession: z
       .union([z.number().int().min(1), z.string().regex(/^\d{1,20}$/)])
       .nullable()

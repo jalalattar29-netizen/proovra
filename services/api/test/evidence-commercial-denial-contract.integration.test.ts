@@ -184,6 +184,7 @@ describe("EVIDENCE — commercial denial contract across creation flows", () => 
         partIndex: 0,
         mimeType: "text/plain",
         originalFileName: "contribution.txt",
+        sizeBytes: body.length,
         checksumSha256Base64: createHash("sha256").update(body).digest("base64"),
         webkitRelativePath: null,
       },

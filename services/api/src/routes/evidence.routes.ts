@@ -395,6 +395,7 @@ import {
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { recordDownloadAuthorized, recordOriginalRelease, evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { narrowPublicDisclosureAtRead } from "../services/governance/public-disclosure-governance.service.js";
+import { checkUploadSize, getUploadSizeLimits } from "../services/reliability/upload-limits.service.js";
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
 // canonical membership+lifecycle+capability for workspace-bound evidence).
@@ -627,6 +628,8 @@ const CreatePartBody = z.object({
   durationMs: z.number().int().positive().optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
+  /** The file's exact size. Signed into the upload URL; a larger one is refused here. */
+  sizeBytes: z.number().int().min(0).optional(),
   privateRole: z.string().trim().min(1).max(120).optional(),
   privateNote: z.string().trim().max(1000).optional(),
   checklistStepId: z.string().trim().min(1).max(120).optional(),
@@ -6713,6 +6716,13 @@ const storage = await getStorageProtectionSummary(
         () => undefined,
       );
       const body = CreatePartBody.parse(req.body);
+      // INGEST-002 — refused before a byte moves, not after the whole transfer.
+      {
+        const refused = checkUploadSize(body.sizeBytes);
+        if (!refused.ok) {
+          return reply.code(413).send({ code: "EVIDENCE_TOO_LARGE", details: refused.details });
+        }
+      }
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
@@ -6931,6 +6941,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           contentType: result.part.mimeType ?? "application/octet-stream",
           checksumSha256Base64: normalizedChecksum,
           contentMd5Base64: normalizedContentMd5,
+          contentLength: body.sizeBytes ?? null,
           expiresInSeconds: 600,
         });
 
@@ -11778,6 +11789,21 @@ if (
                   : "This capture's reservation expired before it was finalized. Start the capture again.",
             });
           }
+        }
+
+        // INGEST-002 — an expected refusal: answered with its own code and audited
+        // as blocked. It used to read as a critical fault and page someone.
+        if (err instanceof Error && err.message === "EVIDENCE_TOO_LARGE") {
+          await auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            teamId: evidence.teamId,
+            metadata: { reason: "EVIDENCE_TOO_LARGE" },
+          });
+          return reply.code(413).send({ code: "EVIDENCE_TOO_LARGE", details: { maxBytes: getUploadSizeLimits().maxUploadFileSizeBytes } });
         }
 
         await auditEvidenceAction(req, {

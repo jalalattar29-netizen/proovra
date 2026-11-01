@@ -19,6 +19,7 @@ import {
   UPLOAD_ABANDONED_HOURS_MIN,
   UPLOAD_STALLED_MINUTES_MAX,
   UPLOAD_STALLED_MINUTES_MIN,
+  readMaxEvidenceSizeBytes,
 } from "@proovra/shared";
 
 function readIntEnv(
@@ -44,14 +45,23 @@ export type UploadSizeLimits = {
 
 export function getUploadSizeLimits(): UploadSizeLimits {
   return {
-    maxUploadFileSizeBytes: readIntEnv(
-      "MAX_UPLOAD_FILE_SIZE_BYTES",
-      DEFAULT_MAX_UPLOAD_FILE_SIZE_BYTES,
-      // floor at 1 MiB so the platform can never end up rejecting
-      // every meaningful upload because of a typo.
-      1024 * 1024,
-      // ceiling at 5 TiB — S3 maximum single-object size.
-      5 * 1024 * 1024 * 1024 * 1024,
+    /*
+     * THE ONE EFFECTIVE LIMIT (INGEST-002, OPS-021). A record cannot seal above
+     * MAX_EVIDENCE_SIZE_MB, so no single upload may be larger: this number is
+     * what the presign, the resumable session and the operations page all
+     * state. MAX_UPLOAD_FILE_SIZE_BYTES can only lower it.
+     */
+    maxUploadFileSizeBytes: Math.min(
+      readMaxEvidenceSizeBytes(),
+      readIntEnv(
+        "MAX_UPLOAD_FILE_SIZE_BYTES",
+        DEFAULT_MAX_UPLOAD_FILE_SIZE_BYTES,
+        // floor at 1 MiB so the platform can never end up rejecting
+        // every meaningful upload because of a typo.
+        1024 * 1024,
+        // ceiling at 5 TiB — S3 maximum single-object size.
+        5 * 1024 * 1024 * 1024 * 1024,
+      ),
     ),
     multipartThresholdBytes: readIntEnv(
       "MULTIPART_THRESHOLD_BYTES",
@@ -126,4 +136,24 @@ export function checkUploadSize(
     ok: true,
     recommendMultipart: size >= limits.multipartThresholdBytes,
   };
+}
+
+/**
+ * The refusal for a declared size over the limit, before a byte is sent. The same
+ * code the seal raises, so every surface answers it with one sentence.
+ */
+export class UploadTooLargeError extends Error {
+  readonly statusCode = 413;
+  readonly code = "EVIDENCE_TOO_LARGE";
+  readonly details: { sizeBytes: number; maxBytes: number };
+  constructor(details: { sizeBytes: number; maxBytes: number }) {
+    super("EVIDENCE_TOO_LARGE");
+    this.name = "UploadTooLargeError";
+    this.details = details;
+  }
+}
+
+export function assertDeclaredUploadSize(sizeBytes: number | null | undefined): void {
+  const outcome = checkUploadSize(sizeBytes);
+  if (!outcome.ok) throw new UploadTooLargeError(outcome.details);
 }

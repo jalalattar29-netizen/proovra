@@ -279,6 +279,11 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "Delegated administration is now managed per member in Security Center. Past grants are kept in the audit history.",
     severity: "info",
   },
+  EVIDENCE_TOO_LARGE: {
+    title: "This evidence is too large",
+    message: "It is larger than a single record can hold, so it was not sealed. Split it into smaller records, or contact your workspace admin.",
+    severity: "warning",
+  },
   external_review_originals_not_released: {
     title: "Original files are not shared with reviewers",
     message: "An external reviewer receives the disclosure package, not the original files. Remove that option and try again.",

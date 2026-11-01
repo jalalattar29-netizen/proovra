@@ -99,7 +99,7 @@ describe("ET-INT-06 — intake link restrictions (live PostgreSQL 16)", () => {
       url: `/v1/external-intake/${t}/sessions/${sid}/parts`,
       remoteAddress: inside,
       headers: { "user-agent": "Mozilla/5.0 (INT-15)" },
-      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "a.txt", checksumSha256Base64: null, webkitRelativePath: null },
+      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "a.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
     });
     expect(part.statusCode, part.body).toBe(201);
     const evidenceId = (await prisma.evidencePart.findUniqueOrThrow({ where: { id: (part.json() as { part: { id: string } }).part.id }, select: { evidenceId: true } })).evidenceId;
@@ -132,7 +132,7 @@ describe("ET-INT-06 — intake link restrictions (live PostgreSQL 16)", () => {
       method: "POST",
       url: `/v1/external-intake/${t}/sessions/${sid}/parts`,
       remoteAddress: inside,
-      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "big.txt", checksumSha256Base64: null, webkitRelativePath: null },
+      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "big.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
     });
     expect(part.statusCode, part.body).toBe(201);
     const row = await prisma.evidencePart.findUniqueOrThrow({ where: { id: (part.json() as { part: { id: string } }).part.id }, select: { storageBucket: true, storageKey: true, evidenceId: true } });

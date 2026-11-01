@@ -387,7 +387,10 @@ export class MultipartUploader {
         `/v1/uploads/sessions/${this.cfg.sessionId}/parts/${part.plan.partIndex}/presign`,
         {
           method: "POST",
-          body: JSON.stringify({ teamId: this.cfg.teamId }),
+          body: JSON.stringify({
+            teamId: this.cfg.teamId,
+            sizeBytes: part.plan.byteEnd - part.plan.byteStart,
+          }),
         },
       )) as { uploadUrl: string; expiresAt: string };
       presign = res;

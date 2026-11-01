@@ -67,7 +67,7 @@ describe("ET-INT-02 — intake part retry (live PostgreSQL 16)", () => {
       method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/consent`,
       payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
     });
-    const body = { partIndex: 0, mimeType: "text/plain", originalFileName: "statement.txt", checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null };
+    const body = { partIndex: 0, mimeType: "text/plain", originalFileName: "statement.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null };
     const first = await h.app.inject({ method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/parts`, payload: body });
     expect(first.statusCode, first.body).toBe(201);
     // The PUT failed: the contributor retries the SAME file at the SAME index.

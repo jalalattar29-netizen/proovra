@@ -1,3 +1,5 @@
+import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
+
 /**
  * Intake links — the request/delivery/collection catalogs.
  *
@@ -312,7 +314,8 @@ export const EXPIRY_PRESETS: ReadonlyArray<{ hours: number; label: string }> = [
 ];
 
 export const MAX_FILES_MIN = 1;
-export const MAX_FILES_MAX = 500;
+/** A record holds at most this many files, so a link cannot promise more. */
+export const MAX_FILES_MAX = MAX_EVIDENCE_PARTS;
 export const MAX_FILES_DEFAULT = 10;
 
 export const CONSENT_TEXT_MAX = 4000;

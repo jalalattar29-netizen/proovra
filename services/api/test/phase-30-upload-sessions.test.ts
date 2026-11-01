@@ -300,7 +300,7 @@ describe("Phase 30 — upload-session service source contract", () => {
 
   it("part count + total bytes bounded at the service level (defense in depth)", () => {
     expect(src).toMatch(/MAX_PARTS_PER_SESSION\s*=\s*10_000/);
-    expect(src).toMatch(/MAX_TOTAL_BYTES\s*=\s*1024 \* 1024 \* 1024 \* 50/);
+    expect(src).toContain("input.expectedTotalBytes > getUploadSizeLimits().maxUploadFileSizeBytes");
   });
 
   it("SHA-256 format validated at every entry point (defense in depth)", () => {

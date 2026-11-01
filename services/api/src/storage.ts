@@ -268,6 +268,11 @@ export async function presignPutObject(params: {
   checksumSha256Base64?: string | null;
   contentMd5Base64?: string | null;
   expiresInSeconds?: number;
+  /**
+   * The size the client declared. Signed into the URL, so the store refuses any
+   * other length before keeping a byte (INGEST-001).
+   */
+  contentLength?: number | null;
 }) {
   const bucket = clean(params.bucket);
   const key = clean(params.key);
@@ -284,34 +289,35 @@ export async function presignPutObject(params: {
     params.contentMd5Base64
   );
 
-  /**
-   * IMPORTANT:
-   * For browser/mobile direct uploads, we explicitly sign checksum headers,
-   * and we also attach Object Lock values to the command so uploads do not rely
-   * only on bucket defaults.
-   *
-   * We intentionally do NOT force Object Lock headers to stay as request headers
-   * from the client, because the current frontend only sends checksum headers.
-   * The SDK can safely carry Object Lock values in the signed request generated
-   * from this command.
+  /*
+   * IN-FLIGHT BYTES ARE NOT LOCKED (INGEST-001). A presigned upload is not
+   * evidence yet. Locking it at PUT kept refused, abandoned and replaced uploads
+   * for eight years with no record, no billing and no way to remove them. The
+   * record's retention is applied to the exact sealed version when it seals
+   * (applyRetentionOrThrow), so everything that became evidence is locked, and
+   * the reaper can remove what never did. A bucket-level default retention would
+   * still apply to these objects; that is a deployment setting.
    */
-  const objectLock = readObjectLockDefaults();
-
+  const declaredLength =
+    typeof params.contentLength === "number" && Number.isSafeInteger(params.contentLength) && params.contentLength >= 0
+      ? params.contentLength
+      : null;
   const cmd = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     ContentType: normalizedContentType,
     ...(normalizedChecksum ? { ChecksumSHA256: normalizedChecksum } : {}),
     ...(normalizedContentMd5 ? { ContentMD5: normalizedContentMd5 } : {}),
-    ...(objectLock.mode ? { ObjectLockMode: objectLock.mode } : {}),
-    ...(objectLock.retainUntilDate
-      ? { ObjectLockRetainUntilDate: objectLock.retainUntilDate }
-      : {}),
-    // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
+    ...(declaredLength !== null ? { ContentLength: declaredLength } : {}),
   });
 
   const signableHeaders = new Set<string>(["content-type"]);
   const unhoistableHeaders = new Set<string>();
+
+  if (declaredLength !== null) {
+    signableHeaders.add("content-length");
+    unhoistableHeaders.add("content-length");
+  }
 
   if (normalizedChecksum) {
     unhoistableHeaders.add("x-amz-checksum-sha256");

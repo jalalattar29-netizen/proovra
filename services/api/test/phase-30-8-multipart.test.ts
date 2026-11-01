@@ -202,12 +202,8 @@ describe("Phase 30.8 — storage-multipart abstraction", () => {
     }
   });
 
-  it("Object Lock defaults are attached at CreateMultipartUpload time (NOT at presign)", () => {
-    expect(src).toMatch(
-      /CreateMultipartUploadCommand\(\{[\s\S]*?\.\.\.objectLock[\s\S]*?\}\)/,
-    );
-    // UploadPartCommand must NOT carry Object Lock fields — those
-    // belong on the create, not the part.
+  it("an in-flight multipart upload carries no Object Lock (INGEST-001): the seal locks the sealed version", () => {
+    expect(src).not.toMatch(/CreateMultipartUploadCommand\(\{[\s\S]*?ObjectLock/);
     expect(src).not.toMatch(
       /UploadPartCommand\(\{[\s\S]*?ObjectLockMode/,
     );

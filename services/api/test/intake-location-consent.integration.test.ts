@@ -121,7 +121,7 @@ describe("F-36 — intake location consent controls collection (live PostgreSQL 
       remoteAddress: ip,
       method: "POST",
       url: `/v1/external-intake/${t}/sessions/${sid}/parts`,
-      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "f0.txt", checksumSha256Base64: null, webkitRelativePath: null },
+      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "f0.txt", sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null },
     });
     expect(r.statusCode, r.body).toBe(201);
     const p = await prisma.evidencePart.findUniqueOrThrow({

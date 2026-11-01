@@ -250,7 +250,7 @@ describe("Phase 30.12 — route bodies accept bridge fields", () => {
       "../../../services/api/src/routes/upload-sessions.routes.ts",
     );
     expect(src).toMatch(
-      /targetPartIndex:\s*z\.number\(\)\.int\(\)\.min\(0\)\.max\(9_999\)\.optional\(\)/,
+      /targetPartIndex:\s*z\.number\(\)\.int\(\)\.min\(0\)\.max\(MAX_EVIDENCE_PARTS - 1\)\.optional\(\)/,
     );
     expect(src).toMatch(
       /originalFileName:\s*z\.string\(\)\.min\(1\)\.max\(255\)\.optional\(\)/,

@@ -89,7 +89,7 @@ describe("ET-INT-09 — intake races (live PostgreSQL 16)", () => {
     expect(consent.statusCode, consent.body).toBeLessThan(300);
     return sid;
   }
-  const partBody = (i: number) => ({ partIndex: i, mimeType: "text/plain", originalFileName: `f${i}.txt`, checksumSha256Base64: null, webkitRelativePath: null });
+  const partBody = (i: number) => ({ partIndex: i, mimeType: "text/plain", originalFileName: `f${i}.txt`, sizeBytes: 1, checksumSha256Base64: createHash("sha256").update("x").digest("base64"), webkitRelativePath: null });
   const postPart = (t: string, sid: string, i: number) =>
     h.app.inject({ remoteAddress: ip, method: "POST", url: `/v1/external-intake/${t}/sessions/${sid}/parts`, payload: partBody(i) });
   async function upload(partId: string) {

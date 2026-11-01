@@ -50,7 +50,6 @@ import type { Readable } from "node:stream";
 
 import { s3 } from "../../storage.js";
 import { sha256HexFromStream } from "../../stream-hash.js";
-import { newObjectLock } from "@proovra/shared-runtime";
 
 // =============================================================================
 // Bounded denial vocabulary
@@ -123,27 +122,6 @@ function readMultipartBucket(): string | null {
   return clean(process.env.S3_BUCKET);
 }
 
-/**
- * WHY THERE IS NO `ObjectLockLegalHoldStatus` HERE ANY MORE (2026-08-24).
- *
- * The multipart upload stamped it too, from the same environment variable, so
- * every part of every multipart evidence record carried a legal-hold status the
- * application had never decided — and one config edit would have made those
- * stamps `ON`, i.e. native holds this codebase cannot release. See
- * `services/api/src/storage.ts` for the full reasoning.
- *
- * Object Lock RETENTION is untouched: mode and retain-until are still applied
- * to the multipart upload exactly as before.
- */
-function readObjectLockDefaults(): {
-  ObjectLockMode?: "GOVERNANCE" | "COMPLIANCE";
-  ObjectLockRetainUntilDate?: Date;
-} {
-  // The one resolver (eight-year contract) — see services/api/src/storage.ts.
-  const lock = newObjectLock();
-  if (!lock) return {};
-  return { ObjectLockMode: lock.mode, ObjectLockRetainUntilDate: lock.retainUntil };
-}
 
 // =============================================================================
 // initiateMultipartUpload
@@ -184,13 +162,13 @@ export async function initiateMultipartUpload(
     return { ok: false, reason: "invalid_part" };
   }
   try {
-    const objectLock = readObjectLockDefaults();
+    // Not locked in flight (INGEST-001): see presignPutObject. Retention is
+    // applied to the sealed version when the record seals.
     const result = await s3.send(
       new CreateMultipartUploadCommand({
         Bucket: bucket,
         Key: key,
         ContentType: input.contentType ?? "application/octet-stream",
-        ...objectLock,
       }),
     );
     if (!result.UploadId) {
@@ -220,6 +198,8 @@ export type CreatePresignedPartUploadUrlInput = {
    *  +1 conversion at the route boundary. */
   partNumber: number;
   expiresInSeconds?: number;
+  /** The chunk's declared size, signed so the store refuses any other length. */
+  contentLength?: number | null;
 };
 
 export type CreatePresignedPartUploadUrlResult =
@@ -252,8 +232,15 @@ export async function createPresignedPartUploadUrl(
       Key: input.key,
       UploadId: input.multipartUploadId,
       PartNumber: input.partNumber,
+      ...(input.contentLength != null ? { ContentLength: input.contentLength } : {}),
     });
-    const uploadUrl = await getSignedUrl(s3, cmd, { expiresIn });
+    const uploadUrl = await getSignedUrl(
+      s3,
+      cmd,
+      input.contentLength != null
+        ? { expiresIn, signableHeaders: new Set(["content-length"]), unhoistableHeaders: new Set(["content-length"]) }
+        : { expiresIn },
+    );
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
     return {
       ok: true,

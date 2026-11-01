@@ -31,10 +31,14 @@
 
 import type { PrismaClient } from "@prisma/client";
 
+import { MULTIPART_PART_SIZE_MAX_BYTES } from "@proovra/shared";
+
 import { prisma as defaultPrisma } from "../../db.js";
+import { getUploadSizeLimits } from "../reliability/upload-limits.service.js";
 import {
   assertEvidenceAcceptsByteWrites,
   EvidencePartWriteRefused,
+  lockEvidenceForByteWrite,
   writeEvidencePart,
 } from "../evidence/evidence-part-writer.service.js";
 import { bump } from "../ops/metrics.service.js";
@@ -124,6 +128,8 @@ export const UPLOAD_SESSION_FINALIZE_GATE_CODES = [
   "session_pending_parts",
   // Resumable session is in a terminal failure state.
   "session_failed",
+  // A completed session never produced its evidence part (INGEST-005).
+  "session_part_missing",
   // Phase 30.11 — Resumable session failed specifically because a
   // hash check (per-part or final-object) did not match. Surfaced
   // as a distinct code so operator UI can render the integrity
@@ -163,7 +169,6 @@ const MAX_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 // Bounded per-session part count + total size — refuses pathological
 // requests at creation rather than at completion.
 const MAX_PARTS_PER_SESSION = 10_000;
-const MAX_TOTAL_BYTES = 1024 * 1024 * 1024 * 50; // 50 GiB
 
 // =============================================================================
 // Projections
@@ -342,7 +347,7 @@ export async function createUploadSession(
   if (
     input.expectedTotalBytes != null &&
     (input.expectedTotalBytes < 0 ||
-      input.expectedTotalBytes > MAX_TOTAL_BYTES)
+      input.expectedTotalBytes > getUploadSizeLimits().maxUploadFileSizeBytes)
   ) {
     return { ok: false, reason: "invalid_part_count" };
   }
@@ -1362,6 +1367,23 @@ export async function evaluateUploadSessionFinalizeGate(
   const lastCompletedAt = rows
     .filter((r) => r.state === "COMPLETED")
     .reduce<number>((m, r) => Math.max(m, r.created_at_utc.getTime()), -Infinity);
+  // INGEST-005 — a completed session that was to produce a part and has none
+  // means a file the user saw as uploaded is missing. Refused, never sealed.
+  {
+    const unbridged = (await client.$queryRawUnsafe(
+      `SELECT "id" FROM "evidence_upload_sessions"
+        WHERE "team_id" = $1 AND "evidence_id" = $2 AND "state" = 'COMPLETED'
+          AND "target_part_index" IS NOT NULL AND "original_file_name" IS NOT NULL
+          AND "bridged_evidence_part_id" IS NULL
+        LIMIT 1`,
+      input.teamId,
+      input.evidenceId,
+    )) as Array<{ id: string }>;
+    if (unbridged.length > 0) {
+      bump("upload_session_finalize_gate_denied_total");
+      return { ok: false, reason: "session_part_missing", sessionId: unbridged[0]!.id, sessionState: "COMPLETED" };
+    }
+  }
   for (const row of rows) {
     if (row.state === "ABORTED" || row.state === "EXPIRED") continue;
     if (row.state === "FAILED" && row.created_at_utc.getTime() < lastCompletedAt) continue;
@@ -1486,6 +1508,7 @@ type SessionWithMultipart = {
   storage_bucket: string | null;
   storage_key: string | null;
   completed_at_storage_utc: Date | null;
+  completed_object_etag: string | null;
   aborted_at_storage_utc: Date | null;
   // Phase 30.12 — bridge fields. Null when the session was created
   // without bridge metadata (older clients / API-key drivers that
@@ -1505,7 +1528,7 @@ async function loadSessionWithMultipart(
     `SELECT "id", "team_id", "evidence_id", "actor_user_id", "state",
             "expected_part_count", "expected_sha256", "expected_total_bytes",
             "multipart_upload_id", "storage_bucket", "storage_key",
-            "completed_at_storage_utc", "aborted_at_storage_utc",
+            "completed_at_storage_utc", "completed_object_etag", "aborted_at_storage_utc",
             "target_part_index", "original_file_name", "expected_mime_type",
             "bridged_evidence_part_id"
        FROM "evidence_upload_sessions"
@@ -1647,6 +1670,8 @@ export type PresignStorageUploadPartInput = {
    *  1-indexed (partIndex + 1). */
   partIndex: number;
   expiresInSeconds?: number;
+  /** The chunk's size, signed into the URL. */
+  sizeBytes?: number | null;
 };
 
 export type PresignStorageUploadPartResult =
@@ -1696,12 +1721,18 @@ export async function presignStorageUploadPart(
   if (input.partIndex >= session.expected_part_count) {
     return { ok: false, reason: "invalid_part_index" };
   }
+  // INGEST-001 — a chunk is bounded where it arrives: its declared size is
+  // signed, and no chunk may be larger than the object store's own part limit.
+  if (input.sizeBytes != null && (input.sizeBytes < 0 || input.sizeBytes > MULTIPART_PART_SIZE_MAX_BYTES)) {
+    return { ok: false, reason: "invalid_part_index" };
+  }
   const presign = await createPresignedPartUploadUrl({
     bucket: session.storage_bucket,
     key: session.storage_key,
     multipartUploadId: session.multipart_upload_id,
     partNumber: input.partIndex + 1,
     expiresInSeconds: input.expiresInSeconds,
+    contentLength: input.sizeBytes ?? null,
   });
   if (!presign.ok) {
     return { ok: false, reason: presign.reason };
@@ -1879,24 +1910,34 @@ export async function completeStorageMultipart(
       missingEtags: missing,
     };
   }
-  const result = await completeMultipartUpload({
-    bucket: session.storage_bucket,
-    key: session.storage_key,
-    multipartUploadId: session.multipart_upload_id,
-    parts: parts.map((p) => ({
-      partNumber: p.part_index + 1,
-      etag: p.part_etag!,
-    })),
-  });
-  if (!result.ok) {
-    bump("multipart_complete_failed_total");
-    safeEmitSecurityEvent({
-      teamId: input.teamId,
-      eventType: "multipart_complete_failed",
-      severity: "WARNING",
-      details: { sessionId: input.sessionId, reason: result.reason },
+  // INGEST-005 — A SECOND COMPLETE IS NOT A SECOND UPLOAD. Once storage has
+  // assembled the object its upload id no longer exists, so a retry after a
+  // failed bridge or a lost response used to fail for good. The object is
+  // re-checked below, and the bridge runs if it did not.
+  let completedEtag: string;
+  if (session.completed_at_storage_utc) {
+    completedEtag = session.completed_object_etag ?? "";
+  } else {
+    const result = await completeMultipartUpload({
+      bucket: session.storage_bucket,
+      key: session.storage_key,
+      multipartUploadId: session.multipart_upload_id,
+      parts: parts.map((p) => ({
+        partNumber: p.part_index + 1,
+        etag: p.part_etag!,
+      })),
     });
-    return { ok: false, reason: result.reason };
+    if (!result.ok) {
+      bump("multipart_complete_failed_total");
+      safeEmitSecurityEvent({
+        teamId: input.teamId,
+        eventType: "multipart_complete_failed",
+        severity: "WARNING",
+        details: { sessionId: input.sessionId, reason: result.reason },
+      });
+      return { ok: false, reason: result.reason };
+    }
+    completedEtag = result.etag;
   }
   // HEAD the final object to confirm it exists + capture size.
   const head = await headCompletedObject({
@@ -1973,12 +2014,12 @@ export async function completeStorageMultipart(
     `UPDATE "evidence_upload_sessions"
        SET "completed_object_etag" = $3,
            "completed_object_size" = $4,
-           "completed_at_storage_utc" = NOW(),
+           "completed_at_storage_utc" = COALESCE("completed_at_storage_utc", NOW()),
            "updated_at_utc" = NOW()
        WHERE "id" = $1 AND "team_id" = $2`,
     input.sessionId,
     input.teamId,
-    result.etag,
+    completedEtag,
     head.contentLength,
   );
 
@@ -2093,15 +2134,24 @@ export async function completeStorageMultipart(
           reason: err.code === "EVIDENCE_NOT_FOUND" ? "evidence_not_found" : "evidence_not_writable",
         };
       }
-      /* Other bridge failures remain best-effort here; their durability is
-       * handled with the post-commit fan-out (ET-ACQ-03). */
+      // INGEST-005 — anything else is a failure, never a success. It was
+      // swallowed, the client marked the file uploaded, and the record sealed
+      // without it. Storage completion is recorded, so the retry only bridges.
+      bump("multipart_complete_failed_total");
+      safeEmitSecurityEvent({
+        teamId: input.teamId,
+        eventType: "multipart_complete_failed",
+        severity: "WARNING",
+        details: { sessionId: input.sessionId, reason: "bridge_failed" },
+      });
+      return { ok: false, reason: "storage_unavailable" };
     }
   }
 
   bump("multipart_completed_total");
   return {
     ok: true,
-    etag: result.etag,
+    etag: completedEtag,
     contentLength: head.contentLength,
     serverSha256,
   };
@@ -2166,6 +2216,27 @@ export async function abortStorageMultipart(
   }
   if (session.state === "COMPLETED") {
     return { ok: false, reason: "session_already_completed" };
+  }
+  // INGEST-005 — a cancelled file does not stay in the record. A storage
+  // complete may already have bridged its part; a session that is ABORTED
+  // "committed nothing", so that part would have sealed anyway. It goes now,
+  // under the byte-write lock, and a sealed record refuses.
+  if (session.bridged_evidence_part_id) {
+    try {
+      await client.$transaction(async (tx) => {
+        await lockEvidenceForByteWrite(tx as never, session.evidence_id, { kind: "OWNER", userId: session.actor_user_id });
+        await tx.$executeRawUnsafe(
+          `UPDATE "evidence_upload_sessions" SET "bridged_evidence_part_id" = NULL, "updated_at_utc" = NOW()
+            WHERE "id" = $1 AND "team_id" = $2`,
+          input.sessionId,
+          input.teamId,
+        );
+        await tx.evidencePart.deleteMany({ where: { id: session.bridged_evidence_part_id!, evidenceId: session.evidence_id } });
+      });
+    } catch (err) {
+      if (err instanceof EvidencePartWriteRefused) return { ok: false, reason: "evidence_not_writable" };
+      throw err;
+    }
   }
   // Server-side credentials only — never trust client-provided
   // bucket/key/uploadId. The session row is the source of truth.

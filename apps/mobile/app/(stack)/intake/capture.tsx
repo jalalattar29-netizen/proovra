@@ -201,6 +201,7 @@ export default function IntakeCaptureScreen() {
               originalFileName: item.name,
               checksumSha256Base64: integrity.checksumSha256Base64,
               contentMd5Base64: integrity.contentMd5Base64,
+              sizeBytes: integrity.sizeBytes,
               checklistStepId: item.stepId,
               captureTimezone: context.captureTimezone,
               captureLocale: context.captureLocale,

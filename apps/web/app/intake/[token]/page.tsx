@@ -285,6 +285,8 @@ type LinkView = {
   consentDisclosureText: string | null;
   allowedAcceptedKinds: AcceptedKind[];
   maxFileCountPerSession: number | null;
+  /** The largest single file the server accepts, stated before the transfer. */
+  maxFileBytes?: number | null;
   expiresAtUtc: string;
   /** Per-link operator setting — NONE | OPTIONAL | REQUIRED. */
   locationPolicy?: string;
@@ -759,6 +761,14 @@ export default function ExternalIntakePage({
       return;
     }
 
+    // INGEST-002 — said before the transfer, and before reading the whole file
+    // into memory to hash it, which a phone cannot do for a large one.
+    const maxFileBytes = link?.maxFileBytes ?? null;
+    if (typeof maxFileBytes === "number" && file.size > maxFileBytes) {
+      setErrorMessage(`This file is larger than this link accepts (${Math.floor(maxFileBytes / (1024 * 1024))} MB).`);
+      return;
+    }
+
     let checksum: string;
     try {
       checksum = await sha256Base64(file);
@@ -792,6 +802,7 @@ export default function ExternalIntakePage({
             mimeType: file.type || "application/octet-stream",
             originalFileName: file.name,
             checksumSha256Base64: checksum,
+            sizeBytes: file.size,
             // Optional. Server treats null/missing identically;
             // null is sent explicitly so the wire shape is stable
             // and contract tests can pin it.

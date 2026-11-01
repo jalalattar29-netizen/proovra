@@ -59,6 +59,8 @@ import {
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { classifyReportability, isDomainError } from "../errors.js";
 import { prisma } from "../db.js";
+import { MAX_EVIDENCE_PARTS } from "@proovra/shared";
+import { checkUploadSize } from "../services/reliability/upload-limits.service.js";
 // PHASE1-003 — the one trusted-client-IP binding; see `clientIp` below.
 import { trustedClientIp, trustedClientIpKey } from "../middleware/client-ip.js";
 
@@ -416,6 +418,8 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "This link can't be used from your current network. Please contact the sender.";
     case "SUBMISSION_TOO_LARGE":
       return "These files are larger than this link accepts. Remove a file or contact the sender.";
+    case "EVIDENCE_TOO_LARGE":
+      return "This file is larger than this link accepts. Choose a smaller file or contact the sender.";
     case "SESSION_TERMINAL":
       return "This submission has already been completed. Please contact the sender if you need to add more files.";
     case "LINK_NO_LONGER_AVAILABLE":
@@ -1065,7 +1069,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
 
       const body = z
         .object({
-          partIndex: z.number().int().min(0).max(99),
+          // INGEST-004 — the one record bound, as on every other door.
+          partIndex: z.number().int().min(0).max(MAX_EVIDENCE_PARTS - 1),
           /*
            * These two bounds used to be wider than the columns behind them
            * (160 vs VARCHAR(128), 512 vs VARCHAR(255)), so a value could pass
@@ -1077,7 +1082,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
            */
           mimeType: z.string().min(1).max(128),
           originalFileName: z.string().max(512).nullable().optional(),
-          checksumSha256Base64: z.string().max(128).nullable().optional(),
+          // INGEST-001 — required here: this door is anonymous, so the signed URL
+          // must accept exactly the file that was declared and nothing else.
+          checksumSha256Base64: z.string().min(1).max(128),
+          sizeBytes: z.number().int().min(0),
           contentMd5Base64: z.string().max(128).nullable().optional(),
           checklistStepId: z.string().max(120).nullable().optional(),
           privateRole: z.string().max(120).nullable().optional(),
@@ -1161,6 +1169,19 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
             },
           });
         }
+        // INGEST-002 — the contributor is told before the transfer.
+        {
+          const size = checkUploadSize(body.sizeBytes);
+          if (!size.ok) {
+            return reply.code(413).send({
+              error: {
+                code: "EVIDENCE_TOO_LARGE",
+                message: friendlyPublicIntakeMessage("EVIDENCE_TOO_LARGE"),
+                maxBytes: size.details.maxBytes,
+              },
+            });
+          }
+        }
         // Intake-links P0 bugfix — max-files-per-session check.
         // Previously this passed `evidenceId: session.evidenceId ?? undefined`
         // to prisma. When the session has not yet produced an Evidence
@@ -1186,8 +1207,9 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           partIndex: body.partIndex,
           mimeType: body.mimeType,
           originalFileName: body.originalFileName ?? null,
-          checksumSha256Base64: body.checksumSha256Base64 ?? null,
+          checksumSha256Base64: body.checksumSha256Base64,
           contentMd5Base64: body.contentMd5Base64 ?? null,
+          sizeBytes: body.sizeBytes,
           checklistStepId: body.checklistStepId ?? null,
           privateRole: body.privateRole ?? null,
           privateNote: body.privateNote ?? null,
