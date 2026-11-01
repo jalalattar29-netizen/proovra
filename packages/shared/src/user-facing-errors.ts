@@ -1130,6 +1130,36 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * copy has to invite a retry rather than send somebody to an admin for a
    * seat they may not need.
    */
+  ACCOUNT_PASSWORD_PROOF_REQUIRED: {
+    title: "Set a new password first",
+    message:
+      "Your invitation is still valid. Set a new password from the reset email, then open this invitation again.",
+    severity: "warning",
+  },
+  CONTRACT_MANAGED_CLOSURE: {
+    title: "Closing this organization is arranged with us",
+    message:
+      "This organization is under contract. Contact your account manager to close it.",
+    severity: "warning",
+  },
+  OWNER_TARGET_NOT_ACTIVE: {
+    title: "Choose an active member",
+    message:
+      "Ownership can only move to someone who is an active member of this organization.",
+    severity: "warning",
+  },
+  TERMINATION_OPERATOR_CONTROLLED: {
+    title: "This closure can't be cancelled here",
+    message:
+      "Your contract is ending. Contact your account manager about this closure.",
+    severity: "warning",
+  },
+  WORKSPACE_NOT_OPERATING: {
+    title: "This link is no longer accepting evidence",
+    message:
+      "The workspace behind this link is not operating at the moment. Contact the person who sent it to you.",
+    severity: "warning",
+  },
   WORKSPACE_SEAT_CONTENTION: {
     title: "Too many people are joining at once",
     message:
