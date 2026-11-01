@@ -29,6 +29,10 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
+import {
+  setMfaEnrollmentCookie,
+  signMfaEnrollmentToken,
+} from "../services/auth/mfa-enrollment-session.js";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
@@ -566,6 +570,21 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
               userAgent: uaPreview(req),
             },
           }).catch(() => null);
+          setMfaEnrollmentCookie(
+            req,
+            reply,
+            signMfaEnrollmentToken(
+              {
+                sub: result.user.id,
+                provider: "EMAIL",
+                email: result.user.email,
+                authMethod: "OIDC",
+                authAt: Math.floor(Date.now() / 1000),
+                ssoConnId: conn.id,
+              },
+              getSecret("AUTH_JWT_SECRET") as string,
+            ),
+          );
           // PHASE 11 — canonical destination validation + absolute-internal-URL
           // builder (the MFA enrollment/session logic above is untouched).
           const url = new URL(

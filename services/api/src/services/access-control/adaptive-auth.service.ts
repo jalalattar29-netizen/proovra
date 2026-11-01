@@ -58,7 +58,7 @@ export async function decideAdaptiveAuth(
   client: PrismaClient = defaultPrisma,
 ): Promise<AdaptiveDecideResult> {
   const session = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId, userId: input.userId },
     select: {
       id: true,
       userId: true,

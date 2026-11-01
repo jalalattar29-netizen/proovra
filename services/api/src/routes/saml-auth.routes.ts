@@ -26,6 +26,10 @@
  */
 
 import { createHash } from "node:crypto";
+import {
+  setMfaEnrollmentCookie,
+  signMfaEnrollmentToken,
+} from "../services/auth/mfa-enrollment-session.js";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
@@ -786,10 +790,44 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           userId: result.userId,
         });
 
-        if (
-          decision.outcome === "MFA_REQUIRED" ||
-          decision.outcome === "ENROLLMENT_REQUIRED"
-        ) {
+        if (decision.outcome === "ENROLLMENT_REQUIRED") {
+          setMfaEnrollmentCookie(
+            req,
+            reply,
+            signMfaEnrollmentToken(
+              {
+                sub: result.userId,
+                provider: "EMAIL",
+                email: result.email,
+                authMethod: "SAML",
+                authAt: Math.floor(Date.now() / 1000),
+                ssoConnId: conn.id,
+              },
+              jwtSecret,
+            ),
+          );
+          safeEmitSecurityEvent({
+            teamId: decision.policyTeamId,
+            eventType: "mfa_enrollment_required",
+            severity: "WARNING",
+            details: {
+              actorUserId: result.userId,
+              loginMethod: "sso_saml",
+              policyLevel: decision.policyLevel,
+            },
+          });
+          const enrollUrl = new URL(
+            absoluteInternalUrl(
+              process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+              internalNavPath("/auth/mfa-challenge"),
+            ),
+          );
+          enrollUrl.searchParams.set("enroll", "1");
+          enrollUrl.searchParams.set("next", resolvePostLoginDestination(attempt.redirectAfter));
+          return reply.code(302).redirect(enrollUrl.toString());
+        }
+
+        if (decision.outcome === "MFA_REQUIRED") {
           // Issue pending-MFA token + cookie; redirect to challenge page
           const challenge = await createMfaPendingChallenge({
             userId: result.userId,

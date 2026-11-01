@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-type JwtPayload = {
+export type JwtPayload = {
   sub: string;
   provider: string;
   email?: string | null;

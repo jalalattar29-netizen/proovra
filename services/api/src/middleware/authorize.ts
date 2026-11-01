@@ -104,6 +104,7 @@ export const AUTHORIZATION_DENIAL_CODES = [
   // PHASE 1 (2026-07-21) — org-lifecycle + workspace-kind denials.
   "organization_not_active",
   "workspace_kind_unresolved",
+  "organization_session_policy",
   "service_account_revoked",
   "service_account_disabled",
   "service_account_expired",

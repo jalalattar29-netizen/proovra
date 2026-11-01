@@ -32,6 +32,8 @@
  *   * ORGANIZATION-provisioned workspaces additionally require their parent
  *     CUSTOMER Organization to be ACTIVE. A SUSPENDED or ARCHIVED
  *     organization removes its workspaces from the set.
+ *   * An ORGANIZATION workspace is also removed when the session of the request
+ *     in progress does not satisfy that Organization's security policy.
  *   * A workspace whose kind cannot be proven contributes nothing (fail
  *     closed — never "assume PERSONAL", never "assume exempt").
  *   * PERSONAL Space follows the IDENTITY-MODE path: the owner of a
@@ -62,6 +64,7 @@ import {
   organizationLifecycleApplies,
   resolveWorkspaceKind,
 } from "../identity/workspace-kind.js";
+import { gateRequestSessionForWorkspace } from "../identity/workspace-session-gate.service.js";
 
 export type AccessibleWorkspaceKind = "PERSONAL" | "OWNED" | "ORGANIZATION";
 
@@ -153,6 +156,13 @@ export async function listAccessibleWorkspaces(
     //    workspace from the set.
     if (organizationLifecycleApplies(kind)) {
       if (team.organization?.status !== "ACTIVE") continue;
+      // 5. A session the Organization's security policy refuses does not
+      //    reach it, whichever workspace the session started in.
+      const gate = await gateRequestSessionForWorkspace(
+        { teamId: team.id, userId: input.userId },
+        client,
+      );
+      if (!gate.allowed) continue;
     }
     out.set(team.id, {
       workspaceId: team.id,
@@ -165,7 +175,7 @@ export async function listAccessibleWorkspaces(
     });
   }
 
-  // 5. PERSONAL Space identity-mode path. Some bootstrap/seeding paths
+  // 6. PERSONAL Space identity-mode path. Some bootstrap/seeding paths
   //    create the personal Team row without a TeamMember row; the owner
   //    still reaches it, by OWNERSHIP, as its canonical OWNER. Restricted
   //    to `isPersonal = true` — a self-service OWNED workspace is NOT

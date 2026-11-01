@@ -421,6 +421,14 @@ function LoginPageContent() {
     } catch (err) {
       if (!isMountedRef.current) return;
 
+      // IDENT-007 — the sign-in succeeded and the organization requires a
+      // factor this account does not have yet. The API has set the enrolment
+      // cookie, so the next step is the guided setup, not an error.
+      if ((err as { code?: string }).code === "MFA_ENROLLMENT_REQUIRED") {
+        router.replace(`/auth/mfa-challenge?enroll=1&next=${encodeURIComponent(currentNextUrl)}`);
+        return;
+      }
+
       const msg = toSafeUserError(err, { message: "Login failed" }).message;
       const requestId = err instanceof ApiError ? err.requestId : undefined;
       const errCode = err instanceof ApiError ? err.code : undefined;

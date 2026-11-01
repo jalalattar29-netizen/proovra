@@ -25,6 +25,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { sessionsOfWorkspaceWhere } from "./session-inventory.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import {
   keysetAfter,
@@ -80,7 +81,7 @@ export async function quarantineSession(
   client: PrismaClient = defaultPrisma,
 ): Promise<QuarantineProjection | null> {
   const row = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
   });
   if (!row) return null;
   // Idempotent: if already quarantined, refresh the release window only.
@@ -164,7 +165,7 @@ export async function releaseQuarantine(
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
   const row = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
   });
   if (!row || !row.quarantinedAtUtc) return false;
   await client.authenticatedSession.update({
@@ -261,11 +262,12 @@ export async function sweepQuarantineReleases(
 // -----------------------------------------------------------------------------
 
 export async function isSessionQuarantined(
-  input: { teamId: string; sessionId: string },
+  input: { sessionId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<boolean> {
+  // A quarantine follows the session into every workspace it enters.
   const row = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId },
     select: { quarantinedAtUtc: true, quarantineReleaseAtUtc: true },
   });
   if (!row || !row.quarantinedAtUtc) return false;

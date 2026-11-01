@@ -18,8 +18,11 @@
 /** The one restricted scope the extension token carries. */
 export const EXTENSION_CAPTURE_SCOPE = "capture.direct" as const;
 
+/** IDENT-007 — a primary sign-in that may only enrol a second factor. */
+export const MFA_ENROLLMENT_SCOPE = "mfa.enroll" as const;
+
 /** All scopes requireAuth treats as restricted (deny-by-default off the allowlist). */
-const RESTRICTED_SCOPES: ReadonlySet<string> = new Set([EXTENSION_CAPTURE_SCOPE]);
+const RESTRICTED_SCOPES: ReadonlySet<string> = new Set([EXTENSION_CAPTURE_SCOPE, MFA_ENROLLMENT_SCOPE]);
 
 export function isRestrictedScope(scope: unknown): scope is string {
   return typeof scope === "string" && RESTRICTED_SCOPES.has(scope);
@@ -51,8 +54,17 @@ const CAPTURE_DIRECT_RULES: ReadonlyArray<ScopeRule> = [
   { method: "POST", test: (p) => p === "/v1/oauth/extension/revoke" },
 ];
 
+/** Enrol a factor, read enrolment state, finish signing in. Nothing else. */
+const MFA_ENROLLMENT_RULES: ReadonlyArray<ScopeRule> = [
+  { method: "GET", test: (p) => p === "/v1/identity/mfa/factors" },
+  { method: "POST", test: (p) => p === "/v1/identity/mfa/enroll/start" },
+  { method: "POST", test: (p) => p === "/v1/identity/mfa/enroll/verify" },
+  { method: "POST", test: (p) => p === "/v1/auth/mfa/enrollment/complete" },
+];
+
 const RULES_BY_SCOPE: Readonly<Record<string, ReadonlyArray<ScopeRule>>> = {
   [EXTENSION_CAPTURE_SCOPE]: CAPTURE_DIRECT_RULES,
+  [MFA_ENROLLMENT_SCOPE]: MFA_ENROLLMENT_RULES,
 };
 
 /**

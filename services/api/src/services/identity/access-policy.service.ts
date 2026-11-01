@@ -44,6 +44,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { gateRequestSessionForWorkspace } from "./workspace-session-gate.service.js";
 import {
   organizationLifecycleApplies,
   resolveWorkspaceKind,
@@ -164,6 +165,9 @@ export type AccessDenyReason =
   // The workspace kind could not be proven (team row/fields not loaded).
   // Fail closed — never silently skip Organization lifecycle.
   | "workspace_kind_unresolved"
+  // AUTHZ-001 — the member is valid, but the signed-in session does not satisfy
+  // this Organization's security policy (mandatory SSO, MFA, session lifetime).
+  | "organization_session_policy"
   | "service_account_revoked"
   | "service_account_disabled"
   | "service_account_expired"
@@ -617,11 +621,20 @@ export async function evaluateMemberAccessWithSnapshot(
   const actor: ActorSnapshot | null = snapshot
     ? { kind: "MEMBER", member: snapshot }
     : null;
-  const decision = evaluateAccess(actor, {
+  let decision = evaluateAccess(actor, {
     permission: input.permission,
     resourceKind: input.resourceKind,
     resourceId: input.resourceId,
   });
+  if (decision.allowed && snapshot?.workspaceKind === "ORGANIZATION") {
+    const gate = await gateRequestSessionForWorkspace(
+      { teamId: input.teamId, userId: input.userId },
+      client,
+    );
+    if (!gate.allowed) {
+      decision = { allowed: false, reason: "organization_session_policy", detail: gate.reason };
+    }
+  }
   recordPermissionDecision(
     {
       actor,
