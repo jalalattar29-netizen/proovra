@@ -446,6 +446,24 @@ describe("billing remediation convergence (live PostgreSQL, real HTTP)", () => {
     expect(await payment(p.invoice)).toMatchObject({ status: "REFUNDED", disputeStatus: "LOST", refundedAmountCents: 3499 });
   });
 
+  it("BILLING-012: a created event arriving after the close cannot reopen the dispute or raise a review of it", async () => {
+    const p = await paidInvoice("PLAN");
+    const dispute = `dp_${randomUUID().slice(0, 10)}`;
+    const event = (type: string, status: string) => ({
+      type,
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { id: dispute, status, amount: 3499, currency: "eur", payment_intent: p.intent } },
+    });
+    await deliver(event("charge.dispute.closed", "won"));
+    expect(await payment(p.invoice)).toMatchObject({ status: "SUCCEEDED", disputeStatus: "WON", refundedAmountCents: 0 });
+    const reviews = await prisma.billingReviewItem.count({ where: { providerResourceId: dispute } });
+
+    const late = await deliver(event("charge.dispute.created", "needs_response"));
+    expect(late.statusCode).toBeLessThan(500);
+    expect(await payment(p.invoice)).toMatchObject({ status: "SUCCEEDED", disputeStatus: "WON", refundedAmountCents: 0 });
+    expect(await prisma.billingReviewItem.count({ where: { providerResourceId: dispute } })).toBe(reviews);
+  });
+
   it("AUD-29: an unattributable refund is not read as an ordinary processed event", async () => {
     const res = await deliver(refundEvent(`pi_${randomUUID().slice(0, 12)}`, `ch_${randomUUID().slice(0, 10)}`, 100));
     expect(res.statusCode).toBe(200);

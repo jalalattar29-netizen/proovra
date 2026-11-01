@@ -196,6 +196,31 @@ describe("billing automatic effects preview (live PostgreSQL)", () => {
     expect(Number(switches.subscriptionsNotCheckedAtProvider)).toBeGreaterThan(0);
   }, 150_000);
 
+  it("lists an Enterprise contract past its stated end, says it is held, and leaves it ACTIVE", async () => {
+    const org = await prisma.organization.create({
+      data: { name: `Preview ${randomUUID().slice(0, 8)}`, kind: "CUSTOMER" },
+    });
+    const live = await prisma.organization.create({
+      data: { name: `Preview ${randomUUID().slice(0, 8)}`, kind: "CUSTOMER" },
+    });
+    await prisma.enterpriseContract.create({
+      data: { organizationId: org.id, status: "ACTIVE", seatCount: 5, endsAtUtc: new Date(Date.now() - 3 * day) },
+    });
+    await prisma.enterpriseContract.create({
+      data: { organizationId: live.id, status: "ACTIVE", seatCount: 5, endsAtUtc: new Date(Date.now() + 3 * day) },
+    });
+
+    const held = runPreview(databaseUrl);
+    expect(held.status, held.stderr).toBe(0);
+    const line = held.lines.find((l) => l.action === "END_ENTERPRISE_CONTRACT_AT_TERM" && l.organizationId === org.id);
+    expect(line).toMatchObject({ provider: "CONTRACT", held: true });
+    expect(held.lines.some((l) => l.organizationId === live.id)).toBe(false);
+
+    const armed = runPreview(databaseUrl, { BILLING_AUTO_PLAN_LOWERING: "on" });
+    expect(armed.lines.find((l) => l.organizationId === org.id)).toMatchObject({ held: false });
+    expect((await prisma.enterpriseContract.findUniqueOrThrow({ where: { organizationId: org.id } })).status).toBe("ACTIVE");
+  });
+
   it("writes nothing, on a connection Postgres itself keeps read-only", async () => {
     const owed = await user();
     await endedTeam(owed);

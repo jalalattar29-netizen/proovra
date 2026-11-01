@@ -753,6 +753,61 @@ describe("BILLING PAYPAL INTEGRITY (live PostgreSQL 16)", () => {
     });
   });
 
+  describe("BILLING-013: only a policy refusal of a legacy capture is ignored", () => {
+    const capture = (userId: string, id: string, teamId?: string) =>
+      harness.app.inject({
+        method: "POST",
+        url: "/webhooks/paypal",
+        headers: { "content-type": "application/json" },
+        payload: JSON.stringify({
+          id,
+          event_type: "PAYMENT.CAPTURE.COMPLETED",
+          resource: {
+            id: `CAP-${randomUUID()}`,
+            status: "COMPLETED",
+            amount: { value: "2.99", currency_code: "EUR" },
+            custom_id: JSON.stringify({
+              userId,
+              storageAddonKey: "PERSONAL_10_GB",
+              ...(teamId ? { teamId } : {}),
+            }),
+          },
+        }),
+      });
+    const row = (paypalEventId: string) =>
+      prisma.paypalWebhookEvent.findUniqueOrThrow({ where: { paypalEventId } });
+
+    it("a database failure leaves the event unprocessed so it is redelivered and then lands; a refusal is settled", async () => {
+      const t = await payer("PRO");
+      const fake = new FakePayPal();
+      await withPayPal(fake, async () => {
+        const eventId = `WH-${randomUUID()}`;
+        // Passes through afterwards: Prisma's delegate is a proxy, and restoring a
+        // spy on it deletes the method.
+        const original = prisma.payment.findUnique.bind(prisma.payment);
+        vi.spyOn(prisma.payment, "findUnique")
+          .mockImplementationOnce((() => Promise.reject(new Error("connection reset"))) as never)
+          .mockImplementation(original as never);
+        const failed = await capture(t.owner.userId, eventId);
+        expect(failed.statusCode).toBeGreaterThanOrEqual(500);
+        expect((await row(eventId)).processingStatus).not.toBe("PROCESSED");
+        expect(await prisma.payment.count({ where: { userId: t.owner.userId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(0);
+
+        const retried = await capture(t.owner.userId, eventId);
+        expect(retried.statusCode, retried.body).toBe(200);
+        expect((await row(eventId)).processingStatus).toBe("PROCESSED");
+        expect(await prisma.payment.count({ where: { userId: t.owner.userId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(1);
+
+        // Control: a target that does not exist is a refusal, and retrying cannot help.
+        const refusedId = `WH-${randomUUID()}`;
+        const refused = await capture(t.owner.userId, refusedId, randomUUID());
+        expect(refused.statusCode).toBe(200);
+        expect((await row(refusedId)).processingStatus).toBe("PROCESSED");
+        expect(await prisma.payment.count({ where: { userId: t.owner.userId, product: "STORAGE_ADDON_ONE_TIME" } })).toBe(1);
+      });
+    });
+  });
+
   // =========================================================================
   // I / N — revisions awaiting approval; buyer cancel and expiry
   // =========================================================================

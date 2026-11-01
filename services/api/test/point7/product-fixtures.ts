@@ -331,8 +331,8 @@ export async function seedOrganizationTenant(
     /** Account plan of the org owner. Used to prove the org plan is NOT derived from it. */
     ownerAccountPlan?: CanonicalPlan;
     /**
-     * The contract's Collaboration Team figures (members ledger M5: an ACTIVE
-     * contract that states none grants none). Stated by default, as a signed
+     * The contract's Collaboration Team figures (CT-10: an ACTIVE contract that
+     * states none gets the published defaults). Stated by default, as a signed
      * contract would; `null` seeds a contract SILENT on them.
      */
     contractCollaboration?: { teams: number; membersPerTeam: number } | null;
