@@ -645,6 +645,7 @@ vi.mock("../src/services/access-control/sso-hardening.service.js", () => ({
   markCallbackFailed: async () => undefined,
   noteSsoFailure: async () => undefined,
   noteSsoSuccess: async () => undefined,
+  hashStateToken: (raw: string) => `hashed:${raw}`,
 }));
 vi.mock("../src/services/security/saml-cert.service.js", () => ({
   parseCertExpiry: () => new Date("2027-01-01T00:00:00.000Z"),
@@ -720,6 +721,7 @@ import { identityOperationsCompletionRoutes } from "../src/routes/identity-opera
 import { organizationDomainsRoutes } from "../src/routes/organization-domains.routes.js";
 import { organizationsBulkInviteRoutes } from "../src/routes/organizations-bulk-invite.routes.js";
 import { organizationsRoutes } from "../src/routes/organizations.routes.js";
+import fastifyCookie from "@fastify/cookie";
 import { samlAuthRoutes } from "../src/routes/saml-auth.routes.js";
 import { signMfaDigestSnoozeToken } from "../src/services/security/mfa-digest-snooze-token.js";
 
@@ -3860,6 +3862,7 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
     app.addHook("onRequest", async (req) => {
       (req as unknown as { user: { sub: string } }).user = { sub: H.actorUserId };
     });
+    await app.register(fastifyCookie);
     await app.register(samlAuthRoutes);
     await app.ready();
   });
@@ -3931,7 +3934,7 @@ describe("SYSTEM 9 — SAML SP metadata + certificate rotation", () => {
       url: "/v1/auth/saml/" + CONN + "/login",
     });
     expect(dead.statusCode).toBe(302);
-    expect(dead.headers.location).toBe("/auth?saml_error=saml_connection_unavailable");
+    expect(dead.headers.location).toContain("/login?saml_error=saml_connection_unavailable");
     expect(callsTo("persistSamlCallbackAttempt")).toHaveLength(1);
   });
 

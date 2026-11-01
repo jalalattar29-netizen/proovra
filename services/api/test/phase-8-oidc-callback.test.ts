@@ -1,6 +1,10 @@
 /**
  * PHASE 8 §11.3 rows 8–9 (2026-07-22) — REAL OIDC callback behavioral test.
  *
+ * IDENT-014: the state is single use in the callback ledger, not in this
+ * function, so unknown and replayed states are proven through the real routes in
+ * `oidc-sign-in-local-idp.integration.test.ts`.
+ *
  * Exercises the production `handleOidcCallback` end-to-end: a genuinely
  * jose-signed id_token is verified by the PRODUCTION `jwtVerify` (NOT
  * mocked) against a deterministic local JWKS. State, nonce, issuer,
@@ -68,11 +72,7 @@ beforeEach(() => {
 });
 
 function jsonRes(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-  } as unknown as Response;
+  return new Response(JSON.stringify(body), { status });
 }
 
 // Recording prisma proxy — steers the specific lookups the callback makes.
@@ -101,6 +101,10 @@ const writes: string[] = [];
 // prisma, so we mock db.js with the same fake to keep the real
 // org/enterprise policy decision running against controllable data.
 vi.mock("../src/db.js", () => ({ prisma: fakePrisma() }));
+// The IdP host in these fixtures has no real address.
+vi.mock("node:dns/promises", () => ({
+  lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+}));
 function fakePrisma() {
   return new Proxy(
     {},
@@ -186,6 +190,7 @@ import {
   __resetSsoServiceStateForTests,
   SsoServiceError,
 } from "../src/services/access-control/sso.service.js";
+import { hashStateToken } from "../src/services/access-control/sso-hardening.service.js";
 
 setClientSecretResolver(() => "client-secret");
 
@@ -205,18 +210,33 @@ async function signIdToken(
 // builder (which mints and stores the state), then read the nonce back
 // from the returned URL.
 async function seedState(): Promise<{ state: string; nonce: string }> {
-  const { authorizationUrl, state } = await buildOidcAuthorizationUrl(
+  const { authorizationUrl, state, nonce } = await buildOidcAuthorizationUrl(
     { teamId: "team-1", connectionId: "conn-1", redirectUri: `${ISSUER}/cb` },
     fakePrisma() as never,
   );
-  const nonce = new URL(authorizationUrl).searchParams.get("nonce")!;
+  expect(new URL(authorizationUrl).searchParams.get("nonce")).toBe(nonce);
+  ledgerNonces.set(state, nonce);
   return { state, nonce };
 }
 
+/** The ledger row `consumeCallbackAttempt` hands the route for this state. */
+const ledgerNonces = new Map<string, string>();
+
 async function callback(idToken: string, state: string) {
   netState.idToken = idToken;
+  const nonce = ledgerNonces.get(state);
   return handleOidcCallback(
-    { state, code: "auth-code", redirectUri: `${ISSUER}/cb` },
+    {
+      attempt: {
+        ssoConnectionId: "conn-1",
+        teamId: "team-1",
+        nonceHash: nonce ? hashStateToken(nonce) : null,
+        redirectAfter: null,
+      },
+      state,
+      code: "auth-code",
+      redirectUri: `${ISSUER}/cb`,
+    },
     fakePrisma() as never,
   );
 }
@@ -275,17 +295,8 @@ describe("Phase 8 §11.3 — OIDC callback NEGATIVES (real verification; no side
     ).toEqual([]);
   }
 
-  it("1. missing state", async () => {
+  it("1. a ledger row with no nonce cannot match any token", async () => {
     await expectRejected(() => callback("x.y.z", ""));
-  });
-  it("2. unknown state", async () => {
-    await expectRejected(() => callback("x.y.z", "never-issued"));
-  });
-  it("3. reused (single-use) state", async () => {
-    const { state, nonce } = await seedState();
-    const idToken = await signIdToken({ iss: ISSUER, aud: CLIENT_ID, sub: "idp-sub-1", nonce });
-    await callback(idToken, state); // consumes the state
-    await expectRejected(() => callback(idToken, state)); // reuse → rejected
   });
   it("5/6. wrong nonce", async () => {
     const { state } = await seedState();

@@ -78,6 +78,7 @@ import {
   revokeAllSessionsForUser,
 } from "../identity-security/session-revocation.service.js";
 import { emitPlatformAudit } from "../audit/tenant-audit.service.js";
+import { closedAccountProviderId } from "./account-closed.js";
 import { evaluateAccountClosurePreflight } from "./account-lifecycle-preflight.service.js";
 // PROGRAM CONVERGENCE (2026-07-22) — the ONE Organization→ARCHIVED transition.
 import { archiveOrganizationStatusTx } from "../organization/org-closure.service.js";
@@ -276,11 +277,16 @@ export async function executeAccountClosure(
       where: { userId, status: "ACTIVE" },
       data: { status: "REVOKED", revokedAtUtc: now },
     });
+    // IDENT-010 — an IdP mapping is a login method like any other.
+    await tx.externalIdentityMapping.updateMany({
+      where: { userId, unlinkedAtUtc: null },
+      data: { unlinkedAtUtc: now },
+    });
     await tx.user.update({
       where: { id: userId },
       data: {
         passwordHash: null,
-        providerUserId: `closed:${userId}`,
+        providerUserId: closedAccountProviderId(userId),
         currentWorkspaceId: null,
       },
     });

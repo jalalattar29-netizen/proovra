@@ -30,6 +30,7 @@ import {
   savePendingOAuthLegalAcceptance,
 } from "../../lib/legalAcceptance";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
+import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -233,6 +234,12 @@ function LoginPageContent() {
   useEffect(() => {
     nextUrlRef.current = nextUrl;
   }, [nextUrl]);
+
+  // IDENT-003 — a failed SSO sign-in arrives here with a reason.
+  useEffect(() => {
+    const failure = ssoSignInFailureMessage(searchParams);
+    if (failure) setError(failure);
+  }, [searchParams]);
 
   // FP3 — auto-open the forgot-password modal when the URL carries
   // `?forgot=1` (the /forgot-password redirect target). On open we

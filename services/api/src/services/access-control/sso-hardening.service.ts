@@ -22,7 +22,7 @@
  * orchestration layer the route uses.
  */
 
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import type {
   PrismaClient,
@@ -51,6 +51,21 @@ export function hashStateToken(raw: string): string {
   return createHmac("sha256", resolveSecret(STATE_HASH_SECRET_ENV))
     .update(raw, "utf8")
     .digest("hex");
+}
+
+/**
+ * IDENT-014 — PKCE with nothing to store. The verifier is derived from the state
+ * under a server key, so whichever instance receives the callback can produce it,
+ * and someone who sees the state in a URL cannot.
+ */
+export function pkceVerifierForState(stateRaw: string): string {
+  return createHmac("sha256", resolveSecret(STATE_HASH_SECRET_ENV))
+    .update(`pkce:${stateRaw}`, "utf8")
+    .digest("base64url");
+}
+
+export function pkceChallengeForState(stateRaw: string): string {
+  return createHash("sha256").update(pkceVerifierForState(stateRaw), "ascii").digest("base64url");
 }
 
 // -----------------------------------------------------------------------------
@@ -514,12 +529,17 @@ export async function sweepStaleCallbackAttempts(
   const days = Math.max(1, Math.min(input.olderThanDays ?? 7, 90));
   const batch = Math.max(1, Math.min(input.batchSize ?? 1000, 10000));
   const cutoff = new Date(Date.now() - days * 86400_000);
-  // Delete only terminal rows beyond the cutoff so we keep recent
-  // history available to the admin timeline.
+  // Delete only finished rows beyond the cutoff so we keep recent history
+  // available to the admin timeline. A PENDING row past both its expiry and the
+  // cutoff is an abandoned sign-in: the public login routes write one per GET,
+  // and nothing else will ever finish it (IDENT-014).
   const result = await client.ssoCallbackAttempt.deleteMany({
     where: {
       createdAt: { lt: cutoff },
-      status: { in: ["EXPIRED", "FAILED", "CONSUMED", "REPLAYED"] },
+      OR: [
+        { status: { in: ["EXPIRED", "FAILED", "CONSUMED", "REPLAYED"] } },
+        { status: "PENDING", expiresAtUtc: { lt: cutoff } },
+      ],
     },
   });
   // deleteMany returns count but Prisma's typing differs across versions;

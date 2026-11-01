@@ -9275,6 +9275,9 @@ model SsoConnection {
   /// Display-only preview of the client secret (e.g. "ck-***-abcd").
   /// Surfaced in the admin UI; never the raw secret.
   clientSecretPreview String? @map("client_secret_preview") @db.VarChar(32)
+  /// OIDC: the client secret, sealed (AES-256-GCM). The code exchange reads it
+  /// back. NULL on a connection created before it existed, until rotated.
+  clientSecretSealed  String? @map("client_secret_sealed")
 
   /// SAML: full IdP metadata XML stored as a JSON blob. Placeholder
   /// for Phase 27 SAML protocol wiring; Phase 26 stores but does not

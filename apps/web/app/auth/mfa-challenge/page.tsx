@@ -23,6 +23,7 @@
 import { Suspense, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isSafeRedirectAfter } from "@proovra/shared";
 
 import { Button } from "../../../components/ui";
 import { MfaEnrollmentAtSignIn } from "../../../components/identity-security/MfaEnrollmentAtSignIn";
@@ -35,15 +36,9 @@ type ChallengeMode = "totp" | "recovery_code";
 const SAFE_NEXT_FALLBACK = "/home";
 
 function isSafeNext(value: string | null): value is string {
-  if (!value) return false;
-  // The same safety contract as `sanitiseRedirectAfter` on the API
-  // side: must be a relative path, must not start with "//" (which
-  // would be host-relative), must not contain raw newlines.
-  if (value.startsWith("//")) return false;
-  if (!value.startsWith("/")) return false;
-  if (/[\r\n]/.test(value)) return false;
-  if (value.length > 400) return false;
-  return true;
+  if (!value || !value.startsWith("/") || value.length > 400) return false;
+  // The one safety contract, shared with the API (IDENT-012).
+  return isSafeRedirectAfter(value);
 }
 
 function MfaChallengeBody() {

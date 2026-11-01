@@ -63,6 +63,14 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // (enterprise-only + organization-workspace + verified-domain).
 import { enforceSsoLoginPolicy } from "./sso-login-policy.service.js";
 import { policyRequiresSso } from "../identity/org-security-policy.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
+import { openSealedText, sealText } from "../security/sealed-text.js";
+import { assertIdpUrlAllowed, oidcRequest, type OidcResponse } from "./oidc-transport.js";
+import {
+  hashStateToken,
+  pkceChallengeForState,
+  pkceVerifierForState,
+} from "./sso-hardening.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
@@ -351,6 +359,7 @@ export async function createSsoConnection(
     clientSecretPreview: clientSecretRaw
       ? previewClientSecret(clientSecretRaw)
       : null,
+    clientSecretSealed: clientSecretRaw ? sealText(clientSecretRaw) : null,
     ...(input.samlMetadataJson != null
       ? {
           samlMetadataJson:
@@ -575,6 +584,12 @@ export type UpdateSsoConnectionPolicyInput = {
    */
   samlSpPrivateKey?: string | null;
   /**
+   * IDENT-002 — a new OIDC client secret. Connections created before the secret
+   * could be read back hold only its hash, and this is how they recover. Omit to
+   * leave it unchanged. NEVER echoed back.
+   */
+  clientSecret?: string;
+  /**
    * Per-connection SP certificate (base64, no PEM header/footer) advertised
    * in SP metadata. Empty string clears; omit to leave untouched.
    */
@@ -644,7 +659,8 @@ export async function updateSsoConnectionPolicy(
       if (!looksLikePrivateKeyPem(pem)) {
         throw new SsoServiceError("SSO_INVALID_SP_KEY");
       }
-      data.samlSpPrivateKey = pem;
+      // IDENT-021 — sealed at rest. `samlSpSigningKey` opens it for signing.
+      data.samlSpPrivateKey = sealText(pem);
       data.rotatedAtUtc = now;
       // NOTE: only the fingerprint is ever surfaced — never the key.
       changed.push("samlSpPrivateKey:rotated");
@@ -656,6 +672,17 @@ export async function updateSsoConnectionPolicy(
         ? null
         : input.samlSpCertificate.slice(0, 8192);
     changed.push("samlSpCertificate");
+  }
+
+  if (input.clientSecret !== undefined) {
+    if (ssoProviderProtocol(row.provider as SsoProvider) !== "OIDC" || input.clientSecret.length < 8) {
+      throw new SsoServiceError("SSO_INVALID_PROVIDER");
+    }
+    data.clientSecretHash = hashClientSecret(input.clientSecret);
+    data.clientSecretPreview = previewClientSecret(input.clientSecret);
+    data.clientSecretSealed = sealText(input.clientSecret);
+    data.rotatedAtUtc = now;
+    changed.push("clientSecret:rotated");
   }
 
   if (changed.length === 0) {
@@ -698,29 +725,10 @@ export async function updateSsoConnectionPolicy(
 // -----------------------------------------------------------------------------
 // OIDC initiate
 //
-// Returns the authorization URL the browser should redirect to + the
-// state token the callback must echo back. Phase 26 stores the state
-// in a short-lived in-process map; production deploys can swap in
-// a Redis-backed store later.
+// Returns the authorization URL the browser should redirect to, the state the
+// callback must echo back and the nonce. The caller persists both in the callback
+// ledger (IDENT-014), so any instance can finish a sign-in another one started.
 // -----------------------------------------------------------------------------
-
-type OidcStateRecord = {
-  connectionId: string;
-  teamId: string;
-  nonce: string;
-  redirectAfter: string | null;
-  expiresAtMs: number;
-};
-
-const OIDC_STATE_TTL_MS = 10 * 60 * 1000;
-const oidcStateStore = new Map<string, OidcStateRecord>();
-
-function purgeExpiredOidcState() {
-  const now = Date.now();
-  for (const [k, v] of oidcStateStore) {
-    if (v.expiresAtMs < now) oidcStateStore.delete(k);
-  }
-}
 
 export async function buildOidcAuthorizationUrl(
   input: {
@@ -730,7 +738,7 @@ export async function buildOidcAuthorizationUrl(
     redirectAfter?: string | null;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<{ authorizationUrl: string; state: string }> {
+): Promise<{ authorizationUrl: string; state: string; nonce: string }> {
   const conn = await client.ssoConnection.findFirst({
     where: {
       id: input.connectionId,
@@ -748,14 +756,6 @@ export async function buildOidcAuthorizationUrl(
   const discovery = await fetchOidcDiscovery(conn.issuerUrl);
   const state = randomBytes(24).toString("base64url");
   const nonce = randomBytes(16).toString("base64url");
-  purgeExpiredOidcState();
-  oidcStateStore.set(state, {
-    connectionId: conn.id,
-    teamId: conn.teamId,
-    nonce,
-    redirectAfter: input.redirectAfter ?? null,
-    expiresAtMs: Date.now() + OIDC_STATE_TTL_MS,
-  });
   bump("sso_login_total");
   safeEmitSecurityEvent({
     teamId: conn.teamId,
@@ -770,7 +770,9 @@ export async function buildOidcAuthorizationUrl(
   url.searchParams.set("scope", "openid email profile");
   url.searchParams.set("state", state);
   url.searchParams.set("nonce", nonce);
-  return { authorizationUrl: url.toString(), state };
+  url.searchParams.set("code_challenge", pkceChallengeForState(state));
+  url.searchParams.set("code_challenge_method", "S256");
+  return { authorizationUrl: url.toString(), state, nonce };
 }
 
 /**
@@ -803,6 +805,8 @@ export async function buildOidcStepUpAuthorizationUrl(input: {
   url.searchParams.set("scope", "openid");
   url.searchParams.set("state", input.state);
   url.searchParams.set("nonce", input.nonce);
+  url.searchParams.set("code_challenge", pkceChallengeForState(input.state));
+  url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("prompt", "login");
   url.searchParams.set("max_age", "0");
   if (input.acrValues.length > 0) {
@@ -826,7 +830,13 @@ type OidcDiscovery = {
   jwks_uri: string;
 };
 
-const oidcDiscoveryCache = new Map<string, OidcDiscovery>();
+const oidcDiscoveryCache = new Map<string, { discovery: OidcDiscovery; fetchedAtMs: number }>();
+
+/** A provider moves its endpoints or keys eventually: discovery is not forever. */
+function discoveryCacheMs(): number {
+  const minutes = Number(process.env["SSO_DISCOVERY_CACHE_MINUTES"]);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 60) * 60_000;
+}
 
 // One remote JWKS resolver per jwks_uri (jose caches + re-fetches keys
 // internally, honouring cache headers and kid rotation).
@@ -835,24 +845,29 @@ const oidcJwksCache = new Map<string, JWTVerifyGetKey>();
 function jwksForUri(jwksUri: string): JWTVerifyGetKey {
   const cached = oidcJwksCache.get(jwksUri);
   if (cached) return cached;
-  const resolver = createRemoteJWKSet(new URL(jwksUri));
+  const resolver = createRemoteJWKSet(new URL(jwksUri), {
+    timeoutDuration: 5_000,
+    cooldownDuration: 30_000,
+  });
   oidcJwksCache.set(jwksUri, resolver);
   return resolver;
 }
 
 async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscovery> {
   const cached = oidcDiscoveryCache.get(issuerUrl);
-  if (cached) return cached;
-  let res: Response;
+  if (cached && Date.now() - cached.fetchedAtMs < discoveryCacheMs()) {
+    return cached.discovery;
+  }
+  let res: OidcResponse;
   try {
-    res = await fetch(issuerUrl, { method: "GET" });
+    res = await oidcRequest(issuerUrl);
   } catch {
     throw new SsoServiceError("SSO_DISCOVERY_FAILED");
   }
   if (!res.ok) {
     throw new SsoServiceError("SSO_DISCOVERY_FAILED", { status: res.status });
   }
-  const json = (await res.json()) as Partial<OidcDiscovery>;
+  const json = (res.body ?? {}) as Partial<OidcDiscovery>;
   if (
     !json.authorization_endpoint ||
     !json.token_endpoint ||
@@ -873,7 +888,7 @@ async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscovery> {
     issuer: json.issuer,
     jwks_uri: json.jwks_uri,
   };
-  oidcDiscoveryCache.set(issuerUrl, discovery);
+  oidcDiscoveryCache.set(issuerUrl, { discovery, fetchedAtMs: Date.now() });
   return discovery;
 }
 
@@ -903,6 +918,8 @@ export async function exchangeCodeForVerifiedIdToken(input: {
   code: string;
   redirectUri: string;
   nonceMatches: (nonce: unknown) => boolean;
+  /** The state this code answers. The PKCE verifier is derived from it. */
+  state: string;
 }): Promise<{
   sub: string;
   acr: string | null;
@@ -916,18 +933,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
   }
   const discovery = await fetchOidcDiscovery(conn.issuerUrl);
 
-  // The route layer SHOULD pass the same raw client secret we stored
-  // hashed; we don't have a way to recover it. Instead, the route
-  // calls this service and the SSO connection points to the IdP — we
-  // must rely on the operator's IdP to validate the client secret
-  // server-side via the code exchange. Phase 26 design: the API holds
-  // the client secret hash only for verification of operator UI
-  // rotation, not for the IdP exchange. For the exchange itself, the
-  // route layer must provide the raw secret it stores in a separate
-  // KMS-backed env or by reading from the SSO connection at IdP setup
-  // time. To keep this PR self-contained, we expose a "secrets
-  // resolver" hook the route can override; default reads from env.
-  const clientSecret = resolveClientSecretForExchange(conn.id);
+  const clientSecret = resolveClientSecretForExchange(conn);
   if (!clientSecret) {
     bump("sso_login_failure_total");
     throw new SsoServiceError("SSO_CODE_EXCHANGE_FAILED", {
@@ -944,6 +950,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
       redirect_uri: input.redirectUri,
       client_id: conn.clientId,
       client_secret: clientSecret,
+      code_verifier: pkceVerifierForState(input.state),
     });
   } catch {
     throw new SsoServiceError("SSO_CODE_EXCHANGE_FAILED");
@@ -951,7 +958,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
 
   let tokenJson: { id_token?: string; access_token?: string };
   try {
-    const tokenRes = await fetch(discovery.token_endpoint, {
+    const tokenRes = await oidcRequest(discovery.token_endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: exchangeBody.toString(),
@@ -962,7 +969,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
         status: tokenRes.status,
       });
     }
-    tokenJson = (await tokenRes.json()) as {
+    tokenJson = (tokenRes.body ?? {}) as {
       id_token?: string;
       access_token?: string;
     };
@@ -996,6 +1003,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
   let acr: string | null = null;
   let authTime: Date | null = null;
   try {
+    await assertIdpUrlAllowed(discovery.jwks_uri);
     const { payload } = await jwtVerify(
       tokenJson.id_token,
       jwksForUri(discovery.jwks_uri),
@@ -1065,22 +1073,22 @@ export type OidcCallbackResult = {
 
 export async function handleOidcCallback(
   input: {
+    /** IDENT-014 — the ledger row already claimed for this state, single use. */
+    attempt: {
+      ssoConnectionId: string;
+      teamId: string;
+      nonceHash: string | null;
+      redirectAfter: string | null;
+    };
     state: string;
     code: string;
     redirectUri: string;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<OidcCallbackResult> {
-  purgeExpiredOidcState();
-  const stateRecord = oidcStateStore.get(input.state);
-  if (!stateRecord) {
-    bump("sso_login_failure_total");
-    throw new SsoServiceError("SSO_INVALID_STATE");
-  }
-  oidcStateStore.delete(input.state); // single-use
-
+  const { attempt } = input;
   const conn = await client.ssoConnection.findFirst({
-    where: { id: stateRecord.connectionId, teamId: stateRecord.teamId },
+    where: { id: attempt.ssoConnectionId, teamId: attempt.teamId },
   });
   if (!conn) {
     bump("sso_login_failure_total");
@@ -1098,7 +1106,12 @@ export async function handleOidcCallback(
     conn,
     code: input.code,
     redirectUri: input.redirectUri,
-    nonceMatches: (nonce) => nonce === stateRecord.nonce,
+    state: input.state,
+    nonceMatches: (nonce) =>
+      typeof nonce === "string" &&
+      nonce.length > 0 &&
+      attempt.nonceHash !== null &&
+      hashStateToken(nonce) === attempt.nonceHash,
   });
   const idTokenSub = verified.sub;
   const tokenJson = { access_token: verified.accessToken };
@@ -1107,14 +1120,14 @@ export async function handleOidcCallback(
   // ---- Userinfo ----
   let userinfo: { sub?: string; email?: string; name?: string };
   try {
-    const uiRes = await fetch(discovery.userinfo_endpoint, {
+    const uiRes = await oidcRequest(discovery.userinfo_endpoint, {
       headers: { Authorization: `Bearer ${tokenJson.access_token}` },
     });
     if (!uiRes.ok) {
       bump("sso_login_failure_total");
       throw new SsoServiceError("SSO_OIDC_USERINFO_INVALID");
     }
-    userinfo = (await uiRes.json()) as {
+    userinfo = (uiRes.body ?? {}) as {
       sub?: string;
       email?: string;
       name?: string;
@@ -1236,6 +1249,11 @@ export async function handleOidcCallback(
       });
       throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "mapping_unlinked" });
     }
+    // IDENT-010 — a closed account stays closed, whatever an IdP still says.
+    if (await isAccountClosed(externalMapping.userId, client)) {
+      bump("sso_login_failure_total");
+      throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "account_closed" });
+    }
     userId = externalMapping.userId;
   } else {
     // JIT path
@@ -1297,6 +1315,9 @@ export async function handleOidcCallback(
         throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", {
           reason: link.reason,
         });
+      }
+      if (await isAccountClosed(existingUser.id, client)) {
+        throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "account_closed" });
       }
       userId = existingUser.id;
     } else {
@@ -1384,17 +1405,17 @@ export async function handleOidcCallback(
       isNewlyProvisioned,
       role,
     },
-    redirectAfter: stateRecord.redirectAfter,
+    redirectAfter: attempt.redirectAfter,
     idp: { acr: verified.acr, authTime: verified.authTime },
   };
 }
 
 // -----------------------------------------------------------------------------
-// Client-secret resolver hook
+// Client secret for the code exchange (IDENT-002)
 //
-// The route layer can override the resolver to pull the raw secret
-// from a KMS or secrets manager. Default reads from env keyed by
-// connection id.
+// The sealed column is the authority. The resolver is the override for a secret
+// held outside the database (an operator's secret manager), and reads the
+// per-connection environment variable by default.
 // -----------------------------------------------------------------------------
 
 let clientSecretResolver: (connectionId: string) => string | null = (id) => {
@@ -1408,15 +1429,30 @@ export function setClientSecretResolver(
   clientSecretResolver = fn;
 }
 
-function resolveClientSecretForExchange(connectionId: string): string | null {
-  return clientSecretResolver(connectionId);
+function resolveClientSecretForExchange(
+  conn: Pick<prismaPkg.SsoConnection, "id" | "clientSecretSealed">,
+): string | null {
+  if (conn.clientSecretSealed) {
+    try {
+      return openSealedText(conn.clientSecretSealed);
+    } catch {
+      return null;
+    }
+  }
+  return clientSecretResolver(conn.id);
+}
+
+/** Can this connection complete a code exchange at all? Read by readiness. */
+export function oidcClientSecretAvailable(
+  conn: Pick<prismaPkg.SsoConnection, "id" | "clientSecretSealed">,
+): boolean {
+  return resolveClientSecretForExchange(conn) !== null;
 }
 
 // -----------------------------------------------------------------------------
-// Test helper — clear in-process OIDC state map between tests.
+// Test helper — clear the in-process OIDC discovery cache between tests.
 // -----------------------------------------------------------------------------
 
 export function __resetSsoServiceStateForTests(): void {
-  oidcStateStore.clear();
   oidcDiscoveryCache.clear();
 }

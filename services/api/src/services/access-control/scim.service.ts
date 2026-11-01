@@ -73,6 +73,7 @@ export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
 // P0 remediation (2026-07-21) — canonical guard for linking a directory-
 // asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 // P0 remediation (2026-07-21) — SCIM deactivation revokes sessions
 // immediately (same primitive as RBAC suspend).
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
@@ -1398,6 +1399,8 @@ export async function scimReactivateUser(
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });
   if (!member) return { ok: false, notFound: true };
+  // IDENT-010 — a directory cannot reopen a closed account.
+  if (await isAccountClosed(userId, client)) return { ok: false, notFound: true };
 
   // DOM-13 — restore exactly the sibling-workspace memberships the directory
   // itself suspended (marker-matched); a membership an administrator suspended

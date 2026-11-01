@@ -154,6 +154,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281031000000_billing_product_decisions",
       // Stripe customer per recurring currency, written before the provider call. EXPAND.
       "20281101000000_stripe_customer_per_currency",
+      // The OIDC client secret, sealed so the code exchange can read it. EXPAND.
+      "20281106000000_sso_client_secret_sealed",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

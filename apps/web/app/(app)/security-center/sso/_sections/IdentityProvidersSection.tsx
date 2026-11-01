@@ -415,7 +415,7 @@ export function IdentityProvidersSection({
         if (code === "STEP_UP_CANCEL") {
           setError("Step-up cancelled — no changes were saved.");
         } else {
-          setError(toSafeUserError(err, { message: "Could not update signing policy." }).message);
+          setError(toSafeUserError(err, { message: "Could not update this connection." }).message);
         }
       } finally {
         setBusy(null);
@@ -761,12 +761,14 @@ function PolicyPanel({
     restrictToVerifiedDomains?: boolean;
     samlSpPrivateKey?: string | null;
     samlSpCertificate?: string | null;
+    clientSecret?: string;
   }) => void;
 }) {
   const isSaml = SAML_PROVIDERS.includes(connection.provider);
   const noVerifiedDomains = verifiedDomainCount === 0;
   const [keyDraft, setKeyDraft] = useState("");
   const [certDraft, setCertDraft] = useState("");
+  const [secretDraft, setSecretDraft] = useState("");
   const keyReasonId = `sso-key-reason-${connection.id}`;
   const domainReasonId = `sso-domain-reason-${connection.id}`;
 
@@ -878,8 +880,36 @@ function PolicyPanel({
           </div>
         </div>
       ) : (
-        <div className="adm-help" style={{ fontSize: 12 }}>
-          SP request signing applies to SAML connections only.
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="adm-help" style={{ fontSize: 12 }}>
+            SP request signing applies to SAML connections only.
+          </div>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+            <strong>Replace client secret</strong>
+            <span className="adm-help" style={{ fontSize: 12 }}>
+              Sign-in needs the secret your identity provider issued. It is stored encrypted and never shown again.
+            </span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={secretDraft}
+              disabled={busy}
+              onChange={(e) => setSecretDraft(e.target.value)}
+            />
+          </label>
+          <div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy || secretDraft.trim().length < 8}
+              onClick={() => {
+                onUpdate({ clientSecret: secretDraft.trim() });
+                setSecretDraft("");
+              }}
+            >
+              {busy ? "Saving…" : "Save client secret"}
+            </Button>
+          </div>
         </div>
       )}
 

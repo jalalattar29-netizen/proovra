@@ -571,6 +571,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "a Stripe checkout resolves the customer of one recurring currency here",
     suppliedBy: "20281101000000_stripe_customer_per_currency",
   },
+  // 20281106000000 — the sealed OIDC client secret.
+  {
+    id: "sso_connections.client_secret_sealed",
+    kind: "column",
+    detail: 'column public."sso_connections"."client_secret_sealed" must exist',
+    requiredBy: "every read of an SSO connection selects this column",
+    suppliedBy: "20281106000000_sso_client_secret_sealed",
+  },
 ]);
 
 /**
@@ -983,6 +991,7 @@ const PROBES = Object.freeze({
        AND table_name = 'billing_provider_binding_checks'
      LIMIT 1`,
   "billing_provider_customers.currency": columnProbe("billing_provider_customers", "currency"),
+  "sso_connections.client_secret_sealed": columnProbe("sso_connections", "client_secret_sealed"),
   "billing_provider_customers.table": `
     SELECT 1
       FROM information_schema.tables

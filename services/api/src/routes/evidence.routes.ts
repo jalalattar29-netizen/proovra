@@ -3218,7 +3218,7 @@ async function libraryWorkspaceScope(
   if (!memberTeamIds.includes(named)) return { refused: true };
   return {
     refused: false,
-    where: await workspaceEvidenceWhere(named, prisma as unknown as PrismaClient),
+    where: await workspaceEvidenceWhere(named, prisma as never),
   };
 }
 
@@ -8951,10 +8951,10 @@ return {
     // A record in one Organization does not report matches from another.
     const recordWorkspaceId = await resolveEvidenceWorkspaceId(
       { teamId: evidence.teamId, ownerUserId: evidence.ownerUserId },
-      prisma as unknown as PrismaClient,
+      prisma as never,
     );
     const recordWorkspaceWhere: Prisma.EvidenceWhereInput = recordWorkspaceId
-      ? await workspaceEvidenceWhere(recordWorkspaceId, prisma as unknown as PrismaClient)
+      ? await workspaceEvidenceWhere(recordWorkspaceId, prisma as never)
       : { teamId: null, ownerUserId: evidence.ownerUserId };
     const reachWhere = buildEvidenceListBaseWhere({
       query: {

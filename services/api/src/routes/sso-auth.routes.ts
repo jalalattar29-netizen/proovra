@@ -24,11 +24,11 @@
  *     `isSafeRedirectAfter` helper. No open redirects.
  *   - The cookie shape MUST match the existing auth route's cookie so
  *     the auth middleware accepts the session.
- *   - On any failure, the user is bounced to `/auth?sso_error=...`
+ *   - On any failure, the user is bounced to the web `/login?sso_error=...`
  *     with a sanitised reason code (no raw IdP error).
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   setMfaEnrollmentCookie,
   signMfaEnrollmentToken,
@@ -48,6 +48,7 @@ import {
 import {
   handleOidcCallback,
   buildOidcAuthorizationUrl,
+  oidcClientSecretAvailable,
   SsoServiceError,
 } from "../services/access-control/sso.service.js";
 import {
@@ -85,7 +86,18 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 // 2026-10-28 — the redirect URI shared with the IDP_REAUTH step-up round trip
 // (the IdP compares it byte for byte at the code exchange).
-import { oidcRedirectUri as getRedirectUri } from "../services/access-control/sso-endpoints.js";
+import {
+  oidcRedirectUri as getRedirectUri,
+  signInErrorUrl,
+  webPageUrl,
+} from "../services/access-control/sso-endpoints.js";
+import {
+  clearSsoBrowserBinding,
+  setSsoBrowserBinding,
+  ssoBrowserBindingMatches,
+} from "../services/access-control/sso-browser-binding.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { mintedSessionClaims } from "../services/jwt.js";
 import {
   completeOidcIdpStepUp,
@@ -95,6 +107,8 @@ import {
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+const SSO_LOGIN_RATE_LIMIT_PER_MIN = 30;
 
 function ipPreview(req: FastifyRequest): string | null {
   const ip = req.ip ?? "";
@@ -149,13 +163,8 @@ function bounceToAuthError(
   reason: string,
   redirectAfter?: string | null,
 ): void {
-  const params = new URLSearchParams();
-  params.set("sso_error", reason.slice(0, 64));
-  if (redirectAfter) {
-    const safe = safeIntendedDestination(redirectAfter);
-    if (safe !== "/") params.set("redirect_after", safe);
-  }
-  reply.code(302).redirect(`/auth?${params.toString()}`);
+  const destination = redirectAfter ? safeIntendedDestination(redirectAfter) : "/";
+  reply.code(302).redirect(signInErrorUrl("sso_error", reason, destination));
 }
 
 /**
@@ -291,6 +300,8 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           allowedEmailDomains: true,
           restrictToVerifiedDomains: true,
           samlSignRequests: true,
+          // Read only to answer "can the code exchange run". Never projected.
+          clientSecretSealed: true,
           // Status-only reads. `samlSpCertificate` / `samlCertificate` hold
           // PUBLIC certificate material; the SP PRIVATE key
           // (`samlSpPrivateKey`) is deliberately NOT selected, and neither is
@@ -335,6 +346,8 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             } else {
               if (!c.issuerUrl) blockers.push("ISSUER_URL_MISSING");
               if (!c.clientId) blockers.push("CLIENT_ID_MISSING");
+              // IDENT-002 — a stored hash cannot sign in to an IdP.
+              if (!oidcClientSecretAvailable(c)) blockers.push("CLIENT_SECRET_UNAVAILABLE");
             }
             if (
               c.restrictToVerifiedDomains &&
@@ -384,6 +397,16 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         })
         .parse(req.query ?? {});
 
+      // IDENT-014 — public, and each call writes a row and may reach the IdP.
+      const rl = await enforceRateLimit({
+        key: `sso:initiate:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+        max: SSO_LOGIN_RATE_LIMIT_PER_MIN,
+        windowSec: 60,
+      });
+      if (!rl.allowed) {
+        return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+      }
+
       // Look up the connection to discover its teamId.
       const conn = await prisma.ssoConnection.findUnique({
         where: { id: connectionId },
@@ -394,7 +417,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       }
 
       try {
-        const { authorizationUrl, state } = await buildOidcAuthorizationUrl(
+        const { authorizationUrl, state, nonce } = await buildOidcAuthorizationUrl(
           {
             teamId: conn.teamId,
             connectionId: conn.id,
@@ -404,14 +427,14 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
 
-        // Persist the state for replay protection.
-        const nonceRaw = randomBytes(16).toString("base64url");
+        // The ledger is the only memory of this sign-in, so any instance can
+        // finish it.
         const persist = await persistCallbackAttempt(
           {
             teamId: conn.teamId,
             ssoConnectionId: conn.id,
             stateRaw: state,
-            nonceRaw,
+            nonceRaw: nonce,
             redirectAfter: sanitiseRedirectAfter(q.redirectAfter),
             ipPreview: ipPreview(req),
             uaPreview: uaPreview(req),
@@ -422,6 +445,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           return bounceToAuthError(reply, "sso_state_persist_failed");
         }
 
+        setSsoBrowserBinding(req, reply, state);
         return reply.code(302).redirect(authorizationUrl);
       } catch (err) {
         if (err instanceof SsoServiceError) {
@@ -476,6 +500,12 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         return bounceToAuthError(reply, `idp_${q.error ?? "no_code"}`);
       }
 
+      // IDENT-014 — a callback in a browser that did not start this sign-in is
+      // login CSRF. Refused before the state is spent.
+      if (!ssoBrowserBindingMatches(req, q.state)) {
+        return bounceToAuthError(reply, "sso_browser_mismatch");
+      }
+
       // Consume the persistent state row first — this is replay-safe.
       const consume = await consumeCallbackAttempt(
         { stateRaw: q.state },
@@ -506,6 +536,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       try {
         const result = await handleOidcCallback(
           {
+            attempt,
             state: q.state,
             code: q.code,
             redirectUri: getRedirectUri(req),
@@ -806,11 +837,12 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         }
 
         setSessionCookie(req, reply, token);
+        clearSsoBrowserBinding(reply);
 
         // PHASE 11 — canonical safe-destination validation before redirect
-        // (or workspace home).
+        // (or workspace home). IDENT-003 — on the web host: this route is not.
         const redirectTarget = resolvePostLoginDestination(attempt.redirectAfter);
-        return reply.code(302).redirect(redirectTarget);
+        return reply.code(302).redirect(webPageUrl(redirectTarget));
       } catch (err) {
         await markCallbackFailed(
           {

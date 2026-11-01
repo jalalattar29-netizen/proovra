@@ -72,6 +72,7 @@ import {
 } from "../services/security/saml-assertion.service.js";
 import {
   handleSamlAssertion,
+  resolveAssertedEmail,
   SamlMappingError,
 } from "../services/security/saml-user-mapping.service.js";
 // SAML admin endpoints are Enterprise-only — gate resolver imported
@@ -103,7 +104,16 @@ import {
   samlAcsUrl as buildAcsUrl,
   samlSpEntityId as buildSpEntityId,
   samlSpSigningKey as resolveSpSigningKey,
+  signInErrorUrl,
+  webPageUrl,
 } from "../services/access-control/sso-endpoints.js";
+import {
+  clearSsoBrowserBinding,
+  setSsoBrowserBinding,
+  ssoBrowserBindingMatches,
+} from "../services/access-control/sso-browser-binding.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
 import { organizationIdForPolicy, resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
@@ -113,7 +123,7 @@ import {
   evaluateOrganizationIdentityAuthority,
   ORGANIZATION_IDENTITY_ADMIN_REQUIRED,
 } from "../services/identity/organization-identity-authority.js";
-import { isEmailDomainVerifiedForOrg } from "../services/organization/organization-domain.service.js";
+
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
@@ -134,6 +144,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const SAML_LOGIN_TTL_SECONDS = 10 * 60; // 10 minutes — matches OIDC TTL
+const SAML_LOGIN_RATE_LIMIT_PER_MIN = 30;
 const SAML_DEFAULT_NAME_ID_FORMAT =
   "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress";
 
@@ -191,13 +202,8 @@ function bounceToSamlError(
   reason: string,
   redirectAfter?: string | null,
 ): void {
-  const params = new URLSearchParams();
-  params.set("saml_error", reason.slice(0, 64));
-  if (redirectAfter) {
-    const safe = safeIntendedDestination(redirectAfter);
-    if (safe !== "/") params.set("redirect_after", safe);
-  }
-  reply.code(302).redirect(`/auth?${params.toString()}`);
+  const destination = redirectAfter ? safeIntendedDestination(redirectAfter) : "/";
+  reply.code(302).redirect(signInErrorUrl("saml_error", reason, destination));
 }
 
 /**
@@ -403,6 +409,16 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .object({ redirectAfter: z.string().max(400).optional() })
         .parse(req.query ?? {});
 
+      // IDENT-014 — public, and each call writes a ledger row.
+      const rl = await enforceRateLimit({
+        key: `saml:login:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+        max: SAML_LOGIN_RATE_LIMIT_PER_MIN,
+        windowSec: 60,
+      });
+      if (!rl.allowed) {
+        return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+      }
+
       // Look up the SAML connection — must be ACTIVE with cert configured
       const conn = await prisma.ssoConnection.findUnique({
         where: { id: connectionId },
@@ -475,6 +491,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         if (!persist.ok) {
           return bounceToSamlError(reply, "saml_state_persist_failed");
         }
+        setSsoBrowserBinding(req, reply, relayState);
 
         bump("saml_login_initiated_total");
         safeEmitSecurityEvent({
@@ -574,6 +591,12 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           acsUrl: buildAcsUrl(req),
         });
         return reply.code(302).redirect(target);
+      }
+
+      // IDENT-014 — an assertion in a browser that did not start this sign-in is
+      // login CSRF. Refused before the RelayState is spent.
+      if (!ssoBrowserBindingMatches(req, relayStateRaw)) {
+        return bounceToSamlError(reply, "saml_browser_mismatch");
       }
 
       const consume = await consumeCallbackAttempt(
@@ -721,21 +744,27 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           | { email?: string; name?: string; externalId?: string }
           | null;
 
-        // Phase 3 — SSO login enforcement point (pre-JIT). Reject before any
-        // membership side-effects when: SSO is used by a non-enterprise
-        // workspace, or the connection is (mis)configured on a PERSONAL
-        // workspace. The email is not needed for these two checks, so we pass
-        // a placeholder and skip the verified-domain check here (run below,
-        // once the assertion email is resolved).
+        // Phase 3 — SSO login enforcement point, in full, before anything is
+        // provisioned (IDENT-006): the policy says "BEFORE minting a session or
+        // (for JIT) creating any membership", and a refused sign-in used to
+        // leave its User, mapping and ACTIVE membership behind. With no usable
+        // email there is no domain to judge; the mapping below refuses that.
+        const assertedEmail = resolveAssertedEmail(assertion, attributeMapping ?? null);
         const preGate = await enforceSsoLoginPolicy(
           {
             teamId: conn.teamId,
-            email: "",
-            restrictToVerifiedDomains: false,
+            email: assertedEmail ?? "",
+            restrictToVerifiedDomains: conn.restrictToVerifiedDomains && assertedEmail !== null,
           },
           prisma,
         );
         if (!preGate.ok) {
+          if (preGate.reason === "sso_domain_not_verified") {
+            throw new SamlMappingError("SAML_EMAIL_DOMAIN_NOT_ALLOWED", {
+              connectionId: conn.id,
+              reason: "domain_not_verified",
+            });
+          }
           throw new SamlMappingError("SAML_CONNECTION_INACTIVE", {
             connectionId: conn.id,
             reason: preGate.reason,
@@ -756,23 +785,6 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           },
           prisma,
         );
-
-        // Phase 3 — verified-domain enforcement. When the connection restricts
-        // logins to VERIFIED OrganizationDomain rows, the resolved login email
-        // domain must be verified for the connection's org. Layered ON TOP of
-        // the allowedEmailDomains gate already enforced inside handleSamlAssertion.
-        if (conn.restrictToVerifiedDomains) {
-          const domainVerified = await isEmailDomainVerifiedForOrg(
-            { organizationId: preGate.organizationId, email: result.email },
-            prisma,
-          );
-          if (!domainVerified) {
-            throw new SamlMappingError("SAML_EMAIL_DOMAIN_NOT_ALLOWED", {
-              connectionId: conn.id,
-              reason: "domain_not_verified",
-            });
-          }
-        }
 
         // Mark connection used
         await prisma.ssoConnection.update({
@@ -1077,8 +1089,9 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
 
         setSessionCookie(req, reply, token);
         // PHASE 11 — canonical safe-destination validation before redirect.
+        clearSsoBrowserBinding(reply);
         const redirectTarget = resolvePostLoginDestination(attempt.redirectAfter);
-        return reply.code(302).redirect(redirectTarget);
+        return reply.code(302).redirect(webPageUrl(redirectTarget));
       } catch (err) {
         const reason =
           err instanceof SamlAssertionError

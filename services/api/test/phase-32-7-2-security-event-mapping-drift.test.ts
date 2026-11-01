@@ -1497,6 +1497,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281031000000_billing_product_decisions",
       // Stripe customer per recurring currency, written before the provider call. EXPAND.
       "20281101000000_stripe_customer_per_currency",
+      // The OIDC client secret, sealed so the code exchange can read it. EXPAND.
+      "20281106000000_sso_client_secret_sealed",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

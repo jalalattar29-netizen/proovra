@@ -485,6 +485,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           // Write-only key material. Empty string clears; omit to leave as-is.
           samlSpPrivateKey: z.string().max(16384).nullable().optional(),
           samlSpCertificate: z.string().max(8192).nullable().optional(),
+          // Write-only. IDENT-002: how a connection holding only a hash recovers.
+          clientSecret: z.string().min(8).max(400).optional(),
         })
         .parse(req.body ?? {});
       const actor = await requireIdentityAdmin(
@@ -526,6 +528,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           restrictToVerifiedDomains: body.restrictToVerifiedDomains,
           samlSpPrivateKey: body.samlSpPrivateKey,
           samlSpCertificate: body.samlSpCertificate,
+          clientSecret: body.clientSecret,
         });
         return reply.code(200).send({ projection });
       } catch (err) {

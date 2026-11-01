@@ -98,8 +98,11 @@ function databaseWith(present: {
   billingDecisions?: boolean;
   // 20281101000000 — Stripe customer per recurring currency.
   customerCurrency?: boolean;
+  // 20281106000000 — the sealed OIDC client secret.
+  sealedClientSecret?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
+    if (/'client_secret_sealed'/.test(sql)) return present.sealedClientSecret === true;
     if (/table_name = 'billing_provider_customers'\s+AND column_name = 'currency'/.test(sql)) {
       return present.customerCurrency === true;
     }
@@ -290,6 +293,7 @@ const FULLY_MIGRATED = {
   billingRemediation: true,
   billingDecisions: true,
   customerCurrency: true,
+  sealedClientSecret: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -656,6 +660,16 @@ describe("runtime schema requirements — billing remediation (20281030000000)",
       "subscriptions.provider_schedule_id",
     ]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281030000000_billing_remediation_convergence");
+  });
+});
+
+describe("runtime schema requirements — sealed OIDC client secret (20281106000000)", () => {
+  it("an image that maps the column is refused on a database without it", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, sealedClientSecret: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(["sso_connections.client_secret_sealed"]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281106000000_sso_client_secret_sealed");
   });
 });
 

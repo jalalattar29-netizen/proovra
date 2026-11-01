@@ -480,6 +480,7 @@ export async function completeOidcIdpStepUp(
         conn,
         code: input.code,
         redirectUri: input.redirectUri,
+        state: input.stateRaw,
         nonceMatches: (nonce) =>
           typeof nonce === "string" && nonce.length > 0 && hashStateToken(nonce) === attempt.nonceHash,
       });

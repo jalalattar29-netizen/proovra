@@ -39,6 +39,7 @@ import type { SamlAssertion } from "./saml-assertion.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
 import { evaluateExistingAccountLink } from "./enterprise-account-linking.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import { provisionMembership } from "../identity/membership-provisioning.service.js";
 
@@ -183,6 +184,15 @@ const NAME_ATTR_NAMES = [
  *  2. NameID if it has an email format
  *  3. Well-known email attribute names (EMAIL_ATTR_NAMES)
  */
+/** The asserted email, normalised, or null when there is no usable one. */
+export function resolveAssertedEmail(
+  assertion: SamlAssertion,
+  mapping: SamlAttributeMapping | null | undefined,
+): string | null {
+  const email = resolveEmail(assertion, mapping)?.trim().toLowerCase() ?? null;
+  return email && email.includes("@") ? email : null;
+}
+
 function resolveEmail(
   assertion: SamlAssertion,
   mapping: SamlAttributeMapping | null | undefined,
@@ -297,10 +307,8 @@ export async function handleSamlAssertion(
   // registration / SSO / SCIM do (trim + lowercase). Without this, an IdP
   // asserting a different casing than the stored (lowercased) account
   // silently created a DUPLICATE User instead of matching the existing one.
-  const email =
-    resolveEmail(assertion, attributeMapping ?? null)?.trim().toLowerCase() ??
-    null;
-  if (!email || !email.includes("@")) {
+  const email = resolveAssertedEmail(assertion, attributeMapping ?? null);
+  if (!email) {
     // R8.2.1 — Attribute mapping failure: IdP did not return a mappable email.
     // Emit the new hardening event so operators can diagnose attribute name mismatches.
     bump("saml_attribute_mapping_failure_total");
@@ -401,6 +409,15 @@ export async function handleSamlAssertion(
       throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
         connectionId,
         reason: revalidationFailure,
+      });
+    }
+
+    // IDENT-010 — a closed account stays closed, whatever an IdP still says.
+    if (await isAccountClosed(externalMapping.userId, client)) {
+      bump("saml_login_failure_total");
+      throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+        connectionId,
+        reason: "account_closed",
       });
     }
 
@@ -506,6 +523,12 @@ export async function handleSamlAssertion(
         throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
           connectionId,
           reason: link.reason,
+        });
+      }
+      if (await isAccountClosed(existingUser.id, client)) {
+        throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+          connectionId,
+          reason: "account_closed",
         });
       }
       userId = existingUser.id;
