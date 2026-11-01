@@ -31,6 +31,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { apiFetch } from "../../../../../lib/api";
+import { useActiveWorkspaceId, usePlatformContext } from "../../../../../lib/platform-context";
+import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
@@ -298,6 +300,17 @@ function OrganizationSetupInner() {
     const nonPersonal = workspaces.data.workspaces.find((w) => !w.isPersonal);
     return (nonPersonal ?? workspaces.data.workspaces[0])?.workspaceId ?? null;
   }, [workspaces]);
+  const stepUp = useStepUpAction({ teamId: primaryWorkspaceId });
+
+  // PROV-004 — half the wizard's writes follow the active workspace, so a second
+  // Enterprise workspace would have taken this organization's retention policy.
+  const { switchWorkspace } = usePlatformContext();
+  const activeWorkspaceId = useActiveWorkspaceId();
+  useEffect(() => {
+    if (primaryWorkspaceId && activeWorkspaceId && activeWorkspaceId !== primaryWorkspaceId) {
+      void switchWorkspace(primaryWorkspaceId).catch(() => undefined);
+    }
+  }, [primaryWorkspaceId, activeWorkspaceId, switchWorkspace]);
 
   // Load org-scoped reads immediately.
   const loadOrgScoped = useCallback(async () => {
@@ -501,15 +514,15 @@ function OrganizationSetupInner() {
     setBusy(true);
     setStepError(null);
     try {
-      const res = (await apiFetch("/v1/identity-security/mfa-policy", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ teamId: primaryWorkspaceId, level: mfaLevel }),
-      })) as { error?: { code?: string } } | null;
-      if (res && res.error && res.error.code === "STEP_UP_REQUIRED") {
-        setStepError("This change needs step-up verification. Set it from Security Center.");
-        return;
-      }
+      // PROV-016 — `apiFetch` delivers a refusal by throwing, so the old check of
+      // the response never saw a step-up and the owner read a generic failure.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/identity-security/mfa-policy", {
+          method: "PUT",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({ teamId: primaryWorkspaceId, level: mfaLevel }),
+        }),
+      );
       markSaved("security");
       await loadWorkspaceScoped();
     } catch (err) {
@@ -517,7 +530,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [primaryWorkspaceId, mfaLevel, loadWorkspaceScoped, markSaved]);
+  }, [primaryWorkspaceId, mfaLevel, loadWorkspaceScoped, markSaved, stepUp]);
 
   const saveRetention = useCallback(async () => {
     if (retentionTemplate === "CUSTOM" && !retentionYears) {
@@ -558,16 +571,20 @@ function OrganizationSetupInner() {
     setBusy(true);
     setStepError(null);
     try {
-      await apiFetch("/v1/lifecycle/legal-holds", {
-        method: "POST",
-        body: JSON.stringify({
-          kind: holdKind,
-          name,
-          reason,
-          expiresAtUtc: null,
-          scopeTargetId: holdKind === "ORGANIZATION" ? orgId : primaryWorkspaceId ?? null,
+      // PROV-002 — placing a hold takes a step-up, and this sent none.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/lifecycle/legal-holds", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            kind: holdKind,
+            name,
+            reason,
+            expiresAtUtc: null,
+            scopeTargetId: holdKind === "ORGANIZATION" ? orgId : primaryWorkspaceId ?? null,
+          }),
         }),
-      });
+      );
       markSaved("legalHolds");
       setHoldName("");
       setHoldReason("");
@@ -576,7 +593,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [holdKind, holdName, holdReason, orgId, primaryWorkspaceId, markSaved]);
+  }, [holdKind, holdName, holdReason, orgId, primaryWorkspaceId, markSaved, stepUp]);
 
   // -------- checklist derivation (shared source of truth) --------
   const criteria = useMemo(
@@ -1346,6 +1363,7 @@ function OrganizationSetupInner() {
       <div>
         <SetupChecklist criteria={criteria} />
       </div>
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }
@@ -1448,6 +1466,7 @@ function SuccessScreen({
   criteria: ReadonlyArray<ReturnType<typeof deriveChecklist>[number]>;
   setupHref: string;
 }) {
+  const done = criteria.filter((c) => c.done === true).length;
   return (
     <div data-success-screen style={{ textAlign: "center", padding: "0.5rem 0" }}>
       <div
@@ -1469,11 +1488,14 @@ function SuccessScreen({
         ✓
       </div>
       <h2 style={{ margin: "0 0 0.35rem", fontSize: 20, fontWeight: 650, color: "var(--ink-primary, #0f172a)" }}>
-        {orgName} is enterprise ready
+        {done === criteria.length
+          ? `${orgName}: setup checklist complete`
+          : `${orgName}: ${done} of ${criteria.length} setup steps done`}
       </h2>
       <p style={{ margin: "0 auto 1rem", fontSize: 13.5, color: "var(--ink-secondary, #475569)", maxWidth: 520 }}>
-        Your organization is set up. You can revisit any optional step from the
-        checklist below at any time.
+        This checklist covers the basics. Single sign-on, verified domains and
+        directory sync are set up separately in Security Center. You can come
+        back to any step below at any time.
       </p>
       <div style={{ maxWidth: 480, margin: "0 auto 1rem", textAlign: "left" }}>
         <SetupChecklist criteria={criteria} setupHref={setupHref} compact />
