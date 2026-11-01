@@ -3037,6 +3037,8 @@ export async function createVerificationPackage(data: {
   };
   reportPdf?: Buffer | null;
   reportFileName?: string | null;
+  /** The report's own PDF signature, as its row records it. */
+  reportPdfSignature?: { status: string | null; signerKeyId: string | null } | null;
   /**
    * FORMAT 5 SEAL INPUTS (2026-09-29). When present, the package is sealed:
    * `package-seal.json` binds the checksum index — and through it every entry,
@@ -4244,6 +4246,13 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       const historicalFile = await buildHistoricalVerificationMaterial({
         evidenceId: data.evidenceId as string,
         packageId,
+        // CRYPTO-002 — the record's own key: the one public-key.pem ships.
+        recordSignature: {
+          keyId: data.signingKeyId ?? null,
+          keyVersion: data.signingKeyVersion != null ? String(data.signingKeyVersion) : null,
+          publicKeyPem: data.publicKey ?? null,
+        },
+        reportPdfSignature: data.reportPdfSignature ?? null,
       });
       appendEntry(
         "signers/historical-verification-material.json",

@@ -571,6 +571,12 @@ async function runSignerLifecycleTransition(
     reason: input.reason,
     transitionSource: "admin_console",
     expectedStateVersion: input.expectedStateVersion,
+    // CRYPTO-001 — this row only stops new signing. Every verifier reads
+    // signing_keys.revoked_at, so "revoked" must reach it: without this a
+    // compromised key kept reading "Signature verified" on every record.
+    ...(to === "REVOKED" && target.keyId && Number.isInteger(Number(target.keyVersion))
+      ? { withdrawKey: { keyId: target.keyId, version: Number(target.keyVersion) } }
+      : {}),
   });
 
   if (!outcome.ok) {

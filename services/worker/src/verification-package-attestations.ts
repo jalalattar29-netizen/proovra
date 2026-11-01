@@ -136,7 +136,7 @@ export type SignerSnapshotEntry = {
   keyId: string | null;
   keyVersion: string | null;
   algorithm: string | null;
-  status: "active" | "degraded";
+  status: "active" | "degraded" | "retired" | "revoked";
   /** Operator-safe — KMS algorithm reference or PEM path label.
    *  NEVER private key material. */
   verificationMaterialRef: string | null;
@@ -301,9 +301,11 @@ async function buildAttestationsJson(input: {
         where: {
           teamId: input.teamId,
           eventType: "custody_attestation_signed",
+          // CRYPTO-003 — this record's attestations, not the newest 5000 of the
+          // workspace, which at volume reported real attestations as missing.
+          details: { path: ["attestation", "evidenceId"], equals: input.evidenceId },
         },
         orderBy: { createdAt: "desc" },
-        take: 5000,
         select: { details: true },
       });
     } catch {
@@ -550,21 +552,29 @@ async function buildSignerSnapshotJson(input: {
         // hoisting it to module scope would change what it reads; every call
         // site is below its definition, so losing declaration hoisting is
         // inert. Behaviour is identical.
+        // CRYPTO-002 — from the control state, not assumed: a revoked signer's
+        // package must not state "active".
+        const controlled = new Map<string, string>(
+          await prisma.signerControlState
+            .findMany({ select: { signerId: true, status: true } })
+            .then((rows) => rows.map((r) => [r.signerId, String(r.status)] as [string, string]))
+            .catch(() => []),
+        );
         const entry = (
           purpose: SignerPurpose,
           keyId: string | null,
           keyVersion: string | null,
         ): SignerSnapshotEntry => {
+          const signerId = `${purpose}:${provider}:${keyId ?? "_"}:${keyVersion ?? "_"}`;
+          const control = controlled.get(signerId);
           return {
             signerPurpose: purpose,
-            signerId: `${purpose}:${provider}:${keyId ?? "_"}:${
-              keyVersion ?? "_"
-            }`,
+            signerId,
             provider,
             keyId,
             keyVersion,
             algorithm,
-            status,
+            status: control === "REVOKED" ? "revoked" : control === "RETIRED" ? "retired" : status,
             verificationMaterialRef,
             kmsKeyArn: kmsArn,
           };
@@ -598,8 +608,8 @@ async function buildSignerSnapshotJson(input: {
           evidenceId: input.evidenceId,
           packageId: input.packageId ?? null,
           // Deterministic order — purpose order matches the bounded enum.
+          // The report PDF has its own signature and signer (reports.pdf_signature_status).
           signers: [
-            entry("report_pdf", evidKeyId, evidKeyVersion),
             entry("verification_package", pkgKeyId, pkgKeyVersion),
             entry("export_manifest", evidKeyId, evidKeyVersion),
             entry("custody_event", evidKeyId, evidKeyVersion),

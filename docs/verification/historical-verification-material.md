@@ -5,6 +5,10 @@
 
 ---
 
+## Schema 2 (CRYPTO-002)
+
+Issued packages keep the schema they were issued with. From schema 2, `recordSignature` names the key that signed the record and agrees with `public-key.pem`. `signers` lists what was configured when the package was assembled, with the state its signer control recorded, so after a rotation the two can differ. `reportPdfSignature` states the report's PDF signature from the report row. There is no `report_pdf` signer entry, because the PDF is not signed by these keys. `signerStatusAtSigningTime` became `signerStatusAtPackageAssembly`, which is what it always described.
+
 ## 1. Why this file exists
 
 Before M1.1, the Verification Package referenced the signer's public material indirectly through `signers/signer-registry-snapshot.json` but did not bundle the actual public key bytes. That meant an independent reviewer could verify package integrity (hash chain, manifest signature) but could NOT independently verify the custody attestation signatures inside the package without contacting the live PROOVRA deployment.

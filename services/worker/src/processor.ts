@@ -5519,6 +5519,10 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           publicVerification: { publishedAtIssuance: prepared.publicVerifyPublishedAtIssuance },
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
+          reportPdfSignature: {
+            status: prepared.pdfSigningOutcome.status,
+            signerKeyId: prepared.pdfSigningOutcome.status === "SIGNED" ? prepared.pdfSigningOutcome.signerKeyId : null,
+          },
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,
           // FORMAT 5 — the seal binds the checksum index and, through it, the
           // exact report bytes above. Chronology is stated, never implied: a

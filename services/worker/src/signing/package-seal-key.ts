@@ -10,7 +10,11 @@
  */
 export class PackageSealKeyRegistrationError extends Error {
   constructor(
-    readonly code: "PACKAGE_SEAL_KEY_IDENTITY_UNKNOWN" | "PACKAGE_SEAL_KEY_IDENTITY_CONFLICT" | "PACKAGE_SEAL_KEY_REGISTRY_UNAVAILABLE",
+    readonly code:
+      | "PACKAGE_SEAL_KEY_IDENTITY_UNKNOWN"
+      | "PACKAGE_SEAL_KEY_IDENTITY_CONFLICT"
+      | "PACKAGE_SEAL_KEY_REGISTRY_UNAVAILABLE"
+      | "PACKAGE_SEAL_KEY_REVOKED",
     readonly retriable: boolean,
   ) {
     super(code);
@@ -32,18 +36,21 @@ export async function bindPackageSealKey(signature: {
     import("../db.js"),
     import("@proovra/shared-runtime"),
   ]);
+  let revokedAt: Date | null = null;
   try {
-    await registerSigningKey(prisma, {
+    ({ revokedAt } = await registerSigningKey(prisma, {
       keyId: signature.signingKeyId,
       version,
       purpose: "PACKAGE_SEAL",
       publicKeyPem: signature.publicKeyPem,
-    });
+    }));
   } catch (err) {
     if (err instanceof SigningKeyRegistryError && err.code === "SIGNING_KEY_IDENTITY_CONFLICT") {
       throw new PackageSealKeyRegistrationError("PACKAGE_SEAL_KEY_IDENTITY_CONFLICT", false);
     }
     throw new PackageSealKeyRegistrationError("PACKAGE_SEAL_KEY_REGISTRY_UNAVAILABLE", true);
   }
+  // CRYPTO-001 — a withdrawn key seals nothing, as with the evidence signer.
+  if (revokedAt) throw new PackageSealKeyRegistrationError("PACKAGE_SEAL_KEY_REVOKED", false);
   return { signingKeyId: signature.signingKeyId, signingKeyVersion: version };
 }

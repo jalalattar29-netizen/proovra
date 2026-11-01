@@ -342,3 +342,26 @@ export async function describePublicSigningKey(
     supersededByVersion: next?.version ?? null,
   };
 }
+
+/**
+ * WITHDRAW A KEY (CRYPTO-001). Writes revoked_at on every registered row of this
+ * key material: one key is published under each purpose it serves, and a
+ * compromise is of the key, not of one purpose. A row already revoked keeps its
+ * time. Returns how many rows this call revoked.
+ */
+export async function revokeSigningKeyMaterial(
+  client: RegistryClient,
+  input: { keyId: string; version: number; at?: Date },
+): Promise<number> {
+  const rows = await client.signingKey.findMany({
+    where: { keyId: input.keyId, version: input.version },
+    select: { publicKeyPem: true },
+  });
+  const at = input.at ?? new Date();
+  let revoked = 0;
+  for (const publicKeyPem of new Set(rows.map((r) => r.publicKeyPem))) {
+    const done = await client.signingKey.updateMany({ where: { publicKeyPem, revokedAt: null }, data: { revokedAt: at } });
+    revoked += done.count;
+  }
+  return revoked;
+}

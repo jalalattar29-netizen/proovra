@@ -21,6 +21,7 @@ export {
   publicKeyPemFromPrivateKeyPem,
   publicKeySpkiSha256,
   registerSigningKey,
+  revokeSigningKeyMaterial,
   assertNotCommittedFixtureKey,
   findRegisteredSigningKey,
   describePublicSigningKey,

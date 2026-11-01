@@ -34,6 +34,7 @@
  * different hat.
  */
 
+import { revokeSigningKeyMaterial } from "@proovra/shared-runtime";
 import { prisma } from "../../db.js";
 
 export const SIGNER_CONTROL_STATUSES = ["ACTIVE", "RETIRED", "REVOKED"] as const;
@@ -198,6 +199,11 @@ export async function transitionSignerControlState(input: {
   transitionSource?: string;
   /** When supplied, the caller's view of the row it intends to replace. */
   expectedStateVersion?: number;
+  /**
+   * CRYPTO-001 — written in the transition's transaction, when it applies. A
+   * revoked signer and the registry every verifier reads cannot disagree.
+   */
+  withdrawKey?: { keyId: string; version: number };
 }): Promise<TransitionOutcome> {
   const current = await prisma.signerControlState.findUnique({
     where: { signerId: input.signerId },
@@ -219,17 +225,23 @@ export async function transitionSignerControlState(input: {
 
   // Compare-and-set. `updateMany` matches on the version we read, so a
   // concurrent winner leaves us with count 0 rather than a second "success".
-  const res = await prisma.signerControlState.updateMany({
-    where: { signerId: input.signerId, stateVersion: current.stateVersion },
-    data: {
-      status: input.to,
-      stateVersion: current.stateVersion + 1,
-      statusChangedAtUtc: new Date(),
-      actorUserId: input.actorUserId,
-      reason: input.reason.trim().slice(0, 400),
-      transitionSource: (input.transitionSource ?? "admin_console").slice(0, 64),
-      updatedAtUtc: new Date(),
-    },
+  const res = await prisma.$transaction(async (tx) => {
+    const moved = await tx.signerControlState.updateMany({
+      where: { signerId: input.signerId, stateVersion: current.stateVersion },
+      data: {
+        status: input.to,
+        stateVersion: current.stateVersion + 1,
+        statusChangedAtUtc: new Date(),
+        actorUserId: input.actorUserId,
+        reason: input.reason.trim().slice(0, 400),
+        transitionSource: (input.transitionSource ?? "admin_console").slice(0, 64),
+        updatedAtUtc: new Date(),
+      },
+    });
+    if (moved.count === 1 && input.withdrawKey) {
+      await revokeSigningKeyMaterial(tx as never, input.withdrawKey);
+    }
+    return moved;
   });
   if (res.count === 0) return { ok: false, code: "stale_state" };
 

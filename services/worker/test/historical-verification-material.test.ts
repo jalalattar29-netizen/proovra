@@ -67,7 +67,8 @@ describe("historical verification material (ET-PKG-11)", () => {
     const by = Object.fromEntries(file.signers.map((s) => [s.signerPurpose, s]));
     expect(by.verification_package!.verificationMaterial.publicKeyPem).toBe(packageKey.pem.trim());
     expect(by.verification_package!.verificationMaterial.publicKeySpkiSha256).toBe(packageKey.sha256);
-    for (const p of ["report_pdf", "export_manifest", "custody_event"] as const) {
+    expect(by.report_pdf, "the report PDF is not signed by these keys").toBeUndefined();
+    for (const p of ["export_manifest", "custody_event"] as const) {
       expect(by[p]!.verificationMaterial.publicKeyPem).toBe(evidenceKey.pem.trim());
       expect(by[p]!.verificationMaterial.publicKeySpkiSha256).toBe(evidenceKey.sha256);
     }
@@ -75,6 +76,25 @@ describe("historical verification material (ET-PKG-11)", () => {
     expect(json).not.toContain(dir.replace(/\\/g, "\\\\"));
     expect(json).not.toContain("evidence-public.pem");
     expect(file.signers.every((s) => s.verificationMaterial.publicMaterialRef === null)).toBe(true);
+  });
+
+  it("CRYPTO-002: the record's signer comes from the record, so it agrees with public-key.pem after a rotation", async () => {
+    process.env.SIGNER_PROVIDER = "local-pem";
+    process.env.SIGNING_PUBLIC_KEY_PATH = path.join(dir, "evidence-public.pem");
+    process.env.SIGNING_KEY_ID = "current-key";
+    process.env.SIGNING_KEY_VERSION = "2";
+    const earlier = ed25519();
+    const file = await buildHistoricalVerificationMaterial({
+      evidenceId: "ev-1",
+      recordSignature: { keyId: "earlier-key", keyVersion: "1", publicKeyPem: earlier.pem },
+      reportPdfSignature: { status: "UNSIGNED_OPT_OUT", signerKeyId: null },
+    });
+    expect(file.schemaVersion).toBe(2);
+    expect(file.recordSignature).toMatchObject({ keyId: "earlier-key", keyVersion: "1", publicKeySpkiSha256: earlier.sha256 });
+    expect(file.reportPdfSignature).toEqual({ status: "UNSIGNED_OPT_OUT", signerKeyId: null });
+    // The deployment's key stays visible, and is said to be something else.
+    expect(file.signers.find((s) => s.signerPurpose === "custody_event")!.keyId).toBe("current-key");
+    expect(file.trustInterpretation.statement).toContain("can differ from the record's key");
   });
 
   it("AWS KMS: the key id never reaches the file; the SPKI fingerprint does", async () => {

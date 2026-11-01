@@ -236,9 +236,11 @@ async function signCustodyEventInner(
     where: {
       teamId: input.teamId,
       eventType: "custody_attestation_signed",
+      // CRYPTO-003 — by this event, not the newest 500 of the workspace, which a
+      // backfill can pass and then sign the same event twice.
+      details: { path: ["custodyEventId"], equals: input.custodyEventId },
     },
     orderBy: { createdAt: "desc" },
-    take: 500,
     select: { id: true, details: true },
   });
   for (const r of recent) {
@@ -426,9 +428,11 @@ async function verifyCustodyAttestationInner(
     where: {
       teamId: input.teamId,
       eventType: "custody_attestation_signed",
+      // CRYPTO-003 — an older attestation is still an attestation.
+      details: { path: ["attestationId"], equals: input.attestationId },
     },
     orderBy: { createdAt: "desc" },
-    take: 500,
+    take: 1,
     select: { id: true, details: true },
   });
   const matchRow = rows.find((r) => {
@@ -513,42 +517,51 @@ async function verifyCustodyAttestationInner(
       verifiedAtUtc: new Date().toISOString(),
     };
   }
-  // Verify signature.
+  /*
+   * CRYPTO-003 — THE KEY THAT SIGNED, NOT TODAY'S KEY. The signature is checked
+   * here, against the registry row for the attestation's own (keyId, version),
+   * so a routine rotation does not read as tampering. Both algorithms are
+   * Ed25519 over the same 32 bytes, so no provider call is needed. A key that
+   * cannot be found, or a failure to read it, is "unavailable": only a
+   * verification that really ran may say "invalid".
+   */
+  const algoOk =
+    (att.provider === "aws_kms" && att.algorithm === "ED25519_SHA_512") ||
+    (att.provider === "local_pem" && att.algorithm === "ED25519");
   let signatureOk = false;
-  let algoOk = true;
-  try {
-    if (att.provider === "aws_kms" && att.algorithm === "ED25519_SHA_512") {
-      const { VerifyCommand, KMSClient } = await import(
-        "@aws-sdk/client-kms"
-      );
-      const kms = new KMSClient({});
-      const res = await kms.send(
-        new VerifyCommand({
-          KeyId: (process.env.KMS_KEY_ID ?? "").trim(),
-          Message: Buffer.from(att.canonicalPayloadHash, "hex"),
-          MessageType: "RAW",
-          Signature: Buffer.from(att.signature, "base64"),
-          SigningAlgorithm: "ED25519_SHA_512",
-        }),
-      );
-      signatureOk = Boolean(res.SignatureValid);
-    } else if (att.provider === "local_pem" && att.algorithm === "ED25519") {
-      // The local-pem verifier takes the PEM string directly. Load
-      // the configured public key from disk.
-      const { ed25519VerifyHexSignature, loadPemFromPathEnv } = await import(
-        "../../crypto.js"
-      );
-      const pubPem = loadPemFromPathEnv("SIGNING_PUBLIC_KEY_PATH");
-      signatureOk = ed25519VerifyHexSignature({
-        messageHex: att.canonicalPayloadHash,
-        signatureBase64: att.signature,
-        publicKeyPem: pubPem,
+  let signerUnavailable: string | null = null;
+  if (algoOk) {
+    try {
+      const key = await client.signingKey.findFirst({
+        where: { keyId: att.keyId ?? "", version: Number(att.keyVersion) },
+        orderBy: { createdAt: "asc" },
+        select: { publicKeyPem: true, revokedAt: true },
       });
-    } else {
-      algoOk = false;
+      if (!key) {
+        signerUnavailable = "The signing key this attestation names is not in the key registry.";
+      } else if (key.revokedAt) {
+        signerUnavailable = `The signing key this attestation names was revoked at ${key.revokedAt.toISOString()}, so its signature is not presently trusted.`;
+      } else {
+        const { ed25519VerifyHexSignature } = await import("../../crypto.js");
+        signatureOk = ed25519VerifyHexSignature({
+          messageHex: att.canonicalPayloadHash,
+          signatureBase64: att.signature,
+          publicKeyPem: key.publicKeyPem,
+        });
+      }
+    } catch {
+      signerUnavailable = "The signing key could not be read, so this attestation was not checked.";
     }
-  } catch {
-    signatureOk = false;
+  }
+  if (signerUnavailable) {
+    bump("custody_attestation_verification_failure_total");
+    return {
+      outcome: "signer_unavailable",
+      summary: signerUnavailable,
+      attestation: att,
+      recomputedPayloadHash: recomputed,
+      verifiedAtUtc: new Date().toISOString(),
+    };
   }
   if (!algoOk) {
     bump("custody_attestation_verification_failure_total");

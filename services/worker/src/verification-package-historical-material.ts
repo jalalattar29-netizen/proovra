@@ -8,6 +8,13 @@
  * actually verify custody attestation + report signatures without
  * calling PROOVRA APIs.
  *
+ * WHAT IT CAN AND CANNOT SAY (CRYPTO-002, schema 2). A package is often assembled
+ * long after its record was signed: a chain-verified update, a recovery. The
+ * signers list is what was configured when THIS PACKAGE was assembled, read from
+ * the deployment. The key that signed the record is `recordSignature`, from the
+ * record's own identity, and agrees with public-key.pem. The report's PDF
+ * signature is a separate fact, from the report row: it is not one of these keys.
+ *
  * Hard rules:
  *   * NEVER includes private keys.
  *   * NEVER includes AWS credentials.
@@ -61,9 +68,9 @@ export type HistoricalSignerEntry = {
   keyId: string | null;
   keyVersion: string | null;
   algorithm: string | null;
-  /** Signer state at signing time. Subsequent rotation / revocation
-   *  is NOT reflected here — that's the point. */
-  signerStatusAtSigningTime: "active" | "degraded" | "disabled";
+  /** The signer's state when this package was assembled. Read from the signer
+   *  control state, so a retired or revoked signer is not described as active. */
+  signerStatusAtPackageAssembly: "active" | "degraded" | "disabled" | "retired" | "revoked";
   verificationMaterial: {
     /** Operator-safe PEM block when extractable. NEVER private key. */
     publicKeyPem: string | null;
@@ -89,12 +96,29 @@ export type HistoricalSignerEntry = {
   historicalOnly: true;
 };
 
+export type RecordSignatureFacts = {
+  keyId: string | null;
+  keyVersion: string | null;
+  publicKeyPem: string | null;
+};
+
+export type ReportPdfSignatureFacts = {
+  /** SIGNED, UNSIGNED_OPT_OUT, ... as recorded on the report. */
+  status: string | null;
+  signerKeyId: string | null;
+};
+
 export type HistoricalVerificationMaterialFile = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   schema: "PROOVRA_HISTORICAL_VERIFICATION_MATERIAL";
   generatedAtUtc: string;
   evidenceId: string;
   packageId: string | null;
+  /** The key that signed the record, from the record itself. */
+  recordSignature: (RecordSignatureFacts & { publicKeySpkiSha256: string | null }) | null;
+  /** The report PDF's own signature, from the report row. */
+  reportPdfSignature: ReportPdfSignatureFacts | null;
+  /** Signers configured when this package was assembled. */
   signers: ReadonlyArray<HistoricalSignerEntry>;
   trustInterpretation: {
     /** Operator-readable, bounded. */
@@ -108,6 +132,17 @@ export type HistoricalVerificationMaterialFile = {
   };
 };
 
+/** The control state of every signer; empty when it cannot be read (best-effort). */
+async function loadSignerControlStatuses(): Promise<Map<string, string>> {
+  try {
+    const { prisma } = await import("./db.js");
+    const rows = await prisma.signerControlState.findMany({ select: { signerId: true, status: true } });
+    return new Map(rows.map((r) => [r.signerId, String(r.status)]));
+  } catch {
+    return new Map();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public entry point — called by `verification-package.ts`
 // ---------------------------------------------------------------------------
@@ -115,6 +150,8 @@ export type HistoricalVerificationMaterialFile = {
 export async function buildHistoricalVerificationMaterial(input: {
   evidenceId: string;
   packageId?: string | null;
+  recordSignature?: RecordSignatureFacts | null;
+  reportPdfSignature?: ReportPdfSignatureFacts | null;
 }): Promise<HistoricalVerificationMaterialFile> {
   const tracer = trace.getTracer("proovra-worker");
   return tracer.startActiveSpan(
@@ -154,14 +191,20 @@ export async function buildHistoricalVerificationMaterial(input: {
             : provider === "local_pem"
               ? "ED25519"
               : null;
-        const statusAtSigning = (
+        const controlled = await loadSignerControlStatuses();
+        const statusAtAssembly = (
+          signerId: string,
           material: Extracted,
-        ): HistoricalSignerEntry["signerStatusAtSigningTime"] =>
-          provider === "disabled"
+        ): HistoricalSignerEntry["signerStatusAtPackageAssembly"] => {
+          const control = controlled.get(signerId);
+          if (control === "REVOKED") return "revoked";
+          if (control === "RETIRED") return "retired";
+          return provider === "disabled"
             ? "disabled"
             : material.materialType === "unsupported"
               ? "degraded"
               : "active";
+        };
 
         // PHASE 12 POINT 3 — a const-bound function EXPRESSION, not a nested
         // function declaration. It closes over `provider` from this block, so
@@ -174,16 +217,15 @@ export async function buildHistoricalVerificationMaterial(input: {
           keyVersion: string | null,
           material: Extracted = extracted,
         ): HistoricalSignerEntry => {
+          const signerId = `${purpose}:${provider}:${keyId ?? "_"}:${keyVersion ?? "_"}`;
           return {
             signerPurpose: purpose,
-            signerId: `${purpose}:${provider}:${keyId ?? "_"}:${
-              keyVersion ?? "_"
-            }`,
+            signerId,
             provider,
             keyId,
             keyVersion,
             algorithm,
-            signerStatusAtSigningTime: statusAtSigning(material),
+            signerStatusAtPackageAssembly: statusAtAssembly(signerId, material),
             verificationMaterial: {
               publicKeyPem: material.publicKeyPem,
               publicMaterialRef: null,
@@ -198,22 +240,30 @@ export async function buildHistoricalVerificationMaterial(input: {
         // Deterministic order: matches the bounded `SIGNER_PURPOSES`
         // enum order.
         const signers: HistoricalSignerEntry[] = [
-          entry("report_pdf", evidKeyId, evidKeyVersion),
           entry("verification_package", pkgKeyId, pkgKeyVersion, packageExtracted),
           entry("export_manifest", evidKeyId, evidKeyVersion),
           entry("custody_event", evidKeyId, evidKeyVersion),
         ];
 
         const file: HistoricalVerificationMaterialFile = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           schema: "PROOVRA_HISTORICAL_VERIFICATION_MATERIAL",
           generatedAtUtc,
           evidenceId: input.evidenceId,
           packageId: input.packageId ?? null,
+          recordSignature: input.recordSignature
+            ? {
+                ...input.recordSignature,
+                publicKeySpkiSha256: input.recordSignature.publicKeyPem
+                  ? publicFingerprintOfPem(input.recordSignature.publicKeyPem)
+                  : null,
+              }
+            : null,
+          reportPdfSignature: input.reportPdfSignature ?? null,
           signers,
           trustInterpretation: {
             statement:
-              "Historical verification material reflects signing-time state only. It is NOT a current-trust assertion. The signer may have been rotated, retired, or revoked after this package was generated; currentTrustStatus is reported as unknown to surface this.",
+              "recordSignature names the key that signed this record. signers lists what was configured when this package was assembled, which can differ from the record's key after a rotation. Neither is a current-trust assertion: a signer may have been rotated, retired or revoked since, and currentTrustStatus is reported as unknown to surface this.",
             historicalVerificationMaterialReflectsSigningTimeStateOnly: true,
           },
           revocationAwareness: {
@@ -368,22 +418,24 @@ function degradedFile(input: {
     keyId: null,
     keyVersion: null,
     algorithm: null,
-    signerStatusAtSigningTime: "disabled",
+    signerStatusAtPackageAssembly: "disabled",
     verificationMaterial: { publicKeyPem: null, publicMaterialRef: null, publicKeySpkiSha256: null },
     verificationMaterialType: "unsupported",
     generatedFrom: "unavailable",
     historicalOnly: true,
   });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     schema: "PROOVRA_HISTORICAL_VERIFICATION_MATERIAL",
     generatedAtUtc,
     evidenceId: input.evidenceId,
     packageId: input.packageId ?? null,
+    recordSignature: null,
+    reportPdfSignature: null,
     signers: SIGNER_PURPOSES.map(placeholder),
     trustInterpretation: {
       statement:
-        "Historical verification material reflects signing-time state only. Extraction failed at generation time — see verificationMaterialType=unsupported per signer.",
+        "Signer material could not be read when this package was assembled — see verificationMaterialType=unsupported per signer. This is not a current-trust assertion.",
       historicalVerificationMaterialReflectsSigningTimeStateOnly: true,
     },
     revocationAwareness: {
