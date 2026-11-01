@@ -121,6 +121,13 @@ function workspace(raw: unknown, kind: SpaceKind, orgName: string | null = null)
   };
 }
 
+/** The name of a workspace the caller belongs to. A null id is the Personal Space. */
+export function spaceNameFor(view: SpacesView, teamId: string | null): string | null {
+  if (teamId === null) return view.personal?.name ?? "Personal Space";
+  const all = [view.personal, ...view.owned, ...view.organization];
+  return all.find((s) => s?.id === teamId)?.name ?? null;
+}
+
 export function projectSpaces(envelope: unknown): SpacesView {
   const env = obj(envelope);
   const canonical = obj(env.canonical);

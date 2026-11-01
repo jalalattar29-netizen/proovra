@@ -21,7 +21,7 @@
  * Self-service and out of every nav surface, exactly as the web keeps it.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shareFile } from "../../../src/lib/share-file";
+import { exportFileUri, shareFile } from "../../../src/lib/share-file";
 import { View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
@@ -419,12 +419,12 @@ export default function BatchAnalysisScreen() {
       // error path; parsing this as JSON would turn a correct response into a
       // failure the user could not explain.
       const csv = await apiFetchText(buildBatchExportPath(job.id));
-      if (!FileSystem.cacheDirectory) {
+      const filename = batchExportFilename(job.id);
+      const uri = await exportFileUri(filename);
+      if (!uri) {
         setMessage(t.batchNoTempDir);
         return;
       }
-      const filename = batchExportFilename(job.id);
-      const uri = `${FileSystem.cacheDirectory}${filename}`;
       await FileSystem.writeAsStringAsync(uri, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });

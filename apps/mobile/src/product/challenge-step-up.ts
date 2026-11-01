@@ -182,7 +182,7 @@ export const CHALLENGE_COPY = {
     "This action requires an additional step-up confirmation. Nothing happens until you confirm it's you.",
   preparing: "Preparing your verification…",
   enrollment:
-    "This action needs a verified way to confirm it's you — a passkey or security key, your organization's sign-in, an authenticator app, or (where allowed) a verified phone — and this account has none it can use here. Set one up under Settings → Security, then start this action again. Lost every factor? Use account recovery from the sign-in screen.",
+    "This action needs a verified way to confirm it's you — a passkey or security key, your organization's sign-in, an authenticator app, or (where allowed) a verified phone — and this account has none it can use here. Add an authenticator app or a verified phone under Settings → Security, or a passkey on the web, then start this action again. Lost every factor? Use account recovery from the sign-in screen.",
   passkeyPrompt: "Use your passkey or security key to confirm it's you. A secure browser window will open.",
   idpPrompt: "Sign in again with your organization to confirm it's you. A secure browser window will open.",
   passkeyAction: "Use passkey",

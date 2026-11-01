@@ -29,6 +29,7 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { apiFetch } from "../../src/api";
+import { workspaceSwitchRefusal } from "../../src/auth/session-end";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { canViewWorkspaceAudit } from "../../src/product/workspace-audit";
@@ -125,7 +126,7 @@ export default function SpacesScreen() {
         refresh();
         addToast(`You are now working in ${space.name}.`, "success");
       } catch (err) {
-        addToast(toSafeUserError(err).message, "error");
+        addToast(workspaceSwitchRefusal(err) ?? toSafeUserError(err).message, "error");
       } finally {
         setBusy(false);
       }

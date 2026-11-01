@@ -499,13 +499,16 @@ export function parseTotpEnrollment(payload: unknown): TotpEnrollment | null {
   };
 }
 
+/** Authenticators show "123 456"; the verifier takes the digits alone. */
+const compactCode = (code: string): string => code.replace(/\s+/g, "");
+
 export function buildEnrollVerifyBody(factorId: string, code: string) {
-  return { factorId, code: code.trim() };
+  return { factorId, code: compactCode(code) };
 }
 
 /** The route takes 6–10 characters; a shorter code is a round trip wasted. */
 export function validateTotpCode(code: string): string | null {
-  const c = code.trim();
+  const c = compactCode(code);
   if (c.length < 6) return "Enter the 6-digit code from your authenticator.";
   if (c.length > 10) return "That code is too long.";
   return null;
