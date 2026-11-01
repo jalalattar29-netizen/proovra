@@ -20,13 +20,13 @@
  *     fetch /v1/auth/me and route to the safe `next` target.
  */
 
-import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
+import { Suspense, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "../../../components/ui";
 import { MfaRecoveryRequestPanel } from "../../../components/mfa-recovery/MfaRecoveryRequestPanel";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 type ChallengeMode = "totp" | "recovery_code";
@@ -66,41 +66,11 @@ function MfaChallengeBody() {
   const [challengeExpired, setChallengeExpired] = useState(false);
   const inFlightRef = useRef(false);
 
-  // Defensive: if the operator landed on this page with no pending
-  // cookie (e.g. direct URL navigation), they cannot complete MFA.
-  // Bounce them back to /login. We use a one-shot effect; the actual
-  // cookie presence cannot be read from JS (HTTP-only), so we infer
-  // by issuing a no-op preflight on first focus and reading the
-  // 401/400 response.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        await apiFetch(
-          "/v1/auth/mfa/verify",
-          // Body without code or recoveryCode — the route returns
-          // 400 invalid_body when the pending cookie is present and
-          // 401 mfa_pending_invalid when it is not. Either response
-          // resolves the apiFetch promise via the error branch; we
-          // disambiguate by reading the error code.
-          { method: "POST", body: JSON.stringify({}) },
-          { auth: false },
-        );
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.statusCode === 401) {
-          // No pending cookie → no challenge in flight.
-          setError(
-            "Your sign-in session has expired. Please sign in again.",
-          );
-        }
-        // 400 invalid_body == cookie is present, page is operational.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // The pending cookie is HTTP-only and this page sends nothing until
+  // the user submits. An operator with no challenge in flight (direct
+  // navigation, or the account-recovery link from step-up, where they
+  // may hold a live session) still gets the recovery panel below; a
+  // submit answers 401 `mfa_pending_invalid` and routes them to /login.
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -144,20 +114,24 @@ function MfaChallengeBody() {
       }
       router.replace(next);
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.statusCode === 429) {
+      // The verify route answers a flat `{ message }`, which apiFetch
+      // raises as a plain Error carrying `statusCode`, not as ApiError.
+      // A network failure carries statusCode 0 and falls through.
+      const failure = err as { statusCode?: number; message?: string };
+      if (failure.statusCode) {
+        if (failure.statusCode === 429) {
           setError(
             "Too many attempts. Wait a minute before trying again.",
           );
-        } else if (err.statusCode === 401) {
+        } else if (failure.statusCode === 401) {
           // R8.1.3 — disambiguate the three 401 reasons surfaced by
           // the durable verify endpoint. `mfa_challenge_expired` and
           // `mfa_challenge_already_used` need the operator to re-
           // start primary login; `mfa_invalid` is a retryable
           // "wrong code" state.
-          // Reads the RAW ApiError.message ON PURPOSE — internal control
+          // Reads the RAW error message ON PURPOSE — internal control
           // flow matching bounded reason codes, never rendered.
-          const msg = err.message ?? "";
+          const msg = failure.message ?? "";
           if (msg === "mfa_challenge_expired") {
             setChallengeExpired(true);
             setError(

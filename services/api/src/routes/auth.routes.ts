@@ -1422,9 +1422,10 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/v1/auth/mfa/verify", async (req, reply) => {
     // The pending token may arrive either as a body field (JSON
     // clients) OR as the `proovra_mfa_pending` HTTP-only cookie
-    // (browser SSO flow). The body wins if both are present; we
-    // still clear the cookie on every code path so a stale pending
-    // cookie cannot linger past one verify attempt.
+    // (browser flows). The body wins if both are present. A request
+    // with no token has no challenge to act on. A malformed body with
+    // a token is not a verify attempt, so the cookie stays: it is the
+    // only copy the browser holds, and page JS cannot restore it.
     const cookiePending =
       (req.cookies as { proovra_mfa_pending?: string } | undefined)
         ?.proovra_mfa_pending ?? null;
@@ -1440,9 +1441,11 @@ export async function authRoutes(app: FastifyInstance) {
       code: rawBody.code,
       recoveryCode: rawBody.recoveryCode,
     };
+    if (!candidateBody.mfaPendingToken) {
+      return reply.code(401).send({ message: "mfa_pending_invalid" });
+    }
     const parsed = LoginMfaVerifyBody.safeParse(candidateBody);
     if (!parsed.success) {
-      clearMfaPendingCookie(req, reply);
       return reply.code(400).send({ message: "invalid_body" });
     }
     const body = parsed.data;

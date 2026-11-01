@@ -544,6 +544,55 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       expect(await prisma.authenticatedSession.count({ where: { userId: p.id } })).toBe(1);
     });
 
+    // RT-006 — the web client carries the pending token only in this cookie, so
+    // a request that names no factor must not end the challenge it arrived with.
+    it("POST /v1/auth/mfa/verify — a body with no factor leaves the browser's pending cookie usable; no pending token at all is an ended sign-in", async () => {
+      const p = await persona({ label: "mfacookie", password: "Mfa-Cookie-Pass-12", verified: true });
+      await seedTotp(p.id);
+      const webClient = { "content-type": "application/json", "x-web-client": "1" };
+      const login = await harness.app.inject({
+        method: "POST",
+        url: "/v1/auth/email/login",
+        headers: webClient,
+        payload: { email: p.email, password: "Mfa-Cookie-Pass-12" },
+      });
+      expect(login.statusCode, login.body).toBe(200);
+      expect(json(login).mfaRequired).toBe(true);
+      const pending = login.cookies.find((c) => c.name === "proovra_mfa_pending")?.value;
+      expect(pending).toBeTruthy();
+
+      const verify = (payload: Json) =>
+        harness.app.inject({
+          method: "POST",
+          url: "/v1/auth/mfa/verify",
+          headers: webClient,
+          cookies: { proovra_mfa_pending: pending as string },
+          payload: payload as never,
+        });
+
+      const malformed = await verify({});
+      expect(malformed.statusCode).toBe(400);
+      expect(json(malformed)).toEqual({ message: "invalid_body" });
+      expect(malformed.cookies.find((c) => c.name === "proovra_mfa_pending")).toBeUndefined();
+      const row = await prisma.mfaPendingChallenge.findFirstOrThrow({
+        where: { userId: p.id },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(row.consumedAt).toBeNull();
+
+      const res = await verify({ code: await freshCode(p.id) });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.cookies.find((c) => c.name === "proovra_mfa_pending")?.value).toBe("");
+      // The route clears any older session cookie first; the last write is the one the browser keeps.
+      expect(res.cookies.filter((c) => c.name === "proovra_session").at(-1)?.value).toBeTruthy();
+
+      for (const payload of [{}, { code: "123456" }]) {
+        const noToken = await call({ method: "POST", url: "/v1/auth/mfa/verify", payload });
+        expect(noToken.statusCode).toBe(401);
+        expect(json(noToken)).toEqual({ message: "mfa_pending_invalid" });
+      }
+    });
+
     it("POST /v1/identity/mfa/enroll/verify — the authenticator's code activates the factor and issues recovery codes; another user's factor is not found", async () => {
       const p = await persona({ label: "enroll" });
       const other = await persona({ label: "enroll-other" });
