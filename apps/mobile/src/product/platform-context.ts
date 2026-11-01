@@ -140,6 +140,45 @@ export function sharedPlatformContextRequest(token: string, force: boolean): Pro
   return promise;
 }
 
+/**
+ * WHICH WORKSPACE THIS IS, OR THAT NOBODY KNOWS YET (MOBILE-003).
+ *
+ * A null `activeTeamId` used to mean both "personal" and "unknown", and a capture
+ * that sent nothing was filed in Personal by the server. Evidence then sat outside
+ * the organization's retention, review and audit because of a network hiccup. So
+ * the two are different states here: a write that needs a workspace acts only on
+ * `resolved`, where a null `teamId` is a confirmed Personal Space.
+ */
+export type WorkspaceResolution =
+  | { readonly state: "resolving" }
+  | { readonly state: "unavailable" }
+  | { readonly state: "resolved"; readonly teamId: string | null; readonly name: string | null };
+
+export function resolveWorkspace(input: {
+  readonly loading: boolean;
+  readonly error: boolean;
+  readonly context: PlatformContextProjection | null;
+}): WorkspaceResolution {
+  const { context } = input;
+  if (context?.activeTeamId || context?.activeSpaceType === "PERSONAL") {
+    return { state: "resolved", teamId: context.activeTeamId, name: context.displayName };
+  }
+  // An envelope with no active space answers nothing, and the server always sends one.
+  if (context || input.error) return { state: "unavailable" };
+  return { state: "resolving" };
+}
+
+/** The workspace to file into, or null when nobody can say. */
+export function confirmedWorkspace(
+  workspace: WorkspaceResolution,
+): { teamId: string | null; name: string | null } | null {
+  return workspace.state === "resolved" ? { teamId: workspace.teamId, name: workspace.name } : null;
+}
+
+/** What a refused write says. Nothing was filed, and nothing staged was lost. */
+export const WORKSPACE_UNCONFIRMED_MESSAGE =
+  "PROOVRA could not confirm which workspace this belongs to, so nothing has been filed. What you captured stays on this device. Check your connection and try again.";
+
 /*
  * ONE CONTEXT, FOR EVERYTHING MOUNTED (MOBILE-013).
  *

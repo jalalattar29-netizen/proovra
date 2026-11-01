@@ -6,8 +6,8 @@
  * Exposes ONLY the `personalSpaceAllowed` projection (see ./personal-space.ts for
  * the pure gate + copy). This is a UX hint, not a security boundary — the server
  * independently enforces the same field on every personal-scope mutation, so a
- * transient fetch failure fails OPEN (does not block capture on a network hiccup)
- * rather than guessing at policy.
+ * transient fetch failure does not guess at policy here. A capture that needs a
+ * workspace asks `resolveWorkspace`, which refuses to file into an unknown one.
  */
 
 import { usePlatformContext } from "./product/platform-context";
@@ -19,7 +19,6 @@ export type PersonalSpaceAllowedState = {
 
 export function usePersonalSpaceAllowed(): PersonalSpaceAllowedState {
   const { loading, context } = usePlatformContext();
-  // Fail OPEN: a null context (transient error / not loaded) is treated as
-  // allowed; only an explicit server `personalSpaceAllowed === false` blocks.
+  // Only an explicit server `personalSpaceAllowed === false` blocks this hint.
   return { loading, allowed: context ? context.personalSpaceAllowed : true };
 }

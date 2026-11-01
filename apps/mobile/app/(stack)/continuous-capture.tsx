@@ -46,8 +46,14 @@ import {
 } from "../../src/ui";
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
-import { usePlatformContext } from "../../src/product/platform-context";
-import { useAuth } from "../../src/auth-context";
+import {
+  WORKSPACE_UNCONFIRMED_MESSAGE,
+  confirmedWorkspace,
+  refreshPlatformContext,
+  resolveWorkspace,
+  usePlatformContext,
+} from "../../src/product/platform-context";
+import { CaptureDestination } from "../../src/ui/capture-destination";import { useAuth } from "../../src/auth-context";
 import {
   beginContinuousSession,
   cleanupContinuousTempFiles,
@@ -85,7 +91,7 @@ import {
 } from "../../src/capture/device-location";
 import { registerLinkedRecord } from "../../src/capture/capture-links";
 import { discardDirectCaptureSession, type DirectCaptureSession } from "../../src/direct-capture";
-import { captureRecordKey, findCaptureSession, saveCaptureSession } from "../../src/capture/capture-session-store";
+import { captureRecordKey, findCaptureSession, saveCaptureSession, type PersistedCaptureWorkspace } from "../../src/capture/capture-session-store";
 import {
   clearLiveContinuousSession,
   loadLiveContinuousSession,
@@ -144,7 +150,9 @@ export default function ContinuousCaptureScreen() {
   const toast = useToast();
   const personalSpace = usePersonalSpaceAllowed();
   // ET-DC-08 — the capture belongs to the ACTIVE workspace, as on /capture.
-  const teamId = usePlatformContext().context?.activeTeamId ?? null;
+  // Fixed when the recording starts. Nothing starts while it is unknown (MOBILE-003).
+  const workspace = resolveWorkspace(usePlatformContext());
+  const destinationRef = useRef<PersistedCaptureWorkspace | null>(null);
   // The durable records are per user (UC-AND-006): reattach once the user is known.
   const userId = useAuth().user?.id ?? null;
   const [state, dispatch] = useReducer(continuousFlowReducer, INITIAL_CONTINUOUS_FLOW);
@@ -213,6 +221,7 @@ export default function ContinuousCaptureScreen() {
       clientLimitations: Array.from(clientLimitationsRef.current),
       openedAtIso: new Date().toISOString(),
       stagedManifest: stagedManifestRef.current,
+      workspace: destinationRef.current,
     });
   }, [isIOS]);
 
@@ -348,7 +357,7 @@ export default function ContinuousCaptureScreen() {
       // The location was read BEFORE the recording started (start()); it goes
       // into the reservation as it was then.
       const opened = await beginContinuousSession({
-        teamId,
+        teamId: destinationRef.current?.teamId ?? null,
         location: locationRef.current ?? reservationLocationFields({ useLocation: false, result: null }),
       });
       // Held at once, so a failure below releases it on the server.
@@ -377,7 +386,7 @@ export default function ContinuousCaptureScreen() {
     } finally {
       openingRef.current = false;
     }
-  }, [teamId, userId, persistLive, syncFromNative, pump, releaseSession, clearStartTimer]);
+  }, [userId, persistLive, syncFromNative, pump, releaseSession, clearStartTimer]);
 
   // Live segment stream + start/stop events.
   useEffect(() => {
@@ -454,6 +463,7 @@ export default function ContinuousCaptureScreen() {
           recordingIdRef.current = live.recordingId;
           declaredRef.current = live.declared;
           clientLimitationsRef.current = new Set(live.clientLimitations);
+          destinationRef.current = live.workspace ?? null;
           if (decision ? decision.kind === "reattach" : native.active && !native.stale) {
             dispatch({ type: "STARTED" });
             dispatch({ type: "SEGMENT_UPLOADED", uploaded: live.declared.length });
@@ -514,6 +524,13 @@ export default function ContinuousCaptureScreen() {
 
   const start = useCallback(
     async (opts: { notificationAcknowledged?: boolean } = {}) => {
+      const target = confirmedWorkspace(workspace);
+      if (!target) {
+        toast.addToast(WORKSPACE_UNCONFIRMED_MESSAGE, "error");
+        refreshPlatformContext();
+        return;
+      }
+      destinationRef.current = target;
       setBusy(true);
       try {
         resetStreamRefs();
@@ -600,7 +617,7 @@ export default function ContinuousCaptureScreen() {
         setBusy(false);
       }
     },
-    [resetStreamRefs, openServerSession, releaseSession, clearStartTimer, useLocation, locationRequired, microphone, isIOS],
+    [resetStreamRefs, openServerSession, releaseSession, clearStartTimer, useLocation, locationRequired, microphone, isIOS, workspace, toast],
   );
 
   /** Stop (or adopt an already-ended recording) and show the reconciled summary. */
@@ -817,9 +834,15 @@ export default function ContinuousCaptureScreen() {
       // draft carries the location CHOICE (it used to say false for every
       // recording, and resume then switched the toggle off).
       const previous = await findCaptureSession({ captureSessionId: active.session.captureSessionId }).catch(() => null);
+      // A recording recovered after a restart holds its session's workspace on
+      // the server, but this screen may not know it. With nothing confirmed no
+      // draft is opened: the session itself is the record Capture finishes.
+      const target = destinationRef.current ?? previous?.workspace ?? confirmedWorkspace(workspace);
       const draftId = previous?.draftId
         ? previous.draftId
-        : ((await openCaptureDraft({ items: [item], teamId, useLocation: carried.useLocation }).catch(() => null))?.id ?? null);
+        : target
+          ? ((await openCaptureDraft({ items: [item], teamId: target.teamId, useLocation: carried.useLocation }).catch(() => null))?.id ?? null)
+          : null;
       await saveCaptureSession({
         draftId,
         captureSessionId: active.session.captureSessionId,
@@ -846,6 +869,7 @@ export default function ContinuousCaptureScreen() {
         acquisition: { mode, manifestJson: staged.manifestJson },
         location: carried,
         linkGroupId: linkGroup,
+        workspace: target,
       });
       if (linkGroup) {
         await registerLinkedRecord(linkGroup, captureRecordKey({ captureSessionId: active.session.captureSessionId, draftId })).catch(
@@ -879,7 +903,7 @@ export default function ContinuousCaptureScreen() {
         message: detail ? `${CONTINUOUS_STAGE_FAILURE[step]} (${detail})` : CONTINUOUS_STAGE_FAILURE[step],
       });
     }
-  }, [drainUploads, toast, persistLive, teamId, linkGroup]);
+  }, [drainUploads, toast, persistLive, workspace, linkGroup]);
 
   const reset = useCallback(async () => {
     // Discard / Try Again / a new recording: an opened-but-unstaged session is
@@ -1070,10 +1094,11 @@ export default function ContinuousCaptureScreen() {
             <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="How screen capture works" onPress={() => router.push("/legal/screen-capture")}>
               How screen capture works
             </ProovraText>
+            <CaptureDestination workspace={workspace} />
             <ProovraButton
               label="Start Continuous Capture"
               loading={busy}
-              disabled={locationRequired && !useLocation}
+              disabled={(locationRequired && !useLocation) || workspace.state !== "resolved"}
               onPress={() => void start()}
             />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />

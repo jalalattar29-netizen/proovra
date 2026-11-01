@@ -208,6 +208,8 @@ export interface DraftSnapshotItem {
 export interface CaptureDraftDetail {
   id: string;
   status: string;
+  /** The draft's workspace: null is Personal, undefined an older server that does not say. */
+  teamId?: string | null;
   templateId: string | null;
   templateName: string | null;
   planMode: "FLEXIBLE" | "CHECKLIST_REQUIRED" | null;
@@ -247,6 +249,7 @@ export function parseCaptureDraft(raw: unknown): CaptureDraftDetail | null {
   return {
     id,
     status: text(s.status) ?? "DRAFT",
+    ...("teamId" in s ? { teamId: text(s.teamId) } : {}),
     templateId: text(s.templateId),
     templateName: text(s.templateName),
     planMode,

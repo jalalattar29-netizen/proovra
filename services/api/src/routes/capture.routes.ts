@@ -129,6 +129,7 @@ function toApiSession(s: prismaPkg.CaptureSession) {
   return {
     id: s.id,
     status: s.status,
+    teamId: s.teamId,
     templateId: s.templateId,
     templateVersion: s.templateVersion,
     templateName: s.templateName,
