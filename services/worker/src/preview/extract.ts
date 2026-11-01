@@ -34,10 +34,44 @@ function bufferToDataUrl(
   return `data:${mimeType};base64,${base64}`;
 }
 
+/** Characters no document can print: controls, escape sequences, non-characters. */
+const UNPRINTABLE = /\u001b\[[0-9;?]*[ -/]*[@-~]|[\u0000-\u0008\u000b\u000e-\u001f\u007f-\u009f\ufffe\uffff]/g;
+
 function safeTextExcerpt(text: string, max = 500): string {
-  const clean = text.replace(/\s+/g, " ").trim();
+  const clean = text.replace(UNPRINTABLE, " ").replace(/\s+/g, " ").trim();
   if (!clean) return "";
-  return clean.length > max ? clean.slice(0, max) + "…" : clean;
+  if (clean.length <= max) return clean;
+  // Never end on half of a surrogate pair.
+  return clean.slice(0, max).replace(/[\ud800-\udbff]$/, "") + "…";
+}
+
+/** Enough to tell what a file is, and more than an excerpt ever shows. */
+const TEXT_SNIFF_BYTES = 64 * 1024;
+/** A legacy single-byte file keeps its line controls; beyond this it is not prose. */
+const MAX_CONTROL_RATIO = 0.02;
+
+/**
+ * IS THIS TEXT (RT-018). A declared type is the submitter's claim, and the bytes
+ * decide what a report may print. UTF-16 is recognised by its mark and UTF-8 by
+ * decoding strictly; a file that is neither but is mostly printable is treated
+ * as a legacy single-byte text, the common case for older exports. A NUL or a
+ * run of controls is binary, and a binary file gets no excerpt at all.
+ */
+function decodeTextEvidence(buffer: Buffer): string | null {
+  const sample = buffer.subarray(0, TEXT_SNIFF_BYTES);
+  if (sample.length === 0) return "";
+  if (sample[0] === 0xff && sample[1] === 0xfe) return new TextDecoder("utf-16le").decode(sample);
+  if (sample[0] === 0xfe && sample[1] === 0xff) return new TextDecoder("utf-16be").decode(sample);
+  if (sample.includes(0)) return null;
+  try {
+    // `stream` so a character cut at the sample's end is not a decoding error.
+    return new TextDecoder("utf-8", { fatal: true }).decode(sample, { stream: true });
+  } catch {
+    let controls = 0;
+    for (const byte of sample) if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0c && byte !== 0x0d) controls += 1;
+    if (controls / sample.length > MAX_CONTROL_RATIO) return null;
+    return new TextDecoder("windows-1252").decode(sample);
+  }
 }
 
 function extensionFromMimeType(mimeType: string | null): string {
@@ -383,7 +417,20 @@ async function extractTextPreview(
   buffer: Buffer
 ): Promise<ExtractedPreview> {
   try {
-    const text = buffer.toString("utf8");
+    const text = decodeTextEvidence(buffer);
+    if (text === null) {
+      return {
+        previewDataUrl: await buildReviewerRepresentationCard({
+          eyebrow: "Evidence file",
+          title: "Binary content",
+          subtitle:
+            "This file was declared as text, but its bytes are not readable text, so no excerpt is shown.",
+          accent: "#475467",
+        }),
+        previewTextExcerpt: null,
+        previewCaption: "Binary content, no text excerpt",
+      };
+    }
     const excerpt = safeTextExcerpt(text);
     const reviewCard = await buildReviewerRepresentationCard({
       eyebrow: "Text evidence",

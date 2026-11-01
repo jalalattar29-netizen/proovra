@@ -2111,6 +2111,17 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     }
   });
 
+  it("RT-018: a record whose report the layout gate refused can be retried once the cause is fixed: one report, the refusal kept as history", async () => {
+    const ev = await failedFirstIssuance();
+    await prisma.reportGenerationRequest.update({ where: { id: ev.failedId }, data: { terminalReasonCode: "REPORT_OUTPUT_INCONSISTENT" } });
+    const owner = harness.fixtures.teamA.ownerUserId;
+    const loaded = await recordActions(ev.evidenceId, owner);
+    expect(loaded.actions.report.action).toBe("RETRY");
+    const r = await recordRetry(ev.evidenceId, owner);
+    expect(r.kind, JSON.stringify(r)).toBe("accepted");
+    expect(await requestCount(ev.evidenceId)).toBe(2);
+  });
+
   it("RECORD RETRY of the PACKAGE: report v1 stands, its exhausted technical package failure is retried package-only", async () => {
     const { evidenceId, teamId } = await signedEvidence();
     const first = await request({ evidenceId, teamId });

@@ -928,19 +928,27 @@ letter-spacing: -0.005em;
       background: #f8fafc;
     }
 
-    .gallery-thumb-text {
+    /*
+     * RT-018 — a text card takes the height its excerpt needs. A bounded number
+     * of characters is not a bounded height: 500 CJK or emoji characters run
+     * more than twice as tall as 500 Latin ones, and a fixed box cut them, which
+     * the layout audit rightly refuses. So the box grows and nothing is clipped.
+     */
+    .gallery-thumb.gallery-thumb-text,
+    .primary-evidence-preview .gallery-thumb.gallery-thumb-text {
       align-items: stretch;
       justify-content: stretch;
+      height: auto;
+      min-height: 154px;
+      overflow: visible;
     }
 
     .gallery-thumb-text-inner {
       width: 100%;
-      height: 100%;
       padding: 12px;
       display: flex;
       flex-direction: column;
       gap: 7px;
-      overflow: hidden;
       background: ${c.white};
     }
 
@@ -959,7 +967,6 @@ letter-spacing: -0.005em;
       white-space: pre-wrap;
       word-break: break-word;
       overflow-wrap: anywhere;
-      overflow: hidden;
     }
 
     .gallery-thumb-placeholder {
