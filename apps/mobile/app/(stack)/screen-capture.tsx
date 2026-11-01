@@ -19,6 +19,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
+import { PERSONAL_SPACE_UNAVAILABLE_MESSAGE, PERSONAL_SPACE_UNAVAILABLE_TITLE } from "../../src/personal-space";
 import {
   WORKSPACE_UNCONFIRMED_MESSAGE,
   confirmedWorkspace,
@@ -419,7 +420,7 @@ export default function ScreenCaptureScreen() {
   if (!personalSpace.allowed) {
     return (
       <ProovraScreen scroll={false}>
-        <ProovraEmptyState title="Not available here" message="Direct Screen Capture is available in your Personal Space on this device." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
+        <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
       </ProovraScreen>
     );
   }

@@ -11,11 +11,9 @@
  * /v1/evidence/:id/parts, /v1/evidence/:id/complete) is independently
  * enforced there regardless of what this module decides to render.
  *
- * The citizen-capture mobile app has no workspace switcher and no concept
- * of an "Organization workspace" target — unlike web, there is no
- * alternative context to heal into. When Personal Space is disallowed the
- * ONLY honest client behavior is to block capture and explain why; NEVER a
- * silent Personal fallback.
+ * When Personal Space is disallowed and it is the active space, the ONLY honest
+ * client behavior is to block capture and explain why; NEVER a silent Personal
+ * fallback. Capture in an organization workspace is not affected.
  */
 
 export type MobilePlatformContextEnvelope = {
@@ -41,8 +39,7 @@ export const PERSONAL_SPACE_UNAVAILABLE_MESSAGE =
 
 /**
  * PHASE 10 CLOSURE FIX 3 (2026-07-23) — mobile mirror of the web dirty-work
- * guard (usePersonalSpaceGate). The citizen-capture app has no workspace
- * switcher, so there is no automatic switch to block — but a policy flip to
+ * guard (usePersonalSpaceGate). A policy flip to
  * disallowed WHILE a capture session is active must NOT rip the in-progress
  * local draft off the screen. Behavior E: preserve the local draft safely;
  * never a silent fallback.

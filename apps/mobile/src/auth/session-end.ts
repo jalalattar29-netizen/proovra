@@ -45,6 +45,9 @@ export function requiresOrganizationSso(reason: unknown): boolean {
 export const ORGANIZATION_SSO_NOTICE =
   "This organization requires its single sign-on, which the PROOVRA app does not offer. Sign in through your organization in a web browser.";
 
+export const ORGANIZATION_SSO_SIGN_IN_NOTE =
+  "Does your organization use single sign-on? This app does not offer it yet. Sign in through your organization in a web browser.";
+
 /**
  * A switch refused by the target organization's rules, in words the member can
  * act on. The refusal's own sentence says they are not a member, which is true of

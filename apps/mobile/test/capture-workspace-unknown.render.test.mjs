@@ -29,7 +29,11 @@ let personal = false;
 const PERSONAL_ENVELOPE = platformContextEnvelope({
   activeSpace: { id: null, type: "PERSONAL", plan: "FREE", displayName: "Personal Space" },
 });
-const envelope = () => (personal ? PERSONAL_ENVELOPE : platformContextEnvelope());
+let managed = false;
+const envelope = () => ({
+  ...(personal ? PERSONAL_ENVELOPE : platformContextEnvelope()),
+  personalSpaceAllowed: !managed,
+});
 
 const FRAME = { uri: "file:///cache/f0.png", frameIndex: 0, widthPx: 1080, heightPx: 2400, capturedAtOffsetMs: 0 };
 const NATIVE_RESULT = {
@@ -72,6 +76,7 @@ beforeEach(async () => {
   requests = [];
   contextUp = true;
   personal = false;
+  managed = false;
   globalThis.__RN_OS__ = "android";
   globalThis.__RN_VERSION__ = 34;
   globalThis.__PERMISSION_RESULT__ = "granted";
@@ -252,4 +257,23 @@ test("positive control: Continuous Capture names the workspace it started in", a
   await settle();
   assert.equal(opens().length, 1);
   assert.equal(opens()[0].body.teamId, TEST_TEAM_ID);
+});
+
+test("a managed member with no Personal Space can capture in their organization", async () => {
+  managed = true;
+  const r = await render(Capture);
+  assert.equal(r.byTestId("personal-space-blocked").length, 0);
+  assert.ok(r.hasText("Saving to Test Workspace"));
+  const s = await render(Screen);
+  assert.equal(s.hasText("Personal Space unavailable"), false);
+  assert.equal(s.byLabel("Start Screen Capture").length > 0, true);
+});
+
+test("negative control: in Personal, with Personal disallowed, capture is blocked and says why", async () => {
+  managed = true;
+  personal = true;
+  const r = await render(Capture);
+  assert.equal(r.byTestId("personal-space-blocked").length, 1);
+  const s = await render(Screen);
+  assert.ok(s.hasText("Personal Space unavailable"));
 });

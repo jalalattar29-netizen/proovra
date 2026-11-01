@@ -19,6 +19,9 @@ export type PersonalSpaceAllowedState = {
 
 export function usePersonalSpaceAllowed(): PersonalSpaceAllowedState {
   const { loading, context } = usePlatformContext();
-  // Only an explicit server `personalSpaceAllowed === false` blocks this hint.
-  return { loading, allowed: context ? context.personalSpaceAllowed : true };
+  // Only an explicit server `personalSpaceAllowed === false` blocks this hint, and
+  // only in the Personal Space it is about. A managed member working in their
+  // organization files there, which is exactly what the policy wants.
+  const inOrganization = context?.activeSpaceType === "ORGANIZATION";
+  return { loading, allowed: context ? context.personalSpaceAllowed || inOrganization : true };
 }
