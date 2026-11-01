@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
+import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { AppError, ErrorCode } from "../errors.js";
 // A-3 closure — legacy in-memory `apiKeyService` import retired.
@@ -252,40 +253,21 @@ async function getRealQuotas(userId: string) {
     },
   });
 
-  let teamMembersUsed = 0;
+  // BILLING-010 — the seats shown are the seats enforced: the ONE seat answer for
+  // the workspace in use. This read a personal entitlement or an env default,
+  // counted the owner and ignored the contract, so a 400-seat owner saw "x / 10"
+  // beside the real Billing page.
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { currentWorkspaceId: true },
+  });
+  const seats = current?.currentWorkspaceId
+    ? await resolveWorkspaceSeatState(current.currentWorkspaceId, prisma)
+    : null;
 
-  try {
-    // PHASE 12 REMEDIATION — COMM-001 family (2026-08-06). Quota usage must
-    // reflect REAL occupancy; a revoked member consumes no seat.
-    teamMembersUsed = await prisma.teamMember.count({
-      where: {
-        status: "ACTIVE",
-        team: {
-          ownerUserId: userId,
-        },
-      },
-    });
-  } catch {
-    teamMembersUsed = 0;
-  }
-  
   const analysesLimit = readIntEnv("QUOTA_ANALYSES_MONTHLY_LIMIT", 10000);
   const batchJobsLimit = readIntEnv("QUOTA_BATCH_JOBS_LIMIT", 100);
   const apiKeysLimit = readIntEnv("QUOTA_API_KEYS_LIMIT", 50);
-  const activeEntitlement = await prisma.entitlement.findFirst({
-  where: {
-    userId,
-    active: true,
-  },
-  orderBy: {
-    createdAt: "desc",
-  },
-});
-
-const teamMembersLimit =
-  activeEntitlement?.teamSeats && activeEntitlement.teamSeats > 0
-    ? activeEntitlement.teamSeats
-    : readIntEnv("QUOTA_TEAM_MEMBERS_LIMIT", 10);
 
   return {
     analyses: {
@@ -305,9 +287,11 @@ const teamMembersLimit =
       remaining: clampRemaining(apiKeysLimit, apiKeysUsed),
     },
     teamMembers: {
-      limit: teamMembersLimit,
-      used: teamMembersUsed,
-      remaining: clampRemaining(teamMembersLimit, teamMembersUsed),
+      // Null when nothing bounds the workspace as a whole: capacity is then per
+      // Collaboration Team, and the page says so instead of inventing a number.
+      limit: seats?.limit ?? null,
+      used: seats?.used ?? 0,
+      remaining: seats?.remaining ?? null,
     },
   };
 }

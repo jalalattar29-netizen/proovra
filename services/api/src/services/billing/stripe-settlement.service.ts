@@ -585,10 +585,23 @@ export async function applyStripeChargeAdverseEvent(input: {
     if (!payment) return { outcome: "UNATTRIBUTED" };
     const lost = dispute.status === "lost";
     const won = dispute.status === "won";
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { disputeStatus: lost ? "LOST" : won ? "WON" : "OPEN" },
-    });
+    // BILLING-012 — Stripe does not promise order. A created event arriving after
+    // the close must not reopen a settled dispute or raise a review of it.
+    if (lost || won) {
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { disputeStatus: lost ? "LOST" : "WON" },
+      });
+    } else {
+      const opened = await prisma.payment.updateMany({
+        where: {
+          id: payment.id,
+          OR: [{ disputeStatus: null }, { disputeStatus: { notIn: ["LOST", "WON"] } }],
+        },
+        data: { disputeStatus: "OPEN" },
+      });
+      if (opened.count === 0) return { outcome: "APPLIED", product: payment.product, reversed: false };
+    }
     await recordBillingReviewItem({
       userId: payment.userId,
       provider: STRIPE,

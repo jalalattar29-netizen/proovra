@@ -798,6 +798,11 @@ export async function webhooksRoutes(app: FastifyInstance) {
               },
             });
           } catch (err) {
+            // BILLING-013 — only a policy refusal is ignored, and it carries an
+            // HTTP status. Anything else, a database failure among them, must
+            // not mark the event PROCESSED: PayPal would never redeliver it.
+            const refusal = (err as { statusCode?: number })?.statusCode;
+            if (typeof refusal !== "number" || refusal >= 500) throw err;
             req.log.warn(
               {
                 err,
