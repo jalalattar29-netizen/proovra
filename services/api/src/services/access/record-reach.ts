@@ -130,6 +130,35 @@ export async function hiddenWorkflowIdsInWorkspace(
   return rows.map((r) => r.id);
 }
 
+/** True when this record exists and a restricted case closes it to the caller. */
+export async function evidenceClosedTo(
+  evidenceId: string,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "evidence"> = defaultPrisma,
+): Promise<boolean> {
+  const closed = await client.evidence.count({
+    where: { id: evidenceId, NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
+  });
+  return closed > 0;
+}
+
+/** True when this case exists and is restricted away from the caller. */
+export async function caseClosedTo(
+  caseId: string,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "case"> = defaultPrisma,
+): Promise<boolean> {
+  const closed = await client.case.count({
+    where: { id: caseId, NOT: caseVisibleToWhere(callerUserId) },
+  });
+  return closed > 0;
+}
+
+/** Keep a record list to what the caller may open, for a list stored as JSON ids. */
+export function allOpen(ids: readonly string[], closedIds: readonly string[]): boolean {
+  return !ids.some((id) => closedIds.includes(id));
+}
+
 export async function accessibleWorkspaceIdsFor(
   userId: string,
   client: PrismaClient = defaultPrisma,

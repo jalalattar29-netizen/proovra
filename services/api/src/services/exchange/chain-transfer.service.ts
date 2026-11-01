@@ -17,6 +17,8 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { appendCustodyEventTx, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { allOpen, hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
   CHAIN_TRANSFER_STATES,
   type ChainTransferProjection,
@@ -164,7 +166,11 @@ export async function initiateChainTransfer(
   const evidenceIds = [...new Set(input.evidenceIds)];
   const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   const owned = await prisma.evidence.count({
-    where: { AND: [scope], id: { in: evidenceIds }, deletedAt: null },
+    where: {
+      AND: [scope, evidenceVisibleThroughCasesWhere(input.initiatedByUserId)],
+      id: { in: evidenceIds },
+      deletedAt: null,
+    },
   });
   if (owned !== evidenceIds.length) return { ok: false, denial: "INVALID_EVIDENCE" };
 
@@ -222,6 +228,23 @@ export type AcceptChainTransferInput = {
 export type AcceptChainTransferResult =
   | { ok: true }
   | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" };
+
+/** May this caller act on this transfer? False when it does not exist too. */
+export async function chainTransferOpenTo(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  transferId: string;
+  userId: string;
+}): Promise<boolean> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const row = await prisma.chainTransfer.findFirst({
+    where: { id: input.transferId, teamId: input.teamId },
+    select: { evidenceIds: true },
+  });
+  if (!row) return false;
+  const closed = await hiddenRecordIdsInWorkspace(input.teamId, input.userId, prisma);
+  return allOpen(Array.isArray(row.evidenceIds) ? (row.evidenceIds as string[]) : [], closed.evidenceIds);
+}
 
 export async function acceptChainTransfer(
   input: AcceptChainTransferInput,
@@ -425,6 +448,8 @@ export async function completeChainTransfer(
 export type ListChainTransfersInput = {
   prisma?: PrismaClient;
   teamId: string;
+  /** The reader: a transfer of a record closed to them is not listed. */
+  viewerUserId: string;
   state?: ChainTransferState;
 };
 
@@ -432,14 +457,17 @@ export async function listChainTransfers(
   input: ListChainTransfersInput,
 ): Promise<ReadonlyArray<ChainTransferProjection>> {
   const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.chainTransfer.findMany({
-    where: {
-      teamId: input.teamId,
-      ...(input.state ? { state: input.state } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const closed = await hiddenRecordIdsInWorkspace(input.teamId, input.viewerUserId, prisma);
+  const rows = (
+    await prisma.chainTransfer.findMany({
+      where: {
+        teamId: input.teamId,
+        ...(input.state ? { state: input.state } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    })
+  ).filter((r) => allOpen(Array.isArray(r.evidenceIds) ? (r.evidenceIds as string[]) : [], closed.evidenceIds));
   return rows.map((r) => ({
     id: r.id,
     teamId: r.teamId,

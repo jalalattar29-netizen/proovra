@@ -842,7 +842,7 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
       let evidenceIds: string[] = [];
       async function revisions(caseId: string, teamId: string) {
         const { loadEvidenceAnalysisSnapshots } = await import("../src/services/ai/evidence-analysis-snapshot.service.js");
-        const snaps = await loadEvidenceAnalysisSnapshots({ ids: evidenceIds, teamId, scope: { scope: "case", scopeId: caseId } });
+        const snaps = await loadEvidenceAnalysisSnapshots({ viewerUserId: "00000000-0000-4000-8000-000000000000", ids: evidenceIds, teamId, scope: { scope: "case", scopeId: caseId } });
         return Object.fromEntries(snaps.map((s) => [s.row.id, s.revision]));
       }
 

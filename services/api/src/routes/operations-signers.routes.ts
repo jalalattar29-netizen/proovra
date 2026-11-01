@@ -17,6 +17,7 @@
  *   GET  /v1/evidence/:evidenceId/custody/attestations
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -62,6 +63,7 @@ import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
  */
 
 export async function operationsSignersRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // -------------------------------------------------------------------
   // Listing
   // -------------------------------------------------------------------

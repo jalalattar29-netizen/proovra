@@ -40,6 +40,7 @@
  * GET /public/verify/:id (`redaction` key). See the note where it lived.
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -425,6 +426,7 @@ async function gate(
 // ---------------------------------------------------------------------------
 
 export async function redactionRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // -------------------------------------------------------------------------
   // Reviewer-workspace integration — bounded summary endpoint that the
   // Reviewer landing page consumes for the redaction tile. NEVER per-

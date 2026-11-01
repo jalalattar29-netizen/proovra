@@ -61,7 +61,7 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
   async function person(role: Role): Promise<Person> {
     const email = `crm-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({
-      data: { email, provider: "EMAIL", providerUserId: email },
+      data: { email, provider: "EMAIL", providerUserId: email, currentWorkspaceId: A().teamId } as never,
       select: { id: true },
     });
     await prisma.userLegalAcceptance.createMany({
@@ -696,6 +696,211 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       };
       const security = Object.values(body.sections).filter((s) => s?.anomalies !== undefined);
       for (const s of security) expect(s.anomalies).toEqual([]);
+    });
+  });
+
+  // ===========================================================================
+  // The sweep's concealed-record routes: real data about a record /v1/evidence
+  // hides from the same caller.
+  // ===========================================================================
+  describe("concealed-record routes", () => {
+    const concealed = () => [
+      `/v1/provenance/${hiddenId}?${teamQ()}`,
+      `/v1/evidence/${hiddenId}/media-intelligence?${teamQ()}`,
+      `/v1/evidence/${hiddenId}/governance-snapshot?${teamQ()}`,
+      `/v1/evidence/${hiddenId}/operational-timeline?${teamQ()}`,
+      `/v1/governance/evidence/${hiddenId}/status?${teamQ()}`,
+      `/v1/governance/evidence/${hiddenId}/holds?${teamQ()}`,
+      `/v1/governance/evidence/${hiddenId}/is-held?${teamQ()}`,
+      `/v1/intelligence/evidence/${hiddenId}?${teamQ()}`,
+    ];
+
+    it("each is 404 for off-list actors, and open for the listed member", async () => {
+      for (const who of [off, offViewer, offAdmin]) {
+        for (const url of concealed()) {
+          const r = await get(url, who);
+          expect(r.statusCode, `${url}: ${r.body}`).toBe(404);
+        }
+      }
+      for (const url of [
+        `/v1/evidence/${hiddenId}/media-intelligence?${teamQ()}`,
+        `/v1/governance/evidence/${hiddenId}/status?${teamQ()}`,
+        `/v1/governance/evidence/${hiddenId}/is-held?${teamQ()}`,
+      ]) {
+        const r = await get(url, listed);
+        expect(r.statusCode, `${url}: ${r.body}`).toBe(200);
+      }
+    });
+
+    it("a read that answers an unknown id as empty answers a closed record the same", async () => {
+      for (const path of [
+        `/v1/intelligence/evidence/ID/records`,
+        `/v1/intelligence/evidence/ID/corrections`,
+      ]) {
+        const closed = await get(`${path.replace("ID", hiddenId)}?${teamQ()}`, offAdmin);
+        const unknown = await get(`${path.replace("ID", randomUUID())}?${teamQ()}`, offAdmin);
+        expect(closed.statusCode, closed.body).toBe(unknown.statusCode);
+        expect(closed.json()).toEqual(unknown.json());
+      }
+    });
+
+    it("investigation overview and reviewers name nothing closed and do not count it", async () => {
+      const signal = randomUUID();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "media_intelligence_signals"
+           ("id", "team_id", "evidence_id", "signal_type", "severity", "confidence", "status", "safe_summary")
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'EXIF_MISSING', 'ATTENTION', 'HIGH', 'PENDING', 'sentinel signal')`,
+        signal,
+        A().teamId,
+        hiddenId,
+      );
+      const theirs = await get(`/v1/investigation/overview?${teamQ()}`, off);
+      expect(theirs.statusCode, theirs.body).toBe(200);
+      absent(theirs.body);
+      const mine = await get(`/v1/investigation/overview?${teamQ()}`, listed);
+      expect(mine.body).toContain(hiddenId);
+      const reviewers = await get(`/v1/investigation/reviewers?${teamQ()}`, off);
+      expect(reviewers.statusCode, reviewers.body).toBe(200);
+      absent(reviewers.body);
+
+      const blocked = await post(`/v1/media-intelligence/signals/${signal}/action`, off, {
+        teamId: A().teamId,
+        action: "ACKNOWLEDGED",
+      });
+      expect(blocked.statusCode, blocked.body).toBe(404);
+    });
+
+    it("intelligence records by their own id are closed with their evidence", async () => {
+      const row = await prisma.mediaIntelligenceRecord.findFirst({ where: { evidenceId: hiddenId } });
+      if (!row) return;
+      expect((await get(`/v1/intelligence/records/${row.id}?${teamQ()}`, off)).statusCode).toBe(404);
+    });
+
+    it("cross-evidence findings drop a closed record's values and counts", async () => {
+      const value = `sentinel-entity-${tag()}`;
+      for (const evidenceId of [hiddenId, visibleId]) {
+        await prisma.evidenceEntity.create({
+          data: {
+            teamId: A().teamId,
+            evidenceId,
+            kind: "EMAIL",
+            value,
+            normalizedValue: value,
+            confidence: 0.9,
+            source: "OCR",
+          } as never,
+        });
+      }
+      const theirs = await get(`/v1/investigation/cross-evidence?${teamQ()}`, offAdmin);
+      expect(theirs.statusCode, theirs.body).toBe(200);
+      expect(theirs.body).not.toContain(value);
+      absent(theirs.body);
+      expect((await get(`/v1/investigation/cross-evidence?${teamQ()}`, listed)).body).toContain(value);
+    });
+
+    it("the reports list omits the closed record (sweep R3)", async () => {
+      const r = await get(`/v1/reports/artifacts?${teamQ()}`, off);
+      expect(r.statusCode, r.body).toBe(200);
+      absent(r.body);
+    });
+  });
+
+  // ===========================================================================
+  // AUTHZ-002 — exchange, AI, requests, machine paths
+  // ===========================================================================
+  describe("AUTHZ-002: exchange", () => {
+    it("a package or transfer cannot be opened on a closed record; nothing is written", async () => {
+      const before = await prisma.evidenceExchangePackage.count({ where: { teamId: A().teamId } });
+      const res = await post(`/v1/exchange/packages?${teamQ()}`, offAdmin, {
+        teamId: A().teamId,
+        kind: "EVIDENCE",
+        evidenceIds: [hiddenId],
+      });
+      expect([400, 403, 404, 409, 422], res.body).toContain(res.statusCode);
+      expect(await prisma.evidenceExchangePackage.count({ where: { teamId: A().teamId } })).toBe(before);
+    });
+
+    it("a package holding a closed record is not listed and every id route conceals it", async () => {
+      const pkg = await prisma.evidenceExchangePackage.create({
+        data: {
+          teamId: A().teamId,
+          kind: "EVIDENCE",
+          state: "READY",
+          evidenceIds: [hiddenId] as never,
+          createdByUserId: listed.id,
+        } as never,
+      });
+      const list = await get(`/v1/exchange/packages?${teamQ()}`, offAdmin);
+      expect(list.statusCode, list.body).toBe(200);
+      expect(list.body).not.toContain(pkg.id);
+      const deliveries = await get(`/v1/exchange/packages/${pkg.id}/deliveries?${teamQ()}`, offAdmin);
+      expect(deliveries.statusCode, deliveries.body).toBe(404);
+      const sign = await post(`/v1/exchange/packages/${pkg.id}/sign-url?${teamQ()}`, offAdmin, {});
+      expect(sign.statusCode, sign.body).toBe(404);
+      expect((await get(`/v1/exchange/packages?${teamQ()}`, listed)).body).toContain(pkg.id);
+    });
+  });
+
+  describe("AUTHZ-002: AI copilots never receive closed records", () => {
+    it("case, evidence and reviewer copilots answer as for a missing record, before any provider", async () => {
+      const refused = async (url: string, body: unknown) => {
+        const r = await post(url, offAdmin, body);
+        expect([403, 404], `${url}: ${r.body}`).toContain(r.statusCode);
+        expect(r.body).not.toContain(RESTRICTED_NAME);
+      };
+      await refused(`/v1/ai/case/${restrictedCaseId}/copilot`, {
+        selectedEvidenceIds: [hiddenId],
+        selectedEvidenceRevisions: { [hiddenId]: "x" },
+      });
+      await refused(`/v1/ai/evidence/${hiddenId}/copilot`, { evidenceRevision: "x" });
+      await refused(`/v1/ai/case/${openCaseId}/copilot`, {
+        selectedEvidenceIds: [sharedId],
+        selectedEvidenceRevisions: { [sharedId]: "x" },
+      });
+    });
+  });
+
+  describe("AUTHZ-002: machine paths see only unrestricted records (AZ-R04)", () => {
+    it("the record rule with no caller closes a restricted record and leaves an open one", async () => {
+      expect(await reachModule.evidenceClosedTo(hiddenId, null)).toBe(true);
+      expect(await reachModule.evidenceClosedTo(visibleId, null)).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // GOV-017 — destruction and hold previews
+  // ===========================================================================
+  describe("GOV-017: governance reviews and holds", () => {
+    it("a review of a closed record is concealed, list and id; the listed member sees it", async () => {
+      const review = await prisma.destructionReview.create({
+        data: {
+          teamId: A().teamId,
+          evidenceId: hiddenId,
+          status: "PENDING",
+          reason: "manual_review",
+          initiatedByUserId: A().ownerUserId,
+        } as never,
+      });
+      for (const url of [
+        `/v1/governance/destruction-reviews/${review.id}?${teamQ()}`,
+        `/v1/governance/destruction-reviews/${review.id}/preview?${teamQ()}`,
+        `/v1/governance/destruction-reviews/${review.id}/certificate?${teamQ()}`,
+      ]) {
+        const r = await get(url, off);
+        expect(r.statusCode, `${url}: ${r.body}`).toBe(404);
+      }
+      const list = await get(`/v1/governance/destruction-reviews?${teamQ()}&status=ALL`, offAdmin);
+      expect(list.body).not.toContain(review.id);
+      const mine = await get(`/v1/governance/destruction-reviews/${review.id}/preview?${teamQ()}`, listed);
+      expect(mine.statusCode, mine.body).toBe(200);
+      expect(mine.body).toContain(HIDDEN_FILE);
+    });
+
+    it("the legal hold list omits a closed record's hold", async () => {
+      const r = await get(`/v1/governance/legal-holds?${teamQ()}`, off);
+      expect(r.statusCode, r.body).toBe(200);
+      absent(r.body);
+      expect((await get(`/v1/governance/legal-holds?${teamQ()}`, listed)).body).toContain(hiddenId);
     });
   });
 

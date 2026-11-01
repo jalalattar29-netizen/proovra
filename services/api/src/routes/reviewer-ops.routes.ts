@@ -936,6 +936,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               ids: [evidenceId],
               teamId: q.teamId,
               scope: { scope: "reviewer", scopeId: workflowId },
+              viewerUserId: ctx.actorUserId,
             })
           : [];
         return reply.code(200).send({

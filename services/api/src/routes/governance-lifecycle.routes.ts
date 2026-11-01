@@ -32,6 +32,8 @@
  * fields the dashboards must not see.
  */
 
+import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -156,6 +158,15 @@ const ParamsId = z.object({ id: z.string().uuid() });
  * vocabulary. Returns `{ actorUserId }` on allow, `null` (reply already
  * sent) on deny, preserving the `if (!ok) return` fall-through contract.
  */
+/** A review names one record; that record's rule decides who may see the review (GOV-017). */
+async function destructionReviewClosedTo(teamId: string, id: string, userId: string): Promise<boolean> {
+  const review = await prisma.destructionReview.findFirst({
+    where: { id, teamId },
+    select: { evidenceId: true },
+  });
+  return review ? evidenceClosedTo(review.evidenceId, userId) : false;
+}
+
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -227,6 +238,7 @@ function mapLifecycleError(
 }
 
 export async function governanceLifecycleRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ===========================================================================
   // Retention policies
   // ===========================================================================
@@ -460,7 +472,10 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         status: query.status as never,
         limit: query.limit,
       });
-      return reply.code(200).send({ reviews });
+      const closed = await hiddenRecordIdsInWorkspace(query.teamId, ok.actorUserId);
+      return reply
+        .code(200)
+        .send({ reviews: reviews.filter((r) => !closed.evidenceIds.includes(r.evidenceId)) });
     },
   );
 
@@ -480,6 +495,11 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
+      // ACC-12: a workspace role is not reach. A destruction request on a record
+      // the requester cannot open is refused like a record that is not there.
+      if (await evidenceClosedTo(body.evidenceId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       try {
         const review = await createDestructionReview({
           ...body,
@@ -503,6 +523,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const query = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
+      if (await destructionReviewClosedTo(query.teamId, id, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       try {
         const review = await getDestructionReview({ teamId: query.teamId, id });
         return reply.code(200).send({ review });
@@ -561,7 +584,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           updatedAt: true,
         },
       });
-      if (!review) {
+      if (!review || (await evidenceClosedTo(review.evidenceId, ok.actorUserId))) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
@@ -749,6 +772,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
+      if (await destructionReviewClosedTo(query.teamId, id, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
       const review = await prisma.destructionReview.findFirst({
         where: { id, teamId: query.teamId },
@@ -884,6 +910,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
       if (!ok) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
+      if (await destructionReviewClosedTo(body.teamId, id, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       // Step-up required for APPROVED + EXECUTED (the destructive
       // branches). The other transitions are operator-recoverable.
       if (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") {
@@ -1035,6 +1064,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // personal workspace (2026-09-29): answered for the PERSISTED value, as
       // the download gate decides it, instead of "not found" for the id the
       // client scoped the request to.
+      if (await evidenceClosedTo(query.evidenceId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const row = await prisma.evidence.findUnique({
         where: { id: query.evidenceId },
         select: { teamId: true, ownerUserId: true },

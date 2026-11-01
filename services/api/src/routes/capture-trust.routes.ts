@@ -45,6 +45,7 @@
  *     storage keys.
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -272,6 +273,7 @@ const DIRECT_SESSION_OPEN_LIMIT_PER_MIN = 30;
 // =============================================================================
 
 export async function captureTrustRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ---------------------------------------------------------------------------
   // POST /v1/capture/devices — register a workspace-bound device
   // ---------------------------------------------------------------------------

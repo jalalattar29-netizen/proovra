@@ -10796,6 +10796,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               ids: [id],
               teamId: evidence.teamId,
               scope: { scope: "evidence", scopeId: null },
+              viewerUserId: ownerUserId,
             })
           : [];
         // ONE hold lookup for this response, resolved before the reply is

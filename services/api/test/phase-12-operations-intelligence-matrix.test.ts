@@ -251,6 +251,8 @@ vi.mock("../src/db.js", () => {
     // The workflow assign decides and writes in ONE transaction (members
     // re-audit B5); the seam runs the callback on itself.
     $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
+    // Record reach is proved on real rows in case-reach-matrix.integration.test.ts.
+    mediaIntelligenceRecord: { findFirst: async () => null },
     // Graph provenance + diagnostics read through raw SQL. The seam answers
     // by TABLE so each read stays independently controllable.
     $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {

@@ -140,7 +140,7 @@ describe("evidence analysis revision — mutations (live PostgreSQL 16)", () => 
 
   /** The revision as the ROUTE would recompute it, for one record. */
   async function currentRevision(id: string): Promise<string | undefined> {
-    const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({
+    const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({ viewerUserId: "00000000-0000-4000-8000-000000000000",
       ids: [id],
       teamId,
       scope: { scope: "case", scopeId: caseId },

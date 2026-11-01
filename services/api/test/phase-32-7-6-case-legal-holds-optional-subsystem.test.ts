@@ -124,7 +124,7 @@ describe("Phase 12 Point 3 — case-legal-holds GET fails CLOSED (degradation re
 
   it("success path returns the projected rows with 200", () => {
     expect(handler).toMatch(
-      /reply\.code\(200\)\.send\(\s*\{\s*caseLegalHolds:\s*rows\s*\}\)/,
+      /reply\.code\(200\)\.send\(\s*\{\s*caseLegalHolds:\s*rows\.filter\(/,
     );
   });
 });

@@ -187,6 +187,8 @@ export type ListCrossEvidenceFindingsInput = {
   teamId: string;
   /** Bounded 1..20 by the route layer; the service clamps defensively. */
   limit?: number;
+  /** Records closed to the reader: their entities neither appear nor count. */
+  closedEvidenceIds: readonly string[];
 };
 
 export async function listCrossEvidenceFindings(
@@ -211,6 +213,7 @@ export async function listCrossEvidenceFindings(
                   SELECT DISTINCT inner_en."evidence_id"::text
                     FROM "evidence_entities" inner_en
                    WHERE inner_en."team_id" = en."team_id"
+                     AND NOT (inner_en."evidence_id" = ANY($3::uuid[]))
                      AND inner_en."kind" = en."kind"
                      AND inner_en."normalized_value" = en."normalized_value"
                    LIMIT 5
@@ -218,6 +221,7 @@ export async function listCrossEvidenceFindings(
               ) AS "sample_evidence_ids"
          FROM "evidence_entities" en
         WHERE en."team_id" = $1
+          AND NOT (en."evidence_id" = ANY($3::uuid[]))
           AND en."normalized_value" IS NOT NULL
         GROUP BY en."team_id", en."kind", en."normalized_value"
         HAVING COUNT(DISTINCT en."evidence_id") > 1
@@ -226,6 +230,7 @@ export async function listCrossEvidenceFindings(
         LIMIT $2`,
       input.teamId,
       limit,
+      [...input.closedEvidenceIds],
     )) as Row[];
     return rows.map((r) => ({
       kind: r.kind,

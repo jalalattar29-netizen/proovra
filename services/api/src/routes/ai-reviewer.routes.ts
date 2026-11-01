@@ -2,6 +2,7 @@
  * Phase D3/D4/D6 — Live Reviewer Copilot route.
  *   POST /v1/ai/reviewer/:reviewId/copilot
  */
+import { evidenceClosedTo } from "../services/access/record-reach.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -86,6 +87,9 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
+    if (await evidenceClosedTo(wf.evidenceId, userId)) {
+      return reply.code(404).send({ error: { code: "review_not_found" } });
+    }
     // Role read for AI-policy + context only; authorization enforced above.
     const membership = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: wf.teamId, userId } },
@@ -98,7 +102,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     // ONE READ, FROZEN — the same authority the Case and Evidence surfaces
     // use, so a reviewer selection cannot be judged by a weaker rule.
     const scope = { scope: "reviewer" as const, scopeId: wf.id };
-    const snapshots = await loadEvidenceAnalysisSnapshots({ ids, teamId, scope });
+    const snapshots = await loadEvidenceAnalysisSnapshots({ ids, teamId, scope, viewerUserId: userId });
     if (snapshots.length !== ids.length) {
       return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
     }
@@ -240,7 +244,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     // TOCTOU CLOSE — the reservation and the criteria load are both round
     // trips, and another writer can commit inside either. Re-read and
     // recompute before anything is spent.
-    const drifted = await findDriftedSnapshot({ snapshots, teamId, scope });
+    const drifted = await findDriftedSnapshot({ snapshots, teamId, scope, viewerUserId: userId });
     if (drifted) {
       if (ledger.reservationId) {
         await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(

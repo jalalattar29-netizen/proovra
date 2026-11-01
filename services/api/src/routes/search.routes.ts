@@ -78,6 +78,7 @@ import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 // path with every other rate-limited route, so a workspace rebuild cannot be
 // throttled by a second, differently-behaved implementation.
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { evidenceClosedTo } from "../services/access/record-reach.js";
 import { searchDocumentReachWhere } from "../services/search/search-reach.js";
 
 function readUserAgent(req: FastifyRequest): string | null {
@@ -622,6 +623,9 @@ export async function searchRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const operator = await requireSearchOperator(req, reply, body.teamId);
       if (!operator) return;
+      if (await evidenceClosedTo(id, operator.userId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const result = await indexEvidence({ teamId: body.teamId, evidenceId: id });
       if (!result.ok) {
         return reply.code(409).send({

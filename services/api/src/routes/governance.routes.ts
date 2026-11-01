@@ -18,6 +18,8 @@
  * permission; read routes pass `governance.policy.read`.
  */
 
+import { caseClosedTo, evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -166,7 +168,21 @@ async function assertReleaseApproval(
   return true;
 }
 
+/** A hold names a record or a case; that rule decides who may act on it (GOV-017). */
+async function legalHoldClosedTo(id: string, teamId: string, userId: string): Promise<boolean> {
+  const hold = await prisma.evidenceLegalHold.findFirst({
+    where: { id, teamId },
+    select: { evidenceId: true, caseId: true },
+  });
+  if (!hold) return false;
+  return (
+    (hold.evidenceId !== null && (await evidenceClosedTo(hold.evidenceId, userId))) ||
+    (hold.caseId !== null && (await caseClosedTo(hold.caseId, userId)))
+  );
+}
+
 export async function governanceRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // GET policy
   //
   // PHASE 12B CLUSTER 9 — the Workspace subject is resolved SERVER-SIDE. The
@@ -397,7 +413,10 @@ export async function governanceRoutes(app: FastifyInstance) {
           status: query.status,
           limit: query.limit,
         });
-        reply.code(200).send({ legalHolds: rows });
+        const closed = await hiddenRecordIdsInWorkspace(query.teamId, ok.actorUserId);
+        reply.code(200).send({
+          legalHolds: rows.filter((h) => !closed.evidenceIds.includes(h.evidenceId as string)),
+        });
       });
     },
   );
@@ -418,6 +437,12 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (
+        (await evidenceClosedTo(body.evidenceId, ok.actorUserId)) ||
+        (body.caseId && (await caseClosedTo(body.caseId, ok.actorUserId)))
+      ) {
+        return reply.code(404).send({ error: { code: "evidence_not_found" } });
+      }
 
       /*
        * THE COMMERCIAL GATE THIS ROUTE NEVER HAD (2026-09-08).
@@ -518,6 +543,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (await legalHoldClosedTo(id, body.teamId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
       const approval = await assertReleaseApproval(
         reply,
@@ -598,7 +626,10 @@ export async function governanceRoutes(app: FastifyInstance) {
           status: query.status,
           limit: query.limit,
         });
-        reply.code(200).send({ caseLegalHolds: rows });
+        const closed = await hiddenRecordIdsInWorkspace(query.teamId, ok.actorUserId);
+        reply.code(200).send({
+          caseLegalHolds: rows.filter((h) => !closed.caseIds.includes(h.caseId as string)),
+        });
       });
     },
   );
@@ -618,6 +649,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (await caseClosedTo(body.caseId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "case_not_found" } });
+      }
 
       /*
        * Same commercial gate as the evidence-scoped route above, for the same
@@ -703,6 +737,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (await legalHoldClosedTo(id, body.teamId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
       // The workspace approval gate runs BEFORE step-up is offered: an
       // operator must not be asked to re-authenticate for a release the

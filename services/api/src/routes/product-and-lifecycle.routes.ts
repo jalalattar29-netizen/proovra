@@ -41,6 +41,7 @@ import {
 } from "../services/packaging/entitlement.service.js";
 import {
   createExchangePackage,
+  exchangePackageOpenTo,
   generateSignedUrl,
   listPackages,
   listPackageDeliveries,
@@ -52,6 +53,7 @@ import {
 import { listDeliveryActivity } from "../services/exchange/signed-delivery.service.js";
 import {
   acceptChainTransfer,
+  chainTransferOpenTo,
   initiateChainTransfer,
   listChainTransfers,
   rejectChainTransfer,
@@ -299,7 +301,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       // Prisma 500. All other errors propagate to the central
       // handler so real bugs are NOT swallowed.
       try {
-        const packages = await listPackages({ teamId: ctx.teamId });
+        const packages = await listPackages({ teamId: ctx.teamId, viewerUserId: ctx.userId });
         return reply.code(200).send({ packages });
       } catch (err) {
         if (isPrismaTableOrColumnMissing(err)) {
@@ -414,6 +416,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await exchangePackageOpenTo({ teamId: ctx.teamId, packageId: id, userId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
 
       const featureOk = await assertFeatureEntitlement({
         teamId: ctx.teamId,
@@ -526,6 +531,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       }
 
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await exchangePackageOpenTo({ teamId: ctx.teamId, packageId: id, userId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       // PHASE 12 POINT 4 — minting a signed URL hands out storage access to evidence.
       // Canonical step-up, evaluated AFTER the capability gate so a denial
       // never even offers a challenge. Target-bound to this exact package,
@@ -594,6 +602,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const { packageId } = z
         .object({ packageId: z.string().uuid() })
         .parse(req.params);
+      if (!(await exchangePackageOpenTo({ teamId: ctx.teamId, packageId, userId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       const query = z
         .object({
           cursor: z.string().uuid().optional(),
@@ -632,6 +643,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       }
 
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await exchangePackageOpenTo({ teamId: ctx.teamId, packageId: id, userId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       // PHASE 12 POINT 4 — recording a delivery transmits the package to an external recipient.
       // Canonical step-up, evaluated AFTER the capability gate so a denial
       // never even offers a challenge. Target-bound to this exact package,
@@ -702,6 +716,16 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const delivery = await prisma.evidenceExchangePackageDelivery.findFirst({
+        where: { id, teamId: ctx.teamId },
+        select: { packageId: true },
+      });
+      if (
+        delivery &&
+        !(await exchangePackageOpenTo({ teamId: ctx.teamId, packageId: delivery.packageId, userId: ctx.userId }))
+      ) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       const res = await recordPackageDownload({
         teamId: ctx.teamId,
         deliveryId: id,
@@ -728,6 +752,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await exchangePackageOpenTo({ teamId: ctx.teamId, packageId: id, userId: ctx.userId }))) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       const res = await revokePackage({
         teamId: ctx.teamId,
         packageId: id,
@@ -773,7 +800,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       ) {
         return reply;
       }
-      const transfers = await listChainTransfers({ teamId: ctx.teamId });
+      const transfers = await listChainTransfers({ teamId: ctx.teamId, viewerUserId: ctx.userId });
       return reply.code(200).send({ transfers });
     },
   );
@@ -834,6 +861,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await chainTransferOpenTo({ teamId: ctx.teamId, transferId: id, userId: ctx.userId }))) {
+        return reply.code(409).send({ denial: "NOT_FOUND" });
+      }
       const body = z
         .object({ acceptingOrgId: z.string().uuid().optional() })
         .parse(req.body ?? {});
@@ -855,6 +885,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await chainTransferOpenTo({ teamId: ctx.teamId, transferId: id, userId: ctx.userId }))) {
+        return reply.code(409).send({ denial: "NOT_FOUND" });
+      }
       const body = z
         .object({ reason: z.string().min(1).max(400).optional() })
         .parse(req.body ?? {});
@@ -876,6 +909,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await chainTransferOpenTo({ teamId: ctx.teamId, transferId: id, userId: ctx.userId }))) {
+        return reply.code(409).send({ denial: "NOT_FOUND" });
+      }
       const res = await revokeChainTransfer({
         teamId: ctx.teamId,
         transferId: id,
@@ -893,6 +929,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (!(await chainTransferOpenTo({ teamId: ctx.teamId, transferId: id, userId: ctx.userId }))) {
+        return reply.code(409).send({ denial: "NOT_FOUND" });
+      }
       const body = z
         .object({ packageId: z.string().uuid() })
         .parse(req.body);

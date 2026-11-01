@@ -18,6 +18,8 @@
  * NOT_PUBLISHED / SUSPENDED / UNPUBLISHED rows.
  */
 
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
@@ -115,6 +117,7 @@ const ParamsEvidenceId = z.object({ id: z.string().uuid() });
  */
 
 export async function intelligenceRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ---------------------------------------------------------------------------
   // GET /v1/intelligence/search
   //
@@ -404,6 +407,7 @@ export async function intelligenceRoutes(app: FastifyInstance) {
       const findings = await listCrossEvidenceFindings({
         teamId: query.teamId,
         limit: query.limit ?? 20,
+        closedEvidenceIds: (await hiddenRecordIdsInWorkspace(query.teamId, ok.userId)).evidenceIds,
       });
       return reply.code(200).send({
         findings: findings.map((f) => ({

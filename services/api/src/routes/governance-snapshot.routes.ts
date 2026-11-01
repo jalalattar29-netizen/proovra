@@ -12,6 +12,7 @@
  * Both endpoints are read-only and safe to poll from dashboards.
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -69,6 +70,7 @@ async function requireGovernanceReadActor(
 }
 
 export async function governanceSnapshotRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ---------------------------------------------------------------------------
   // GET /v1/evidence/:id/governance-snapshot
   // ---------------------------------------------------------------------------

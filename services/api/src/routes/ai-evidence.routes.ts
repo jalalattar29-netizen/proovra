@@ -2,6 +2,7 @@
  * Phase P4 — Live Evidence Copilot route.
  *   POST /v1/ai/evidence/:evidenceId/copilot
  */
+import { evidenceClosedTo } from "../services/access/record-reach.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -123,6 +124,11 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
+    // The route read the record before it knew the team; the rule on the record
+    // itself comes before anything reaches a prompt (AUTHZ-002).
+    if (await evidenceClosedTo(ev.id, userId)) {
+      return reply.code(404).send({ error: { code: "evidence_not_found" } });
+    }
     // Role is read for AI-policy evaluation + context only; authorization is
     // already enforced above (an ACTIVE membership is guaranteed here).
     const membership = await prisma.teamMember.findUnique({
@@ -273,7 +279,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
 
     // TOCTOU CLOSE — reserving budget is a round trip, and another writer can
     // commit inside it. Re-read and recompute before anything is spent.
-    const drifted = await findDriftedSnapshot({ snapshots: [snapshot], teamId, scope: analysisScope });
+    const drifted = await findDriftedSnapshot({ snapshots: [snapshot], teamId, scope: analysisScope, viewerUserId: userId });
     if (drifted) {
       if (ledger.reservationId) {
         await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(
