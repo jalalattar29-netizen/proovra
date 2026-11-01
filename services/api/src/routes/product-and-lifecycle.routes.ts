@@ -92,6 +92,7 @@ import {
 import {
   assertDestructionRequestActionable,
   createDestructionRequest,
+  listEligibleDestructionApprovers,
   getDestructionCertificate,
   getDestructionCertificateArtifact,
   listDestructionRequests,
@@ -1735,6 +1736,26 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       }
       const requests = await listDestructionRequests({ teamId: ctx.teamId });
       return reply.code(200).send({ requests });
+    },
+  );
+
+  app.get(
+    "/v1/lifecycle/destruction/eligible-approvers",
+    {
+      preHandler: [
+        requireAuth,
+        requireWorkspacePermission("governance.destruction.request"),
+      ],
+    },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      const approvers = await listEligibleDestructionApprovers({
+        teamId: ctx.teamId,
+        requesterUserId: ctx.userId,
+      });
+      return reply.code(200).send({ approvers });
     },
   );
 

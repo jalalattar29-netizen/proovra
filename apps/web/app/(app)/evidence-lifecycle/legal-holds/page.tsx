@@ -24,6 +24,7 @@ import { formatUserDate } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId } from "../../../../lib/platform-context";
+import { RecordPicker } from "../../../../components/governance/RecordPicker";
 import { LifecycleSectionBoundary } from "../_shared";
 import { permissionDenialCopy } from "../../../../lib/labels/governanceReviewLabels";
 import { identifierLabel } from "@proovra/shared";
@@ -48,8 +49,11 @@ interface LegalHold {
   /** Optimistic-concurrency token — echoed back on release so a stale
    *  release is refused with 409 instead of overwriting a concurrent one. */
   version?: number;
-  /** When true the workspace policy demands an explicit release approval. */
+  /** When true, release takes a second person's recorded approval. */
   releaseApprovalRequired?: boolean;
+  releaseApprovalState?: "NOT_REQUIRED" | "PENDING" | "APPROVED";
+  releaseRequestedByUserId?: string | null;
+  releaseApprovedByUserId?: string | null;
 }
 
 const SCOPE_LABEL: Record<string, string> = {
@@ -296,7 +300,6 @@ function Shell() {
             headers: { "Content-Type": "application/json", ...(headers ?? {}) },
             body: JSON.stringify({
               releaseNote: note,
-              approvalAcknowledged: true,
               ...(typeof hold.version === "number"
                 ? { expectedVersion: hold.version }
                 : {}),
@@ -318,6 +321,59 @@ function Shell() {
         notifyApiError(addToast, err, {
           message: "We couldn't release this legal hold.",
         });
+      } finally {
+        setReleasingId(null);
+      }
+    },
+    [refresh, stepUp, addToast],
+  );
+
+  // GOV-011 — a hold under release approval takes two people. Asking changes
+  // nothing about what the hold protects.
+  const requestRelease = useCallback(
+    async (hold: LegalHold) => {
+      setReleaseError(null);
+      const note = window.prompt(`Why should "${hold.name}" be released? A second person will see this.`, "");
+      if (note === null) return;
+      if (note.trim().length === 0) {
+        setReleaseError("Say why the hold should be released.");
+        return;
+      }
+      setReleasingId(hold.id);
+      try {
+        await apiFetch(`/v1/lifecycle/legal-holds/${hold.id}/release-request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note }),
+        });
+        addToast("Release requested. A second person must approve it.", "success");
+        await refresh();
+      } catch (err) {
+        setReleaseError(toSafeUserError(err, { message: "We couldn't request this release." }).message);
+      } finally {
+        setReleasingId(null);
+      }
+    },
+    [refresh, addToast],
+  );
+
+  const approveRelease = useCallback(
+    async (hold: LegalHold) => {
+      setReleaseError(null);
+      setReleasingId(hold.id);
+      try {
+        await stepUp.runStepUpAction(async (headers) =>
+          apiFetch(`/v1/lifecycle/legal-holds/${hold.id}/release-approval`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({}),
+          }),
+        );
+        addToast("Release approved. The hold stays in place until it is released.", "success");
+        await refresh();
+      } catch (err) {
+        if ((err as { code?: string })?.code === "STEP_UP_CANCEL") return;
+        setReleaseError(toSafeUserError(err, { message: "We couldn't approve this release." }).message);
       } finally {
         setReleasingId(null);
       }
@@ -448,15 +504,16 @@ function Shell() {
               onChange={(e) => setExpiresAtUtc(e.target.value)}
             />
           </label>
-          <label style={labelStyle}>
-            Scope Target ID
-            <input
-              style={inputStyle}
+          {kind === "EVIDENCE" || kind === "CASE" ? (
+            <RecordPicker
+              key={kind}
+              kind={kind === "EVIDENCE" ? "evidence" : "case"}
+              evidenceScope="all"
+              label={kind === "EVIDENCE" ? "Record to hold" : "Case to hold"}
               value={scopeTargetId}
-              onChange={(e) => setScopeTargetId(e.target.value)}
-              placeholder="optional"
+              onChange={setScopeTargetId}
             />
-          </label>
+          ) : null}
           <Button
             type="button"
             variant="primary"
@@ -554,16 +611,42 @@ function Shell() {
           getRowId={(h) => h.id}
           rowActions={(h) =>
             h.state === "ACTIVE" ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                loading={releasingId === h.id}
-                disabled={releasingId !== null}
-                onClick={() => void release(h)}
-              >
-                Release
-              </Button>
+              h.releaseApprovalRequired && h.releaseApprovalState !== "APPROVED" ? (
+                h.releaseRequestedByUserId ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    loading={releasingId === h.id}
+                    disabled={releasingId !== null}
+                    onClick={() => void approveRelease(h)}
+                  >
+                    Approve release
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    loading={releasingId === h.id}
+                    disabled={releasingId !== null}
+                    onClick={() => void requestRelease(h)}
+                  >
+                    Request release
+                  </Button>
+                )
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={releasingId === h.id}
+                  disabled={releasingId !== null}
+                  onClick={() => void release(h)}
+                >
+                  Release
+                </Button>
+              )
             ) : (
               "—"
             )

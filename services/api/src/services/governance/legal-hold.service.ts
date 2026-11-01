@@ -994,6 +994,9 @@ export type LifecycleLegalHoldLegacyShape = {
   scope: CanonicalLegalHoldScope;
   version: number;
   releaseApprovalRequired: boolean;
+  releaseApprovalState: string;
+  releaseRequestedByUserId: string | null;
+  releaseApprovedByUserId: string | null;
 };
 
 function scopeToLegacyKind(
@@ -1020,6 +1023,7 @@ export async function listLifecycleLegalHoldsLegacyShape(
     { teamId: input.teamId, limit: input.limit ?? 500 },
     client,
   );
+  const policy = await resolvePolicyAttribution(client, input.teamId);
   const out: LifecycleLegalHoldLegacyShape[] = canonical
     .filter((r) => {
       if (input.state && r.status !== input.state) return false;
@@ -1053,7 +1057,11 @@ export async function listLifecycleLegalHoldsLegacyShape(
       expiresAtUtc: r.expiresAtUtc?.toISOString() ?? null,
       scope: r.scope as CanonicalLegalHoldScope,
       version: r.version,
-      releaseApprovalRequired: r.releaseApprovalRequired,
+      // GOV-011 — what a release needs now: the hold's own flag or today's policy.
+      releaseApprovalRequired: r.releaseApprovalRequired || policy.requireReleaseApproval,
+      releaseApprovalState: r.releaseApprovalState,
+      releaseRequestedByUserId: r.releaseRequestedByUserId,
+      releaseApprovedByUserId: r.releaseApprovedByUserId,
     }));
 
   // P12.3 — the legacy union merge is retired: every legacy row is now a

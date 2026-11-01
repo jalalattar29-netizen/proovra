@@ -519,6 +519,42 @@ export async function createDestructionRequest(
 }
 
 // -----------------------------------------------------------------------------
+// listEligibleDestructionApprovers
+// -----------------------------------------------------------------------------
+
+/**
+ * The people a request can name, so a requester picks from who can actually sign
+ * instead of pasting ids. Never includes the requester (GOV-003). Empty is a real
+ * answer: the workspace has nobody else who can approve, and the page says so.
+ */
+export async function listEligibleDestructionApprovers(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  requesterUserId: string;
+}): Promise<Array<{ userId: string; label: string }>> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const members = await prisma.teamMember.findMany({
+    where: { teamId: input.teamId, userId: { not: input.requesterUserId } },
+    select: { userId: true, user: { select: { displayName: true, email: true } } },
+    take: 500,
+  });
+  const eligible: Array<{ userId: string; label: string }> = [];
+  for (const member of members) {
+    const decision = await evaluateMemberAccess(
+      { teamId: input.teamId, userId: member.userId, permission: "governance.destruction.approve" },
+      prisma,
+    );
+    if (decision.allowed) {
+      eligible.push({
+        userId: member.userId,
+        label: member.user?.displayName || member.user?.email || "Workspace member",
+      });
+    }
+  }
+  return eligible;
+}
+
+// -----------------------------------------------------------------------------
 // assertDestructionRequestActionable
 // -----------------------------------------------------------------------------
 
