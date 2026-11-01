@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { apiFetch } from "../../../../../lib/api";
+import { WORKSPACE_HEADER, apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
@@ -229,8 +229,9 @@ type RetentionPoliciesResponse = {
 const HOLD_KINDS = ["EVIDENCE", "CASE", "WORKSPACE", "ORGANIZATION"] as const;
 type HoldKind = (typeof HOLD_KINDS)[number];
 
-type EvidenceListResponse = {
-  totalCount?: number;
+/** GET /v1/evidence/library-summary, the one count of a workspace's records. */
+type EvidenceSummaryResponse = {
+  totalActiveRecords?: number;
 };
 
 type Loadable<T> =
@@ -275,11 +276,11 @@ function OrganizationSetupInner() {
   const [mfa, setMfa] = useState<Loadable<MfaPolicyResponse>>({ kind: "loading" });
   const [billing, setBilling] = useState<Loadable<OrgBillingProjection>>({ kind: "loading" });
   const [retention, setRetention] = useState<Loadable<RetentionPoliciesResponse>>({ kind: "loading" });
-  const [evidence, setEvidence] = useState<Loadable<EvidenceListResponse>>({ kind: "loading" });
+  const [evidence, setEvidence] = useState<Loadable<EvidenceSummaryResponse>>({ kind: "loading" });
 
-  const safeFetch = useCallback(async <T,>(path: string): Promise<Loadable<T>> => {
+  const safeFetch = useCallback(async <T,>(path: string, init?: RequestInit): Promise<Loadable<T>> => {
     try {
-      const data = (await apiFetch(path)) as T;
+      const data = (await apiFetch(path, init)) as T;
       return { kind: "ready", data };
     } catch (err: unknown) {
       const message = toSafeUserError(err, { message: "Failed to load." }).message;
@@ -325,14 +326,13 @@ function OrganizationSetupInner() {
     void loadOrgScoped();
   }, [loadOrgScoped]);
 
-  // Billing (account-tier) + evidence count load once.
+  // Billing (account-tier) load once.
   const loadAccountScoped = useCallback(async () => {
     setBilling(
       await safeFetch<OrgBillingProjection>(
         `/v1/billing/accounts/ORGANIZATION/${encodeURIComponent(orgId)}`,
       ),
     );
-    setEvidence(await safeFetch<EvidenceListResponse>("/v1/evidence?scope=active&limit=1"));
   }, [safeFetch, orgId]);
 
   useEffect(() => {
@@ -342,14 +342,21 @@ function OrganizationSetupInner() {
   // Workspace-scoped reads depend on the resolved primary workspace.
   const loadWorkspaceScoped = useCallback(async () => {
     if (!primaryWorkspaceId) return;
-    const [mfaRes, retRes] = await Promise.all([
+    // This Organization's workspace by name, which need not be the one the
+    // header carries: setup can be open for any Organization the person runs.
+    const inThisWorkspace = { headers: { [WORKSPACE_HEADER]: primaryWorkspaceId } };
+    const [mfaRes, retRes, evidenceRes] = await Promise.all([
       safeFetch<MfaPolicyResponse>(
         `/v1/identity-security/mfa-policy?teamId=${encodeURIComponent(primaryWorkspaceId)}`,
       ),
-      safeFetch<RetentionPoliciesResponse>("/v1/lifecycle/retention/policies"),
+      safeFetch<RetentionPoliciesResponse>("/v1/lifecycle/retention/policies", inThisWorkspace),
+      safeFetch<EvidenceSummaryResponse>(
+        `/v1/evidence/library-summary?scope=active&teamId=${encodeURIComponent(primaryWorkspaceId)}`,
+      ),
     ]);
     setMfa(mfaRes);
     setRetention(retRes);
+    setEvidence(evidenceRes);
     if (mfaRes.kind === "ready") setMfaLevel(mfaRes.data.policy.level);
     if (workspaces.kind === "ready") {
       const ws = workspaces.data.workspaces.find((w) => w.workspaceId === primaryWorkspaceId);
@@ -597,7 +604,7 @@ function OrganizationSetupInner() {
         retentionPolicyCount:
           retention.kind === "ready" ? retention.data.policies.length : null,
         evidenceCount:
-          evidence.kind === "ready" ? evidence.data.totalCount ?? 0 : null,
+          evidence.kind === "ready" ? evidence.data.totalActiveRecords ?? 0 : null,
       }),
     [org, members, pending, mfa, retention, evidence],
   );
