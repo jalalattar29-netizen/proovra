@@ -10,7 +10,7 @@ import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
 import { formatUserDateTime } from "../../src/lib/date";
 import { theme } from "../../src/theme/theme";
 import { useToast } from "../../src/toast-context";
-import { usePlatformContext } from "../../src/product/platform-context";
+import { usePlatformContext, useWorkspaceChangeCount } from "../../src/product/platform-context";
 import { webOrigin } from "../../src/product/intake-create";
 import {
   parseVerificationAccess,
@@ -225,7 +225,10 @@ export default function EvidenceLibraryScreen() {
   );
 
   const serverFilters = useMemo<LibraryFilters>(() => ({ ...filters, search: debouncedSearch }), [filters, debouncedSearch]);
-  const serverKey = JSON.stringify({ ...serverFilters, review: "", retention: "", cursor: currentCursor });
+  // The list names no team: it follows the server pointer, so a change of
+  // workspace is a server input too.
+  const workspaceChanges = useWorkspaceChangeCount();
+  const serverKey = JSON.stringify({ ...serverFilters, review: "", retention: "", cursor: currentCursor, workspaceChanges });
 
   const loadPage = useCallback(async (f: LibraryFilters, cursor: string | null) => {
     const id = ++listRequest.current;
@@ -269,7 +272,17 @@ export default function EvidenceLibraryScreen() {
   }, []);
   useEffect(() => {
     void loadSupport();
-  }, [loadSupport]);
+  }, [loadSupport, workspaceChanges]);
+
+  // What was selected or paged belongs to the workspace that was left.
+  useEffect(() => {
+    if (workspaceChanges === 0) return;
+    setCurrentCursor(null);
+    setCursorHistory([]);
+    setPageNumber(1);
+    setSelected(new Set());
+    setInspectorId(null);
+  }, [workspaceChanges]);
 
   const caseMap = useMemo(() => new Map(cases.map((c) => [c.id, c.name] as const)), [cases]);
 

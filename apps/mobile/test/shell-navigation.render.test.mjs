@@ -11,7 +11,7 @@
  * Before T-09f the shell rendered seven hardcoded labels with an 8×8 dot in
  * place of an icon; every assertion below fails against that shell.
  */
-import { test, before, beforeEach } from "node:test";
+import { test, before, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React } from "./support/render.mjs";
 import { authenticatedRoutes, platformContextEnvelope, signIn } from "./support/authenticated.mjs";
@@ -76,8 +76,15 @@ beforeEach(async () => {
 
 const icons = (r) => r.root.findAll((n) => n.type === "Icon").map((n) => n.props.name);
 
+// Unmounted between tests: the workspace context is shared by everything mounted.
+const mounted = [];
+afterEach(() => {
+  while (mounted.length) mounted.pop().unmount();
+});
+
 async function renderShell() {
   const r = await renderComponent(h(M.TestProviders, null, h(M.ProovraShell, null, h("View", null))));
+  mounted.push(r);
   // Let the envelope request settle and the navigation re-derive from it.
   await r.update(h(M.TestProviders, null, h(M.ProovraShell, null, h("View", null))));
   return r;
