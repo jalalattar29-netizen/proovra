@@ -156,6 +156,10 @@ describe("internal-grant rollout — migration state", () => {
       "20281101000000_stripe_customer_per_currency",
       // PROV-001: when a password was proven with its mailbox, and the workspace name waiting on an owner invitation. EXPAND.
       "20281104000000_account_credential_proof",
+      // BILLING-002, PROV-009: the sales reference on the contract, and the status a withdrawn termination returns to. EXPAND.
+      "20281104000100_enterprise_contract_record",
+      // PROV-017: the two fields the demo form requires, kept with the lead. EXPAND.
+      "20281104000200_demo_request_qualification",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

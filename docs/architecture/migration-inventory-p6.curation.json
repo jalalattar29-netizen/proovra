@@ -3766,6 +3766,22 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='credential_proven_at_utc') = 1 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='organizations' AND column_name='pending_enterprise_workspace_name') = 1;\"",
       "evidence": "PROV-001 (2026-11-01). Two nullable columns. No row is rewritten and no older image reads either."
+    },
+    "20281104000100_enterprise_contract_record": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='enterprise_contracts' AND column_name IN ('external_contract_ref','status_before_termination')) = 2;\"",
+      "evidence": "BILLING-002 (2026-11-01). Two nullable columns on enterprise_contracts. No row is rewritten and no older image reads either."
+    },
+    "20281104000200_demo_request_qualification": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='demo_requests' AND column_name IN ('primary_interest','organization_type')) = 2;\"",
+      "evidence": "PROV-017 (2026-11-01). Two nullable columns on demo_requests. No row is rewritten and no older image reads either."
     }
   }
 }

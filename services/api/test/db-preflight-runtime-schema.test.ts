@@ -60,7 +60,8 @@ const load = (): Promise<Mod> => import(`file://${MODULE_PATH}`) as Promise<Mod>
  * fails here instead of passing against a fixture keyed to its own name.
  */
 /** Every column the commercial remediation migrations add. */
-const COMMERCIAL_REMEDIATION_COLUMNS = /'credential_proven_at_utc'|'pending_enterprise_workspace_name'/;
+const COMMERCIAL_REMEDIATION_COLUMNS =
+  /'credential_proven_at_utc'|'pending_enterprise_workspace_name'|'external_contract_ref'|'status_before_termination'|'primary_interest'|'organization_type'/;
 
 function databaseWith(present: {
   reconciliationEnumValue?: boolean;

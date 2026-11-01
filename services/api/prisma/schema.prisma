@@ -2318,8 +2318,14 @@ model EnterpriseContract {
   billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)
   billingSubscriptionRef  String?                  @map("billing_subscription_ref") @db.VarChar(200)
   contractOwnerUserId     String?                  @map("contract_owner_user_id") @db.Uuid
+  /// The sales or CRM reference this contract was signed under. Written at
+  /// provisioning and by the operator contract writer.
+  externalContractRef     String?                  @map("external_contract_ref") @db.VarChar(200)
   terminatedAtUtc         DateTime?                @map("terminated_at_utc") @db.Timestamptz(6)
   terminationReason       String?                  @map("termination_reason") @db.VarChar(400)
+  /// What the contract was when a termination began, so that withdrawing the
+  /// termination returns it there. NULL when no termination is open.
+  statusBeforeTermination EnterpriseContractStatus? @map("status_before_termination")
   createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -3255,6 +3261,9 @@ model DemoRequest {
   jobTitle     String? @map("job_title") @db.VarChar(120)
   country      String? @db.VarChar(120)
   teamSize     String? @map("team_size") @db.VarChar(64)
+  /// PROV-017 — the two fields the form requires, kept with the lead.
+  primaryInterest  String? @map("primary_interest") @db.VarChar(64)
+  organizationType String? @map("organization_type") @db.VarChar(64)
   useCase      String  @map("use_case")
   message      String?
 
