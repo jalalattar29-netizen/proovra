@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { inputRefusal } from "../../errors.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 
 const evidenceRelationshipSelect = {
   id: true,
@@ -134,14 +135,18 @@ function relationshipScopeWhere(anchor: RelationshipScopeRecord): Prisma.Evidenc
 }
 
 export async function listEvidenceRelationships(
-  evidenceId: string
+  evidenceId: string,
+  /** The reader. A peer closed to them by a restricted Case is not listed (EVID-003). */
+  viewerUserId: string,
 ): Promise<EvidenceRelationshipSummary[]> {
   const anchor = await prisma.evidence.findUnique({
     where: { id: evidenceId },
     select: { teamId: true, ownerUserId: true },
   });
   if (!anchor) return [];
-  const scope = relationshipScopeWhere(anchor);
+  const scope: Prisma.EvidenceWhereInput = {
+    AND: [relationshipScopeWhere(anchor), evidenceVisibleThroughCasesWhere(viewerUserId)],
+  };
   const items = await prisma.evidenceRelationship.findMany({
     where: {
       OR: [
@@ -221,11 +226,14 @@ export async function deleteEvidenceRelationship(relationshipId: string) {
   });
 }
 
-export async function summarizeEvidenceRelationships(evidenceId: string): Promise<{
+export async function summarizeEvidenceRelationships(
+  evidenceId: string,
+  viewerUserId: string,
+): Promise<{
   count: number;
   items: EvidenceRelationshipSummary[];
 }> {
-  const items = await listEvidenceRelationships(evidenceId);
+  const items = await listEvidenceRelationships(evidenceId, viewerUserId);
   return {
     count: items.length,
     items,

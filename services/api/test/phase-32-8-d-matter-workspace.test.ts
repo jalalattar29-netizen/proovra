@@ -306,8 +306,9 @@ describe("Phase 32.8D — Matter Workspace API", () => {
     }
   });
 
-  it("workspace reads UNION evidence sources (legacy + CaseEvidenceLink)", () => {
-    expect(MATTER_WS).toMatch(/listCaseEvidenceIds\(/);
+  it("workspace reads the case's links narrowed to the reader, never the machine list", () => {
+    expect(MATTER_WS).toMatch(/listCaseEvidenceIdsForViewer\(/);
+    expect(MATTER_WS).not.toMatch(/listCaseEvidenceIds\(/);
   });
 
   it("workspace reads NEVER generate reports/packages/signed URLs", () => {

@@ -1620,6 +1620,74 @@ export async function reconcileTeamGraph(
 }
 
 // =============================================================================
+// Record reach
+// =============================================================================
+
+/**
+ * WHAT THE CALLER MAY NOT SEE (EVID-001).
+ *
+ * Every node carries the workspace and nothing about the restricted Case that
+ * closes the record it stands for, so a graph read scoped by `team_id` alone
+ * handed a member off a restricted Case its name, its filenames and its
+ * relationships. The rule is not restated here: the API asks its one authority
+ * (`case-visibility.ts`) which Cases and Evidence are closed to this caller and
+ * this module turns those into graph node ids.
+ *
+ * `reach` is REQUIRED on every read and write, so omitting it does not compile.
+ */
+export type GraphReach = {
+  hiddenNodeIds: ReadonlyArray<string>;
+};
+
+/** Only for a health probe whose rows are never projected to anyone. */
+export const GRAPH_REACH_INTERNAL_PROBE: GraphReach = { hiddenNodeIds: [] };
+
+/**
+ * The closed roots plus everything derived from them. A REPORT, OCR, signal,
+ * workflow, escalation, export, incident or grant node labels the record it
+ * came from, so it closes with that record, transitively through other derived
+ * nodes (escalation to workflow to evidence). The walk stops at EVIDENCE and
+ * CASE nodes: those are decided by the rule itself, and a link to a closed
+ * neighbour does not close them. Stale edges count, so a derived node does not
+ * reopen because its edge was swept. In SQL, and bounded by one team's nodes.
+ */
+export async function resolveHiddenGraphNodeIds(
+  input: {
+    teamId: string;
+    hiddenEvidenceIds: ReadonlyArray<string>;
+    hiddenCaseIds: ReadonlyArray<string>;
+  },
+  client: PrismaClient = getRegisteredPrisma(),
+): Promise<string[]> {
+  if (input.hiddenEvidenceIds.length === 0 && input.hiddenCaseIds.length === 0) return [];
+  const rows = (await client.$queryRawUnsafe(
+    `WITH RECURSIVE "closed"("id") AS (
+       SELECT n."id"
+         FROM "investigation_graph_nodes" n
+        WHERE n."team_id" = $1
+          AND ((n."node_kind" = 'EVIDENCE' AND n."external_id" = ANY($2::uuid[]))
+            OR (n."node_kind" = 'CASE' AND n."external_id" = ANY($3::uuid[])))
+       UNION
+       SELECT other."id"
+         FROM "closed" c
+         JOIN "investigation_graph_edges" e
+           ON e."team_id" = $1
+          AND (e."source_node_id" = c."id" OR e."target_node_id" = c."id")
+         JOIN "investigation_graph_nodes" other
+           ON other."id" = CASE WHEN e."source_node_id" = c."id"
+                                THEN e."target_node_id" ELSE e."source_node_id" END
+        WHERE other."team_id" = $1
+          AND other."node_kind" NOT IN ('EVIDENCE', 'CASE')
+     )
+     SELECT "id" FROM "closed"`,
+    input.teamId,
+    [...input.hiddenEvidenceIds],
+    [...input.hiddenCaseIds],
+  )) as Array<{ id: string }>;
+  return rows.map((r) => r.id);
+}
+
+// =============================================================================
 // Visibility-aware traversal
 // =============================================================================
 
@@ -1628,6 +1696,7 @@ export type EvidenceSubgraphInput = {
   evidenceId: string;
   /** Bounded 0..MAX_GRAPH_TRAVERSAL_DEPTH. */
   depth?: number;
+  reach: GraphReach;
 };
 
 export type EvidenceSubgraphResult = {
@@ -1667,9 +1736,11 @@ export async function buildEvidenceSubgraph(
        FROM "investigation_graph_nodes"
        WHERE "team_id" = $1 AND "node_kind" = 'EVIDENCE'
          AND "external_id" = $2 AND "stale_at_utc" IS NULL
+         AND NOT ("id" = ANY($3::uuid[]))
        LIMIT 1`,
     input.teamId,
     input.evidenceId,
+    [...input.reach.hiddenNodeIds],
   )) as RawNodeRow[];
   if (seedRows.length === 0) {
     // No seed node → empty subgraph. Anti-enumeration: same shape
@@ -1702,10 +1773,13 @@ export async function buildEvidenceSubgraph(
            AND "stale_at_utc" IS NULL
            AND ("source_node_id" = ANY($2::uuid[])
                 OR "target_node_id" = ANY($2::uuid[]))
+           AND NOT ("source_node_id" = ANY($4::uuid[]))
+           AND NOT ("target_node_id" = ANY($4::uuid[]))
          LIMIT $3`,
       input.teamId,
       frontierIds,
       MAX_GRAPH_EDGES_PER_RESPONSE - collectedEdges.size,
+      [...input.reach.hiddenNodeIds],
     )) as RawEdgeRow[];
     const nextFrontier = new Set<string>();
     for (const e of edges) {
@@ -1760,6 +1834,7 @@ export type CreateManualRelationshipInput = {
   targetNodeId: string;
   edgeType: "REFERENCES_SAME_INCIDENT" | "MANUALLY_LINKED_TO";
   safeNote?: string | null;
+  reach: GraphReach;
 };
 
 export type CreateManualRelationshipResult =
@@ -1781,9 +1856,11 @@ export async function createManualRelationship(
          FROM "investigation_graph_nodes"
          WHERE "team_id" = $1
            AND "id" = ANY($2::uuid[])
-           AND "stale_at_utc" IS NULL`,
+           AND "stale_at_utc" IS NULL
+           AND NOT ("id" = ANY($3::uuid[]))`,
       input.teamId,
       [input.sourceNodeId, input.targetNodeId],
+      [...input.reach.hiddenNodeIds],
     )) as Array<{ id: string }>;
     const ids = new Set(endpoints.map((r) => r.id));
     if (!ids.has(input.sourceNodeId) || !ids.has(input.targetNodeId)) {
@@ -1839,12 +1916,13 @@ export type RetractManualRelationshipInput = {
   manualRelationshipId: string;
   actorUserId: string;
   reason?: string | null;
+  reach: GraphReach;
 };
 
 export async function retractManualRelationship(
   input: RetractManualRelationshipInput,
   client: PrismaClient = getRegisteredPrisma(),
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; retracted?: boolean }> {
   try {
     // Mark the manual relationship RETRACTED + stale the graph edge.
     const rels = (await client.$queryRawUnsafe(
@@ -1854,19 +1932,23 @@ export async function retractManualRelationship(
              "retracted_at_utc" = NOW(),
              "retraction_reason" = $4
          WHERE "id" = $1 AND "team_id" = $2 AND "status" = 'ACTIVE'
+           AND NOT ("source_node_id" = ANY($5::uuid[]))
+           AND NOT ("target_node_id" = ANY($5::uuid[]))
          RETURNING "source_node_id", "target_node_id", "edge_type"`,
       input.manualRelationshipId,
       input.teamId,
       input.actorUserId,
       input.reason?.slice(0, 240) ?? null,
+      [...input.reach.hiddenNodeIds],
     )) as Array<{
       source_node_id: string;
       target_node_id: string;
       edge_type: string;
     }>;
     if (rels.length === 0) {
-      // Already retracted / not found / wrong team — idempotent.
-      return { ok: true };
+      // Already retracted / not found / wrong team / outside the caller's
+      // reach — idempotent, and indistinguishable from one another.
+      return { ok: true, retracted: false };
     }
     const rel = rels[0]!;
     await client.$executeRawUnsafe(
@@ -1882,7 +1964,7 @@ export async function retractManualRelationship(
       rel.edge_type,
     );
     bump("graph_edge_removed_total");
-    return { ok: true };
+    return { ok: true, retracted: true };
   } catch {
     return { ok: false };
   }
@@ -1922,6 +2004,7 @@ export type ListDuplicateEdgesInput = {
   evidenceId?: string | null;
   /** Bounded 1..200; default 100. */
   limit?: number;
+  reach: GraphReach;
 };
 
 const DUPLICATE_EDGE_TYPES = [
@@ -1977,11 +2060,14 @@ export async function listDuplicateEdges(
             AND nt."node_kind" = 'EVIDENCE'
             AND e."edge_type" IN (${DUPLICATE_EDGE_TYPE_SQL_LIST})
             AND (ns."external_id" = $2 OR nt."external_id" = $2)
+            AND NOT (ns."id" = ANY($4::uuid[]))
+            AND NOT (nt."id" = ANY($4::uuid[]))
           ORDER BY e."updated_at_utc" DESC
           LIMIT $3`,
         input.teamId,
         input.evidenceId,
         limit + 1,
+        [...input.reach.hiddenNodeIds],
       )) as Row[];
     } else {
       rows = (await client.$queryRawUnsafe(
@@ -2002,10 +2088,13 @@ export async function listDuplicateEdges(
             AND ns."node_kind" = 'EVIDENCE'
             AND nt."node_kind" = 'EVIDENCE'
             AND e."edge_type" IN (${DUPLICATE_EDGE_TYPE_SQL_LIST})
+            AND NOT (ns."id" = ANY($3::uuid[]))
+            AND NOT (nt."id" = ANY($3::uuid[]))
           ORDER BY e."updated_at_utc" DESC
           LIMIT $2`,
         input.teamId,
         limit + 1,
+        [...input.reach.hiddenNodeIds],
       )) as Row[];
     }
   } catch {
@@ -2053,6 +2142,7 @@ export async function listGraphSeedNodes(
     teamId: string;
     kinds?: ReadonlyArray<GraphNodeKind> | null;
     perKindLimit?: number;
+    reach: GraphReach;
   },
   client: PrismaClient = getRegisteredPrisma(),
 ): Promise<{ nodes: ReadonlyArray<GraphSeedNode> }> {
@@ -2070,11 +2160,13 @@ export async function listGraphSeedNodes(
            WHERE "team_id" = $1
              AND "node_kind" = $2
              AND "stale_at_utc" IS NULL
+             AND NOT ("id" = ANY($4::uuid[]))
            ORDER BY "updated_at_utc" DESC
            LIMIT $3`,
         input.teamId,
         kind,
         cap,
+        [...input.reach.hiddenNodeIds],
       )) as Array<{
         id: string;
         node_kind: string;
@@ -2307,6 +2399,7 @@ export type SearchGraphInput = {
   labelContains?: string | null;
   /** Bounded — caller clamps to [1, 200]. */
   limit?: number;
+  reach: GraphReach;
 };
 
 export type SearchGraphResult = {
@@ -2331,8 +2424,12 @@ export async function searchGraph(
   );
   bump("graph_query_total");
   try {
-    const where: string[] = [`"team_id" = $1`, `"stale_at_utc" IS NULL`];
-    const params: unknown[] = [input.teamId];
+    const where: string[] = [
+      `"team_id" = $1`,
+      `"stale_at_utc" IS NULL`,
+      `NOT ("id" = ANY($2::uuid[]))`,
+    ];
+    const params: unknown[] = [input.teamId, [...input.reach.hiddenNodeIds]];
     const kindFilter =
       input.nodeKinds && input.nodeKinds.length > 0 ? input.nodeKinds : null;
     if (kindFilter) {
@@ -2376,6 +2473,7 @@ export type TimelineQueryInput = {
   fromUtc?: string | null;
   toUtc?: string | null;
   limit?: number;
+  reach: GraphReach;
 };
 
 export type TimelineEventKind =
@@ -2450,12 +2548,17 @@ export async function buildInvestigationTimeline(
   );
   bump("timeline_query_total");
   try {
-    const params: unknown[] = [input.teamId];
+    const params: unknown[] = [input.teamId, [...input.reach.hiddenNodeIds]];
     const nodeWhere: string[] = [
       `n."team_id" = $1`,
       `n."stale_at_utc" IS NULL`,
+      `NOT (n."id" = ANY($2::uuid[]))`,
     ];
-    const edgeWhere: string[] = [`e."team_id" = $1`];
+    const edgeWhere: string[] = [
+      `e."team_id" = $1`,
+      `NOT (e."source_node_id" = ANY($2::uuid[]))`,
+      `NOT (e."target_node_id" = ANY($2::uuid[]))`,
+    ];
     // Evidence-keyed event streams share the team-id binding and an
     // optional evidence-id binding; we collect their WHERE fragments
     // separately so we only union them when `evidenceId` is provided
@@ -2692,7 +2795,7 @@ export async function buildInvestigationTimeline(
  * lands in a focused follow-up.
  */
 export async function buildCaseSubgraph(
-  input: { teamId: string; caseId: string; depth?: number },
+  input: { teamId: string; caseId: string; depth?: number; reach: GraphReach },
   client: PrismaClient = getRegisteredPrisma(),
 ): Promise<EvidenceSubgraphResult> {
   bump("graph_query_total");
@@ -2700,15 +2803,17 @@ export async function buildCaseSubgraph(
     `SELECT "id" FROM "investigation_graph_nodes"
        WHERE "team_id" = $1 AND "node_kind" = 'CASE'
          AND "external_id" = $2 AND "stale_at_utc" IS NULL
+         AND NOT ("id" = ANY($3::uuid[]))
        LIMIT 1`,
     input.teamId,
     input.caseId,
+    [...input.reach.hiddenNodeIds],
   )) as Array<{ id: string }>;
   if (seedRows.length === 0) {
     return { ok: true, nodes: [], edges: [], truncated: false };
   }
   return buildSubgraphFromNodeId(
-    { teamId: input.teamId, seedNodeId: seedRows[0]!.id, depth: input.depth },
+    { teamId: input.teamId, seedNodeId: seedRows[0]!.id, depth: input.depth, reach: input.reach },
     client,
   );
 }
@@ -2716,7 +2821,7 @@ export async function buildCaseSubgraph(
 /** Internal helper: traverse from any seed node id (not just
  *  evidence). Used by buildCaseSubgraph. */
 async function buildSubgraphFromNodeId(
-  input: { teamId: string; seedNodeId: string; depth?: number },
+  input: { teamId: string; seedNodeId: string; depth?: number; reach: GraphReach },
   client: PrismaClient,
 ): Promise<EvidenceSubgraphResult> {
   const {
@@ -2763,10 +2868,13 @@ async function buildSubgraphFromNodeId(
            AND "stale_at_utc" IS NULL
            AND ("source_node_id" = ANY($2::uuid[])
                 OR "target_node_id" = ANY($2::uuid[]))
+           AND NOT ("source_node_id" = ANY($4::uuid[]))
+           AND NOT ("target_node_id" = ANY($4::uuid[]))
          LIMIT $3`,
       input.teamId,
       frontierIds,
       MAX_GRAPH_EDGES_PER_RESPONSE - collectedEdges.size,
+      [...input.reach.hiddenNodeIds],
     )) as RawEdgeRow[];
     const nextFrontier = new Set<string>();
     for (const e of edges) {

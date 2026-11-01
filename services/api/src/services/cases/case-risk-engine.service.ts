@@ -19,6 +19,7 @@
 
 import { prisma } from "../../db.js";
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
+import { evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
 
 export type RiskLevel = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
@@ -101,6 +102,25 @@ export async function listCaseEvidenceIds(input: {
     /* best-effort */
   }
   return Array.from(set);
+}
+
+/**
+ * The same links, for a human reader. A record linked to this case and also to
+ * a restricted case the reader cannot see is closed to them, so it is absent
+ * from every section and count built on this list (EVID-004). The unscoped
+ * function above stays the machine read for the risk engine, whose score is a
+ * property of the case.
+ */
+export async function listCaseEvidenceIdsForViewer(input: {
+  caseId: string;
+  viewerUserId: string;
+}): Promise<string[]> {
+  const links = await prisma.caseEvidenceLink.findMany({
+    where: { caseId: input.caseId, evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId) },
+    select: { evidenceId: true },
+    take: 500,
+  });
+  return links.map((r) => r.evidenceId);
 }
 
 export type CaseRiskComputation = {

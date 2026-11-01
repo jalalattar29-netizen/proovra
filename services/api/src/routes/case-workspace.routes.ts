@@ -17,6 +17,7 @@
 
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
 import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
+import { listCaseEvidenceIdsForViewer } from "../services/cases/case-risk-engine.service.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -478,11 +479,12 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
         });
       }
 
-      const links = await prisma.caseEvidenceLink.findMany({
-        where: { caseId: params.id },
-        select: { evidenceId: true },
+      // A thread on a record the reader cannot open (a second restricted case)
+      // is not listed, by title or by count (EVID-004).
+      const evidenceIds = await listCaseEvidenceIdsForViewer({
+        caseId: params.id,
+        viewerUserId: getAuthUserId(req),
       });
-      const evidenceIds = links.map((l) => l.evidenceId);
       if (evidenceIds.length === 0) {
         return reply.code(200).send({
           caseId: params.id,

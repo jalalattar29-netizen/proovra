@@ -59,6 +59,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordSearchAudit } from "./search-audit.service.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { searchDocumentReachWhere } from "./search-reach.js";
 import {
   type EmbeddingProvider,
@@ -1059,19 +1060,24 @@ export type RelatedEvidenceProjection = {
 };
 
 export async function listRelationshipsForEvidence(
-  input: { teamId: string; evidenceId: string; limit?: number },
+  input: { teamId: string; evidenceId: string; limit?: number; actorUserId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReadonlyArray<RelatedEvidenceProjection>> {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
-  // Confirm the evidence belongs to the team (anti-cross-team).
+  // Confirm the evidence belongs to the team (anti-cross-team) and is open to
+  // the caller. A closed record answers exactly like an absent one (EVID-003).
+  const visible = evidenceVisibleThroughCasesWhere(input.actorUserId);
   const ev = await client.evidence.findFirst({
-    where: { id: input.evidenceId, teamId: input.teamId },
+    where: { id: input.evidenceId, teamId: input.teamId, AND: [visible] },
     select: { id: true },
   });
   if (!ev) return [];
   const rows = await client.evidenceRelationship.findMany({
     where: {
       teamId: input.teamId,
+      // Both ends: the note and id of a closed peer are not listed either.
+      sourceEvidence: visible,
+      targetEvidence: visible,
       OR: [
         { sourceEvidenceId: input.evidenceId },
         { targetEvidenceId: input.evidenceId },
@@ -1105,14 +1111,16 @@ export async function createRelationship(
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.EvidenceRelationship | null> {
   if (input.sourceEvidenceId === input.targetEvidenceId) return null;
-  // Confirm both evidences belong to the team.
+  // Confirm both evidences belong to the team and are open to the author: a
+  // link is a write on both records.
+  const visible = evidenceVisibleThroughCasesWhere(input.createdByUserId);
   const [src, tgt] = await Promise.all([
     client.evidence.findFirst({
-      where: { id: input.sourceEvidenceId, teamId: input.teamId },
+      where: { id: input.sourceEvidenceId, teamId: input.teamId, AND: [visible] },
       select: { id: true },
     }),
     client.evidence.findFirst({
-      where: { id: input.targetEvidenceId, teamId: input.teamId },
+      where: { id: input.targetEvidenceId, teamId: input.teamId, AND: [visible] },
       select: { id: true },
     }),
   ]);

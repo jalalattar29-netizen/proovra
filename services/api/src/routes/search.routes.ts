@@ -548,6 +548,7 @@ export async function searchRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         evidenceId,
         limit: q.limit,
+        actorUserId: actor.userId,
       });
       return reply.code(200).send({ relationships });
     }

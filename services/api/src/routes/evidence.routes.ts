@@ -6090,6 +6090,28 @@ if (
   });
 }
 
+/**
+ * A relationship touches `anchorId` and both ends are open to the actor: the
+ * row is a fact about both records, and its note and type must not be edited
+ * through the end the actor can see when the other is closed (EVID-003).
+ */
+async function relationshipOpenFrom(
+  relationship: { sourceEvidenceId: string; targetEvidenceId: string },
+  anchorId: string,
+  userId: string,
+): Promise<boolean> {
+  if (relationship.sourceEvidenceId !== anchorId && relationship.targetEvidenceId !== anchorId) {
+    return false;
+  }
+  const peerId =
+    relationship.sourceEvidenceId === anchorId
+      ? relationship.targetEvidenceId
+      : relationship.sourceEvidenceId;
+  return (
+    await resolveEvidenceRecordAccess({ userId, evidenceId: peerId, permission: "evidence.read" })
+  ).allowed;
+}
+
 export async function evidenceRoutes(app: FastifyInstance) {
   // Phase G4.5 — Saved-view CRUD lives in a focused module. Same
   // URLs, same auth, same schemas, same status codes. The handlers
@@ -9367,7 +9389,7 @@ return {
       await getEvidenceWithReadAccess(userId, id);
 
       return reply.code(200).send({
-        items: await listEvidenceRelationships(id),
+        items: await listEvidenceRelationships(id, userId),
       });
     }
   );
@@ -9409,7 +9431,7 @@ return {
 
       return reply.code(201).send({
         relationshipId: relationship.id,
-        items: await listEvidenceRelationships(id),
+        items: await listEvidenceRelationships(id, userId),
       });
     }
   );
@@ -9432,10 +9454,7 @@ return {
         where: { id: relationshipId },
       });
 
-      if (
-        !relationship ||
-        (relationship.sourceEvidenceId !== id && relationship.targetEvidenceId !== id)
-      ) {
+      if (!relationship || !(await relationshipOpenFrom(relationship, id, userId))) {
         return reply.code(404).send({ message: "Relationship not found" });
       }
 
@@ -9456,7 +9475,7 @@ return {
       }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
-        items: await listEvidenceRelationships(id),
+        items: await listEvidenceRelationships(id, userId),
       });
     }
   );
@@ -9482,10 +9501,7 @@ return {
         where: { id: relationshipId },
       });
 
-      if (
-        !relationship ||
-        (relationship.sourceEvidenceId !== id && relationship.targetEvidenceId !== id)
-      ) {
+      if (!relationship || !(await relationshipOpenFrom(relationship, id, userId))) {
         return reply.code(404).send({ message: "Relationship not found" });
       }
 
@@ -10586,7 +10602,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           artifactStatus,
         });
         const reviewerWorkflowSummary = await getEvidenceReviewerWorkflowSummary(id);
-        const relationshipItems = await listEvidenceRelationships(id);
+        const relationshipItems = await listEvidenceRelationships(id, userId);
         const artifactHistory = await listEvidenceArtifacts(id);
         const governance = buildEvidenceReviewGovernance();
         const reviewerAudit = await listReviewerAuditEvents(id);

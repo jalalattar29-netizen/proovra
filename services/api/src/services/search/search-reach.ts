@@ -19,10 +19,7 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import {
-  caseVisibleToWhere,
-  evidenceVisibleThroughCasesWhere,
-} from "../cases/case-visibility.js";
+import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 
 type ReachClient = Pick<PrismaClient, "case" | "evidence">;
 
@@ -34,18 +31,11 @@ export async function searchDocumentReachWhere(
   workspaceId: string,
   actorUserId: string,
 ): Promise<Prisma.EvidenceSearchDocumentWhereInput> {
-  const [hiddenCases, hiddenEvidence] = await Promise.all([
-    client.case.findMany({
-      // NOT visible already implies restricted (caseVisibleToWhere admits
-      // every unrestricted Case), by the canonical rule rather than the flag.
-      where: { teamId: workspaceId, NOT: caseVisibleToWhere(actorUserId) },
-      select: { id: true },
-    }),
-    client.evidence.findMany({
-      where: { teamId: workspaceId, NOT: evidenceVisibleThroughCasesWhere(actorUserId) },
-      select: { id: true },
-    }),
-  ]);
+  const { caseIds: hiddenCases, evidenceIds: hiddenEvidence } = await hiddenRecordIdsInWorkspace(
+    workspaceId,
+    actorUserId,
+    client,
+  );
   /*
    * The exclusion is inlined. A member off restricted Cases holding more
    * Evidence than one statement can carry is refused EVERY match rather than
@@ -58,14 +48,14 @@ export async function searchDocumentReachWhere(
   const and: Prisma.EvidenceSearchDocumentWhereInput[] = [];
   if (hiddenCases.length > 0) {
     and.push({
-      OR: [{ caseId: null }, { caseId: { notIn: hiddenCases.map((c) => c.id) } }],
+      OR: [{ caseId: null }, { caseId: { notIn: hiddenCases } }],
     });
   }
   if (hiddenEvidence.length > 0) {
     and.push({
       OR: [
         { evidenceId: null },
-        { evidenceId: { notIn: hiddenEvidence.map((e) => e.id) } },
+        { evidenceId: { notIn: hiddenEvidence } },
       ],
     });
   }

@@ -202,8 +202,9 @@ describe("Phase C2 — POST /v1/collaboration/threads/:id/mark-mentions-read", (
   });
 
   it("validates the thread belongs to the workspace before updating", () => {
+    expect(COLLAB_ROUTES).toMatch(/thread.teamIds*!==s*teamId/);
     expect(COLLAB_ROUTES).toMatch(
-      /thread\.teamId\s*!==\s*query\.teamId/,
+      /mark-mentions-read"[sS]*?loadThreadInReach(params.id,s*query.teamId,s*ok.userId)/,
     );
   });
 

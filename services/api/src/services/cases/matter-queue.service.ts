@@ -16,7 +16,8 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
-import { listCaseEvidenceIds } from "./case-risk-engine.service.js";
+import { listCaseEvidenceIdsForViewer } from "./case-risk-engine.service.js";
+import { caseVisibleToWhere } from "./case-visibility.js";
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import { OUTPUT_PRODUCING_LIFECYCLE_WHERE } from "../billing/owed-output-population.service.js";
 
@@ -224,7 +225,13 @@ export async function buildMatterQueue(input: {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
 
   // Build the WHERE clause deterministically from the filter.
-  const where: Record<string, unknown> = { teamId: input.teamId };
+  // The queue reads the workspace, so it answers to the case rule like the case
+  // list does: a restricted case the caller cannot open is not a row, a count or
+  // a search hit (AUTHZ-002).
+  const where: Record<string, unknown> = {
+    teamId: input.teamId,
+    AND: [caseVisibleToWhere(input.userId)],
+  };
   if (input.filter.status) where.status = input.filter.status;
   if (input.filter.search) {
     // The search OR-clause is composed here but the workspace scope
@@ -349,9 +356,9 @@ export async function buildMatterQueue(input: {
   const owedInWorkspace = outputEntitledEvidenceWhere({ teamId: input.teamId });
   for (const c of cases) {
     try {
-      const evidenceIds = await listCaseEvidenceIds({
-        teamId: c.teamId,
+      const evidenceIds = await listCaseEvidenceIdsForViewer({
         caseId: c.id,
+        viewerUserId: input.userId,
       });
       const [
         openIncidentCount,

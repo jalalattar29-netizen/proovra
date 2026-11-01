@@ -40,6 +40,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { resolveGraphReach } from "../services/graph/graph-reach.js";
 import {
   buildCaseSubgraph,
   buildEvidenceSubgraph,
@@ -63,6 +64,7 @@ import {
 } from "../services/graph/graph-catalog.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 // Wave 3 Phase 7B — bounded custody emit for Investigation-mutation
 // surfaces. Best-effort; never blocks the operator action. See
 // services/investigation-custody.service.ts for the swallow contract.
@@ -291,11 +293,16 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const subgraph = await buildEvidenceSubgraph({
-        teamId: q.teamId,
-        evidenceId,
-        depth: q.depth,
-      });
+      const reach = await resolveGraphReach(q.teamId, actor.actorUserId);
+      const subgraph = await buildEvidenceSubgraph(
+        {
+          teamId: q.teamId,
+          evidenceId,
+          depth: q.depth,
+          reach,
+        },
+        prisma,
+      );
       // PHASE 12 — VERTICAL B. Operator-asserted edges carry provenance
       // so a reviewer can see WHO linked two records, WHEN, and the note
       // they left — the difference between a derived signal and a human
@@ -350,6 +357,16 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // A link between two records is a write on both, and an existing link
+      // between them is a fact about both: an endpoint outside the caller's
+      // reach answers exactly as a node that does not exist.
+      const reach = await resolveGraphReach(body.teamId, actor.actorUserId);
+      if (
+        reach.hiddenNodeIds.includes(body.sourceNodeId) ||
+        reach.hiddenNodeIds.includes(body.targetNodeId)
+      ) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       // PHASE 12 — VERTICAL B. Duplicate-edge idempotency.
       //
       // The underlying edge upsert is already ON CONFLICT-idempotent,
@@ -372,14 +389,18 @@ export async function graphRoutes(app: FastifyInstance) {
           provenance: existing,
         });
       }
-      const result = await createManualRelationship({
-        teamId: body.teamId,
-        actorUserId: actor.actorUserId,
-        sourceNodeId: body.sourceNodeId,
-        targetNodeId: body.targetNodeId,
-        edgeType: body.edgeType,
-        safeNote: body.safeNote ?? null,
-      });
+      const result = await createManualRelationship(
+        {
+          teamId: body.teamId,
+          actorUserId: actor.actorUserId,
+          sourceNodeId: body.sourceNodeId,
+          targetNodeId: body.targetNodeId,
+          edgeType: body.edgeType,
+          safeNote: body.safeNote ?? null,
+          reach,
+        },
+        prisma,
+      );
       if (!result.ok) {
         if (result.reason === "nodes_not_in_team") {
           return reply.code(404).send({ error: { code: "not_found" } });
@@ -464,17 +485,27 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const result = await retractManualRelationship({
-        teamId: body.teamId,
-        manualRelationshipId,
-        actorUserId: actor.actorUserId,
-        reason: body.reason ?? null,
-      });
+      const result = await retractManualRelationship(
+        {
+          teamId: body.teamId,
+          manualRelationshipId,
+          actorUserId: actor.actorUserId,
+          reason: body.reason ?? null,
+          reach: await resolveGraphReach(body.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       if (!result.ok) {
         bump("graph_query_denied_total");
         return reply.code(503).send({
           error: { code: "graph_unavailable" },
         });
+      }
+      // Nothing was retracted (already gone, or outside the caller's reach, which
+      // reads the same from outside): no audit row or custody event for a retract
+      // that did not happen.
+      if (!result.retracted) {
+        return reply.code(200).send({ manualRelationshipId, retracted: true });
       }
       // Wave 2 Phase 6 — bounded audit emit on successful retract.
       // Best-effort — never blocks the operator action.
@@ -549,11 +580,15 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const subgraph = await buildCaseSubgraph({
-        teamId: q.teamId,
-        caseId,
-        depth: q.depth,
-      });
+      const subgraph = await buildCaseSubgraph(
+        {
+          teamId: q.teamId,
+          caseId,
+          depth: q.depth,
+          reach: await resolveGraphReach(q.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       bump("graph_case_subgraph_loaded_total");
       return reply.code(200).send({
         caseId,
@@ -610,19 +645,23 @@ export async function graphRoutes(app: FastifyInstance) {
             .map((s) => s.trim())
             .filter((s) => edgeSet.has(s))
         : [];
-      const result = await searchGraph({
-        teamId: q.teamId,
-        nodeKinds:
-          parsedKinds.length > 0
-            ? (parsedKinds as never)
-            : null,
-        edgeTypes:
-          parsedEdges.length > 0
-            ? (parsedEdges as never)
-            : null,
-        labelContains: q.label ?? null,
-        limit: q.limit,
-      });
+      const result = await searchGraph(
+        {
+          teamId: q.teamId,
+          nodeKinds:
+            parsedKinds.length > 0
+              ? (parsedKinds as never)
+              : null,
+          edgeTypes:
+            parsedEdges.length > 0
+              ? (parsedEdges as never)
+              : null,
+          labelContains: q.label ?? null,
+          limit: q.limit,
+          reach: await resolveGraphReach(q.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       bump("graph_search_executed_total");
       return reply.code(200).send({
         nodes: result.nodes.map(projectNodeForPublic),
@@ -664,14 +703,25 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const result = await buildInvestigationTimeline({
-        teamId: q.teamId,
-        rootNodeId: q.rootNodeId ?? null,
-        evidenceId: q.evidenceId ?? null,
-        fromUtc: q.from ?? null,
-        toUtc: q.to ?? null,
-        limit: q.limit,
-      });
+      // The evidence-keyed streams (lifecycle, media signals, extracted
+      // entities) are not graph rows, so a closed record is stopped here.
+      // Same answer as an id with nothing on it.
+      const closedRecord =
+        q.evidenceId !== undefined && !(await evidenceOpenToActor(actor.actorUserId, q.evidenceId));
+      const result = closedRecord
+        ? ({ ok: true, events: [], truncated: false } as const)
+        : await buildInvestigationTimeline(
+            {
+              teamId: q.teamId,
+              rootNodeId: q.rootNodeId ?? null,
+              evidenceId: q.evidenceId ?? null,
+              fromUtc: q.from ?? null,
+              toUtc: q.to ?? null,
+              limit: q.limit,
+              reach: await resolveGraphReach(q.teamId, actor.actorUserId),
+            },
+            prisma,
+          );
       bump("graph_timeline_executed_total");
       // Phase Repair (Problem 13) — propagate the bounded QUERY_FAILED
       // shape to the client. We keep a 200 status so the existing
@@ -742,10 +792,12 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      const reach = await resolveGraphReach(body.teamId, actor.actorUserId);
 
       // Anti-enumeration: confirm the edge belongs to this team AND is
       // a duplicate-class edge. We read the edge directly so the route
-      // doesn't trust the client's claimed edgeType.
+      // doesn't trust the client's claimed edgeType. An edge touching a
+      // record outside the caller's reach is the same 404.
       let edgeRow:
         | {
             id: string;
@@ -762,9 +814,12 @@ export async function graphRoutes(app: FastifyInstance) {
                AND "edge_type" IN (
                  'SAME_HASH_AS', 'SIMILAR_TO', 'POSSIBLE_DERIVATIVE_OF'
                )
+               AND NOT ("source_node_id" = ANY($3::uuid[]))
+               AND NOT ("target_node_id" = ANY($3::uuid[]))
              LIMIT 1`,
           params.edgeId,
           body.teamId,
+          [...reach.hiddenNodeIds],
         )) as Array<{ id: string; team_id: string; edge_type: string }>;
         edgeRow = rows[0] ?? null;
       } catch {
@@ -885,11 +940,15 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const result = await listDuplicateEdges({
-        teamId: q.teamId,
-        evidenceId: q.evidenceId ?? null,
-        limit: q.limit,
-      });
+      const result = await listDuplicateEdges(
+        {
+          teamId: q.teamId,
+          evidenceId: q.evidenceId ?? null,
+          limit: q.limit,
+          reach: await resolveGraphReach(q.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       bump("graph_duplicate_list_executed_total");
       return reply.code(200).send({
         edges: result.edges.map(projectDuplicateEdgeForPublic),
@@ -944,6 +1003,7 @@ export async function graphRoutes(app: FastifyInstance) {
       const EXPORT_LIMIT = 500;
       let nodes: NodeRow[] = [];
       let edges: EdgeRow[] = [];
+      const hiddenNodeIds = [...(await resolveGraphReach(body.teamId, actor.actorUserId)).hiddenNodeIds];
       try {
         nodes = (await prisma.$queryRawUnsafe(
           `SELECT "id", "node_kind"::text AS "node_kind", "external_id",
@@ -951,10 +1011,12 @@ export async function graphRoutes(app: FastifyInstance) {
                   "updated_at_utc"
              FROM "investigation_graph_nodes"
              WHERE "team_id" = $1 AND "stale_at_utc" IS NULL
+               AND NOT ("id" = ANY($3::uuid[]))
              ORDER BY "updated_at_utc" DESC
              LIMIT $2`,
           body.teamId,
           EXPORT_LIMIT + 1,
+          hiddenNodeIds,
         )) as NodeRow[];
         edges = (await prisma.$queryRawUnsafe(
           `SELECT "id", "source_node_id", "target_node_id",
@@ -964,10 +1026,13 @@ export async function graphRoutes(app: FastifyInstance) {
                   "safe_summary", "updated_at_utc"
              FROM "investigation_graph_edges"
              WHERE "team_id" = $1 AND "stale_at_utc" IS NULL
+               AND NOT ("source_node_id" = ANY($3::uuid[]))
+               AND NOT ("target_node_id" = ANY($3::uuid[]))
              ORDER BY "updated_at_utc" DESC
              LIMIT $2`,
           body.teamId,
           EXPORT_LIMIT + 1,
+          hiddenNodeIds,
         )) as EdgeRow[];
       } catch {
         return reply.code(503).send({
@@ -1071,14 +1136,23 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const result = await buildInvestigationTimeline({
-        teamId: body.teamId,
-        rootNodeId: null,
-        evidenceId: body.evidenceId ?? null,
-        fromUtc: body.fromUtc ?? null,
-        toUtc: body.toUtc ?? null,
-        limit: 200,
-      });
+      // An export writes custody on the record it names, so a closed record
+      // is refused outright rather than exported empty.
+      if (body.evidenceId && !(await evidenceOpenToActor(actor.actorUserId, body.evidenceId))) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      const result = await buildInvestigationTimeline(
+        {
+          teamId: body.teamId,
+          rootNodeId: null,
+          evidenceId: body.evidenceId ?? null,
+          fromUtc: body.fromUtc ?? null,
+          toUtc: body.toUtc ?? null,
+          limit: 200,
+          reach: await resolveGraphReach(body.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       // Phase Repair (Problem 13) — refuse to produce a misleading
       // empty export when the projection failed. Returning a 503
       // signals the operator's client to retry rather than persisting
@@ -1165,11 +1239,18 @@ export async function graphRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      const result = await listDuplicateEdges({
-        teamId: body.teamId,
-        evidenceId: body.evidenceId ?? null,
-        limit: 200,
-      });
+      if (body.evidenceId && !(await evidenceOpenToActor(actor.actorUserId, body.evidenceId))) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+      const result = await listDuplicateEdges(
+        {
+          teamId: body.teamId,
+          evidenceId: body.evidenceId ?? null,
+          limit: 200,
+          reach: await resolveGraphReach(body.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       const generatedAt = new Date().toISOString();
       try {
         await emitTenantAudit({
@@ -1251,11 +1332,15 @@ export async function graphRoutes(app: FastifyInstance) {
             .map((s) => s.trim())
             .filter((s) => kindSet.has(s))
         : [];
-      const result = await listGraphSeedNodes({
-        teamId: q.teamId,
-        kinds: parsedKinds.length > 0 ? (parsedKinds as never) : null,
-        perKindLimit: q.perKindLimit,
-      });
+      const result = await listGraphSeedNodes(
+        {
+          teamId: q.teamId,
+          kinds: parsedKinds.length > 0 ? (parsedKinds as never) : null,
+          perKindLimit: q.perKindLimit,
+          reach: await resolveGraphReach(q.teamId, actor.actorUserId),
+        },
+        prisma,
+      );
       bump("graph_seeds_executed_total");
       return reply.code(200).send({
         nodes: result.nodes.map(projectGraphSeedForPublic),
@@ -1357,12 +1442,18 @@ export async function graphRoutes(app: FastifyInstance) {
       const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const actor = await requireGraphAdminActor(req, reply, q.teamId);
       if (!actor) return;
-      const diagnostics = await buildGraphDiagnostics(q.teamId);
+      const diagnostics = await buildGraphDiagnostics(q.teamId, actor.userId);
       // Wave 1: counter for diagnostics reads is reserved for the
       // next metrics-catalog update wave.
       return reply.code(200).send(diagnostics);
     },
   );
+}
+
+/** The record authority's answer for one named record. */
+async function evidenceOpenToActor(userId: string, evidenceId: string): Promise<boolean> {
+  const access = await resolveEvidenceRecordAccess({ userId, evidenceId, permission: "evidence.read" });
+  return access.allowed;
 }
 
 // =============================================================================
@@ -1449,7 +1540,11 @@ type GraphDiagnostics = {
 
 async function buildGraphDiagnostics(
   teamId: string,
+  actorUserId: string,
 ): Promise<GraphDiagnostics> {
+  // Counts are reach-scoped too: a count that moves discloses activity on a
+  // record the caller cannot open, and VIEWER holds this route's read arm.
+  const hiddenNodeIds = [...(await resolveGraphReach(teamId, actorUserId)).hiddenNodeIds];
   // Counts grouped by node_kind / edge_type. Team-anchored.
   const nodeCountsByKind: Record<string, number> = {};
   const edgeCountsByType: Record<string, number> = {};
@@ -1464,8 +1559,10 @@ async function buildGraphDiagnostics(
               SUM(CASE WHEN "stale_at_utc" IS NULL THEN 0 ELSE 1 END)::int AS "stale"
          FROM "investigation_graph_nodes"
          WHERE "team_id" = $1
+           AND NOT ("id" = ANY($2::uuid[]))
          GROUP BY "node_kind"`,
       teamId,
+      hiddenNodeIds,
     )) as Array<{ node_kind: string; total: number; stale: number }>;
     for (const r of nodeRows) {
       const total = Number(r.total ?? 0);
@@ -1484,8 +1581,11 @@ async function buildGraphDiagnostics(
               SUM(CASE WHEN "stale_at_utc" IS NULL THEN 0 ELSE 1 END)::int AS "stale"
          FROM "investigation_graph_edges"
          WHERE "team_id" = $1
+           AND NOT ("source_node_id" = ANY($2::uuid[]))
+           AND NOT ("target_node_id" = ANY($2::uuid[]))
          GROUP BY "edge_type"`,
       teamId,
+      hiddenNodeIds,
     )) as Array<{ edge_type: string; total: number; stale: number }>;
     for (const r of edgeRows) {
       const total = Number(r.total ?? 0);
@@ -1525,8 +1625,10 @@ async function buildGraphDiagnostics(
     const rows = (await prisma.$queryRawUnsafe(
       `SELECT MAX("updated_at_utc") AS "last_at"
          FROM "investigation_graph_nodes"
-         WHERE "team_id" = $1`,
+         WHERE "team_id" = $1
+           AND NOT ("id" = ANY($2::uuid[]))`,
       teamId,
+      hiddenNodeIds,
     )) as Array<{ last_at: Date | null }>;
     const lastAt = rows[0]?.last_at ?? null;
     if (lastAt) {

@@ -495,6 +495,11 @@ vi.mock("../src/services/siu/siu-saved-views.service.js", async (importOriginal)
   };
 });
 
+// Reach itself is proved on real rows in case-reach-matrix.integration.test.ts.
+vi.mock("../src/services/graph/graph-reach.js", () => ({
+  resolveGraphReach: async () => ({ hiddenNodeIds: [] }),
+}));
+
 vi.mock("../src/services/graph/graph-builder.service.js", () => ({
   buildEvidenceSubgraph: async () => ({
     nodes: [
@@ -521,7 +526,7 @@ vi.mock("../src/services/graph/graph-builder.service.js", () => ({
   },
   retractManualRelationship: async () => {
     H.writes.push("retractManualRelationship");
-    return { ok: true };
+    return { ok: true, retracted: true };
   },
 }));
 

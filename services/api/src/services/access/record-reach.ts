@@ -28,6 +28,44 @@ import {
   evidenceVisibleThroughCasesWhere,
 } from "../cases/case-visibility.js";
 
+/**
+ * WHICH RECORDS OF ONE WORKSPACE ARE CLOSED TO THIS CALLER — the same rule,
+ * answered as id lists, for the surfaces that cannot join the Case or Evidence
+ * relation: raw SQL (the investigation graph, the aggregators) and denormalised
+ * rows that hold an evidence id with no relation (search documents, discussion
+ * threads, signals). Pass `null` for a machine path: only unrestricted records
+ * stay open.
+ *
+ * It is not a second predicate: both lists are `case-visibility.ts` applied by
+ * the database. The caller must already have established workspace authority.
+ */
+export type HiddenRecordIds = {
+  caseIds: string[];
+  evidenceIds: string[];
+};
+
+type HiddenRecordClient = Pick<PrismaClient, "case" | "evidence">;
+
+export async function hiddenRecordIdsInWorkspace(
+  workspaceId: string,
+  callerUserId: string | null,
+  client: HiddenRecordClient = defaultPrisma,
+): Promise<HiddenRecordIds> {
+  const [cases, evidence] = await Promise.all([
+    client.case.findMany({
+      // NOT visible already implies restricted (caseVisibleToWhere admits
+      // every unrestricted Case), by the canonical rule rather than the flag.
+      where: { teamId: workspaceId, NOT: caseVisibleToWhere(callerUserId) },
+      select: { id: true },
+    }),
+    client.evidence.findMany({
+      where: { teamId: workspaceId, NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
+      select: { id: true },
+    }),
+  ]);
+  return { caseIds: cases.map((c) => c.id), evidenceIds: evidence.map((e) => e.id) };
+}
+
 export async function accessibleWorkspaceIdsFor(
   userId: string,
   client: PrismaClient = defaultPrisma,
