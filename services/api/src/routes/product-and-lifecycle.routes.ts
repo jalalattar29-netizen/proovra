@@ -85,6 +85,7 @@ import {
   transitionEvidenceTier,
 } from "../services/lifecycle/archive-tier.service.js";
 import {
+  assertDestructionRequestActionable,
   createDestructionRequest,
   getDestructionCertificate,
   getDestructionCertificateArtifact,
@@ -150,9 +151,23 @@ async function resolveWorkspace(
  */
 function sendDestructionRefusal(reply: FastifyReply, err: unknown) {
   if (isDomainError(err)) {
-    return reply.code(err.httpStatus).send({ denial: err.publicCode });
+    const eligibleAtUtc = err.metadata.eligibleAtUtc;
+    return reply
+      .code(err.httpStatus)
+      .send({ denial: err.publicCode, ...(eligibleAtUtc ? { eligibleAtUtc } : {}) });
   }
   throw err;
+}
+
+/**
+ * GOV-001 — every write on the destruction path answers to the entitlement, the
+ * same one its read route has always checked. Returns true when it refused.
+ */
+async function denyWithoutDestructionGovernance(reply: FastifyReply, teamId: string): Promise<boolean> {
+  const featureOk = await assertFeatureEntitlement({ teamId, key: "FEATURE_DESTRUCTION_GOVERNANCE" });
+  if (featureOk.ok) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
+  return true;
 }
 
 export async function productAndLifecycleRoutes(app: FastifyInstance) {
@@ -1636,16 +1651,21 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           requiredApproverUserIds: z.array(z.string().uuid()).min(1),
         })
         .parse(req.body);
-      const res = await createDestructionRequest({
-        teamId: ctx.teamId,
-        evidenceIds: body.evidenceIds,
-        reason: body.reason,
-        policyRef: body.policyRef ?? null,
-        requestedByUserId: ctx.userId,
-        requiredApproverUserIds: body.requiredApproverUserIds,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial, holdIds: res.holdIds ?? [] });
-      return reply.code(201).send({ requestId: res.requestId });
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      try {
+        const res = await createDestructionRequest({
+          teamId: ctx.teamId,
+          evidenceIds: body.evidenceIds,
+          reason: body.reason,
+          policyRef: body.policyRef ?? null,
+          requestedByUserId: ctx.userId,
+          requiredApproverUserIds: body.requiredApproverUserIds,
+        });
+        if (!res.ok) return reply.code(409).send({ denial: res.denial, holdIds: res.holdIds ?? [] });
+        return reply.code(201).send({ requestId: res.requestId });
+      } catch (err) {
+        return sendDestructionRefusal(reply, err);
+      }
     },
   );
 
@@ -1661,7 +1681,25 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
+        await assertDestructionRequestActionable({
+          teamId: ctx.teamId,
+          requestId: id,
+          action: "APPROVE",
+          actorUserId: ctx.userId,
+        });
+        // SEC-03 — approving destruction needs a fresh factor, on this path too.
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "EVIDENCE_DESTRUCTION_APPROVE",
+          resourceKind: "destruction_request",
+          resourceId: id,
+        });
+        if (gate.sent) return reply;
         const res = await recordApproval({
           teamId: ctx.teamId,
           requestId: id,
@@ -1679,7 +1717,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("governance.destruction.request"),
+        // GOV-003 — rejecting is a decision on the request, so it takes the
+        // decider's permission, not the requester's.
+        requireWorkspacePermission("governance.destruction.approve"),
       ],
     },
     async (req, reply) => {
@@ -1689,6 +1729,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const body = z
         .object({ reason: z.string().min(1).max(600) })
         .parse(req.body ?? { reason: "rejected" });
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       const res = await rejectDestructionRequest({
         teamId: ctx.teamId,
         requestId: id,
@@ -1709,7 +1750,24 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
+        await assertDestructionRequestActionable({
+          teamId: ctx.teamId,
+          requestId: id,
+          action: "EXECUTE",
+          actorUserId: ctx.userId,
+        });
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "EVIDENCE_DESTRUCTION_EXECUTE",
+          resourceKind: "destruction_request",
+          resourceId: id,
+        });
+        if (gate.sent) return reply;
         const res = await executeDestruction({
           teamId: ctx.teamId,
           requestId: id,
