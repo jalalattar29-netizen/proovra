@@ -6826,6 +6826,11 @@ model CommunicationMessage {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
 
+  // WORKFLOW-009 — true only when bodyPreview is the whole message, so a retry
+  // can send it. Raw bodies are not stored, so a sanitized, cut-off or template
+  // message cannot be sent twice and has to be issued again.
+  bodyResendable Boolean @default(false) @map("body_resendable")
+
   channel   CommunicationChannel
   direction CommunicationDirection @default(OUTBOUND)
   purpose   CommunicationPurpose

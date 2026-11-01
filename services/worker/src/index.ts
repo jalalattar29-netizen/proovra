@@ -96,6 +96,11 @@ import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliatio
 import { runOrgInviteDeliverySweep } from "./org-invite-delivery.worker.js";
 import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
 import { runLifecycleSweepTick } from "./lifecycle-sweep.js";
+import {
+  API_DELIVERY_SWEEPS,
+  runApiDeliverySweep,
+  type ApiDeliverySweep,
+} from "./api-delivery-sweeps.js";
 // P5 — Webhook dispatcher + Evidence Exchange package builder schedulers.
 import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
@@ -1664,6 +1669,58 @@ function startOrgInviteDeliverySweepScheduler() {
   })();
 }
 
+// -----------------------------------------------------------------------------
+// WORKFLOW-008 — delivery sweeps: email and SMS retries, reminders, digests.
+// Same shape as the org-invite sweep above, one lock per sweep. See
+// api-delivery-sweeps.ts for why these live here.
+// -----------------------------------------------------------------------------
+
+const apiDeliverySweepsEnabled = envBoolean("API_DELIVERY_SWEEPS_ENABLED", true);
+const apiDeliverySweepTimers: Array<ReturnType<typeof setInterval>> = [];
+const apiDeliverySweepsRunning = new Set<string>();
+
+async function runApiDeliverySweepTick(sweep: ApiDeliverySweep, trigger: string) {
+  if (apiDeliverySweepsRunning.has(sweep.name)) return;
+  apiDeliverySweepsRunning.add(sweep.name);
+  try {
+    const outcome = await withCronLock(`api-delivery-${sweep.name}`, () =>
+      runApiDeliverySweep(sweep, { trigger }),
+    );
+    if (!outcome.ran) {
+      logger.debug({ sweep: sweep.name, trigger }, "api_delivery_sweep.skipped_locked");
+    }
+  } catch (err) {
+    logger.error({ err, sweep: sweep.name, trigger }, "api_delivery_sweep.tick_failed");
+    captureException(err, { sweep: sweep.name, trigger });
+  } finally {
+    apiDeliverySweepsRunning.delete(sweep.name);
+  }
+}
+
+function startApiDeliverySweepSchedulers() {
+  if (!apiDeliverySweepsEnabled) {
+    logger.info({}, "api_delivery_sweep.scheduler.disabled");
+    return;
+  }
+  for (const sweep of API_DELIVERY_SWEEPS) {
+    apiDeliverySweepTimers.push(
+      setInterval(() => {
+        void runApiDeliverySweepTick(sweep, "interval");
+      }, sweep.intervalMs),
+    );
+  }
+  logger.info(
+    { sweeps: API_DELIVERY_SWEEPS.map((s) => s.name) },
+    "api_delivery_sweep.scheduler.started",
+  );
+}
+
+function stopApiDeliverySweepSchedulers() {
+  while (apiDeliverySweepTimers.length > 0) {
+    clearInterval(apiDeliverySweepTimers.pop());
+  }
+}
+
 function stopOrgInviteDeliverySweepScheduler() {
   if (orgInviteDeliverySweepTimer) {
     clearInterval(orgInviteDeliverySweepTimer);
@@ -2376,6 +2433,7 @@ async function shutdown(exitCode: number) {
   stopReviewerReconciliationScheduler();
   // Macro-Wave A2 — org-invite delivery sweep.
   stopOrgInviteDeliverySweepScheduler();
+  stopApiDeliverySweepSchedulers();
   stopAutomationDispatchScheduler();
   stopLifecycleScheduler();
   // Phase Y — Observability schedulers.
@@ -2638,6 +2696,7 @@ initSecretsAuthority(logger)
     // Macro-Wave A2 — org-invite delivery sweep (stranded PENDING
     // outbox rows → API-side rotation retry).
     startOrgInviteDeliverySweepScheduler();
+    startApiDeliverySweepSchedulers();
     startAutomationDispatchScheduler();
     startLifecycleScheduler();
     // Phase Y — Observability heartbeat + queue-health sampler.

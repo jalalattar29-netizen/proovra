@@ -3774,6 +3774,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='evidence_review_workflows' AND column_name='sla_due_soon_hours';\"",
       "evidence": "WORKFLOW-006 / WORKFLOW-007 (2026-11-01). Nullable column with no default, so no row is rewritten. Each review carries the due-soon window its deadlines were stamped with, so the queue, badge and reminders read one number."
+    },
+    "20281107000200_communication_body_resendable": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='communication_messages' AND column_name='body_resendable';\"",
+      "evidence": "WORKFLOW-009 (2026-11-01). A constant default rewrites no row. false is deliberate: an existing row cannot prove its preview is the whole message, so a retry does not resend it."
     }
   }
 }
