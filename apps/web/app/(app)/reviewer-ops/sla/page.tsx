@@ -103,6 +103,21 @@ export default function SlaDashboardPage() {
   );
 }
 
+type ReviewReminder = {
+  id: string;
+  kind: string;
+  status: "SCHEDULED" | "DELIVERED" | "SUPPRESSED" | "FAILED";
+  safeSummary: string;
+  createdAt: string;
+};
+
+const REMINDER_STATUS_LABEL: Record<ReviewReminder["status"], string> = {
+  SCHEDULED: "Waiting to send",
+  DELIVERED: "Emailed",
+  SUPPRESSED: "Shown here only",
+  FAILED: "Could not send",
+};
+
 function SlaDashboardPageInner() {
   // PageRouteGate guarantees an active ORGANIZATION space here.
   const teamId = useActiveSpaceId();
@@ -111,6 +126,7 @@ function SlaDashboardPageInner() {
   const [analytics, setAnalytics] = useState<EscalationAnalytics | null>(null);
   const [reviewers, setReviewers] = useState<ReviewerPerformance | null>(null);
   const [rangeDays, setRangeDays] = useState<number>(14);
+  const [reminders, setReminders] = useState<ReviewReminder[] | null>(null);
 
   const load = useCallback(() => {
     if (!teamId) return;
@@ -130,6 +146,21 @@ function SlaDashboardPageInner() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!teamId) return;
+    let cancelled = false;
+    apiFetch(`/v1/reviewer-ops/reminders?teamId=${encodeURIComponent(teamId)}`, { method: "GET" })
+      .then((r: { reminders: ReviewReminder[] }) => {
+        if (!cancelled) setReminders(r.reminders);
+      })
+      .catch(() => {
+        if (!cancelled) setReminders(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
 
   // Phase 25.5 — analytics + reviewer performance.
   useEffect(() => {
@@ -192,7 +223,33 @@ function SlaDashboardPageInner() {
           />
         }
       >
-        {error ? (
+        {reminders && reminders.length > 0 ? (
+        <PageSection>
+          <Card padding="comfortable">
+            <h3 className="app-panel__title">Reminders</h3>
+            <table className="app-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Reminder</th>
+                  <th>Delivery</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reminders.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatCellDateTime(r.createdAt)}</td>
+                    <td>{r.safeSummary}</td>
+                    <td>{REMINDER_STATUS_LABEL[r.status]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </PageSection>
+      ) : null}
+
+      {error ? (
           <Card variant="status" tone="risk">
             {error}
           </Card>

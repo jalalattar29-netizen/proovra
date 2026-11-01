@@ -32,6 +32,7 @@
  *   - Errors map to the Phase 25 ReviewerOpsErrorCode catalog.
  */
 
+import { listReminders } from "../services/reviewer-ops/reminder-engine.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "../services/reviewer-ops/sweep-cursor.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -1318,6 +1319,28 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         if (sendEngineError(reply, err)) return;
         throw err;
       }
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/reviewer-ops/reminders
+  // ===========================================================================
+
+  app.get(
+    "/v1/reviewer-ops/reminders",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = TeamIdQuery.parse(req.query);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
+      if (!ctx) return;
+      // A reminder names the person it is about. Someone who can reassign work
+      // sees the team's; anyone else sees their own.
+      const reminders = await listReminders({
+        teamId: q.teamId,
+        limit: 25,
+        ...(ctx.mayActOnOthersReviews ? {} : { reviewerUserId: ctx.actorUserId }),
+      });
+      return reply.code(200).send({ reminders });
     },
   );
 

@@ -180,6 +180,18 @@ export function renderTransactionalTemplate(
         "Review overdue",
         "A review you own is past its due date",
       );
+    case "REVIEW_DUE_SOON_REMINDER":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "Review due soon",
+        "A review you own is coming up on its due date",
+      );
+    case "REVIEW_INACTIVITY_REMINDER":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "Review waiting on you",
+        "A review you own has had no recent activity",
+      );
     case "REVIEW_NEEDS_MORE_INFO":
       return renderReviewVariant(
         expectCtx(ctx, "ReviewAssigned"),

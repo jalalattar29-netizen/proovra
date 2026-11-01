@@ -2609,6 +2609,12 @@
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
+      "capabilityId": "GET:/v1/reviewer-ops/reminders",
+      "routeId": "GET /v1/reviewer-ops/reminders",
+      "vertical": "EVIDENCE_OPERATIONS",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/reviewer-ops/queue",
       "routeId": "GET /v1/reviewer-ops/queue",
       "vertical": "EVIDENCE_OPERATIONS",

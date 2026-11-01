@@ -96,6 +96,7 @@ import { warn as logWarn } from "../../utils/logger.js";
 import { resolveReviewPolicyForEvidence } from "./review-sla-stamp.service.js";
 import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
 import {
+  deliverScheduledReminders,
   sweepDueSoonReminders,
   sweepInactivityReminders,
 } from "./reminder-engine.service.js";
@@ -1307,6 +1308,12 @@ async function runReconcileInner(
             client,
           )
         : { scanned: 0, scheduled: 0, duplicates: 0 };
+
+    // WORKFLOW-010 — what the two sweeps above scheduled now reaches the person.
+    await deliverScheduledReminders(
+      { teamId: input.teamId, batchSize: input.batchSize },
+      client,
+    );
 
     // PHASE 13 §4 (2026-08-17) — repair drifted workflow stage projections.
     //
