@@ -6,6 +6,7 @@ import {
   buildDisclosureManifest,
   captureCompletenessNote,
   captureCompletenessRows,
+  externalRecordValues,
   projectJsonForDisclosure,
   EXTERNAL_LOCATION_FILES,
   projectTextForDisclosure,
@@ -3344,19 +3345,18 @@ export async function createVerificationPackage(data: {
     if (data.seal && !packageId) throw new Error("PACKAGE_ID_REQUIRED");
     const disclosureRecords: DisclosureRecord[] = [];
     const withheldFiles: Array<{ file: string; sha256: string | null; reason: DisclosureReason }> = [];
-    const NEVER_PROJECTED = new Set([
-      "fingerprint.json",
-      "package-manifest.json",
-      "package-manifest.sig",
-      "trust-decision.json",
-      "opentimestamps.json",
-      "anchor.json",
-      "timestamp-validation.json",
-      "evidence-manifest.json",
-      "signers/signer-registry-snapshot.json",
-      "signers/historical-verification-material.json",
-    ]);
+    // REPORT-002 — only documents whose exact bytes are signed stay as built.
+    // package-manifest.json is projected BEFORE it is signed (below); every
+    // other document is built for this package and goes through the policy.
+    const NEVER_PROJECTED = new Set(["fingerprint.json", "package-manifest.json", "package-manifest.sig"]);
     const NEVER_PROJECTED_TEXT = new Set(["signature.txt"]);
+    // Set once the record's values are read, before any entry is projected.
+    let externalValues: string[] = [];
+    const projectionOptions = () => ({
+      recordedLocationDisclosed: data.recordedLocationDisclosed === true,
+      recordedCoordinates: data.recordedCoordinates,
+      recordValues: externalValues,
+    });
     const appendEntry = (name: string, buffer: Buffer, contentType?: string) => {
       if (profile === "EXTERNAL_DISCLOSURE") {
         if (name === "fingerprint.json") {
@@ -3371,10 +3371,7 @@ export async function createVerificationPackage(data: {
           return;
         }
         if (contentType === "application/json" && !NEVER_PROJECTED.has(name)) {
-          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")), {
-            recordedLocationDisclosed: data.recordedLocationDisclosed === true,
-            recordedCoordinates: data.recordedCoordinates,
-          });
+          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")), projectionOptions());
           disclosureRecords.push(...projected.records);
           appendPackageEntry(archive, packageEntries, name, jsonBuffer(projected.value), contentType);
           return;
@@ -3383,10 +3380,7 @@ export async function createVerificationPackage(data: {
         // projected by value with the same policy; signatures and keys are
         // material, never text to redact.
         if ((contentType === "text/plain" || contentType === "text/markdown") && !NEVER_PROJECTED_TEXT.has(name) && !/\.(pem|sig)$/.test(name)) {
-          const projected = projectTextForDisclosure(profile, name, buffer.toString("utf8"), {
-            recordedLocationDisclosed: data.recordedLocationDisclosed === true,
-            recordedCoordinates: data.recordedCoordinates,
-          });
+          const projected = projectTextForDisclosure(profile, name, buffer.toString("utf8"), projectionOptions());
           disclosureRecords.push(...projected.records);
           appendPackageEntry(archive, packageEntries, name, Buffer.from(projected.value, "utf8"), contentType);
           return;
@@ -3402,7 +3396,30 @@ export async function createVerificationPackage(data: {
       return;
     }
 
-    const metadata = data.metadata ?? {};
+    /*
+     * REPORT-002 — what describes the record stops here for an outsider, so no
+     * builder below can print it. The values are also kept to withhold them by
+     * value in every entry: they can reach a document by other routes, such as a
+     * custody payload or a canonical snapshot.
+     */
+    const sourceMetadata = data.metadata ?? {};
+    if (profile === "EXTERNAL_DISCLOSURE") {
+      externalValues = externalRecordValues([
+        data.evidenceId,
+        data.workspaceLabelAtPackageTime,
+        data.reportFileName,
+        sourceMetadata.title,
+        sourceMetadata.caseName,
+        sourceMetadata.matterNumber,
+        sourceMetadata.clientName,
+        sourceMetadata.caseId,
+        ...evidenceFiles.flatMap((file) => [file.name, file.originalFileName, file.sourceLabel, file.checklistStepLabel]),
+      ]);
+    }
+    const metadata: VerificationPackageMetadata =
+      profile === "EXTERNAL_DISCLOSURE"
+        ? { ...sourceMetadata, title: null, caseName: null, matterNumber: null, clientName: null, caseId: null }
+        : sourceMetadata;
     const captureContextData = buildCaptureContext(
       metadata,
       data.evidenceId ?? null
@@ -3413,6 +3430,11 @@ export async function createVerificationPackage(data: {
     const evidenceFilesWithFinalName = evidenceFiles.map((file, index) => {
       const fileOrder = index + 1;
       const totalParts = evidenceFiles.length;
+      // Withheld in this profile, so the name is only a position to refer to.
+      if (profile === "EXTERNAL_DISCLOSURE") {
+        const finalName = `item-${fileOrder}`;
+        return { ...file, name: finalName, originalFileName: null, sourceLabel: null, checklistStepLabel: null, finalName };
+      }
       const finalName = buildEvidencePackageFileName({
         evidenceTitle: metadata.title ?? null,
         originalFileName: file.originalFileName ?? file.name,
@@ -3622,7 +3644,11 @@ export async function createVerificationPackage(data: {
       metadata,
     });
 
-    const packageManifestBuffer = jsonBuffer(packageManifest);
+    // Projected before it is signed, so the manifest signature covers what an
+    // outsider receives. (The FULL_FORENSIC bytes are untouched.)
+    const projectedManifest = projectJsonForDisclosure(profile, "package-manifest.json", packageManifest, projectionOptions());
+    disclosureRecords.push(...projectedManifest.records);
+    const packageManifestBuffer = jsonBuffer(projectedManifest.value);
 
     appendEntry(
         "package-manifest.json",
@@ -4299,7 +4325,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         disclosureProfile: profile,
         supersedesPackageId: data.supersedesPackage?.packageId ?? null,
         ...(profile === "EXTERNAL_DISCLOSURE" ? { sourceFullPackageId: data.sourceFullPackageId ?? null } : {}),
-        evidenceId: data.evidenceId as string,
+        // REPORT-002 — the package id identifies an external package.
+        ...(profile === "EXTERNAL_DISCLOSURE" ? {} : { evidenceId: data.evidenceId as string }),
         reportVersion: Number(data.reportVersion),
         reportFile: profile === "EXTERNAL_DISCLOSURE" ? null : reportEntryPath,
         reportSha256: reportSha,

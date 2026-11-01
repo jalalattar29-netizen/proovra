@@ -42,6 +42,8 @@ import type { IntegrationHarness } from "../integration-harness.js";
 import { readZipEntries } from "./_zip-entries.js";
 import { tamperSealedEvidence } from "../helpers/sealed-identity-tamper.js";
 import { scanPackageForLocationLeaks } from "../helpers/location-leak-scan.js";
+import { independentlyCheckSealedPackage } from "../helpers/independent-package-check.js";
+import EXTERNAL_FIELD_ALLOWLIST from "./external-package-field-allowlist.json";
 
 /** Failure seams, all off by default. Test doubles, not production switches. */
 const seam = vi.hoisted(() => ({
@@ -2314,6 +2316,166 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     const manifest = JSON.parse(entries.get([...entries.keys()].find((k) => k === "disclosure-manifest.json" || k.endsWith("/disclosure-manifest.json"))!)!.toString("utf8"));
     expect(JSON.stringify(manifest)).toMatch(/capture-context.json/);
   };
+
+  /*
+   * REPORT-002 — what an outsider receives. Every descriptive value of the
+   * record is a sentinel; none may appear in any entry, under any key, in any
+   * file name, nested document or text. The check is on bytes, so a field added
+   * later cannot pass by being unnamed.
+   */
+  const SENTINELS = {
+    title: "Sentinel-Title-Jane-Doe-4471",
+    fileName: "sentinel-jane-doe-injury.jpg",
+    displayName: "sentinel-display-name.jpg",
+    partFile: "sentinel-part-medical-notes.pdf",
+    partFile2: "sentinel-part-second-file.pdf",
+    sourceLabel: "Sentinel-Source-Label-Free-Text",
+    privateNote: "Sentinel-Private-Note",
+    privateRole: "Sentinel-Private-Role",
+    workspace: "Sentinel-Workspace-Northwind",
+    organization: "Sentinel-Organization-Acme",
+    email: "sentinel.person@example.test",
+  } as const;
+
+  async function sentinelRecord(): Promise<string> {
+    const ev = await signedEvidence();
+    const digests: string[] = [];
+    const part = async (index: number, name: string) => {
+      const body = Buffer.from(`sentinel part ${index} ${randomUUID()}`);
+      digests.push(sha256Hex(body));
+      const key = `evidence/${ev.evidenceId}/parts/${index}`;
+      const { putObjectBuffer } = await import("../../../worker/src/storage.js");
+      await putObjectBuffer({ bucket: process.env.S3_BUCKET!, key, body, contentType: "application/pdf" });
+      await prisma.evidencePart.create({
+        data: {
+          evidenceId: ev.evidenceId,
+          partIndex: index,
+          storageBucket: process.env.S3_BUCKET!,
+          storageKey: key,
+          originalFileName: name,
+          mimeType: "application/pdf",
+          sizeBytes: BigInt(body.length),
+          sha256: sha256Hex(body),
+          sourceLabel: SENTINELS.sourceLabel,
+          privateNote: SENTINELS.privateNote,
+          privateRole: SENTINELS.privateRole,
+        } as never,
+      });
+    };
+    await part(0, SENTINELS.partFile);
+    await part(1, SENTINELS.partFile2);
+    await tamperSealedEvidence(prisma, ev.evidenceId, {
+      title: SENTINELS.title,
+      originalFileName: SENTINELS.fileName,
+      displayFileName: SENTINELS.displayName,
+      workspaceNameSnapshot: SENTINELS.workspace,
+      organizationNameSnapshot: SENTINELS.organization,
+      submittedByEmail: SENTINELS.email,
+      // A record of two parts seals the composite of their digests.
+      fileSha256: sha256Hex(Buffer.from(digests.join("|"))),
+    } as never);
+    return ev.evidenceId;
+  }
+
+  async function publishedPackages(evidenceId: string) {
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { teamId: true } });
+    const id = await request({ evidenceId, teamId: ev.teamId! });
+    expect(await run(id, 0)).toBeNull();
+    const after = await state(evidenceId, id);
+    const of = (profile: string) => {
+      const row = after.packageRows.find((p) => p.state === "PUBLISHED" && p.disclosureProfile === profile);
+      expect(row, `${profile} was published`).toBeTruthy();
+      return { row: row!, zip: stored(row!.storageBucket, row!.storageKey)! };
+    };
+    return { full: of("FULL_FORENSIC"), external: of("EXTERNAL_DISCLOSURE") };
+  }
+
+  it("REPORT-002: an external package carries no descriptive value of the record, in any entry, name or nested document", async () => {
+    const evidenceId = await sentinelRecord();
+    const { full, external } = await publishedPackages(evidenceId);
+    const entries = readZipEntries(external.zip);
+    const leaks: string[] = [];
+    for (const [name, bytes] of entries) {
+      const text = bytes.toString("utf8");
+      for (const [label, value] of Object.entries({ ...SENTINELS, recordId: evidenceId })) {
+        if (name.includes(value) || text.includes(value)) leaks.push(`${name}: ${label}`);
+      }
+    }
+    expect(leaks).toEqual([]);
+    // Positive control: the same values do exist in the full package, so the
+    // absence above is the projection and not a fixture that never reached it.
+    const fullText = [...readZipEntries(full.zip).values()].map((b) => b.toString("latin1")).join(" ");
+    expect(fullText).toContain(SENTINELS.title);
+    expect(fullText).toContain(SENTINELS.partFile);
+
+    // THE FIELD ALLOWLIST. Every key of every JSON document is one someone
+    // decided may leave. A new field fails here until it is reviewed, even with
+    // a value the rules would pass.
+    const unreviewed: string[] = [];
+    for (const [name, bytes] of entries) {
+      if (!/\.(json|sig)$/.test(name) || name === "disclosure-manifest.json") continue;
+      const allowed = new Set((EXTERNAL_FIELD_ALLOWLIST as Record<string, string[]>)[name] ?? []);
+      const visit = (v: unknown): void => {
+        if (Array.isArray(v)) v.forEach(visit);
+        else if (v && typeof v === "object") {
+          for (const [k, x] of Object.entries(v)) {
+            if (!allowed.has(k)) unreviewed.push(`${name}: ${k}`);
+            visit(x);
+          }
+        }
+      };
+      visit(JSON.parse(bytes.toString("utf8")));
+    }
+    expect(unreviewed).toEqual([]);
+
+    // Withheld, and said to be: the file list and the fields name what left.
+    const disclosure = JSON.parse(entries.get("disclosure-manifest.json")!.toString("utf8"));
+    expect(disclosure.withheldFiles.filter((f: { reason: string }) => f.reason === "ORIGINAL_CONTENT").map((f: { file: string }) => f.file)).toEqual([
+      "evidence-parts/item-1",
+      "evidence-parts/item-2",
+    ]);
+    expect(JSON.stringify(disclosure.fields)).toContain("RECORD_DESCRIPTION");
+  }, 180_000);
+
+  it("REPORT-002: an independent check verifies a real external and a real full package, and rejects tampering", async () => {
+    const { full, external } = await publishedPackages(await sentinelRecord());
+    const externalEntries = readZipEntries(external.zip);
+    const fullEntries = readZipEntries(full.zip);
+    expect(independentlyCheckSealedPackage(externalEntries)).toEqual([]);
+    expect(independentlyCheckSealedPackage(fullEntries)).toEqual([]);
+    // The full package keeps the record id it has always carried.
+    expect(JSON.parse(fullEntries.get("package-seal.json")!.toString("utf8")).evidenceId).toBeTruthy();
+    expect(JSON.parse(externalEntries.get("package-seal.json")!.toString("utf8"))).not.toHaveProperty("evidenceId");
+
+    const tampered = (name: string, edit: (b: Buffer) => Buffer) => {
+      const copy = new Map(externalEntries);
+      copy.set(name, edit(Buffer.from(copy.get(name)!)));
+      return independentlyCheckSealedPackage(copy);
+    };
+    const flip = (b: Buffer) => {
+      b[Math.floor(b.length / 2)] = b[Math.floor(b.length / 2)]! ^ 0xff;
+      return b;
+    };
+    expect(tampered("custody.json", flip).join()).toContain("custody.json differs from its checksum");
+    expect(tampered("package-checksums.json", flip).join()).toMatch(/checksum index differs|not JSON/);
+    expect(tampered("package-seal.json", flip).join()).toMatch(/seal digest differs|not JSON/);
+    const added = new Map(externalEntries);
+    added.set("extra.txt", Buffer.from("added after sealing"));
+    expect(independentlyCheckSealedPackage(added).join()).toContain("extra.txt is outside the checksum index");
+    // The repository's own verifier agrees with the independent one.
+    const { verifySealedPackageEntries } = await import("@proovra/shared");
+    const { createHash, createPublicKey, verify } = await import("node:crypto");
+    const result = verifySealedPackageEntries({
+      entries: externalEntries,
+      sha256Hex: (b) => createHash("sha256").update(b).digest("hex"),
+      verifyEd25519: (m, s, k) => verify(null, m, createPublicKey(k), Buffer.from(s, "base64")),
+      decodeUtf8: (b) => Buffer.from(b).toString("utf8"),
+      hexToBytes: (h) => Buffer.from(h, "hex"),
+    });
+    expect(result.failures).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(result.passed).toContain("REPORT_COMMITTED_WITHHELD");
+  }, 180_000);
 
   it("F-14: an UNDISCLOSED location never leaves in the external package (no coordinates, no accuracy, no capture-context)", async () => {
     expectUndisclosed(await externalPackageEntries({}));

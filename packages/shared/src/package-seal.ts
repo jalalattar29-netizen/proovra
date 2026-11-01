@@ -70,7 +70,12 @@ export type PackageSeal = {
   supersedesPackageId?: string | null;
   /** For EXTERNAL_DISCLOSURE: the FULL_FORENSIC package of the same version. */
   sourceFullPackageId?: string | null;
-  evidenceId: string;
+  /**
+   * The record. Absent from an EXTERNAL_DISCLOSURE seal issued from 2026-11
+   * (REPORT-002): the internal record id does not leave, and packageId identifies
+   * the package. Present on every earlier seal, which stay valid as issued.
+   */
+  evidenceId?: string;
   /** The report version this package certifies. */
   reportVersion: number;
   /**

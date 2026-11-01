@@ -52,7 +52,7 @@ export const DISCLOSURE_PROFILE_DESCRIPTIONS: Readonly<Record<DisclosureProfile,
   FULL_FORENSIC:
     "Original files, the issued report, complete custody payloads, identity and storage details, and every verification material. For authorized custodians and investigators.",
   EXTERNAL_DISCLOSURE:
-    "Every cryptographic commitment and verification material, with personal identifiers and internal infrastructure removed. The original files and the report are withheld; their SHA-256 digests are included so files received separately can be checked.",
+    "Every cryptographic commitment and verification material, with personal identifiers, record descriptions and internal infrastructure removed. Files are named by position. The original files and the report are withheld; their SHA-256 digests are included so files received separately can be checked.",
 };
 
 export type DisclosureAction = "WITHHELD" | "COARSENED";
@@ -64,6 +64,8 @@ export type DisclosureReason =
   | "PRECISE_LOCATION"
   | "NETWORK_OR_DEVICE_IDENTIFIER"
   | "ORIGINAL_CONTENT"
+  | "RECORD_DESCRIPTION"
+  | "CUSTODY_PAYLOAD_NOT_ALLOWLISTED"
   | "CONTAINS_DIRECT_IDENTIFIERS"
   | "SIGNED_CONTAINS_INFRASTRUCTURE";
 
@@ -74,6 +76,10 @@ export const DISCLOSURE_REASON_TEXT: Readonly<Record<DisclosureReason, string>> 
   PRECISE_LOCATION: "Precise coordinates; rounded to two decimal places (about 1 km).",
   NETWORK_OR_DEVICE_IDENTIFIER: "A network address or detailed browser/device identifier.",
   ORIGINAL_CONTENT: "The original evidence content; its SHA-256 digest is included as a commitment.",
+  RECORD_DESCRIPTION:
+    "A description of the record that can name a person or matter (a title, file name, label, free text, case or workspace name). Its files are named by position.",
+  CUSTODY_PAYLOAD_NOT_ALLOWLISTED:
+    "A custody payload field outside the external allowlist. The event's type, time and hash chain are kept.",
   CONTAINS_DIRECT_IDENTIFIERS: "The issued report names the submitter; its SHA-256 digest is included as a commitment.",
   SIGNED_CONTAINS_INFRASTRUCTURE:
     "Signed canonical material that records internal storage locations and cannot be redacted without breaking its signature; its SHA-256 (fingerprintHash in package-seal.json) is included, and the evidence signature verifies over that digest.",
@@ -103,6 +109,17 @@ const EMBEDDED_EMAIL_GLOBAL = new RegExp(EMBEDDED_EMAIL.source, "g");
  * event types, timestamps) never match.
  */
 const EXTERNAL_KEY_RULES: ReadonlyArray<KeyRule> = [
+  // REPORT-002 — what describes the record. Titles and file names often name
+  // people, submitter labels are free text, and a record id is internal: Public
+  // Verify withholds all of them under VERIFICATION_ONLY. The package id stands
+  // in for the record id, and a file is named by its position.
+  {
+    test: (k) =>
+      /^(title|evidencetitle|displaytitle|description|originalfilename|filename|displayfilename|storedfilename|sourcelabel|checkliststeplabel|privaterole|privatenote|clientsignals|workspacelabelatpackagetime|workspacename|workspacenamesnapshot|organizationname|organizationnamesnapshot|clientname|casename|mattername|matternumber|packetname)$/.test(lower(k)),
+    action: "WITHHELD",
+    reason: "RECORD_DESCRIPTION",
+  },
+  { test: (k) => /^(evidenceid|caseid|custodyeventid)$/.test(lower(k)), action: "WITHHELD", reason: "INTERNAL_IDENTIFIER" },
   { test: (k) => /email/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
   { test: (k) => /^(phone|phonenumber|contributorphone|recipientphone|recipientemail|displayname|fullname)$/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
   // What a capture client reported privately (the captured page's address
@@ -170,6 +187,65 @@ const LOCATION_WITHHELD_RULE: KeyRule = {
   reason: "PRECISE_LOCATION",
 };
 
+/**
+ * THE CUSTODY PAYLOAD ALLOWLIST (REPORT-002). A custody payload is open-ended:
+ * every event type writes its own fields, some of them free text. In an external
+ * package a payload field leaves only when it is named here, so a field added to
+ * an event later is withheld until someone decides it may be shown. Everything
+ * named is a state, a version, a digest or a time.
+ */
+const EXTERNAL_CUSTODY_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
+  "phase",
+  "source",
+  "issueKind",
+  "reportVersion",
+  "version",
+  "generatedAtUtc",
+  "custodyThroughSequence",
+  "verificationRef",
+  "identityBasis",
+  "identityLevelSnapshot",
+  "submittedByAuthProvider",
+  "organizationVerifiedSnapshot",
+  "captureMethodSnapshot",
+  "acquisitionModeSnapshot",
+  "evidenceStructureSnapshot",
+  "verificationStatusSnapshot",
+  "reviewerSummaryVersion",
+  "pdfSha256",
+  "pdfSignatureStatus",
+  "pdfSignedAtUtc",
+  "pdfSignerKeyId",
+  "sha256",
+  "fileSha256",
+  "fingerprintHash",
+  "signingKeyId",
+  "signingKeyVersion",
+  "status",
+  "state",
+  "tsaStatus",
+  "provider",
+  "algorithm",
+  "itemCount",
+  "partCount",
+  "partIndex",
+  "sizeBytes",
+  "mimeType",
+  "artifact",
+  "channel",
+  "accessMode",
+  "packageId",
+  "disclosureProfile",
+  "fromMode",
+  "toMode",
+  "retentionApplied",
+  "mode",
+  "retainUntilUtc",
+]);
+
+/** Files whose `payload` and `presentationPayload` are custody payloads. */
+const EXTERNAL_CUSTODY_FILES: ReadonlySet<string> = new Set(["custody.json", "forensic-custody.json", "access-activity.json"]);
+
 /** The external profile's files that ARE the recorded location. */
 export const EXTERNAL_LOCATION_FILES: ReadonlySet<string> = new Set(["capture-context.json", "map-preview.png"]);
 
@@ -222,7 +298,9 @@ export function projectTextForDisclosure(
   if (profile === "FULL_FORENSIC") return { value: text, records: [] };
   const scrubbed = scrubString(text);
   const records: DisclosureRecord[] = [...new Set(scrubbed.reasons)].map((reason) => ({ file, path: "$text", action: "WITHHELD" as const, reason }));
-  let value = scrubbed.value;
+  const described = scrubRecordValues(scrubbed.value, options.recordValues);
+  if (described.hit) records.push({ file, path: "$text", action: "WITHHELD", reason: "RECORD_DESCRIPTION" });
+  let value = described.value;
   if (options.recordedLocationDisclosed !== true) {
     // A free-standing decimal (never part of a timestamp, version or other
     // number) that IS a recorded coordinate, at any precision, is withheld.
@@ -249,7 +327,42 @@ export type LocationProjectionOptions = {
   recordedLocationDisclosed?: boolean;
   /** The record's recorded latitude / longitude (finite numbers only). */
   recordedCoordinates?: ReadonlyArray<number>;
+  /**
+   * REPORT-002 — the record's OWN descriptive values (title, file names, labels,
+   * workspace names, its id), from `externalRecordValues`. Each is withheld
+   * wherever it appears, so a value cannot leave under a key no rule names, or
+   * inside prose. The same idea as `recordedCoordinates`.
+   */
+  recordValues?: ReadonlyArray<string>;
 };
+
+/**
+ * The record's descriptive values, made safe to match by value. Too short to be
+ * identifying on its own, a value would only damage unrelated text, and every
+ * keyed field is withheld by the rules regardless. Longest first, so a file name
+ * is replaced whole before a title it contains.
+ */
+const RECORD_VALUE_MIN_LENGTH = 6;
+export function externalRecordValues(values: ReadonlyArray<string | null | undefined>): string[] {
+  const out = new Set<string>();
+  for (const v of values) {
+    const t = typeof v === "string" ? v.trim() : "";
+    if (t.length >= RECORD_VALUE_MIN_LENGTH) out.add(t);
+  }
+  return [...out].sort((a, b) => b.length - a.length || byCodePoint(a, b));
+}
+
+function scrubRecordValues(text: string, values: ReadonlyArray<string> | undefined): { value: string; hit: boolean } {
+  if (!values || values.length === 0) return { value: text, hit: false };
+  let out = text;
+  let hit = false;
+  for (const needle of values) {
+    if (!out.includes(needle)) continue;
+    hit = true;
+    out = out.split(needle).join(WITHHELD_VALUE);
+  }
+  return { value: out, hit };
+}
 
 /**
  * Within this distance (degrees) of a recorded coordinate a value IS that
@@ -323,13 +436,23 @@ export function projectJsonForDisclosure(
     if (typeof node === "string") {
       const scrubbed = scrubString(node);
       for (const reason of new Set(scrubbed.reasons)) records.push({ file, path, action: "WITHHELD", reason });
-      return scrubbed.value;
+      const described = scrubRecordValues(scrubbed.value, options.recordValues);
+      if (described.hit) records.push({ file, path, action: "WITHHELD", reason: "RECORD_DESCRIPTION" });
+      return described.value;
     }
     if (!node || typeof node !== "object") return node;
+    const custodyPayload = EXTERNAL_CUSTODY_FILES.has(file) && /\.(payload|presentationPayload)$/.test(path);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
-      const rule = rules.find((r) => r.test(k, v));
       const childPath = `${path}.${k}`;
+      if (custodyPayload && !EXTERNAL_CUSTODY_PAYLOAD_KEYS.has(k)) {
+        if (v !== null && v !== undefined && v !== "") {
+          out[k] = WITHHELD_VALUE;
+          records.push({ file, path: childPath, action: "WITHHELD", reason: "CUSTODY_PAYLOAD_NOT_ALLOWLISTED" });
+          continue;
+        }
+      }
+      const rule = rules.find((r) => r.test(k, v));
       if (rule && v !== null && v !== undefined && v !== "") {
         if (rule.action === "WITHHELD") {
           out[k] = "[withheld]";
@@ -379,7 +502,7 @@ export function buildDisclosureManifest(input: {
     sourceFullPackageId: input.sourceFullPackageId,
     statement:
       input.profile === "EXTERNAL_DISCLOSURE"
-        ? "This is NOT the complete forensic package. Personal identifiers and internal infrastructure were removed and the original files and the report were withheld. Every cryptographic commitment is preserved: the digests in package-checksums.json, fingerprint.json and its signature, the timestamp and anchoring proofs, and the custody hash chain. Custody payloads that were redacted can no longer be re-hashed to their eventHash; their chain links (prevEventHash → eventHash) remain checkable."
+        ? "This is NOT the complete forensic package. Personal identifiers, descriptions of the record and internal infrastructure were removed, files are named by position, and the original files and the report were withheld. Every cryptographic commitment is preserved: the digests in package-checksums.json, fingerprint.json and its signature, the timestamp and anchoring proofs, and the custody hash chain. Custody payloads that were redacted can no longer be re-hashed to their eventHash; their chain links (prevEventHash → eventHash) remain checkable."
         : "This is the complete forensic package for the report version it certifies. It carries internal PROOVRA account, workspace and organization identifiers and internal storage details (bucket, object key, version id, region) by design: it is for authorized custodians and investigators only. For anyone else, issue the External disclosure package, which removes them.",
     withheldFiles: input.withheldFiles.map((f) => ({ ...f, reasonText: DISCLOSURE_REASON_TEXT[f.reason] })),
     fields: fields.map((f) => ({

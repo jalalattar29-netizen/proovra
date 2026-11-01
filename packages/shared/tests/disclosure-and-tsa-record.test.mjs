@@ -12,6 +12,7 @@ import {
   parseTsaValidationEvidence,
   projectJsonForDisclosure,
   EXTERNAL_LOCATION_FILES,
+  externalRecordValues,
   projectTextForDisclosure,
   serializePackageSeal,
   verifySealedPackageEntries,
@@ -66,14 +67,17 @@ test("EXTERNAL_DISCLOSURE removes identifiers and infrastructure, coarsens a DIS
   assert.ok(m.fields.every((f) => f.reasonText.length > 10));
 });
 
-test("an email inside any other value (a personal workspace label) is withheld where it appears", () => {
+test("an email inside any other value is withheld where it appears; a workspace label is withheld whole (REPORT-002)", () => {
   const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "package-mode.json", {
     workspaceLabelAtPackageTime: "someone@example.test's personal workspace",
+    notice: "someone@example.test's personal workspace",
     nested: [{ note: "sent to a.b@c.example and x@y.example" }],
   });
-  assert.equal(value.workspaceLabelAtPackageTime, "[withheld email]'s personal workspace");
+  assert.equal(value.workspaceLabelAtPackageTime, "[withheld]");
+  assert.equal(value.notice, "[withheld email]'s personal workspace");
   assert.equal(value.nested[0].note, "sent to [withheld email] and [withheld email]");
-  assert.ok(records.some((r) => r.path === "$.workspaceLabelAtPackageTime" && r.reason === "DIRECT_IDENTIFIER"));
+  assert.ok(records.some((r) => r.path === "$.workspaceLabelAtPackageTime" && r.reason === "RECORD_DESCRIPTION"));
+  assert.ok(records.some((r) => r.path === "$.notice" && r.reason === "DIRECT_IDENTIFIER"));
 });
 
 test("EXTERNAL_DISCLOSURE withholds masked, hashed, private and infrastructure variants at any depth, in objects and arrays", () => {
@@ -326,4 +330,36 @@ test("F-14 closure: an undisclosed recorded coordinate is withheld under ANY key
   );
   assert.ok(t.records.some((r) => r.reason === "PRECISE_LOCATION"));
   assert.equal(projectTextForDisclosure("EXTERNAL_DISCLOSURE", "README.txt", text, { recordedLocationDisclosed: true, recordedCoordinates: coords }).value.includes("52.520008"), true);
+});
+
+// REPORT-002 — what describes the record, by key and by value.
+test("REPORT-002: EXTERNAL_DISCLOSURE withholds descriptions by key at any depth, and the record's own values wherever they appear", () => {
+  const recordValues = externalRecordValues(["cb1a778e-2671-44cc-9c28-5a5d38e1a263", "Jane Doe claim 4471", "short", null, "  jane-doe-injury.jpg "]);
+  assert.ok(!recordValues.includes("short"), "a value too short to identify is not matched by value");
+  const doc = {
+    evidenceId: "cb1a778e-2671-44cc-9c28-5a5d38e1a263",
+    title: "Jane Doe claim 4471",
+    nested: [{ originalFileName: "jane-doe-injury.jpg", sourceLabel: "free text", workspaceLabelAtPackageTime: "Northwind" }],
+    unnamedKey: "See Jane Doe claim 4471 (jane-doe-injury.jpg)",
+    sha256: "a".repeat(64),
+  };
+  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "x.json", doc, { recordValues });
+  const text = JSON.stringify(value);
+  for (const leak of ["Jane Doe", "jane-doe", "cb1a778e", "free text", "Northwind"]) assert.ok(!text.includes(leak), leak);
+  assert.ok(text.includes("a".repeat(64)), "a commitment survives");
+  assert.ok(records.some((r) => r.reason === "RECORD_DESCRIPTION" && r.path === "$.unnamedKey"));
+  assert.equal(projectJsonForDisclosure("FULL_FORENSIC", "x.json", doc, { recordValues }).value, doc);
+
+  const prose = projectTextForDisclosure("EXTERNAL_DISCLOSURE", "README.txt", "Evidence ID: cb1a778e-2671-44cc-9c28-5a5d38e1a263\nTitle: Jane Doe claim 4471", { recordValues });
+  assert.equal(prose.value, "Evidence ID: [withheld]\nTitle: [withheld]");
+});
+
+test("REPORT-002: a custody payload field leaves an external package only when it is allowlisted", () => {
+  const custody = [{ sequence: 1, eventHash: "h", payload: { reportVersion: 2, pdfSha256: "b".repeat(64), reason: "free text naming a person", anything: { deep: "x" }, empty: null } }];
+  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "custody.json", custody);
+  assert.deepEqual(value[0].payload, { reportVersion: 2, pdfSha256: "b".repeat(64), reason: "[withheld]", anything: "[withheld]", empty: null });
+  assert.equal(value[0].eventHash, "h");
+  assert.ok(records.some((r) => r.reason === "CUSTODY_PAYLOAD_NOT_ALLOWLISTED" && r.path === "$[0].payload.reason"));
+  // The same payload in another document is not a custody payload.
+  assert.equal(projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "other.json", custody).value[0].payload.anything.deep, "x");
 });

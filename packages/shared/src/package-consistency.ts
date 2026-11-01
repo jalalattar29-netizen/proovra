@@ -81,7 +81,12 @@ export function validatePackageConsistency(input: {
   const manifest = parsed.get("package-manifest.json");
   if (!isObj(manifest)) f("MANIFEST_PRESENT", "package-manifest.json is missing");
   else {
-    if (manifest.evidenceId !== e.evidenceId) f("EVIDENCE_ID", `manifest evidenceId ${String(manifest.evidenceId)}`);
+    // An external package never states the internal record id (REPORT-002).
+    if (e.disclosureProfile === "EXTERNAL_DISCLOSURE") {
+      if (manifest.evidenceId !== undefined && manifest.evidenceId !== "[withheld]") f("EVIDENCE_ID", "an external manifest states the record id");
+    } else if (manifest.evidenceId !== e.evidenceId) {
+      f("EVIDENCE_ID", `manifest evidenceId ${String(manifest.evidenceId)}`);
+    }
     if (manifest.reportVersion !== e.reportVersion) f("REPORT_VERSION", `manifest reportVersion ${String(manifest.reportVersion)}`);
     if (manifest.disclosureProfile !== e.disclosureProfile) f("DISCLOSURE_PROFILE", `manifest profile ${String(manifest.disclosureProfile)}`);
     if ((manifest.evidenceFileSha256 ?? null) !== (e.evidenceFileSha256?.toLowerCase() ?? null)) {
