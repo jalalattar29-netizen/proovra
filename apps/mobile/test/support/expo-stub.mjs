@@ -12,11 +12,13 @@ export const calls = {
   push: [],
   replace: [],
   back: 0,
+  dismissAll: 0,
   openURL: [],
   reset() {
     calls.push = [];
     calls.replace = [];
     calls.back = 0;
+    calls.dismissAll = 0;
     calls.openURL = [];
   },
 };
@@ -34,6 +36,10 @@ const stableRouter = {
   },
   navigate: (r) => calls.push.push(r),
   canGoBack: () => true,
+  canDismiss: () => true,
+  dismissAll: () => {
+    calls.dismissAll += 1;
+  },
 };
 export const useRouter = () => stableRouter;
 export const usePathname = () => "/";

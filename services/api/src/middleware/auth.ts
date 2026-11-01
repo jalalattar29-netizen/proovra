@@ -374,6 +374,9 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
           return reply.code(401).send(
             createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
               reason: "reauthentication_required",
+              // The member's own organization's rule, so a client can say what
+              // to do instead of looping through a sign-in that cannot pass.
+              policy: orgGate.reason,
             }),
           );
         }

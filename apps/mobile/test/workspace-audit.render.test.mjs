@@ -7,7 +7,7 @@
  * cursor, the gate matches the web (ORGANIZATION + TEAM_MANAGE), and a denial
  * is one generic sentence.
  */
-import { test, before, beforeEach } from "node:test";
+import { test, before, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
 import { authenticatedRoutes, platformContextEnvelope, signIn, TEST_TEAM_ID } from "./support/authenticated.mjs";
@@ -51,8 +51,15 @@ beforeEach(async () => {
 const settle = async (ms = 0) => {
   for (let i = 0; i < 6; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, ms)); });
 };
+// Unmounted between tests: the workspace context is shared by everything mounted.
+const mounted = new Set();
+afterEach(() => {
+  for (const r of mounted) r.unmount();
+  mounted.clear();
+});
 const render = async () => {
   const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
+  mounted.add(r);
   await settle();
   return r;
 };
@@ -103,6 +110,7 @@ test("no TEAM_MANAGE, or a PERSONAL space: no audit surface and no audit request
   routes["/v1/platform/context"] = () => platformContextEnvelope();
   let r = await render();
   assert.equal(r.byTestId("workspace-audit").length, 0);
+  mounted.delete(r);
   r.unmount();
   routes["/v1/platform/context"] = () =>
     platformContextEnvelope({ capabilities: { TEAM_MANAGE: true }, activeSpace: { id: TEST_TEAM_ID, type: "PERSONAL", plan: "PRO", displayName: "Me", status: "active" } });

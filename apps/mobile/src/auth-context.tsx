@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, setAuthToken } from "./api";
+import { apiFetch, setAuthToken, setSessionEndHandler } from "./api";
+import type { SessionEndReason } from "./auth/session-end";
 import { isAuthError } from "./errors/safe-error";
 import {
   bootReducer,
@@ -30,6 +31,8 @@ type AuthContextValue = {
   loading: boolean;
   /** Canonical boot phase driving root navigation (bootstrap machine). */
   bootPhase: BootPhase;
+  /** Why the last session ended on its own, until the next sign-in or sign-out. */
+  sessionEndReason: SessionEndReason | null;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // dead-token purge happens exactly when shouldClearToken(prev,next) says so.
   const [bootState, setBootState] = useState<BootState>(INITIAL_BOOT_STATE);
   const bootRef = useRef<BootState>(INITIAL_BOOT_STATE);
+  const [sessionEndReason, setSessionEndReason] = useState<SessionEndReason | null>(null);
 
   const dispatchBoot = useCallback((event: BootEvent) => {
     const prev = bootRef.current;
@@ -72,6 +76,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bootRef.current = next;
     setBootState(next);
   }, []);
+
+  // MOBILE-008 — a token the server refused while the app is open goes through
+  // the machine like one refused at boot. Registered before the restore below
+  // runs, so a dead stored token reports its reason too.
+  useEffect(() => {
+    setSessionEndHandler((reason) => {
+      setSessionEndReason(reason);
+      dispatchBoot({ type: "SESSION_EXPIRED" });
+    });
+    return () => setSessionEndHandler(null);
+  }, [dispatchBoot]);
 
   // Restore an existing signed-in session from secure storage on boot. There
   // is NO guest fallback: with no stored token the app stays signed out and
@@ -102,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (next: string | null) => {
       setTokenState(next);
       setAuthToken(next);
+      setSessionEndReason(null);
       if (next) {
         void SecureStore.setItemAsync("proovra-token", next);
         dispatchBoot({ type: "SIGNED_IN" });
@@ -122,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthToken(payload.token);
       setUser(payload.user ?? null);
       setAuthMode(payload.mode);
+      setSessionEndReason(null);
       void SecureStore.setItemAsync("proovra-token", payload.token);
       void SecureStore.setItemAsync("proovra-auth-mode", payload.mode);
       dispatchBoot({ type: "SIGNED_IN" });
@@ -163,8 +180,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authReady,
       loading,
       bootPhase,
+      sessionEndReason,
     }),
-    [token, user, authMode, setToken, setSession, authReady, loading, bootPhase],
+    [token, user, authMode, setToken, setSession, authReady, loading, bootPhase, sessionEndReason],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

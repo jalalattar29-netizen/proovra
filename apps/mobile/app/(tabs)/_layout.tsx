@@ -1,4 +1,5 @@
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { useAuth } from "../../src/auth-context";
 import { theme } from "../../src/theme/theme";
 
 /**
@@ -8,6 +9,9 @@ import { theme } from "../../src/theme/theme";
  * screen was removed (Phase 12) — report actions live on Evidence.
  */
 export default function TabsLayout() {
+  // Tab screens stay mounted, and their data with them. They do not outlive the session.
+  const { authReady, token } = useAuth();
+  if (authReady && !token) return <Redirect href="/(stack)/auth" />;
   return (
     <Tabs
       screenOptions={{

@@ -10,7 +10,7 @@
  */
 import { useCallback } from "react";
 import { useRouter } from "expo-router";
-import { setAuthToken } from "../api";
+import { getAuthToken, setAuthToken } from "../api";
 import { useAuth } from "../auth-context";
 import { fetchMe, getLegalStatus, recordLegalAcceptance, type LoginResult } from "./auth-api";
 import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
@@ -66,6 +66,9 @@ export function useCompleteLogin() {
         } catch {
           user = null;
         }
+        // A token the server refused has already ended this sign-in, and the
+        // sign-in screen is saying why. It must not be stored after that.
+        if (getAuthToken() !== result.token) return;
       }
       setSession({ token: result.token, user, mode });
 
@@ -98,6 +101,7 @@ export function useCompleteLogin() {
       } catch {
         /* proceed; runtime 428 handles it */
       }
+      if (getAuthToken() !== result.token) return;
       router.replace(destination as never);
     },
     [router, setSession],

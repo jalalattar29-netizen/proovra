@@ -5,6 +5,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { emailLogin, resendVerification } from "../../src/auth/auth-api";
 import { useOAuth, type OAuthMode } from "../../src/auth/use-oauth";
 import { useCompleteLogin } from "../../src/auth/use-auth-flow";
+import { SESSION_END_NOTICE } from "../../src/auth/session-end";
+import { useAuth } from "../../src/auth-context";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import {
@@ -53,6 +55,7 @@ export default function AuthScreen() {
   const router = useRouter();
   const { t } = useLocale();
   const completeLogin = useCompleteLogin();
+  const { sessionEndReason } = useAuth();
   // The web links here as `?email=` from Create account when the address is
   // already registered (register/page.tsx:1204-1216); carry it so it is not retyped.
   const params = useLocalSearchParams<{ email?: string }>();
@@ -147,6 +150,8 @@ export default function AuthScreen() {
           title="Sign in"
           subtitle="Continue with your preferred sign-in method and return safely to your PROOVRA workspace."
         />
+
+        {sessionEndReason ? <AuthNote tone="status" testID="auth-session-ended">{SESSION_END_NOTICE[sessionEndReason]}</AuthNote> : null}
 
         {/* The web order: Google, Apple, "Or", then email. */}
         <View style={styles.oauth}>
