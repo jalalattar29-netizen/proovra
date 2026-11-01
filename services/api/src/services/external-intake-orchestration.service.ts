@@ -1116,7 +1116,13 @@ export async function submitExternalIntake(
     });
     sealedByThisSubmission = completed?.alreadyFinalized !== true;
   } catch (err) {
-    await releaseIntakeLinkUse(input.link.id, client);
+    // INGEST-011 — a failure after the seal committed (retention) did use the
+    // link: the record exists. Only a submission that sealed nothing gives it back.
+    const sealed = await client.evidence
+      .findUnique({ where: { id: evidence.id }, select: { status: true } })
+      .then((row) => row?.status === "SIGNED" || row?.status === "REPORTED")
+      .catch(() => false);
+    if (!sealed) await releaseIntakeLinkUse(input.link.id, client);
     // ET-INT-02 — a part whose object was never written is the contributor's
     // to fix (upload it again), not "this intake can't accept evidence".
     // Both not-found shapes completion raises: a zero-size object, and a HEAD

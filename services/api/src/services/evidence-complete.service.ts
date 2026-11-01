@@ -26,6 +26,7 @@ import { resolveEvidenceOutputEligibility } from "./billing/evidence-output-elig
 import {
   applyDefaultObjectRetention,
   applyObjectRetention,
+  getObjectRange,
   getObjectStream,
   headObject,
 } from "../storage.js";
@@ -48,6 +49,7 @@ import {
   isMalwareScanningEnabled,
   runScan,
 } from "./security/file-security-scan.service.js";
+import { validateUploadedFile } from "./security/file-validation.service.js";
 import { safeEmitSecurityEvent } from "./security/security-event.service.js";
 import { safeTransitionUploadSession, settleCompletedUploadSession } from "./reliability/upload-session.service.js";
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
@@ -878,12 +880,28 @@ export async function completeEvidence(params: {
          * Retention is now re-applied only when the first finalize never
          * recorded a lock (a post-commit failure this call can repair).
          */
+        // INGEST-011 — EVIDENCE_LOCKED speaks for every item, so a repair covers
+        // every item. It handed back the primary alone, then recorded the lock
+        // as complete with part columns still empty.
         const retentionTargets: RetentionTarget[] = [];
-        if (evidenceBucket && evidenceKey && !evidence.storageObjectLockMode) {
+        const unlockedParts = await tx.evidencePart.findMany({
+          where: { evidenceId: evidence.id, storageObjectLockMode: null },
+          orderBy: { partIndex: "asc" },
+          select: { id: true, storageBucket: true, storageKey: true, storageVersionId: true },
+        });
+        if (evidenceBucket && evidenceKey && (!evidence.storageObjectLockMode || unlockedParts.length > 0)) {
           retentionTargets.push({
             bucket: evidenceBucket,
             key: evidenceKey,
             versionId: evidence.storageVersionId ?? null,
+          });
+        }
+        for (const part of unlockedParts) {
+          retentionTargets.push({
+            bucket: part.storageBucket,
+            key: part.storageKey,
+            versionId: part.storageVersionId ?? null,
+            evidencePartId: part.id,
           });
         }
 
@@ -1125,6 +1143,23 @@ export async function completeEvidence(params: {
             missingRequiredSteps: checklistVerdict.missing,
           },
         );
+      }
+
+      // INGEST-008 — a server template that requires a location is decided here,
+      // like its required steps: the browser's check is only the first answer.
+      // Only the server's own template decides, never a plan the client sent.
+      if (planTemplate?.locationRequirement === "required" && (evidence.lat == null || evidence.lng == null)) {
+        safeEmitSecurityEvent({
+          teamId: evidence.teamId,
+          eventType: "finalize_blocked_by_checklist",
+          severity: "WARNING",
+          evidenceId: evidence.id,
+          details: { missingRequiredLocation: true },
+        });
+        throw new AppError(ErrorCode.VALIDATION_ERROR, "This capture plan requires a location.", {
+          field: "location",
+          code: "CAPTURE_LOCATION_REQUIRED",
+        });
       }
 
       let sizeBytesNum = 0;
@@ -1418,6 +1453,11 @@ const fingerprint = buildFingerprint({
       // advisory lock (above) still holds, so this record cannot finalize
       // twice; the digest is final here. A record then refused for storage
       // discards its token with the rest of the transaction.
+      //
+      // CRYPTO-009 — so ask first, without the lock. KMS and the timestamp
+      // authority are metered, and a retried complete in a full workspace spent
+      // one token per attempt. The locked check below stays the decision.
+      await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: incomingGrowth });
       const signResult = await signer.signFingerprintHex(fingerprintHash);
 
       const tsaInputKind =
@@ -1858,7 +1898,15 @@ const captureMethod =
     }
   );
 
-  if (final.retentionTargets.length > 0) {
+  /*
+   * INGEST-011 — THE SEAL HAS COMMITTED. A retention failure below is reported to
+   * the caller, who can repeat complete to repair it, but it does not stop what
+   * every sealed record is owed: anchoring, the report request and the fan-out.
+   * A client that never retried left a sealed record with no reviewer row, audit
+   * or webhook.
+   */
+  let retentionFailure: unknown = null;
+  if (final.retentionTargets.length > 0) try {
     const retentionResult = await applyRetentionOrThrow(
       final.retentionTargets,
       await resolveEvidenceObjectRetention(prisma, final.result.id, { kind: "SEAL" }),
@@ -1993,6 +2041,8 @@ const captureMethod =
         );
       }
     }
+  } catch (err) {
+    retentionFailure = err;
   }
 
   /*
@@ -2069,7 +2119,64 @@ const captureMethod =
     requestContext: params.requestContext ?? null,
   });
 
+  if (retentionFailure) throw retentionFailure;
   return final.result;
+}
+
+/** Enough for every signature the shared classifier reads. */
+const DECLARED_TYPE_HEAD_BYTES = 4096;
+
+/**
+ * Sniff each sealed file against its declared type (INGEST-007). The declared
+ * type stays as the submitter's claim; a mismatch is a security event for the
+ * workspace and a fact on the chain, so a reviewer of a disguised file can see it.
+ */
+async function recordDeclaredTypeObservations(evidenceId: string): Promise<void> {
+  const evidence = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { id: true, teamId: true, mimeType: true, originalFileName: true, storageBucket: true, storageKey: true, storageVersionId: true },
+  });
+  if (!evidence) return;
+  const parts = await prisma.evidencePart.findMany({
+    where: { evidenceId },
+    orderBy: { partIndex: "asc" },
+    select: { partIndex: true, mimeType: true, originalFileName: true, storageBucket: true, storageKey: true, storageVersionId: true },
+  });
+  const files =
+    parts.length > 0
+      ? parts
+      : evidence.storageBucket && evidence.storageKey
+        ? [{ partIndex: 0, mimeType: evidence.mimeType, originalFileName: evidence.originalFileName, storageBucket: evidence.storageBucket, storageKey: evidence.storageKey, storageVersionId: evidence.storageVersionId }]
+        : [];
+  const mismatches: Array<{ partIndex: number; declaredMime: string | null; detected: string | null }> = [];
+  for (const file of files) {
+    const head = await getObjectRange({
+      bucket: file.storageBucket,
+      key: file.storageKey,
+      range: `bytes=0-${DECLARED_TYPE_HEAD_BYTES - 1}`,
+      versionId: file.storageVersionId ?? null,
+    });
+    const { findings } = validateUploadedFile({
+      teamId: evidence.teamId,
+      evidenceId,
+      fileName: file.originalFileName ?? null,
+      claimedMime: file.mimeType ?? null,
+      head: new Uint8Array(head),
+      source: "authenticated",
+    });
+    if (findings.reason === "mime_content_mismatch") {
+      mismatches.push({ partIndex: file.partIndex, declaredMime: file.mimeType ?? null, detected: findings.sniffedMime ?? null });
+    }
+  }
+  if (mismatches.length > 0) {
+    await prisma.$transaction((tx) =>
+      appendCustodyEventTx(tx, {
+        evidenceId,
+        eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
+        payload: { source: "DECLARED_TYPE_CHECK", outcome: "BYTES_DIFFER_FROM_DECLARED_TYPE", files: mismatches.slice(0, 20) },
+      }),
+    );
+  }
 }
 
 /** A claim older than this is presumed crashed and may be re-driven. */
@@ -2154,6 +2261,15 @@ export async function runCompletionFanoutOnce(input: {
   } catch {
     // Webhook emission is best-effort; never fail completion on it.
   }
+
+  // INGEST-007 — what the bytes are, beside what was declared. Recorded, never
+  // refused: a mislabelled file is still evidence, and its digest is sealed.
+  await recordDeclaredTypeObservations(final.result.id).catch((err) =>
+    logWarn("evidence_complete.declared_type_check_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      evidenceId: final.result.id,
+    }),
+  );
 
   // Phase 11 — enqueue a file security scan row for this evidence and
   // run the active scanner. NEVER blocks completion; scanner failures

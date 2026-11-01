@@ -54,7 +54,7 @@ describe("checklist plan server authority (live PostgreSQL 16)", () => {
   });
 
   /** A record with one unmapped part, bound to a finalized capture session. */
-  async function recordFromSession(planMode: "CHECKLIST_REQUIRED" | "FLEXIBLE") {
+  async function recordFromSession(planMode: "CHECKLIST_REQUIRED" | "FLEXIBLE", templateId = "insurance-claim") {
     const A = h.fixtures.teamA;
     const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
     const { id } = await prisma.evidence.create({
@@ -73,7 +73,7 @@ describe("checklist plan server authority (live PostgreSQL 16)", () => {
         ownerUserId: A.ownerUserId,
         teamId: A.teamId,
         status: "FINALIZED",
-        templateId: "insurance-claim",
+        templateId,
         templateVersion: 1,
         planMode,
         finalizedEvidenceId: id,
@@ -89,6 +89,19 @@ describe("checklist plan server authority (live PostgreSQL 16)", () => {
     });
     const row = await prisma.evidence.findUniqueOrThrow({ where: { id: r.id }, select: { status: true } });
     expect(row.status).toBe("CREATED");
+  });
+
+  it("INGEST-008: a server template that requires a location refuses a seal without one, and accepts one with it", async () => {
+    const missing = await recordFromSession("FLEXIBLE", "incident-investigation");
+    await expect(completeEvidence({ evidenceId: missing.id, ownerUserId: missing.ownerUserId })).rejects.toMatchObject({
+      message: "This capture plan requires a location.",
+    });
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: missing.id }, select: { status: true } })).status).toBe("CREATED");
+
+    const located = await recordFromSession("FLEXIBLE", "incident-investigation");
+    await prisma.evidence.update({ where: { id: located.id }, data: { lat: 52.52, lng: 13.4 } as never });
+    const result = await completeEvidence({ evidenceId: located.id, ownerUserId: located.ownerUserId });
+    expect(result.status).toBe("SIGNED");
   });
 
   it("a FLEXIBLE session completes (control)", async () => {

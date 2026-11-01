@@ -149,12 +149,10 @@ export function validateUploadedFile(
 //
 // Phase 11 does not introduce any decompression in the upload path —
 // the only ZIP parsing today is the read-only central-directory walk
-// used to enumerate entry names (services/api/src/routes/evidence.routes.ts).
-// These helpers are wired into that path so the API refuses archives
-// whose advertised entry count / uncompressed bytes / compression
-// ratio exceed the operator-configured limits.
-//
-// They also guard any future code that might extract archives.
+// used to enumerate entry names of a package PROOVRA built itself
+// (services/api/src/routes/evidence.routes.ts). No uploaded archive is
+// opened, so nothing calls these helpers yet (INGEST-007). They exist for
+// the first code that extracts one.
 // -----------------------------------------------------------------------------
 
 export type ArchiveAdvisory = {

@@ -16,6 +16,7 @@
  *   * The original storage key is NEVER altered.
  */
 
+import { createHash } from "node:crypto";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 import type { PrismaClient } from "@prisma/client";
@@ -62,8 +63,13 @@ export async function fetchEvidenceBytes(
       storageKey: true,
       storageBucket: true,
       storageRegion: true,
+      // INGEST-003 — the sealed version and its digest, so a redaction is built
+      // from the bytes it says it derives from.
+      storageVersionId: true,
+      fileSha256: true,
       sizeBytes: true,
       mimeType: true,
+      _count: { select: { parts: true } },
     },
   });
   if (!evidence) {
@@ -93,6 +99,7 @@ export async function fetchEvidenceBytes(
       new GetObjectCommand({
         Bucket: evidence.storageBucket,
         Key: evidence.storageKey,
+        ...(evidence.storageVersionId ? { VersionId: evidence.storageVersionId } : {}),
       }),
     );
     const body = res.Body;
@@ -110,6 +117,14 @@ export async function fetchEvidenceBytes(
         denial: "ARTIFACT_NOT_REDACTABLE",
         reason: `evidence_exceeds_redaction_byte_budget_${MAX_BYTES}`,
       };
+    }
+    // A multipart record's digest is a composite, which one object cannot match.
+    if (evidence.fileSha256 && evidence._count.parts <= 1) {
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      const composite = createHash("sha256").update(digest).digest("hex");
+      if (digest !== evidence.fileSha256 && composite !== evidence.fileSha256) {
+        return { ok: false, denial: "ARTIFACT_NOT_REDACTABLE", reason: "stored_bytes_differ_from_sealed_digest" };
+      }
     }
     return {
       ok: true,

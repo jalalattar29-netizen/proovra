@@ -19,7 +19,7 @@
  */
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -185,6 +185,46 @@ describe("COMPLIANCE 2920-day retention through the real report/package pipeline
     expect((await head(p.storageKey, p.storageVersionId)).ObjectLockRetainUntilDate?.toISOString()).toBe(seal.toISOString());
     const after = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { storageObjectLockRetainUntilUtc: true } });
     expect(after.storageObjectLockRetainUntilUtc?.toISOString()).toBe(row.storageObjectLockRetainUntilUtc?.toISOString());
+  }, 300_000);
+
+  it("INGEST-001: an upload that never sealed is unlocked in this bucket and can be removed; INGEST-011: a repeat complete repairs every item", async () => {
+    const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
+    const evidenceId = created.json().id as string;
+    const bytes = [0, 1].map((i) => Buffer.from(`part ${i} ${evidenceId} ${randomBytes(4).toString("hex")}`));
+    for (const [i, body] of bytes.entries()) {
+      const part = await call("POST", `/v1/evidence/${evidenceId}/parts`, A().ownerToken, { partIndex: i, mimeType: "text/plain", originalFileName: `f${i}.txt`, sizeBytes: body.length });
+      expect(part.statusCode, part.body).toBe(201);
+      const put = await fetch(part.json().upload.putUrl as string, { method: "PUT", body, headers: { "content-type": "text/plain" } });
+      expect(put.status, await put.text()).toBe(200);
+    }
+    const unsealed = await prisma.evidencePart.findFirstOrThrow({ where: { evidenceId, partIndex: 0 }, select: { storageKey: true } });
+    const inFlight = await head(unsealed.storageKey);
+    expect(inFlight.ObjectLockMode, "an upload in flight is not locked").toBeUndefined();
+
+    // An abandoned object in this same bucket can actually be removed.
+    const abandoned = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
+    const abandonedPart = await call("POST", `/v1/evidence/${abandoned.json().id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "gone.txt" });
+    await fetch(abandonedPart.json().upload.putUrl as string, { method: "PUT", body: Buffer.from("never sealed"), headers: { "content-type": "text/plain" } });
+    const stored = await head(abandonedPart.json().part.storageKey as string);
+    await s3.send(new DeleteObjectCommand({ Bucket: LOCK_BUCKET, Key: abandonedPart.json().part.storageKey as string, VersionId: stored.VersionId }));
+    await expect(head(abandonedPart.json().part.storageKey as string, stored.VersionId)).rejects.toBeTruthy();
+
+    const done = await call("POST", `/v1/evidence/${evidenceId}/complete`, A().ownerToken, {});
+    expect(done.statusCode, done.body).toBe(200);
+    for (const p of await prisma.evidencePart.findMany({ where: { evidenceId }, select: { storageKey: true, storageVersionId: true } })) {
+      expect((await head(p.storageKey, p.storageVersionId)).ObjectLockMode, "every sealed item is locked").toBe("COMPLIANCE");
+    }
+
+    // The state a retention failure on the second item leaves: the seal
+    // committed and the lock of that item was never recorded.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+      await tx.evidencePart.updateMany({ where: { evidenceId, partIndex: 1 }, data: { storageObjectLockMode: null, storageObjectLockRetainUntilUtc: null } as never });
+    });
+    const retry = await call("POST", `/v1/evidence/${evidenceId}/complete`, A().ownerToken, {});
+    expect(retry.statusCode, retry.body).toBe(200);
+    const repaired = await prisma.evidencePart.findFirstOrThrow({ where: { evidenceId, partIndex: 1 }, select: { storageObjectLockMode: true } });
+    expect(repaired.storageObjectLockMode).toBe("COMPLIANCE");
   }, 300_000);
 
   it("NO RATCHET: report v1 + package, a routine regeneration and an OTS-triggered updated report are all locked TO the seal, COMPLIANCE", async () => {

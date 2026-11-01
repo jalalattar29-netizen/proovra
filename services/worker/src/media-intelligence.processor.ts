@@ -631,7 +631,7 @@ async function processExtractExifJob(
   // every part on the evidence (team-anchored so cross-tenant
   // enumeration is impossible).
   const parts = (await prisma.$queryRawUnsafe(
-    `SELECT p."id", p."storage_bucket", p."storage_key",
+    `SELECT p."id", p."storage_bucket", p."storage_key", p."storage_version_id",
             p."original_file_name", p."mime_type", p."sha256",
             p."size_bytes"
        FROM "evidence_parts" p
@@ -646,6 +646,7 @@ async function processExtractExifJob(
     id: string;
     storage_bucket: string | null;
     storage_key: string | null;
+    storage_version_id: string | null;
     original_file_name: string | null;
     mime_type: string | null;
     sha256: string | null;
@@ -693,10 +694,12 @@ async function processExtractExifJob(
 
     let bytes: Buffer | null = null;
     try {
+      // INGEST-003 — the sealed version, never whatever is latest at the key.
       bytes = await getObjectRange({
         bucket: part.storage_bucket,
         key: part.storage_key,
         range: `bytes=0-${EXIF_RANGE_BYTES - 1}`,
+        versionId: part.storage_version_id ?? null,
       });
     } catch (err) {
       await recordExifSummaryFailure(
@@ -1028,12 +1031,13 @@ async function processComputePerceptualHashesJob(
     id: string;
     storage_bucket: string | null;
     storage_key: string | null;
+    storage_version_id: string | null;
     mime_type: string | null;
   };
   let parts: ImagePart[] = [];
   try {
     parts = (await prisma.$queryRawUnsafe(
-      `SELECT p."id", p."storage_bucket", p."storage_key", p."mime_type"
+      `SELECT p."id", p."storage_bucket", p."storage_key", p."storage_version_id", p."mime_type"
          FROM "evidence_parts" p
          JOIN "evidence" e ON e."id" = p."evidence_id"
          WHERE e."team_id" = $1
@@ -1088,6 +1092,7 @@ async function processComputePerceptualHashesJob(
         bucket: part.storage_bucket,
         key: part.storage_key,
         range: `bytes=0-${PERCEPTUAL_HASH_RANGE_BYTES - 1}`,
+        versionId: part.storage_version_id ?? null,
       });
     } catch (err) {
       logger.warn(

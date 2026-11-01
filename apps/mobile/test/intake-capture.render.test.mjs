@@ -39,7 +39,7 @@ const MD5_B64 = Buffer.from("d41d8cd98f00b204e9800998ecf8427e", "hex").toString(
 const PART_KEYS = new Set([
   "partIndex", "mimeType", "originalFileName", "checksumSha256Base64", "contentMd5Base64",
   "checklistStepId", "privateRole", "privateNote", "durationMs", "webkitRelativePath",
-  "captureTimezone", "captureLocale",
+  "captureTimezone", "captureLocale", "sizeBytes",
 ]);
 
 let M;
@@ -154,7 +154,9 @@ function assertSubmitBodyAccepted(body) {
 /** The parts route's zod object, applied to what the screen sent. */
 function assertPartBodyAccepted(body) {
   for (const k of Object.keys(body)) assert.ok(PART_KEYS.has(k), `the parts schema has no key "${k}"`);
-  assert.ok(Number.isInteger(body.partIndex) && body.partIndex >= 0 && body.partIndex <= 99);
+  assert.ok(Number.isInteger(body.partIndex) && body.partIndex >= 0 && body.partIndex < 200);
+  // Required with the checksum: the anonymous door signs both into the upload URL.
+  assert.ok(Number.isInteger(body.sizeBytes) && body.sizeBytes >= 0, "the parts schema requires sizeBytes");
   assert.ok(typeof body.mimeType === "string" && body.mimeType.length >= 1 && body.mimeType.length <= 128);
   if (body.originalFileName != null) assert.ok(typeof body.originalFileName === "string" && body.originalFileName.length <= 512);
   for (const k of ["checksumSha256Base64", "contentMd5Base64"]) {
@@ -210,6 +212,7 @@ test("each file is declared, PUT to upload.putUrl with the declared digests, the
       originalFileName: DOCS[i].name,
       checksumSha256Base64: SHA_B64,
       contentMd5Base64: MD5_B64,
+      sizeBytes: 0,
       // Capture Environment context, as the web sends it (page.tsx stageFile).
       captureTimezone: DEVICE_TZ,
       captureLocale: DEVICE_LOCALE,
