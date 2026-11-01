@@ -52,7 +52,8 @@ export type AiCapabilityDisclosure = {
   transferMechanism: string;
   trainingMode: string;
   retentionMode: string;
-  lastVerifiedAtUtc: string;
+  /** When an operator last confirmed the provider terms. Null when nobody has. */
+  lastVerifiedAtUtc: string | null;
   note: string;
 };
 
@@ -131,7 +132,9 @@ export async function resolveAiCapabilityDisclosure(
   const probes = listAdapterProbes();
   const probeReady = (provider: string): boolean =>
     probes.some((p) => p.provider === provider && p.state === "READY");
-  const ts = nowIso();
+  // OPS-013 — this was the time of the request, so every response claimed a check
+  // had just happened. It is the date an operator states, or nothing.
+  const verifiedAt = process.env.OPENAI_PRIVACY_VERIFIED_AT?.trim() || null;
 
   const advisory = (
     capability: string,
@@ -150,9 +153,11 @@ export async function resolveAiCapabilityDisclosure(
     operationalStatus: computeAdvisoryCapabilityStatus(featureEnabled, inputs),
     region: "OpenAI global (US) per subprocessor disclosure",
     transferMechanism: "SCC / DPA (see Subprocessors)",
-    trainingMode: "No training on customer data (see A3 provider privacy config)",
+    trainingMode: verifiedAt
+      ? "No training on customer data (see A3 provider privacy config)"
+      : "Sent with store:false; the provider account setting is not verified",
     retentionMode: "Advisory output only; not persisted for chat (stateless)",
-    lastVerifiedAtUtc: ts,
+    lastVerifiedAtUtc: verifiedAt,
     note: "Metadata-only payload; the LLM never receives raw evidence.",
   });
 
@@ -180,7 +185,7 @@ export async function resolveAiCapabilityDisclosure(
     transferMechanism: "SCC / DPA (see Subprocessors)",
     trainingMode: "No training (provider contract)",
     retentionMode: "Derived text stored as evidence metadata; subject to retention policy",
-    lastVerifiedAtUtc: ts,
+    lastVerifiedAtUtc: verifiedAt,
     note: "Raw bytes sent to a purpose-specific extractor only when configured AND the workspace opts into content intelligence.",
   });
 
@@ -201,9 +206,11 @@ export async function resolveAiCapabilityDisclosure(
       operationalStatus: computeEmbeddingsCapabilityStatus(inputs),
       region: "OpenAI global (US)",
       transferMechanism: "SCC / DPA",
-      trainingMode: "No training on customer data",
+      trainingMode: verifiedAt
+        ? "No training on customer data"
+        : "The provider account setting is not verified",
       retentionMode: "Chunk text embedded; vectors stored tenant-scoped",
-      lastVerifiedAtUtc: ts,
+      lastVerifiedAtUtc: verifiedAt,
       note: "Dual-gated + default-off; only derived chunk text (never raw files) leaves the platform, and only on explicit opt-in.",
     },
     subprocessor("Document OCR", "Azure Document Intelligence", "OCR / layout / tables", "AZURE_DOCUMENT_INTELLIGENCE", "Azure region-pinned"),
@@ -224,7 +231,7 @@ export async function resolveAiCapabilityDisclosure(
       transferMechanism: "n/a",
       trainingMode: "n/a",
       retentionMode: "n/a",
-      lastVerifiedAtUtc: ts,
+      lastVerifiedAtUtc: verifiedAt,
       note: "NOT wired to a live OpenAI call — runs a bounded LOCAL REGEX_PII / truncation fallback. Presented as a stub, never as operational OpenAI.",
     },
     // Phase P2 — Copilot statuses are DERIVED from live state (route is
@@ -256,9 +263,11 @@ export async function resolveAiCapabilityDisclosure(
           operationalStatus: computeAdvisoryCapabilityStatus(featureEnabled, inputs),
           region: "OpenAI global (US) per subprocessor disclosure",
           transferMechanism: "SCC / DPA (see Subprocessors)",
-          trainingMode: "No training on customer data (store:false + provider privacy config)",
+          trainingMode: verifiedAt
+            ? "No training on customer data (store:false + provider privacy config)"
+            : "Sent with store:false; the provider account setting is not verified",
           retentionMode: "Bounded advisory run records; workspace retention policy applies",
-          lastVerifiedAtUtc: ts,
+          lastVerifiedAtUtc: verifiedAt,
           note: "Live capability: authorized metadata context only; every substantive observation requires a server-validated citation; final decisions remain human.",
         };
       },
@@ -278,7 +287,7 @@ export async function resolveAiCapabilityDisclosure(
       transferMechanism: "n/a",
       trainingMode: "n/a",
       retentionMode: "Metadata stored with evidence",
-      lastVerifiedAtUtc: ts,
+      lastVerifiedAtUtc: verifiedAt,
       note: "Computed locally; nothing leaves the platform; precise GPS not stored.",
     },
     {
@@ -296,7 +305,7 @@ export async function resolveAiCapabilityDisclosure(
       transferMechanism: "n/a",
       trainingMode: "n/a (no LLM)",
       retentionMode: "Advisory metadata",
-      lastVerifiedAtUtc: ts,
+      lastVerifiedAtUtc: verifiedAt,
       note: "Pure arithmetic; no LLM. Measures preparation completeness only, not truth/authenticity/admissibility.",
     },
   ];

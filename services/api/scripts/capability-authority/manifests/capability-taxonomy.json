@@ -2615,6 +2615,12 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "GET:/v1/admin/platform/release",
+      "routeId": "GET /v1/admin/platform/release",
+      "vertical": "PLATFORM_CORE",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/reviewer-ops/queue",
       "routeId": "GET /v1/reviewer-ops/queue",
       "vertical": "EVIDENCE_OPERATIONS",

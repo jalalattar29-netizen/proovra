@@ -41,6 +41,7 @@ function readSampleRate(name: string, fallback: number): number {
 }
 
 export function initSentry() {
+  if ((process.env.SENTRY_ENABLED ?? "").trim().toLowerCase() === "false") return;
   const dsn = process.env.SENTRY_DSN;
   if (!dsn || sentryReady) return;
   // Phase P2.0B — env-driven sample rates + release tag.
