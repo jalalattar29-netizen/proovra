@@ -62,6 +62,7 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 // Phase 3 — Enterprise Identity: shared SSO login enforcement point
 // (enterprise-only + organization-workspace + verified-domain).
 import { enforceSsoLoginPolicy } from "./sso-login-policy.service.js";
+import { policyRequiresSso } from "../identity/org-security-policy.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
@@ -86,6 +87,9 @@ export class SsoServiceError extends Error {
       | "SSO_INVALID_PROVIDER"
       | "SSO_INVALID_STATE"
       | "SSO_INVALID_TRANSITION"
+      // IDENT-008 — this is the connection a mandatory-SSO Organization signs in
+      // through. Taking it away would lock everyone out.
+      | "SSO_LAST_REQUIRED_CONNECTION"
       | "SSO_DISCOVERY_FAILED"
       | "SSO_CODE_EXCHANGE_FAILED"
       | "SSO_EMAIL_DOMAIN_NOT_ALLOWED"
@@ -431,6 +435,18 @@ export async function transitionSsoConnection(
       from,
       to: input.nextStatus,
     });
+  }
+  if (from === "ACTIVE" && input.nextStatus !== "ACTIVE") {
+    const policy = await client.organizationSecurityPolicy.findUnique({
+      where: { organizationId },
+      select: { ssoRequired: true, allowedAuthMethods: true },
+    });
+    if (policy && policyRequiresSso(policy)) {
+      const remaining = await client.ssoConnection.count({
+        where: { organizationId, status: "ACTIVE", id: { not: row.id } },
+      });
+      if (remaining === 0) throw new SsoServiceError("SSO_LAST_REQUIRED_CONNECTION");
+    }
   }
   const now = new Date();
   let updated;

@@ -190,7 +190,8 @@ function sendError(reply: FastifyReply, err: unknown): boolean {
             ? 403
             : // A duplicate connection is a conflict with a state that
               // already exists, not a bad request and not an upstream fault.
-              err.code === "SSO_CONNECTION_EXISTS"
+              err.code === "SSO_CONNECTION_EXISTS" ||
+                err.code === "SSO_LAST_REQUIRED_CONNECTION"
               ? 409
               : 502;
     reply.code(status).send({

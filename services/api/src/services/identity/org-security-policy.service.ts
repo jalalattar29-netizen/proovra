@@ -301,6 +301,45 @@ export type ExtendedSecurityPolicyPatch = SecurityPolicyPatch & {
   notes?: string | null;
 };
 
+/**
+ * IDENT-008 — does this policy leave SSO as the only way in?
+ *
+ * Empty `allowedAuthMethods` means every method is allowed, so only a list that
+ * names nothing but SSO narrows anyone to it.
+ */
+export function policyRequiresSso(policy: {
+  ssoRequired?: boolean | null;
+  allowedAuthMethods?: readonly string[] | null;
+}): boolean {
+  if (policy.ssoRequired === true) return true;
+  const methods = policy.allowedAuthMethods ?? [];
+  return methods.length > 0 && methods.every((m) => m === "SSO");
+}
+
+/**
+ * IDENT-008 — mandatory SSO with no connection locks the whole Organization out,
+ * the administrator who set it included, until PROOVRA staff intervene. Refused
+ * with zero mutation, on every path that sets it through the policy authority.
+ */
+async function assertSsoRequirementCanBeMet(
+  organizationId: string,
+  patch: ExtendedSecurityPolicyPatch,
+  client: PrismaClient,
+): Promise<void> {
+  if (!policyRequiresSso(patch)) return;
+  const active = await client.ssoConnection.findFirst({
+    where: { organizationId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (active) return;
+  const err = new Error(
+    "SSO cannot be required before the Organization has an active connection.",
+  ) as Error & { statusCode?: number; code?: string };
+  err.statusCode = 409;
+  err.code = "SSO_REQUIRED_NO_ACTIVE_CONNECTION";
+  throw err;
+}
+
 export async function applySecurityPolicyPatch(
   input: {
     // PHASE 12 CORRECTION 1 — the AUTHORITATIVE key is organizationId. No teamId /
@@ -340,6 +379,7 @@ export async function applySecurityPolicyPatch(
     err.details = { expected: input.expectedPolicyVersion, current: currentVersion };
     throw err;
   }
+  await assertSsoRequirementCanBeMet(organizationId, input.patch, client);
   const nextVersion = currentVersion + 1;
   // PHASE 12B WAVE 1.2 — normalise the folded legacy fields (same rules the
   // deleted upsertOrgSecurityPolicy applied) so unvalidated raw values never

@@ -264,7 +264,9 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
       const code = (err as { code?: string })?.code;
       if (code === "STEP_UP_CANCEL") setError("Step-up cancelled — no change was saved.");
       else if (code === "POLICY_VERSION_CONFLICT") setError("The policy was changed elsewhere. Reload and reapply your change.");
-      else if (err instanceof ApiError) setError(err.message);
+      else if (code === "SSO_REQUIRED_NO_ACTIVE_CONNECTION") {
+        setError("Activate an SSO connection before requiring SSO. Without one, nobody in this organization could sign in.");
+      } else if (err instanceof ApiError) setError(err.message);
       else setError(toSafeUserError(err, { message: "Failed to update security policy." }).message);
     } finally {
       setSaving(false);
