@@ -2040,7 +2040,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         evidenceId,
         eventType:
           purpose === "download"
-            ? prismaPkg.CustodyEventType.EVIDENCE_DOWNLOADED
+            ? prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED
             : prismaPkg.CustodyEventType.EVIDENCE_VIEWED,
         atUtc: at,
         payload: {
@@ -2050,7 +2050,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           derivedSha256: status.asset.derivedSha256,
           generation: status.asset.generation,
           channel: purpose === "download" ? "combined_recording_download" : "combined_recording_playback",
-          accessMode: purpose === "download" ? "authenticated_derived_download" : "derived_playback_url_issued",
+          accessMode: purpose === "download" ? "authenticated_download_url_issued" : "derived_playback_url_issued",
           accessedByUserId: actor.actorUserId,
           accessedAtUtc: at.toISOString(),
         },

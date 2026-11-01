@@ -316,18 +316,14 @@ describe("32.7 Test 5 — download endpoints emit custody events (separation of 
   // any regression that strips a custody event from either download
   // route flips these tests.
 
-  it("evidence.routes.ts emits REPORT_DOWNLOADED via appendCustodyEvent", () => {
+  it("evidence.routes.ts records a report link via recordDownloadAuthorized", () => {
     const src = readApi("src/routes/evidence.routes.ts");
-    expect(src).toMatch(/REPORT_DOWNLOADED/);
-    expect(src).toMatch(/appendCustodyEvent/);
-    // The two appear together (within the same route handler closure).
-    // Pin them as both present in the file as a sanity-floor.
+    expect(src).toMatch(/recordDownloadAuthorized\(\{[\s\S]{0,120}artifact: "report"/);
   });
 
-  it("evidence.routes.ts emits VERIFICATION_PACKAGE_DOWNLOADED via appendCustodyEvent", () => {
+  it("evidence.routes.ts records a package link via recordDownloadAuthorized", () => {
     const src = readApi("src/routes/evidence.routes.ts");
-    expect(src).toMatch(/VERIFICATION_PACKAGE_DOWNLOADED/);
-    expect(src).toMatch(/appendCustodyEvent/);
+    expect(src).toMatch(/recordDownloadAuthorized\(\{[\s\S]{0,120}artifact: "verification_package"/);
   });
 
   it("the download routes' custody events are paired with audit events", () => {

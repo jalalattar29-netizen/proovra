@@ -350,15 +350,11 @@ describe("Phase 5 — download generation + response body unchanged", () => {
     expect(PACKAGE_ROUTE).toContain("trustDecision: toJsonSafe(");
   });
 
-  it("the pre-existing download custody events are kept unchanged", () => {
-    expect(REPORT_ROUTE).toContain(
-      "prismaPkg.CustodyEventType.REPORT_DOWNLOADED",
-    );
-    expect(PACKAGE_ROUTE).toContain(
-      "prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED",
-    );
-    // ET-CUS-07 (2026-09-29): an original download is EVIDENCE_DOWNLOADED,
-    // recorded through the one original-release recorder.
+  it("every download route records the link it issued", () => {
+    expect(REPORT_ROUTE).toMatch(/recordDownloadAuthorized\(\{[\s\S]{0,120}artifact: "report"/);
+    expect(PACKAGE_ROUTE).toMatch(/recordDownloadAuthorized\(\{[\s\S]{0,120}artifact: "verification_package"/);
+    // ET-CUS-07, EVID-008: an original link goes through the one
+    // original-release recorder.
     expect(ORIGINAL_ROUTE).toMatch(/recordOriginalRelease\(\{[\s\S]{0,160}channel:\s*"original"/);
   });
 

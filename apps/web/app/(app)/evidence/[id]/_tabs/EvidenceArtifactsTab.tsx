@@ -1137,11 +1137,11 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             },
             { label: "Public views", value: counter(summary.publicViewCount) },
             {
-              label: "Report downloads",
+              label: "Report download links",
               value: counter(summary.reportDownloadCount),
             },
             {
-              label: "Package downloads",
+              label: "Package download links",
               value: counter(summary.verificationPackageDownloadCount),
             },
             {

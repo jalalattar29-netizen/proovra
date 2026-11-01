@@ -76,7 +76,7 @@ describe("wire contract D — user items vs technical parts (live PostgreSQL 16)
   const get = (url: string) =>
     h.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` } });
   const downloads = async (evidenceId: string) =>
-    prisma.custodyEvent.count({ where: { evidenceId, eventType: "EVIDENCE_DOWNLOADED" as never } });
+    prisma.custodyEvent.count({ where: { evidenceId, eventType: "DOWNLOAD_AUTHORIZED" as never } });
 
   it("a SEGMENTED recording counts as ONE item in the list and on the record", async () => {
     const id = await recording("DIRECT_SCREEN_CAPTURE_IOS", 3);

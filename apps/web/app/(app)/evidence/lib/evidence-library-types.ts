@@ -720,10 +720,17 @@ export type WorkspaceCapabilitySnapshot = {
   publicVerifyIncluded: boolean;
 };
 
+/**
+ * What the inspector shows about a record's outputs, from the side-effect-free
+ * status read. It holds no download URL: those are issued on request (EVID-008).
+ */
+export type ArtifactStatusResponse = {
+  report?: (ReportResponse & { available?: boolean }) | null;
+  verificationPackage?: (VerificationPackageResponse & { available?: boolean }) | null;
+};
+
 export type DetailWorkspaceState = {
   evidence: EvidenceRecord | null;
-  parts: EvidencePart[];
-  original: OriginalResponse | null;
   report: ReportResponse | null;
   verificationPackage: VerificationPackageResponse | null;
   /**

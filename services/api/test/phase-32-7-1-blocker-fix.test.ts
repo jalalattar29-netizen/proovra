@@ -1,5 +1,5 @@
-/**
- * Phase 32.7.1 — BLOCKER FIX regression tests (source-contract).
+﻿/**
+ * Phase 32.7.1 â€” BLOCKER FIX regression tests (source-contract).
  *
  * Three production blockers closed:
  *
@@ -50,10 +50,10 @@ function readApi(rel: string): string {
 }
 
 // =============================================================================
-// Part 1 — Public verify route no longer awaits the analytics $transaction
+// Part 1 â€” Public verify route no longer awaits the analytics $transaction
 // =============================================================================
 
-describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", () => {
+describe("Phase 32.7.1 â€” public verify analytics writes are fire-and-forget", () => {
   const SRC = readApi("src/routes/evidence.routes.ts");
   // The route body is large; read the whole registration rather than a
   // character window, so handler growth can neither push the analytics IIFE
@@ -65,7 +65,7 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
     // $transaction array containing both evidence.update and
     // verificationView.create. Live emission of that combination
     // must be absent. (References to the OLD shape in comments are
-    // fine — they document the fix.)
+    // fine â€” they document the fix.)
     expect(routeBody).not.toMatch(
       /await\s+prisma\.\$transaction\(\[[\s\S]{0,200}prisma\.evidence\.update\(\{[\s\S]{0,400}prisma\.verificationView\.create/,
     );
@@ -124,10 +124,10 @@ describe("Phase 32.7.1 — public verify analytics writes are fire-and-forget", 
 });
 
 // =============================================================================
-// Part 2 — Original-download GET route analytics is fire-and-forget too
+// Part 2 â€” Original-download GET route analytics is fire-and-forget too
 // =============================================================================
 
-describe("Phase 32.7.1 — original-presign analytics write is fire-and-forget", () => {
+describe("Phase 32.7.1 â€” original-presign analytics write is fire-and-forget", () => {
   const SRC = readApi("src/routes/evidence.routes.ts");
   const routeBody = routeSource(SRC, "GET", "/v1/evidence/:id/original");
 
@@ -155,19 +155,19 @@ describe("Phase 32.7.1 — original-presign analytics write is fire-and-forget",
     expect(updateRegion).not.toMatch(/captureException\(/);
   });
 
-  it("the forensic custody event still fires (EVIDENCE_DOWNLOADED since ET-CUS-07)", () => {
+  it("the forensic custody event still fires (DOWNLOAD_AUTHORIZED since EVID-008)", () => {
     expect(routeBody).toMatch(/await recordOriginalRelease\(\{[\s\S]{0,160}channel:\s*"original"/);
     const gate = readFileSync(new URL("../src/services/evidence/artifact-download-gate.service.ts", import.meta.url), "utf8");
-    expect(gate).toMatch(/CustodyEventType\.EVIDENCE_DOWNLOADED/);
-    expect(gate).toMatch(/"authenticated_original_download"/);
+    expect(gate).toMatch(/CustodyEventType\.DOWNLOAD_AUTHORIZED/);
+    expect(gate).toMatch(/"authenticated_download_url_issued"/);
   });
 });
 
 // =============================================================================
-// Part 3 — checkWorkers surfaces Prisma error code on UNKNOWN
+// Part 3 â€” checkWorkers surfaces Prisma error code on UNKNOWN
 // =============================================================================
 
-describe("Phase 32.7.1 — checkWorkers catch arm surfaces Prisma error code", () => {
+describe("Phase 32.7.1 â€” checkWorkers catch arm surfaces Prisma error code", () => {
   const SRC = readApi("src/runtime/runtime-readiness.ts");
   const fnIdx = SRC.indexOf("async function checkWorkers");
   expect(fnIdx).toBeGreaterThan(-1);
@@ -207,10 +207,10 @@ describe("Phase 32.7.1 — checkWorkers catch arm surfaces Prisma error code", (
 });
 
 // =============================================================================
-// Part 4 — Redis ping surfaces bounded triage metadata on CRITICAL
+// Part 4 â€” Redis ping surfaces bounded triage metadata on CRITICAL
 // =============================================================================
 
-describe("Phase 32.7.1 — Redis ping CRITICAL detail surfaces timing + error class", () => {
+describe("Phase 32.7.1 â€” Redis ping CRITICAL detail surfaces timing + error class", () => {
   const SRC = readApi("src/runtime/runtime-readiness.ts");
   const fnIdx = SRC.indexOf("async function checkRedis");
   expect(fnIdx).toBeGreaterThan(-1);
@@ -256,17 +256,17 @@ describe("Phase 32.7.1 — Redis ping CRITICAL detail surfaces timing + error cl
 });
 
 // =============================================================================
-// Part 5 — Custody/audit semantics preserved (no governance weakening)
+// Part 5 â€” Custody/audit semantics preserved (no governance weakening)
 // =============================================================================
 
-describe("Phase 32.7.1 — custody/audit semantics preserved", () => {
+describe("Phase 32.7.1 â€” custody/audit semantics preserved", () => {
   const SRC = readApi("src/routes/evidence.routes.ts");
 
   it("verification page_opened audit still emitted (fire-and-forget pre-existing)", () => {
     expect(SRC).toMatch(/action:\s*"verification\.page_opened"/);
   });
 
-  it("a custody event is still emitted on authenticated original access (EVIDENCE_DOWNLOADED since ET-CUS-07)", () => {
+  it("a custody event is still emitted on authenticated original access (DOWNLOAD_AUTHORIZED since EVID-008)", () => {
     expect(SRC).toMatch(/await recordOriginalRelease\(\{[\s\S]{0,160}channel:\s*"original"/);
   });
 

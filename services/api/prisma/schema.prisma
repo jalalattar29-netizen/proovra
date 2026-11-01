@@ -3577,6 +3577,12 @@ enum CustodyEventType {
   EVIDENCE_PURGED
   VERIFY_VIEWED
   REPORT_DOWNLOADED
+  // Written when the API issues a presigned URL for a report, package, original
+  // or derived file (payload.artifact says which). Means: this person was
+  // authorized and handed a link. It does NOT mean bytes were transferred; the
+  // API never sees that. REPORT_DOWNLOADED stays for a report the API streamed
+  // in full, and for historical rows.
+  DOWNLOAD_AUTHORIZED
   EVIDENCE_LOCKED
   // Truthful counterpart of EVIDENCE_LOCKED used when retention was attempted
   // but Object Lock is disabled / unavailable / did not apply. Replaces the

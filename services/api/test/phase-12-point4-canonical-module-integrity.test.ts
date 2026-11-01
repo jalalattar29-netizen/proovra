@@ -208,6 +208,7 @@ describe("canonical module integrity — custody ledger behaviour", () => {
       "EVIDENCE_DOWNLOADED",
       "REPORT_DOWNLOADED",
       "VERIFICATION_PACKAGE_DOWNLOADED",
+      "DOWNLOAD_AUTHORIZED",
       "TECHNICAL_VERIFICATION_CHECKED",
     ];
     for (const t of ACCESS) {

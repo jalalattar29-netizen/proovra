@@ -1,12 +1,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { Readable } from "node:stream";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { markCaseRestrictedTx, releaseRestrictionIfEmptyTx } from "../services/cases/case-visibility.js";
 import { revokeGrantsOfCreatorsWithoutReachTx } from "../services/cases/case-reach-share-revocation.js";
 import * as prismaPkg from "@prisma/client";
-import archiver from "archiver";
-import { getObjectStream } from "../storage.js";
+import { getObjectStream, probeStoredObject } from "../storage.js";
+import { streamCaseExport } from "../services/cases/case-export-stream.js";
 import { appendCustodyEvent } from "../services/custody-events.service.js";
 import { swallowCustodyAppendError } from "../services/custody-events-observability.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
@@ -977,8 +976,8 @@ export async function casesRoutes(app: FastifyInstance) {
        * export eligibility (legal hold, lifecycle) or a custody record, i.e.
        * a path around the rules every per-record download obeys. Each record
        * now goes through `evaluateArtifactDownload`; a refused one is listed
-       * in the manifest as withheld (reason code only), and every included
-       * report is recorded as downloaded in its custody chain.
+       * in the manifest as withheld (reason code only). A report the export
+       * actually delivered is recorded in its custody chain, after delivery.
        */
       const readAccess = async (userId: string, evidenceId: string) => {
         const access = await resolveEvidenceRecordAccess({
@@ -1010,36 +1009,47 @@ export async function casesRoutes(app: FastifyInstance) {
         }),
       );
 
-      await auditCaseAction(req, {
-        userId: ownerUserId,
-        action: "cases.export",
-        outcome: "success",
-        resourceId: id,
-        teamId: item.teamId,
-        metadata: { evidenceCount: evidence.length },
-      });
-
-      fireCaseAnalyticsEvent({
-        eventType: "case_exported",
-        userId: ownerUserId,
-        req,
-        entityId: id,
-        metadata: { evidenceCount: evidence.length },
-      });
+      /*
+       * EVERY INCLUDED REPORT IS THERE BEFORE THE FIRST BYTE (EVID-006). Once a
+       * ZIP has started the only honest failure is a broken download, so a file
+       * already known to be gone is listed as withheld, and a store that cannot
+       * answer refuses the export while a clean retry is still possible.
+       */
+      const checked = await Promise.all(
+        gated.map(async (row) => {
+          if (!row.report) return { row, unavailable: false };
+          const probe = await probeStoredObject({
+            bucket: row.report.storageBucket,
+            key: row.report.storageKey,
+            versionId: row.report.s3VersionId ?? null,
+          });
+          if (probe.state === "PRESENT" && probe.sizeBytes != null && probe.sizeBytes > 0) return { row, unavailable: false };
+          if (probe.state === "PRESENT" || probe.state === "NOT_FOUND") {
+            return { row: { ev: row.ev, report: null, withheld: "report_artifact_missing" }, unavailable: false };
+          }
+          return { row, unavailable: true };
+        }),
+      );
+      if (checked.some((c) => c.unavailable)) {
+        reply.header("Retry-After", "5");
+        return reply.code(503).send({
+          code: "STORAGE_UNAVAILABLE",
+          retryable: true,
+          message: "Storage is temporarily unavailable. Nothing has been changed; retry shortly.",
+        });
+      }
+      const rows = checked.map((c) => c.row);
 
       reply.header("content-type", "application/zip");
       reply.header("content-disposition", `attachment; filename="case-${id}.zip"`);
 
-      const archive = archiver("zip", { zlib: { level: 9 } });
-      archive.on("error", (err) => {
-        throw err;
-      });
-
-      archive.append(
-        JSON.stringify(
+      const userAgent = typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined;
+      return streamCaseExport({
+        reply,
+        manifestJson: JSON.stringify(
           {
             caseId: id,
-            evidence: gated.map(({ ev, report, withheld }) => ({
+            evidence: rows.map(({ ev, report, withheld }) => ({
               id: ev.id,
               status: ev.status,
               createdAt: ev.createdAt.toISOString(),
@@ -1049,47 +1059,77 @@ export async function casesRoutes(app: FastifyInstance) {
             })),
           },
           null,
-          2
+          2,
         ),
-        { name: "manifest.json" }
-      );
-
-      for (const { ev, report } of gated) {
-        if (report) {
-          const stream = await getObjectStream({
-            bucket: report.storageBucket,
-            key: report.storageKey,
-            // The exact recorded version; legacy rows read latest-at-key.
-            versionId: report.s3VersionId ?? null,
-          });
-
-          archive.append(stream as unknown as Readable, {
-            name: `reports/${ev.id}/v${report.version}.pdf`,
-          });
-          await appendCustodyEvent({
-            evidenceId: ev.id,
-            eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
-            payload: {
-              reportVersion: report.version,
-              channel: "case_export",
-              caseId: id,
-              actorUserId: ownerUserId,
-            },
-            ip: req.ip,
-            userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
-          }).catch((err) =>
-            // ET-CUS-11: an access fact that fails to record is observable.
-            swallowCustodyAppendError(err, {
-              surface: "cases.routes:case_export",
+        entries: rows.flatMap(({ ev, report }) =>
+          report
+            ? [
+                {
+                  name: `reports/${ev.id}/v${report.version}.pdf`,
+                  // The exact recorded version; legacy rows read latest-at-key.
+                  open: () =>
+                    getObjectStream({
+                      bucket: report.storageBucket,
+                      key: report.storageKey,
+                      versionId: report.s3VersionId ?? null,
+                    }),
+                },
+              ]
+            : [],
+        ),
+        // The API streamed these bytes, so here a download is a fact. It is
+        // written only once the whole response has reached the socket.
+        onDelivered: async () => {
+          for (const { ev, report } of rows) {
+            if (!report) continue;
+            await appendCustodyEvent({
               evidenceId: ev.id,
-              custodyEventType: "REPORT_DOWNLOADED",
-            }),
-          );
-        }
-      }
-
-      await archive.finalize();
-      return reply.send(archive);
+              eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
+              payload: {
+                reportVersion: report.version,
+                channel: "case_export",
+                caseId: id,
+                actorUserId: ownerUserId,
+              },
+              ip: req.ip,
+              userAgent,
+            }).catch((err) =>
+              // ET-CUS-11: an access fact that fails to record is observable.
+              swallowCustodyAppendError(err, {
+                surface: "cases.routes:case_export",
+                evidenceId: ev.id,
+                custodyEventType: "REPORT_DOWNLOADED",
+              }),
+            );
+          }
+          await auditCaseAction(req, {
+            userId: ownerUserId,
+            action: "cases.export",
+            outcome: "success",
+            resourceId: id,
+            teamId: item.teamId,
+            metadata: { evidenceCount: evidence.length },
+          });
+          fireCaseAnalyticsEvent({
+            eventType: "case_exported",
+            userId: ownerUserId,
+            req,
+            entityId: id,
+            metadata: { evidenceCount: evidence.length },
+          });
+        },
+        onFailed: async (reason) => {
+          await auditCaseAction(req, {
+            userId: ownerUserId,
+            action: "cases.export",
+            outcome: "failure",
+            severity: "warning",
+            resourceId: id,
+            teamId: item.teamId,
+            metadata: { evidenceCount: evidence.length, reason },
+          });
+        },
+      });
     }
   );
 

@@ -48,6 +48,7 @@ import {
   type EvidenceRecordPermission,
 } from "../services/evidence/evidence-record-access.service.js";
 import { evaluatePublicDisclosureGrant } from "../services/governance/public-disclosure-governance.service.js";
+import { sendDisclosureRefusal } from "./verification-share.routes.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   DisclosurePolicyInvalid,
@@ -413,7 +414,7 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
         userAgent: typeof ua === "string" ? ua : null,
       });
       if (!governed.allowed) {
-        return reply.code(governed.statusCode).send({ code: governed.code, reason: governed.reason });
+        return sendDisclosureRefusal(reply, governed);
       }
       if (row.teamId) {
         const gate = await requireStepUpForSensitiveAction({

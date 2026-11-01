@@ -321,23 +321,31 @@ const EVENT_TYPE_LABELS: Record<string, EventLabelInfo> = {
     tone: "success",
     description: "The evidence record was viewed by an authorized user.",
   },
+  // The three *_DOWNLOADED types are kept for rows already on a chain. Most of
+  // them were written when a link was issued, so none claims a transfer here.
   EVIDENCE_DOWNLOADED: {
-    label: "Evidence downloaded",
+    label: "Evidence download recorded",
     source: "USER",
     tone: "success",
-    description: "An authorized user downloaded the evidence file.",
+    description: "A download of the evidence file was recorded for an authorized user.",
   },
   REPORT_DOWNLOADED: {
-    label: "Report downloaded",
+    label: "Report download recorded",
     source: "USER",
     tone: "success",
-    description: "A generated report was downloaded for the evidence.",
+    description: "A download of a generated report was recorded for the evidence.",
   },
   VERIFICATION_PACKAGE_DOWNLOADED: {
-    label: "Verification package downloaded",
+    label: "Verification package download recorded",
     source: "USER",
     tone: "success",
-    description: "The evidence verification package was downloaded.",
+    description: "A download of the evidence verification package was recorded.",
+  },
+  DOWNLOAD_AUTHORIZED: {
+    label: "Download link issued",
+    source: "USER",
+    tone: "neutral",
+    description: "An authorized user was issued a time-limited download link. A link does not show that a file was transferred.",
   },
   VERIFY_VIEWED: {
     label: "Verification page viewed",
@@ -691,14 +699,22 @@ function buildAccessActivitySummary(params: {
     (event) => String(event.eventType).toUpperCase() === "VERIFY_VIEWED"
   ).length;
 
+  const authorizedArtifact = (event: { eventType: unknown; payload?: unknown }): string | null =>
+    String(event.eventType).toUpperCase() === "DOWNLOAD_AUTHORIZED"
+      ? String((event.payload as { artifact?: unknown } | null | undefined)?.artifact ?? "")
+      : null;
+
   const reportDownloads = accessRecords.filter(
-    (event) => String(event.eventType).toUpperCase() === "REPORT_DOWNLOADED"
+    (event) =>
+      String(event.eventType).toUpperCase() === "REPORT_DOWNLOADED" ||
+      authorizedArtifact(event) === "report"
   ).length;
 
   const verificationPackageDownloads = accessRecords.filter(
     (event) =>
       String(event.eventType).toUpperCase() ===
-      "VERIFICATION_PACKAGE_DOWNLOADED"
+        "VERIFICATION_PACKAGE_DOWNLOADED" ||
+      authorizedArtifact(event) === "verification_package"
   ).length;
 
   const lastViewedAtUtc =
@@ -711,6 +727,7 @@ function buildAccessActivitySummary(params: {
           "EVIDENCE_DOWNLOADED",
           "REPORT_DOWNLOADED",
           "VERIFICATION_PACKAGE_DOWNLOADED",
+          "DOWNLOAD_AUTHORIZED",
         ].includes(String(event.eventType).toUpperCase())
       )
       .map((event) => event.atUtc.toISOString())

@@ -757,6 +757,20 @@ function buildEvidenceDetailUrl(evidenceId: string): string {
   );
 }
 
+/** A link was handed out. The chain states that, never that a file moved. */
+function downloadAuthorizedSummary(artifact: unknown, version: unknown): string {
+  const subject =
+    artifact === "report"
+      ? "Report"
+      : artifact === "verification_package"
+        ? "Verification package"
+        : artifact === "original"
+          ? "Original file"
+          : "File";
+  const v = normalizePayloadPrimitive(version);
+  return v ? `${subject} download link issued • Version: ${v}` : `${subject} download link issued.`;
+}
+
 function normalizePayloadPrimitive(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "string") {
@@ -791,7 +805,9 @@ export function summarizePayloadForReport(
       case "VERIFICATION_PACKAGE_GENERATED":
         return "Verification package generated.";
       case "VERIFICATION_PACKAGE_DOWNLOADED":
-        return "Verification package downloaded.";
+        return "Verification package download recorded.";
+      case "DOWNLOAD_AUTHORIZED":
+        return "Download link issued.";
       case "TECHNICAL_VERIFICATION_CHECKED":
         return "Technical verification checked.";
       case "REVIEW_READY":
@@ -1006,9 +1022,12 @@ case "TIMESTAMP_FAILED": {
     case "VERIFICATION_PACKAGE_DOWNLOADED": {
       const version = normalizePayloadPrimitive(obj.version);
       return version
-        ? `Verification package downloaded • Version: ${version}`
-        : "Verification package downloaded.";
+        ? `Verification package download recorded • Version: ${version}`
+        : "Verification package download recorded.";
     }
+
+    case "DOWNLOAD_AUTHORIZED":
+      return downloadAuthorizedSummary(obj.artifact, obj.reportVersion ?? obj.version);
 
     case "TECHNICAL_VERIFICATION_CHECKED": {
       const source = normalizePayloadPrimitive(obj.source);

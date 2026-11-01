@@ -393,7 +393,7 @@ import {
 // Replaces the legacy `.catch(() => null)` silent-swallow pattern.
 // See `custody-events-observability.ts` for the rationale.
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
-import { recordOriginalRelease, evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
+import { recordDownloadAuthorized, recordOriginalRelease, evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { narrowPublicDisclosureAtRead } from "../services/governance/public-disclosure-governance.service.js";
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
@@ -2681,8 +2681,22 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
     case prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED: {
       const version = normalizePublicPayloadValue(obj.version);
       return version
-        ? `Verification package downloaded • Version: ${version}`
-        : "Verification package downloaded.";
+        ? `Verification package download recorded • Version: ${version}`
+        : "Verification package download recorded.";
+    }
+
+    // A link was handed out. The chain states that, never that a file moved.
+    case prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED: {
+      const subject =
+        obj.artifact === "report"
+          ? "Report"
+          : obj.artifact === "verification_package"
+            ? "Verification package"
+            : obj.artifact === "original"
+              ? "Original file"
+              : "File";
+      const version = normalizePublicPayloadValue(obj.reportVersion ?? obj.version);
+      return version ? `${subject} download link issued • Version: ${version}` : `${subject} download link issued.`;
     }
 
     case prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED: {
@@ -2762,8 +2776,8 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
     case prismaPkg.CustodyEventType.REPORT_DOWNLOADED: {
       const reportVersion = normalizePublicPayloadValue(obj.reportVersion);
       return reportVersion
-        ? `Report downloaded • Version: ${reportVersion}`
-        : "Report downloaded.";
+        ? `Report download recorded • Version: ${reportVersion}`
+        : "Report download recorded.";
     }
 
     case prismaPkg.CustodyEventType.VERIFY_VIEWED:
@@ -9984,14 +9998,19 @@ return {
           prisma.custodyEvent.count({
             where: {
               evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
+              OR: [
+                { eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED },
+                { eventType: prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED, payload: { path: ["artifact"], equals: "report" } },
+              ],
             },
           }),
           prisma.custodyEvent.count({
             where: {
               evidenceId: id,
-              eventType:
-                prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+              OR: [
+                { eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED },
+                { eventType: prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED, payload: { path: ["artifact"], equals: "verification_package" } },
+              ],
             },
           }),
           // Phase DISCUSSION-CAPABILITY-FIX — three small reads that
@@ -12447,13 +12466,14 @@ limitationsSnapshot: true,
         if (refused) return refused;
       }
 
-      await appendCustodyEvent({
+      await recordDownloadAuthorized({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
-        payload: { reportVersion: latest.version },
+        actorUserId: ownerUserId,
+        artifact: "report",
+        detail: { reportVersion: latest.version },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
+      });
 
       await auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -12647,13 +12667,14 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         if (refused) return refused;
       }
 
-      await appendCustodyEvent({
+      await recordDownloadAuthorized({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.REPORT_DOWNLOADED,
-        payload: { reportVersion: row.version, historicalVersion: true },
+        actorUserId: ownerUserId,
+        artifact: "report",
+        detail: { reportVersion: row.version, historicalVersion: true },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
+      });
 
       await auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -12763,13 +12784,14 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         if (refused) return refused;
       }
 
-      await appendCustodyEvent({
+      await recordDownloadAuthorized({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
-        payload: { version: row.version, historicalVersion: true, packageId: row.id, disclosureProfile: row.disclosureProfile ?? "LEGACY" },
+        actorUserId: ownerUserId,
+        artifact: "verification_package",
+        detail: { version: row.version, historicalVersion: true, packageId: row.id, disclosureProfile: row.disclosureProfile ?? "LEGACY" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
+      });
 
       await auditEvidenceAction(req, {
         userId: ownerUserId,
@@ -12911,13 +12933,14 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         if (refused) return refused;
       }
 
-      await appendCustodyEvent({
+      await recordDownloadAuthorized({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
-        payload: { version: row.version, packageId: row.id, disclosureProfile: "EXTERNAL_DISCLOSURE" },
+        actorUserId,
+        artifact: "verification_package",
+        detail: { version: row.version, packageId: row.id, disclosureProfile: "EXTERNAL_DISCLOSURE" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
+      });
       await auditEvidenceAction(req, {
         userId: actorUserId,
         action: "evidence.verification_package.downloaded",
@@ -13083,7 +13106,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           );
         });
 
-      // ET-CUS-07: an original download is EVIDENCE_DOWNLOADED.
+      // ET-CUS-07: issuing this URL is on the chain, as a link, not a download.
       await recordOriginalRelease({
         evidenceId: id,
         actorUserId: ownerUserId,
@@ -13514,16 +13537,17 @@ displayName: resolvedDisplayName,
         }
       );
 
-      await appendCustodyEvent({
+      await recordDownloadAuthorized({
         evidenceId: id,
-        eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
-        payload: {
+        actorUserId: ownerUserId,
+        artifact: "verification_package",
+        detail: {
           version: latest.version,
           packageType: latest.packageType ?? null,
         },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
-      }).catch(noteCustodyFailure);
+      });
 
       await auditEvidenceAction(req, {
         userId: ownerUserId,

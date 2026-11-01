@@ -37,8 +37,7 @@ import type {
   EvidenceSavedView,
   EvidenceSavedViewsResponse,
   LibraryLoadState,
-  OriginalResponse,
-  PartsResponse,
+  ArtifactStatusResponse,
   ReportResponse,
   VerificationPackageResponse,
   WorkspaceCapabilitySnapshot,
@@ -216,6 +215,9 @@ function readUrlFilterOverrides(): Partial<EvidenceFilterState> {
 // Phase 38.9 — wrap in canonical PageRouteGate. The inner component
 // retains its existing capability behavior; the gate short-circuits
 // denied states with the canonical structured panel.
+/** Inside the roughly ten minutes a preview URL in a loaded detail lasts. */
+const DETAIL_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export default function EvidenceLibraryPage() {
   return (
     <PageRouteGate routeId="workspace.evidence">
@@ -229,7 +231,7 @@ function EvidenceLibraryPageInner() {
   const { addToast } = useToast();
   // The canonical workspace/context envelope — identity, not commerce.
   const { envelope } = usePlatformContext();
-  const detailCacheRef = useRef<Record<string, DetailWorkspaceState>>({});
+  const detailCacheRef = useRef<Record<string, { detail: DetailWorkspaceState; loadedAtMs: number }>>({});
   const evidenceRequestRef = useRef(0);
   /** Part 3 — monotonic id so only the NEWEST detail request may write state. */
   const detailRequestRef = useRef(0);
@@ -486,8 +488,11 @@ function EvidenceLibraryPageInner() {
 
       setDetailError(null);
 
-      if (!force && detailCacheRef.current[evidenceId]) {
-        setSelectedDetail(detailCacheRef.current[evidenceId]);
+      // A preview URL in this detail lasts about ten minutes, so a cached detail
+      // is reused only well inside that, or the preview fails until a refresh.
+      const cached = detailCacheRef.current[evidenceId];
+      if (!force && cached && Date.now() - cached.loadedAtMs < DETAIL_CACHE_TTL_MS) {
+        setSelectedDetail(cached.detail);
         setDetailForId(evidenceId);
         return;
       }
@@ -495,21 +500,22 @@ function EvidenceLibraryPageInner() {
       setDetailLoading(true);
 
       try {
+        /*
+         * EVID-008 — SELECTING A ROW IS NOT A DOWNLOAD. The first row is selected
+         * for you, and this used to fetch /parts, /original, /report/latest and
+         * /verification-package for it. Each of those issues a download URL and
+         * records it on the custody chain, so opening the Library put downloads
+         * on a record nobody touched. The inspector needs to know what exists,
+         * which /artifacts/status answers with no custody effect. The URLs are
+         * issued by the download actions, when someone asks.
+         */
         const [
           evidenceRes,
-          partsRes,
-          originalRes,
-          reportRes,
-          verificationRes,
+          artifactsRes,
           workspaceRes,
         ] = await Promise.allSettled([
             apiFetch(`/v1/evidence/${evidenceId}`) as Promise<EvidenceResponse>,
-            apiFetch(`/v1/evidence/${evidenceId}/parts`) as Promise<PartsResponse>,
-            apiFetch(`/v1/evidence/${evidenceId}/original`) as Promise<OriginalResponse>,
-            apiFetch(`/v1/evidence/${evidenceId}/report/latest`) as Promise<ReportResponse>,
-            apiFetch(
-              `/v1/evidence/${evidenceId}/verification-package`
-            ) as Promise<VerificationPackageResponse>,
+            apiFetch(`/v1/evidence/${evidenceId}/artifacts/status`) as Promise<ArtifactStatusResponse>,
             // The workspace this record belongs to, as the SERVER resolved it.
             apiFetch(`/v1/evidence/${evidenceId}/review-workspace`) as Promise<{
               workspaceCapabilitySnapshot?: WorkspaceCapabilitySnapshot | null;
@@ -518,16 +524,13 @@ function EvidenceLibraryPageInner() {
 
         const evidence =
           evidenceRes.status === "fulfilled" ? evidenceRes.value.evidence ?? null : null;
+        const artifacts = artifactsRes.status === "fulfilled" ? artifactsRes.value : null;
         const detail: DetailWorkspaceState = {
           evidence,
-          parts:
-            partsRes.status === "fulfilled" && Array.isArray(partsRes.value.parts)
-              ? partsRes.value.parts
-              : [],
-          original: originalRes.status === "fulfilled" ? originalRes.value ?? null : null,
-          report: reportRes.status === "fulfilled" ? reportRes.value ?? null : null,
-          verificationPackage:
-            verificationRes.status === "fulfilled" ? verificationRes.value ?? null : null,
+          report: artifacts?.report?.available ? artifacts.report : null,
+          verificationPackage: artifacts?.verificationPackage?.available
+            ? artifacts.verificationPackage
+            : null,
           capabilities:
             workspaceRes.status === "fulfilled"
               ? workspaceRes.value?.workspaceCapabilitySnapshot ?? null
@@ -535,7 +538,7 @@ function EvidenceLibraryPageInner() {
           caseName: getCaseName(evidence?.caseId ?? selectedListItem.caseId, caseMap),
         };
 
-        detailCacheRef.current[evidenceId] = detail;
+        detailCacheRef.current[evidenceId] = { detail, loadedAtMs: Date.now() };
         if (detailRequestRef.current !== requestId) return;
         setSelectedDetail(detail);
         setDetailForId(evidenceId);

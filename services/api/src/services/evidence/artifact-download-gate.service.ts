@@ -452,12 +452,16 @@ export async function evaluateArtifactDownload(input: {
  * released original bytes with no trace, and EVIDENCE_DOWNLOADED was never
  * emitted.
  *
- *   original, parts_listing          an explicit download request
- *                                    -> EVIDENCE_DOWNLOADED
- *   record_view, review_workspace,   a view that included original URLs
- *   completion                       -> EVIDENCE_VIEWED (accessMode original_url_issued)
+ *   original                         an explicit download request
+ *                                    -> DOWNLOAD_AUTHORIZED (EVID-008)
+ *   parts_listing, record_view,      a read that included original URLs
+ *   review_workspace, completion     -> EVIDENCE_VIEWED (accessMode original_url_issued)
  *   public_verify                    an anonymous public page that included them
  *                                    -> VERIFY_VIEWED (never retention activity, ET-CUS-10)
+ *
+ * A LINK IS NOT A DOWNLOAD (EVID-008). The bytes go directly from storage, so
+ * the API never sees them move. Nothing here says a file was downloaded: the
+ * record is that a link was issued, to whom and when.
  *
  * The response is not blocked by a failed append (the URLs are already
  * minted), but the failure is observable.
@@ -482,8 +486,8 @@ export async function recordOriginalRelease(input: {
   if (input.originalUrlsIssued <= 0) return;
   const at = new Date();
   const eventType =
-    input.channel === "original" || input.channel === "parts_listing"
-      ? prismaPkg.CustodyEventType.EVIDENCE_DOWNLOADED
+    input.channel === "original"
+      ? prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED
       : input.channel === "public_verify"
         ? prismaPkg.CustodyEventType.VERIFY_VIEWED
         : prismaPkg.CustodyEventType.EVIDENCE_VIEWED;
@@ -497,13 +501,44 @@ export async function recordOriginalRelease(input: {
       accessMode:
         input.channel === "public_verify"
           ? "public_original_url_issued"
-          : input.channel === "original" || input.channel === "parts_listing"
-            ? "authenticated_original_download"
+          : input.channel === "original"
+            ? "authenticated_download_url_issued"
             : "original_url_issued",
       originalUrlsIssued: input.originalUrlsIssued,
       accessedByUserId: input.actorUserId,
       mimeType: input.mimeType ?? null,
       accessedAtUtc: at.toISOString(),
+    },
+    ip: input.ip ?? undefined,
+    userAgent: input.userAgent ?? undefined,
+  }).catch(noteCustodyFailure);
+}
+
+/**
+ * A presigned download link was issued for a report, package or derived file
+ * (EVID-008). The response is not blocked by a failed append (the URL is already
+ * minted), but the failure is observable.
+ */
+export async function recordDownloadAuthorized(input: {
+  evidenceId: string;
+  actorUserId: string | null;
+  artifact: "report" | "verification_package" | "derived";
+  detail?: Record<string, unknown>;
+  atUtc?: Date;
+  ip?: string | null;
+  userAgent?: string | null;
+}): Promise<void> {
+  const at = input.atUtc ?? new Date();
+  await appendCustodyEvent({
+    evidenceId: input.evidenceId,
+    eventType: prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED,
+    atUtc: at,
+    payload: {
+      artifact: input.artifact,
+      accessMode: "authenticated_download_url_issued",
+      accessedByUserId: input.actorUserId,
+      accessedAtUtc: at.toISOString(),
+      ...(input.detail ?? {}),
     },
     ip: input.ip ?? undefined,
     userAgent: input.userAgent ?? undefined,

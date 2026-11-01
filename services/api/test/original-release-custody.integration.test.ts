@@ -4,8 +4,10 @@
  * a local computation; no object store is contacted.)
  *
  * On a40ca76f only /original wrote one — as EVIDENCE_VIEWED — so the parts
- * listing and record views released original bytes with no trace, and
- * EVIDENCE_DOWNLOADED was never emitted.
+ * listing and record views released original bytes with no trace.
+ *
+ * (EVID-008) The API sees a URL issued, never the bytes move, so an explicit
+ * request is DOWNLOAD_AUTHORIZED and a listing that carries URLs is a view.
  */
 import { randomUUID } from "node:crypto";
 
@@ -53,7 +55,7 @@ describe("original byte release is on the custody chain (live PostgreSQL 16)", (
   const events = async (evidenceId: string) =>
     (
       await prisma.custodyEvent.findMany({
-        where: { evidenceId, eventType: { in: ["EVIDENCE_DOWNLOADED", "EVIDENCE_VIEWED", "VERIFY_VIEWED"] as never } },
+        where: { evidenceId, eventType: { in: ["EVIDENCE_DOWNLOADED", "DOWNLOAD_AUTHORIZED", "EVIDENCE_VIEWED", "VERIFY_VIEWED"] as never } },
         orderBy: { sequence: "asc" },
         select: { eventType: true, payload: true },
       })
@@ -61,21 +63,21 @@ describe("original byte release is on the custody chain (live PostgreSQL 16)", (
   const get = (url: string) =>
     h.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` } });
 
-  it("the parts listing that hands out part URLs records EVIDENCE_DOWNLOADED with the count", async () => {
+  it("the parts listing that hands out part URLs records a view with the count, never a download", async () => {
     const id = await signedRecordWithParts(3);
     const res = await get(`/v1/evidence/${id}/parts`);
     expect(res.statusCode, res.body).toBe(200);
     const issued = (res.json().parts as Array<{ url?: string | null }>).filter((p) => p.url).length;
     const recorded = (await events(id)).filter((e) => e.channel === "parts_listing");
     expect(issued).toBe(3); // the default workspace policy releases originals
-    expect(recorded).toEqual([expect.objectContaining({ type: "EVIDENCE_DOWNLOADED", originalUrlsIssued: 3 })]);
+    expect(recorded).toEqual([expect.objectContaining({ type: "EVIDENCE_VIEWED", originalUrlsIssued: 3 })]);
   });
 
-  it("/original records EVIDENCE_DOWNLOADED, not EVIDENCE_VIEWED", async () => {
+  it("/original records DOWNLOAD_AUTHORIZED: a link for this person, not a transfer", async () => {
     const id = await signedRecordWithParts(1);
     const res = await get(`/v1/evidence/${id}/original`);
     expect(res.statusCode, res.body).toBe(200);
-    expect(await events(id)).toEqual([expect.objectContaining({ type: "EVIDENCE_DOWNLOADED", channel: "original", originalUrlsIssued: 1 })]);
+    expect(await events(id)).toEqual([expect.objectContaining({ type: "DOWNLOAD_AUTHORIZED", channel: "original", originalUrlsIssued: 1 })]);
   });
 
   it("a record view records exactly the original URLs it included", async () => {

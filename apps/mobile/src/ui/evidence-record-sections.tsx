@@ -571,7 +571,7 @@ export function PublicVerificationSharing({ publicVerification, shareUrl }: { pu
           { label: "Verification link", value: shareUrl ? "Available" : "Not available" },
           { label: "Page detail", value: pv.detail },
           { label: "Public views", value: counter(publicVerification.publicViewCount) },
-          { label: "Report downloads", value: counter(publicVerification.reportDownloadCount) },
+          { label: "Report download links", value: counter(publicVerification.reportDownloadCount) },
           { label: "Package downloads", value: counter(publicVerification.verificationPackageDownloadCount) },
           { label: "Last public view", value: publicVerification.lastPublicViewAt ? (formatUserDateTime(publicVerification.lastPublicViewAt) ?? "Not recorded") : "Not recorded" },
         ]}

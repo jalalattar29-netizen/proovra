@@ -33,6 +33,7 @@ import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   evaluatePublicDisclosureGrant,
   type PublicDisclosureGrantAction,
+  type PublicDisclosureGrantDecision,
 } from "../services/governance/public-disclosure-governance.service.js";
 import { noteCustodyFailure } from "../services/custody-events-observability.js";
 import { resolveEvidenceOperationAccess } from "../services/evidence/evidence-record-access.service.js";
@@ -139,6 +140,29 @@ async function authorizeShare(req: FastifyRequest, reply: FastifyReply, evidence
 }
 
 /**
+ * The refusal, each code written out whole for the web's error-code coverage
+ * gate (see shareErrorToReply). Used for the verification-disclosure route too.
+ */
+export function sendDisclosureRefusal(
+  reply: FastifyReply,
+  decision: Extract<PublicDisclosureGrantDecision, { allowed: false }>,
+): FastifyReply {
+  const { statusCode, reason } = decision;
+  switch (decision.code) {
+    case "PUBLIC_VERIFY_BLOCKED_BY_POLICY":
+      return reply.code(statusCode).send({ code: "PUBLIC_VERIFY_BLOCKED_BY_POLICY", reason });
+    case "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY":
+      return reply.code(statusCode).send({ code: "ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY", reason });
+    case "VERIFICATION_POLICY_BLOCKED":
+      return reply.code(statusCode).send({ code: "VERIFICATION_POLICY_BLOCKED", reason });
+    case "GOVERNANCE_CHECK_FAILED":
+      return reply.code(statusCode).send({ code: "GOVERNANCE_CHECK_FAILED", reason });
+    default:
+      return reply.code(statusCode).send({ code: decision.code, reason });
+  }
+}
+
+/**
  * The workspace's decision on handing out this link. False when a refusal has
  * been sent. The decision comes first so a refused request spends no step-up.
  */
@@ -168,7 +192,7 @@ async function governShareGrant(
     denialReason: decision.reason,
     metadata: { grantsOriginal: input.grantsOriginal },
   });
-  reply.code(decision.statusCode).send({ code: decision.code, reason: decision.reason });
+  sendDisclosureRefusal(reply, decision);
   return false;
 }
 

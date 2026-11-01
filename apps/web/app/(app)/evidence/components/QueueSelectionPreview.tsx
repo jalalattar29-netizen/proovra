@@ -154,7 +154,7 @@ function buildReportRow(item: EvidenceListItem, detail: DetailWorkspaceState): A
     };
   }
 
-  if (detail.report?.url && detail.report?.generatedAtUtc) {
+  if (detail.report?.generatedAtUtc) {
     return {
       key: "report",
       title: "Report available",

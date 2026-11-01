@@ -9,7 +9,7 @@
  *     carries the lineage's gaps / completeness;
  *   * download hands out a presigned GET pinned to the recorded VERSION with
  *     the safe `<id8>-DERIVED-combined-recording-v<gen>.mp4` attachment name,
- *     which honours HTTP Range (206) — and writes EVIDENCE_DOWNLOADED
+ *     which honours HTTP Range (206) — and writes DOWNLOAD_AUTHORIZED
  *     (artifact "derived") on custody; playback is inline + EVIDENCE_VIEWED;
  *   * a VIEWER is refused by the gate; a non-segmented record cannot Prepare.
  */
@@ -231,7 +231,7 @@ describe("combined screen recording routes (live PostgreSQL 16, MinIO)", () => {
       expect(JSON.stringify(body)).not.toMatch(/derived-assets\/|storageKey|X-Amz-Signature/);
     });
 
-    it("download: presigned, version-pinned, Range-capable, safe attachment name, custody EVIDENCE_DOWNLOADED", async () => {
+    it("download: presigned, version-pinned, Range-capable, safe attachment name, custody DOWNLOAD_AUTHORIZED", async () => {
       const A = h.fixtures.teamA;
       const res = await get(`/v1/evidence/${evidenceId}/combined-recording/download?teamId=${A.teamId}`, A.ownerToken);
       expect(res.statusCode).toBe(200);
@@ -246,7 +246,7 @@ describe("combined screen recording routes (live PostgreSQL 16, MinIO)", () => {
       const whole = Buffer.from(await (await fetch(body.url)).arrayBuffer());
       expect(sha(whole)).toBe(sha(bytes)); // the recorded version, not the later write
       const ev = await prisma.custodyEvent.findFirst({
-        where: { evidenceId, eventType: "EVIDENCE_DOWNLOADED" },
+        where: { evidenceId, eventType: "DOWNLOAD_AUTHORIZED" as never },
         orderBy: { sequence: "desc" },
       });
       expect(ev?.payload).toMatchObject({ artifact: "derived", assetKind: "screen_recording_combined", generation: 1 });

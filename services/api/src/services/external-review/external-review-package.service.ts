@@ -99,8 +99,10 @@ export async function releaseExternalDisclosurePackage(input: {
   }
   await appendCustodyEvent({
     evidenceId: evidence.id,
-    eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+    eventType: prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED,
     payload: {
+      artifact: "verification_package",
+      accessMode: "external_reviewer_download_url_issued",
       version: row.version,
       packageId: row.id,
       disclosureProfile: "EXTERNAL_DISCLOSURE",
