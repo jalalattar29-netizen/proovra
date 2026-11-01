@@ -606,6 +606,9 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
         reason: "retention_expired",
         decidedByUserId: fixture.ownerUserId,
         decidedAtUtc: new Date(),
+        // GOV-002 — the sweep only continues what a person asked to execute.
+        executionRequestedAtUtc: new Date(),
+        executionRequestedByUserId: fixture.ownerUserId,
       },
       select: { id: true },
     });

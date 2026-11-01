@@ -1,9 +1,18 @@
 /**
  * Phase 27.5 — Destruction Orchestrator Worker.
  *
- * Executes APPROVED `DestructionReview` rows by walking a multi-phase
- * destruction plan against the evidence + storage layer, with partial-
- * failure recovery via the `DestructionExecution` row.
+ * Carries out APPROVED `DestructionReview` rows A PERSON HAS ASKED TO EXECUTE, by
+ * walking a multi-phase destruction plan against the evidence + storage layer,
+ * with partial-failure recovery via the `DestructionExecution` row.
+ *
+ * GOV-002 — this sweep is not a decision. It picks up nothing on approval alone:
+ * APPROVED is reversible, and the step-up EXECUTED action is what authorises
+ * execution. The API attempts it inline; this continues whatever that attempt
+ * could not finish, and never runs while DESTRUCTION_EXECUTION_ENABLED is off.
+ *
+ * GOV-007 — a refusal lands once, not every tick. A BLOCKED outcome hands the
+ * review back to a person; a storage failure backs off; so the sweep only ever
+ * sees work that is due, and a blocked review cannot starve a newer one.
  *
  * Plan (terminal states are COMPLETED, FAILED, ROLLED_BACK):
  *
@@ -52,12 +61,13 @@ import * as prismaPkg from "@prisma/client";
 import { createHash } from "node:crypto";
 import {
   canonicalEvaluateLifecycleTransition,
+  isDestructionBoundState,
   newCorrelationId,
   type EvidenceLifecycleState,
 } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
-import { runGovernanceReconciliation } from "@proovra/shared-runtime";
+import { destructionExecutionEnabled, runGovernanceReconciliation } from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the ONE destruction executor.
@@ -66,7 +76,6 @@ import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import {
   executeEvidenceDestruction,
   reconcileDestroyedDerivedAssets,
-  resolveDestructionApproval,
 } from "@proovra/shared-runtime";
 import { workerEvidenceDestructionStorage } from "./destruction-storage-port.js";
 
@@ -88,6 +97,8 @@ export const RECOVERED_WORK_TYPES = ["DESTRUCTION_ORCHESTRATOR"] as const;
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 200;
 const DEDUPE_KEY_MAX = 180;
+/** How long a review waits after a storage failure or a held claim. */
+const EXECUTION_RETRY_BACKOFF_MS = 60 * 60 * 1000;
 
 export interface DestructionOrchestrationOptions {
   trigger?: string;
@@ -123,15 +134,26 @@ export async function runDestructionOrchestration(
     teamId: options.teamId ?? null,
     triggeredByUserId: options.triggeredByUserId ?? null,
     body: async (ctx) => {
-      // Pull APPROVED reviews to execute. Reviews whose evidence has a
-      // hold are still APPROVED — the hold check happens IN-PHASE so
-      // the operator can see the failure on the execution row.
+      // THE SWITCH. Off means nothing here runs: no review, no resumed partial
+      // delete and no historical cleanup touches storage.
+      if (!destructionExecutionEnabled()) {
+        ctx.setMetadata("executionDisabled", true);
+        ctx.setMetadata("trigger", trigger);
+        return { executed, rolledBack };
+      }
+
+      // Pull the reviews a person has asked to execute and that are due. Reviews
+      // whose evidence has a hold are still APPROVED — the hold check happens
+      // IN-PHASE so the operator can see the failure on the execution row.
+      const now = new Date();
       const approved = await prisma.destructionReview.findMany({
         where: {
           status: "APPROVED",
+          executionRequestedAtUtc: { not: null },
+          OR: [{ executionNotBeforeUtc: null }, { executionNotBeforeUtc: { lte: now } }],
           ...(options.teamId ? { teamId: options.teamId } : {}),
         },
-        orderBy: { decidedAtUtc: "asc" },
+        orderBy: { executionRequestedAtUtc: "asc" },
         take: batchSize,
         select: {
           id: true,
@@ -141,6 +163,7 @@ export async function runDestructionOrchestration(
           retentionPolicyVersion: true,
           reason: true,
           decidedByUserId: true,
+          executionRequestedByUserId: true,
         },
       });
       ctx.reportProgress({ scanned: approved.length });
@@ -182,33 +205,46 @@ export async function runDestructionOrchestration(
           //    the canonical shared formula so this runtime cannot
           //    drift from the api orchestrator.
           const facts = await gatherDestructionFacts(review.evidenceId);
+
+          // GOV-019 — the record is already gone: the worker died between the
+          // executor and the review update, or another path destroyed it. This
+          // is not a refusal. The review is finished from the ledger's hash.
+          if (facts.lifecycleState === "DESTROYED") {
+            await finishFromLedger(review, execution.id);
+            ctx.reportProgress({ skipped: 1 });
+            continue;
+          }
+
           const decision = canonicalEvaluateLifecycleTransition({
-            fromState: facts.lifecycleState,
+            // A trashed or retention-archived record is claimed directly.
+            fromState: isDestructionBoundState(facts.lifecycleState)
+              ? "PENDING_DESTRUCTION"
+              : facts.lifecycleState,
             toState: "DESTROYED",
             hasActiveDirectHold: facts.hasActiveDirectHold,
             hasActiveCaseHold: facts.hasActiveCaseHold,
             immutableRetention: facts.immutable,
           });
           if (!decision.allowed) {
-            const blockedBy: "hold" | "immutable" =
-              decision.reason === "blocked_by_immutable"
-                ? "immutable"
-                : "hold";
+            const held =
+              decision.reason === "blocked_by_hold" || decision.reason === "blocked_by_case_hold";
+            const immutable = decision.reason === "blocked_by_immutable";
             await failExecution(execution.id, {
-              code:
-                decision.reason === "blocked_by_immutable"
-                  ? "BLOCKED_BY_IMMUTABLE"
-                  : "BLOCKED_BY_HOLD",
+              code: immutable
+                ? "BLOCKED_BY_IMMUTABLE"
+                : held
+                  ? "BLOCKED_BY_HOLD"
+                  : "BLOCKED_BY_LIFECYCLE",
               detail: `Canonical lifecycle gate denied DESTROYED transition (reason=${decision.reason}).`,
-              phase:
-                decision.reason === "blocked_by_immutable"
-                  ? "verifying_immutable_state"
-                  : "verifying_no_hold",
+              phase: immutable
+                ? "verifying_immutable_state"
+                : "verifying_no_hold",
             });
+            await returnToPerson(review.id);
             await emitDestructionBlockedNotification(
               review.teamId,
               review.evidenceId,
-              blockedBy,
+              held ? "hold" : immutable ? "immutable" : "lifecycle",
               correlationId,
             );
             ctx.reportProgress({ skipped: 1 });
@@ -244,22 +280,19 @@ export async function runDestructionOrchestration(
             },
           });
 
-          const approval = await resolveDestructionApproval(prisma, {
-            evidenceId: review.evidenceId,
-            teamId: review.teamId,
-          });
-
+          // GOV-009 — the person who asked for execution is the actor; the
+          // certificate records that a worker carried it out for them.
           const destruction = await executeEvidenceDestruction(
             prisma,
             {
               evidenceId: review.evidenceId,
               trigger: "destruction_review",
-              actorUserId: review.decidedByUserId ?? null,
+              actorUserId: review.executionRequestedByUserId ?? null,
+              executedBy: "WORKER",
               destructionReviewId: review.id,
               legalHold: facts.hasActiveDirectHold || facts.hasActiveCaseHold,
               objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
-              destructionApprovalRequired: approval.required,
-              destructionApproved: approval.approved,
+              destructionApprovalRequired: true,
               correlationId,
             },
             workerEvidenceDestructionStorage,
@@ -291,12 +324,20 @@ export async function runDestructionOrchestration(
               phase: blocked ? "verifying_no_hold" : "deleting_storage",
             });
             if (destruction.outcome === "BLOCKED") {
+              // A person decides what happens next; the sweep does not ask again
+              // every five minutes, and the operator is told the real reason.
+              await returnToPerson(review.id);
               await emitDestructionBlockedNotification(
                 review.teamId,
                 review.evidenceId,
-                destruction.reason === "LEGAL_HOLD_ACTIVE" ? "hold" : "immutable",
+                blockCause(destruction.reason),
                 correlationId,
               );
+            } else {
+              await prisma.destructionReview.updateMany({
+                where: { id: review.id, status: "APPROVED" },
+                data: { executionNotBeforeUtc: new Date(Date.now() + EXECUTION_RETRY_BACKOFF_MS) },
+              });
             }
             ctx.reportProgress({ skipped: 1 });
             continue;
@@ -305,14 +346,7 @@ export async function runDestructionOrchestration(
           if (destruction.outcome === "ALREADY_DESTROYED") {
             // A redelivery. The certificate for this record already exists and
             // a second one must not be minted.
-            await prisma.destructionExecution.update({
-              where: { id: executionId },
-              data: {
-                status: "COMPLETED",
-                completedAtUtc: new Date(),
-                phase: "completing",
-              },
-            });
+            await finishFromLedger(review, executionId);
             ctx.reportProgress({ skipped: 1 });
             continue;
           }
@@ -345,8 +379,9 @@ export async function runDestructionOrchestration(
           // 5. The Evidence row is ALREADY tombstoned by the executor — that is
           //    the only place the DESTROYED state is written. What is left is
           //    the review's own terminal status.
-          await prisma.destructionReview.update({
-            where: { id: review.id },
+          //    Compare-and-set: the API may have got there in the same moment.
+          await prisma.destructionReview.updateMany({
+            where: { id: review.id, status: "APPROVED" },
             data: {
               status: "EXECUTED",
               executedAtUtc: new Date(),
@@ -407,6 +442,42 @@ export async function runDestructionOrchestration(
               },
             })
             .catch(() => null);
+        }
+      }
+
+      // GOV-018 — a Personal record whose deletion stopped part way. Its bytes are
+      // partly gone, nothing else will come back for it, and the executor only
+      // retakes the claim once its lease has expired. A workspace record comes
+      // back through its review or request.
+      const partial = await prisma.evidence.findMany({
+        where: {
+          destructionPartialAtUtc: { not: null },
+          lifecycleState: "PENDING_DESTRUCTION",
+          teamId: null,
+        },
+        orderBy: { destructionPartialAtUtc: "asc" },
+        take: batchSize,
+        select: { id: true, teamId: true, caseLinks: { select: { caseId: true } } },
+      });
+      for (const row of partial) {
+        try {
+          const hold = await evaluateEffectiveLegalHold(prisma, {
+            teamId: row.teamId,
+            evidenceId: row.id,
+            caseIds: row.caseLinks.map((l) => l.caseId),
+          });
+          await executeEvidenceDestruction(
+            prisma,
+            {
+              evidenceId: row.id,
+              trigger: "purge_job",
+              legalHold: hold.held,
+              objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
+            },
+            workerEvidenceDestructionStorage,
+          );
+        } catch (err) {
+          logger.warn({ err, evidenceId: row.id, runId: ctx.runId }, "destruction.orchestrator.partial_resume_failed");
         }
       }
 
@@ -673,6 +744,67 @@ async function mostRecentLifecycleLedgerDigest(
   );
 }
 
+/**
+ * The barrier is a person's to deal with: the execution request is withdrawn, so
+ * the review stays APPROVED and cancellable without another FAILED row per tick,
+ * and executing it again is a fresh, stepped-up decision.
+ */
+async function returnToPerson(reviewId: string): Promise<void> {
+  await prisma.destructionReview.updateMany({
+    where: { id: reviewId, status: "APPROVED" },
+    data: {
+      executionRequestedAtUtc: null,
+      executionRequestedByUserId: null,
+      executionNotBeforeUtc: null,
+    },
+  });
+}
+
+/** GOV-019 — finish a review whose record is destroyed, with the ledger's hash. */
+async function finishFromLedger(
+  review: { id: string; evidenceId: string },
+  executionId: string,
+): Promise<void> {
+  const event = await prisma.evidenceLifecycleEvent.findFirst({
+    where: { evidenceId: review.evidenceId, eventType: "destruction_executed" },
+    orderBy: { createdAt: "desc" },
+    select: { metadata: true, createdAt: true },
+  });
+  const hash = (event?.metadata as { certificateHash?: unknown } | null)?.certificateHash;
+  const certificateHash = typeof hash === "string" ? hash : null;
+  await prisma.destructionReview.updateMany({
+    where: { id: review.id, status: "APPROVED" },
+    data: {
+      status: "EXECUTED",
+      executedAtUtc: event?.createdAt ?? new Date(),
+      certificateHash,
+    },
+  });
+  await prisma.destructionExecution.update({
+    where: { id: executionId },
+    data: {
+      status: "COMPLETED",
+      completedAtUtc: new Date(),
+      phase: "completing",
+      certificateHash,
+    },
+  });
+}
+
+function blockCause(reason: string): "hold" | "immutable" | "retention" | "lifecycle" {
+  if (reason === "LEGAL_HOLD_ACTIVE") return "hold";
+  if (reason === "RETENTION_POLICY_IMMUTABLE" || reason === "EVIDENCE_LOCKED") return "immutable";
+  if (
+    reason === "OBJECT_LOCK_RETENTION_ACTIVE" ||
+    reason === "APP_RETENTION_ACTIVE" ||
+    reason === "TRASH_GRACE_ACTIVE" ||
+    reason === "RETENTION_METADATA_UNVERIFIED"
+  ) {
+    return "retention";
+  }
+  return "lifecycle";
+}
+
 async function failExecution(
   executionId: string,
   input: { code: string; detail: string; phase: string },
@@ -721,7 +853,7 @@ async function emitDestructionExecutedNotification(
 async function emitDestructionBlockedNotification(
   teamId: string,
   evidenceId: string,
-  reason: "hold" | "immutable",
+  reason: "hold" | "immutable" | "retention" | "lifecycle",
   correlationId?: string,
 ): Promise<void> {
   try {
@@ -736,12 +868,16 @@ async function emitDestructionBlockedNotification(
       title: "Destruction blocked at execution",
       conditionMessage: {
         code: "ops.governance.notification.destruction_blocked",
-        params: { cause: reason === "hold" ? "hold" : "immutable" },
+        params: { cause: reason },
       },
       summary:
         reason === "hold"
           ? "Destruction was blocked because a legal hold became active before execution."
-          : "Destruction was blocked because the retention policy is immutable at execution time.",
+          : reason === "immutable"
+            ? "Destruction was blocked because the record is locked or its retention policy is immutable."
+            : reason === "retention"
+              ? "Destruction was blocked because retention on this record has not ended."
+              : "Destruction was blocked because the record is no longer in a state that can be destroyed.",
       relatedEvidenceId: evidenceId,
       correlationId,
     });

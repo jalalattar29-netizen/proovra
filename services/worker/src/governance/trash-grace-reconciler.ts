@@ -647,12 +647,29 @@ async function ensureDestructionReview(
         return false;
       }
 
+      // GOV-006 — a person already declined this one. Their decision stands until
+      // someone opens a review by hand; it must not reappear every tick.
+      const record = await tx.evidence.findUnique({
+        where: { id: evidenceId },
+        select: { deletedAt: true },
+      });
+      const declined = await tx.destructionReview.findFirst({
+        where: {
+          evidenceId,
+          teamId,
+          status: { in: ["DENIED", "CANCELLED", "RESTORED"] },
+          decidedAtUtc: { gte: record?.deletedAt ?? now },
+        },
+        select: { id: true },
+      });
+      if (declined) return false;
+
       const review = await tx.destructionReview.create({
         data: {
           teamId,
           evidenceId,
           status: "PENDING",
-          reason: "RETENTION_EXPIRED",
+          reason: "retention_expired",
         },
         select: { id: true },
       });

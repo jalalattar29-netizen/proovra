@@ -122,9 +122,9 @@ describe("only the canonical executor performs physical Evidence deletion", () =
     expect(certifyAt).toBeGreaterThan(verifyAt);
   });
 
-  it("a survivor after deletion releases the claim and returns a failure", () => {
+  it("a survivor after deletion releases the claim or marks the record partial, and returns a failure", () => {
     expect(EXECUTOR).toMatch(
-      /if \(survivors\.length > 0\) \{\s*await releaseClaim\(\);\s*return \{\s*ok: false,\s*outcome: "STORAGE_VERIFY_FAILED"/,
+      /if \(survivors\.length > 0\) \{[\s\S]{0,200}if \(partial\) await markPartialDelete\(\);\s*else await releaseClaim\(\);\s*return \{\s*ok: false,\s*outcome: "STORAGE_VERIFY_FAILED"/,
     );
   });
 

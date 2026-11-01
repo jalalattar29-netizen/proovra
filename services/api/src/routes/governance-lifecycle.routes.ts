@@ -13,7 +13,9 @@
  *     GET    /v1/governance/destruction-reviews?teamId&status
  *     POST   /v1/governance/destruction-reviews                (ADMIN+ create)
  *     GET    /v1/governance/destruction-reviews/:id
- *     POST   /v1/governance/destruction-reviews/:id/transition (ADMIN+ + step-up on APPROVED/EXECUTED)
+ *     POST   /v1/governance/destruction-reviews/:id/transition
+ *            (evidence.delete; governance.destruction.approve to decide;
+ *             governance.destruction.execute to execute; step-up on both)
  *
  *   Lifecycle:
  *     GET    /v1/governance/lifecycle/evidence/:id/events?teamId
@@ -42,7 +44,7 @@ import { z } from "zod";
 import type { Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
-import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+import { destructionExecutionEnabled, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -125,6 +127,7 @@ import {
   transitionLifecycle,
 } from "../services/governance-lifecycle/lifecycle-orchestrator.service.js";
 import { checkExportEligibility } from "../services/governance-lifecycle/export-governance.service.js";
+import { readDestructionBarriers } from "../services/governance-lifecycle/destruction-barriers.service.js";
 import { resolveTeamRetentionPolicy } from "../services/organization/retention-inheritance.service.js";
 import {
   DESTRUCTION_REVIEW_REASONS,
@@ -198,6 +201,34 @@ function mapDestructionError(
   if (code === "DESTRUCTION_REVIEW_TERMINAL") {
     return reply.code(409).send({ error: { code, details: err.details } });
   }
+  if (code === "DESTRUCTION_REVIEW_SEPARATION_OF_DUTIES") {
+    return reply.code(403).send({
+      error: {
+        code,
+        message: "The person who proposed this destruction cannot also approve it. A second person must decide.",
+      },
+    });
+  }
+  if (code === "DESTRUCTION_EXECUTION_DISABLED") {
+    return reply.code(409).send({
+      error: {
+        code,
+        message: "Destruction execution is switched off on this deployment. Nothing was destroyed.",
+      },
+    });
+  }
+  if (code === "DESTRUCTION_REVIEW_BLOCKED_BY_RETENTION") {
+    const eligibleAtUtc = err.details?.eligibleAtUtc as string | null | undefined;
+    return reply.code(409).send({
+      error: {
+        code,
+        message: eligibleAtUtc
+          ? `This record cannot be destroyed before ${eligibleAtUtc}. It stays available until then.`
+          : "This record cannot be destroyed yet. It stays available until then.",
+        details: err.details,
+      },
+    });
+  }
   if (
     code === "DESTRUCTION_REVIEW_BLOCKED_BY_HOLD" ||
     code === "DESTRUCTION_REVIEW_BLOCKED_BY_IMMUTABLE" ||
@@ -206,6 +237,20 @@ function mapDestructionError(
     return reply.code(409).send({ error: { code, details: err.details } });
   }
   return reply.code(400).send({ error: { code, details: err.details } });
+}
+
+/**
+ * GOV-003 — what each move on a review takes. Proposing and moving a review
+ * through the queue is role-level work; deciding and executing are the
+ * delegated-only floor the members model records (N-1), which this route used to
+ * skip by asking for `evidence.delete` on every move.
+ */
+function permissionForReviewTransition(nextStatus: string): Permission {
+  if (nextStatus === "EXECUTED") return "governance.destruction.execute";
+  if (nextStatus === "APPROVED" || nextStatus === "DENIED" || nextStatus === "RESTORED") {
+    return "governance.destruction.approve";
+  }
+  return "evidence.delete";
 }
 
 function mapLifecycleError(
@@ -577,45 +622,18 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         },
       });
 
-      const linkedCaseIds = evidence
-        ? (
-            await prisma.caseEvidenceLink.findMany({
-              where: { teamId: query.teamId, evidenceId: evidence.id },
-              select: { caseId: true },
-            })
-          ).map((l) => l.caseId)
+      // GOV-007, GOV-013 — the same reading approval and the executor use: every
+      // hold scope through the one evaluator, and retention as storage reports it.
+      const barriers = evidence ? await readDestructionBarriers(prisma, evidence.id) : null;
+      const holdRows = barriers?.holds.length
+        ? await prisma.evidenceLegalHold.findMany({
+            where: { id: { in: barriers.holds.map((h) => h.holdId) }, teamId: query.teamId },
+            select: { id: true, title: true, placedAtUtc: true, caseId: true, scope: true },
+          })
         : [];
-
-      const [evidenceHolds, caseHolds] = await Promise.all([
-        prisma.evidenceLegalHold.findMany({
-          where: {
-            teamId: query.teamId,
-            evidenceId: review.evidenceId,
-            status: "ACTIVE",
-          },
-          select: {
-            id: true,
-            title: true,
-            placedAtUtc: true,
-            caseId: true,
-          },
-        }),
-        // Case-level holds are inherited via the evidence's case
-        // links. We resolve via `CaseEvidenceLink` because there is
-        // no `Case.evidenceLinks` back-relation declared in the
-        // schema.
-        linkedCaseIds.length > 0
-          ? prisma.evidenceLegalHold.findMany({
-              // P12.3 canonical-only (scope='CASE').
-              where: { scope: "CASE",
-                teamId: query.teamId,
-                status: "ACTIVE",
-                caseId: { in: linkedCaseIds },
-              },
-              select: { id: true, title: true, placedAtUtc: true, caseId: true },
-            })
-          : Promise.resolve([]),
-      ]);
+      const evidenceHolds = holdRows.filter((h) => h.scope === "EVIDENCE");
+      const caseHolds = holdRows.filter((h) => h.scope === "CASE");
+      const workspaceHolds = holdRows.filter((h) => h.scope === "WORKSPACE");
 
       let policy: {
         id: string;
@@ -645,13 +663,25 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       const blockedBy: string[] = [];
       if (evidenceHolds.length > 0) blockedBy.push("evidence_legal_hold");
       if (caseHolds.length > 0) blockedBy.push("case_legal_hold");
-      if (policy?.immutable) blockedBy.push("retention_policy_immutable");
+      if (workspaceHolds.length > 0) blockedBy.push("workspace_legal_hold");
+      if (barriers?.legalHold && holdRows.length === 0) blockedBy.push("legal_hold_unresolved");
+      if (policy?.immutable || barriers?.immutableRetention) {
+        blockedBy.push("retention_policy_immutable");
+      }
       if (
         evidence?.lifecycleState === "DESTROYED" ||
         review.status === "EXECUTED"
       ) {
         blockedBy.push("already_destroyed");
       }
+      const reason = barriers?.blockReason ?? null;
+      if (reason === "TRASH_GRACE_ACTIVE") blockedBy.push("trash_grace");
+      if (reason === "APP_RETENTION_ACTIVE") blockedBy.push("application_retention");
+      if (reason === "OBJECT_LOCK_RETENTION_ACTIVE") blockedBy.push("object_lock_retention");
+      if (reason === "RETENTION_METADATA_UNVERIFIED") blockedBy.push("retention_unverified");
+      if (reason === "ARCHIVE_RESTORE_IN_PROGRESS") blockedBy.push("archive_restore_in_progress");
+      if (reason === "EVIDENCE_LOCKED") blockedBy.push("record_locked");
+      const executionEnabled = destructionExecutionEnabled();
 
       return reply.code(200).send({
         review: {
@@ -689,12 +719,29 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
             source: "case",
             caseId: h.caseId,
           })),
+          workspace: workspaceHolds.map((h) => ({
+            id: h.id,
+            title: h.title,
+            placedAtUtc: h.placedAtUtc.toISOString(),
+            source: "workspace",
+            caseId: null,
+          })),
         },
         impact: {
           // What will be removed when EXECUTED.
+          // Everything the executor removes, by category (GOV-009).
           willDelete: [
             "evidence_storage_object",
-            "evidence_part_references",
+            "evidence_parts",
+            "reports",
+            "verification_packages",
+            "redaction_derivatives",
+            "derived_assets",
+            "siu_export_bundles",
+            "extracted_text_and_transcripts",
+            "search_documents",
+            "content_derived_analysis",
+            "personal_record_fields",
           ],
           // What will PERSIST as operational traceability. The
           // operator must understand that destruction is NOT total
@@ -705,15 +752,21 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
             "lifecycle_event_ledger",
             "destruction_certificate",
             "audit_log_references",
+            "human_authored_notes_pending_policy",
           ],
           irreversible: review.status !== "EXECUTED",
           lifecycleEventCount,
         },
         blockedBy,
+        eligibleAtUtc: barriers?.eligibleAt?.toISOString() ?? null,
+        storageRetentionTruth: barriers?.storageRetentionTruth ?? null,
+        executionEnabled,
         guidance:
-          blockedBy.length === 0
-            ? "No blockers detected. Destruction will proceed when an authorised reviewer transitions this review to EXECUTED with a step-up token."
-            : "One or more blockers prevent destruction. Release holds and / or supersede immutable policy before retrying.",
+          blockedBy.length > 0
+            ? "One or more blockers prevent destruction. Holds must be released, retention must end, or an immutable policy must be superseded before this can proceed."
+            : executionEnabled
+              ? "No blockers detected. Destruction will proceed when an authorised person transitions this review to EXECUTED with a step-up token."
+              : "No blockers detected, but destruction execution is switched off on this deployment. Nothing will be destroyed until it is switched on.",
       });
     },
   );
@@ -801,6 +854,17 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           actorUserId: true,
         },
       });
+      // The executor stores { certificateHash, certificate, correlationId } on the
+      // ledger; the lineage hash lives on the execution row (GOV-009). A manual
+      // EXECUTED has no execution row, and then there is no lineage to report.
+      const eventMetadata = (executedEvent?.metadata ?? null) as
+        | { certificate?: Record<string, unknown>; certificateHash?: string }
+        | null;
+      const execution = await prisma.destructionExecution.findFirst({
+        where: { destructionReviewId: review.id, status: "COMPLETED" },
+        orderBy: { completedAtUtc: "desc" },
+        select: { lineageHash: true },
+      });
 
       const certificate = {
         // === IDENTIFIERS ===
@@ -819,11 +883,11 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         // === LINEAGE / INTEGRITY ===
         certificateHash: review.certificateHash,
         lifecycleEventId: executedEvent?.id ?? null,
-        lineageHash:
-          executedEvent?.metadata && typeof executedEvent.metadata === "object"
-            ? (executedEvent.metadata as Record<string, unknown>)["lineageHash"]
-              ?? null
-            : null,
+        lineageHash: execution?.lineageHash ?? null,
+        // === WHAT WAS ACTUALLY DONE ===
+        // The body the hash covers, exactly as the executor minted it: object and
+        // version counts, what verification ran, and the artifacts destroyed.
+        destruction: eventMetadata?.certificate ?? null,
         // === REVIEW PROVENANCE ===
         reviewCreatedAt: review.createdAt.toISOString(),
         eventSummary: executedEvent?.summary ?? null,
@@ -836,7 +900,7 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           // wording without coordinating with the governance UX
           // copy review.
           "This certificate is an operational traceability record. It is not a legal admissibility statement.",
-          "Destruction removes the original storage object. Evidence record tombstones, lifecycle event ledger entries, and destruction audit logs PERSIST and are intentionally not erased.",
+          "Destruction removes every stored object the record owned: the original, its parts, reports, verification packages, redactions and derived files, along with text and analysis derived from them. Evidence record tombstones, custody events, lifecycle ledger entries, destruction audit logs and notes people wrote about the record PERSIST and are intentionally not erased.",
           "This certificate does not assert cryptographic proof of total erasure across replicas, backups, or downstream third-party systems. Coordinate with platform operations for compliance attestations.",
         ],
       });
@@ -881,9 +945,20 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
           deferredUntilUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body ?? {});
-      const ok = await requireMember(req, reply, body.teamId, "evidence.delete");
+      const ok = await requireMember(req, reply, body.teamId, permissionForReviewTransition(body.nextStatus));
       if (!ok) return;
-      if (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance")) return;
+      // Only the moves towards destruction need the plan. Declining, deferring and
+      // cancelling stay open, so a workspace that left Enterprise can still clear
+      // its own queue (GOV-006).
+      if (
+        (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") &&
+        (await denyIfTeamNotEnterprise(reply, body.teamId, "destructionGovernance"))
+      ) {
+        return;
+      }
+      if (body.nextStatus === "EXECUTED" && !destructionExecutionEnabled()) {
+        return mapDestructionError(reply, new DestructionReviewError("DESTRUCTION_EXECUTION_DISABLED"));
+      }
       // Step-up required for APPROVED + EXECUTED (the destructive
       // branches). The other transitions are operator-recoverable.
       if (body.nextStatus === "APPROVED" || body.nextStatus === "EXECUTED") {

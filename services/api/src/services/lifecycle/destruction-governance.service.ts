@@ -422,7 +422,11 @@ export async function createDestructionRequest(
   // have signed for something that cannot happen.
   const records = await prisma.evidence.findMany({
     where: { id: { in: evidenceIds } },
-    select: { lifecycleState: true, deletedAt: true, destroyedAtUtc: true },
+    select: {
+      lifecycleState: true,
+      deletedAt: true,
+      destroyedAtUtc: true,
+    },
   });
   if (records.some((r) => r.lifecycleState === "DESTROYED" || r.destroyedAtUtc !== null)) {
     throw conflictRefusal({
@@ -443,6 +447,17 @@ export async function createDestructionRequest(
         "Only records in the trash or the retention archive can be requested here. Open a destruction review for an active record.",
       developerMessage: "destruction_evidence_not_destruction_bound",
     });
+  }
+
+  // Legal-hold gate — workspace-wide preservation MUST block the
+  // request at intake.
+  const holdCheck = await checkLegalHoldBlocks(prisma, evidenceIds, input.teamId);
+  if (!holdCheck.ok) {
+    return {
+      ok: false,
+      denial: "LEGAL_HOLD_BLOCKED",
+      holdIds: holdCheck.holdIds,
+    };
   }
 
   // GOV-003 — the approver list is checked by the server. It used to be taken
@@ -466,17 +481,6 @@ export async function createDestructionRequest(
         developerMessage: "destruction_approver_not_eligible",
       });
     }
-  }
-
-  // Legal-hold gate — workspace-wide preservation MUST block the
-  // request at intake.
-  const holdCheck = await checkLegalHoldBlocks(prisma, evidenceIds, input.teamId);
-  if (!holdCheck.ok) {
-    return {
-      ok: false,
-      denial: "LEGAL_HOLD_BLOCKED",
-      holdIds: holdCheck.holdIds,
-    };
   }
 
   const approverChain: ApproverEntry[] = approverIds.map(
@@ -804,18 +808,18 @@ export async function executeDestruction(
   // GOV-007 — a dated barrier refuses the whole request up front with its date,
   // and leaves it approved. Deleting the records that happen to be free first
   // would leave the request half done for years.
-  let earliest: Date | null = null;
-  for (const evidenceId of evidenceIds) {
-    const reading = await readDestructionBarriers(prisma, evidenceId);
-    if (reading.alreadyDestroyed || reading.eligible) continue;
-    if (reading.eligibleAt && (!earliest || reading.eligibleAt > earliest)) earliest = reading.eligibleAt;
+  const readings = await Promise.all(evidenceIds.map((id) => readDestructionBarriers(prisma, id)));
+  const standing = readings.filter((r) => !r.alreadyDestroyed && !r.eligible);
+  if (standing.length > 0) {
+    const eligibleAtMs = standing.flatMap((r) => (r.eligibleAt ? [r.eligibleAt.getTime()] : []));
+    const eligibleAtUtc = eligibleAtMs.length ? new Date(Math.max(...eligibleAtMs)).toISOString() : null;
     throw conflictRefusal({
       code: "DESTRUCTION_NOT_YET_ELIGIBLE",
-      message: earliest
-        ? `At least one record cannot be destroyed before ${earliest.toISOString()}. Nothing was destroyed.`
+      message: eligibleAtUtc
+        ? `At least one record cannot be destroyed before ${eligibleAtUtc}. Nothing was destroyed.`
         : "At least one record cannot be destroyed yet. Nothing was destroyed.",
-      developerMessage: `destruction_not_yet_eligible:${reading.blockReason ?? "UNKNOWN"}`,
-      metadata: { eligibleAtUtc: earliest?.toISOString() ?? null, blockReason: reading.blockReason },
+      developerMessage: `destruction_not_yet_eligible:${standing[0]?.blockReason ?? "UNKNOWN"}`,
+      metadata: { eligibleAtUtc, blockReason: standing[0]?.blockReason ?? null },
     });
   }
 
@@ -1008,13 +1012,24 @@ async function readVerifiedDeletions(
       (e.payload ?? {}) as { certificateHash?: unknown; destructionRequestId?: unknown },
     ]),
   );
+  const records = await prisma.evidence.findMany({
+    where: { id: { in: [...evidenceIds] } },
+    select: {
+      id: true,
+      destroyedAtUtc: true,
+    },
+  });
+  const destroyed = new Set(records.filter((r) => r.destroyedAtUtc !== null).map((r) => r.id));
   const verifiedEvidenceIds: string[] = [];
   const verifiedEvidenceCertificateHashes: string[] = [];
   const exceptions: Array<{ evidenceId: string; reason: string }> = [];
   for (const evidenceId of [...evidenceIds].sort()) {
     const payload = byEvidence.get(evidenceId);
     if (!payload) {
-      exceptions.push({ evidenceId, reason: "NOT_DESTROYED" });
+      exceptions.push({
+        evidenceId,
+        reason: destroyed.has(evidenceId) ? "ALREADY_DESTROYED_BEFORE_THIS_REQUEST" : "NOT_DESTROYED",
+      });
     } else if (payload.destructionRequestId === requestId && typeof payload.certificateHash === "string") {
       verifiedEvidenceIds.push(evidenceId);
       verifiedEvidenceCertificateHashes.push(payload.certificateHash);

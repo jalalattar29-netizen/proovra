@@ -134,6 +134,24 @@ export async function runRetentionReconciliation(
       });
       ctx.reportProgress({ scanned: expiredEvidence.length });
 
+      // GOV-006 — a deferred review wakes on the date a person chose. Nothing read
+      // this column, so DEFERRED meant "forever".
+      const dueDeferred = await prisma.destructionReview.findMany({
+        where: {
+          status: "DEFERRED",
+          deferredUntilUtc: { not: null, lte: now },
+          ...(options.teamId ? { teamId: options.teamId } : {}),
+        },
+        take: batchSize,
+        select: { id: true },
+      });
+      for (const deferred of dueDeferred) {
+        await prisma.destructionReview.updateMany({
+          where: { id: deferred.id, status: "DEFERRED" },
+          data: { status: "PENDING" },
+        });
+      }
+
       for (const ev of expiredEvidence) {
         if (!ev.teamId) {
           ctx.reportProgress({ skipped: 1 });
@@ -145,6 +163,23 @@ export async function runRetentionReconciliation(
         // for end-to-end stitching.
         const correlationId = newCorrelationId();
         try {
+          // GOV-006 — a person looked at this expiry and said no. That stands
+          // until the retention date moves or someone opens a review by hand;
+          // without this the next tick reopened it, within 15 minutes.
+          const decided = await prisma.destructionReview.findFirst({
+            where: {
+              evidenceId: ev.id,
+              teamId,
+              status: { in: ["DENIED", "CANCELLED", "RESTORED"] },
+              decidedAtUtc: { gte: ev.retentionUntilUtc ?? now },
+            },
+            select: { id: true },
+          });
+          if (decided) {
+            ctx.reportProgress({ skipped: 1 });
+            continue;
+          }
+
           // PHASE 12B CLUSTER 8 — ONE union hold check across all three
           // stores (evidence-direct, case-level on ANY linked case,
           // scope-generic lifecycle). Replaces the three sequential

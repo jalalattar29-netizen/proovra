@@ -1687,6 +1687,8 @@ export {
   RetentionPolicyUpdateInputSchema,
   canEnterPendingDestruction,
   isAllowedDestructionReviewTransition,
+  DESTRUCTION_BOUND_STATES,
+  isDestructionBoundState,
   isAllowedEvidenceLifecycleTransition,
   isAllowedRetentionPolicyTransition,
   isTerminalDestructionReviewStatus,

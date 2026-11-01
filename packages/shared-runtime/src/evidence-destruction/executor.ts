@@ -48,9 +48,12 @@
  *      This step is the difference between "we asked" and "it happened".
  *   8. ONLY THEN tombstone, stamp `destroyed_at_utc`, and mint the certificate.
  *
- * If step 6 or step 7 fails: the state goes BACK to TRASHED, `destroyed_at_utc`
- * stays null, and no certificate exists. There is no branch in this file that
- * reaches the certificate without passing step 7.
+ * If step 6 or step 7 fails, `destroyed_at_utc` stays null and no certificate
+ * exists. If nothing was deleted the state goes back to where it was. If anything
+ * was, the record is no longer what it was and is never restorable: it stays
+ * PENDING_DESTRUCTION with `destruction_partial_at_utc` set, and is finished by a
+ * retry. There is no branch in this file that reaches the certificate without
+ * passing step 7.
  *
  * WHAT THE TOMBSTONE KEEPS
  * ---------------------------------------------------------------------------
@@ -317,7 +320,7 @@ export type ExecuteEvidenceDestructionResult =
        * Storage refused, or storage still holds an object after the delete.
        * Nothing is certified. When `partial` is false no byte was touched and the
        * record is back where it was. When true, some bytes are gone: the record
-       * stays under the claim, cannot be restored, and the sweep finishes it.
+       * stays queued, cannot be restored, and a retry finishes it.
        */
       outcome: "STORAGE_DELETE_FAILED" | "STORAGE_VERIFY_FAILED";
       failedKeys: string[];
@@ -677,6 +680,18 @@ export async function executeEvidenceDestruction(
           reason: eligibility.blockReason ?? "NOT_TRASHED",
         });
       }
+      // GOV-005 — "immutable" means destruction is refused even after expiry.
+      // Only a bound policy version can say so; a superseding policy version is
+      // how an operator lifts it, never this path.
+      if (row.retentionPolicyVersionId) {
+        const version = await tx.evidenceRetentionPolicyVersion.findUnique({
+          where: { id: row.retentionPolicyVersionId },
+          select: { immutable: true },
+        });
+        if (version?.immutable === true) {
+          throw new DecisionRefused({ ok: false, outcome: "BLOCKED", reason: "RETENTION_POLICY_IMMUTABLE" });
+        }
+      }
       return row;
     });
   } catch (err) {
@@ -697,12 +712,13 @@ export async function executeEvidenceDestruction(
     });
   };
 
-  // GOV-018 — once any byte is gone the record cannot go back: it stays under its
-  // claim, which every restore path refuses, and is marked so the sweep resumes.
+  // GOV-018 — once any byte is gone the record cannot go back. It stays queued and
+  // marked: every restore path refuses the mark, the claim is released so the next
+  // attempt can run at once, and a hold placed meanwhile still wins.
   const markPartialDelete = async () => {
     await prisma.evidence.updateMany({
       where: { id: input.evidenceId, lifecycleState: "PENDING_DESTRUCTION" },
-      data: { destructionPartialAtUtc: now },
+      data: { destructionPartialAtUtc: now, destructionClaimedAtUtc: null },
     });
   };
 

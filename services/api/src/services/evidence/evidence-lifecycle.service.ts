@@ -172,6 +172,10 @@ const BLOCK_MESSAGE: Record<EvidenceLifecycleBlockReason, string> = {
     "This record is under an active legal hold. Its lifecycle cannot be changed while the hold stands.",
   DESTRUCTION_APPROVAL_REQUIRED:
     "An approved destruction request is required for this record.",
+  DESTRUCTION_EXECUTION_DISABLED:
+    "Destruction execution is switched off on this deployment.",
+  RETENTION_POLICY_IMMUTABLE:
+    "The retention policy on this record is immutable, so it cannot be destroyed.",
   DESTRUCTION_IN_PROGRESS:
     "This record is being destroyed under an approved destruction decision. Its lifecycle cannot be changed.",
   RETENTION_METADATA_UNVERIFIED:
@@ -383,12 +387,14 @@ export async function applyEvidenceLifecycleAction(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidence.id}))`;
     const fresh = await tx.evidence.findUnique({
       where: { id: evidence.id },
-      select: { ...LIFECYCLE_SELECT, destructionClaimedAtUtc: true },
+      select: { ...LIFECYCLE_SELECT, destructionClaimedAtUtc: true, destructionPartialAtUtc: true },
     });
     if (!fresh) return { statusCode: 404 as const, code: "not_found" as const, message: "Evidence not found" };
     if (
       fresh.lifecycleState === "DESTROYED" ||
       fresh.destroyedAtUtc != null ||
+      // GOV-018 — some of this record's bytes are gone. It can only go forward.
+      fresh.destructionPartialAtUtc != null ||
       (fresh.lifecycleState === "PENDING_DESTRUCTION" && fresh.destructionClaimedAtUtc != null)
     ) {
       const reason: EvidenceLifecycleBlockReason =
