@@ -450,6 +450,47 @@ describe("Review SLA authority (live PostgreSQL)", () => {
     expect(seen.size).toBe(eligible);
   });
 
+  it("WORKFLOW-017: a departing member's open thread goes back to the workspace; a closed one and a colleague's are left", async () => {
+    const org = await seedOrganizationTenant(deps, { memberCount: 2 });
+    const [leaver, colleague] = org.members;
+    const evidenceId = await record(org);
+    const thread = (assignedToUserId: string, status: "OPEN" | "RESOLVED") =>
+      prisma.discussionThread.create({
+        data: {
+          teamId: org.workspaceId,
+          evidenceId,
+          kind: "EVIDENCE_GENERAL",
+          title: "Held work",
+          status,
+          createdByUserId: org.owner.userId,
+          assignedToUserId,
+          assignedAtUtc: new Date(),
+        } as never,
+        select: { id: true },
+      });
+    const held = await thread(leaver!.userId, "OPEN");
+    const finished = await thread(leaver!.userId, "RESOLVED");
+    const other = await thread(colleague!.userId, "OPEN");
+
+    const { endStandingReach } = await import("../src/services/identity/standing-reach.js");
+    await prisma.$transaction((tx) =>
+      endStandingReach(tx as never, { teamId: org.workspaceId, userId: leaver!.userId }, {
+        actorUserId: org.owner.userId,
+        reason: "member_removed",
+      }),
+    );
+
+    const read = (id: string) => prisma.discussionThread.findUniqueOrThrow({ where: { id } });
+    expect((await read(held.id)).assignedToUserId).toBeNull();
+    expect((await read(held.id)).status).toBe("OPEN");
+    expect((await read(finished.id)).assignedToUserId).toBe(leaver!.userId);
+    expect((await read(other.id)).assignedToUserId).toBe(colleague!.userId);
+    const audit = await prisma.adminAuditLog.findFirstOrThrow({
+      where: { action: "workspace.member.work_released", resourceId: leaver!.userId },
+    });
+    expect(audit.metadata).toMatchObject({ discussionThreads: 1, reason: "member_removed" });
+  });
+
   it("WORKFLOW-006: a personal record is not put on the clock by Capture", async () => {
     const personal = await seedPersonalTenant(deps, "PAYG");
     const evidence = await prisma.evidence.create({
