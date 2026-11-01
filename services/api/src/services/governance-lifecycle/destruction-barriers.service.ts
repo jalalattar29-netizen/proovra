@@ -12,6 +12,11 @@
  *
  * The record is judged as if queued (PENDING_DESTRUCTION): a review on an ACTIVE
  * record is the governance path, and approval is what would queue it.
+ *
+ * GOV-005 — the Phase 4B template policies on /evidence-lifecycle/retention are
+ * honoured here: `resolveEffectiveRetention` says how many years a record must be
+ * kept, and destruction waits for them. Those policies have no record binding, so
+ * they apply at this gate and nowhere else.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -26,6 +31,7 @@ import {
 } from "@proovra/shared-runtime";
 
 import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
+import { resolveEffectiveRetention } from "../lifecycle/retention-engine.service.js";
 
 export type DestructionBarrierReading = {
   alreadyDestroyed: boolean;
@@ -48,6 +54,7 @@ export async function readDestructionBarriers(
     where: { id: evidenceId },
     select: {
       teamId: true,
+      createdAt: true,
       lifecycleState: true,
       archivedAt: true,
       deletedAt: true,
@@ -111,6 +118,27 @@ export async function readDestructionBarriers(
     where: { evidenceId, status: { in: ["REQUESTED", "RUNNING"] } },
   });
 
+  // The named template retention, as one more application retention bound. A
+  // policy read that fails is a bound with no date, never permission.
+  let templateRetentionUntil: Date | null = null;
+  if (row.teamId) {
+    const template = await resolveEffectiveRetention({
+      prisma: client,
+      teamId: row.teamId,
+      evidenceId,
+    });
+    if (template.effectiveYears > 0) {
+      templateRetentionUntil = new Date(row.createdAt);
+      templateRetentionUntil.setUTCFullYear(
+        templateRetentionUntil.getUTCFullYear() + template.effectiveYears,
+      );
+    }
+  }
+  const appRetentionUntil =
+    row.retentionUntilUtc && templateRetentionUntil
+      ? new Date(Math.max(row.retentionUntilUtc.getTime(), templateRetentionUntil.getTime()))
+      : row.retentionUntilUtc ?? templateRetentionUntil;
+
   const eligibility = computeEvidenceDestructionEligibility(
     {
       lifecycleState: "PENDING_DESTRUCTION",
@@ -119,7 +147,7 @@ export async function readDestructionBarriers(
       destroyedAt: row.destroyedAtUtc,
       lockedAt: row.lockedAt,
       trashGraceUntil: row.deleteScheduledForUtc,
-      appRetentionUntil: row.retentionUntilUtc,
+      appRetentionUntil,
       objectLockRetainUntil: row.storageObjectLockRetainUntilUtc,
       objectLockMode: row.storageObjectLockMode,
       requiredObjectRetainUntil: reading.latestRequiredRetainUntil,

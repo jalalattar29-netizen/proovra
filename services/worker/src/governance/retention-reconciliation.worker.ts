@@ -38,7 +38,7 @@ import { logger } from "../logger.js";
 import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, resolveRecordRetentionBinding } from "@proovra/shared-runtime";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -130,6 +130,8 @@ export async function runRetentionReconciliation(
           lifecycleState: true,
           retentionPolicyVersionId: true,
           retentionUntilUtc: true,
+          type: true,
+          createdAt: true,
         },
       });
       ctx.reportProgress({ scanned: expiredEvidence.length });
@@ -207,6 +209,73 @@ export async function runRetentionReconciliation(
               correlationId,
             );
             continue;
+          }
+
+          // GOV-005 — before this date is treated as final, ask which named policy
+          // governs the record NOW: its cases and type may have changed, and a
+          // policy may have been published since it was created. Extend-only, in
+          // one transaction with its ledger and custody events. A record already
+          // bound keeps its version unless a stricter date moves it.
+          const binding = await resolveRecordRetentionBinding(prisma, {
+            teamId,
+            evidenceType: ev.type,
+            caseIds: linkedCaseIds,
+          });
+          if (binding) {
+            const until =
+              binding.retentionDays === null
+                ? null
+                : new Date(
+                    (ev.createdAt ?? now).getTime() + binding.retentionDays * 24 * 60 * 60 * 1000,
+                  );
+            const extendsDate = binding.retentionDays === null || (until !== null && until > now);
+            const newlyBound = ev.retentionPolicyVersionId === null;
+            if (extendsDate || newlyBound) {
+              await prisma.$transaction(async (tx) => {
+                await tx.evidence.update({
+                  where: { id: ev.id },
+                  data: {
+                    ...(extendsDate ? { retentionUntilUtc: until } : {}),
+                    retentionPolicyVersionId: binding.retentionPolicyVersionId,
+                  },
+                });
+                await appendCustodyEventTx(tx, {
+                  evidenceId: ev.id,
+                  eventType: prismaPkg.CustodyEventType.RETENTION_POLICY_APPLIED,
+                  atUtc: now,
+                  payload: {
+                    retentionPolicyApplied: true,
+                    retentionUntilUtc: (extendsDate ? until : ev.retentionUntilUtc)?.toISOString() ?? null,
+                    retentionPolicyVersionId: binding.retentionPolicyVersionId,
+                    source: "retention_policy",
+                  },
+                });
+                await tx.evidenceLifecycleEvent.create({
+                  data: {
+                    teamId,
+                    evidenceId: ev.id,
+                    fromState: ev.lifecycleState,
+                    toState: ev.lifecycleState,
+                    eventType: "retention_recomputed",
+                    summary: extendsDate
+                      ? "Retention extended by the policy that governs this record"
+                      : "Retention policy bound to this record",
+                    metadata: {
+                      correlationId,
+                      retentionPolicyVersionId: binding.retentionPolicyVersionId,
+                      triggeredByRun: ctx.runId,
+                    } as prismaPkg.Prisma.InputJsonValue,
+                    requestId: correlationId.slice(0, 64),
+                  },
+                });
+              });
+              ev.retentionPolicyVersionId = binding.retentionPolicyVersionId;
+              if (extendsDate) {
+                ctx.reportProgress({ matched: 1 });
+                extended += 1;
+                continue;
+              }
+            }
           }
 
           // Immutable check.

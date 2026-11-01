@@ -30,6 +30,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
+import { resolveRecordRetentionBinding } from "@proovra/shared-runtime";
 import { appendCustodyEvent } from "./custody-events.service.js";
 import { swallowCustodyAppendError } from "./custody-events-observability.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
@@ -1189,30 +1190,54 @@ export async function resolveRetentionOnCreate(input: {
   existingRetentionUntilUtc?: Date | null;
   now?: Date;
   client?: PrismaClient;
-}): Promise<{ retentionUntilUtc: Date; source: "workspace_policy" } | null> {
+  /** Lets an EVIDENCE_TYPE policy match. */
+  evidenceType?: string | null;
+}): Promise<{
+  retentionUntilUtc: Date | null;
+  source: "workspace_policy" | "retention_policy";
+  retentionPolicyVersionId: string | null;
+} | null> {
   if (!input.teamId) return null;
   const client = input.client ?? defaultPrisma;
-  let policy: EffectivePolicy;
-  try {
-    policy = await loadWorkspaceGovernancePolicy(input.teamId, client);
-  } catch {
-    return null; // create path is not destructive; degrade safely
-  }
-  if (!policy.defaultRetentionDays || policy.defaultRetentionDays <= 0) {
-    return null;
-  }
   const now = input.now ?? new Date();
-  const policyRetention = new Date(
-    now.getTime() + policy.defaultRetentionDays * 24 * 3600 * 1000,
-  );
-  if (
-    input.existingRetentionUntilUtc &&
-    input.existingRetentionUntilUtc.getTime() >= policyRetention.getTime()
-  ) {
+  const dayMs = 24 * 3600 * 1000;
+
+  let workspaceDays: number | null = null;
+  try {
+    const policy = await loadWorkspaceGovernancePolicy(input.teamId, client);
+    if (policy.defaultRetentionDays && policy.defaultRetentionDays > 0) {
+      workspaceDays = policy.defaultRetentionDays;
+    }
+  } catch {
+    // create path is not destructive; degrade safely
+  }
+
+  // GOV-005 — the named policy this record falls under. The stricter date of the
+  // two wins, and a read failure degrades to no binding: creating a record
+  // destroys nothing, and the sweep checks again before anything can.
+  const binding = await resolveRecordRetentionBinding(client, {
+    teamId: input.teamId,
+    evidenceType: input.evidenceType ?? null,
+  }).catch(() => null);
+
+  const dates = [
+    workspaceDays ? now.getTime() + workspaceDays * dayMs : null,
+    binding?.retentionDays != null ? now.getTime() + binding.retentionDays * dayMs : null,
+  ].filter((v): v is number => v !== null);
+  const policyRetention = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+  if (!policyRetention && !binding) return null;
+
+  const existing = input.existingRetentionUntilUtc ?? null;
+  const longer = policyRetention && (!existing || policyRetention.getTime() > existing.getTime());
+  if (!longer && !binding) {
     // Existing explicit retention is at least as long — keep it.
     return null;
   }
-  return { retentionUntilUtc: policyRetention, source: "workspace_policy" };
+  return {
+    retentionUntilUtc: longer ? policyRetention : null,
+    source: binding ? "retention_policy" : "workspace_policy",
+    retentionPolicyVersionId: binding?.retentionPolicyVersionId ?? null,
+  };
 }
 
 // UC-ARCH-002 — applyRetentionPolicyOnCreate was removed: createEvidence (the canonical

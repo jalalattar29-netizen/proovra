@@ -499,6 +499,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   const retentionOnCreate = await resolveRetentionOnCreate({
     teamId: effectiveTeamId,
     now: capturedAt,
+    evidenceType: params.type,
   });
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
   const resolvedFileNames = resolveRootEvidenceDisplayFileName({
@@ -734,7 +735,10 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         status: EvidenceStatus.UPLOADING,
         storageBucket: bucket,
         storageKey: key,
-        ...(retentionOnCreate ? { retentionUntilUtc: retentionOnCreate.retentionUntilUtc } : {}),
+        ...(retentionOnCreate?.retentionUntilUtc ? { retentionUntilUtc: retentionOnCreate.retentionUntilUtc } : {}),
+        ...(retentionOnCreate?.retentionPolicyVersionId
+          ? { retentionPolicyVersionId: retentionOnCreate.retentionPolicyVersionId }
+          : {}),
       },
     });
     if (retentionOnCreate) {
@@ -744,7 +748,8 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         atUtc: capturedAt,
         payload: {
           retentionPolicyApplied: true,
-          retentionUntilUtc: retentionOnCreate.retentionUntilUtc.toISOString(),
+          retentionUntilUtc: retentionOnCreate.retentionUntilUtc?.toISOString() ?? null,
+          retentionPolicyVersionId: retentionOnCreate.retentionPolicyVersionId,
           source: retentionOnCreate.source,
           // Template provenance trio (identity only; never drives policy).
           templateSlug: params.templateIdentity?.templateSlug ?? null,
@@ -869,6 +874,6 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
     status: EvidenceStatus.UPLOADING,
     // UC-ARCH-008 — no root upload URL: bytes arrive as parts, each authorized
     // by POST /v1/evidence/:id/parts (or the channel's own part route).
-    retentionUntilUtc: retentionOnCreate?.retentionUntilUtc.toISOString() ?? null,
+    retentionUntilUtc: retentionOnCreate?.retentionUntilUtc?.toISOString() ?? null,
   };
 }
