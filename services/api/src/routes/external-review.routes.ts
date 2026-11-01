@@ -150,7 +150,8 @@ function projectGrantForReviewer(
     state: grant.state,
     reviewerDisplayName: grant.reviewerDisplayName,
     expiresAtUtc: grant.expiresAtUtc,
-    allowOriginalDownload: grant.allowOriginalDownload,
+    // A grant never releases originals, whatever an earlier row stored.
+    allowOriginalDownload: false,
     allowPackageDownload: grant.allowPackageDownload,
     safeNote: grant.safeNote,
     redactionPolicyVersion: grant.redactionPolicyVersion,
@@ -170,6 +171,11 @@ export async function externalReviewRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = IssueGrantBodySchema.parse(req.body ?? {});
+      // An outside reviewer receives the disclosure package, never original
+      // files: a request for them is refused rather than stored as a promise.
+      if (body.allowOriginalDownload === true) {
+        return reply.code(400).send({ error: { code: "external_review_originals_not_released" } });
+      }
       // Phase 26 canonical authorize() gate. The bounded
       // `governance.legal_hold.manage` permission covers
       // sensitive-share creation per the Phase 17 catalog. Migration

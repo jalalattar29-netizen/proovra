@@ -171,12 +171,16 @@ export async function establishPortalSession(input: {
       ssoSubjectHash: true,
     },
   });
-  const roleId = role?.role ?? "EXTERNAL_REVIEWER";
-  const mfaRequired = role?.mfaRequired === true;
+  // RT-017 — only a portal invitation opens the portal: its activity log hangs
+  // off this row, so a grant from the plain route has no session to record. It
+  // stays usable on the path-token routes it was issued for.
+  if (!role) return { ok: false, denial: "TOKEN_INVALID" };
+  const roleId = role.role ?? "EXTERNAL_REVIEWER";
+  const mfaRequired = role.mfaRequired === true;
   const authMethod: PortalAuthMethod =
-    (role?.authMethod as PortalAuthMethod | undefined) ?? "TOKEN";
-  const ssoConnectionId = role?.ssoConnectionId ?? null;
-  const ssoSubjectHash = role?.ssoSubjectHash ?? null;
+    (role.authMethod as PortalAuthMethod | undefined) ?? "TOKEN";
+  const ssoConnectionId = role.ssoConnectionId ?? null;
+  const ssoSubjectHash = role.ssoSubjectHash ?? null;
 
   // Session id. Stable per login; a fresh token exchange without one gets a
   // new id. Chosen before the MFA gate because satisfaction belongs to it.

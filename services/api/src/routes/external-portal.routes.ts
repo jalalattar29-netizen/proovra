@@ -507,6 +507,11 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "EXTERNAL_REVIEW" });
       }
       const body = IssueInvitationBody.parse(req.body);
+      // An outside reviewer receives the disclosure package, never original
+      // files: a request for them is refused rather than stored as a promise.
+      if (body.allowOriginalDownload === true) {
+        return reply.code(400).send({ error: { code: "external_review_originals_not_released" } });
+      }
       // STEP-UP: issuing an invitation grants an outside reviewer access
       // to sensitive evidence — require a fresh step-up AFTER the RBAC
       // capability gate, BEFORE the mutation.

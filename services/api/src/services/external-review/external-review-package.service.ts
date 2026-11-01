@@ -5,9 +5,22 @@
  * of the record's latest report version — every cryptographic commitment, no
  * original bytes, no report, no identifiers or infrastructure — and never the
  * FULL_FORENSIC package. Only for an EVIDENCE-scope grant that allows package
- * download, while the record still belongs to the grant's workspace and passes
- * export eligibility (legal hold, lifecycle, destruction review). Every release
- * is a custody event. The route only maps the outcome to HTTP.
+ * download, while the record still belongs to the grant's workspace.
+ *
+ * NO WEAKER THAN A MEMBER (REPORT-003). A reviewer has no role of their own, so
+ * the workspace's answer is the one it would give the member who vouched for
+ * them: THE download gate, kind "package_external", with the grant's inviter as
+ * the actor. That is workspace policy, verification policy, the template
+ * overlay, export eligibility and the inviter's current right. A refusal is a
+ * custody event naming the grant.
+ *
+ * A release is a URL handed over, not a transfer: the bytes go directly from
+ * storage, so custody records what happened. The route only maps the outcome
+ * to HTTP.
+ *
+ * ORIGINALS. A grant never releases original files (the 2026-10-07 boundary). A
+ * stored allow_original_download from an earlier row is history and has no
+ * effect anywhere.
  */
 import * as prismaPkg from "@prisma/client";
 
@@ -15,6 +28,7 @@ import { prisma } from "../../db.js";
 import { headObject, presignGetObject } from "../../storage.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
+import { evaluateArtifactDownload } from "../evidence/artifact-download-gate.service.js";
 import { asPublishedPackage, publishedProfilePackageWhere } from "@proovra/shared-runtime/reports";
 import type { ExternalReviewGrantRow } from "./external-review-grant.service.js";
 
@@ -26,7 +40,7 @@ export type ExternalReviewPackageOutcome =
       packageSha256: string | null;
       downloadUrl: string;
     }
-  | { ok: false; status: 401 | 403 | 404 | 410; code: string };
+  | { ok: false; status: 401 | 403 | 404 | 410 | 503; code: string };
 
 export async function releaseExternalDisclosurePackage(input: {
   grant: Pick<ExternalReviewGrantRow, "id" | "teamId" | "scopeKind" | "evidenceId" | "allowPackageDownload" | "invitedByUserId">;
@@ -45,14 +59,22 @@ export async function releaseExternalDisclosurePackage(input: {
   if (!evidence || evidence.teamId !== grant.teamId) {
     return { ok: false, status: 401, code: "grant_not_active" };
   }
-  const { checkExportEligibility } = await import("../governance-lifecycle/export-governance.service.js");
-  const eligibility = await checkExportEligibility({
-    teamId: grant.teamId,
+  const decision = await evaluateArtifactDownload({
     evidenceId: evidence.id,
     actorUserId: grant.invitedByUserId,
+    kind: "package_external",
+    ip: input.ip,
+    userAgent: input.userAgent,
+    readAccess: async () => undefined,
+    onBehalfOf: { externalReviewGrantId: grant.id },
   });
-  if (eligibility.outcome !== "ALLOWED") {
-    return { ok: false, status: 403, code: "export_not_eligible" };
+  if (!decision.allowed) {
+    const code = (decision.body as { code?: unknown }).code;
+    return {
+      ok: false,
+      status: decision.statusCode === 503 ? 503 : 403,
+      code: typeof code === "string" ? code : "export_not_eligible",
+    };
   }
   const latestReport = await prisma.report.findFirst({
     where: { evidenceId: evidence.id },
@@ -70,7 +92,7 @@ export async function releaseExternalDisclosurePackage(input: {
   if (!found) return { ok: false, status: 404, code: "external_disclosure_not_issued" };
   const row = asPublishedPackage(found);
   try {
-    const meta = await headObject({ bucket: row.storageBucket, key: row.storageKey });
+    const meta = await headObject({ bucket: row.storageBucket, key: row.storageKey, versionId: row.s3VersionId });
     if (!meta.sizeBytes || meta.sizeBytes <= 0) throw new Error("empty");
   } catch {
     return { ok: false, status: 410, code: "package_file_unavailable" };

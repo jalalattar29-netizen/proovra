@@ -279,6 +279,11 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "Delegated administration is now managed per member in Security Center. Past grants are kept in the audit history.",
     severity: "info",
   },
+  external_review_originals_not_released: {
+    title: "Original files are not shared with reviewers",
+    message: "An external reviewer receives the disclosure package, not the original files. Remove that option and try again.",
+    severity: "warning",
+  },
   PUBLIC_VERIFY_BLOCKED_BY_POLICY: {
     title: "Blocked by workspace policy",
     message:

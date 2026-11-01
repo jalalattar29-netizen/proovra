@@ -448,9 +448,9 @@ function scopeTarget(g: GrantRow): string {
 }
 
 function downloadPolicy(g: GrantRow): string {
-  if (g.allowOriginalDownload && g.allowPackageDownload) return "Original + package";
-  if (g.allowOriginalDownload) return "Original";
-  if (g.allowPackageDownload) return "Package";
+  // A reviewer receives the external disclosure package. Original files never
+  // leave through a grant, so an older row's stored flag is not shown as access.
+  if (g.allowPackageDownload) return "Disclosure package";
   return "View only";
 }
 

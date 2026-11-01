@@ -151,6 +151,11 @@ export async function evaluateArtifactDownload(input: {
    * event. Default true.
    */
   recordDenial?: boolean;
+  /**
+   * The outside party this decision is for, when the actor is the member who
+   * vouched for them (an external reviewer's inviter). Named on a refusal.
+   */
+  onBehalfOf?: { externalReviewGrantId: string };
 }): Promise<ArtifactDownloadDecision> {
   const { evidenceId, actorUserId, kind } = input;
   const action = CUSTODY_ACTION[kind];
@@ -167,7 +172,7 @@ export async function evaluateArtifactDownload(input: {
       await appendCustodyEvent({
         evidenceId,
         eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-        payload: { ...payload, actorUserId },
+        payload: { ...payload, actorUserId, ...(input.onBehalfOf ?? {}) },
         ip,
         userAgent,
       }).catch(noteCustodyFailure);
