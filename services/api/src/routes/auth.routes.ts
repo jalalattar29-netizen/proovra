@@ -54,6 +54,10 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 // PHASE 13 §1.4 — the canonical trusted-client-IP binding; see `readClientIp`.
 import { trustedClientIpKey } from "../middleware/client-ip.js";
+import {
+  completeSsoSession,
+  type SsoSessionCompletion,
+} from "../services/identity/sso-session-completion.service.js";
 import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-limit.js";
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
@@ -200,10 +204,12 @@ async function recordSessionFromSignedToken(
    * the pending token. Absent for every other login.
    */
   idp?: { authnContext: string | null; authAt: Date | null },
-): Promise<void> {
+  /** IDENT-011 — an SSO session belongs to its connection's workspace. */
+  teamId?: string,
+): Promise<{ sessionId: string; sid: string } | null> {
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return;
+    if (parts.length !== 3) return null;
     const payloadJson = Buffer.from(parts[1] ?? "", "base64url").toString(
       "utf8",
     );
@@ -219,15 +225,15 @@ async function recordSessionFromSignedToken(
       typeof payload.iat !== "number" ||
       typeof payload.exp !== "number"
     ) {
-      return;
+      return null;
     }
     // The token was signed by this process a moment ago, so its provenance
     // claims are the server-verified ceremony — recorded as such.
     const authMethod = typeof payload.authMethod === "string" ? payload.authMethod : null;
     const isSso = authMethod === "SAML" || authMethod === "OIDC";
-    await recordAuthenticatedSession({
+    const session = await recordAuthenticatedSession({
       userId: user.id,
-      teamId: user.currentWorkspaceId ?? null,
+      teamId: teamId ?? user.currentWorkspaceId ?? null,
       sid: payload.sid,
       iat: payload.iat,
       exp: payload.exp,
@@ -242,9 +248,45 @@ async function recordSessionFromSignedToken(
           }
         : {}),
     });
+    return { sessionId: session.id, sid: payload.sid };
   } catch {
     // Best-effort. A failed inventory write must not break login.
+    return null;
   }
+}
+
+/**
+ * IDENT-011 — an SSO sign-in finishing through a second factor gets what one
+ * finishing without it gets: its connection's workspace, managed provisioning,
+ * and the Organization context under its session limit. Unlike the inventory of
+ * an ordinary login, this one cannot be best effort: with no row there is no
+ * context, so the sign-in does not finish.
+ */
+async function recordSsoSessionThroughMfa(
+  req: FastifyRequest,
+  user: { id: string; currentWorkspaceId?: string | null },
+  token: string,
+  sso: { authMethod: "SAML" | "OIDC"; ssoConnId: string },
+  idp?: { authnContext: string | null; authAt: Date | null },
+): Promise<SsoSessionCompletion> {
+  const conn = await prisma.ssoConnection.findUnique({
+    where: { id: sso.ssoConnId },
+    select: { id: true, teamId: true },
+  });
+  if (!conn) return { allowed: false, reason: "sso_connection_unavailable" };
+  const session = await recordSessionFromSignedToken(req, user, token, idp, conn.teamId);
+  if (!session) return { allowed: false, reason: "session_unavailable" };
+  return completeSsoSession(
+    {
+      userId: user.id,
+      teamId: conn.teamId,
+      ssoConnectionId: conn.id,
+      source: sso.authMethod,
+      sessionId: session.sessionId,
+      sid: session.sid,
+    },
+    prisma,
+  );
 }
 
 const TokenBody = z.object({
@@ -1683,7 +1725,15 @@ export async function authRoutes(app: FastifyInstance) {
     // the real session is issued. It previously set the cookie without
     // writing an AuthenticatedSession row, leaving MFA users with an
     // empty session list. Same canonical helper as every other path.
-    await recordSessionFromSignedToken(req, user, token, ssoProvenance?.idp);
+    if (ssoProvenance) {
+      const completion = await recordSsoSessionThroughMfa(req, user, token, ssoProvenance, ssoProvenance.idp);
+      if (!completion.allowed) {
+        clearMfaPendingCookie(req, reply);
+        return reply.code(403).send({ message: completion.reason });
+      }
+    } else {
+      await recordSessionFromSignedToken(req, user, token);
+    }
     clearMfaPendingCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
     return reply.code(200).send({ token, user: toAuthUserProjection(user) });
@@ -1743,7 +1793,19 @@ export async function authRoutes(app: FastifyInstance) {
         actorUserId: user.id,
       });
     }
-    await recordSessionFromSignedToken(req, user, token);
+    const ssoMethod = authMethod === "SAML" || authMethod === "OIDC" ? authMethod : null;
+    if (ssoMethod && req.user.ssoConnId) {
+      const completion = await recordSsoSessionThroughMfa(req, user, token, {
+        authMethod: ssoMethod,
+        ssoConnId: req.user.ssoConnId,
+      });
+      if (!completion.allowed) {
+        clearMfaEnrollmentCookie(req, reply);
+        return reply.code(403).send({ message: completion.reason });
+      }
+    } else {
+      await recordSessionFromSignedToken(req, user, token);
+    }
     clearMfaEnrollmentCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
     return reply.code(200).send({ token, user: toAuthUserProjection(user) });

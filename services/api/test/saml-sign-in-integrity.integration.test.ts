@@ -20,6 +20,7 @@ import {
 import {
   seedOrganizationTenant,
   seedPersonalTenant,
+  seedUser,
   type FixtureDeps,
   type OrganizationTenant,
 } from "./point7/product-fixtures.js";
@@ -32,6 +33,8 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   let signJwt: typeof import("../src/services/jwt.js")["signJwt"];
   let closure: typeof import("../src/services/identity/account-closure.service.js");
   let scim: typeof import("../src/services/access-control/scim.service.js");
+  let totp: typeof import("../src/services/security/mfa-totp.js");
+  let mfaSecrets: typeof import("../src/services/security/mfa-secret-storage.js");
   let deps: FixtureDeps;
   const tag = `ssi-${Date.now().toString(36)}-${randomUUID().slice(0, 6)}`;
   const saved: Record<string, string | undefined> = {};
@@ -115,6 +118,8 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     ({ signJwt } = await import("../src/services/jwt.js"));
     closure = await import("../src/services/identity/account-closure.service.js");
     scim = await import("../src/services/access-control/scim.service.js");
+    totp = await import("../src/services/security/mfa-totp.js");
+    mfaSecrets = await import("../src/services/security/mfa-secret-storage.js");
     deps = { prisma: prisma as never, tag, mintToken: mint };
   }, 180_000);
 
@@ -258,6 +263,97 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     const refused = await signIn(conn, email);
     expect(String(refused.headers.location)).toContain("saml_error=");
     expect(sessionSet(refused)).toBe(false);
+  });
+
+  async function factorFor(userId: string): Promise<Buffer> {
+    const raw = totp.generateTotpSecretBytes();
+    const sealed = mfaSecrets.sealSecret(raw);
+    const now = new Date();
+    await prisma.mfaFactor.create({
+      data: {
+        userId,
+        kind: "TOTP",
+        status: "ACTIVE",
+        label: "ident-011",
+        secretCiphertext: Buffer.from(sealed.ciphertext),
+        secretIv: Buffer.from(sealed.iv),
+        secretAuthTag: Buffer.from(sealed.authTag),
+        secretKekId: sealed.kekId,
+        verifiedAtUtc: now,
+        enrolledAt: now,
+      },
+    });
+    return raw;
+  }
+
+  async function signInThroughMfa(conn: string, email: string, secretBytes: Buffer) {
+    const challenge = await signIn(conn, email);
+    expect(String(challenge.headers.location)).toContain("/auth/mfa-challenge");
+    expect(sessionSet(challenge)).toBe(false);
+    const raw = challenge.headers["set-cookie"];
+    const pending = (Array.isArray(raw) ? raw : [String(raw)])
+      .find((c) => String(c).startsWith("proovra_mfa_pending="))!
+      .split(";")[0]!
+      .slice("proovra_mfa_pending=".length);
+    const code = totp.computeTotpCode(secretBytes, totp.timeStep(Math.floor(Date.now() / 1000)));
+    return harness.app.inject({
+      method: "POST",
+      url: "/v1/auth/mfa/verify",
+      payload: { mfaPendingToken: decodeURIComponent(pending), code },
+    });
+  }
+
+  it("IDENT-011: through the MFA step, a session gets its workspace, its binding and its context", async () => {
+    const org = await seedOrganizationTenant(deps, { managedIdentityRequired: true });
+    const conn = await connection(org);
+    // A person already linked to the IdP, with a factor and no managed binding.
+    const person = await seedUser(deps, "mfa-linked");
+    const row0 = await prisma.user.findUniqueOrThrow({ where: { id: person.userId }, select: { email: true } });
+    const email = row0.email!;
+    await prisma.externalIdentityMapping.create({
+      data: {
+        teamId: org.workspaceId,
+        organizationId: org.organizationId,
+        userId: person.userId,
+        provider: "GENERIC_SAML",
+        externalSubjectId: email,
+        externalEmail: email,
+      },
+    });
+    const user = { id: person.userId };
+    const secretBytes = await factorFor(user.id);
+
+    const verified = await signInThroughMfa(conn, email, secretBytes);
+    expect(verified.statusCode, verified.body).toBe(200);
+
+    const row = await prisma.authenticatedSession.findFirstOrThrow({ where: { userId: user.id } });
+    expect(row.teamId).toBe(org.workspaceId);
+    expect(row.ssoConnectionId).toBe(conn);
+    const bound = await prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { managedBySsoConnectionId: true },
+    });
+    expect(bound.managedBySsoConnectionId).toBe(conn);
+  });
+
+  it("IDENT-011: the concurrent-session limit holds through the MFA step", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const conn = await connection(org);
+    const email = `limit-${randomUUID().slice(0, 8)}@example.test`;
+    expect((await signIn(conn, email)).headers.location).toBe(`${WEB}/home`);
+    const user = await prisma.user.findFirstOrThrow({ where: { email }, select: { id: true } });
+    const secretBytes = await factorFor(user.id);
+    await prisma.organizationSecurityPolicy.update({
+      where: { organizationId: org.organizationId },
+      data: { concurrentSessionLimit: 1 },
+    });
+    const before = await prisma.authenticatedSession.count({ where: { userId: user.id } });
+
+    const refused = await signInThroughMfa(conn, email, secretBytes);
+    expect(refused.statusCode, refused.body).toBe(403);
+    expect((refused.json() as { token?: string }).token).toBeUndefined();
+    expect(sessionSet(refused)).toBe(false);
+    expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(before);
   });
 
   it("IDENT-010: a directory cannot reopen a closed account, and can reopen an open one", async () => {

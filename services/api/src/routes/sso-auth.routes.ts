@@ -66,12 +66,9 @@ import {
   persistCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
-import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
 import { organizationIdForPolicy } from "../services/identity/org-security-policy.service.js";
-import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
+import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
 import { resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
-import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
-import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 // PHASE 11 — canonical safe-destination helper + internal URL builder.
 // Used ONLY to validate/compose the post-login destination string; the
 // state/nonce/replay-protection logic above is untouched.
@@ -768,72 +765,22 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
 
-        // Score the new session for adaptive auth on the first request.
-        await detectAndScoreSession(
-          { teamId: result.teamId, sessionId: session.id },
+        // IDENT-011 — the same completion the MFA routes run: scored, managed
+        // provisioning, and the Organization context under its session limit,
+        // before any cookie. A refusal leaves no session.
+        const completion = await completeSsoSession(
+          {
+            userId: result.user.id,
+            teamId: result.teamId,
+            ssoConnectionId: conn.id,
+            source: "OIDC",
+            sessionId: session.id,
+            sid,
+          },
           prisma,
-        ).catch(() => null);
-
-        // PHASE 10 §2.2 — OIDC establishes the session's ORGANIZATION context
-        // under the advisory-locked concurrent-session limit BEFORE returning
-        // the active Workspace context. Same ordering as SAML; mandatory SSO is
-        // satisfied by the validated OIDC login through the org's exact ACTIVE
-        // connection. A denial performs zero context mutation and bounces.
-        const oidcOrgId = await organizationIdForPolicy(result.teamId, prisma);
-        if (oidcOrgId) {
-          // PATH 7/9 (+ PATH 8 existing-user linking) — OIDC FIRST LOGIN managed
-          // provisioning. Identical contract to SAML: when the org REQUIRES
-          // managed identity, bind it (evidence = the exact verified OIDC
-          // connection) + fail-closed seat + membership BEFORE establishing Org
-          // context and before any cookie. A cross-Organization conflict throws →
-          // rollback → session deleted → bounce; no silent re-claim.
-          const oidcPolicy = await resolveOrganizationPolicy(result.teamId, prisma);
-          if (
-            oidcPolicy.applicability === "ORGANIZATION" &&
-            oidcPolicy.policy.managedIdentityRequired
-          ) {
-            try {
-              await prisma.$transaction((tx) =>
-                provisionManagedMembership(tx, {
-                  userId: result.user.id,
-                  managingTeamId: result.teamId,
-                  evidence: { source: "OIDC", ssoConnectionId: conn.id },
-                  membershipIntent: "SSO_JIT",
-                  source: "SSO_JIT",
-                  workspace: { teamId: result.teamId, role: "MEMBER" },
-                  actorUserId: null,
-                  externalRef: `oidc:${conn.id}`,
-                  accessReason: "OIDC managed provisioning",
-                  preserveExistingStatus: true,
-                  seatPolicy: "ENFORCE",
-                  seatTeamId: result.teamId,
-                }),
-              );
-            } catch (e) {
-              await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-              const code = (e as { code?: string })?.code;
-              return bounceToAuthError(
-                reply,
-                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
-              );
-            }
-          }
-          // §2.1 — delete the just-created inventory row on failure/denial so no
-          // orphan session remains (sid is random per login; no cookie set yet).
-          let seat;
-          try {
-            seat = await establishOrganizationSessionContext(
-              { userId: result.user.id, organizationId: oidcOrgId, sessionIdHash: hashSessionId(sid) },
-              prisma,
-            );
-          } catch (e) {
-            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-            throw e;
-          }
-          if (!seat.allowed) {
-            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-            return bounceToAuthError(reply, seat.reason);
-          }
+        );
+        if (!completion.allowed) {
+          return bounceToAuthError(reply, completion.reason, attempt.redirectAfter);
         }
 
         setSessionCookie(req, reply, token);

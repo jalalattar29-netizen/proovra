@@ -114,17 +114,13 @@ import {
 } from "../services/access-control/sso-browser-binding.js";
 import { trustedClientIpKey } from "../middleware/client-ip.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
-import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
-import { organizationIdForPolicy, resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
-import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
-import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
+import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
 import { enforceSsoLoginPolicy } from "../services/access-control/sso-login-policy.service.js";
 import {
   evaluateOrganizationIdentityAuthority,
   ORGANIZATION_IDENTITY_ADMIN_REQUIRED,
 } from "../services/identity/organization-identity-authority.js";
 
-import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { bump } from "../services/ops/metrics.service.js";
@@ -978,79 +974,22 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           prisma,
         );
 
-        await detectAndScoreSession(
-          { teamId: conn.teamId, sessionId: session.id },
+        // IDENT-011 — the same completion the MFA routes run: scored, managed
+        // provisioning, and the Organization context under its session limit,
+        // before any cookie. A refusal leaves no session.
+        const completion = await completeSsoSession(
+          {
+            userId: result.userId,
+            teamId: conn.teamId,
+            ssoConnectionId: conn.id,
+            source: "SAML",
+            sessionId: session.id,
+            sid,
+          },
           prisma,
-        ).catch(() => null);
-
-        // PHASE 10 §2.1 — SAML establishes the session's ORGANIZATION context
-        // under the advisory-locked concurrent-session limit BEFORE returning
-        // the active Workspace context. Mandatory SSO is satisfied by
-        // construction (this is a validated SAML login through the org's exact
-        // ACTIVE connection). The canonical authority re-loads org lifecycle +
-        // the ONE org policy limit. A denial (limit reached / suspended org)
-        // performs zero context mutation and bounces — the global session
-        // remains, but no Org context is opened.
-        const samlOrgId = await organizationIdForPolicy(conn.teamId, prisma);
-        if (samlOrgId) {
-          // PATH 6/9 (+ PATH 8 existing-user linking) — SAML FIRST LOGIN managed
-          // provisioning. When the org REQUIRES managed identity, bind it BEFORE
-          // establishing Organization context (and before any cookie) through the
-          // ONE atomic intent: managed binding (evidence = the exact verified
-          // ssoConnectionId) + fail-closed seat + membership/grant provenance. A
-          // cross-Organization conflict (a user managed by Org B) THROWS →
-          // rollback → session row deleted → bounce; the identity is NEVER
-          // silently re-claimed and NO Org context/cookie is issued.
-          const samlPolicy = await resolveOrganizationPolicy(conn.teamId, prisma);
-          if (
-            samlPolicy.applicability === "ORGANIZATION" &&
-            samlPolicy.policy.managedIdentityRequired
-          ) {
-            try {
-              await prisma.$transaction((tx) =>
-                provisionManagedMembership(tx, {
-                  userId: result.userId,
-                  managingTeamId: conn.teamId,
-                  evidence: { source: "SAML", ssoConnectionId: conn.id },
-                  membershipIntent: "SSO_JIT",
-                  source: "SSO_JIT",
-                  workspace: { teamId: conn.teamId, role: "MEMBER" },
-                  actorUserId: null, // IdP-driven
-                  externalRef: `saml:${conn.id}`,
-                  accessReason: "SAML managed provisioning",
-                  preserveExistingStatus: true, // a login never silently reactivates
-                  seatPolicy: "ENFORCE",
-                  seatTeamId: conn.teamId,
-                }),
-              );
-            } catch (e) {
-              await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-              const code = (e as { code?: string })?.code;
-              return bounceToSamlError(
-                reply,
-                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
-                attempt.redirectAfter,
-              );
-            }
-          }
-          // §2.1 — on establishment failure/denial, delete the JUST-created
-          // inventory row (the sid is random per login, so this is never an
-          // idempotent-retry row) so no unreachable orphan session remains. No
-          // cookie was set, so no client holds this token.
-          let seat;
-          try {
-            seat = await establishOrganizationSessionContext(
-              { userId: result.userId, organizationId: samlOrgId, sessionIdHash: hashSessionId(sid) },
-              prisma,
-            );
-          } catch (e) {
-            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-            throw e;
-          }
-          if (!seat.allowed) {
-            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-            return bounceToSamlError(reply, seat.reason, attempt.redirectAfter);
-          }
+        );
+        if (!completion.allowed) {
+          return bounceToSamlError(reply, completion.reason, attempt.redirectAfter);
         }
 
         bump("saml_login_succeeded_total");
@@ -1072,7 +1011,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           outcome: "success",
           sourceApp: "SSO",
           actorUserId: result.userId,
-          organizationId: samlOrgId ?? null,
+          organizationId: preGate.organizationId ?? null,
           workspaceId: conn.teamId,
           resourceType: "user_auth",
           resourceId: result.userId,
