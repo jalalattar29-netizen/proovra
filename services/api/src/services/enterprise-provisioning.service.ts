@@ -111,7 +111,7 @@ export type GrantEnterprisePlanResult = {
  *
  * For each workspace:
  *   billingPlan   = plan
- *   includedSeats = seats ?? getPlanCapabilities(plan).includedSeats
+ *   includedSeats = the stated seats, else the contract's; never the catalogue's
  *   billingStatus = ACTIVE
  *   overSeatLimit — persisted after commit by refreshTeamSeatState (the one
  *                   seat answer; members re-audit ENT-05 / defect 14)

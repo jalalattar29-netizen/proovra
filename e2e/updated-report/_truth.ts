@@ -47,15 +47,24 @@ export function shareWithReviewer(evidenceId: string, teamId: string, ownerUserI
   return m[1]!;
 }
 
-/** FIXTURE (sales-led provisioning + verification decision): a VERIFIED organization workspace. */
+/**
+ * FIXTURE (sales-led provisioning + verification decision): a VERIFIED organization
+ * workspace. Every first owner is invited (PROV-001), so the fixture accepts as the
+ * owner, from the session the journey already holds: acceptance ends the others.
+ */
 export function provisionVerifiedOrganization(ownerEmail: string): { organizationId: string; workspaceId: string } {
   const out = nodeIn(
     "api",
     `const { prisma } = await import("/app/services/api/dist/db.js");
      const ent = await import("/app/services/api/dist/services/enterprise-provisioning.service.js");
      const owner = await prisma.user.findFirst({ where: { email: ${JSON.stringify(ownerEmail.toLowerCase())} }, select: { id: true } });
-     const r = await ent.provisionEnterpriseCustomer({ organizationName: "Truth Journey Verified Org", ownerEmail: ${JSON.stringify(ownerEmail)}, actorUserId: owner.id });
-     console.log("ORG=" + JSON.stringify({ organizationId: r.organizationId, workspaceId: r.workspaceId })); process.exit(0);`,
+     const acceptance = await import("/app/services/api/dist/services/organization/org-invite-acceptance.service.js");
+     const { hashInviteToken } = await import("/app/services/api/dist/routes/organizations.routes.js");
+     const r = await ent.provisionEnterpriseCustomer({ organizationName: "Truth Journey Verified Org", ownerEmail: ${JSON.stringify(ownerEmail)}, seats: 25, actorUserId: owner.id });
+     const session = await prisma.authenticatedSession.findFirst({ where: { userId: owner.id, revokedAtUtc: null }, orderBy: { issuedAtUtc: "desc" }, select: { sessionIdHash: true } });
+     const accepted = await acceptance.acceptOrganizationInvite({ tokenHash: hashInviteToken(r.ownerInviteToken), userId: owner.id, sessionIdHash: session?.sessionIdHash ?? null });
+     if (accepted.kind !== "ok" || !accepted.enterpriseWorkspaceId) throw new Error("owner could not accept: " + accepted.kind);
+     console.log("ORG=" + JSON.stringify({ organizationId: r.organizationId, workspaceId: accepted.enterpriseWorkspaceId })); process.exit(0);`,
   );
   const m = out.match(/ORG=(\{.*\})/);
   if (!m) throw new Error(`provisionVerifiedOrganization: ${out}`);
