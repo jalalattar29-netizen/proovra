@@ -6,6 +6,7 @@ import { useCompleteLogin, type LoginMode } from "../../src/auth/use-auth-flow";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraText, ProovraButton, ProovraInput, ProovraFormField } from "../../src/ui";
+import { MfaEnrollmentAtSignIn } from "../../src/ui/mfa-enrollment-at-sign-in";
 import { MfaRecoveryRequestPanel } from "../../src/ui/mfa-recovery-request";
 import { AuthBrandHeader } from "../../src/ui/brand";
 import { AuthNote } from "../../src/ui/auth-form";
@@ -38,8 +39,8 @@ function mfaFailure(err: unknown, recovery: boolean): { expired: boolean; messag
  * Reached when a login returns mfaRequired (the pending token rides in the
  * params). Three surfaces, as on the web:
  *   - `enroll=1` — the organization requires MFA and the account has no
- *     factor (auth.routes.ts:586-597, 403 mfaEnrollmentRequired). No code box;
- *     the way on is enrolment after a fresh sign-in (:222-262);
+ *     factor (403 mfaEnrollmentRequired). The factor is added here, with the
+ *     refused sign-in's own token, and that finishes the sign-in;
  *   - an ended challenge — "Sign-in session expired" + Return to sign in;
  *   - the verify form: authenticator code or single-use recovery code, the
  *     lost-factor recovery request, and "Still stuck? Contact support".
@@ -124,19 +125,15 @@ export default function MfaScreen() {
     return (
       <ProovraScreen width="form">
         <AuthBrandHeader />
-        <ProovraCard testID="mfa-enroll-required">
-          <ProovraText variant="h2" weight="semibold" accessibilityRole="header">Set up two-factor authentication</ProovraText>
-          <ProovraText variant="body" color={theme.color.ink.secondary}>
-            Your organization requires two-factor authentication. To continue, you need to enroll an authenticator on your account.
-          </ProovraText>
-          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-            Sign in again and your operator menu will guide you through enrollment. You will not be able to access workspace data until enrollment is complete.
-          </ProovraText>
-          <View style={styles.actions}>
-            <ProovraButton label="Sign in to start enrollment" onPress={toSignIn} />
-          </View>
-          {support("Need help?")}
-        </ProovraCard>
+        <MfaEnrollmentAtSignIn
+          onRestart={toSignIn}
+          support={support("Need help?")}
+          onSignedIn={(session, hold) =>
+            completeLogin({ kind: "session", token: session.token, user: session.user }, hold.mode, {
+              legalAcceptedSource: hold.legalAcceptedSource,
+            })
+          }
+        />
       </ProovraScreen>
     );
   }

@@ -2,6 +2,7 @@
  * Shared post-authentication flow (Phase 4C). One place that turns a
  * LoginResult into the correct destination:
  *   - mfaRequired  → MFA challenge screen (carries the pending token),
+ *   - mfaEnrollmentRequired → add a factor, then a session (token held in memory),
  *   - session      → confirm /me, store the session, then run the legal-status
  *                    gate: missing acceptance → legal screen, else main app.
  * Used by every sign-in path (email, Google, Apple, MFA, verify) so behavior
@@ -12,6 +13,7 @@ import { useRouter } from "expo-router";
 import { setAuthToken } from "../api";
 import { useAuth } from "../auth-context";
 import { fetchMe, getLegalStatus, recordLegalAcceptance, type LoginResult } from "./auth-api";
+import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import type { OAuthMode } from "./use-oauth";
 import { takePendingRoute } from "../deep-link/pending-intent";
 
@@ -36,6 +38,17 @@ export function useCompleteLogin() {
   return useCallback(
     async (result: LoginResult, mode: LoginMode, options: CompleteLoginOptions = {}) => {
       if (result.kind === "mfaEnrollmentRequired") {
+        // The token stays out of the route: see mfa-enrollment-session.ts.
+        if (result.mfaEnrollmentToken) {
+          holdMfaEnrollment({
+            token: result.mfaEnrollmentToken,
+            mode,
+            expiresInSeconds: result.expiresInSeconds,
+            legalAcceptedSource: options.legalAcceptedSource,
+          });
+        } else {
+          endMfaEnrollment();
+        }
         router.push({ pathname: "/mfa", params: { enroll: "1", mode } });
         return;
       }

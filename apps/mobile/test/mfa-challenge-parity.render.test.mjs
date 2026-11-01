@@ -5,7 +5,8 @@
  *   POST /v1/auth/mfa/verify { mfaPendingToken, code? | recoveryCode? }   (:1378; body :249-258)
  *        200 { token, user } · 400 { message: "invalid_body" } · 401 { message: reason }
  *   Sign-in when the org requires MFA and no factor is enrolled:
- *        403 { mfaRequired: true, mfaEnrollmentRequired: true, reason: "org_policy_requires_mfa", message, user } (:586-597)
+ *        403 { mfaRequired: true, mfaEnrollmentRequired: true, code, mfaEnrollmentToken, ... }
+ *        (the enrolment itself: mfa-enrollment-at-sign-in.render.test.mjs)
  */
 import { test, before, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -90,17 +91,6 @@ test("Still stuck? Contact support opens Support", async () => {
   assert.equal(Mfa.calls.push.at(-1), "/support");
 });
 
-test("enroll=1 is the enrolment-required surface, with no code box", async () => {
-  globalThis.__EXPO_PARAMS__ = { enroll: "1" };
-  const r = await render(Mfa);
-  assert.equal(r.byTestId("mfa-enroll-required").length, 1);
-  assert.ok(r.hasText("Set up two-factor authentication"));
-  assert.ok(r.hasText("Your organization requires two-factor authentication. To continue, you need to enroll an authenticator on your account."));
-  assert.equal(r.byLabel("Six-digit authenticator code").length, 0);
-  await r.press("Sign in to start enrollment");
-  assert.equal(Mfa.calls.replace.at(-1), "/(stack)/auth");
-});
-
 test("a sign-in refused for missing MFA enrolment routes to the enrolment surface", async () => {
   globalThis.__EXPO_PARAMS__ = {};
   answer = (p) =>
@@ -110,6 +100,9 @@ test("a sign-in refused for missing MFA enrolment routes to the enrolment surfac
           body: {
             mfaRequired: true,
             mfaEnrollmentRequired: true,
+            code: "MFA_ENROLLMENT_REQUIRED",
+            mfaEnrollmentToken: "enrol-token",
+            mfaEnrollmentExpiresInSeconds: 900,
             reason: "org_policy_requires_mfa",
             message: "Your organization requires multi-factor authentication. Please enroll an authenticator to continue.",
             user: { id: "u1", email: "a@b.co", provider: "EMAIL" },

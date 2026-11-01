@@ -53,6 +53,94 @@ type Stage =
   | { kind: "enrolling"; enrollment: TotpEnrollment }
   | { kind: "codes"; codes: string[] };
 
+/**
+ * The setup step itself, shared by Settings and the sign-in that had to enrol:
+ * hand the URI to an authenticator, show the key, take the code.
+ */
+export function TotpSetupStep({
+  enrollment,
+  code,
+  onChangeCode,
+  verifyLabel,
+  busy,
+  onVerify,
+  onOpenFailed,
+}: {
+  enrollment: TotpEnrollment;
+  code: string;
+  onChangeCode: (next: string) => void;
+  verifyLabel: string;
+  busy: boolean;
+  onVerify: () => void;
+  onOpenFailed: (message: string) => void;
+}) {
+  return (
+    <>
+      {enrollment.otpauthUri ? (
+        <>
+          <ProovraText variant="label" color={theme.color.ink.secondary}>
+            {/*
+              No QR code: the authenticator is usually on this same
+              phone, and you cannot photograph your own screen.
+            */}
+            Open this in your authenticator app, then type the code it shows.
+          </ProovraText>
+          <ProovraButton
+            label="Open in authenticator"
+            onPress={() => {
+              const uri = enrollment.otpauthUri;
+              if (uri) void Linking.openURL(uri).catch(() => {
+                onOpenFailed("No authenticator app could open that. Use the setup key below instead.");
+              });
+            }}
+          />
+        </>
+      ) : null}
+
+      {enrollment.secretBase32 ? (
+        <View style={{ gap: theme.space.s2 }}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
+            Setup key
+          </ProovraText>
+          {/*
+            Selectable, for a phone with no authenticator installed that
+            needs to enrol one somewhere else.
+          */}
+          <ProovraText variant="bodySm" mono selectable>
+            {enrollment.secretBase32}
+          </ProovraText>
+          <ProovraButton
+            label="Share the setup key"
+            variant="ghost"
+            fullWidth={false}
+            onPress={() => {
+              const secret = enrollment.secretBase32;
+              if (secret) void Share.share({ message: secret });
+            }}
+          />
+        </View>
+      ) : null}
+
+      <ProovraFormField label="Code from your authenticator">
+        <ProovraInput
+          value={code}
+          onChangeText={onChangeCode}
+          placeholder="6-digit code"
+          keyboardType="number-pad"
+          accessibilityLabel="Authenticator code"
+        />
+      </ProovraFormField>
+
+      <ProovraButton
+        label={verifyLabel}
+        loading={busy}
+        disabled={validateTotpCode(code) !== null}
+        onPress={onVerify}
+      />
+    </>
+  );
+}
+
 export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
   const [label, setLabel] = useState("");
@@ -166,68 +254,14 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
       >
         {stage.kind === "enrolling" ? (
           <>
-            {stage.enrollment.otpauthUri ? (
-              <>
-                <ProovraText variant="label" color={theme.color.ink.secondary}>
-                  {/*
-                    No QR code: the authenticator is usually on this same
-                    phone, and you cannot photograph your own screen.
-                  */}
-                  Open this in your authenticator app, then type the code it shows.
-                </ProovraText>
-                <ProovraButton
-                  label="Open in authenticator"
-                  onPress={() => {
-                    const uri = stage.enrollment.otpauthUri;
-                    if (uri) void Linking.openURL(uri).catch(() => {
-                      setMessage(
-                        "No authenticator app could open that. Use the setup key below instead.",
-                      );
-                    });
-                  }}
-                />
-              </>
-            ) : null}
-
-            {stage.enrollment.secretBase32 ? (
-              <View style={{ gap: theme.space.s2 }}>
-                <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
-                  Setup key
-                </ProovraText>
-                {/*
-                  Selectable, for a phone with no authenticator installed that
-                  needs to enrol one somewhere else.
-                */}
-                <ProovraText variant="bodySm" mono selectable>
-                  {stage.enrollment.secretBase32}
-                </ProovraText>
-                <ProovraButton
-                  label="Share the setup key"
-                  variant="ghost"
-                  fullWidth={false}
-                  onPress={() => {
-                    const secret = stage.enrollment.secretBase32;
-                    if (secret) void Share.share({ message: secret });
-                  }}
-                />
-              </View>
-            ) : null}
-
-            <ProovraFormField label="Code from your authenticator">
-              <ProovraInput
-                value={code}
-                onChangeText={setCode}
-                placeholder="6-digit code"
-                keyboardType="number-pad"
-                accessibilityLabel="Authenticator code"
-              />
-            </ProovraFormField>
-
-            <ProovraButton
-              label="Verify & enable"
-              loading={busy}
-              disabled={validateTotpCode(code) !== null}
-              onPress={() => void verify()}
+            <TotpSetupStep
+              enrollment={stage.enrollment}
+              code={code}
+              onChangeCode={setCode}
+              verifyLabel="Verify & enable"
+              busy={busy}
+              onVerify={() => void verify()}
+              onOpenFailed={setMessage}
             />
             <ProovraButton label="Cancel" variant="ghost" disabled={busy} onPress={() => void cancel()} />
 
