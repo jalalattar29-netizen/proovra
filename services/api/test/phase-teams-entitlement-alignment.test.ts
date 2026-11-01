@@ -232,13 +232,14 @@ describe("Team creation — the commercial plan matrix", () => {
     }
   });
 
-  it("ENTERPRISE with an ACTIVE contract: the contracted ceiling; a silent contract grants none (members ledger M5)", async () => {
+  it("ENTERPRISE, decision CT-10: the contracted ceiling; a silent ACTIVE contract takes the catalogue defaults; no ACTIVE contract, no capacity", async () => {
     const active = { ...NO_CONTRACT_LIMITS, contractGovernsCapability: true };
     expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: { ...active, collaborationTeams: 12 } })).toBe(12);
     expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: { ...active, collaborationTeamMembers: 40 } })).toBe(40);
-    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: active })).toBe(0);
-    expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: active })).toBe(0);
+    expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: active })).toBe(1000);
+    expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: active })).toBe(500);
     expect(resolveEffectiveCollaborationTeamLimit({ plan: "ENTERPRISE", contract: NO_CONTRACT_LIMITS })).toBe(0);
+    expect(resolveEffectiveCollaborationMemberLimit({ plan: "ENTERPRISE", contract: NO_CONTRACT_LIMITS })).toBe(0);
   });
 
   it("the upgrade target is DERIVED from the canonical table, not hardcoded", () => {

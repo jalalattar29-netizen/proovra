@@ -26,6 +26,7 @@ import { requireAuth } from "../middleware/auth.js";
 // server-side but checks neither ACTIVE membership, parent-Organization
 // lifecycle, access expiry, nor capability.
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
 import {
   extractPrismaDiagnostic,
@@ -181,31 +182,82 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     },
   );
 
+  /*
+   * BILLING-001 — THESE TWO WRITERS ARE THE PLATFORM OPERATOR'S.
+   *
+   * They were gated on `billing.manage`, and that is a customer OWNER's
+   * permission, so any owner on any plan could grant their own workspace paid
+   * features, with `source: "PLAN"` and an expiry of their choice. What a
+   * contract sold is resolved from the contract (`resolveEntitlement`); these
+   * routes are how an operator states an exception to it. The target is named
+   * explicitly, because the operator is not a member of it, and `teamId` is the
+   * workspace their step-up was minted against, as on every admin route.
+   */
+  const OperatorEntitlementTarget = z.object({
+    teamId: z.string().uuid(),
+    targetWorkspaceId: z.string().uuid(),
+  });
+
+  const operatorTarget = async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    body: z.infer<typeof OperatorEntitlementTarget>,
+  ): Promise<{ workspaceId: string; organizationId: string | null; operatorUserId: string } | null> => {
+    const operatorUserId = getAuthUserId(req);
+    const gate = await requireStepUpForSensitiveAction({
+      req,
+      reply,
+      teamId: body.teamId,
+      userId: operatorUserId,
+      purpose: "CAPABILITY_GRANT",
+      resourceKind: "workspace",
+      resourceId: body.targetWorkspaceId,
+    });
+    if (gate.sent) return null;
+    const workspace = await prisma.team.findUnique({
+      where: { id: body.targetWorkspaceId },
+      select: { id: true, organizationId: true },
+    });
+    if (!workspace) {
+      await reply.code(404).send({ error: { code: "WORKSPACE_NOT_FOUND" }, message: "Workspace not found." });
+      return null;
+    }
+    return { workspaceId: workspace.id, organizationId: workspace.organizationId, operatorUserId };
+  };
+
   app.post(
     "/v1/packaging/entitlements/apply-product-line",
-    { preHandler: [requireAuth, requireWorkspacePermission("billing.manage")] },
+    { preHandler: requirePlatformAdmin },
     async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const body = z
-        .object({ line: z.enum(PRODUCT_LINES) })
-        .parse(req.body);
+      const body = OperatorEntitlementTarget.extend({ line: z.enum(PRODUCT_LINES) }).parse(req.body);
+      const target = await operatorTarget(req, reply, body);
+      if (!target) return reply;
       // Phase O — Sentry NODE-1K safety net. The repair migration
       // 20270802000000_phase_sentry_batch_schema_drift_repair adds
       // the missing `delegated_admin_grants` columns
       // (`granted_to_user_id`, `scope_target_id`, `created_at`,
-      // `updated_at`). The route's permission pre-handler reads only the
-      // canonical membership/scope tables. Belt-and-braces: catch any
-      // residual P2022/P2021 raised by `applyProductLine` itself —
-      // the route returns an explicit degraded payload instead of
-      // 500ing. NEVER a silent suppression: the caller sees
-      // `degraded: true` + `reason: "SCHEMA_NOT_READY"` and can
+      // `updated_at`). Belt-and-braces: catch any residual P2022/P2021
+      // raised by `applyProductLine` itself — the route returns an explicit
+      // degraded payload instead of 500ing. NEVER a silent suppression: the
+      // caller sees `degraded: true` + `reason: "SCHEMA_NOT_READY"` and can
       // surface a banner.
       try {
         const res = await applyProductLine({
-          teamId: ctx.teamId,
+          teamId: target.workspaceId,
           line: body.line,
-          grantedByUserId: ctx.userId,
+          grantedByUserId: target.operatorUserId,
+        });
+        await emitTenantAudit({
+          action: "billing.entitlement_product_line_applied",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: target.operatorUserId,
+          actorAuthority: "PLATFORM_ADMIN",
+          organizationId: target.organizationId,
+          workspaceId: target.workspaceId,
+          resourceType: "workspace",
+          resourceId: target.workspaceId,
+          metadata: { line: body.line, granted: res.granted },
         });
         return reply.code(200).send({ ok: res.ok, granted: res.granted });
       } catch (err) {
@@ -229,42 +281,52 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
   app.post(
     "/v1/packaging/entitlements/grant",
-    { preHandler: [requireAuth, requireWorkspacePermission("billing.manage")] },
+    { preHandler: requirePlatformAdmin },
     async (req, reply) => {
-      const ctx = await resolveWorkspace(req, reply);
-      if (!ctx) return reply;
-      const body = z
-        .object({
-          /*
-           * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — VALIDATED,
-           * not cast.
-           *
-           * This was `z.string() as z.ZodType<EntitlementKey>`: a cast that
-           * asserts a shape Zod never checks, so any string could be written
-           * as an entitlement key. Nine keys have now been retired from the
-           * vocabulary because they were duplicate commercial authorities, and
-           * the stated reason for deleting the KEY rather than only its
-           * readers is that a key which still exists can be granted here and
-           * read back by a future gate. That reasoning only holds if this
-           * boundary actually enforces the vocabulary.
-           */
-          key: z.enum(ENTITLEMENT_KEYS),
-          value: z.union([z.boolean(), z.number()]),
-          kind: z.enum(["FEATURE", "QUOTA", "LIMIT"] as const),
-          source: z.enum(["PLAN", "CUSTOM", "PROMO"] as const).optional(),
-          productLine: z.enum(PRODUCT_LINES).nullable().optional(),
-          expiresAtUtc: z.string().datetime().nullable().optional(),
-        })
-        .parse(req.body);
+      const body = OperatorEntitlementTarget.extend({
+        /*
+         * PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — VALIDATED,
+         * not cast.
+         *
+         * This was `z.string() as z.ZodType<EntitlementKey>`: a cast that
+         * asserts a shape Zod never checks, so any string could be written
+         * as an entitlement key. Nine keys have now been retired from the
+         * vocabulary because they were duplicate commercial authorities, and
+         * the stated reason for deleting the KEY rather than only its
+         * readers is that a key which still exists can be granted here and
+         * read back by a future gate. That reasoning only holds if this
+         * boundary actually enforces the vocabulary.
+         */
+        key: z.enum(ENTITLEMENT_KEYS),
+        value: z.union([z.boolean(), z.number()]),
+        kind: z.enum(["FEATURE", "QUOTA", "LIMIT"] as const),
+        source: z.enum(["PLAN", "CUSTOM", "PROMO"] as const).optional(),
+        productLine: z.enum(PRODUCT_LINES).nullable().optional(),
+        expiresAtUtc: z.string().datetime().nullable().optional(),
+      }).parse(req.body);
+      const target = await operatorTarget(req, reply, body);
+      if (!target) return reply;
       const res = await upsertEntitlementGrant({
-        teamId: ctx.teamId,
+        teamId: target.workspaceId,
         key: body.key,
         value: body.value,
         kind: body.kind,
         source: body.source,
         productLine: body.productLine ?? null,
-        grantedByUserId: ctx.userId,
+        grantedByUserId: target.operatorUserId,
         expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
+      });
+      await emitTenantAudit({
+        action: "billing.entitlement_granted",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: target.operatorUserId,
+        actorAuthority: "PLATFORM_ADMIN",
+        organizationId: target.organizationId,
+        workspaceId: target.workspaceId,
+        resourceType: "entitlement_grant",
+        resourceId: res.grantId,
+        metadata: { key: body.key, kind: body.kind, value: body.value, source: body.source ?? "PLAN" },
       });
       return reply.code(201).send({ grantId: res.grantId });
     },

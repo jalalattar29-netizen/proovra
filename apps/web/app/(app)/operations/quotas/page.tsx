@@ -14,7 +14,8 @@ interface Quotas {
   analyses: { limit: number; used: number; remaining: number; resetDate: string };
   batchJobs: { limit: number; used: number; remaining: number };
   apiKeys: { limit: number; used: number; remaining: number };
-  teamMembers: { limit: number; used: number; remaining: number };
+  /** Null limit: nothing bounds the workspace as a whole. */
+  teamMembers: { limit: number | null; used: number; remaining: number | null };
 }
 
 interface UsageStats {
@@ -109,8 +110,14 @@ function QuotasPageInner() {
       },
       {
         label: "Team Members",
-        value: `${quotas.teamMembers.used} / ${quotas.teamMembers.limit}`,
-        sub: `${quotas.teamMembers.remaining} remaining`,
+        value:
+          quotas.teamMembers.limit === null
+            ? String(quotas.teamMembers.used)
+            : `${quotas.teamMembers.used} / ${quotas.teamMembers.limit}`,
+        sub:
+          quotas.teamMembers.limit === null
+            ? "No workspace-wide limit"
+            : `${quotas.teamMembers.remaining} remaining`,
         color: "#c3ebe2",
       },
     ];
@@ -139,9 +146,9 @@ function QuotasPageInner() {
         color: "#dcc0a5",
       },
       {
-        label: "Average Per Analysis",
+        label: "Estimated Per Analysis",
         value: `$${stats.costBreakdown.averagePerAnalysis.toFixed(4)}`,
-        sub: "Average AI analysis cost",
+        sub: "A fixed list rate, not a measured cost",
         color: "#c3ebe2",
       },
     ];
@@ -426,6 +433,10 @@ function QuotasPageInner() {
 
                 <div className="relative z-10 p-6 md:p-7">
                   <div className="dashboard-quotas-card-title">Current Quotas</div>
+                  <p style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }} data-testid="quotas-indicative-note">
+                    Team members follow your plan or contract. The other figures
+                    are indicative: Billing shows what your plan includes.
+                  </p>
 
                   <div className="dashboard-quotas-bar-stack">
                     {renderQuotaBar(
@@ -449,11 +460,11 @@ function QuotasPageInner() {
                       quotas.apiKeys.remaining
                     )}
 
-                    {renderQuotaBar(
+                    {quotas.teamMembers.limit === null ? null : renderQuotaBar(
                       "Team Members",
                       quotas.teamMembers.used,
                       quotas.teamMembers.limit,
-                      quotas.teamMembers.remaining
+                      quotas.teamMembers.remaining ?? 0
                     )}
 
                     <div className="dashboard-quotas-reset-row">

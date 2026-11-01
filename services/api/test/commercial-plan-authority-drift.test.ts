@@ -66,7 +66,7 @@ const ALLOWED_BILLING_PLAN_READERS: ReadonlyArray<{
     reason: "Passes the column into `resolveWorkspaceKind` — classification, not a plan.",
   },
   {
-    file: "routes/external-portal.routes.ts",
+    file: "services/workspace/operating-workspace.ts",
     base: "api",
     reason: "Passes the column into `resolveWorkspaceKind` — classification, not a plan.",
   },
