@@ -174,11 +174,12 @@ describe("SLA cron route — production fail-closed", () => {
     expect(src).toMatch(/skippedCompleted/);
     expect(src).toMatch(/skippedPaused/);
     expect(src).toMatch(/flippedBreached/);
-    // Already-BREACHED rows are excluded by the WHERE clause so the
-    // sweep is idempotent.
-    expect(src).toMatch(/slaStatus:\s*\{\s*in:\s*\[/);
+    // A row whose status already matches is passed over, so the breach event
+    // and email fire once, on the move into BREACHED. BREACHED rows stay
+    // eligible so a moved date can bring them back.
+    expect(src).toMatch(/computed === wf\.slaStatus\) continue/);
     // Closed / terminal workflows are excluded too.
-    expect(src).toMatch(/notIn:\s*\["CLOSED"/);
+    expect(src).toMatch(/status: \{ notIn: \[\.\.\.REVIEW_FINISHED_DB_STATUSES\] \}/);
   });
 });
 

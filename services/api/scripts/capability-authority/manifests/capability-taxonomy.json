@@ -5963,6 +5963,12 @@
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
+      "capabilityId": "POST:/v1/reviewer-ops/reviews/:workflowId/resume",
+      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/resume",
+      "vertical": "EVIDENCE_OPERATIONS",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
       "capabilityId": "POST:/v1/reviewer-ops/reviews/:workflowId/reassign",
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
       "vertical": "EVIDENCE_OPERATIONS",

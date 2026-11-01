@@ -1779,6 +1779,9 @@ model EvidenceReviewWorkflow {
   // reviewer-ops can score the four dimensions independently.
   assignmentDueAtUtc DateTime? @map("assignment_due_at_utc") @db.Timestamptz(6)
   completionDueAtUtc DateTime? @map("completion_due_at_utc") @db.Timestamptz(6)
+  // WORKFLOW-007 — the due-soon window stamped with these deadlines, so the
+  // queue, the badge and the reminders read one number for this review.
+  slaDueSoonHours    Int?      @map("sla_due_soon_hours")
   // Operator-readable reason a workflow is paused (legal hold, awaiting
   // contributor response, etc). Never carries internal legal text — the
   // service truncates to 400 chars and forbids overclaim wording.

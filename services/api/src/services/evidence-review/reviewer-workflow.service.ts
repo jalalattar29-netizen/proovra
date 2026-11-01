@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { stampReviewDeadlines } from "../reviewer-ops/review-sla-stamp.service.js";
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../../db.js";
 import { classifyReviewWorkflowEvent } from "@proovra/shared";
@@ -348,6 +349,12 @@ export async function upsertEvidenceReviewerWorkflow(params: {
               : existing.assignedToUserId,
           assignedByUserId:
             params.assignedToUserId !== undefined ? params.actorUserId : existing.assignedByUserId,
+          // Without this a PATCH assignment looked unassigned to the SLA engine.
+          ...(params.assignedToUserId && params.assignedToUserId !== existing.assignedToUserId
+            ? existing.assignedToUserId
+              ? { reassignedAtUtc: new Date() }
+              : { assignedAtUtc: new Date() }
+            : {}),
           status: nextStatus,
           priority: nextPriority,
           dueAt: params.dueAt !== undefined ? params.dueAt : existing.dueAt,
@@ -369,6 +376,15 @@ export async function upsertEvidenceReviewerWorkflow(params: {
         });
       }
       workflow = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: existing.id } });
+      // Naming a reviewer here is an assignment like the console's: it starts the
+      // same clock (WORKFLOW-006).
+      if (params.assignedToUserId && params.assignedToUserId !== existing.assignedToUserId) {
+        workflow = await stampReviewDeadlines(
+          workflow,
+          { requireStatedPolicy: false, source: "assignment", actorUserId: params.actorUserId },
+          tx as unknown as prismaPkg.PrismaClient,
+        );
+      }
     } else {
       workflow = await tx.evidenceReviewWorkflow.create({
         data: {
@@ -377,6 +393,7 @@ export async function upsertEvidenceReviewerWorkflow(params: {
           teamId: params.teamId ?? null,
           assignedToUserId: params.assignedToUserId ?? null,
           assignedByUserId: params.assignedToUserId ? params.actorUserId : null,
+          assignedAtUtc: params.assignedToUserId ? new Date() : null,
           status: nextStatus,
           priority: nextPriority,
           dueAt: params.dueAt ?? null,
@@ -391,6 +408,14 @@ export async function upsertEvidenceReviewerWorkflow(params: {
           ...trioColumns,
         },
       });
+      // Every record reaches review through this write (WORKFLOW-006).
+      workflow = await stampReviewDeadlines(
+        workflow,
+        params.assignedToUserId
+          ? { requireStatedPolicy: false, source: "assignment", actorUserId: params.actorUserId }
+          : { requireStatedPolicy: true, source: "capture_policy" },
+        tx as unknown as prismaPkg.PrismaClient,
+      );
     }
 
     const event = (

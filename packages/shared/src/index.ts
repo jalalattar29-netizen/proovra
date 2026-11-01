@@ -1156,6 +1156,7 @@ export {
 // Phase 25 — stuck workflow detection (pure deterministic).
 export {
   detectStuckWorkflow,
+  stuckStatusFromDbStatus,
   STUCK_REASON_CODES,
   STUCK_SUBMITTED_THRESHOLD_MS,
   STUCK_ASSIGNED_NEVER_OPENED_THRESHOLD_MS,
@@ -1604,6 +1605,11 @@ export {
   ReviewerOpsSlaStateSchema,
   computeReviewerCapacityScore,
   computeReviewerOpsSlaSnapshot,
+  isReviewOpenDbStatus,
+  REVIEW_FINISHED_DB_STATUSES,
+  reviewRowHasDeadline,
+  reviewSlaInputFromRow,
+  storedReviewSlaStatus,
   deriveLifecycleState,
   isAllowedEscalationStatusTransition,
   isAllowedLifecycleTransition,

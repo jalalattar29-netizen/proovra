@@ -34,6 +34,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
 
 // -----------------------------------------------------------------------------
 // Projection
@@ -243,15 +244,19 @@ export async function sweepDueSoonReminders(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReminderSweepResult> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 200, 1), 1000);
+  const cursorKey = `reviewer_due_soon:${input.teamId}`;
+  const cursor = await readSweepCursor(client, cursorKey);
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: {
       teamId: input.teamId,
+      ...afterCursor(cursor),
       slaStatus: "DUE_SOON",
       assignedToUserId: { not: null },
       status: {
         notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
       },
     },
+    orderBy: { id: "asc" },
     take: batchSize,
     select: {
       id: true,
@@ -259,6 +264,11 @@ export async function sweepDueSoonReminders(
       priority: true,
       dueAt: true,
     },
+  });
+  await advanceSweepCursor(client, cursorKey, cursor, {
+    lastId: rows.at(-1)?.id ?? null,
+    pageSize: rows.length,
+    limit: batchSize,
   });
   let scheduled = 0;
   let duplicates = 0;
@@ -285,9 +295,12 @@ export async function sweepInactivityReminders(
 ): Promise<ReminderSweepResult> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 200, 1), 1000);
   const cutoff = new Date(Date.now() - input.thresholdHours * 3600_000);
+  const cursorKey = `reviewer_inactive:${input.teamId}`;
+  const cursor = await readSweepCursor(client, cursorKey);
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: {
       teamId: input.teamId,
+      ...afterCursor(cursor),
       assignedToUserId: { not: null },
       status: {
         notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
@@ -297,6 +310,7 @@ export async function sweepInactivityReminders(
         { lastReviewedAt: null, assignedAtUtc: { lte: cutoff } },
       ],
     },
+    orderBy: { id: "asc" },
     take: batchSize,
     select: {
       id: true,
@@ -304,6 +318,11 @@ export async function sweepInactivityReminders(
       assignedAtUtc: true,
       lastReviewedAt: true,
     },
+  });
+  await advanceSweepCursor(client, cursorKey, cursor, {
+    lastId: rows.at(-1)?.id ?? null,
+    pageSize: rows.length,
+    limit: batchSize,
   });
   let scheduled = 0;
   let duplicates = 0;
