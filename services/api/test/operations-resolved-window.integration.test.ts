@@ -117,7 +117,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
     const justBefore = await seedIncident(c, teamId, { status: "RESOLVED" });
     await setTimes(at.id, { resolvedAtUtc: since });
     await setTimes(justBefore.id, { resolvedAtUtc: new Date(since.getTime() - 1) });
-    const page = await listIncidents({ teamId, resolvedSince: since, limit: 500 });
+    const page = await listIncidents({ incidentReach: {}, teamId, resolvedSince: since, limit: 500 });
     const ids = page.incidents.map((i) => i.id);
     expect(ids).toContain(at.id);
     expect(ids).not.toContain(justBefore.id);
@@ -134,11 +134,11 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
   it("paging through the window one row at a time returns every condition exactly once (stable keyset pagination)", async () => {
     const { listIncidents } = await import("../src/services/observability/incident.service.js");
     const since = new Date(Date.now() - 7 * DAY);
-    const all = (await listIncidents({ teamId, resolvedSince: since, limit: 500 })).incidents.map((i) => i.id);
+    const all = (await listIncidents({ incidentReach: {}, teamId, resolvedSince: since, limit: 500 })).incidents.map((i) => i.id);
     const paged: string[] = [];
     let cursor: string | null = null;
     for (let guard = 0; guard < 50; guard += 1) {
-      const page = await listIncidents({ teamId, resolvedSince: since, limit: 1, cursor });
+      const page = await listIncidents({ incidentReach: {}, teamId, resolvedSince: since, limit: 1, cursor });
       paged.push(...page.incidents.map((i) => i.id));
       if (!page.nextCursor) break;
       cursor = page.nextCursor;
@@ -245,7 +245,7 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
         return typeof v === "function" ? v.bind(target) : v;
       },
     });
-    const degraded = await buildOperationsSummary({ workspaceId: teamId, viewerUserId: null } as never, failingCount as never);
+    const degraded = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: teamId, viewerUserId: null } as never, failingCount as never);
     expect(degraded.resolved).toBeNull();
     expect(degraded.open).toBeGreaterThan(0);
   });

@@ -424,7 +424,7 @@ describe("Operations convergence recovery, across workspace kinds (live PostgreS
       const run = await reconcile(ctx.teamId);
       expect(run.readiness, ctx.label).toBe("READY");
 
-      const built = await summary.buildOperationsSummary({
+      const built = await summary.buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } },
         workspaceId: ctx.teamId,
         viewerUserId: ctx.ownerUserId,
       });

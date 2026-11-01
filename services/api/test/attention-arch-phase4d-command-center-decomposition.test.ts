@@ -136,7 +136,7 @@ describe("Phase 4D.1 — Command Center projects Operations, never computes it",
 
   it("reads the canonical summary for its counts", () => {
     const body = pressureBody();
-    expect(body).toContain("buildOperationsSummary({ workspaceId: teamId })");
+    expect(body).toContain("buildOperationsSummary({ workspaceId: teamId, reach })");
     // The counts are the summary's own, through one helper that refuses to
     // turn an unknown (null) count into a zero.
     expect(body).toContain("counts: knownCounts(summary)");

@@ -27,6 +27,12 @@ import { prisma } from "../../db.js";
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
+import {
+  evidenceIdInReach,
+  holdInReach,
+  incidentInReach,
+  viewerReachInWorkspace,
+} from "../access/record-reach.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
@@ -165,7 +171,10 @@ export async function buildGovernanceControlPlane(input: {
   // Named `evidenceScope` because `scope` in this module already means the
   // SINGLE_OCCUPANT/SHARED display density, and one name for two facts is
   // how the wrong one gets passed.
-  const evidenceScope = await workspaceEvidenceWhere(input.teamId, prisma);
+  // Every count and list below obeys the reader's reach (GOV-017, AUTHZ-002): a
+  // closed record's hold, review or incident is not shown or counted for them.
+  const reach = await viewerReachInWorkspace(input.teamId, input.userId);
+  const evidenceScope = { AND: [await workspaceEvidenceWhere(input.teamId, prisma), reach.evidence] };
   const memberCount = await prisma.teamMember.count({
     where: { teamId: input.teamId, status: "ACTIVE" },
   });
@@ -190,7 +199,7 @@ export async function buildGovernanceControlPlane(input: {
         select: { id: true },
       }),
       prisma.evidenceLegalHold.count({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+        where: { teamId: input.teamId, status: "ACTIVE", AND: holdInReach(reach) },
       }),
       /*
        * "Candidates" is the narrower set: proposed and not yet picked up.
@@ -206,6 +215,7 @@ export async function buildGovernanceControlPlane(input: {
         .count({
           where: {
             teamId: input.teamId,
+            ...evidenceIdInReach(reach),
             status: { in: [...DESTRUCTION_REVIEW_PROPOSED] },
           },
         })
@@ -214,6 +224,7 @@ export async function buildGovernanceControlPlane(input: {
         .count({
           where: {
             teamId: input.teamId,
+            ...evidenceIdInReach(reach),
             status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] },
           },
         })
@@ -231,7 +242,7 @@ export async function buildGovernanceControlPlane(input: {
     try {
       activeCaseLegalHoldsCount = await prisma.evidenceLegalHold.count({
         // P12.3 canonical-only (scope='CASE').
-        where: { scope: "CASE", teamId: input.teamId, status: "ACTIVE" },
+        where: { scope: "CASE", teamId: input.teamId, status: "ACTIVE", AND: holdInReach(reach) },
       });
     } catch (err) {
       if (isPrismaTableOrColumnMissing(err)) {
@@ -283,7 +294,7 @@ export async function buildGovernanceControlPlane(input: {
       // preservation section (`caseHolds` is the other half). Explicit scope
       // keeps a nullable target from widening it into every hold in the
       // workspace.
-      where: { teamId: input.teamId, scope: "EVIDENCE", historical: false },
+      where: { teamId: input.teamId, scope: "EVIDENCE", historical: false, AND: holdInReach(reach) },
       orderBy: { placedAtUtc: "desc" },
       take: HOLDS_LIMIT,
       select: {
@@ -314,7 +325,7 @@ export async function buildGovernanceControlPlane(input: {
   try {
     const rows = await prisma.evidenceLegalHold.findMany({
       // P12.3 canonical-only (scope='CASE').
-      where: { scope: "CASE", teamId: input.teamId },
+      where: { scope: "CASE", teamId: input.teamId, AND: holdInReach(reach) },
       orderBy: { placedAtUtc: "desc" },
       take: HOLDS_LIMIT,
       select: {
@@ -368,6 +379,7 @@ export async function buildGovernanceControlPlane(input: {
       // zero beside it and looked entirely consistent while being wrong.
       where: {
         teamId: input.teamId,
+            ...evidenceIdInReach(reach),
         status: { in: [...DESTRUCTION_REVIEW_PROPOSED] },
       },
       orderBy: { createdAt: "desc" },
@@ -397,6 +409,7 @@ export async function buildGovernanceControlPlane(input: {
       // either number alone.
       where: {
         teamId: input.teamId,
+            ...evidenceIdInReach(reach),
         status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] },
       },
       orderBy: { createdAt: "desc" },
@@ -547,6 +560,7 @@ export async function buildGovernanceControlPlane(input: {
         // `ON DELETE SET NULL`, the same arm returned every other tenant's
         // orphans into this workspace's read.
         ...workspaceIncidentWhere(input.teamId),
+        ...incidentInReach(reach),
         status: { in: ["OPEN", "ACKNOWLEDGED"] },
         category: { in: ["GOVERNANCE", "PACKAGE", "REPORT"] },
       },

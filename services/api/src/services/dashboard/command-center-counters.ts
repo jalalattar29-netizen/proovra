@@ -53,6 +53,7 @@ export {
 } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
+import { evidenceIdInReach, incidentInReach, type ViewerReach } from "../access/record-reach.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import type { OwedOutputEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
@@ -128,6 +129,7 @@ const toNumber = (v: bigint | number | null | undefined): number =>
 export async function loadReviewQueueCounters(
   teamId: string,
   window: ReviewQueueWindow,
+  reach: ViewerReach,
 ): Promise<ReviewQueueCounters> {
   const openList = [...OPEN_REVIEW_STATUSES];
 
@@ -135,7 +137,7 @@ export async function loadReviewQueueCounters(
     // 1. Every status-only counter, in one trip.
     prisma.evidenceReviewWorkflow.groupBy({
       by: ["status"],
-      where: { teamId },
+      where: { teamId, ...evidenceIdInReach(reach) },
       _count: { _all: true },
     }),
     /*
@@ -170,9 +172,12 @@ export async function loadReviewQueueCounters(
         ) AS closed_prev_7d
       FROM "public"."evidence_review_workflows"
       WHERE "team_id" = ${teamId}::uuid
+        AND NOT ("evidence_id" = ANY(${reach.hidden.evidenceIds}::uuid[]))
     `,
     // Counted once for the two engines that both reported it.
-    prisma.reviewEscalation.count({ where: { teamId, status: "OPEN" } }),
+    prisma.reviewEscalation.count({
+      where: { teamId, status: "OPEN", workflow: { evidence: reach.evidence } },
+    }),
   ]);
 
   const counts = new Map<string, number>();
@@ -439,6 +444,7 @@ export type OperationsCounters = {
 
 export async function loadOperationsCounters(
   teamId: string,
+  reach: ViewerReach,
   now: Date = new Date(),
 ): Promise<OperationsCounters> {
   const escalationSince = new Date(
@@ -450,20 +456,29 @@ export async function loadOperationsCounters(
         by: ["category"],
         where: {
           ...workspaceIncidentWhere(teamId),
+          ...incidentInReach(reach),
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
         },
         _count: { _all: true },
       })
       .catch(() => []),
     prisma.destructionReview
-      .groupBy({ by: ["status"], where: { teamId }, _count: { _all: true } })
+      .groupBy({
+        by: ["status"],
+        where: { teamId, ...evidenceIdInReach(reach) },
+        _count: { _all: true },
+      })
       .catch(() => []),
     prisma.reviewEscalation
-      .groupBy({ by: ["status"], where: { teamId }, _count: { _all: true } })
+      .groupBy({
+        by: ["status"],
+        where: { teamId, workflow: { evidence: reach.evidence } },
+        _count: { _all: true },
+      })
       .catch(() => []),
     prisma.reviewEscalation
       .findMany({
-        where: { teamId, createdAt: { gte: escalationSince } },
+        where: { teamId, createdAt: { gte: escalationSince }, workflow: { evidence: reach.evidence } },
         orderBy: { createdAt: "desc" },
         take: RECENT_ESCALATION_LIMIT,
         select: {

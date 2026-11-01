@@ -170,7 +170,7 @@ describe("Phase HOME-RECORDS-BY-TYPE — route registration", () => {
     );
     expect(handlerSlice).toMatch(/if\s*\(!member\)\s*return/);
     expect(handlerSlice).toMatch(
-      /buildRecordsByType\(\{\s*teamId:\s*query\.teamId\s*\}\)/,
+      /buildRecordsByType\(\{\s*teamId:\s*query\.teamId,\s*userId:\s*member\.userId\s*\}\)/,
     );
   });
 });

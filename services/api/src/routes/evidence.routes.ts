@@ -10602,7 +10602,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           artifactStatus,
         });
         const reviewerWorkflowSummary = await getEvidenceReviewerWorkflowSummary(id);
-        const relationshipItems = await listEvidenceRelationships(id, userId);
+        const relationshipItems = await listEvidenceRelationships(id, ownerUserId);
         const artifactHistory = await listEvidenceArtifacts(id);
         const governance = buildEvidenceReviewGovernance();
         const reviewerAudit = await listReviewerAuditEvents(id);

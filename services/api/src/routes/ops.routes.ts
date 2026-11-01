@@ -40,6 +40,7 @@ import {
   getFeatureSnapshot,
 } from "../config/index.js";
 import { prisma } from "../db.js";
+import { incidentInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
 import { ensureWorkspaceOperationsFresh } from "../services/operations/operations-reconciliation.service.js";
 import { checkWriterSchemaContract } from "../services/operations/operations-writer-readiness.js";
@@ -1095,6 +1096,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const summary = await buildOperationsSummary({
         workspaceId: q.teamId,
         viewerUserId: actor.userId,
+        reach: await viewerReachInWorkspace(q.teamId, actor.userId),
       });
       // ======================================================================
       // WHY A COUNT OF OPERATORS TRAVELS WITH THE SUMMARY
@@ -1176,7 +1178,11 @@ export async function opsRoutes(app: FastifyInstance) {
           notReadable += 1;
           continue;
         }
-        const summary = await buildOperationsSummary({ workspaceId: team.id, viewerUserId: userId });
+        const summary = await buildOperationsSummary({
+          workspaceId: team.id,
+          viewerUserId: userId,
+          reach: await viewerReachInWorkspace(team.id, userId),
+        });
         const coverage: "KNOWN" | "UNKNOWN" | "PARTIAL" =
           summary.open === null ? "UNKNOWN" : summary.complete ? "KNOWN" : "PARTIAL";
         workspaces.push({
@@ -1483,6 +1489,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const slaNowForFilter = new Date();
       const page = await listIncidents({
         teamId: q.teamId,
+        incidentReach: incidentInReach(await viewerReachInWorkspace(q.teamId, actor.userId)),
         sla: q.sla ?? null,
         now: slaNowForFilter,
         status: q.status as never,
@@ -1660,9 +1667,11 @@ export async function opsRoutes(app: FastifyInstance) {
       const scanned: Array<Awaited<ReturnType<typeof listIncidents>>["incidents"][number]> = [];
       let cursor: string | null = null;
       let exhausted = false;
+      const incidentReach = incidentInReach(await viewerReachInWorkspace(q.teamId, actor.userId));
       while (scanned.length < GROUPED_SCAN_BOUND) {
         const chunk = await listIncidents({
           teamId: q.teamId,
+          incidentReach,
           sla: q.sla ?? null,
           now,
           resolvedSince,

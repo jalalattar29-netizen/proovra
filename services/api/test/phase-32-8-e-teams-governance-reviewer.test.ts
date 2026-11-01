@@ -394,12 +394,10 @@ describe("Phase 32.8E — enterprise aggregator routes", () => {
     expect(ROUTES).not.toMatch(/app\.patch\(/);
   });
 
-  it("workspace-membership gate uses 404-on-non-member, 403-on-inactive", () => {
-    expect(ROUTES).toMatch(/requireWorkspaceMember\(/);
-    expect(ROUTES).toMatch(
-      /code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"/,
-    );
-    expect(ROUTES).toMatch(/membership\.status\s*!==\s*"ACTIVE"/);
+  it("both aggregators answer to the canonical engine and a named permission (AUTHZ-003)", () => {
+    expect(ROUTES).toMatch(/authorizeWorkspaceOrFail\(req, reply, \{[\s\S]*?permission: "identity\.member\.read"/);
+    expect(ROUTES).toMatch(/authorizeWorkspaceOrFail\(req, reply, \{[\s\S]*?permission: "governance\.policy\.read"/);
+    expect(ROUTES).not.toMatch(/teamMember\.find/);
   });
 
   it("server registers the enterprise aggregator routes", () => {

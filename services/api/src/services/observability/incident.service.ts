@@ -1753,6 +1753,8 @@ export type ListIncidentsInput = {
   /** Injectable clock, so the predicate is testable against fixed instants. */
   now?: Date;
   teamId: string;
+  /** `incidentInReach` for the reader. Required, so a list cannot forget it. */
+  incidentReach: prismaPkg.Prisma.OperationalIncidentWhereInput;
   /**
    * One value of the status FILTER vocabulary (`INCIDENT_STATUS_FILTERS`).
    * Omitted means UNRESOLVED — the canonical open/acknowledged/suppressed set —
@@ -1945,6 +1947,7 @@ export async function listIncidents(
       // incident and an unclassified orphan are both outside this list by
       // construction rather than by a filter somebody has to remember.
       ...workspaceIncidentWhere(input.teamId),
+      AND: [input.incidentReach],
       ...slaWhere(input.sla ?? null, input.now ?? new Date()),
       ...(input.resolvedSince
         ? { status: prismaPkg.IncidentStatus.RESOLVED, resolvedAtUtc: { gte: input.resolvedSince } }

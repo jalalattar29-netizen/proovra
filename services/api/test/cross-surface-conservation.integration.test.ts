@@ -105,7 +105,7 @@ describe("Cross-surface conservation (live PostgreSQL 16)", () => {
     const { buildOperationsSummary } = await import(
       "../src/services/operations/operations-summary.service.js"
     );
-    const summary = await buildOperationsSummary({
+    const summary = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } },
       workspaceId: personal.teamId,
     });
 
@@ -121,8 +121,8 @@ describe("Cross-surface conservation (live PostgreSQL 16)", () => {
     const { buildOperationsSummary } = await import(
       "../src/services/operations/operations-summary.service.js"
     );
-    const a = await buildOperationsSummary({ workspaceId: personal.teamId });
-    const b = await buildOperationsSummary({ workspaceId: personal.teamId });
+    const a = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: personal.teamId });
+    const b = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: personal.teamId });
     // Two reads of one authority agree. Two AUTHORITIES would not have to.
     expect(b.open).toBe(a.open);
     expect(b.critical).toBe(a.critical);
@@ -136,7 +136,7 @@ describe("Cross-surface conservation (live PostgreSQL 16)", () => {
     const { buildOperationsSummary } = await import(
       "../src/services/operations/operations-summary.service.js"
     );
-    const before = await buildOperationsSummary({ workspaceId: personal.teamId });
+    const before = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: personal.teamId });
 
     await prisma.inboxItemState.create({
       data: {
@@ -148,7 +148,7 @@ describe("Cross-surface conservation (live PostgreSQL 16)", () => {
       },
     });
 
-    const after = await buildOperationsSummary({ workspaceId: personal.teamId });
+    const after = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: personal.teamId });
     expect(after.open).toBe(before.open);
     expect(after.mayAssertAllClear).toBe(before.mayAssertAllClear);
   });

@@ -66,6 +66,54 @@ export async function hiddenRecordIdsInWorkspace(
   return { caseIds: cases.map((c) => c.id), evidenceIds: evidence.map((e) => e.id) };
 }
 
+/**
+ * One caller's reach inside one workspace, for a surface that reads many
+ * models: relation filters where a relation exists, id lists where it does not.
+ * Every piece is `case-visibility.ts`; none of it is a separate rule.
+ */
+export type ViewerReach = {
+  evidence: Prisma.EvidenceWhereInput;
+  cases: Prisma.CaseWhereInput;
+  hidden: HiddenRecordIds;
+};
+
+export async function viewerReachInWorkspace(
+  workspaceId: string,
+  callerUserId: string | null,
+  client: HiddenRecordClient = defaultPrisma,
+): Promise<ViewerReach> {
+  return {
+    evidence: evidenceVisibleThroughCasesWhere(callerUserId),
+    cases: caseVisibleToWhere(callerUserId),
+    hidden: await hiddenRecordIdsInWorkspace(workspaceId, callerUserId, client),
+  };
+}
+
+/** An id column may be NULL, and `NOT IN` drops NULL rows: keep them explicitly. */
+function nullableNotIn<K extends string>(column: K, ids: string[]) {
+  return ids.length === 0
+    ? []
+    : [{ OR: [{ [column]: null }, { [column]: { notIn: ids } }] }];
+}
+
+/** An operational incident that names a closed record is that record's row. */
+export function incidentInReach(reach: ViewerReach): Prisma.OperationalIncidentWhereInput {
+  return { AND: nullableNotIn("relatedEvidenceId", reach.hidden.evidenceIds) };
+}
+
+/** A legal hold names a record or a case; either may be closed to the caller. */
+export function holdInReach(reach: ViewerReach): Prisma.EvidenceLegalHoldWhereInput[] {
+  return [
+    ...nullableNotIn("evidenceId", reach.hidden.evidenceIds),
+    ...nullableNotIn("caseId", reach.hidden.caseIds),
+  ];
+}
+
+/** For a row whose evidence id is required and has no relation. */
+export function evidenceIdInReach(reach: ViewerReach): { evidenceId?: { notIn: string[] } } {
+  return reach.hidden.evidenceIds.length > 0 ? { evidenceId: { notIn: reach.hidden.evidenceIds } } : {};
+}
+
 export async function accessibleWorkspaceIdsFor(
   userId: string,
   client: PrismaClient = defaultPrisma,

@@ -167,7 +167,7 @@ describe("Operations remediation closure (live PostgreSQL 16)", () => {
         return Reflect.get(target, prop);
       },
     });
-    const s = await summary.buildOperationsSummary({ workspaceId: teamId, viewerUserId: owner.id }, broken as never);
+    const s = await summary.buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: teamId, viewerUserId: owner.id }, broken as never);
     expect(s.complete).toBe(false);
     expect(s.incompleteReason).toBe("SOURCE_FAILED");
     for (const k of ["open", "critical", "high", "warning", "info", "acknowledged", "assignedToMe", "unassigned", "slaBreached", "slaAtRisk", "resolved"] as const) {

@@ -36,6 +36,8 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
   let prisma: Prisma;
   let signJwt: typeof import("../src/services/jwt.js").signJwt;
   let legalVersions: Record<string, string>;
+  let dashboardCounters: typeof import("../src/services/dashboard/command-center-counters.js");
+  let reachModule: typeof import("../src/services/access/record-reach.js");
   const A = () => h.fixtures.teamA;
 
   let listed: Person;
@@ -110,6 +112,8 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
     ({ prisma } = await import("../src/db.js"));
     ({ signJwt } = await import("../src/services/jwt.js"));
     ({ REQUIRED_LEGAL_VERSIONS: legalVersions } = (await import("../src/legal/legal-versioning.js")) as never);
+    dashboardCounters = await import("../src/services/dashboard/command-center-counters.js");
+    reachModule = await import("../src/services/access/record-reach.js");
     await prisma.team.updateMany({
       where: { id: A().teamId },
       data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" },
@@ -532,6 +536,166 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
       expect(offList.statusCode, offList.body).toBe(200);
       expect(offList.body).not.toContain(title);
       expect((await get(`/v1/cases/${openCaseId}/discussion-threads`, listed)).body).toContain(title);
+    });
+  });
+
+  // ===========================================================================
+  // AUTHZ-002 / EVID-019 — dashboards and their counters
+  // ===========================================================================
+  describe("dashboards: names and counters agree with what the viewer can open", () => {
+    it("the command center names nothing closed, for MEMBER, VIEWER and ADMIN", async () => {
+      for (const who of [off, offViewer, offAdmin]) {
+        const r = await get(`/v1/dashboard/command-center?${teamQ()}`, who);
+        expect(r.statusCode, r.body).toBe(200);
+
+        absent(r.body);
+      }
+      const mine = await get(`/v1/dashboard/command-center?${teamQ()}`, listed);
+      expect(mine.statusCode).toBe(200);
+      expect(mine.body).toContain(RESTRICTED_NAME);
+    });
+
+    it("a review of a closed record is not counted for an off-list viewer", async () => {
+      await prisma.evidenceReviewWorkflow.create({
+        data: { evidenceId: hiddenId, teamId: A().teamId, workspaceType: "TEAM", status: "IN_REVIEW" } as never,
+      });
+      const counts = async (who: Person) => {
+        const body = (await get(`/v1/dashboard/command-center?${teamQ()}`, who)).json() as {
+          sections: { queueWorkerTelemetry?: unknown };
+        };
+        return JSON.stringify(body.sections);
+      };
+      await counts(listed);
+      const { loadReviewQueueCounters, reviewQueueWindow } = dashboardCounters;
+      const { viewerReachInWorkspace } = reachModule;
+      const window = reviewQueueWindow();
+      const theirs = await loadReviewQueueCounters(A().teamId, window, await viewerReachInWorkspace(A().teamId, off.id));
+      const mine = await loadReviewQueueCounters(A().teamId, window, await viewerReachInWorkspace(A().teamId, listed.id));
+      expect(mine.inStatus(["IN_REVIEW"])).toBe(theirs.inStatus(["IN_REVIEW"]) + 1);
+    });
+
+    it("trust summary and records by type total what the Evidence list holds for the viewer", async () => {
+      const mine = (await get(`/v1/dashboard/trust-summary?${teamQ()}`, listed)).json() as { totalEvidence: number };
+      const theirs = (await get(`/v1/dashboard/trust-summary?${teamQ()}`, off)).json() as { totalEvidence: number };
+      expect(theirs.totalEvidence).toBe(mine.totalEvidence - 2);
+      const byTypeMine = await get(`/v1/dashboard/records-by-type?${teamQ()}`, listed);
+      const byTypeTheirs = await get(`/v1/dashboard/records-by-type?${teamQ()}`, off);
+      expect(byTypeMine.statusCode).toBe(200);
+      const sum = (r: { json: () => unknown }) =>
+        JSON.stringify((r.json() as { records: unknown }).records);
+      expect(sum(byTypeMine)).not.toBe(sum(byTypeTheirs));
+    });
+
+    it("workspace admin counts exclude what the viewer cannot open", async () => {
+      const count = async (who: Person) =>
+        (
+          (await get(`/v1/teams/workspace-admin?${teamQ()}`, who)).json() as {
+            sections: { overview: { data: { caseCount: number; evidenceCount: number } } };
+          }
+        ).sections.overview.data;
+      const mine = await count(listed);
+      const theirs = await count(off);
+      expect(theirs.caseCount).toBe(mine.caseCount - 1);
+      expect(theirs.evidenceCount).toBe(mine.evidenceCount - 2);
+    });
+
+    it("a hold on a closed record is absent from the control plane; present for the listed member", async () => {
+      await prisma.evidenceLegalHold.create({
+        data: {
+          teamId: A().teamId,
+          evidenceId: hiddenId,
+          scope: "EVIDENCE",
+          status: "ACTIVE",
+          title: "hold",
+          reason: `sentinel-hold-${tag()}`,
+          placedByUserId: A().ownerUserId,
+        } as never,
+      });
+      const theirs = await get(`/v1/governance/control-plane?${teamQ()}`, offAdmin);
+      expect(theirs.statusCode, theirs.body).toBe(200);
+      absent(theirs.body);
+      expect((await get(`/v1/governance/control-plane?${teamQ()}`, listed)).body).toContain(hiddenId);
+    });
+  });
+
+  // ===========================================================================
+  // AUTHZ-003 — the hand-written membership gates
+  // ===========================================================================
+  describe("AUTHZ-003: the aggregators answer to the canonical engine", () => {
+    it("an expired member is refused on every one of them", async () => {
+      const expired = await person("MEMBER");
+      await prisma.teamMember.update({
+        where: { teamId_userId: { teamId: A().teamId, userId: expired.id } },
+        data: { accessExpiresAtUtc: new Date(Date.now() - 60_000) },
+      });
+      for (const url of [
+        `/v1/dashboard/command-center?${teamQ()}`,
+        `/v1/dashboard/trust-summary?${teamQ()}`,
+        `/v1/dashboard/records-by-type?${teamQ()}`,
+        `/v1/dashboard/org-health?${teamQ()}`,
+        `/v1/reviewer/routing-recommendations?${teamQ()}`,
+        `/v1/teams/workspace-admin?${teamQ()}`,
+        `/v1/governance/control-plane?${teamQ()}`,
+      ]) {
+        const r = await get(url, expired);
+        expect(r.statusCode, `${url}: ${r.body}`).toBe(404);
+      }
+    });
+
+    it("a member of a suspended organization is refused on Home", async () => {
+      const t = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
+      if (!t.organizationId) return;
+      const org = await prisma.organization.findUniqueOrThrow({ where: { id: t.organizationId }, select: { status: true } });
+      await prisma.organization.update({ where: { id: t.organizationId }, data: { status: "SUSPENDED" } as never });
+      try {
+        const r = await get(`/v1/dashboard/command-center?${teamQ()}`, off);
+        expect(r.statusCode, r.body).toBe(404);
+      } finally {
+        await prisma.organization.update({ where: { id: t.organizationId }, data: { status: org.status } as never });
+      }
+    });
+  });
+
+  // ===========================================================================
+  // AUTHZ-004 — aggregators and contact data
+  // ===========================================================================
+  describe("AUTHZ-004: contact data and security data", () => {
+    it("a non-admin reads no member or invitee address; an ADMIN does", async () => {
+      const inviteEmail = `invitee-${tag()}@test.proovra.local`;
+      await prisma.teamInvite.create({
+        data: {
+          teamId: A().teamId,
+          email: inviteEmail,
+          role: "MEMBER",
+          tokenHash: randomUUID(),
+          expiresAt: new Date(Date.now() + 86_400_000),
+          invitedByUserId: A().ownerUserId,
+        } as never,
+      });
+      for (const who of [off, offViewer]) {
+        const r = await get(`/v1/teams/workspace-admin?${teamQ()}`, who);
+        expect(r.statusCode, r.body).toBe(200);
+        expect(r.body).not.toContain("@test.proovra.local");
+        expect(r.body).not.toContain(inviteEmail);
+      }
+      const admin = await get(`/v1/teams/workspace-admin?${teamQ()}`, offAdmin);
+      expect(admin.body).toContain(inviteEmail);
+      expect(admin.body).toContain("@test.proovra.local");
+    });
+
+    it("access anomalies need audit.read: VIEWER 403, ADMIN 200", async () => {
+      const refused = await get(`/v1/security-center/access-anomalies?${teamQ()}`, offViewer);
+      expect(refused.statusCode, refused.body).toBe(403);
+      const allowed = await get(`/v1/security-center/access-anomalies?${teamQ()}`, offAdmin);
+      expect(allowed.statusCode, allowed.body).toBe(200);
+    });
+
+    it("Home carries no security section for a VIEWER", async () => {
+      const body = (await get(`/v1/dashboard/command-center?${teamQ()}`, offViewer)).json() as {
+        sections: Record<string, { items?: unknown[]; anomalies?: unknown[]; meta?: { status?: string } }>;
+      };
+      const security = Object.values(body.sections).filter((s) => s?.anomalies !== undefined);
+      for (const s of security) expect(s.anomalies).toEqual([]);
     });
   });
 

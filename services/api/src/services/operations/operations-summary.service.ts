@@ -42,6 +42,7 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { incidentInReach, type ViewerReach } from "../access/record-reach.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import { UNRESOLVED_INCIDENT_STATUSES } from "./incident-open-statuses.js";
 import {
@@ -237,6 +238,11 @@ export type OperationsSummaryInput = {
    * admins agree about the workspace's state.
    */
   viewerUserId?: string | null;
+  /**
+   * The reader's reach. A condition naming a record closed to them is not
+   * counted or listed for them (AUTHZ-002); required so no reader omits it.
+   */
+  reach: ViewerReach;
   now?: Date;
 };
 
@@ -273,6 +279,7 @@ export async function buildOperationsSummary(
         // from; a row that leaks in here is a number two surfaces agree on and
         // both get wrong.
         ...workspaceIncidentWhere(input.workspaceId),
+        ...incidentInReach(input.reach),
         status: { in: [...UNRESOLVED_STATUSES] },
       },
       select: {

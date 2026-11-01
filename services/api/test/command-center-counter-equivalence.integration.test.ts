@@ -27,6 +27,9 @@ import {
   type FixtureDeps,
 } from "./point7/product-fixtures.js";
 
+/** Nothing closed: these suites prove the arithmetic, the reach matrix proves the narrowing. */
+const OPEN_REACH = { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } };
+
 describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
   let harness: IntegrationHarness;
   let prisma: typeof import("../src/db.js")["prisma"];
@@ -518,7 +521,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
         },
       });
     const [report, pkg] = await Promise.all([original("REPORT"), original("PACKAGE")]);
-    const ops = await loadOperationsCounters(teamId);
+    const ops = await loadOperationsCounters(teamId, OPEN_REACH);
 
     expect(ops.openIncidents(["REPORT"])).toBe(report);
     expect(ops.openIncidents(["PACKAGE"])).toBe(pkg);
@@ -621,7 +624,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
      * surfaced when an unrelated suite's orphan appeared in this workspace's
      * count, and in a second workspace's.
      */
-    const ops = await loadOperationsCounters(teamId);
+    const ops = await loadOperationsCounters(teamId, OPEN_REACH);
     const teamOnly = await prisma.operationalIncident.count({
       where: {
         ...workspaceIncidentWhere(teamId),
@@ -664,8 +667,8 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
   });
 
   it("does not count another workspace's incidents, reviews or escalations", async () => {
-    const mine = await loadOperationsCounters(teamId);
-    const theirs = await loadOperationsCounters(otherTeamId);
+    const mine = await loadOperationsCounters(teamId, OPEN_REACH);
+    const theirs = await loadOperationsCounters(otherTeamId, OPEN_REACH);
 
     /*
      * The other workspace has its own PACKAGE incident and must not see this
@@ -701,7 +704,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
       prisma.destructionReview.count({ where: { teamId, status: "PENDING" as never } }),
       prisma.reviewEscalation.count({ where: { teamId, status: "OPEN" } }),
     ]);
-    const ops = await loadOperationsCounters(teamId);
+    const ops = await loadOperationsCounters(teamId, OPEN_REACH);
 
     expect(ops.destructionReviews(DESTRUCTION_REVIEW_AWAITING_DECISION)).toBe(pending);
     expect(ops.destructionReviews(DESTRUCTION_REVIEW_PROPOSED)).toBe(proposed);
@@ -738,7 +741,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
       },
     });
 
-    const ops = await loadOperationsCounters(teamId, now);
+    const ops = await loadOperationsCounters(teamId, OPEN_REACH, now);
     expect(ops.recentEscalations.map((e) => e.id)).toEqual(
       original.map((e) => e.id),
     );
@@ -747,8 +750,8 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
   });
 
   it("the recent-escalation list is another workspace's, never this one's", async () => {
-    const mine = await loadOperationsCounters(teamId);
-    const theirs = await loadOperationsCounters(otherTeamId);
+    const mine = await loadOperationsCounters(teamId, OPEN_REACH);
+    const theirs = await loadOperationsCounters(otherTeamId, OPEN_REACH);
     const mineIds = new Set(mine.recentEscalations.map((e) => e.id));
     for (const e of theirs.recentEscalations) {
       expect(mineIds.has(e.id)).toBe(false);
@@ -758,9 +761,9 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
 
   it("one clock: asking twice cannot move the escalation window", async () => {
     const now = new Date();
-    const a = await loadOperationsCounters(teamId, now);
+    const a = await loadOperationsCounters(teamId, OPEN_REACH, now);
     await new Promise((r) => setTimeout(r, 25));
-    const b = await loadOperationsCounters(teamId, now);
+    const b = await loadOperationsCounters(teamId, OPEN_REACH, now);
     expect(b.recentEscalations.map((e) => e.id)).toEqual(
       a.recentEscalations.map((e) => e.id),
     );
@@ -816,7 +819,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
     // grouping returns no row at all for an empty bucket, and `undefined`
     // propagating into a severity comparison is how a consolidation like this
     // renders "NaN" on a dashboard.
-    const ops = await loadOperationsCounters(teamId);
+    const ops = await loadOperationsCounters(teamId, OPEN_REACH);
     expect(ops.openIncidents(["STORAGE"])).toBe(0);
     expect(ops.destructionReviews(["CANCELLED"])).toBe(0);
     expect(ops.escalations(["ACKNOWLEDGED"])).toBe(0);
@@ -877,7 +880,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
       prisma.reviewEscalation.count({ where: { teamId, status: "OPEN" } }),
     ]);
 
-    const snapshot = await loadReviewQueueCounters(teamId, window);
+    const snapshot = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
 
     expect(snapshot.inStatus(OPEN)).toBe(queueDepth);
     expect(snapshot.overdue).toBe(overdue);
@@ -905,8 +908,8 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
 
   it("does not count another workspace's queue", async () => {
     const window = reviewQueueWindow();
-    const mine = await loadReviewQueueCounters(teamId, window);
-    const theirs = await loadReviewQueueCounters(otherTeamId, window);
+    const mine = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
+    const theirs = await loadReviewQueueCounters(otherTeamId, window, OPEN_REACH);
 
     expect(theirs.inStatus(["QUEUED"])).toBe(1);
     expect(theirs.inStatus(["IN_REVIEW"])).toBe(1);
@@ -923,7 +926,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
      * specifically so a regression in either shows up here.
      */
     const window = reviewQueueWindow();
-    const snapshot = await loadReviewQueueCounters(teamId, window);
+    const snapshot = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
     const nullDue = await prisma.evidenceReviewWorkflow.count({
       where: { teamId, status: "QUEUED", dueAt: null },
     });
@@ -943,7 +946,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
     // The fixture holds a NOT_STARTED row whose due date has passed. A
     // predicate of `status <> 'CLOSED'` would count it; the product's does not.
     const window = reviewQueueWindow();
-    const snapshot = await loadReviewQueueCounters(teamId, window);
+    const snapshot = await loadReviewQueueCounters(teamId, window, OPEN_REACH);
     const notStartedOverdue = await prisma.evidenceReviewWorkflow.count({
       where: { teamId, status: "NOT_STARTED", dueAt: { lt: window.now } },
     });
