@@ -50,9 +50,11 @@ import {
   ProovraListRow,
 } from "../../src/ui";
 
-// T-17 / RC-17 — all seven dictionaries are translated (they used to be
-// en/ar/de only, and the rest were labelled "·beta"). Labels are each
-// language's own name, as the web's picker shows them (PreferencesSection.tsx).
+// Labels are each language's own name, as the web's picker shows them
+// (PreferencesSection.tsx). All seven dictionaries are real translations, but of
+// about forty strings, so the picker says how far that goes (MOBILE-009).
+const LANGUAGE_SCOPE_NOTE =
+  "Languages other than English cover navigation and common labels. Most screens, reports and legal documents are in English, and right-to-left layout is partial.";
 const LOCALES = ["en", "ar", "de", "fr", "es", "tr", "ru"] as const;
 const LOCALE_NAMES: Record<(typeof LOCALES)[number], string> = {
   en: "English",
@@ -312,6 +314,9 @@ export default function SettingsScreen() {
           </View>
           <ProovraText variant="label" color={theme.color.ink.muted} style={styles.gap}>
             Your choice is saved to your account, so it follows you to the web app and other devices.
+          </ProovraText>
+          <ProovraText variant="label" color={theme.color.ink.muted} testID="settings-language-scope">
+            {LANGUAGE_SCOPE_NOTE}
           </ProovraText>
 
           <ProovraText variant="bodySm" weight="semibold" style={styles.gapTop}>Account timezone</ProovraText>
