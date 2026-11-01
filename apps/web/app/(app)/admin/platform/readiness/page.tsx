@@ -74,7 +74,12 @@ type ReadinessPosture = {
     objectLockMode: "GOVERNANCE" | "COMPLIANCE" | null;
     objectLockRetainDays: number | null;
     objectLockStatus: ObjectLockStatus;
-    databaseBackup: "managed_platform_assumed" | "not_configured";
+    databaseBackup:
+      | "restore_verified"
+      | "backup_recorded"
+      | "provider_declared_unverified"
+      | "no_backup_recorded"
+      | "not_configured";
     databaseBackupReason: string;
     databaseBackupProvider: string | null;
     databaseBackupPolicyUrl: string | null;
@@ -327,9 +332,21 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
 
         <div style={{ marginTop: 16 }}>
           <Row label="Database backup">
-            {backup.databaseBackup === "managed_platform_assumed" ? (
-              <PostureBadge tone={NEUTRAL} testId="db-backup-managed">
-                Managed platform (assumed)
+            {backup.databaseBackup === "restore_verified" ? (
+              <PostureBadge tone={NEUTRAL} testId="db-backup-restore-verified">
+                Backed up and restore tested
+              </PostureBadge>
+            ) : backup.databaseBackup === "backup_recorded" ? (
+              <PostureBadge tone={AMBER} testId="db-backup-recorded">
+                Backup recorded, checks missing
+              </PostureBadge>
+            ) : backup.databaseBackup === "provider_declared_unverified" ? (
+              <PostureBadge tone={AMBER} testId="db-backup-provider-declared">
+                Provider declared, not verified
+              </PostureBadge>
+            ) : backup.databaseBackup === "no_backup_recorded" ? (
+              <PostureBadge tone={RED} testId="db-backup-none-recorded">
+                No backup recorded
               </PostureBadge>
             ) : (
               <PostureBadge tone={RED} testId="db-backup-not-configured">

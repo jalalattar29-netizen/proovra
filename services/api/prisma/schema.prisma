@@ -15276,6 +15276,26 @@ model SignerControlState {
   @@map("signer_control_state")
 }
 
+/// OPS-004 — what the backup schedule did, written by scripts/ops/pg-backup-cycle.sh.
+/// Append-only. Counts and a checksum, never data. The readiness posture reads
+/// this, so only a recorded run can be reported as a backup or a restore.
+model PlatformBackupRecord {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// DATABASE_BACKUP | OFFHOST_COPY | RESTORE_DRILL (DB CHECK).
+  kind          String   @db.VarChar(32)
+  /// SUCCEEDED | FAILED (DB CHECK).
+  outcome       String   @db.VarChar(16)
+  backupStamp   String?  @map("backup_stamp") @db.VarChar(32)
+  tableCount    Int?     @map("table_count")
+  rowCount      BigInt?  @map("row_count")
+  byteCount     BigInt?  @map("byte_count")
+  sha256        String?  @db.VarChar(64)
+  recordedAtUtc DateTime @default(now()) @map("recorded_at_utc") @db.Timestamptz(6)
+
+  @@index([kind, outcome, recordedAtUtc(sort: Desc)], map: "platform_backup_records_kind_outcome_recorded_idx")
+  @@map("platform_backup_records")
+}
+
 /// ET-Q-05 (2026-09-29) — where a bounded worker sweep resumes. A sweep that
 /// re-reads the same oldest N rows every tick never reaches row N+1 while the
 /// first N stay ineligible; a keyset cursor moves it past them and wraps to

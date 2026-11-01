@@ -3782,6 +3782,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='communication_messages' AND column_name='body_resendable';\"",
       "evidence": "WORKFLOW-009 (2026-11-01). A constant default rewrites no row. false is deliberate: an existing row cannot prove its preview is the whole message, so a retry does not resend it."
+    },
+    "20281107000300_platform_backup_records": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.platform_backup_records') IS NOT NULL;\"",
+      "evidence": "OPS-004 (2026-11-01). New append-only table written by the backup schedule, so the readiness posture reports recorded runs and not an assumption from DATABASE_URL. No existing row is touched."
     }
   }
 }
