@@ -1451,6 +1451,36 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     expect(requestRow(id).status).toBe("PENDING_ADMIN_REVIEW");
   });
 
+  it("email-verify leg: the real token's holder is told why it no longer works, in the flat shape the verify page reads", async () => {
+    H.actorUserId = SUBJECT;
+    await app.inject({
+      method: "POST",
+      url: ADMIN_BASE,
+      headers: JSON_HEADERS,
+      payload: { teamId: TEAM, reason: "Lost my authenticator device today." },
+    });
+    const id = rows("mfaRecoveryRequest")[0]!.id as string;
+    const raw = new URL(H.emails[0]!.url).searchParams.get("token")!;
+    const verify = () =>
+      app.inject({
+        method: "POST",
+        url: SELF_BASE + "/" + id + "/verify-email",
+        headers: JSON_HEADERS,
+        payload: { token: raw },
+      });
+
+    requestRow(id).emailVerificationExpiresAt = new Date(Date.now() - 1000);
+    const expired = await verify();
+    expect(expired.statusCode).toBe(400);
+    expect(JSON.parse(expired.body)).toEqual({ error: "token_expired" });
+
+    // The expiry sweep moves the status and leaves the hash in place.
+    requestRow(id).status = "EXPIRED";
+    const handled = await verify();
+    expect(handled.statusCode).toBe(400);
+    expect(JSON.parse(handled.body)).toEqual({ error: "request_not_in_email_pending" });
+  });
+
   it("resend-email leg rotates the token, throttles the next attempt, refuses a foreign owner", async () => {
     const id = pushRequest({
       status: "EMAIL_VERIFICATION_PENDING",

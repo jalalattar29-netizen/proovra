@@ -1,5 +1,4 @@
 "use client";
-import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 
 /**
  * FP5 — `/reset-password?token=...` complete rewrite.
@@ -215,17 +214,20 @@ function ResetPasswordPageContent() {
       );
       setDone(true);
     } catch (err) {
-      const msg = toSafeUserError(err, { message: "Reset failed" }).message;
       const code = err instanceof ApiError ? err.code : undefined;
+      // The route answers a flat `{ message: <reason> }`, which apiFetch
+      // raises as a plain Error, so the reason is that error's raw message.
+      // Internal control flow over bounded reasons, never rendered.
+      const reason = err instanceof ApiError ? undefined : (err as Error).message;
       if (
         code === "INVALID_OR_EXPIRED" ||
-        msg === "invalid_or_expired" ||
-        msg === "invalid_token"
+        reason === "invalid_or_expired" ||
+        reason === "invalid_token"
       ) {
         // Surface the dedicated expired-link card so the user lands
         // on the Request-new-link CTA instead of a noisy red error.
         setLinkInvalid(true);
-      } else if (code === "RATE_LIMITED" || msg === "too_many_requests") {
+      } else if (code === "RATE_LIMITED" || reason === "too_many_requests") {
         setError("Too many requests. Please try again in a minute.");
       } else {
         setError(

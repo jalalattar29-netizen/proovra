@@ -26,7 +26,7 @@ import { Suspense, useEffect, useRef, useState, type CSSProperties } from "react
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch } from "../../../../lib/api";
 
 type VerifyState =
   | { kind: "idle" }
@@ -48,6 +48,21 @@ type VerifyState =
         | "already_handled"
         | "unknown";
     };
+
+/**
+ * The verify route answers a flat `{ error: "<reason>" }`, which apiFetch
+ * raises as a plain Error, not ApiError. The body has no `message`, so the
+ * error's message is the raw response text and the reason is read back out of
+ * it. A nested envelope, a gateway page or a network failure names no reason.
+ */
+function readVerifyFailureReason(err: unknown): string | null {
+  try {
+    const body = JSON.parse((err as Error).message) as { error?: unknown } | null;
+    return typeof body?.error === "string" ? body.error : null;
+  } catch {
+    return null;
+  }
+}
 
 function MfaRecoveryVerifyBody() {
   const search = useSearchParams();
@@ -138,30 +153,26 @@ function MfaRecoveryVerifyBody() {
         }
         setState({ kind: "verified", sessionPresent });
       } catch (err) {
-        if (err instanceof ApiError) {
-          // Disambiguate the bounded backend reasons. This reads the RAW
-          // ApiError.message ON PURPOSE — it is internal control-flow that
-          // matches known reason codes ("token_expired", "wrong_user", …)
-          // and maps them to safe UI states below. It is never rendered.
-          const msg = err.message ?? "";
-          if (
-            msg === "token_expired" ||
-            msg.includes("expired")
-          ) {
-            setState({ kind: "error", reason: "expired" });
-          } else if (msg === "wrong_user") {
-            setState({ kind: "error", reason: "wrong_user" });
-          } else if (msg === "request_not_in_email_pending") {
-            // The row was already verified, cancelled, rejected,
-            // approved, expired, or completed. We collapse to a
-            // single calm "already handled" message — never leak
-            // the specific state.
-            setState({ kind: "error", reason: "already_handled" });
-          } else if (msg === "token_invalid" || err.statusCode === 404) {
-            setState({ kind: "error", reason: "invalid" });
-          } else {
-            setState({ kind: "error", reason: "unknown" });
-          }
+        // Disambiguate the bounded backend reasons. This is internal
+        // control-flow that matches known reason codes ("token_expired",
+        // "wrong_user", …) and maps them to safe UI states below. The
+        // reason is never rendered.
+        const reason = readVerifyFailureReason(err);
+        if (reason === "token_expired") {
+          setState({ kind: "error", reason: "expired" });
+        } else if (reason === "wrong_user") {
+          setState({ kind: "error", reason: "wrong_user" });
+        } else if (reason === "request_not_in_email_pending") {
+          // The row was already verified, cancelled, rejected,
+          // approved, expired, or completed. We collapse to a
+          // single calm "already handled" message — never leak
+          // the specific state.
+          setState({ kind: "error", reason: "already_handled" });
+        } else if (
+          reason === "token_invalid" ||
+          (err as { statusCode?: number }).statusCode === 404
+        ) {
+          setState({ kind: "error", reason: "invalid" });
         } else {
           setState({ kind: "error", reason: "unknown" });
         }
