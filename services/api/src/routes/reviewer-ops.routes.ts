@@ -62,6 +62,7 @@ import {
   evaluateAuthorizedWorkspace,
   type AuthorizedWorkspaceContext,
 } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import {
   ReviewerOpsError,
   approveReview,
@@ -673,12 +674,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -687,7 +684,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const QueueQuery = z.object({
         teamId: z.string().uuid(),
@@ -815,12 +812,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const rawQuery = (req.query ?? {}) as { teamId?: string };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -829,7 +822,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = TeamIdQuery.parse({ teamId: resolvedTeamId });
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
@@ -1045,12 +1038,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -1059,7 +1048,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = z
         .object({
@@ -1143,12 +1132,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -1157,7 +1142,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = z
         .object({ teamId: z.string().uuid() })

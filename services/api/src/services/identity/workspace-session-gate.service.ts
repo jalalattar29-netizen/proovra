@@ -8,7 +8,9 @@
  * inside an Organization that requires SSO.
  *
  * Reads live policy on every request. Performs no mutation. A read failure
- * rejects, and every caller turns that into a refusal, never an allow.
+ * rejects, and every caller turns that into a refusal, never an allow. This is
+ * not a membership gate: membership is `evaluateMemberAccess`, which calls this
+ * for a member it has already found, as `listAccessibleWorkspaces` does.
  *
  * The session policy rules themselves stay in `org-security-policy.service.ts`,
  * the SECURITY policy engine and `mfa-policy.service.ts`; nothing is restated.

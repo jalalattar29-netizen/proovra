@@ -50,6 +50,10 @@ import { listRolePermissions, mapTeamRoleToCanonical } from "@proovra/shared";
 
 import { getAuthUserId, getAuthSessionId } from "../auth.js";
 import { bump } from "../services/ops/metrics.service.js";
+import {
+  rememberProvenRequestWorkspace,
+  requestWorkspaceCandidate,
+} from "../services/access/request-workspace.js";
 import { prisma } from "../db.js";
 import {
   evaluateMemberAccess,
@@ -1173,8 +1177,8 @@ export function contextHasCapability(
  *
  * `User.currentWorkspaceId` is a NAVIGATION HINT. It records where the
  * operator last was; it records nothing about whether they may still be
- * there. It is read here ONLY to obtain a CANDIDATE workspace id, which is
- * then handed to `evaluateAuthorizedWorkspace` and revalidated in full
+ * there. It is read ONLY to obtain a CANDIDATE workspace id, for a request
+ * that names none (see `requestWorkspaceCandidate`), which is then handed to `evaluateAuthorizedWorkspace` and revalidated in full
  * against the database — identity, workspace existence, workspace kind,
  * EXPLICIT membership, membership status, access expiry, Organization
  * lifecycle, canonical permission and the support-access guard.
@@ -1204,28 +1208,24 @@ export async function authorizeCurrentWorkspaceOrFail(
  * Used by `require-workspace-permission.ts` — which emits its own
  * `PERMISSION_REQUIRED` envelope and a POLICY_VIOLATION audit event on
  * denial — so it adopts the canonical chain WITHOUT either duplicating the
- * pointer read or having two different bodies raced onto one reply.
+ * candidate read or having two different bodies raced onto one reply.
  */
 export async function evaluateCurrentWorkspace(
   req: FastifyRequest,
   options: Omit<AuthorizeWorkspaceOptions, "workspaceId">,
 ): Promise<AuthorizedWorkspaceOutcome> {
-  let candidateWorkspaceId: string | null = null;
-  try {
-    const userId = getAuthUserId(req);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { currentWorkspaceId: true },
-    });
-    candidateWorkspaceId = user?.currentWorkspaceId ?? null;
-  } catch {
-    candidateWorkspaceId = null;
-  }
-  // A null / absent pointer is indistinguishable from an inaccessible one in
-  // the response — both take the `missing_team_id` branch and, under
+  // A null candidate is indistinguishable from an inaccessible one in the
+  // response — both take the `missing_team_id` branch and, under
   // anti-enumeration, conceal as 404.
-  return evaluateAuthorizedWorkspace(req, {
+  const outcome = await evaluateAuthorizedWorkspace(req, {
     ...options,
-    workspaceId: candidateWorkspaceId,
+    workspaceId: await requestWorkspaceCandidate(req),
   });
+  if (outcome.allowed) {
+    rememberProvenRequestWorkspace(req, {
+      teamId: outcome.context.workspaceId,
+      userId: outcome.context.userId,
+    });
+  }
+  return outcome;
 }

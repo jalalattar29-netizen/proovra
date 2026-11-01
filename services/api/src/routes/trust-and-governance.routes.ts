@@ -50,6 +50,7 @@ import {
   authorizeOrFail,
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
+import { provenRequestWorkspace } from "../services/access/request-workspace.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { emitTrustEvent } from "../services/trust/trust-and-governance-audit.service.js";
 import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
@@ -147,8 +148,10 @@ import {
  * access-review campaigns, departments and policies through every route below
  * that has no tier guard of its own.
  *
- * The pointer is now only a CANDIDATE, revalidated in full by the canonical
- * primitive (evaluateCurrentWorkspace -> evaluateAuthorizedWorkspace):
+ * The workspace is the request's one CANDIDATE (AUTHZ-006: the guard in front of
+ * this handler and this call cannot see different workspaces), revalidated in
+ * full by the canonical primitive (evaluateCurrentWorkspace ->
+ * evaluateAuthorizedWorkspace):
  * workspace existence, EXPLICIT ACTIVE membership, access expiry,
  * Organization lifecycle and the support-access guard. The baseline
  * permission is `governance.policy.read`, which every member role holds
@@ -164,6 +167,8 @@ async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<{ teamId: string; userId: string } | null> {
+  const proven = provenRequestWorkspace(req);
+  if (proven) return proven;
   const outcome = await evaluateCurrentWorkspace(req, {
     permission: "governance.policy.read",
   });

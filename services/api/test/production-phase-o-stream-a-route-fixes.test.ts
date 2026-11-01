@@ -109,9 +109,9 @@ describe("Sentry NODE-W /v1/ops/metrics — the query parameter is gone", () => 
 });
 
 describe("Phase O Stream A — Sentry NODE-1G /v1/reviewer-ops/queue", () => {
-  it("resolves teamId from currentWorkspaceId before parsing", () => {
+  it("resolves teamId from the request's workspace before parsing", () => {
     expect(REVIEWER_OPS_ROUTES).toMatch(
-      /\/v1\/reviewer-ops\/queue[\s\S]{0,2400}currentWorkspaceId: true/,
+      /\/v1\/reviewer-ops\/queue[\s\S]{0,2400}requestWorkspaceCandidate\(req\)/,
     );
   });
 

@@ -18,14 +18,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isDomainError } from "../errors.js";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 12 VERTICAL C — canonical authorization for the integration
 // delivery-history read. `resolveWorkspace` below derives the workspace
 // server-side but checks neither ACTIVE membership, parent-Organization
 // lifecycle, access expiry, nor capability.
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { provenRequestWorkspace } from "../services/access/request-workspace.js";
 import { requireWorkspacePermission } from "../middleware/require-workspace-permission.js";
 import {
   extractPrismaDiagnostic,
@@ -120,23 +120,26 @@ import {
 } from "@proovra/shared";
 
 // ---------------------------------------------------------------------------
-// Workspace resolver (identical pattern to trust-and-governance.routes.ts)
+// Workspace resolver (the same authority as trust-and-governance.routes.ts)
 // ---------------------------------------------------------------------------
 
+/**
+ * AUTHZ-006 — the workspace this request acts in, as the guard proved it, so a
+ * handler cannot act anywhere its guard did not look. A route with no guard
+ * evaluates membership here and asks for its own permission next.
+ */
 async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  if (!user?.currentWorkspaceId) {
+  const proven = provenRequestWorkspace(req);
+  if (proven) return proven;
+  const outcome = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
+  if (!outcome.allowed) {
     reply.code(403).send({ denial: "WORKSPACE_NOT_FOUND" });
     return null;
   }
-  return { teamId: user.currentWorkspaceId, userId };
+  return { teamId: outcome.context.workspaceId, userId: outcome.context.userId };
 }
 
 // ---------------------------------------------------------------------------

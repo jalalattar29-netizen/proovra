@@ -31,6 +31,7 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { runGovernanceHandler } from "./_governance-error-bound.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
@@ -104,32 +105,25 @@ async function requireMember(
  *
  * This helper reuses the SAME server-side resolution path as
  * `redaction.routes.ts#resolveWorkspace` and
- * `intelligence-platform.routes.ts#authorizeWorkspace`: the persisted
- * `User.currentWorkspaceId` rail (written only by the audited workspace
- * switcher in `platform-context.routes.ts`) handed to the canonical
- * `authorizeOrFail` primitive, which supplies ACTIVE membership +
- * parent-Organization lifecycle + capability + fail-closed + anti-enumeration.
- *
- * No request field participates. There is no header, query or body override.
+ * `intelligence-platform.routes.ts#authorizeWorkspace`: the request's one
+ * workspace candidate (AUTHZ-006) handed to the canonical `authorizeOrFail`
+ * primitive, which supplies ACTIVE membership + parent-Organization lifecycle
+ * + capability + fail-closed + anti-enumeration.
  */
 async function resolveGovernancePolicyWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
   permission: Permission,
 ): Promise<{ teamId: string; actorUserId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  if (!user?.currentWorkspaceId) {
+  const teamId = await requestWorkspaceCandidate(req);
+  if (!teamId) {
     // No active workspace context — anti-enumeration 404, matching the
     // canonical primitive's not-a-member path.
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
   const outcome = await authorizeOrFail(req, reply, {
-    teamId: user.currentWorkspaceId,
+    teamId,
     permission,
     antiEnumeration: true,
   });

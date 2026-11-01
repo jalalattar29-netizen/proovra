@@ -16,7 +16,7 @@
  * most one /v1/platform/context fetch.
  */
 import { useEffect, useState } from "react";
-import { apiFetch } from "../api";
+import { apiFetch, setActiveWorkspaceId } from "../api";
 import { useAuth } from "../auth-context";
 import { isPersonalSpaceDisallowed } from "../personal-space";
 
@@ -129,7 +129,10 @@ let inflight: { token: string; promise: Promise<unknown> } | null = null;
 
 export function sharedPlatformContextRequest(token: string, force: boolean): Promise<unknown> {
   if (!force && inflight && inflight.token === token) return inflight.promise;
-  const promise = apiFetch("/v1/platform/context", { method: "GET" });
+  const promise = apiFetch("/v1/platform/context", { method: "GET" }).then((envelope) => {
+    setActiveWorkspaceId(projectPlatformContext(envelope).activeTeamId);
+    return envelope;
+  });
   const entry = { token, promise };
   inflight = entry;
   const clear = () => {

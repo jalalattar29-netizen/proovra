@@ -8,7 +8,21 @@ export function apiBaseUrl(): string {
 
 let authToken: string | null = null;
 
+/**
+ * The workspace on this device's screen, sent on every request as web sends it.
+ * The server's own record of "the current workspace" is one value per person,
+ * shared with their browser tabs, so it cannot say which workspace this device
+ * means. A candidate, never a grant: the server re-proves it on every request.
+ */
+export const WORKSPACE_HEADER = "x-proovra-workspace-id";
+let activeWorkspaceId: string | null = null;
+
+export function setActiveWorkspaceId(workspaceId: string | null) {
+  activeWorkspaceId = workspaceId;
+}
+
 export function setAuthToken(token: string | null) {
+  if (token !== authToken) activeWorkspaceId = null;
   authToken = token;
 }
 
@@ -54,6 +68,9 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
 
   if (authToken) {
     headers.set("authorization", `Bearer ${authToken}`);
+    if (activeWorkspaceId && !headers.has(WORKSPACE_HEADER)) {
+      headers.set(WORKSPACE_HEADER, activeWorkspaceId);
+    }
   }
 
   let res: Response;

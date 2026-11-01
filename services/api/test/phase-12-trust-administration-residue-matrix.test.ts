@@ -135,6 +135,13 @@ vi.mock("../src/middleware/authorize.js", () => ({
     }
     return { actorUserId: H.actorUserId, teamId: opts.teamId ?? TEAM };
   },
+  evaluateCurrentWorkspace: async () =>
+    H.currentWorkspaceId
+      ? {
+          allowed: true,
+          context: { workspaceId: H.currentWorkspaceId, userId: H.actorUserId },
+        }
+      : { allowed: false, reasonCode: "missing_team_id", httpStatus: 404 },
   requireAuthorize: () => async () => {},
 }));
 

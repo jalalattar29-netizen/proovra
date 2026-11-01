@@ -58,8 +58,8 @@ describe("§1 — the identity workspace rail authorizes at the point of derivat
     );
     expect(body, `${RESOLVER} must exist`).toBeTruthy();
     const text = body![0];
-    // Reads the pointer…
-    expect(text).toMatch(/select:\s*\{\s*currentWorkspaceId:\s*true\s*\}/);
+    // Takes the request's one candidate (AUTHZ-006: header, or pointer once)…
+    expect(text).toMatch(/requestWorkspaceCandidate\(req\)/);
     // …and authorizes it in the same function, with the candidate id.
     expect(text).toMatch(/authorizeOrFail\(\s*req,\s*reply,\s*\{[\s\S]*?teamId:\s*candidateTeamId/);
     // Membership existence is probed BEFORE authorization so a non-member is
