@@ -139,7 +139,10 @@ test("recapture the pages whose baseline images were invalid", async ({ browser 
     await page.screenshot({ path: resolve(RE, name(label, width)), fullPage: true, clip: { x: 0, y: 0, width, height }, type: "jpeg", quality: 70 });
   };
   for (const [width, height] of [[1440, 900], [390, 844]] as const) {
+    // Reveal sections hide again when they leave the viewport, so a full-page image needs
+    // reduced motion, which the primitives honour. A person scrolling sees every section.
     const anon = await newProfile(browser);
+    await anon.page.emulateMedia({ reducedMotion: "reduce" });
     await anon.page.setViewportSize({ width, height });
     for (const route of PUBLIC) await shoot(anon.page, route, route, width);
     await anon.context.close();
@@ -147,7 +150,9 @@ test("recapture the pages whose baseline images were invalid", async ({ browser 
   const o = await asPerson(browser, "owner", 1440, 900);
   for (const route of SIGNED_IN) await shoot(o.page, route, route, 1440);
   await shoot(o.page, "/organizations/[id]", `/organizations/${s.orgId}`, 1440);
-  await shoot(o.page, "/teams/[id]", `/teams/${s.workspaceId ?? ""}`, 1440);
+  await o.page.goto("/workspaces");
+  const teamHref = await o.page.evaluate(() => document.querySelector("a[href^=\"/teams/\"]")?.getAttribute("href") ?? null);
+  if (teamHref) await shoot(o.page, "/teams/[id]", teamHref, 1440);
   await o.context.close();
   const a = await asPerson(browser, "admin", 1440, 900);
   await shoot(a.page, "/evidence/[id]", `/evidence/${s.facts.evidenceId}`, 1440);
