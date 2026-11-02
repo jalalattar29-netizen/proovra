@@ -38,6 +38,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  InviteWorkspaceAccess,
+  inviteWorkspaceAssignments,
+  type WorkspaceAccess,
+} from "../../_components/InviteWorkspaceAccess";
+
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
 import { OrgMemberLifecycleControls } from "../../../../../../components/organizations/OrgMemberLifecycleControls";
@@ -222,6 +228,8 @@ function MembersTab() {
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<OrgRole>("ORG_MEMBER");
+  const [inviteAccess, setInviteAccess] = useState<WorkspaceAccess>("MEMBER");
+  const [primaryWorkspace, setPrimaryWorkspace] = useState<{ workspaceId: string; name: string } | null>(null);
   const [inviteFormBusy, setInviteFormBusy] = useState(false);
   const [inviteFormError, setInviteFormError] = useState<string | null>(null);
   const [issuedInviteToken, setIssuedInviteToken] = useState<string | null>(null);
@@ -283,6 +291,10 @@ function MembersTab() {
     setOrg(o);
     setMembers(m);
     setInvites(i);
+    const w = await fetchOne<{ workspaces: Array<{ workspaceId: string; name: string; isPersonal: boolean }> }>(
+      `/v1/orgs/${orgId}/workspaces`,
+    );
+    setPrimaryWorkspace(w.kind === "ready" ? w.data.workspaces.find((x) => !x.isPersonal) ?? null : null);
   }, [orgId, fetchOne, revalidate]);
 
   useEffect(() => {
@@ -305,7 +317,11 @@ function MembersTab() {
       const data = (await apiFetch(`/v1/orgs/${orgId}/invites`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, role: inviteRole }),
+        body: JSON.stringify({
+          email,
+          role: inviteRole,
+          ...inviteWorkspaceAssignments(primaryWorkspace?.workspaceId ?? null, inviteAccess),
+        }),
       })) as { token: string };
       setIssuedInviteToken(data.token);
       setInviteEmail("");
@@ -317,7 +333,7 @@ function MembersTab() {
     } finally {
       setInviteFormBusy(false);
     }
-  }, [inviteEmail, inviteRole, orgId, refresh]);
+  }, [inviteEmail, inviteRole, inviteAccess, primaryWorkspace, orgId, refresh]);
 
   const changeRole = useCallback(
     async (m: MemberRow, newRole: OrgRole) => {
@@ -501,7 +517,7 @@ function MembersTab() {
             style={{
               display: "grid",
               gap: 10,
-              gridTemplateColumns: "1fr 200px 150px",
+              gridTemplateColumns: "minmax(0, 1fr) 200px 200px 150px",
               alignItems: "end",
             }}
           >
@@ -533,6 +549,16 @@ function MembersTab() {
                   };
                 })}
                 triggerProps={{ "data-testid": "invite-role-select" }}
+              />
+            </label>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
+              Access to {primaryWorkspace?.name ?? "the workspace"}
+              <InviteWorkspaceAccess
+                label="Workspace access"
+                value={primaryWorkspace ? inviteAccess : "NONE"}
+                onChange={setInviteAccess}
+                disabled={inviteFormBusy || !primaryWorkspace}
+                disabledReason={!primaryWorkspace ? "This organization has no workspace yet." : undefined}
               />
             </label>
             <Button

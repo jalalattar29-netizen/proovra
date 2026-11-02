@@ -55,6 +55,11 @@ import {
   type WizardMachineState,
 } from "./_lib/wizardModel";
 import { SetupChecklist } from "./_lib/SetupChecklist";
+import {
+  InviteWorkspaceAccess,
+  inviteWorkspaceAssignments,
+  type WorkspaceAccess,
+} from "../_components/InviteWorkspaceAccess";
 
 // ---------------------------------------------------------------------------
 // Wire shapes — mirror the existing responses (see org detail page + the
@@ -395,6 +400,7 @@ function OrganizationSetupInner() {
   const [workspaceName, setWorkspaceName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<OrgRole>("ORG_MEMBER");
+  const [inviteAccess, setInviteAccess] = useState<WorkspaceAccess>("MEMBER");
   const [invitedThisSession, setInvitedThisSession] = useState<string[]>([]);
   const [mfaLevel, setMfaLevel] = useState<MfaPolicyLevel>("ALL_MEMBERS");
   const [retentionTemplate, setRetentionTemplate] = useState<RetentionTemplate>("CORPORATE_5Y");
@@ -501,7 +507,11 @@ function OrganizationSetupInner() {
       await apiFetch(`/v1/orgs/${orgId}/invites`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, role: inviteRole }),
+        body: JSON.stringify({
+          email,
+          role: inviteRole,
+          ...inviteWorkspaceAssignments(primaryWorkspaceId, inviteAccess),
+        }),
       });
       setInvitedThisSession((s) => [...s, email]);
       setInviteEmail("");
@@ -512,7 +522,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [orgId, inviteEmail, inviteRole, loadOrgScoped, markSaved]);
+  }, [orgId, inviteEmail, inviteRole, inviteAccess, primaryWorkspaceId, loadOrgScoped, markSaved]);
 
   const saveMfa = useCallback(async () => {
     if (!primaryWorkspaceId) {
@@ -683,6 +693,13 @@ function OrganizationSetupInner() {
         <div role="alert" data-role-restricted style={warnBox}>
           You’re signed in as {ROLE_LABELS[callerRole]}. Setup changes
           require an organization Owner or Admin.
+        </div>
+      )}
+
+      {/* IDENT-007 — setting MFA for everyone covers the session that set it. */}
+      {mfa.kind === "error" && mfa.status === 403 && (
+        <div role="alert" data-setup-session-refused style={warnBox}>
+          {mfa.message}
         </div>
       )}
 
@@ -958,6 +975,15 @@ function OrganizationSetupInner() {
                     "aria-describedby": !canManage ? "setup-read-only-reason" : undefined,
                     "data-input": "invite-role",
                   }}
+                />
+              </Field>
+              <Field label={`Access to ${workspaceName || "the workspace"}`} hint="(a seat is used on acceptance)">
+                <InviteWorkspaceAccess
+                  label="Workspace access"
+                  value={primaryWorkspaceId ? inviteAccess : "NONE"}
+                  onChange={setInviteAccess}
+                  disabled={!canManage || busy || !primaryWorkspaceId}
+                  disabledReason={!canManage ? SETUP_READ_ONLY_REASON : "Add a workspace first."}
                 />
               </Field>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

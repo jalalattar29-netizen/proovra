@@ -45,6 +45,19 @@ type State =
     }
   | { kind: "error"; status: number; message: string; code?: string };
 
+/** The role as a word: the raw value read "You are now a ORG_MEMBER". */
+function orgRoleLabel(role: string): string {
+  const words: Record<string, string> = {
+    ORG_OWNER: "owner",
+    ORG_ADMIN: "administrator",
+    ORG_SECURITY_ADMIN: "security administrator",
+    ORG_BILLING_ADMIN: "billing administrator",
+    ORG_AUDITOR: "auditor",
+    ORG_MEMBER: "member",
+  };
+  return words[role] ?? "member";
+}
+
 export default function OrgInviteAcceptPage() {
   // Phase A.1 — wrapped in PageRouteGate per `account.org-invite-accept`
   // registry entry. The PageRouteGate handles unauth / envelope-loading
@@ -226,10 +239,10 @@ function OrgInviteAcceptPageInner() {
           }}
         >
           {state.assignedWorkspaceIds.length === 0 ? (
-            <>You are now a {state.role} of the organization. Redirecting…</>
+            <>You are now a {orgRoleLabel(state.role)} of the organization. Redirecting…</>
           ) : (
             <>
-              You are now a {state.role} of the organization
+              You are now a {orgRoleLabel(state.role)} of the organization
               {state.assignedWorkspaceIds.length === 1
                 ? " with access to one workspace."
                 : ` with access to ${state.assignedWorkspaceIds.length} workspaces.`}

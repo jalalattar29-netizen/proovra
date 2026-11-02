@@ -268,6 +268,27 @@ export interface SafeErrorFallback {
 }
 
 /**
+ * THE SESSION IS REFUSED, NOT THE PERSON.
+ *
+ * An Organization's sign-in rules apply to a live session (IDENT-007). An owner
+ * who sets MFA for everyone is refused by their own password session a moment
+ * later, and the generic 403 told them to ask an admin for permissions they
+ * already hold. Signing in again is what lets them back in, so that is what this says.
+ */
+function sessionPolicyRefusal(e: ErrorLike): Omit<SafeUserError, "supportReference"> | undefined {
+  const body = (e as { body?: { error?: { reason?: unknown; detail?: unknown } } }).body?.error;
+  if (body?.reason !== "organization_session_policy") return undefined;
+  return {
+    title: "Sign in again to continue",
+    message:
+      body.detail === "mfa_required"
+        ? "This organization requires two-factor sign-in. Sign out and sign in again with your authenticator app to continue."
+        : "This organization's sign-in rules no longer cover this session. Sign out and sign in again to continue.",
+    severity: "warning",
+  };
+}
+
+/**
  * Convert ANY error into user-safe feedback. Pure + dependency-free so it
  * is safe to import anywhere (client or server).
  */
@@ -282,7 +303,10 @@ export function toSafeUserError(
 
   let base: Omit<SafeUserError, "supportReference"> | undefined;
   const serverMessage = code ? trustedServerMessage(code, e) : undefined;
-  if (code && serverMessage) {
+  const sessionRefusal = sessionPolicyRefusal(e);
+  if (sessionRefusal) {
+    base = sessionRefusal;
+  } else if (code && serverMessage) {
     // Ahead of the status branch on purpose: `fromStatus` would answer a 409
     // with "Please review your input and try again", which is exactly the
     // generic sentence the server took the trouble to replace.
