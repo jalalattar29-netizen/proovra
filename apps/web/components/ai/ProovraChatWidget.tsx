@@ -430,7 +430,7 @@ export function ProovraChatWidget() {
         </div>
       ) : null}
 
-      <div style={{ position: "relative" }}>
+      <div className="assistant-launcher-slot">
         {showHint && !open ? (
           <div className="assistant-hint" role="status">
             Need help?

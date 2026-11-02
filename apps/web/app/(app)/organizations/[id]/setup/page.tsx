@@ -37,6 +37,7 @@ import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
 import { Card } from "../../../../../components/ui/Card";
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { Button } from "../../../../../components/ui/Button";
 import { Badge } from "../../../../../components/ui/Badge";
 import {
@@ -946,20 +947,18 @@ function OrganizationSetupInner() {
                 />
               </Field>
               <Field label="Role">
-                <select
+                <AppListbox
+                  ariaLabel="Role"
                   value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as OrgRole)}
+                  onChange={setInviteRole}
                   disabled={!canManage || busy}
-                  aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
-                  data-input="invite-role"
-                  style={input}
-                >
-                  {INVITE_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
+                  disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
+                  options={INVITE_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+                  triggerProps={{
+                    "aria-describedby": !canManage ? "setup-read-only-reason" : undefined,
+                    "data-input": "invite-role",
+                  }}
+                />
               </Field>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <Button
@@ -1066,26 +1065,22 @@ function OrganizationSetupInner() {
               style={formGrid}
             >
               <Field label="MFA policy">
-                <select
+                <AppListbox
+                  ariaLabel="MFA policy"
                   value={mfaLevel}
-                  onChange={(e) => setMfaLevel(e.target.value as MfaPolicyLevel)}
+                  onChange={setMfaLevel}
                   disabled={!canManage || busy || !primaryWorkspaceId}
-                  aria-describedby={
-                    !canManage
+                  disabledReason={!canManage ? SETUP_READ_ONLY_REASON : "Add a workspace first."}
+                  options={MFA_LEVELS.map((l) => ({ value: l, label: MFA_LABELS[l] }))}
+                  triggerProps={{
+                    "aria-describedby": !canManage
                       ? "setup-read-only-reason"
                       : !primaryWorkspaceId
                         ? "setup-no-workspace-reason"
-                        : undefined
-                  }
-                  data-input="mfa-level"
-                  style={input}
-                >
-                  {MFA_LEVELS.map((l) => (
-                    <option key={l} value={l}>
-                      {MFA_LABELS[l]}
-                    </option>
-                  ))}
-                </select>
+                        : undefined,
+                    "data-input": "mfa-level",
+                  }}
+                />
               </Field>
               <SaveRow
                 saved={stepSaved.security}
@@ -1138,20 +1133,18 @@ function OrganizationSetupInner() {
             style={formGrid}
           >
             <Field label="Default retention window">
-              <select
+              <AppListbox
+                ariaLabel="Default retention window"
                 value={retentionTemplate}
-                onChange={(e) => setRetentionTemplate(e.target.value as RetentionTemplate)}
+                onChange={setRetentionTemplate}
                 disabled={!canManage || busy}
-                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
-                data-input="retention-template"
-                style={input}
-              >
-                {RETENTION_TEMPLATES.map((t) => (
-                  <option key={t} value={t}>
-                    {RETENTION_LABELS[t]}
-                  </option>
-                ))}
-              </select>
+                disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
+                options={RETENTION_TEMPLATES.map((t) => ({ value: t, label: RETENTION_LABELS[t] }))}
+                triggerProps={{
+                  "aria-describedby": !canManage ? "setup-read-only-reason" : undefined,
+                  "data-input": "retention-template",
+                }}
+              />
             </Field>
             {retentionTemplate === "CUSTOM" && (
               <Field label="Years" required>
@@ -1211,20 +1204,21 @@ function OrganizationSetupInner() {
               holds when litigation is anticipated.
             </p>
             <Field label="Hold scope">
-              <select
+              <AppListbox
+                ariaLabel="Hold scope"
                 value={holdKind}
-                onChange={(e) => setHoldKind(e.target.value as HoldKind)}
+                onChange={setHoldKind}
                 disabled={!canManage || busy}
-                aria-describedby={!canManage ? "setup-read-only-reason" : undefined}
-                data-input="hold-kind"
-                style={input}
-              >
-                {HOLD_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {k.charAt(0) + k.slice(1).toLowerCase()}
-                  </option>
-                ))}
-              </select>
+                disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
+                options={HOLD_KINDS.map((k) => ({
+                  value: k,
+                  label: k.charAt(0) + k.slice(1).toLowerCase(),
+                }))}
+                triggerProps={{
+                  "aria-describedby": !canManage ? "setup-read-only-reason" : undefined,
+                  "data-input": "hold-kind",
+                }}
+              />
             </Field>
             <Field label="Name" required>
               <input

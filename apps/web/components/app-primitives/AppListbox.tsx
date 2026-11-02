@@ -51,6 +51,19 @@ export interface AppListboxProps<T extends string = string> {
   /** Render function for the trigger's selected content (defaults to label). */
   renderValue?: (option: AppListboxOption<T> | null) => React.ReactNode;
   /**
+   * WHY the control is disabled, as a hover title, on the Button contract:
+   * a disabled control states its reason where it is disabled.
+   */
+  disabledReason?: string;
+  /**
+   * Attributes for the trigger button: a description (`aria-describedby`), and
+   * the `data-*` hooks a migrated native select already carried, so a call site
+   * keeps its test and analytics selectors.
+   */
+  triggerProps?: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    [dataAttribute: `data-${string}`]: string | undefined;
+  };
+  /**
    * WRAP the chosen value instead of clipping it (2026-10-23). For a control
    * in a constrained layout — a filter panel that can be narrower than its
    * longest option — where a cut-off value would be ambiguous. The default
@@ -72,6 +85,8 @@ export function AppListbox<T extends string = string>({
   id,
   className,
   renderValue,
+  disabledReason,
+  triggerProps,
   wrapValue = false,
 }: AppListboxProps<T>) {
   const [open, setOpen] = React.useState(false);
@@ -242,6 +257,8 @@ export function AppListbox<T extends string = string>({
       className={`app-listbox${wrapValue ? " app-listbox--wrap" : ""}${className ? ` ${className}` : ""}`}
     >
       <button
+        {...triggerProps}
+        title={disabled ? (disabledReason ?? triggerProps?.title) : triggerProps?.title}
         ref={triggerRef}
         type="button"
         id={baseId}

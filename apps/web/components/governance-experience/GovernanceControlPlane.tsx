@@ -25,6 +25,7 @@ import {
 } from "../../lib/platform-context";
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
+import { humaniseCode } from "../../lib/ots-presentation";
 // Phase 7D — shared enterprise design-system primitives. VISUAL-only
 // migration of the control-plane's bespoke panels/tiles/chips. Deep-imported
 // per the barrel contract (the ui/index barrel still serves the LEGACY
@@ -163,7 +164,7 @@ export function GovernanceControlPlane() {
               : "Workspace"}
           </span>
           <span data-governance-role={env.workspace.role}>
-            Role: {env.workspace.role}
+            Role: {humaniseCode(env.workspace.role)}
           </span>
           <span title={env.generatedAt}>Refreshed {relTime(env.generatedAt)}</span>
         </div>

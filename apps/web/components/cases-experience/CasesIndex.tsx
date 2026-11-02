@@ -59,6 +59,7 @@ import { apiFetch } from "../../lib/api";
 import { useToast } from "../ui-legacy";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
+import { humaniseCode } from "../../lib/ots-presentation";
 // Phase CASES-PERSONAL-UX / Track 1A — enterprise-experience gate. The
 // advanced Cases filters and card details render only for the Enterprise
 // workspace experience. The signal is the SERVER-projected
@@ -1019,6 +1020,7 @@ function CaseBulkActionBar({
       <label className="cases-bulk-selectall">
         <input
           type="checkbox"
+          className="app-checkbox"
           data-case-bulk-select-all
           checked={count > 0 && count === visibleIds.length}
           onChange={onToggleAll}
@@ -1032,6 +1034,8 @@ function CaseBulkActionBar({
       {count > 0 ? (
         <>
           <select
+            className="app-form-input"
+            style={{ width: "auto" }}
             data-case-bulk-action
             value={action}
             onChange={(e) => setAction(e.target.value as BulkAction)}
@@ -1046,6 +1050,8 @@ function CaseBulkActionBar({
           </select>
           <input
             type="text"
+            className="app-form-input"
+            style={{ flex: "1 1 220px", width: "auto", minWidth: 0 }}
             data-case-bulk-reason-input
             value={reason}
             maxLength={400}
@@ -1056,6 +1062,7 @@ function CaseBulkActionBar({
           />
           <button
             type="button"
+            className="app-primary-action"
             data-case-bulk-apply
             disabled={busy}
             onClick={() => void onRun(action, reason)}
@@ -1064,7 +1071,7 @@ function CaseBulkActionBar({
               ? "Applying…"
               : `${BULK_ACTION_LABELS[action]} ${count} case${count === 1 ? "" : "s"}`}
           </button>
-          <button type="button" data-case-bulk-clear disabled={busy} onClick={onClear}>
+          <button type="button" className="app-secondary-action" data-case-bulk-clear disabled={busy} onClick={onClear}>
             Clear
           </button>
         </>
@@ -1156,6 +1163,7 @@ function MatterQueueRow({
         >
           <input
             type="checkbox"
+            className="app-checkbox"
             data-case-bulk-select={row.id}
             checked={selected}
             onChange={() => onToggleSelect?.(row.id)}
@@ -1625,8 +1633,8 @@ function RiskBadge({
       data-risk-level={level}
       data-risk-score={score ?? ""}
     >
-      Risk: {level}
-      {typeof score === "number" ? ` · ${score}` : ""}
+      {level === "NONE" ? "No risk signals" : `Risk: ${humaniseCode(level)}`}
+      {typeof score === "number" ? ` · ${score}/100` : ""}
     </Badge>
   );
 }

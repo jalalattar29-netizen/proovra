@@ -615,7 +615,8 @@ export function WorkflowOperationsSection({
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <input
-                  placeholder="Bulk mitigation note"
+                  className="cc-input"
+                  placeholder="Mitigation note"
                   aria-label="Bulk mitigation note"
                   defaultValue=""
                   onChange={(e) => {
@@ -624,7 +625,8 @@ export function WorkflowOperationsSection({
                   data-cc-workflow-bulk-note
                 />
                 <input
-                  placeholder="Bulk retry time (ISO 8601)"
+                  className="cc-input"
+                  placeholder="Retry time, e.g. 2026-11-05T09:00:00Z"
                   aria-label="Bulk retry time"
                   defaultValue=""
                   onChange={(e) => {
@@ -699,6 +701,7 @@ export function WorkflowOperationsSection({
                       <label style={{ display: "inline-flex", gap: 6 }}>
                         <input
                           type="checkbox"
+                          className="app-checkbox"
                           checked={selected.has(wf.id)}
                           disabled={!state.data.canAct}
                           onChange={(e) => {

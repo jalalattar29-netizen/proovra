@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
-import { useToast, Skeleton, Card } from "../../../../components/ui";
+import { useToast, Skeleton } from "../../../../components/ui";
+import { Card } from "../../../../components/ui/Card";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -94,19 +95,19 @@ function QuotasPageInner() {
         label: "Analysis Calls",
         value: `${quotas.analyses.used} / ${quotas.analyses.limit}`,
         sub: `${quotas.analyses.remaining} remaining`,
-        color: "#bfe8df",
+        color: "var(--app-ink-heading)",
       },
       {
         label: "Batch Jobs",
         value: `${quotas.batchJobs.used} / ${quotas.batchJobs.limit}`,
         sub: `${quotas.batchJobs.remaining} remaining`,
-        color: "#d8e0dd",
+        color: "var(--app-ink-heading)",
       },
       {
         label: "API Keys",
         value: `${quotas.apiKeys.used} / ${quotas.apiKeys.limit}`,
         sub: `${quotas.apiKeys.remaining} remaining`,
-        color: "#dcc0a5",
+        color: "var(--app-ink-heading)",
       },
       {
         label: "Team Members",
@@ -118,7 +119,7 @@ function QuotasPageInner() {
           quotas.teamMembers.limit === null
             ? "No workspace-wide limit"
             : `${quotas.teamMembers.remaining} remaining`,
-        color: "#c3ebe2",
+        color: "var(--app-ink-heading)",
       },
     ];
   }, [quotas]);
@@ -131,25 +132,25 @@ function QuotasPageInner() {
         label: "Today",
         value: stats.dailyAnalyses.today,
         sub: "Analyses processed today",
-        color: "#bfe8df",
+        color: "var(--app-ink-heading)",
       },
       {
         label: "This Week",
         value: stats.dailyAnalyses.thisWeek,
         sub: "Analyses processed this week",
-        color: "#d8e0dd",
+        color: "var(--app-ink-heading)",
       },
       {
         label: "This Month",
         value: stats.dailyAnalyses.thisMonth,
         sub: "Analyses processed this month",
-        color: "#dcc0a5",
+        color: "var(--app-ink-heading)",
       },
       {
         label: "Estimated Per Analysis",
         value: `$${stats.costBreakdown.averagePerAnalysis.toFixed(4)}`,
         sub: "A fixed list rate, not a measured cost",
-        color: "#c3ebe2",
+        color: "var(--app-ink-heading)",
       },
     ];
   }, [stats]);
@@ -164,10 +165,10 @@ function QuotasPageInner() {
 
     const gradient =
       percent >= 90
-        ? "linear-gradient(90deg, #8f2b2b 0%, #d46b6b 100%)"
+        ? "var(--error)"
         : percent >= 70
-        ? "linear-gradient(90deg, #8a6b2f 0%, #d5b06f 100%)"
-        : "linear-gradient(90deg, #3f6664 0%, #8dc7bc 100%)";
+        ? "var(--warning)"
+        : "var(--accent-500)";
 
     return (
       <div className="dashboard-quotas-bar-row">
@@ -183,7 +184,7 @@ function QuotasPageInner() {
             width: "100%",
             height: 10,
             borderRadius: 999,
-            background: "rgba(255,255,255,0.08)",
+            background: "var(--surface-muted)",
             overflow: "hidden",
           }}
         >
@@ -235,7 +236,7 @@ function QuotasPageInner() {
 
         .dashboard-quotas-page .dashboard-quotas-metric-label {
           font-size: 13px;
-          color: rgba(194, 204, 201, 0.64);
+          color: var(--app-ink-secondary);
           overflow-wrap: anywhere;
           word-break: break-word;
         }
@@ -262,7 +263,7 @@ function QuotasPageInner() {
 
         .dashboard-quotas-page .dashboard-quotas-metric-sub {
           font-size: 12px;
-          color: rgba(194, 204, 201, 0.56);
+          color: var(--app-ink-secondary);
           margin-top: 8px;
           line-height: 1.5;
           overflow-wrap: anywhere;
@@ -273,7 +274,7 @@ function QuotasPageInner() {
           font-size: 1.08rem;
           font-weight: 600;
           letter-spacing: -0.02em;
-          color: #d8e0dd;
+          color: var(--app-ink-heading);
           overflow-wrap: anywhere;
           word-break: break-word;
         }
@@ -306,7 +307,7 @@ function QuotasPageInner() {
         }
 
         .dashboard-quotas-page .dashboard-quotas-bar-label {
-          color: #d8e0dd;
+          color: var(--app-ink-heading);
           font-weight: 700;
           font-size: 13px;
           overflow-wrap: anywhere;
@@ -316,7 +317,7 @@ function QuotasPageInner() {
         .dashboard-quotas-page .dashboard-quotas-bar-meta,
         .dashboard-quotas-page .dashboard-quotas-bar-percent {
           font-size: 12px;
-          color: rgba(194, 204, 201, 0.72);
+          color: var(--app-ink-secondary);
           line-height: 1.5;
           overflow-wrap: anywhere;
           word-break: break-word;
@@ -324,9 +325,9 @@ function QuotasPageInner() {
 
         .dashboard-quotas-page .dashboard-quotas-reset-row {
           padding-top: 16px;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid var(--border-default);
           font-size: 13px;
-          color: rgba(194, 204, 201, 0.72);
+          color: var(--app-ink-secondary);
           line-height: 1.6;
           overflow-wrap: anywhere;
           word-break: break-word;
@@ -342,10 +343,9 @@ function QuotasPageInner() {
       <div className="dashboard-quotas-page">
         {loading ? (
           <Card
-            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-            style={dashboardStyles.outerCard}
+            padding="none"
           >
-            <div className="relative z-10 p-6">
+            <div className="p-6">
               <Skeleton width="100%" height="280px" />
             </div>
           </Card>
@@ -356,18 +356,9 @@ function QuotasPageInner() {
                 {usageCards.map((item) => (
                   <Card
                     key={item.label}
-                    className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                    style={dashboardStyles.outerCard}
+                    padding="none"
                   >
-                    <div className="absolute inset-0">
-                      <img
-                        src="/images/site-velvet-bg.webp.png"
-                        alt=""
-                        className="h-full w-full object-cover object-center scale-[1.12]"
-                      />
-                    </div>
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-                    <div className="relative z-10 p-6">
+                    <div className="p-6">
                       <div className="dashboard-quotas-metric-label">
                         {item.label}
                       </div>
@@ -389,18 +380,9 @@ function QuotasPageInner() {
                 {quotaCards.map((item) => (
                   <Card
                     key={item.label}
-                    className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                    style={dashboardStyles.outerCard}
+                    padding="none"
                   >
-                    <div className="absolute inset-0">
-                      <img
-                        src="/images/site-velvet-bg.webp.png"
-                        alt=""
-                        className="h-full w-full object-cover object-center scale-[1.12]"
-                      />
-                    </div>
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-                    <div className="relative z-10 p-6">
+                    <div className="p-6">
                       <div className="dashboard-quotas-metric-label">
                         {item.label}
                       </div>
@@ -419,19 +401,9 @@ function QuotasPageInner() {
 
             {quotas && (
               <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={dashboardStyles.outerCard}
+                padding="none"
               >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/site-velvet-bg.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center scale-[1.12]"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-
-                <div className="relative z-10 p-6 md:p-7">
+                <div className="p-6 md:p-7">
                   <div className="dashboard-quotas-card-title">Current Quotas</div>
                   <p style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }} data-testid="quotas-indicative-note">
                     Team members follow your plan or contract. The other figures
@@ -469,7 +441,7 @@ function QuotasPageInner() {
 
                     <div className="dashboard-quotas-reset-row">
                       Quotas reset on{" "}
-                      <strong style={{ color: "#d8e0dd" }}>
+                      <strong style={{ color: "var(--app-ink-heading)" }}>
                         {formatUserDate(quotas.analyses.resetDate)}
                       </strong>
                     </div>
@@ -481,19 +453,9 @@ function QuotasPageInner() {
             {stats && (
               <div className="dashboard-quotas-grid-wide">
                 <Card
-                  className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={dashboardStyles.outerCard}
+                  padding="none"
                 >
-                  <div className="absolute inset-0">
-                    <img
-                      src="/images/site-velvet-bg.webp.png"
-                      alt=""
-                      className="h-full w-full object-cover object-center scale-[1.12]"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-
-                  <div className="relative z-10 p-6 md:p-7">
+                  <div className="p-6 md:p-7">
                     <div className="dashboard-quotas-card-title">Cost Overview</div>
 
                     <div className="dashboard-quotas-soft-grid">
@@ -505,13 +467,13 @@ function QuotasPageInner() {
                         }}
                       >
                         <div
-                          style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}
+                          style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}
                         >
                           Total Cost
                         </div>
                         <div
                           className="dashboard-quotas-metric-value-lg"
-                          style={{ color: "#bfe8df", marginTop: 6, fontSize: 30 }}
+                          style={{ color: "var(--app-ink-heading)", marginTop: 6, fontSize: 30 }}
                         >
                           ${stats.costBreakdown.totalCost.toFixed(2)}
                         </div>
@@ -525,13 +487,13 @@ function QuotasPageInner() {
                         }}
                       >
                         <div
-                          style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}
+                          style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}
                         >
                           This Month
                         </div>
                         <div
                           className="dashboard-quotas-metric-value-lg"
-                          style={{ color: "#dcc0a5", marginTop: 6, fontSize: 30 }}
+                          style={{ color: "var(--app-ink-heading)", marginTop: 6, fontSize: 30 }}
                         >
                           ${stats.costBreakdown.thisMonth.toFixed(2)}
                         </div>
@@ -541,19 +503,9 @@ function QuotasPageInner() {
                 </Card>
 
                 <Card
-                  className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                  style={dashboardStyles.outerCard}
+                  padding="none"
                 >
-                  <div className="absolute inset-0">
-                    <img
-                      src="/images/site-velvet-bg.webp.png"
-                      alt=""
-                      className="h-full w-full object-cover object-center scale-[1.12]"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-
-                  <div className="relative z-10 p-6 md:p-7">
+                  <div className="p-6 md:p-7">
                     <div className="dashboard-quotas-card-title">Active Services</div>
 
                     <div className="dashboard-quotas-soft-grid">
@@ -565,13 +517,13 @@ function QuotasPageInner() {
                         }}
                       >
                         <div
-                          style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}
+                          style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}
                         >
                           Active API Keys
                         </div>
                         <div
                           className="dashboard-quotas-metric-value-lg"
-                          style={{ color: "#d8e0dd", marginTop: 6, fontSize: 30 }}
+                          style={{ color: "var(--app-ink-heading)", marginTop: 6, fontSize: 30 }}
                         >
                           {stats.activeApiKeys}
                         </div>
@@ -585,13 +537,13 @@ function QuotasPageInner() {
                         }}
                       >
                         <div
-                          style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}
+                          style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}
                         >
                           Active Batch Jobs
                         </div>
                         <div
                           className="dashboard-quotas-metric-value-lg"
-                          style={{ color: "#d8e0dd", marginTop: 6, fontSize: 30 }}
+                          style={{ color: "var(--app-ink-heading)", marginTop: 6, fontSize: 30 }}
                         >
                           {stats.activeBatches}
                         </div>
@@ -604,19 +556,9 @@ function QuotasPageInner() {
 
             {stats && Object.keys(stats.topEvidenceTypes).length > 0 && (
               <Card
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={dashboardStyles.outerCard}
+                padding="none"
               >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/site-velvet-bg.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center scale-[1.12]"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-
-                <div className="relative z-10 p-6 md:p-7">
+                <div className="p-6 md:p-7">
                   <div className="dashboard-quotas-card-title">
                     Evidence Types Analyzed
                   </div>
@@ -637,14 +579,14 @@ function QuotasPageInner() {
                       >
                         <div
                           className="dashboard-quotas-metric-value-lg"
-                          style={{ fontSize: 30, color: "#bfe8df" }}
+                          style={{ fontSize: 30, color: "var(--app-ink-heading)" }}
                         >
                           {count}
                         </div>
                         <div
                           style={{
                             fontSize: 13,
-                            color: "rgba(194,204,201,0.68)",
+                            color: "var(--app-ink-secondary)",
                             marginTop: 6,
                             overflowWrap: "anywhere",
                             wordBreak: "break-word",

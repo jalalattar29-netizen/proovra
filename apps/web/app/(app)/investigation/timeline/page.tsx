@@ -433,10 +433,10 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
   // and optionally otherNodeId. We pivot to the Relationship
   // Inspector for the node, and (when an edge event) for the edge.
   return (
-    <li style={eventRowStyle}>
+    <li className="inv-timeline-row" style={eventRowStyle}>
       <div style={eventTimeStyle}>{formatTime(event.atUtc)}</div>
       <div style={eventKindBadgeStyle(event.kind)}>{kindLabel(event.kind)}</div>
-      <div style={eventSummaryStyle}>{event.summary}</div>
+      <div className="inv-timeline-row__summary" style={eventSummaryStyle}>{event.summary}</div>
       <div style={eventPivotsStyle}>
         <Link
           href={`/investigation/relationships?nodeId=${encodeURIComponent(
@@ -709,8 +709,8 @@ const eventListStyle: React.CSSProperties = {
 };
 
 const eventRowStyle: React.CSSProperties = {
+  /* The columns live on .inv-timeline-row so they can collapse on a phone. */
   display: "grid",
-  gridTemplateColumns: "84px 170px 1fr auto",
   gap: 12,
   padding: "8px 14px",
   borderBottom: "1px solid #f1f5f9",

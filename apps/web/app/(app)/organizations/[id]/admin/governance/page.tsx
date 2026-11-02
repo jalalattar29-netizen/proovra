@@ -247,7 +247,7 @@ function GovernanceControlCenter() {
         >
           <div style={{ fontSize: 13.5, color: "var(--ink-primary, #0f172a)" }}>
             {state.status === 403 || state.status === 404
-              ? "You don't have access to the organization governance control center. This view requires ORG_AUDITOR or higher."
+              ? "You don't have access to the organization governance control center. This view requires the Auditor role or higher."
               : state.message}
           </div>
           {state.requestId ? (
@@ -536,7 +536,7 @@ function GovernanceControlCenter() {
               <DeepLinkRow
                 testId="gov-deep-link-lifecycle-legal-holds"
                 label="Evidence Lifecycle · Legal holds"
-                description="Place, list, and release legal holds (ADMIN+)."
+                description="Place, list, and release legal holds. Available to Admins and Owners."
                 href="/evidence-lifecycle/legal-holds"
               />
               <DeepLinkRow

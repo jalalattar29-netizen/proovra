@@ -629,6 +629,17 @@ textarea.app-form-input {
 .app-tabs::-webkit-scrollbar {
   display: none;
 }
+/* WRAP — for a strip with more tabs than a desktop row holds. The matter
+   workspace has thirteen; with the scrollbar hidden the last one was simply cut
+   at the edge with nothing to say more existed. On a phone it stays one
+   scrolling row, because five rows of tabs would push the content off screen. */
+@media (min-width: 721px) {
+  .app-tabs--wrap {
+    flex-wrap: wrap;
+    block-size: auto;
+    overflow-x: visible;
+  }
+}
 .app-tabs.is-sticky {
   position: sticky;
   top: 8px;
@@ -2618,5 +2629,59 @@ textarea.app-form-input {
 @media (max-width: 900px) {
   .app-grid-panels--pairs {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 22. EVENT ROW — time, kind, summary, action.
+ *
+ * Four fixed columns cannot fit a phone: the summary was left a few characters
+ * wide and clipped at the card edge, and the action fell off it entirely. The
+ * row becomes two lines there, and the time column is wide enough on every
+ * width for the timezone the time is written in.
+ * ------------------------------------------------------------------------- */
+.inv-timeline-row {
+  grid-template-columns: 170px 170px minmax(0, 1fr) auto;
+}
+.inv-timeline-row > * {
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .inv-timeline-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .inv-timeline-row__summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* The same row with the kind first: the summary used to be squeezed to nothing
+   on a phone, leaving only the pill and the time. */
+.inv-activity-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+@media (max-width: 720px) {
+  .inv-activity-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .inv-activity-row__summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 23. PINNED ROW ACTIONS — wide viewports only.
+ *
+ * A DataTable pins its actions column so it stays on screen beside a wide
+ * inventory. On a phone the pinned column is wider than the viewport's share of
+ * the table and sits on top of the data, so there it scrolls with the row.
+ * ------------------------------------------------------------------------- */
+@media (min-width: 721px) {
+  [data-row-actions-head],
+  [data-row-actions] {
+    position: sticky;
+    inset-inline-end: 0;
   }
 }

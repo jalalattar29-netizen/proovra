@@ -276,7 +276,7 @@ function AuditTab() {
         ) : audit.kind === "error" ? (
           <div data-state="error" role="alert" style={{ fontSize: 13 }}>
             {audit.status === 403
-              ? "You don't have access to the audit timeline (requires ORG_AUDITOR or higher)."
+              ? "You don't have access to the audit timeline (requires the Auditor role or higher)."
               : audit.message}
             {audit.requestId ? (
               <div

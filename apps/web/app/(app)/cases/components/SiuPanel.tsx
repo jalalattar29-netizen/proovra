@@ -467,8 +467,8 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
             </tbody>
           </table>
           <p style={mutedText} data-testid="siu-durability-note">
-            Durable storage: Prisma. PII redacted by default; reveal requires
-            capability + step-up.
+            Stored durably. Personal data is redacted by default; revealing it
+            requires permission and a fresh sign-in check.
           </p>
 
           {summary ? (

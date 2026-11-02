@@ -130,7 +130,7 @@ test("both /cases/[id] branches render the SAME header component", () => {
 
 test("both branches use the canonical tab / status / surface authorities", () => {
   for (const src of [COMPONENT, MATTER]) {
-    assert.match(src, /className="app-tabs"/);
+    assert.match(src, /className="app-tabs( app-tabs--wrap)?"/);
     assert.match(src, /app-tab is-active/);
   }
   // No parallel Enterprise stylesheet, and no route-activated styling.

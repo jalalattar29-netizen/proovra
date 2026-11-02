@@ -789,11 +789,11 @@ function GraphActivityList({
     <Card padding="none">
       <ul style={activityListStyle}>
         {events.map((e) => (
-          <li key={`${e.kind}:${e.id}`} style={activityRowStyle}>
+          <li key={`${e.kind}:${e.id}`} className="inv-activity-row" style={activityRowStyle}>
             <Badge tone={e.kind === "NODE_CREATED" ? "info" : "verified"} subtle>
               {e.kind === "NODE_CREATED" ? "Node" : "Edge"}
             </Badge>
-            <span style={activitySummaryStyle}>{e.summary}</span>
+            <span className="inv-activity-row__summary" style={activitySummaryStyle}>{e.summary}</span>
             <time style={timestampStyle} dateTime={e.atUtc}>
               {formatTimestamp(e.atUtc)}
             </time>
@@ -1321,8 +1321,8 @@ const activityListStyle: React.CSSProperties = {
 };
 
 const activityRowStyle: React.CSSProperties = {
+  /* Columns on .inv-activity-row, so they can collapse on a phone. */
   display: "grid",
-  gridTemplateColumns: "auto 1fr auto",
   gap: 12,
   padding: "12px 16px",
   borderBottom: "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
@@ -1333,6 +1333,6 @@ const activitySummaryStyle: React.CSSProperties = {
   fontSize: 13,
   color: "var(--ink-primary, #0f172a)",
   lineHeight: 1.4,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  minWidth: 0,
+  overflowWrap: "anywhere",
 };

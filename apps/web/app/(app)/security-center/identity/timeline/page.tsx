@@ -303,7 +303,7 @@ export default function IdentityTimelinePage() {
         if (!e.actor || !recorded) {
           return (
             <span
-              style={{ fontSize: 12, fontStyle: "italic" }}
+              style={{ fontSize: 12 }}
               title="This event did not record who performed it."
             >
               Not recorded
@@ -320,7 +320,7 @@ export default function IdentityTimelinePage() {
         });
         return (
           <span style={{ display: "grid", gap: 1, fontSize: 12 }}>
-            <span style={{ fontStyle: actor.unknown ? "italic" : "normal" }}>
+            <span>
               {actor.name}
             </span>
             {actor.reference ? (
@@ -338,7 +338,7 @@ export default function IdentityTimelinePage() {
         <PageHeader
           eyebrow="Identity operations"
           title="Identity Audit"
-          subtitle="Workspace-wide identity events: SSO logins, SCIM syncs, session revocations, suspicious sessions, temporary elevations, access reviews, and adaptive auth decisions. Sourced from the Phase 21 SecurityEvent table — operator-safe projections only."
+          subtitle="Workspace-wide identity events: SSO logins, SCIM syncs, session revocations, suspicious sessions, temporary elevations, access reviews, and adaptive auth decisions. Sourced from the security audit log — operator-safe projections only."
           secondaryActions={
             <Button variant="secondary" onClick={() => load(currentCursor)}>
               Refresh

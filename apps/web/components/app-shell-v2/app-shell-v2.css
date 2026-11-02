@@ -600,7 +600,10 @@
 
 .app-shell-v2-content {
   min-width: 0;
-  padding: 28px 40px 56px;
+  /* 104px at the foot: the assistant launcher is fixed 24px up and 48px tall.
+     A page's last control has to be able to scroll clear of it; with 56px the
+     launcher sat permanently over the end of every long page. */
+  padding: 28px 40px 104px;
   background: transparent;
   flex: 1 1 auto;
   /* Content-area card readability over the light artwork. Cards read
@@ -1664,10 +1667,12 @@
     gap: 0;
   }
 
-  /* The centre zone stops stretching so the button keeps its square. */
+  /* The centre zone stops stretching so the button keeps its square. The
+     margin keeps it from touching the bell, which read as one fused control. */
   .app-header-zone-center {
     flex: 0 0 auto;
     justify-content: center;
+    margin-inline-end: 6px;
   }
 
   /* Below this breakpoint the shell has already collapsed the action cluster
@@ -1690,7 +1695,7 @@
   }
 
   .app-shell-v2-content {
-    padding: 16px 14px 40px;
+    padding: 16px 14px 84px;
   }
 
   .app-shell-v2-mobile-overlay {

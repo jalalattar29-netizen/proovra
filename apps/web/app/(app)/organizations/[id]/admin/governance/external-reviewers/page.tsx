@@ -369,7 +369,7 @@ function ExternalReviewerGovernanceView() {
                       </Button>
                     </Link>
                   }
-                  note="Issuing grants requires REVIEWER_OPS_ACT on the operator console; this governance view is read-only."
+                  note="Grants are issued from Reviewer Operations by someone with permission to act on reviews. This governance view is read-only."
                 />
               </div>
             ) : (
@@ -397,7 +397,7 @@ function ExternalReviewerGovernanceView() {
               <DeepLinkRow
                 testId="ext-reviewers-deep-link-console"
                 label="External Review Management Console"
-                description="Issue, resend, revoke, and rotate external reviewer grants (REVIEWER_OPS_ACT)."
+                description="Issue, resend, revoke, and rotate external reviewer grants. Requires permission to act on reviews."
                 href="/review/external"
               />
               <DeepLinkRow

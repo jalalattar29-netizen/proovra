@@ -71,6 +71,14 @@
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
+/* The launcher's own box. The hint anchors to it, and on a phone it is what
+   carries the launcher to the end of the row. */
+.assistant-launcher-slot {
+  position: relative;
+  align-self: flex-end;
+  block-size: 3rem;
+}
+
 .assistant-launcher:hover {
   transform: translateY(-1px);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.26);
@@ -87,17 +95,28 @@
 }
 
 /* The one-time nudge. It is a label, not a tooltip: it never points at
-   anything and it disappears on a timer, so it must not look interactive. */
+   anything and it disappears on a timer, so it must not look interactive.
+
+   IT STAYS IN THE LAUNCHER'S OWN COLUMN. It used to sit to the launcher's left,
+   which is exactly where a page puts its primary action: on a 1440x900 screen
+   it lay over the setup wizard's Next button for its three seconds. Stacked
+   above the launcher and no wider than it, it occupies only the corner the
+   launcher already owns. It never takes a pointer, so even at a width where
+   the corner is shared the control beneath it still answers. */
 .assistant-hint {
   position: absolute;
-  right: 3.75rem;
-  bottom: 0.75rem;
-  white-space: nowrap;
-  border-radius: 999px;
+  inset-inline-end: 0;
+  bottom: calc(100% + 0.375rem);
+  inline-size: 3rem;
+  box-sizing: border-box;
+  text-align: center;
+  line-height: 1.15;
+  pointer-events: none;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--card);
-  padding: 0.375rem 0.75rem;
-  font-size: 0.75rem;
+  padding: 0.25rem 0.125rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--ink-primary);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
@@ -110,7 +129,10 @@
   display: flex;
   flex-direction: column;
   inline-size: min(24rem, calc(100vw - 3rem));
-  max-block-size: min(32rem, calc(100dvh - 8rem));
+  /* 38rem: the header, the four opening questions, the AI-off notice and the
+     composer together. At 32rem the third question was cut to a sliver by the
+     notice; the height is still capped by the screen on a short laptop. */
+  max-block-size: min(38rem, calc(100dvh - 8rem));
   overflow: hidden;
   border-radius: 16px;
   border: 1px solid var(--border);
@@ -404,10 +426,16 @@
    PHONE — the panel becomes a sheet.
 --------------------------------------------------------------------------- */
 @media (max-width: 640px) {
+  /* The dock spans the width only while the panel is open. Closed, it used to
+     stretch across the screen anyway: the launcher landed at the wrong end, and
+     an invisible 48px strip took every tap along the bottom of the page. */
   .assistant-dock {
     right: 0.75rem;
-    left: 0.75rem;
     bottom: 0.75rem;
+  }
+
+  .assistant-dock:has(.assistant-panel) {
+    left: 0.75rem;
     align-items: stretch;
   }
 
@@ -417,7 +445,8 @@
     border-radius: 16px 16px 12px 12px;
   }
 
-  .assistant-launcher {
-    align-self: flex-end;
+  /* A phone has no spare corner: the launcher's aria-label names it instead. */
+  .assistant-hint {
+    display: none;
   }
 }

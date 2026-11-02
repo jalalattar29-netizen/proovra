@@ -498,7 +498,6 @@ function EligibilityCard({
           style={{
             fontSize: 11,
             color: OPS_INK.subtle,
-            fontStyle: "italic",
           }}
         >
           Reason: {reason}

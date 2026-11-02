@@ -221,7 +221,6 @@ const emptyStyle: React.CSSProperties = {
   padding: 14,
   fontSize: 12,
   color: "#64748b",
-  fontStyle: "italic",
   background: "#f8fafc",
   border: "1px solid #e5e7eb",
   borderRadius: 8,

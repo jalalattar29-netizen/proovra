@@ -248,6 +248,48 @@
   gap: 16px;
 }
 
+/* BULK SELECTION. The checkbox sits in a gutter at the row's start, centred on
+   the row, and the row and the header both give up that gutter so the columns
+   stay aligned. It used to float unstyled above each row's top-left corner. */
+.cases-row {
+  position: relative;
+}
+.cases-row-select {
+  position: absolute;
+  inset-inline-start: 10px;
+  inset-block-start: 26px;
+  z-index: 1;
+  display: inline-flex;
+}
+.cases-row:has(> .cases-row-select) .cases-row-link {
+  padding-inline-start: 40px;
+}
+.cases-table:has(.cases-row-select) .cases-table-head {
+  padding-inline-start: 40px;
+}
+.cases-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 18px 10px 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 13px;
+  color: var(--app-ink-label);
+}
+.cases-bulk-selectall {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.cases-row-bulk-note {
+  margin: 0;
+  padding: 6px 18px 0 40px;
+  font-size: 12px;
+  color: #7C4A0C;
+}
+
 /* §1 — visible column header. Slate, uppercase, quiet — NOT purple. */
 .cases-table-head {
   padding: 12px 18px;

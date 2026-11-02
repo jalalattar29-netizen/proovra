@@ -167,7 +167,7 @@ function fromPolicyDecision(decision: string): AssistantState {
        */
       return {
         kind: "CONFIGURATION_ERROR",
-        title: "AI responses are switched off on this deployment",
+        title: "AI responses are switched off",
         body:
           "Questions about how PROOVRA works are still answered. Anything needing the AI model is unavailable until an administrator enables it.",
         canSend: true,
@@ -332,7 +332,7 @@ export function classifyAssistantResult(
     case "disabled":
       return {
         kind: "CONFIGURATION_ERROR",
-        title: "AI responses are switched off on this deployment",
+        title: "AI responses are switched off",
         body:
           "Questions about how PROOVRA works are still answered. Anything needing the AI model is unavailable until an administrator enables it.",
         canSend: true,

@@ -364,15 +364,6 @@ function ReportsTab() {
                       </Badge>
                     )}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--ink-muted, #94a3b8)",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {report.source}
-                  </div>
                   <div style={{ marginTop: "auto", paddingTop: 4 }}>
                     <Button
                       type="button"

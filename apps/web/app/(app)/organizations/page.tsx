@@ -407,7 +407,7 @@ function OrganizationsListPageInner() {
           <ul style={{ margin: "0.6rem 0 0", paddingLeft: "1.1rem", fontSize: 13, opacity: 0.85 }}>
             <li>
               <strong>Create an organization</strong> to become its
-              ORG_OWNER. You can then invite members and bind workspaces.
+              Owner. You can then invite members and bind workspaces.
             </li>
             <li>
               <strong>Accept an invite token</strong> if an organization

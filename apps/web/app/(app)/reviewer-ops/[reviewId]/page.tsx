@@ -2283,10 +2283,9 @@ function ReviewerDeferredFeaturesPanel() {
               context). Recorded in the workspace activity feed.
             </li>
             <li data-reviewer-deferred-item="decision-audit-chain">
-              <strong>Decision audit chain.</strong> Every approve /
-              reject / request-info / pause / escalate emits a
-              SecurityEvent + workflow event. Decision history is
-              traceable via /v1/reviewer-ops/workspace/:workflowId.
+              <strong>Decision audit chain.</strong> Every approval,
+              rejection, information request, pause and escalation is
+              written to the audit log and the review's history.
             </li>
             <li data-reviewer-deferred-item="rationale-required">
               <strong>Rationale enforcement.</strong> Escalate, pause and
@@ -2295,23 +2294,21 @@ function ReviewerDeferredFeaturesPanel() {
             </li>
             <li data-reviewer-deferred-item="governance-signals">
               <strong>Governance signals on the review.</strong> Legal
-              hold count + redaction-required field count surface
-              read-only (Phase B-2).
+              holds and fields that need redaction are shown here, read-only.
             </li>
             <li data-reviewer-deferred-item="multi-stage-review">
-              <strong>Multi-stage review governance</strong> (Phase
-              B.2). FIRST → SECOND → ADJUDICATION state machine
-              enforced server-side. Same-reviewer guard fires 409.
-              Conflict detection auto-derives from mismatched
-              decisions. Adjudication requires team OWNER/ADMIN.
+              <strong>Multi-stage review governance.</strong> A review
+              moves from first review to second review to adjudication,
+              and the same reviewer cannot decide twice. Mismatched
+              decisions raise a conflict. Adjudication requires a workspace
+              Owner or Admin.
               First, second and adjudication decisions are each recorded
               in the workspace activity feed.
             </li>
             <li data-reviewer-deferred-item="decision-lineage">
-              <strong>Decision lineage</strong> (Phase B.2). Every
-              decision row carries stage + decision kind + reason code
-              + rationale + reviewer + timestamp. Visible inline on
-              this review surface; never overwritten.
+              <strong>Decision lineage.</strong> Every decision records
+              its stage, type, reason, rationale, reviewer and time. It is
+              shown on this review and never overwritten.
             </li>
           </ul>
         </div>
@@ -2334,9 +2331,9 @@ function ReviewerDeferredFeaturesPanel() {
                  header. */}
             <li data-reviewer-deferred-item="manual-second-review-override">
               <strong>Manual “require second review” override.</strong>{" "}
-              Phase B.2 derives the second-review requirement from
-              policy triggers (escalated, legal hold, redaction). A
-              per-workflow manual override flag is a future migration.
+              A second review is required by policy triggers: escalation,
+              legal hold or redaction. A manual override for a single
+              review is planned.
             </li>
             <li data-reviewer-deferred-item="senior-reviewer-role">
               <strong>Dedicated senior-reviewer role.</strong>{" "}

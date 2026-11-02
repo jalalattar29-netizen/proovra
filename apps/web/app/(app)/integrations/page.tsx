@@ -3115,7 +3115,7 @@ function ApiKeyActivityPanel({
                     </div>
                     {r.reason ? (
                       <div
-                        style={{ ...mutedStyle, fontStyle: "italic" }}
+                        style={mutedStyle}
                         data-testid={`integrations-api-key-activity-reason-${r.id}`}
                       >
                         Reason: {r.reason}

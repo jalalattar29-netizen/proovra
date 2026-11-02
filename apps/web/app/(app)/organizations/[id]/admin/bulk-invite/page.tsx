@@ -39,6 +39,7 @@ import { useToast } from "../../../../../../components/ui";
 import { PageSection, DataTable } from "../../../../../../components/ui";
 import type { DataTableColumn } from "../../../../../../components/ui";
 import { Card } from "../../../../../../components/ui/Card";
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
@@ -414,19 +415,16 @@ function BulkInviteTab() {
           <div style={{ display: "flex", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
               Default role
-              <select
-                value={defaultRole}
-                onChange={(e) => setDefaultRole(e.target.value as OrgRole)}
-                disabled={busy !== null}
-                data-testid="bulk-invite-default-role"
-                style={{ ...inputStyle, width: 220, cursor: "pointer" }}
-              >
-                {ALL_ORG_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ORG_ROLE_LABEL[r]}
-                  </option>
-                ))}
-              </select>
+              <div style={{ width: 220, maxWidth: "100%", marginTop: 4 }}>
+                <AppListbox<OrgRole>
+                  ariaLabel="Default role"
+                  value={defaultRole}
+                  onChange={setDefaultRole}
+                  disabled={busy !== null}
+                  options={ALL_ORG_ROLES.map((r) => ({ value: r, label: ORG_ROLE_LABEL[r] }))}
+                  triggerProps={{ "data-testid": "bulk-invite-default-role" }}
+                />
+              </div>
             </label>
             <Button
               type="button"

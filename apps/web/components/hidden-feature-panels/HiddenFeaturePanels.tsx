@@ -50,15 +50,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
+import { humaniseCode } from "../../lib/ots-presentation";
 
 // -----------------------------------------------------------------------------
 // Shared styles (used by every panel for consistency without a redesign)
 // -----------------------------------------------------------------------------
 
+/*
+ * THESE PANELS SIT ON THE LIGHT CONTENT PLANE, on every route that mounts them.
+ * They were written for the old dark surface: near-white ink on a 4% white
+ * card, which on the shipped light background left the whole block almost
+ * invisible on the matter Overview, Security Center and Governance Lifecycle.
+ * Every colour below is now a token or a value from the semantic contract at
+ * the top of app-primitives.css.
+ */
 const card: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 14,
+  background: "var(--surface-card)",
+  border: "1px solid var(--border-default)",
+  borderRadius: "var(--radius-card)",
   padding: 16,
   marginBottom: 12,
 };
@@ -70,22 +79,22 @@ const heading: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: 0.4,
   textTransform: "uppercase",
-  color: "#dce1de",
+  color: "var(--app-ink-heading)",
 };
 
 const muted: React.CSSProperties = {
   margin: 0,
   fontSize: 12,
-  color: "rgba(220,225,222,0.7)",
+  color: "var(--app-ink-secondary)",
 };
 
 const errBox: React.CSSProperties = {
   marginTop: 8,
   padding: "8px 10px",
   borderRadius: 8,
-  background: "rgba(179,38,30,0.18)",
-  border: "1px solid rgba(179,38,30,0.45)",
-  color: "#f7d4d1",
+  background: "#FFF1F2",
+  border: "1px solid rgba(178, 52, 66, 0.24)",
+  color: "#B23442",
   fontSize: 12,
 };
 
@@ -97,40 +106,50 @@ const pill = (tone: "neutral" | "warn" | "danger" | "ok"): React.CSSProperties =
   borderRadius: 999,
   fontSize: 10,
   fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: 0.6,
+  letterSpacing: 0.2,
   border:
     tone === "danger"
-      ? "1px solid rgba(179,38,30,0.55)"
+      ? "1px solid rgba(178, 52, 66, 0.24)"
       : tone === "warn"
-        ? "1px solid rgba(241,162,58,0.55)"
+        ? "1px solid rgba(168, 102, 18, 0.24)"
         : tone === "ok"
-          ? "1px solid rgba(125,200,175,0.55)"
-          : "1px solid rgba(255,255,255,0.18)",
+          ? "1px solid rgba(22, 122, 91, 0.24)"
+          : "1px solid var(--border-default)",
   background:
     tone === "danger"
-      ? "rgba(179,38,30,0.16)"
+      ? "#FFF1F2"
       : tone === "warn"
-        ? "rgba(241,162,58,0.16)"
+        ? "#FFF6E5"
         : tone === "ok"
-          ? "rgba(125,200,175,0.16)"
-          : "rgba(255,255,255,0.06)",
+          ? "#EAF7F1"
+          : "#F1F5F9",
   color:
     tone === "danger"
-      ? "#f7d4d1"
+      ? "#B23442"
       : tone === "warn"
-        ? "#f0d2a0"
+        ? "#7C4A0C"
         : tone === "ok"
-          ? "#cde5dc"
-          : "rgba(220,225,222,0.85)",
+          ? "#167A5B"
+          : "#475569",
 });
 
 const scoreNumber: React.CSSProperties = {
   fontSize: 28,
   fontWeight: 800,
   letterSpacing: -1,
-  color: "#dce1de",
+  color: "var(--app-ink-heading)",
   lineHeight: 1.1,
+};
+
+const rowDivider = "1px solid var(--border-subtle)";
+
+/** "/ 100" beside a score, so the number has a scale. */
+const scoreScale: React.CSSProperties = {
+  marginInlineStart: 4,
+  fontSize: 13,
+  fontWeight: 600,
+  letterSpacing: 0,
+  color: "var(--app-ink-secondary)",
 };
 
 function tsFmt(ts: string | null | undefined): string {
@@ -146,6 +165,39 @@ function severityTone(
   if (up === "MEDIUM" || up === "WARNING" || up === "WARN") return "warn";
   return "neutral";
 }
+
+/**
+ * What the engine's level means, in the customer's words. The word "NONE" on
+ * its own read as "no risk data", which is the opposite of what it says.
+ */
+const RISK_LEVEL_LABELS: Record<string, string> = {
+  NONE: "No risk signals",
+  LOW: "Low risk",
+  MEDIUM: "Medium risk",
+  HIGH: "High risk",
+  CRITICAL: "Critical risk",
+};
+
+function riskLevelLabel(level: string): string {
+  return RISK_LEVEL_LABELS[level.toUpperCase()] ?? humaniseCode(level);
+}
+
+/** Reason codes from the matter risk engine, as a reader would say them. */
+const RISK_REASON_LABELS: Record<string, string> = {
+  EVIDENCE_GAP: "Linked evidence is missing a report or verification package",
+  INCIDENT_OPEN: "An incident linked to this matter is open",
+  WORKFLOW_OVERDUE: "A workflow is past its due date",
+  WORKFLOW_ACTIVE: "A workflow is in progress",
+  INTEGRITY_FAILED: "Linked evidence failed an integrity check",
+  INTEGRITY_REVIEW_REQUIRED: "Linked evidence needs an integrity review",
+  GOVERNANCE_BLOCKER: "A governance workflow or legal hold applies",
+  LEGAL_HOLD_ACTIVE: "An active legal hold blocks closure",
+  REVIEWER_OVERLOAD: "Assigned reviewers are overloaded",
+  AUDIT_GAP: "Linked evidence has an audit-readiness gap",
+  PACKAGE_MISSING: "Reported evidence has no verification package",
+  REPORT_MISSING: "Signed evidence has no report",
+  CUSTODY_CONCERN: "Linked evidence is not in an active lifecycle state",
+};
 
 function riskLevelTone(
   level: string | null | undefined,
@@ -230,12 +282,21 @@ export function CaseRiskPanel({ caseId }: { caseId: string }) {
             }}
           >
             <div>
-              <div style={scoreNumber}>{snap.riskScore ?? "—"}</div>
+              <div style={scoreNumber}>
+                {snap.riskScore ?? "—"}
+                {snap.riskScore != null ? <span style={scoreScale}>/ 100</span> : null}
+              </div>
+              {/* The score counts DOWN from 100 as risks are found, which no
+                  reader would guess from the bare number. */}
+              <div style={muted} data-risk-scale>
+                Higher is safer. 100 means nothing is counting against this
+                matter; below 30 is critical.
+              </div>
               <div style={muted}>Sampled {tsFmt(snap.sampledAtUtc)}</div>
             </div>
             {snap.riskLevel ? (
               <span style={pill(riskLevelTone(snap.riskLevel))}>
-                {snap.riskLevel}
+                {riskLevelLabel(snap.riskLevel)}
               </span>
             ) : null}
           </div>
@@ -246,7 +307,7 @@ export function CaseRiskPanel({ caseId }: { caseId: string }) {
               gridTemplateColumns: "1fr 1fr",
               gap: 8,
               fontSize: 12,
-              color: "#dce1de",
+              color: "var(--app-ink-control)",
             }}
           >
             <div>
@@ -288,7 +349,7 @@ export function CaseRiskPanel({ caseId }: { caseId: string }) {
               >
                 {snap.reasonCodes.slice(0, 6).map((r) => (
                   <span key={r} style={pill("neutral")}>
-                    {r}
+                    {RISK_REASON_LABELS[r] ?? humaniseCode(r)}
                   </span>
                 ))}
               </div>
@@ -296,7 +357,7 @@ export function CaseRiskPanel({ caseId }: { caseId: string }) {
           ) : null}
 
           {snap.recommendedAction ? (
-            <div style={{ ...muted, marginTop: 10, fontStyle: "italic" }}>
+            <div style={{ ...muted, marginTop: 10 }}>
               Recommended: {snap.recommendedAction}
             </div>
           ) : null}
@@ -369,7 +430,7 @@ export function EvidenceAiCategorizationCard({
       ) : (
         <>
           {cat.summary ? (
-            <p style={{ ...muted, color: "#dce1de" }}>{cat.summary}</p>
+            <p style={{ ...muted, color: "var(--app-ink-control)" }}>{cat.summary}</p>
           ) : null}
           {cat.categories.length > 0 ? (
             <div style={{ marginTop: 8 }}>
@@ -425,7 +486,7 @@ export function EvidenceAiCategorizationCard({
               >
                 {cat.riskFlags.map((r) => (
                   <span key={r} style={pill("warn")}>
-                    {r}
+                    {humaniseCode(r)}
                   </span>
                 ))}
               </div>
@@ -518,6 +579,7 @@ export function ImmutableStorageDriftSection({
         >
           <input
             type="checkbox"
+            className="app-checkbox"
             checked={showAll}
             onChange={(e) => setShowAll(e.target.checked)}
           />
@@ -525,8 +587,8 @@ export function ImmutableStorageDriftSection({
         </label>
       </div>
       <p style={muted}>
-        Reconciler-detected mismatches between the DB lifecycle state and
-        the storage-bucket retention/legal-hold pin.
+        Mismatches found between the retention or legal hold recorded for an
+        evidence record and the lock on its stored file.
       </p>
 
       {err ? (
@@ -537,12 +599,12 @@ export function ImmutableStorageDriftSection({
         <p style={muted}>
           {showAll
             ? "No checks recorded in the recent window."
-            : "No drift detected — DB and storage retention agree across all checked evidence."}
+            : "No drift detected. Recorded retention and stored-file locks agree across all checked evidence."}
         </p>
       ) : (
         <div style={{ marginTop: 8 }}>
           <div style={muted}>
-            {driftCount} drift row(s) out of {rows.length} checked.
+            {driftCount} of {rows.length} checked records show drift.
           </div>
           <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0" }}>
             {rows.slice(0, 20).map((r) => (
@@ -553,16 +615,13 @@ export function ImmutableStorageDriftSection({
                   padding: "8px 10px",
                   borderRadius: 8,
                   marginBottom: 6,
-                  background:
-                    r.outcome === "OK"
-                      ? "rgba(255,255,255,0.03)"
-                      : "rgba(179,38,30,0.10)",
+                  background: r.outcome === "OK" ? "var(--surface-muted)" : "#FFF1F2",
                   border:
                     r.outcome === "OK"
-                      ? "1px solid rgba(255,255,255,0.08)"
-                      : "1px solid rgba(179,38,30,0.40)",
+                      ? "1px solid var(--border-subtle)"
+                      : "1px solid rgba(178, 52, 66, 0.24)",
                   fontSize: 12,
-                  color: "#dce1de",
+                  color: "var(--app-ink-control)",
                 }}
               >
                 <div
@@ -574,7 +633,7 @@ export function ImmutableStorageDriftSection({
                 >
                   <span>
                     <span style={pill(r.outcome === "OK" ? "ok" : "danger")}>
-                      {r.outcome}
+                      {humaniseCode(r.outcome)}
                     </span>{" "}
                     <span style={muted}>
                       evidence {r.evidenceId.slice(0, 8)}…
@@ -650,7 +709,7 @@ export function MfaRecoveryApprovalHistoryBlock({
       ) : rows.length === 0 ? (
         <p style={muted}>No approvals recorded yet.</p>
       ) : (
-        <ol style={{ margin: 0, paddingLeft: 18, color: "#dce1de", fontSize: 12 }}>
+        <ol style={{ margin: 0, paddingLeft: 18, color: "var(--app-ink-control)", fontSize: 12 }}>
           {rows.map((r) => (
             <li
               key={r.id}
@@ -743,9 +802,9 @@ export function EvidenceRequestEventsTab({
               style={{
                 padding: "8px 10px",
                 marginBottom: 4,
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: rowDivider,
                 fontSize: 12,
-                color: "#dce1de",
+                color: "var(--app-ink-control)",
               }}
             >
               <div
@@ -756,14 +815,14 @@ export function EvidenceRequestEventsTab({
                   alignItems: "center",
                 }}
               >
-                <strong>{e.eventType}</strong>
+                <strong>{humaniseCode(e.eventType)}</strong>
                 <span style={muted}>
                   {tsFmt(e.occurredAtUtc ?? e.createdAt)}
                 </span>
               </div>
               {e.status ? (
                 <div style={{ marginTop: 2 }}>
-                  <span style={pill("neutral")}>{e.status}</span>
+                  <span style={pill("neutral")}>{humaniseCode(e.status)}</span>
                 </div>
               ) : null}
               {e.detail || e.reason ? (
@@ -837,8 +896,11 @@ export function OrgHealthSnapshotCard({ teamId }: { teamId: string }) {
       ) : (
         <>
           <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
-            <div style={scoreNumber}>{snap.healthScore ?? "—"}</div>
-            <div style={muted}>Sampled {tsFmt(snap.sampledAtUtc)}</div>
+            <div style={scoreNumber}>
+              {snap.healthScore ?? "—"}
+              {snap.healthScore != null ? <span style={scoreScale}>/ 100</span> : null}
+            </div>
+            <div style={muted}>Higher is healthier. Sampled {tsFmt(snap.sampledAtUtc)}</div>
           </div>
           <div
             style={{
@@ -847,7 +909,7 @@ export function OrgHealthSnapshotCard({ teamId }: { teamId: string }) {
               gap: 6,
               marginTop: 10,
               fontSize: 12,
-              color: "#dce1de",
+              color: "var(--app-ink-control)",
             }}
           >
             <div>Operational maturity: <strong>{snap.operationalMaturityScore ?? "—"}</strong></div>
@@ -931,9 +993,9 @@ export function ReviewerRoutingRecommendationsPane({
               style={{
                 padding: "8px 10px",
                 marginBottom: 6,
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: rowDivider,
                 fontSize: 12,
-                color: "#dce1de",
+                color: "var(--app-ink-control)",
               }}
             >
               <div
@@ -946,15 +1008,15 @@ export function ReviewerRoutingRecommendationsPane({
               >
                 <span>
                   <span style={pill(severityTone(r.severity))}>
-                    {r.severity}
+                    {humaniseCode(r.severity)}
                   </span>{" "}
-                  <strong>{r.recommendationType}</strong>
+                  <strong>{humaniseCode(r.recommendationType)}</strong>
                 </span>
                 <span style={muted}>{tsFmt(r.createdAt)}</span>
               </div>
               <div style={{ ...muted, marginTop: 4 }}>{r.explanation}</div>
               <div style={{ ...muted, marginTop: 2 }}>
-                Reason: <code>{r.reasonCode}</code>
+                Reason: {humaniseCode(r.reasonCode)}
               </div>
             </li>
           ))}
@@ -1015,9 +1077,9 @@ export function AccessAnomaliesCard({ teamId }: { teamId: string }) {
     <section data-cc-panel="access-anomalies" style={card}>
       <h2 style={heading}>Access anomalies</h2>
       <p style={muted}>
-        Bounded list of OPEN / ACKNOWLEDGED workspace access anomalies
-        — login pattern shifts, unusual session origins, suspicious
-        permission attempts.
+        Open and acknowledged access anomalies in this workspace: login
+        pattern shifts, unusual session origins and suspicious permission
+        attempts.
       </p>
       {err ? (
         <div style={errBox}>{err}</div>
@@ -1034,9 +1096,9 @@ export function AccessAnomaliesCard({ teamId }: { teamId: string }) {
               style={{
                 padding: "8px 10px",
                 marginBottom: 6,
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: rowDivider,
                 fontSize: 12,
-                color: "#dce1de",
+                color: "var(--app-ink-control)",
               }}
             >
               <div
@@ -1049,16 +1111,16 @@ export function AccessAnomaliesCard({ teamId }: { teamId: string }) {
               >
                 <span>
                   <span style={pill(severityTone(a.severity))}>
-                    {a.severity}
+                    {humaniseCode(a.severity)}
                   </span>{" "}
-                  <strong>{a.category}</strong>{" "}
-                  <span style={muted}>· {a.status}</span>
+                  <strong>{humaniseCode(a.category)}</strong>{" "}
+                  <span style={muted}>· {humaniseCode(a.status)}</span>
                 </span>
                 <span style={muted}>{tsFmt(a.windowEndUtc)}</span>
               </div>
               <div style={{ ...muted, marginTop: 4 }}>
                 {a.summary ??
-                  `${a.sampleEventType} · ${a.count} event${
+                  `${humaniseCode(a.sampleEventType)} · ${a.count} event${
                     a.count === 1 ? "" : "s"
                   }`}
               </div>
