@@ -333,6 +333,32 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
     expect(setCookie(res)).not.toContain("proovra_session=");
   });
 
+  it("IDENT-020: an email on a verified domain finds its sign-in, and nothing else does", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org);
+    const domain = `${randomUUID().slice(0, 8)}.verified.example`;
+    const discover = async (email: string) =>
+      (await harness.app.inject({ method: "POST", url: "/v1/auth/sso/discover", payload: { email } })).json() as {
+        sso: boolean;
+        loginPath?: string;
+      };
+    const claim = (organizationId: string, ownerId: string, verifiedAt: Date | null) =>
+      prisma.organizationDomain.create({
+        data: { organizationId, domain, verifiedAt, verificationToken: randomUUID(), createdByUserId: ownerId } as never,
+      });
+
+    await claim(org.organizationId, org.owner.userId, null);
+    expect(await discover(`a@${domain}`)).toEqual({ sso: false });
+
+    await prisma.organizationDomain.updateMany({ where: { domain }, data: { verifiedAt: new Date() } });
+    expect(await discover(`a@${domain}`)).toEqual({ sso: true, loginPath: `/v1/auth/sso/${id}/initiate` });
+    expect(await discover("a@elsewhere.example")).toEqual({ sso: false });
+    expect(await discover("not an email")).toEqual({ sso: false });
+
+    await prisma.ssoConnection.update({ where: { id }, data: { status: "DISABLED" } });
+    expect(await discover(`a@${domain}`)).toEqual({ sso: false });
+  });
+
   it("an abandoned attempt is swept once it is long past its expiry", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const id = await activeConnection(org);

@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiBaseUrl, apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
@@ -234,6 +234,32 @@ function LoginPageContent() {
   useEffect(() => {
     nextUrlRef.current = nextUrl;
   }, [nextUrl]);
+
+  // IDENT-020 — the way in for a person whose organization signs in with SSO.
+  const startSingleSignOn = async () => {
+    setError(null);
+    if (!email.trim()) {
+      setError("Enter your work email first.");
+      return;
+    }
+    try {
+      const found = (await apiFetch(
+        "/v1/auth/sso/discover",
+        { method: "POST", body: JSON.stringify({ email: email.trim() }) },
+        { auth: false },
+      )) as { sso?: boolean; loginPath?: string };
+      if (!found?.sso || !found.loginPath) {
+        setError("No single sign-on is set up for that email address. Sign in another way, or ask your administrator.");
+        return;
+      }
+      const next = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
+      window.location.assign(
+        `${apiBaseUrl()}${found.loginPath}?redirectAfter=${encodeURIComponent(next)}`,
+      );
+    } catch (err) {
+      setError(toSafeUserError(err, { message: "Single sign-on could not be started. Try again." }).message);
+    }
+  };
 
   // IDENT-003 — a failed SSO sign-in arrives here with a reason.
   useEffect(() => {
@@ -946,7 +972,23 @@ function LoginPageContent() {
                               </div>
                             ) : null}
 
-                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                              <button
+                                type="button"
+                                onClick={() => void startSingleSignOn()}
+                                className="auth-link"
+                                style={{
+                                  color: "#D63E76",
+                                  fontWeight: 600,
+                                  background: "transparent",
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: "pointer",
+                                  font: "inherit",
+                                }}
+                              >
+                                Use single sign-on
+                              </button>
                               <button
                                 ref={forgotTriggerRef}
                                 type="button"

@@ -76,7 +76,10 @@ import {
   safeIntendedDestination,
   absoluteInternalUrl,
   internalNavPath,
+  ssoProviderProtocol,
+  type SsoProvider,
 } from "@proovra/shared";
+import { domainFromEmail } from "../services/organization/organization-domain.service.js";
 // PHASE 12B — the federation READINESS projection (operator session, not the
 // IdP) composes the canonical authorization primitive.
 import { requireAuth } from "../middleware/auth.js";
@@ -375,6 +378,47 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/auth/sso/discover (IDENT-020)
+  //
+  // How a person reaches their organization's sign-in from the sign-in page: a
+  // connection id is not something they know. Only a DNS-verified domain claimed
+  // by exactly one Organization answers, so a typed address cannot steer anyone
+  // to another tenant's IdP, and every other address gets the same "no".
+  // -------------------------------------------------------------------------
+  app.post("/v1/auth/sso/discover", async (req: FastifyRequest, reply: FastifyReply) => {
+    const rl = await enforceRateLimit({
+      key: `sso:discover:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+      max: SSO_LOGIN_RATE_LIMIT_PER_MIN,
+      windowSec: 60,
+    });
+    if (!rl.allowed) return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+    const body = z.object({ email: z.string().max(320) }).safeParse(req.body ?? {});
+    const domain = body.success ? domainFromEmail(body.data.email) : null;
+    const none = { sso: false as const };
+    if (!domain) return reply.code(200).send(none);
+    const claims = await prisma.organizationDomain.findMany({
+      where: { domain, verifiedAt: { not: null } },
+      select: { organizationId: true },
+      take: 2,
+    });
+    if (claims.length !== 1) return reply.code(200).send(none);
+    const conn = await prisma.ssoConnection.findFirst({
+      where: { organizationId: claims[0]!.organizationId, status: "ACTIVE" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, provider: true },
+    });
+    if (!conn) return reply.code(200).send(none);
+    const id = encodeURIComponent(conn.id);
+    return reply.code(200).send({
+      sso: true as const,
+      loginPath:
+        ssoProviderProtocol(conn.provider as SsoProvider) === "SAML"
+          ? `/v1/auth/saml/${id}/login`
+          : `/v1/auth/sso/${id}/initiate`,
+    });
+  });
 
   // -------------------------------------------------------------------------
   // GET /v1/auth/sso/:connectionId/initiate

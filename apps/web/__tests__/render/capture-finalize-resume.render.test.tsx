@@ -24,6 +24,7 @@ vi.mock("../../lib/api", () => ({
   readApiToken: () => null,
   apiBaseUrl: () => "https://api.test.invalid",
   ApiError: class ApiError extends Error {},
+  isApiResponseError: () => false,
 }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 const push = vi.fn();

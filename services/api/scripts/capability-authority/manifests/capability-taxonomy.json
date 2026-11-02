@@ -611,6 +611,12 @@
       "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
     },
     {
+      "capabilityId": "POST:/v1/auth/sso/discover",
+      "routeId": "POST /v1/auth/sso/discover",
+      "vertical": "ENTERPRISE_IDENTITY_SECURITY",
+      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
+    },
+    {
       "capabilityId": "GET:/v1/auth/sso/readiness",
       "routeId": "GET /v1/auth/sso/readiness",
       "vertical": "ENTERPRISE_IDENTITY_SECURITY",
