@@ -22,6 +22,7 @@ import {
 } from "./components/EvidenceFilters";
 import { EvidenceList } from "./components/EvidenceList";
 import { QueueSelectionPreview } from "./components/QueueSelectionPreview";
+import { useInspectorHost } from "./lib/useInspectorHost";
 import { SavedViewsMenu } from "./components/SavedViewsMenu";
 import { BulkActionsToolbar } from "./components/BulkActionsToolbar";
 import "./evidence-library.css";
@@ -268,15 +269,10 @@ function EvidenceLibraryPageInner() {
    * Part 3 — Inspector visibility. Deliberately INDEPENDENT of both
    * `selectedId` (the single record the Inspector describes) and
    * `selectedIds` (the checkbox/bulk selection). Closing the Inspector
-   * destroys neither.
+   * destroys neither. A compact viewport hosts it in the canonical dialog
+   * and never opens that dialog by itself: see `useInspectorHost`.
    */
-  const [inspectorOpen, setInspectorOpen] = useState(true);
-  /**
-   * Part 3 — compact viewport hosts the Inspector in the canonical dialog
-   * instead of the right-hand column. Resolved after mount so the server
-   * and first client render agree (no hydration mismatch).
-   */
-  const [compactInspector, setCompactInspector] = useState(false);
+  const { inspectorOpen, compactInspector, openInspector, dismissInspector } = useInspectorHost();
   /**
    * Phase EVIDENCE-LIBRARY-DATA-ACCURACY — workspace summary.
    *
@@ -663,28 +659,13 @@ function EvidenceLibraryPageInner() {
   }, [loadDetail, selectedId]);
 
   /**
-   * Part 3 — the Inspector host follows the viewport, not the other way
-   * round. Below the two-column threshold it becomes the canonical dialog;
-   * at desktop widths it is the right-hand column. Resolved in an effect so
-   * SSR and the first client render both start from the desktop layout.
-   */
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const query = window.matchMedia("(max-width: 1099.98px)");
-    const sync = () => setCompactInspector(query.matches);
-    sync();
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
-
-  /**
    * Part 3 — activating a queue row selects that record AND opens the
    * Inspector. The checkbox/bulk selection is untouched by this path.
    */
   const selectRecord = useCallback((evidenceId: string) => {
     setSelectedId(evidenceId);
-    setInspectorOpen(true);
-  }, []);
+    openInspector();
+  }, [openInspector]);
 
   /**
    * Part 3 — closing returns focus to the row that opened the Inspector so
@@ -692,13 +673,13 @@ function EvidenceLibraryPageInner() {
    * record and the bulk selection both survive the close.
    */
   const closeInspector = useCallback(() => {
-    setInspectorOpen(false);
+    dismissInspector();
     if (typeof document === "undefined") return;
     const trigger = selectedId
       ? document.querySelector<HTMLElement>(`[data-evidence-row-title="${CSS.escape(selectedId)}"]`)
       : null;
     trigger?.focus();
-  }, [selectedId]);
+  }, [dismissInspector, selectedId]);
 
   const refreshCurrentScope = async () => {
     setRefreshing(true);
