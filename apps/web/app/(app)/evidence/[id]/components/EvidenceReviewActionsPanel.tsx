@@ -41,6 +41,7 @@ import {
 import { apiFetch } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
+import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
 import { ReasonedActionButton } from "./ReasonedActionButton";
 
 /** The review routes' refusal codes, said in words a reviewer can act on. */
@@ -149,6 +150,9 @@ export function EvidenceReviewActionsPanel({
   onChanged?: () => Promise<void> | void;
 }) {
   const { confirm } = useConfirmAction();
+  // A decision takes a fresh step-up. Without the shared modal the panel could
+  // only say so, and no reviewer could record a verdict in the browser.
+  const stepUp = useStepUpAction({ teamId });
   const [pending, setPending] = useState<ReviewWorkflowAction | null>(null);
   const [outcome, setOutcome] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [reasonFor, setReasonFor] = useState<ReviewWorkflowAction | null>(null);
@@ -172,16 +176,18 @@ export function EvidenceReviewActionsPanel({
         // Audit F7: the panel had no way from Claim to a verdict.
         await beginReview(evidenceId, workflowUpdatedAt);
       } else {
-        await apiFetch(`/v1/review-operations/evidence/${evidenceId}/decision`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          // The workspace is DERIVED from the record by the server.
-          body: JSON.stringify({
-            decision: action,
-            note,
-            ...(action === "ESCALATE" ? { escalationReason: note } : {}),
+        await stepUp.runStepUpAction((headers) =>
+          apiFetch(`/v1/review-operations/evidence/${evidenceId}/decision`, {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            // The workspace is DERIVED from the record by the server.
+            body: JSON.stringify({
+              decision: action,
+              note,
+              ...(action === "ESCALATE" ? { escalationReason: note } : {}),
+            }),
           }),
-        });
+        );
       }
       await onChanged?.();
       setReasonFor(null);
@@ -358,6 +364,7 @@ export function EvidenceReviewActionsPanel({
             </ReasonedActionButton>
           ))}
       </div>
+      <StepUpModal control={stepUp} />
     </section>
   );
 }

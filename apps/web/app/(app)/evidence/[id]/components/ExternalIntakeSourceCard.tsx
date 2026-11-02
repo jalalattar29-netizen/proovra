@@ -27,6 +27,8 @@
  */
 
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
+import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -128,6 +130,7 @@ export default function ExternalIntakeSourceCard({
 }: {
   evidenceId: string;
 }) {
+  const stepUp = useStepUpAction({ teamId: useActiveWorkspaceId() });
   const [summary, setSummary] = useState<Summary | null | undefined>(undefined);
   const [review, setReview] = useState<ReviewSummary | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
@@ -289,13 +292,15 @@ export default function ExternalIntakeSourceCard({
           },
         );
       }
-      await apiFetch(
-        `/v1/review-operations/evidence/${encodeURIComponent(evidenceId)}/decision`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ decision, note: note ?? null }),
-        },
+      await stepUp.runStepUpAction((headers) =>
+        apiFetch(
+          `/v1/review-operations/evidence/${encodeURIComponent(evidenceId)}/decision`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ decision, note: note ?? null }),
+          },
+        ),
       );
       await reloadReview();
       setSavedFlashStatus(decision);
@@ -748,6 +753,7 @@ export default function ExternalIntakeSourceCard({
           {REVIEWER_STATUS_DISCLAIMER}
         </p>
       </div>
+      <StepUpModal control={stepUp} />
     </section>
   );
 }
