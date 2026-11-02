@@ -5,6 +5,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { requireAuth } from "../middleware/auth.js";
+import { evaluateCurrentWorkspace } from "../middleware/authorize.js";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
@@ -230,7 +231,7 @@ async function getRealUsageStats(userId: string) {
   };
 }
 
-async function getRealQuotas(userId: string) {
+async function getRealQuotas(req: FastifyRequest, userId: string) {
   const month = startOfMonth();
 
   const analysesUsed = await prisma.analyticsEvent.count({
@@ -257,12 +258,10 @@ async function getRealQuotas(userId: string) {
   // the workspace in use. This read a personal entitlement or an env default,
   // counted the owner and ignored the contract, so a 400-seat owner saw "x / 10"
   // beside the real Billing page.
-  const current = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  const seats = current?.currentWorkspaceId
-    ? await resolveWorkspaceSeatState(current.currentWorkspaceId, prisma)
+  // The request's own workspace, proven: a pointer alone is not a membership.
+  const current = await evaluateCurrentWorkspace(req, { permission: "evidence.read" });
+  const seats = current.allowed
+    ? await resolveWorkspaceSeatState(current.context.workspaceId, prisma)
     : null;
 
   const analysesLimit = readIntEnv("QUOTA_ANALYSES_MONTHLY_LIMIT", 10000);
@@ -925,7 +924,7 @@ export async function enterpriseRoutes(app: FastifyInstance) {
       const userId = getAuthUserId(req);
 
       try {
-        const data = await getRealQuotas(userId);
+        const data = await getRealQuotas(req, userId);
 
         auditEnterpriseAction(req, {
           userId,
