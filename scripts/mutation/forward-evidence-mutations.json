@@ -2119,8 +2119,8 @@
     "phase": "P10",
     "name": "technical metadata parses latest-at-key again",
     "file": "services/worker/src/media-intelligence.processor.ts",
-    "find": "        versionId: part.storage_version_id ?? null,",
-    "replace": "        versionId: null,",
+    "find": "        range: `bytes=0-${Math.max(0, upper)}`,\n        // AUD-38: the sealed version, never whatever is latest at the key.\n        versionId: part.storage_version_id ?? null,",
+    "replace": "        range: `bytes=0-${Math.max(0, upper)}`,\n        // AUD-38: the sealed version, never whatever is latest at the key.\n        versionId: null,",
     "tests": [
       {
         "cwd": "services/worker",
@@ -5790,8 +5790,8 @@
     "aud": "F-39",
     "name": "API startup: the evidence signer configuration is not checked",
     "file": "services/api/src/signing/signer.ts",
-    "find": "  if (raw === \"aws-kms\") return;\n  assertNotCommittedFixture({",
-    "replace": "  if (raw === \"aws-kms\" || true) return;\n  assertNotCommittedFixture({",
+    "find": "  if (parseSignerProvider(env.SIGNER_PROVIDER) === \"aws-kms\") return;\n  assertNotCommittedFixture({",
+    "replace": "  if (parseSignerProvider(env.SIGNER_PROVIDER) === \"aws-kms\" || true) return;\n  assertNotCommittedFixture({",
     "tests": [
       {
         "cwd": "services/api",
@@ -6658,8 +6658,8 @@
     "aud": "F-14",
     "name": "package projection ignores the disclosure decision (the leaking projection: every location ships)",
     "file": "services/worker/src/verification-package.ts",
-    "find": "          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString(\"utf8\")), {\n            recordedLocationDisclosed: data.recordedLocationDisclosed === true,",
-    "replace": "          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString(\"utf8\")), {\n            recordedLocationDisclosed: true,",
+    "find": "    const projectionOptions = () => ({\n      recordedLocationDisclosed: data.recordedLocationDisclosed === true,",
+    "replace": "    const projectionOptions = () => ({\n      recordedLocationDisclosed: true,",
     "tests": [
       {
         "cwd": "services/api",
