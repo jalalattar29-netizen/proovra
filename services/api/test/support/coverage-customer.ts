@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { expect } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
+import type { Injected } from "./coverage-actors.js";
 import { approvedStepUp, seedOperator } from "../helpers/operator-step-up.js";
 import { seedUser, type FixtureDeps } from "../point7/product-fixtures.js";
 
@@ -24,7 +25,7 @@ export type CustomerKit = {
   /** Provisioned by an operator, accepted through the owner's invitation. */
   customer: (seats?: number) => Promise<Customer>;
   /** `PATCH /v1/admin/orgs/:id/contract` by a fresh operator with a fresh step-up. */
-  setTerms: (orgId: string, terms: Record<string, unknown>) => ReturnType<IntegrationHarness["app"]["inject"]>;
+  setTerms: (orgId: string, terms: Record<string, unknown>) => Promise<Injected>;
 };
 
 export async function customerKit(h: IntegrationHarness, prisma: Prisma): Promise<CustomerKit> {
@@ -75,12 +76,12 @@ export async function customerKit(h: IntegrationHarness, prisma: Prisma): Promis
     operators += 1;
     const acting = await seedOperator(h, deps(), prisma, `operator-${operators}`);
     const challengeId = await approvedStepUp(h, acting, "CAPABILITY_GRANT", "enterprise_contract", orgId);
-    return h.app.inject({
+    return (await h.app.inject({
       method: "PATCH",
       url: `/v1/admin/orgs/${orgId}/contract`,
       headers: { authorization: `Bearer ${acting.token}`, "x-proovra-step-up-challenge-id": challengeId },
       payload: { teamId: acting.stepUpTeamId, ...terms },
-    });
+    })) as unknown as Injected;
   };
 
   return { deps, customer, setTerms };

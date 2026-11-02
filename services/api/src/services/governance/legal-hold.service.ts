@@ -45,6 +45,7 @@ import { triggerLegalHoldCreated } from "../automation/automation-triggers.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { caseClosedTo, evidenceClosedTo } from "../access/record-reach.js";
 import { appendLegalHoldCustodyTx, reconcileLegalHoldCustody } from "@proovra/shared-runtime";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import {
@@ -375,6 +376,22 @@ export async function placeCanonicalLegalHold(
         source: "COMMAND",
       });
     }
+    // Placing a hold is the workspace's act, whatever it covers: the record's
+    // custody chain says it is held, this says who held it, and it commits with
+    // the hold. A WORKSPACE hold has no chain of its own to say so.
+    await emitTenantAudit(
+      {
+        action: "legal_hold.placed",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: input.teamId,
+        resourceType: "evidence_legal_hold",
+        resourceId: (created as { id: string }).id,
+        metadata: { scope, evidenceId, caseId },
+      },
+      c,
+    );
     return created;
   };
   const hold = ("$transaction" in client && typeof client.$transaction === "function"
@@ -719,6 +736,19 @@ export async function releaseCanonicalLegalHold(
         source: "COMMAND",
       });
     }
+    await emitTenantAudit(
+      {
+        action: "legal_hold.released",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        workspaceId: input.teamId,
+        resourceType: "evidence_legal_hold",
+        resourceId: hold.id,
+        metadata: { scope: hold.scope, approvedByUserId: hold.releaseApprovedByUserId ?? null },
+      },
+      c,
+    );
   };
   if ("$transaction" in client && typeof client.$transaction === "function") {
     await client.$transaction((tx) => writeRelease(tx as unknown as PrismaClient));
@@ -1020,6 +1050,24 @@ function scopeToLegacyKind(
 }
 
 /** Backs GET /v1/lifecycle/legal-holds — ALL scopes, one surface. */
+/** A hold names a record or a case; that rule decides who may act on it (GOV-017). */
+export async function legalHoldClosedTo(
+  id: string,
+  teamId: string,
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const hold = await client.evidenceLegalHold.findFirst({
+    where: { id, teamId },
+    select: { evidenceId: true, caseId: true },
+  });
+  if (!hold) return false;
+  return (
+    (hold.evidenceId !== null && (await evidenceClosedTo(hold.evidenceId, userId))) ||
+    (hold.caseId !== null && (await caseClosedTo(hold.caseId, userId)))
+  );
+}
+
 export async function listLifecycleLegalHoldsLegacyShape(
   input: {
     teamId: string;
@@ -1027,6 +1075,8 @@ export async function listLifecycleLegalHoldsLegacyShape(
     state?: string;
     scopeTargetId?: string;
     limit?: number;
+    /** Records and cases closed to the caller (hiddenRecordIdsInWorkspace). */
+    hidden?: { evidenceIds: readonly string[]; caseIds: readonly string[] };
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<LifecycleLegalHoldLegacyShape[]> {
@@ -1038,6 +1088,8 @@ export async function listLifecycleLegalHoldsLegacyShape(
   const out: LifecycleLegalHoldLegacyShape[] = canonical
     .filter((r) => {
       if (input.state && r.status !== input.state) return false;
+      if (r.evidenceId && input.hidden?.evidenceIds.includes(r.evidenceId)) return false;
+      if (r.caseId && input.hidden?.caseIds.includes(r.caseId)) return false;
       if (
         input.kind &&
         scopeToLegacyKind(r.scope, r.organizationId) !== input.kind

@@ -212,7 +212,10 @@ async function checkLegalHoldBlocks(
   evidenceIds: ReadonlyArray<string>,
   teamId: string,
 ): Promise<{ ok: true } | { ok: false; holdIds: string[] }> {
-  const blocked: string[] = [];
+  // holdIds named the blocked RECORDS, so the refusal could not say which hold to
+  // release. A hold state that cannot be read has no id and still blocks.
+  let held = false;
+  const holdIds = new Set<string>();
   for (const evidenceId of evidenceIds) {
     // An unreadable hold state blocks (GOV-013): this gate used to read a failed
     // lookup as "not held", the opposite of every other hold check.
@@ -221,10 +224,13 @@ async function checkLegalHoldBlocks(
       teamId,
       evidenceId,
     }).catch(() => ({ underHold: true, holdIds: [], sources: [] as Array<"4A" | "4B"> }));
-    if (result.underHold) blocked.push(evidenceId);
+    if (result.underHold) {
+      held = true;
+      for (const id of result.holdIds) holdIds.add(id);
+    }
   }
-  if (blocked.length === 0) return { ok: true };
-  return { ok: false, holdIds: blocked };
+  if (!held) return { ok: true };
+  return { ok: false, holdIds: [...holdIds] };
 }
 
 // -----------------------------------------------------------------------------
