@@ -19,6 +19,7 @@ export * from "./reconciliation-run.js";
 // sweeps and graph reconciliation. A background job that reads a smaller
 // population than the page it feeds is the disagreement this ends.
 export * from "./workspace-scope.js";
+export * from "./case-visibility.js";
 // The Search-shaped face of that authority. Every entry point that can
 // start a Search reconciliation resolves through it.
 export * from "./search-index-reconciliation.js";

@@ -108,7 +108,7 @@ import {
 import { resolveWorkspaceKind } from "../services/identity/workspace-kind.js";
 import { caseVisibleToWhere, OPEN_CASE_STATUSES } from "../services/cases/case-visibility.js";
 import { resolveCollaborationEntitlement } from "../services/collaboration-team/collaboration-entitlement.service.js";
-import { accessibleWorkspaceIdsFor } from "../services/access/record-reach.js";
+import { accessibleWorkspaceIdsFor, caseClosedTo } from "../services/access/record-reach.js";
 import { explainMemberAccess } from "../services/access/access-explanation.service.js";
 import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
@@ -3309,7 +3309,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         where: { id: caseId },
       });
 
-      if (!caseItem || caseItem.teamId !== teamId) {
+      if (!caseItem || caseItem.teamId !== teamId || (await caseClosedTo(caseId, userId))) {
         await auditTeamAction(req, {
           userId,
           action: "teams.case_unlink",

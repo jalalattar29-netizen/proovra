@@ -32,6 +32,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { hiddenWorkflowIdsInWorkspace, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import {
   assertMintedAuthorizedWorkspaceContext,
   authorizeWorkspaceOrFail,
@@ -155,6 +156,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       if (!member) return;
       const snapshot = await getLatestOrgHealthSnapshot({
         teamId: query.teamId,
+        reach: await viewerReachInWorkspace(query.teamId, member.userId),
       });
       return reply.code(200).send({ snapshot });
     },
@@ -174,6 +176,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const recommendations = await listReviewerRoutingRecommendations({
         teamId: query.teamId,
         limit: query.limit,
+        closedWorkflowIds: await hiddenWorkflowIdsInWorkspace(query.teamId, member.userId),
       });
       return reply.code(200).send({ recommendations });
     },

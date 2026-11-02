@@ -101,6 +101,7 @@ import {
   listEligibleDestructionApprovers,
   getDestructionCertificate,
   getDestructionCertificateArtifact,
+  destructionRequestClosedTo,
   listDestructionRequests,
   recordApproval,
   rejectDestructionRequest,
@@ -1862,7 +1863,10 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
       }
-      const requests = await listDestructionRequests({ teamId: ctx.teamId });
+      const requests = await listDestructionRequests({
+        teamId: ctx.teamId,
+        closedEvidenceIds: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)).evidenceIds,
+      });
       return reply.code(200).send({ requests });
     },
   );
@@ -1907,6 +1911,14 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         })
         .parse(req.body);
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      // GOV-017 — the same answer as a record this workspace does not hold.
+      for (const evidenceId of body.evidenceIds) {
+        if (await evidenceClosedTo(evidenceId, ctx.userId)) {
+          return reply.code(404).send({
+            error: { code: "DESTRUCTION_EVIDENCE_NOT_FOUND", message: "At least one record in this request does not exist in this workspace." },
+          });
+        }
+      }
       try {
         const res = await createDestructionRequest({
           teamId: ctx.teamId,
@@ -1936,6 +1948,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
         await assertDestructionRequestActionable({
@@ -1981,6 +1996,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       const body = z
         .object({ reason: z.string().min(1).max(600) })
         .parse(req.body ?? { reason: "rejected" });
@@ -2005,6 +2023,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
         await assertDestructionRequestActionable({
@@ -2056,6 +2077,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       const cert = await getDestructionCertificate({
         teamId: ctx.teamId,
         requestId: id,
@@ -2082,6 +2106,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       const res = await getDestructionCertificateArtifact({
         teamId: ctx.teamId,
         requestId: id,

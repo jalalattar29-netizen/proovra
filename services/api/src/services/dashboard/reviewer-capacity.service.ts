@@ -35,6 +35,123 @@ type Snapshot = {
 };
 
 /**
+ * Per-reviewer load, from the review rows themselves. The sweep persists it whole.
+ * A viewer with closed records gets it live, without those records' reviews, so a
+ * change in a reviewer's load cannot disclose activity on a hidden case (EVID-019).
+ */
+async function measureReviewerCapacity(teamId: string, closedWorkflowIds: readonly string[] = []): Promise<Snapshot[]> {
+  const excluded = closedWorkflowIds.length > 0 ? { id: { notIn: [...closedWorkflowIds] } } : {};
+  const now = new Date();
+  const staleCutoff = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
+  const seven = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const thirty = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // Pull bounded slice of active workflows + recent completions.
+  const active = await prisma.evidenceReviewWorkflow.findMany({
+    where: {
+      teamId,
+      ...excluded,
+      assignedToUserId: { not: null },
+      status: { in: ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
+    },
+    take: 2000,
+    select: {
+      assignedToUserId: true,
+      dueAt: true,
+      updatedAt: true,
+      slaDueSoonHours: true,
+    },
+  });
+
+  type Bucket = {
+    reviewerUserId: string;
+    assignedCount: number;
+    overdueCount: number;
+    dueSoonCount: number;
+    staleCount: number;
+  };
+  const byReviewer = new Map<string, Bucket>();
+  for (const r of active) {
+    if (!r.assignedToUserId) continue;
+    const id = r.assignedToUserId;
+    let b = byReviewer.get(id);
+    if (!b) {
+      b = {
+        reviewerUserId: id,
+        assignedCount: 0,
+        overdueCount: 0,
+        dueSoonCount: 0,
+        staleCount: 0,
+      };
+      byReviewer.set(id, b);
+    }
+    b.assignedCount += 1;
+    if (r.dueAt && r.dueAt < now) b.overdueCount += 1;
+    else if (r.dueAt) {
+      // The window the review was stamped with, so this agrees with the queue.
+      const hours = r.slaDueSoonHours ?? REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours;
+      if (r.dueAt.getTime() < now.getTime() + hours * 3_600_000) b.dueSoonCount += 1;
+    }
+    if (r.updatedAt < staleCutoff) b.staleCount += 1;
+  }
+
+  // Completed counters per reviewer (bounded slice).
+  const completed = await prisma.evidenceReviewWorkflow.findMany({
+    where: {
+      teamId,
+      ...excluded,
+      status: { in: ["APPROVED_INTERNAL", "CLOSED"] },
+      updatedAt: { gte: thirty },
+      assignedToUserId: { not: null },
+    },
+    take: 5000,
+    select: { assignedToUserId: true, updatedAt: true },
+  });
+  const completed7Map = new Map<string, number>();
+  const completed30Map = new Map<string, number>();
+  for (const r of completed) {
+    if (!r.assignedToUserId) continue;
+    const id = r.assignedToUserId;
+    completed30Map.set(id, (completed30Map.get(id) ?? 0) + 1);
+    if (r.updatedAt >= seven) {
+      completed7Map.set(id, (completed7Map.get(id) ?? 0) + 1);
+    }
+  }
+
+  const snapshots: Snapshot[] = [];
+  for (const b of byReviewer.values()) {
+    const completed7 = completed7Map.get(b.reviewerUserId) ?? 0;
+    const completed30 = completed30Map.get(b.reviewerUserId) ?? 0;
+    const saturationLevel: Snapshot["saturationLevel"] =
+      b.assignedCount >= SATURATION_CRITICAL
+        ? "CRITICAL"
+        : b.assignedCount >= SATURATION_HIGH
+          ? "HIGH"
+          : b.assignedCount >= Math.floor(SATURATION_HIGH / 2)
+            ? "NORMAL"
+            : "LOW";
+    // Capacity score: 0..100, decreases as assignment + overdue grow.
+    const overloadPenalty = Math.min(
+      80,
+      b.assignedCount * 2 + b.overdueCount * 5 + b.staleCount * 3,
+    );
+    const capacityScore = Math.max(0, 100 - overloadPenalty);
+    snapshots.push({
+      reviewerUserId: b.reviewerUserId,
+      assignedCount: b.assignedCount,
+      overdueCount: b.overdueCount,
+      dueSoonCount: b.dueSoonCount,
+      staleCount: b.staleCount,
+      completed7d: completed7,
+      completed30d: completed30,
+      saturationLevel,
+      capacityScore,
+    });
+  }
+  return snapshots;
+}
+
+/**
  * Lazy generator for a workspace. Scans `EvidenceReviewWorkflow` rows,
  * groups by reviewer, computes deterministic capacity scores, and
  * persists one `ReviewerCapacitySnapshot` per reviewer. Never throws.
@@ -46,111 +163,7 @@ export async function computeReviewerCapacityForWorkspace(input: {
   let recommendations = 0;
   let failed = 0;
   try {
-    const now = new Date();
-    const staleCutoff = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
-    const seven = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const thirty = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-    // Pull bounded slice of active workflows + recent completions.
-    const active = await prisma.evidenceReviewWorkflow.findMany({
-      where: {
-        teamId: input.teamId,
-        assignedToUserId: { not: null },
-        status: { in: ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] },
-      },
-      take: 2000,
-      select: {
-        assignedToUserId: true,
-        dueAt: true,
-        updatedAt: true,
-        slaDueSoonHours: true,
-      },
-    });
-
-    type Bucket = {
-      reviewerUserId: string;
-      assignedCount: number;
-      overdueCount: number;
-      dueSoonCount: number;
-      staleCount: number;
-    };
-    const byReviewer = new Map<string, Bucket>();
-    for (const r of active) {
-      if (!r.assignedToUserId) continue;
-      const id = r.assignedToUserId;
-      let b = byReviewer.get(id);
-      if (!b) {
-        b = {
-          reviewerUserId: id,
-          assignedCount: 0,
-          overdueCount: 0,
-          dueSoonCount: 0,
-          staleCount: 0,
-        };
-        byReviewer.set(id, b);
-      }
-      b.assignedCount += 1;
-      if (r.dueAt && r.dueAt < now) b.overdueCount += 1;
-      else if (r.dueAt) {
-        // The window the review was stamped with, so this agrees with the queue.
-        const hours = r.slaDueSoonHours ?? REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours;
-        if (r.dueAt.getTime() < now.getTime() + hours * 3_600_000) b.dueSoonCount += 1;
-      }
-      if (r.updatedAt < staleCutoff) b.staleCount += 1;
-    }
-
-    // Completed counters per reviewer (bounded slice).
-    const completed = await prisma.evidenceReviewWorkflow.findMany({
-      where: {
-        teamId: input.teamId,
-        status: { in: ["APPROVED_INTERNAL", "CLOSED"] },
-        updatedAt: { gte: thirty },
-        assignedToUserId: { not: null },
-      },
-      take: 5000,
-      select: { assignedToUserId: true, updatedAt: true },
-    });
-    const completed7Map = new Map<string, number>();
-    const completed30Map = new Map<string, number>();
-    for (const r of completed) {
-      if (!r.assignedToUserId) continue;
-      const id = r.assignedToUserId;
-      completed30Map.set(id, (completed30Map.get(id) ?? 0) + 1);
-      if (r.updatedAt >= seven) {
-        completed7Map.set(id, (completed7Map.get(id) ?? 0) + 1);
-      }
-    }
-
-    const snapshots: Snapshot[] = [];
-    for (const b of byReviewer.values()) {
-      const completed7 = completed7Map.get(b.reviewerUserId) ?? 0;
-      const completed30 = completed30Map.get(b.reviewerUserId) ?? 0;
-      const saturationLevel: Snapshot["saturationLevel"] =
-        b.assignedCount >= SATURATION_CRITICAL
-          ? "CRITICAL"
-          : b.assignedCount >= SATURATION_HIGH
-            ? "HIGH"
-            : b.assignedCount >= Math.floor(SATURATION_HIGH / 2)
-              ? "NORMAL"
-              : "LOW";
-      // Capacity score: 0..100, decreases as assignment + overdue grow.
-      const overloadPenalty = Math.min(
-        80,
-        b.assignedCount * 2 + b.overdueCount * 5 + b.staleCount * 3,
-      );
-      const capacityScore = Math.max(0, 100 - overloadPenalty);
-      snapshots.push({
-        reviewerUserId: b.reviewerUserId,
-        assignedCount: b.assignedCount,
-        overdueCount: b.overdueCount,
-        dueSoonCount: b.dueSoonCount,
-        staleCount: b.staleCount,
-        completed7d: completed7,
-        completed30d: completed30,
-        saturationLevel,
-        capacityScore,
-      });
-    }
+    const snapshots = await measureReviewerCapacity(input.teamId);
 
     // Persist snapshots (best-effort per reviewer).
     for (const s of snapshots) {
@@ -231,6 +244,8 @@ export async function computeReviewerCapacityForWorkspace(input: {
 export async function listReviewerCapacity(input: {
   teamId: string;
   limit?: number;
+  /** Reviews of records closed to the viewer. */
+  closedWorkflowIds?: readonly string[];
 }): Promise<
   Array<{
     reviewerUserId: string;
@@ -247,6 +262,11 @@ export async function listReviewerCapacity(input: {
 > {
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);
   try {
+    if (input.closedWorkflowIds && input.closedWorkflowIds.length > 0) {
+      const sampledAtUtc = new Date().toISOString();
+      const live = await measureReviewerCapacity(input.teamId, input.closedWorkflowIds);
+      return live.slice(0, limit).map((row) => ({ ...row, sampledAtUtc }));
+    }
     const rows = await prisma.reviewerCapacitySnapshot.findMany({
       where: { teamId: input.teamId },
       orderBy: { sampledAtUtc: "desc" },
@@ -307,6 +327,8 @@ export async function listReviewerCapacity(input: {
 export async function listReviewerRoutingRecommendations(input: {
   teamId: string;
   limit?: number;
+  /** A recommendation reads the whole workload, so none is shown over closed reviews. */
+  closedWorkflowIds?: readonly string[];
 }): Promise<
   Array<{
     id: string;
@@ -321,6 +343,7 @@ export async function listReviewerRoutingRecommendations(input: {
   }>
 > {
   const limit = Math.min(Math.max(input.limit ?? 12, 1), 25);
+  if (input.closedWorkflowIds && input.closedWorkflowIds.length > 0) return [];
   try {
     const rows = await prisma.reviewerRoutingRecommendation.findMany({
       where: { teamId: input.teamId, status: "OPEN" },

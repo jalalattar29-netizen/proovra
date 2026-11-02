@@ -41,6 +41,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { buildInvestigationDiagnostics } from "../services/investigation-diagnostics.service.js";
 import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
+import { viewerReachInWorkspace } from "../services/access/record-reach.js";
 
 const TeamQuery = z.object({
   teamId: z.string().uuid(),
@@ -63,6 +64,7 @@ export async function investigationDiagnosticsRoutes(app: FastifyInstance) {
         teamId,
         prisma,
         includePlatformQueues: platform.allowed,
+        reach: await viewerReachInWorkspace(teamId, actor.userId),
       });
 
       return reply.code(200).send(diagnostics);

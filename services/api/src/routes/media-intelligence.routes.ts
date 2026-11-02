@@ -766,11 +766,11 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         const rows = (await prisma.$queryRawUnsafe(
           `SELECT
              COUNT(*)::int AS "total",
-             COUNT(*) FILTER (WHERE "status" = 'NOT_STARTED')::int AS "not_started",
-             COUNT(*) FILTER (WHERE "status" = 'IN_PROGRESS')::int AS "in_progress",
+             COUNT(*) FILTER (WHERE "status" IN ('NOT_STARTED', 'QUEUED'))::int AS "not_started",
+             COUNT(*) FILTER (WHERE "status" IN ('ASSIGNED', 'IN_REVIEW', 'REOPENED', 'RESPONSE_RECEIVED'))::int AS "in_progress",
              COUNT(*) FILTER (WHERE "status" = 'ESCALATED')::int AS "escalated",
-             COUNT(*) FILTER (WHERE "status" = 'PAUSED')::int AS "paused",
-             COUNT(*) FILTER (WHERE "status" = 'COMPLETED')::int AS "completed",
+             COUNT(*) FILTER (WHERE "status" IN ('NEEDS_INFO', 'READY_FOR_EXTERNAL_REVIEW'))::int AS "paused",
+             COUNT(*) FILTER (WHERE "status" IN ('APPROVED_INTERNAL', 'CLOSED'))::int AS "completed",
              COUNT(*) FILTER (WHERE "status" = 'REJECTED_INSUFFICIENT')::int AS "rejected"
            FROM "evidence_review_workflows"
            WHERE "team_id" = $1

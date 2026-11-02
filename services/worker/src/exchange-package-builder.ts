@@ -70,7 +70,11 @@ import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
 // The ONE export-package meter writer, shared with the API's completion route.
-import { recordExportPackageUsage, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import {
+  evidenceVisibleThroughCasesWhere,
+  recordExportPackageUsage,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 import { resolveEvidenceAcquisition } from "@proovra/shared";
 
 /**
@@ -867,7 +871,16 @@ export async function buildExchangePackage(
   const inScope = new Set(
     (
       await prisma.evidence.findMany({
-        where: { AND: [{ id: { in: candidateIds } }, await workspaceEvidenceWhere(teamId, prisma)] },
+        // The requester's reach is read again here: a person taken off a restricted
+        // case after asking gets no package of it. With no requester on the row,
+        // only records outside restricted cases are built.
+        where: {
+          AND: [
+            { id: { in: candidateIds } },
+            await workspaceEvidenceWhere(teamId, prisma),
+            evidenceVisibleThroughCasesWhere(pkg.createdByUserId ?? null),
+          ],
+        },
         select: { id: true },
       })
     ).map((row) => row.id),

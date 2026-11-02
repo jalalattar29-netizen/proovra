@@ -38,15 +38,9 @@
  * the last entry through the case-access routes (an explicit act) lifts it.
  */
 import type { Prisma } from "@prisma/client";
+import { RESTRICTED_CASE_WHERE, caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "@proovra/shared-runtime";
 
-/** A restricted case — flagged, or carrying any access list. */
-export const RESTRICTED_CASE_WHERE: Prisma.CaseWhereInput = {
-  OR: [{ restrictedAtUtc: { not: null } }, { access: { some: {} } }, { teamAccess: { some: {} } }],
-};
-
-const UNRESTRICTED_CASE_WHERE: Prisma.CaseWhereInput = {
-  AND: [{ restrictedAtUtc: null }, { access: { none: {} } }, { teamAccess: { none: {} } }],
-};
+export { RESTRICTED_CASE_WHERE, caseVisibleToWhere, evidenceVisibleThroughCasesWhere };
 
 type CaseRestrictionTx = {
   case: {
@@ -82,54 +76,11 @@ export async function releaseRestrictionIfEmptyTx(tx: CaseRestrictionTx, caseId:
 }
 
 /**
- * The grant a Collaboration Team confers: only while the team is ACTIVE, and
- * only to its ACTIVE members. An archived team, or a suspended/removed group
- * member, confers nothing.
- */
-function teamGrantReaches(callerUserId: string): Prisma.CaseCollaborationTeamAccessWhereInput {
-  return {
-    collaborationTeam: {
-      status: "ACTIVE",
-      members: { some: { userId: callerUserId, status: "ACTIVE" } },
-    },
-  };
-}
-
-/**
  * A Case still being worked. RESOLVED, CLOSED and ARCHIVED are finished; the
  * Members & Access "Open cases" figure counts the rest, and nothing else
  * defines "open" differently.
  */
 export const OPEN_CASE_STATUSES = ["OPEN", "INVESTIGATING", "ON_HOLD"] as const;
-
-export function caseVisibleToWhere(callerUserId: string | null | undefined): Prisma.CaseWhereInput {
-  return callerUserId
-    ? {
-        OR: [
-          UNRESTRICTED_CASE_WHERE,
-          { access: { some: { userId: callerUserId } } },
-          { teamAccess: { some: teamGrantReaches(callerUserId) } },
-          { ownerUserId: callerUserId },
-        ],
-      }
-    : UNRESTRICTED_CASE_WHERE;
-}
-
-/**
- * Evidence the caller may see THROUGH its cases: no link to a restricted case
- * the caller cannot see. AND it with the workspace scope; it never widens it.
- */
-export function evidenceVisibleThroughCasesWhere(
-  callerUserId: string | null | undefined,
-): Prisma.EvidenceWhereInput {
-  return {
-    caseLinks: {
-      none: {
-        case: { AND: [RESTRICTED_CASE_WHERE, { NOT: caseVisibleToWhere(callerUserId) }] },
-      },
-    },
-  };
-}
 
 /** What a record-level check must load to apply the rule to one case. */
 export const CASE_VISIBILITY_SELECT = {
