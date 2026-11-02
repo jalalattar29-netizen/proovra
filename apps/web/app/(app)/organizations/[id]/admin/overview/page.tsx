@@ -124,6 +124,7 @@ interface BillingRollupResponse {
   organizationId: string;
   workspaceCount: number;
   totalIncludedSeats: number;
+  totalUsedSeats: number;
   planCounts: Record<string, number>;
   statusCounts: Record<string, number>;
 }
@@ -294,7 +295,7 @@ function Overview() {
           title="Seat usage"
           primary={
             billing.kind === "ready"
-              ? seatUsagePrimary(billing.data, members)
+              ? seatUsagePrimary(billing.data)
               : billing.kind === "error" && billing.status === 403
                 ? "Billing-admin only"
                 : loadingOrError(billing)
@@ -614,14 +615,14 @@ function planLabel(verificationState: string | null): string {
   return `Enterprise · ${verificationState}`;
 }
 
-function seatUsagePrimary(
-  billing: BillingRollupResponse,
-  members: Loadable<MembersResponse>,
-): string {
-  const used =
-    members.kind === "ready" ? members.data.summary.totalMembers : null;
+/**
+ * Seats as the ceiling counts them. Organization members are a different count:
+ * the owner takes no seat and a member can hold no workspace, so "5 / 3 · 2 over"
+ * was printed for a contract with its seats exactly filled.
+ */
+function seatUsagePrimary(billing: BillingRollupResponse): string {
+  const used = billing.totalUsedSeats;
   const included = billing.totalIncludedSeats;
-  if (used === null) return `${included} seats`;
   const over = used - included;
   const overStr = over > 0 ? ` · ${over} over` : "";
   return `${used} / ${included}${overStr}`;

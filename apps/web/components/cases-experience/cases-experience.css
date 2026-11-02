@@ -242,8 +242,8 @@
 .cases-row-link {
   display: grid;
   grid-template-columns:
-    minmax(200px, 2.3fr) 128px minmax(148px, 1.3fr) 104px
-    minmax(120px, 1fr) 128px 44px;
+    minmax(200px, 2fr) 128px minmax(148px, 1.2fr) 104px
+    minmax(148px, 1.3fr) 128px 44px;
   align-items: center;
   gap: 16px;
 }
@@ -388,6 +388,13 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+/* A risk chip stays inside its column: it ran under Last updated at 1440. */
+.cases-readiness-signals > * {
+  max-inline-size: 100%;
+  white-space: normal;
 }
 
 /* §1 — on tablet/mobile the fixed table track can't fit; collapse each

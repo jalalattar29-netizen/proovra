@@ -150,8 +150,8 @@ export const WIZARD_STEPS: ReadonlyArray<WizardStep> = [
   {
     id: "finish",
     index: 12,
-    title: "You're enterprise ready",
-    subtitle: "Setup complete. Go to your workspace to start working.",
+    title: "Setup summary",
+    subtitle: "Where this organization's setup stands. Finish any open step here or later.",
     skippable: false,
     endpoint: null,
   },
