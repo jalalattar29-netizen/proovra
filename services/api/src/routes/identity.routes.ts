@@ -82,6 +82,7 @@ import { requireAuth } from "../middleware/auth.js";
 // permission-decision audit and fail-closed behaviour. Route-local role/plan
 // approximations are not permitted alongside it.
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import { denyTeamIfNotEnterprise as denyIfTeamNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import {
   PermissionSchema,
@@ -204,8 +205,8 @@ async function requireIdentityActor(
 }
 
 /**
- * COLLECTION-scope derivation: the persisted `User.currentWorkspaceId` rail
- * (written only by the audited workspace switcher). A declared `teamId` that
+ * COLLECTION-scope derivation: the request's one workspace candidate
+ * (AUTHZ-006: the header it names, or the pointer once). A declared `teamId` that
  * disagrees is a concealed 404 — the client cannot point a list or a link at a
  * workspace it is not currently in.
  *
@@ -244,11 +245,7 @@ async function resolveAuthorizedWorkspaceSubject(
   resource?: { kind: string; id: string },
 ): Promise<{ teamId: string; actor: { userId: string; teamMemberId: string } } | null> {
   const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  const candidateTeamId = user?.currentWorkspaceId ?? null;
+  const candidateTeamId = await requestWorkspaceCandidate(req);
   if (!candidateTeamId) return notFound(reply);
   // A consistency check that can only NARROW the outcome: it rejects, it never
   // selects. The authorization below runs on the pointer either way.

@@ -611,6 +611,12 @@
       "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
     },
     {
+      "capabilityId": "POST:/v1/auth/sso/discover",
+      "routeId": "POST /v1/auth/sso/discover",
+      "vertical": "ENTERPRISE_IDENTITY_SECURITY",
+      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
+    },
+    {
       "capabilityId": "GET:/v1/auth/sso/readiness",
       "routeId": "GET /v1/auth/sso/readiness",
       "vertical": "ENTERPRISE_IDENTITY_SECURITY",
@@ -2607,6 +2613,18 @@
       "routeId": "GET /v1/reviewer-ops/qc/pending-count",
       "vertical": "EVIDENCE_OPERATIONS",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/reviewer-ops/reminders",
+      "routeId": "GET /v1/reviewer-ops/reminders",
+      "vertical": "EVIDENCE_OPERATIONS",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/platform/release",
+      "routeId": "GET /v1/admin/platform/release",
+      "vertical": "PLATFORM_CORE",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },
     {
       "capabilityId": "GET:/v1/reviewer-ops/queue",
@@ -5959,6 +5977,12 @@
     {
       "capabilityId": "POST:/v1/reviewer-ops/reviews/:workflowId/pause",
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/pause",
+      "vertical": "EVIDENCE_OPERATIONS",
+      "evidenceLevel": "BEHAVIORALLY_PROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/reviewer-ops/reviews/:workflowId/resume",
+      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/resume",
       "vertical": "EVIDENCE_OPERATIONS",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
     },

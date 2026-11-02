@@ -413,18 +413,11 @@ describe("SLA precedence source label (assignment audit metadata)", () => {
 describe("reviewer-operations-engine.service.ts — Phase R wiring source check", () => {
   // We import the source as text for the same reason
   // phase25_5-reviewer-ops-hardening.test.ts does: it pins the wiring
-  // independent of execution coverage.
-  const src = readFileSync(
-    join(
-      __dirname,
-      "..",
-      "src",
-      "services",
-      "reviewer-ops",
-      "reviewer-operations-engine.service.ts",
-    ),
-    "utf8",
-  );
+  // independent of execution coverage. Resolution moved into the stamp service
+  // (WORKFLOW-006), which every assignment door calls.
+  const read = (file: string) =>
+    readFileSync(join(__dirname, "..", "src", "services", "reviewer-ops", file), "utf8");
+  const src = read("reviewer-operations-engine.service.ts") + read("review-sla-stamp.service.ts");
 
   it("exports resolveTemplateIdForEvidence with the two-path implementation", () => {
     expect(src).toMatch(/export\s+async\s+function\s+resolveTemplateIdForEvidence/);
@@ -442,7 +435,7 @@ describe("reviewer-operations-engine.service.ts — Phase R wiring source check"
 
   it("the assignment site emits a reviewer.sla_policy.resolve audit row with a source label", () => {
     expect(src).toMatch(/action:\s*"reviewer\.sla_policy\.resolve"/);
-    expect(src).toMatch(/templateResolutionSource:\s*templateResolution\.source/);
+    expect(src).toMatch(/templateResolutionSource:\s*resolved\?\.templateResolution\.source/);
     expect(src).toMatch(/source:\s*sourceLabel/);
   });
 
@@ -455,9 +448,10 @@ describe("reviewer-operations-engine.service.ts — Phase R wiring source check"
     );
   });
 
-  it("the resolveEffectiveSlaPolicy call is wrapped in try/catch with a baseline fallback", () => {
-    expect(src).toMatch(
-      /try\s*{[\s\S]*?resolveEffectiveSlaPolicy\([\s\S]*?}\s*catch[\s\S]*?REVIEWER_OPS_DEFAULT_SLA_POLICY/,
-    );
+  it("the resolveEffectiveSlaPolicy call is wrapped in try/catch, and a failed read stamps nothing", () => {
+    expect(src).toMatch(/try\s*{[\s\S]*?resolveEffectiveSlaPolicy\([\s\S]*?}\s*catch[\s\S]*?return null;/);
+    // The row stays unstamped, and the open-review sweep gives it its deadlines.
+    expect(src).toMatch(/if \(!resolved\) return row;/);
+    expect(src).toMatch(/REVIEWER_OPS_DEFAULT_SLA_POLICY\.completionHours/);
   });
 });

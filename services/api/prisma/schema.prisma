@@ -228,6 +228,9 @@ model Evidence {
   /// claim has to survive minutes of storage round-trips. A stale stamp is what
   /// lets a later executor take over a claim whose owner died mid-flight.
   destructionClaimedAtUtc   DateTime?              @map("destruction_claimed_at_utc") @db.Timestamptz(6)
+  /// GOV-018 — some of this record's objects are already deleted. It can never
+  /// be restored, and the destruction sweep finishes the deletion.
+  destructionPartialAtUtc   DateTime?              @map("destruction_partial_at_utc") @db.Timestamptz(6)
   /// Pointer to the currently-applied retention policy version (Phase
   /// 27 RetentionPolicyVersion). NULL = no first-class policy applied;
   /// the legacy `retentionPolicySource` enum still annotates legacy
@@ -1155,6 +1158,12 @@ model User {
   passwordHash                  String?                        @map("password_hash")
   timezone                      String?                        @db.VarChar(64)
   emailVerifiedAt               DateTime?                      @map("email_verified_at") @db.Timestamptz(6)
+  /// When mailbox control and this password were last proven TOGETHER: the
+  /// emailed verification link answered with the password, or a password set
+  /// from an emailed reset link. NULL on a password that predates this column
+  /// or was only ever typed at registration, which proves nobody's mailbox.
+  /// PROV-001: first ownership of a customer organization requires it.
+  credentialProvenAtUtc           DateTime?                      @map("credential_proven_at_utc") @db.Timestamptz(6)
   organizationVerificationState OrganizationVerificationState? @map("organization_verification_state")
   currentWorkspaceId            String?                        @map("current_workspace_id") @db.Uuid
 
@@ -1779,6 +1788,9 @@ model EvidenceReviewWorkflow {
   // reviewer-ops can score the four dimensions independently.
   assignmentDueAtUtc DateTime? @map("assignment_due_at_utc") @db.Timestamptz(6)
   completionDueAtUtc DateTime? @map("completion_due_at_utc") @db.Timestamptz(6)
+  // WORKFLOW-007 — the due-soon window stamped with these deadlines, so the
+  // queue, the badge and the reminders read one number for this review.
+  slaDueSoonHours    Int?      @map("sla_due_soon_hours")
   // Operator-readable reason a workflow is paused (legal hold, awaiting
   // contributor response, etc). Never carries internal legal text — the
   // service truncates to 400 chars and forbids overclaim wording.
@@ -2312,8 +2324,14 @@ model EnterpriseContract {
   billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)
   billingSubscriptionRef  String?                  @map("billing_subscription_ref") @db.VarChar(200)
   contractOwnerUserId     String?                  @map("contract_owner_user_id") @db.Uuid
+  /// The sales or CRM reference this contract was signed under. Written at
+  /// provisioning and by the operator contract writer.
+  externalContractRef     String?                  @map("external_contract_ref") @db.VarChar(200)
   terminatedAtUtc         DateTime?                @map("terminated_at_utc") @db.Timestamptz(6)
   terminationReason       String?                  @map("termination_reason") @db.VarChar(400)
+  /// What the contract was when a termination began, so that withdrawing the
+  /// termination returns it there. NULL when no termination is open.
+  statusBeforeTermination EnterpriseContractStatus? @map("status_before_termination")
   createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -3249,6 +3267,9 @@ model DemoRequest {
   jobTitle     String? @map("job_title") @db.VarChar(120)
   country      String? @db.VarChar(120)
   teamSize     String? @map("team_size") @db.VarChar(64)
+  /// PROV-017 — the two fields the form requires, kept with the lead.
+  primaryInterest  String? @map("primary_interest") @db.VarChar(64)
+  organizationType String? @map("organization_type") @db.VarChar(64)
   useCase      String  @map("use_case")
   message      String?
 
@@ -5237,6 +5258,10 @@ model EvidenceLegalHold {
   releaseApprovalState    LegalHoldReleaseApprovalState @default(NOT_REQUIRED) @map("release_approval_state")
   releaseApprovedByUserId String?                       @map("release_approved_by_user_id") @db.Uuid
   releaseApprovedAtUtc    DateTime?                     @map("release_approved_at_utc") @db.Timestamptz(6)
+  /// GOV-011 — the request half of a two-person release.
+  releaseRequestedByUserId String?   @map("release_requested_by_user_id") @db.Uuid
+  releaseRequestedAtUtc    DateTime? @map("release_requested_at_utc") @db.Timestamptz(6)
+  releaseRequestNote       String?   @map("release_request_note") @db.VarChar(4000)
 
   // CLUSTER 8 — which WorkspaceGovernancePolicy revision governed the
   // placement / the release. Free-form attribution string
@@ -6822,6 +6847,11 @@ enum VerificationAttemptStatus {
 model CommunicationMessage {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
+
+  // WORKFLOW-009 — true only when bodyPreview is the whole message, so a retry
+  // can send it. Raw bodies are not stored, so a sanitized, cut-off or template
+  // message cannot be sent twice and has to be issued again.
+  bodyResendable Boolean @default(false) @map("body_resendable")
 
   channel   CommunicationChannel
   direction CommunicationDirection @default(OUTBOUND)
@@ -9275,6 +9305,9 @@ model SsoConnection {
   /// Display-only preview of the client secret (e.g. "ck-***-abcd").
   /// Surfaced in the admin UI; never the raw secret.
   clientSecretPreview String? @map("client_secret_preview") @db.VarChar(32)
+  /// OIDC: the client secret, sealed (AES-256-GCM). The code exchange reads it
+  /// back. NULL on a connection created before it existed, until rotated.
+  clientSecretSealed  String? @map("client_secret_sealed")
 
   /// SAML: full IdP metadata XML stored as a JSON blob. Placeholder
   /// for Phase 27 SAML protocol wiring; Phase 26 stores but does not
@@ -9944,6 +9977,21 @@ model DestructionReview {
   initiatedByUserId String?   @map("initiated_by_user_id") @db.Uuid
   decidedByUserId   String?   @map("decided_by_user_id") @db.Uuid
   decidedAtUtc      DateTime? @map("decided_at_utc") @db.Timestamptz(6)
+
+  /// Who took the review up. On a review a sweep opened (no initiator) this is
+  /// the first person, so the approver is always the second.
+  reviewStartedByUserId String? @map("review_started_by_user_id") @db.Uuid
+
+  /// GOV-002 — the person's act that authorises execution. An APPROVED review
+  /// without it never reaches storage: no sweep and no purge job may pick it up.
+  executionRequestedAtUtc    DateTime? @map("execution_requested_at_utc") @db.Timestamptz(6)
+  executionRequestedByUserId String?   @map("execution_requested_by_user_id") @db.Uuid
+  /// GOV-007 — the sweep leaves this review alone until then.
+  executionNotBeforeUtc      DateTime? @map("execution_not_before_utc") @db.Timestamptz(6)
+
+  /// The lifecycle state approval queued the record from, so cancelling an
+  /// approval puts it back where it was rather than always on ACTIVE.
+  queuedFromState String? @map("queued_from_state") @db.VarChar(32)
 
   /// When destruction was actually performed (after APPROVED →
   /// EXECUTED transition). Generates a destruction certificate.
@@ -11825,6 +11873,9 @@ model Organization {
   /// NULL means "no pending enterprise provisioning" (the default for
   /// every existing and non-enterprise org).
   pendingEnterpriseSeats Int?                           @map("pending_enterprise_seats")
+  /// PROV-001 — the workspace name the operator asked for, held with the seat
+  /// count until the invited owner accepts and the workspace is created.
+  pendingEnterpriseWorkspaceName String?                  @map("pending_enterprise_workspace_name") @db.VarChar(120)
   /// Verification state — mirrors the Team-level field so the
   /// future Stage 5 cutover has a place to land.
   verificationState      OrganizationVerificationState? @map("verification_state")
@@ -12510,6 +12561,9 @@ model DestructionRequest {
   approverUserIds   Json      @default("[]") @map("approver_user_ids")
   executedAtUtc     DateTime? @map("executed_at_utc") @db.Timestamptz(6)
   certifiedAtUtc    DateTime? @map("certified_at_utc") @db.Timestamptz(6)
+  /// GOV-019 — the execution lease. A request left EXECUTING past it was
+  /// abandoned by a crash and may be resumed.
+  executionStartedAtUtc DateTime? @map("execution_started_at_utc") @db.Timestamptz(6)
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -12532,6 +12586,9 @@ model DestructionCertificate {
   approvalChainUserIds   Json     @map("approval_chain_user_ids")
   certificateHash        String   @map("certificate_hash") @db.VarChar(64)
   certificateUri         String?  @map("certificate_uri")
+  /// GOV-009 — the signed artifact itself. Object storage holds a copy; this
+  /// row is the record, and it is append-only.
+  certificateBody        String?  @map("certificate_body")
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   request DestructionRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -15266,6 +15323,26 @@ model SignerControlState {
 
   @@index([status], map: "signer_control_state_status_idx")
   @@map("signer_control_state")
+}
+
+/// OPS-004 — what the backup schedule did, written by scripts/ops/pg-backup-cycle.sh.
+/// Append-only. Counts and a checksum, never data. The readiness posture reads
+/// this, so only a recorded run can be reported as a backup or a restore.
+model PlatformBackupRecord {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// DATABASE_BACKUP | OFFHOST_COPY | RESTORE_DRILL (DB CHECK).
+  kind          String   @db.VarChar(32)
+  /// SUCCEEDED | FAILED (DB CHECK).
+  outcome       String   @db.VarChar(16)
+  backupStamp   String?  @map("backup_stamp") @db.VarChar(32)
+  tableCount    Int?     @map("table_count")
+  rowCount      BigInt?  @map("row_count")
+  byteCount     BigInt?  @map("byte_count")
+  sha256        String?  @db.VarChar(64)
+  recordedAtUtc DateTime @default(now()) @map("recorded_at_utc") @db.Timestamptz(6)
+
+  @@index([kind, outcome, recordedAtUtc(sort: Desc)], map: "platform_backup_records_kind_outcome_recorded_idx")
+  @@map("platform_backup_records")
 }
 
 /// ET-Q-05 (2026-09-29) — where a bounded worker sweep resumes. A sweep that

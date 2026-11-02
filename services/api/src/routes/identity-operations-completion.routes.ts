@@ -35,11 +35,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-
 import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
-
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeWorkspaceOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   detectScimDrift,
@@ -73,20 +71,23 @@ import { bump } from "../services/ops/metrics.service.js";
 
 type AdminContext = { userId: string };
 
+/**
+ * The canonical engine, not a local reading of the membership row (AUTHZ-003,
+ * probe P6): access expiry, Organization lifecycle and a delegated IDENTITY_ADMIN
+ * all count here as they do everywhere else. Any refusal to a non-member is the
+ * concealed 404.
+ */
 async function requireIdentityAdmin(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
 ): Promise<AdminContext | null> {
-  // One permission for reads and writes: `identity.external_mapping.read`
-  // would widen these to REVIEWER, and drift reports and session timelines
-  // were never reviewer reads. OWNER, ADMIN and a delegated IDENTITY_ADMIN
-  // hold manage (AUTHZ-003).
-  const ctx = await authorizeWorkspaceOrFail(req, reply, {
-    workspaceId: teamId,
+  const outcome = await authorizeOrFail(req, reply, {
+    teamId,
     permission: "identity.external_mapping.manage",
+    antiEnumeration: true,
   });
-  return ctx ? { userId: ctx.userId } : null;
+  return outcome ? { userId: outcome.actorUserId } : null;
 }
 
 // ---------------------------------------------------------------------------

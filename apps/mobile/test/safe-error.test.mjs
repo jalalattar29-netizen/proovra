@@ -157,3 +157,29 @@ test("a declined output request shows the server's own reason (a trusted server-
   const synthetic = toSafeUserError({ status: 409, code: "OUTPUT_ACTION_UNAVAILABLE", message: "HTTP 409: API error" });
   assert.notEqual(synthetic.message, "HTTP 409: API error");
 });
+
+/* ------------------------------------------- what reaches the screen */
+
+test("a flat { error } reason is a code, and a 429 still reads as the rate limit", () => {
+  const safe = toSafeUserError({ statusCode: 429, code: "rate_limited", body: { error: "rate_limited" } });
+  assert.equal(safe.explained, true);
+  assert.match(safe.title + safe.message, /too many|wait|moment|try again/i);
+  assert.equal(safe.code, "rate_limited");
+});
+
+test("the request id stays out of the sentence and in its own field", () => {
+  const safe = toSafeUserError({ statusCode: 403, code: "FORBIDDEN_THING", requestId: "req_9", message: "You cannot do that here. (requestId: req_9)" });
+  assert.equal(safe.message, "You cannot do that here.");
+  assert.equal(safe.requestId, "req_9");
+});
+
+test("the transport's placeholder is not a sentence", () => {
+  const safe = toSafeUserError({ statusCode: 403, requestId: "r", message: "HTTP 403: API error (requestId: r)" });
+  assert.equal(safe.message, "You don't have access to this.");
+});
+
+test("a machine reason in the message slot is not shown", () => {
+  assert.equal(toSafeUserError({ statusCode: 400, message: "invalid_body" }).message, "Some information looks incorrect. Please review and try again.");
+  assert.equal(toSafeUserError({ statusCode: 404, error: "factor_not_found" }).message, "This item is no longer available.");
+  assert.equal(toSafeUserError({ statusCode: 403, message: "Not a member of this workspace" }).message, "Not a member of this workspace");
+});

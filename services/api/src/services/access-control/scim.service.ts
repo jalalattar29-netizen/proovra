@@ -73,6 +73,9 @@ export const SCIM_DEACTIVATION_MEMBERSHIP_MARKER =
 // P0 remediation (2026-07-21) — canonical guard for linking a directory-
 // asserted email to a PRE-EXISTING User (cross-tenant takeover fix).
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
+import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
+import { ipInRanges } from "./ip-ranges.js";
 // P0 remediation (2026-07-21) — SCIM deactivation revokes sessions
 // immediately (same primitive as RBAC suspend).
 import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
@@ -759,16 +762,10 @@ export async function authenticateScimRequest(
   if (row.organization.status !== "ACTIVE" || row.team.closedAtUtc !== null) {
     return { ok: false, reason: "organization_inactive" };
   }
-  if (row.ipAllowlist.length > 0 && input.remoteIp) {
-    // Phase 26 keeps this as a simple equality / prefix check. CIDR
-    // matching is a Phase 27 enhancement.
-    const matched = row.ipAllowlist.some(
-      (entry) =>
-        input.remoteIp === entry || input.remoteIp?.startsWith(entry),
-    );
-    if (!matched) {
-      return { ok: false, reason: "ip_not_allowed" };
-    }
+  // IDENT-021 — parsed networks, and a caller with no known address is not on
+  // the list.
+  if (row.ipAllowlist.length > 0 && !ipInRanges(input.remoteIp, row.ipAllowlist)) {
+    return { ok: false, reason: "ip_not_allowed" };
   }
   // Touch lastUsedAtUtc best-effort.
   client.scimProvisioningToken
@@ -935,7 +932,7 @@ export async function scimCreateUser(
   const UNSAFE_LINK = "__SCIM_UNSAFE_ACCOUNT_LINK__";
   let user: { id: string; createdAt: Date; updatedAt: Date };
   try {
-    user = await client.$transaction(async (tx) => {
+    user = await withSeatClaimRetry(() => client.$transaction(async (tx) => {
       const txc = tx as unknown as PrismaClient;
       let resolved = await txc.user.findFirst({
         where: { email: email.toLowerCase() },
@@ -1026,7 +1023,7 @@ export async function scimCreateUser(
       }
 
       return resolved;
-    });
+    }));
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message.startsWith(UNSAFE_LINK)) {
@@ -1069,6 +1066,9 @@ export async function scimCreateUser(
     }
     if (code === "MANAGED_SEAT_LIMIT_REACHED") {
       return { ok: false as const, status: 409, detail: "seat_limit_reached" };
+    }
+    if (code === "WORKSPACE_SEAT_CONTENTION") {
+      return { ok: false as const, status: 503, detail: "seat_contention" };
     }
     throw err; // schema-unavailability / unknown — fail closed
   }
@@ -1393,12 +1393,18 @@ export async function scimReactivateUser(
   ctx: ScimCreateUserContext,
   userId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<{ ok: boolean; notFound?: boolean }> {
+): Promise<{ ok: boolean; notFound?: boolean; seatRefused?: "seat_limit_reached" | "seat_contention" }> {
   const member = await client.teamMember.findUnique({
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });
   if (!member) return { ok: false, notFound: true };
+  // IDENT-010 — a directory cannot reopen a closed account.
+  if (await isAccountClosed(userId, client)) return { ok: false, notFound: true };
 
+  try {
+
+  // Each workspace is its own transaction under the seat authority, so a refused
+  // seat rolls that reactivation back and leaves the person suspended there.
   // DOM-13 — restore exactly the sibling-workspace memberships the directory
   // itself suspended (marker-matched); a membership an administrator suspended
   // is never reinstated by a directory push.
@@ -1413,7 +1419,7 @@ export async function scimReactivateUser(
     select: { teamId: true, role: true },
   });
   for (const sibling of siblings) {
-    await client.$transaction(async (tx) => {
+    await withSeatClaimRetry(() => client.$transaction(async (tx) => {
       await provisionManagedMembership(tx, {
         userId,
         managingTeamId: ctx.teamId,
@@ -1426,7 +1432,7 @@ export async function scimReactivateUser(
         seatPolicy: "ENFORCE",
         seatTeamId: sibling.teamId,
       });
-    });
+    }));
   }
 
   if (member.status !== "ACTIVE") {
@@ -1436,7 +1442,7 @@ export async function scimReactivateUser(
     // managed binding (idempotent — same org is a no-op), provision through the
     // orchestrator. All atomic: seat exhaustion rolls back the reactivation.
     const scimOrgId = await organizationIdForPolicy(ctx.teamId, client);
-    await client.$transaction(async (tx) => {
+    await withSeatClaimRetry(() => client.$transaction(async (tx) => {
       if (scimOrgId) {
         await provisionManagedMembership(tx, {
           userId,
@@ -1460,7 +1466,13 @@ export async function scimReactivateUser(
           accessReason: "SCIM reactivation",
         });
       }
-    });
+    }));
+  }
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "MANAGED_SEAT_LIMIT_REACHED") return { ok: false, seatRefused: "seat_limit_reached" };
+    if (code === "WORKSPACE_SEAT_CONTENTION") return { ok: false, seatRefused: "seat_contention" };
+    throw err;
   }
 
   /**
@@ -1583,7 +1595,7 @@ export async function scimUpdateUserAttributes(
   const NO_TARGET = "__SCIM_UPDATE_NO_TARGET__";
   const appliedFields: string[] = [];
   try {
-    await client.$transaction(async (tx) => {
+    await withSeatClaimRetry(() => client.$transaction(async (tx) => {
       appliedFields.length = 0;
       await enforceScimManagedOwnership(
         ctx,
@@ -1627,7 +1639,7 @@ export async function scimUpdateUserAttributes(
 
       // Nothing applied → roll back the reconciliation too (zero mutation).
       if (appliedFields.length === 0) throw new Error(NO_TARGET);
-    });
+    }));
   } catch (err) {
     const e = err as { code?: string; message?: string };
     if (e.message === NO_TARGET) {
@@ -1639,7 +1651,13 @@ export async function scimUpdateUserAttributes(
     if (e.code === "SCIM_MANAGED_UNRESOLVED") {
       return { ok: false, status: 409, detail: "managed_identity_unresolved", scimType: "mutability" };
     }
-    throw err; // schema-unavailability / seat exhaustion — fail closed
+    if ((err as { code?: string }).code === "MANAGED_SEAT_LIMIT_REACHED") {
+      return { ok: false, status: 409, detail: "seat_limit_reached" };
+    }
+    if ((err as { code?: string }).code === "WORKSPACE_SEAT_CONTENTION") {
+      return { ok: false, status: 503, detail: "seat_contention" };
+    }
+    throw err; // schema-unavailability — fail closed
   }
 
   bump("scim_user_updated_total");

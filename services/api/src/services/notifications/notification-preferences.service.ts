@@ -211,6 +211,33 @@ export async function isPreferenceEnabled(
   return row.enabled;
 }
 
+/**
+ * WORKFLOW-015 — how a member chose to receive one category by email. The panel
+ * promises email is opt-in and that a member chooses immediate or a digest, so
+ * the email sender asks this, and a digest cadence is not also sent at once.
+ */
+export type EmailDeliveryChoice = "IMMEDIATE" | "DIGEST" | "OFF";
+
+export async function resolveEmailDeliveryChoice(
+  input: { userId: string; teamId: string; preferenceType: NotificationPreferenceType },
+  client: PrismaClient = defaultPrisma,
+): Promise<EmailDeliveryChoice> {
+  const row = await client.workspaceNotificationPreference.findUnique({
+    where: {
+      userId_teamId_preferenceType_channel: {
+        userId: input.userId,
+        teamId: input.teamId,
+        preferenceType: input.preferenceType,
+        channel: "EMAIL",
+      },
+    },
+    select: { enabled: true, frequency: true },
+  });
+  const enabled = row ? row.enabled : defaultEnabledForChannel("EMAIL");
+  if (!enabled) return "OFF";
+  return !row?.frequency || row.frequency === "IMMEDIATE" ? "IMMEDIATE" : "DIGEST";
+}
+
 // -----------------------------------------------------------------------------
 // Notification schedule settings — quiet hours / timezone / digest state.
 // -----------------------------------------------------------------------------

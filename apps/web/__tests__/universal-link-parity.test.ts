@@ -57,7 +57,7 @@ function androidClaims(): { paths: Set<string>; hosts: Set<string> } {
     expo: {
       android: {
         intentFilters?: {
-          data?: { host?: string; pathPrefix?: string }[];
+          data?: { host?: string; path?: string; pathPrefix?: string }[];
         }[];
       };
     };
@@ -67,6 +67,7 @@ function androidClaims(): { paths: Set<string>; hosts: Set<string> } {
   for (const filter of expo.expo.android.intentFilters ?? []) {
     for (const datum of filter.data ?? []) {
       if (datum.pathPrefix) paths.add(normalise(datum.pathPrefix));
+      if (datum.path) paths.add(normalise(datum.path));
       if (datum.host) hosts.add(datum.host);
     }
   }
@@ -87,6 +88,30 @@ test("iOS and Android claim the same deep-link paths", () => {
       "is a difference nobody chose. Declare it in BOTH files, or neither.",
   );
   assert.ok(ios.paths.size > 0, "the AASA file claims nothing at all");
+});
+
+/**
+ * MOBILE-005 — a claim on the whole of /portal would hand the SSO callback to an
+ * app that cannot complete it, in the middle of a browser's redirect chain.
+ * Android cannot exclude a sub-path, so neither platform claims that broadly.
+ */
+test("the portal SSO callback stays in the browser on both platforms", () => {
+  const callback = "/portal/sso/callback/grant-1";
+  for (const claims of [iosClaims(), androidClaims()]) {
+    for (const path of claims.paths) {
+      assert.ok(
+        path !== "/portal" ? !callback.startsWith(path) : true,
+        `${path} would claim ${callback}`,
+      );
+    }
+    assert.ok(claims.paths.has("/portal"), "the token entry page is still claimed");
+    assert.ok(claims.paths.has("/portal/accept"), "invitation links are still claimed");
+  }
+  const expo = JSON.parse(
+    readFileSync(resolve(REPO_ROOT, "apps/mobile/app.json"), "utf8"),
+  ) as { expo: { android: { intentFilters: { data: { path?: string; pathPrefix?: string }[] }[] } } };
+  const data = expo.expo.android.intentFilters.flatMap((f) => f.data);
+  assert.ok(!data.some((d) => d.pathPrefix === "/portal"), "a prefix of /portal matches the callback");
 });
 
 test("iOS and Android claim the same hosts", () => {

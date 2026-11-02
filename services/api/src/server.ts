@@ -9,6 +9,7 @@ import {
   legacyVocabularyViolation,
 } from "./services/collaboration-team/legacy-vocabulary.js";
 import Fastify from "fastify";
+import { registerRequestSessionScope } from "./services/auth/request-session-context.js";
 import type { FastifyBaseLogger } from "fastify";
 import { demoRequestsRoutes } from "./routes/demo-requests.routes.js";
 import { adminDemoRequestsRoutes } from "./routes/admin-demo-requests.routes.js";
@@ -278,7 +279,7 @@ import {
 } from "./errors.js";
 import { registerCanonicalNotFoundHandler } from "./http/not-found-handler.js";
 import { evaluateCookieMutation, isCorsOriginAllowed } from "./http/cors-origin-policy.js";
-import { bearerTokenOf, sessionCookieOf } from "./middleware/auth.js";
+import { bearerTokenOf, enrollmentCookieOf, sessionCookieOf } from "./middleware/auth.js";
 import { redactRequestUrl } from "./http/redact-request-url.js";
 import { buildTestStackIsolationReport } from "./ops/test-stack-isolation-report.js";
 
@@ -685,6 +686,8 @@ allowedHeaders: [
 
   await app.register(cookie);
 
+  registerRequestSessionScope(app);
+
   // AUD-021 — CSRF guard for COOKIE-authenticated mutations, on every route.
   //
   // The session cookie is SameSite=lax on .proovra.com, so any sibling
@@ -704,7 +707,7 @@ allowedHeaders: [
     const verdict = evaluateCookieMutation({
       method: req.method,
       hasBearer: bearerTokenOf(req).length > 0,
-      hasSessionCookie: Boolean(sessionCookieOf(req)),
+      hasSessionCookie: Boolean(sessionCookieOf(req) ?? enrollmentCookieOf(req)),
       origin: header("origin"),
       referer: header("referer"),
       secFetchSite: header("sec-fetch-site"),

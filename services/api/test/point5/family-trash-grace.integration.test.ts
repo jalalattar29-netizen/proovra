@@ -35,6 +35,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "../integration-harness.js";
 import { provenCase, recordSuiteProof } from "./family-coverage-manifest.js";
+import { seedExecutableReview } from "../support/executable-destruction-review.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -226,6 +227,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
     // the compare-and-set on lifecycle_state decides, and the loser stands down
     // rather than deleting the same keys a second time.
     const rec = await expiredTrash();
+    await seedExecutableReview(prisma as never, rec.id);
     const store = disposableStore();
     store.objects.add(`${rec.bucket}/${rec.key}`);
 
@@ -258,6 +260,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
 
   it("trashgrace: a LIVE claim is not stolen by a second executor", async () => {
     const rec = await expiredTrash();
+    await seedExecutableReview(prisma as never, rec.id);
     // Another executor holds the claim, and its lease is fresh.
     await prisma.evidence.update({
       where: { id: rec.id },
@@ -338,6 +341,7 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
 
   it("trashgrace: a DESTROYED record is never re-nominated or re-certified", async () => {
     const rec = await expiredTrash();
+    await seedExecutableReview(prisma as never, rec.id);
     const store = disposableStore();
     store.objects.add(`${rec.bucket}/${rec.key}`);
 

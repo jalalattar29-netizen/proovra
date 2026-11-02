@@ -9,12 +9,13 @@
  * are ignored; denials show one generic toast (anti-enumeration preserved).
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Alert } from "react-native";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 
 import { apiFetch, getAuthToken } from "./api";
+import { useAuth } from "./auth-context";
 import { isCaptureActive } from "./capture/active-capture";
 import {
   parseCanonicalMobileDeepLink,
@@ -42,6 +43,9 @@ function hasActiveWork(): boolean {
 export function DeepLinkGate() {
   const url = Linking.useURL();
   const router = useRouter();
+  const { authReady } = useAuth();
+  // The effect runs again when the session has been restored. A link is acted on once.
+  const handled = useRef<string | null>(null);
 
   // M7 — rehydrate a pending deep-link intent that survived a process death
   // during the auth journey (once, on mount). Stale/absent → no-op.
@@ -50,7 +54,7 @@ export function DeepLinkGate() {
   }, []);
 
   useEffect(() => {
-    if (!url) return;
+    if (!url || handled.current === url) return;
     let disposed = false;
 
     // CREDENTIAL LINKS FIRST — email verification, password reset and
@@ -63,12 +67,14 @@ export function DeepLinkGate() {
     // to resolve: the verdict is read from the server by the open dialog.
     const stepUpReturn = stepUpReturnRoute(url);
     if (stepUpReturn) {
+      handled.current = url;
       router.push(stepUpReturn as never);
       return;
     }
 
     const credential = parseCredentialDeepLink(url);
     if (credential) {
+      handled.current = url;
       router.push(credential.route as never);
       return;
     }
@@ -80,6 +86,7 @@ export function DeepLinkGate() {
     // silently drop it.
     const document = parsePublicDocumentDeepLink(url);
     if (document) {
+      handled.current = url;
       router.push(document.route as never);
       return;
     }
@@ -90,9 +97,15 @@ export function DeepLinkGate() {
     // belonging to somebody who will never sign in.
     const external = parseExternalFlowDeepLink(url);
     if (external) {
+      handled.current = url;
       router.push(external.route as never);
       return;
     }
+
+    // On a cold start the stored token is restored asynchronously. Until that has
+    // finished, "no token" says nothing about whether this person is signed in.
+    if (!authReady) return;
+    handled.current = url;
 
     // Unauthenticated: preserve the intent and route to the gateway. The server
     // resolve requires a session, so we do not call it here; the destination is
@@ -133,7 +146,7 @@ export function DeepLinkGate() {
     return () => {
       disposed = true;
     };
-  }, [url, router]);
+  }, [url, router, authReady]);
 
   return null;
 }

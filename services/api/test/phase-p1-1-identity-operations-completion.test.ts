@@ -176,10 +176,11 @@ describe("Phase P1.1 — Routes registration", () => {
     const routes = readSource(
       "../src/routes/identity-operations-completion.routes.ts",
     );
-    // The gate is the canonical engine (404 for non-members, 403 for a
-    // member short of the permission); no local membership read remains.
-    expect(routes).toMatch(/authorizeWorkspaceOrFail\(req, reply, \{[\s\S]*identity\.external_mapping\.manage/);
-    expect(routes).not.toMatch(/prisma\.teamMember\.find/);
+    // AUTHZ-003 — the shared requireIdentityAdmin helper is the canonical
+    // engine, concealed for anyone who is not a member.
+    expect(routes).toMatch(/authorizeOrFail\(req, reply, \{[\s\S]*identity\.external_mapping\.manage/);
+    expect(routes).toMatch(/antiEnumeration: true/);
+    expect(routes).not.toMatch(/prisma.teamMember.find/);
   });
 });
 

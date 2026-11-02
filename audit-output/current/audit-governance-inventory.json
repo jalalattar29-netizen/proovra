@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 429,
+    "AuditFilesInventoried": 430,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 335
+    "ProductBehaviorTestsInventoried": 336
   },
   "reportRoles": {
     "counts": {
@@ -132,7 +132,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 335,
+    "PRODUCT_BEHAVIOR_TEST": 336,
     "DOMAIN_AUTHORITY": 62,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
@@ -806,6 +806,21 @@
     },
     {
       "path": "apps/web/__tests__/render/surface-gate-state-machine.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/render/verify-email-password-proof.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -2725,6 +2740,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/billing-001-entitlement-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/billing-closure-invariants.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -3060,21 +3090,6 @@
     },
     {
       "path": "services/api/test/docker-apk-install-authority.test.ts",
-      "role": "PRODUCT_BEHAVIOR_TEST",
-      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
-      "importedBy": [],
-      "spawns": [],
-      "readsArtifacts": [],
-      "writesArtifacts": [],
-      "declaresArtifacts": [],
-      "packageScripts": [],
-      "ciConsumers": [],
-      "sourceOfTruthFor": [],
-      "disposition": "RETAINED"
-    },
-    {
-      "path": "services/api/test/evidence-collab-and-search-closure.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -6267,22 +6282,7 @@
       "disposition": "RETAINED"
     },
     {
-      "path": "services/api/test/review-door-authority.integration.test.ts",
-      "role": "PRODUCT_BEHAVIOR_TEST",
-      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
-      "importedBy": [],
-      "spawns": [],
-      "readsArtifacts": [],
-      "writesArtifacts": [],
-      "declaresArtifacts": [],
-      "packageScripts": [],
-      "ciConsumers": [],
-      "sourceOfTruthFor": [],
-      "disposition": "RETAINED"
-    },
-    {
-      "path": "services/api/test/review-door-gate.contract.test.ts",
+      "path": "services/api/test/review-sla-authority.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -6553,6 +6553,21 @@
     },
     {
       "path": "services/api/test/search-durable-reconciliation.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/seat-claim-authority.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

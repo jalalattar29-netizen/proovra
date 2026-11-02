@@ -553,9 +553,12 @@ export function rowSupportingSubtitle(row: SearchRow): string | null {
 // ---------------------------------------------------------------------------
 
 export const SEARCH_RECENT_LIMIT = 10;
-export function searchRecentKey(teamId: string): string {
-  return `proovra:tenant:${teamId}:search:recent`;
+/** Per person as well as per workspace: search terms in an investigation are sensitive. */
+export function searchRecentKey(userId: string, teamId: string): string {
+  return `proovra:user:${userId}:tenant:${teamId}:search:recent`;
 }
+/** Matches every recents key, including the team-only form older builds wrote. */
+export const SEARCH_RECENT_KEY_SUFFIX = ":search:recent";
 export function parseRecentSearches(raw: string | null): string[] {
   if (!raw) return [];
   try {

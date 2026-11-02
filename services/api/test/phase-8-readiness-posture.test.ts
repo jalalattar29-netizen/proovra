@@ -120,11 +120,8 @@ describe("Phase 8 — posture computation honesty", () => {
   it("databaseBackup is an HONEST label — never a fabricated positive", async () => {
     process.env.DATABASE_URL = "postgres://x";
     const p = await computeReadinessPosture({} as never);
-    // Only two honest values allowed. Neither is a fake "configured"/"backed up".
-    expect(["managed_platform_assumed", "not_configured"]).toContain(
-      p.backup.databaseBackup,
-    );
-    expect(p.backup.databaseBackup).toBe("managed_platform_assumed");
+    // With nothing recorded, the label says so. DATABASE_URL alone proves nothing.
+    expect(p.backup.databaseBackup).toBe("no_backup_recorded");
     // The label vocabulary must not contain fabricated positives.
     expect(p.backup.databaseBackup).not.toBe("configured");
     expect(p.backup.databaseBackup).not.toBe("backed_up");
@@ -337,10 +334,37 @@ describe("Phase 8 — runbook docs presence + honesty", () => {
     }
   });
 
+  it("OPS-004: only recorded runs move the backup posture, and they age out", async () => {
+    process.env.DATABASE_URL = "postgres://x";
+    const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000);
+    const client = (rows: Record<string, Date | undefined>) =>
+      ({
+        platformBackupRecord: {
+          findFirst: async ({ where }: { where: { kind: string } }) =>
+            rows[where.kind] ? { recordedAtUtc: rows[where.kind] } : null,
+        },
+      }) as never;
+    const all = { DATABASE_BACKUP: at(1), OFFHOST_COPY: at(1), RESTORE_DRILL: at(24) };
+    const verified = await computeReadinessPosture(client(all));
+    expect(verified.backup.databaseBackup).toBe("restore_verified");
+    expect(verified.backup.databaseRestoreTestedAtUtc).toBe(all.RESTORE_DRILL.toISOString());
+
+    const noCopy = await computeReadinessPosture(client({ ...all, OFFHOST_COPY: undefined }));
+    expect(noCopy.backup.databaseBackup).toBe("backup_recorded");
+    expect(noCopy.backup.databaseBackupReason).toContain("off-host");
+
+    const stale = await computeReadinessPosture(client({ ...all, DATABASE_BACKUP: at(72) }));
+    expect(stale.backup.databaseBackup).toBe("backup_recorded");
+
+    const none = await computeReadinessPosture(client({}));
+    expect(none.backup.databaseBackup).toBe("no_backup_recorded");
+    expect(none.backup.databaseBackupLaunchActionRequired).toBe(true);
+  });
+
   it("DR doc states RPO/RTO as targets/assumptions, not guarantees", () => {
     const dr = readSource("../../../docs/runbooks/disaster-recovery.md");
     expect(dr.toLowerCase()).toContain("not guarantees");
-    expect(dr).toContain("managed_platform_assumed");
+    expect(dr).toContain("no_backup_recorded");
     expect(dr.toLowerCase()).toContain("not in repo");
   });
 

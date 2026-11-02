@@ -82,6 +82,8 @@ type WorkspaceResponse = {
     assignedToUserId: string | null;
     assignedAtUtc: string | null;
     priority: string;
+    slaPausedAtUtc: string | null;
+    pausedReason: string | null;
     slaRollupState: SlaState;
     slaDimensions: Array<{
       dimension: string;
@@ -136,6 +138,7 @@ type ReviewerOpsAction =
   | "approve"
   | "reject"
   | "pause"
+  | "resume"
   | "request-info";
 
 // Phase 38.12 — wrap in canonical PageRouteGate.
@@ -740,15 +743,28 @@ function ReviewWorkspacePageInner() {
             >
               Reject
             </button>
-            <button
-              type="button"
-              style={buttonSurfaceStyle("secondary", "sm")}
-              disabled={busy !== null}
-              onClick={() => setReasonModal("PAUSE")}
-              data-reviewer-action-pause
-            >
-              Pause
-            </button>
+            {p.slaPausedAtUtc ? (
+              <button
+                type="button"
+                style={buttonSurfaceStyle("secondary", "sm")}
+                disabled={busy !== null}
+                onClick={() => post("resume", "resume", {})}
+                title={p.pausedReason ?? undefined}
+                data-reviewer-action-resume
+              >
+                Resume
+              </button>
+            ) : (
+              <button
+                type="button"
+                style={buttonSurfaceStyle("secondary", "sm")}
+                disabled={busy !== null || ["APPROVED", "REJECTED", "ARCHIVED"].includes(p.lifecycleState)}
+                onClick={() => setReasonModal("PAUSE")}
+                data-reviewer-action-pause
+              >
+                Pause
+              </button>
+            )}
             <a
               href="/reviewer-ops/escalations"
               style={{

@@ -191,15 +191,20 @@ describe("Phase F — destruction impact preview payload", () => {
     // The handler must not rely on a `case.evidenceLinks` back
     // relation (it doesn't exist in the schema). It queries
     // CaseEvidenceLink → caseLegalHold by caseId IN (...).
-    expect(ROUTE_SRC).toMatch(/caseEvidenceLink\.findMany/);
     // PHASE 12 POINT 3 — the inherited-hold lookup reads the ONE canonical
     // table. The invariant is unchanged and still the point of this test: the
     // linked case ids come from CaseEvidenceLink and are passed as `caseId IN
     // (...)`, so a hold on ANY linked case is inherited by the evidence.
-    expect(ROUTE_SRC).toMatch(
-      /evidenceLegalHold\.findMany[\s\S]*?caseId:\s*\{\s*in:/,
+    //
+    // GOV-013 — the read is now the one union evaluator, in the same function
+    // approval uses, so workspace-scope holds are seen as well.
+    const barriers = readFileSync(
+      new URL("../src/services/governance-lifecycle/destruction-barriers.service.ts", import.meta.url),
+      "utf8",
     );
-    expect(ROUTE_SRC).toMatch(/scope: "CASE"/);
+    expect(ROUTE_SRC).toMatch(/readDestructionBarriers\(prisma, evidence\.id\)/);
+    expect(barriers).toMatch(/evaluateEffectiveLegalHold\(client,/);
+    expect(barriers).toMatch(/caseIds: row\.caseLinks\.map/);
     expect(ROUTE_SRC).not.toMatch(/caseLegalHold\.findMany/);
   });
 });

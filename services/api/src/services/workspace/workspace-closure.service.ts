@@ -121,6 +121,18 @@ export async function closeWorkspacesTx(
     where: { teamId: { in: teamIds }, state: { in: ["INVITED", "ACTIVE"] } },
     data: { state: "REVOKED", revokedAtUtc: now, ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}) },
   });
+  // PROV-007 — the leg this list was missing: a public link is an inbound
+  // channel too. Every intake call revalidates the link, so a session already
+  // open ends here with it, and its submitted evidence stays where it is.
+  await tx.workflowIntakeLink.updateMany({
+    where: { teamId: { in: teamIds }, status: "ACTIVE" },
+    data: {
+      status: "REVOKED",
+      revokedAtUtc: now,
+      revokedReason: "workspace_closed",
+      ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}),
+    },
+  });
   await tx.user.updateMany({
     where: { currentWorkspaceId: { in: teamIds } },
     data: { currentWorkspaceId: null },

@@ -407,6 +407,7 @@ export async function enqueueOutboundMessage(
       status: prismaPkg.CommunicationStatus.QUEUED,
       bodyPreview:
         input.bodyPreviewOverride ?? safeBodyPreview(input.body),
+      bodyResendable: isBodyResendable(input),
       sender: input.sender ?? null,
       relatedEvidenceId: input.related?.evidenceId ?? null,
       relatedEvidenceRequestId: input.related?.evidenceRequestId ?? null,
@@ -468,6 +469,7 @@ export async function dispatchPendingMessage(
     where: { id: messageId },
   });
   if (!row) throw new Error("communication_message_not_found");
+  const purpose = row.purpose as CommunicationPurpose;
   if (
     row.status !== prismaPkg.CommunicationStatus.RETRY_SCHEDULED &&
     row.status !== prismaPkg.CommunicationStatus.QUEUED
@@ -486,21 +488,52 @@ export async function dispatchPendingMessage(
   // gated on `relatedIntakeLinkId` / `relatedEvidenceRequestId` to
   // re-derive the phone from the source record. Generic retries
   // without a source are marked as not-eligible.
+  // WORKFLOW-009 — what was sent is not stored unless the preview is the whole
+  // message. A token-bearing link, a template or a cut-off text cannot be sent
+  // again, and sending the preview would reach the recipient as a false success.
+  // The row says so, and the operator issues a new one.
+  if (!row.bodyResendable || !row.bodyPreview) {
+    return closeRetry(row, prismaPkg.CommunicationStatus.FAILED, "retry_requires_reissue",
+      "This message cannot be sent again as it was. Issue it again from its source.", client);
+  }
   const phone = await resolvePhoneFromSource(row, client);
   if (!phone) {
     return { status: "not_eligible", message: row };
   }
-  const updated = await client.communicationMessage.update({
-    where: { id: row.id },
+  // A recipient can reply STOP after the first attempt, and the limits apply to
+  // a retry as they do to a first send.
+  const recipientHash = hashRecipientPhone(phone);
+  if (
+    !isCriticalCommunicationPurpose(purpose) &&
+    (await isRecipientOptedOut(
+      { teamId: row.teamId, recipientHash, channel: row.channel as CommunicationChannel },
+      client,
+    ))
+  ) {
+    return closeRetry(row, prismaPkg.CommunicationStatus.CANCELLED, "recipient_opted_out",
+      "Recipient has opted out of this channel.", client);
+  }
+  if (await retryExceedsRateLimit(row, recipientHash, client)) {
+    return closeRetry(row, prismaPkg.CommunicationStatus.CANCELLED, "rate_limited",
+      "Daily message limit reached.", client);
+  }
+  // The claim. Two sweeps reading one due row send once: a host crontab may run
+  // beside the worker's timer.
+  const claimed = await client.communicationMessage.updateMany({
+    where: { id: row.id, status: row.status, attemptCount: row.attemptCount },
     data: {
       attemptCount: row.attemptCount + 1,
       status: prismaPkg.CommunicationStatus.QUEUED,
       nextAttemptAtUtc: null,
     },
   });
+  if (claimed.count !== 1) {
+    return { status: "not_eligible", message: row };
+  }
+  const updated = await client.communicationMessage.findUniqueOrThrow({ where: { id: row.id } });
   const sendInput: ProviderSendInput = {
     toE164: phone,
-    body: row.bodyPreview ?? "(retry)",
+    body: row.bodyPreview,
     externalId: row.id,
     statusCallbackUrl: resolveTwilioStatusCallbackUrl(),
   };
@@ -511,6 +544,77 @@ export async function dispatchPendingMessage(
   return updateAfterProviderAttempt(updated, result, provider, client);
 }
 
+/** The preview is the message only when nothing replaced or shortened it. */
+function isBodyResendable(input: EnqueueOutboundMessageInput): boolean {
+  if (input.bodyPreviewOverride != null || input.template) return false;
+  const preview = safeBodyPreview(input.body);
+  return preview !== null && preview === input.body;
+}
+
+async function closeRetry(
+  row: prismaPkg.CommunicationMessage,
+  status: "FAILED" | "CANCELLED",
+  errorCode: string,
+  errorMessage: string,
+  client: PrismaClient,
+): Promise<EnqueueOutboundMessageResult | { status: "not_eligible"; message: prismaPkg.CommunicationMessage }> {
+  const closed = await client.communicationMessage.updateMany({
+    where: { id: row.id, status: row.status, attemptCount: row.attemptCount },
+    data: {
+      status,
+      errorCode,
+      errorMessage,
+      nextAttemptAtUtc: null,
+      ...(status === "FAILED" ? { failedAtUtc: new Date() } : {}),
+    },
+  });
+  if (closed.count !== 1) return { status: "not_eligible", message: row };
+  const message = await client.communicationMessage.findUniqueOrThrow({ where: { id: row.id } });
+  if (errorCode === "recipient_opted_out") return { status: "cancelled_opted_out", message };
+  if (errorCode === "rate_limited") return { status: "cancelled_rate_limited", message };
+  return { status: "failed", message };
+}
+
+async function retryExceedsRateLimit(
+  row: prismaPkg.CommunicationMessage,
+  recipientHash: string,
+  client: PrismaClient,
+): Promise<boolean> {
+  const limits = readRateLimits();
+  const since = new Date(Date.now() - 24 * 3600 * 1000);
+  const others = {
+    teamId: row.teamId,
+    direction: prismaPkg.CommunicationDirection.OUTBOUND,
+    createdAt: { gte: since },
+    id: { not: row.id },
+  };
+  const [recipientCount, teamCount] = await Promise.all([
+    client.communicationMessage.count({ where: { ...others, recipientHash } }),
+    client.communicationMessage.count({ where: others }),
+  ]);
+  return recipientCount >= limits.perRecipientPerDay || teamCount >= limits.perTeamPerDay;
+}
+
+/** A callback may arrive late. Status moves forward only (WORKFLOW-016). */
+const COMMUNICATION_STATUS_MAY_FOLLOW: Readonly<Record<string, ReadonlyArray<prismaPkg.CommunicationStatus>>> = {
+  SENT: [prismaPkg.CommunicationStatus.QUEUED],
+  FAILED: [prismaPkg.CommunicationStatus.QUEUED, prismaPkg.CommunicationStatus.SENT],
+  UNDELIVERED: [prismaPkg.CommunicationStatus.QUEUED, prismaPkg.CommunicationStatus.SENT],
+  DELIVERED: [
+    prismaPkg.CommunicationStatus.QUEUED,
+    prismaPkg.CommunicationStatus.SENT,
+    prismaPkg.CommunicationStatus.FAILED,
+    prismaPkg.CommunicationStatus.UNDELIVERED,
+  ],
+};
+
+/** The statuses a delivery callback reporting `status` may replace. */
+export function communicationStatusesBefore(status: string): ReadonlyArray<prismaPkg.CommunicationStatus> {
+  return COMMUNICATION_STATUS_MAY_FOLLOW[status] ?? [];
+}
+
+const CLOSED_EVIDENCE_REQUEST_STATUSES: ReadonlySet<string> = new Set(["CANCELLED", "CLOSED", "FULFILLED"]);
+
 async function resolvePhoneFromSource(
   row: prismaPkg.CommunicationMessage,
   client: PrismaClient,
@@ -518,8 +622,9 @@ async function resolvePhoneFromSource(
   if (row.relatedEvidenceRequestId) {
     const req = await client.evidenceRequest.findUnique({
       where: { id: row.relatedEvidenceRequestId },
-      select: { recipientPhone: true },
+      select: { recipientPhone: true, status: true },
     });
+    if (req && CLOSED_EVIDENCE_REQUEST_STATUSES.has(String(req.status))) return null;
     return normaliseToE164(req?.recipientPhone ?? null);
   }
   if (row.relatedIntakeLinkId) {

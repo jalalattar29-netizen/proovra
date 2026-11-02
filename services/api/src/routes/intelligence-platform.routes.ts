@@ -39,11 +39,11 @@ import {
 
 import type { Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import {
   extractPrismaDiagnostic,
   isPrismaTableOrColumnMissing,
@@ -170,19 +170,15 @@ async function authorizeWorkspace(
   reply: FastifyReply,
   permission: Permission,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  if (!user?.currentWorkspaceId) {
+  const teamId = await requestWorkspaceCandidate(req);
+  if (!teamId) {
     // Operator has no current workspace context; 404 (anti-enumeration)
     // is consistent with authorizeOrFail's not-a-member path.
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
   const decision = await authorizeOrFail(req, reply, {
-    teamId: user.currentWorkspaceId,
+    teamId,
     permission,
     antiEnumeration: true,
   });

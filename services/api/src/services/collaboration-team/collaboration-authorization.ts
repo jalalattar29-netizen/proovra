@@ -67,27 +67,7 @@ import {
   contextHasCapability,
   type AuthorizedWorkspaceContext,
 } from "../../middleware/authorize.js";
-
-/**
- * The header the web client sets on every request from the canonical active
- * workspace (`apps/web/lib/api.ts`).
- *
- * `x-team-id` is accepted as an alias because integrations and older clients
- * send it, and because refusing a correct-but-differently-named binding would
- * push callers back onto the pointer fallback for no security gain. Both are
- * candidates only — neither authorizes anything by itself.
- */
-const WORKSPACE_HEADER = "x-proovra-workspace-id";
-const LEGACY_WORKSPACE_HEADER = "x-team-id";
-
-function headerValue(req: FastifyRequest, name: string): string | null {
-  const raw = req.headers[name];
-  if (typeof raw === "string" && raw.length > 0) return raw;
-  if (Array.isArray(raw) && typeof raw[0] === "string" && raw[0].length > 0) {
-    return raw[0];
-  }
-  return null;
-}
+import { readWorkspaceHeader } from "../access/request-workspace.js";
 
 /**
  * The workspace the request NAMES, or null.
@@ -100,9 +80,7 @@ function headerValue(req: FastifyRequest, name: string): string | null {
  * there; nothing reads it from a body.
  */
 export function readNamedWorkspaceId(req: FastifyRequest): string | null {
-  const header =
-    headerValue(req, WORKSPACE_HEADER) ??
-    headerValue(req, LEGACY_WORKSPACE_HEADER);
+  const header = readWorkspaceHeader(req);
   if (header) return header;
   const query = (req.query as Record<string, unknown> | undefined)?.workspaceId;
   if (typeof query === "string" && query.length > 0) return query;

@@ -5,6 +5,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { emailLogin, resendVerification } from "../../src/auth/auth-api";
 import { useOAuth, type OAuthMode } from "../../src/auth/use-oauth";
 import { useCompleteLogin } from "../../src/auth/use-auth-flow";
+import { ORGANIZATION_SSO_SIGN_IN_NOTE, SESSION_END_NOTICE } from "../../src/auth/session-end";
+import { useAuth } from "../../src/auth-context";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import {
@@ -53,6 +55,7 @@ export default function AuthScreen() {
   const router = useRouter();
   const { t } = useLocale();
   const completeLogin = useCompleteLogin();
+  const { sessionEndReason } = useAuth();
   // The web links here as `?email=` from Create account when the address is
   // already registered (register/page.tsx:1204-1216); carry it so it is not retyped.
   const params = useLocalSearchParams<{ email?: string }>();
@@ -147,6 +150,8 @@ export default function AuthScreen() {
           title="Sign in"
           subtitle="Continue with your preferred sign-in method and return safely to your PROOVRA workspace."
         />
+
+        {sessionEndReason ? <AuthNote tone="status" testID="auth-session-ended">{SESSION_END_NOTICE[sessionEndReason]}</AuthNote> : null}
 
         {/* The web order: Google, Apple, "Or", then email. */}
         <View style={styles.oauth}>
@@ -265,6 +270,11 @@ export default function AuthScreen() {
         {shownError ? <AuthNote tone="error" testID="auth-error">{shownError}</AuthNote> : null}
         {status ? <AuthNote tone="status">{status}</AuthNote> : null}
 
+        {/* MOBILE-002 — an account with no password has no way in here, and would only be told its details are wrong. */}
+        <ProovraText variant="label" color={theme.color.ink.muted} center style={styles.ssoNote} testID="auth-sso-note">
+          {ORGANIZATION_SSO_SIGN_IN_NOTE}
+        </ProovraText>
+
         <View style={styles.switchRow}>
           {/* NEW:L10N-LOGIN — the web's "Register? Register" line (login/page.tsx:1164-1175). */}
           <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{`${t("register")}?`}</ProovraText>
@@ -293,6 +303,7 @@ const styles = StyleSheet.create({
   },
   verifyActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s3 },
   failedHead: { marginTop: theme.space.s3 },
+  ssoNote: { marginTop: theme.space.s4 },
   oauthProgress: { marginTop: theme.space.s3, gap: theme.space.s1, alignItems: "center" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: theme.space.s1, marginTop: theme.space.s4 },
 });

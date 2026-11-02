@@ -1,0 +1,5 @@
+{
+  "BILLING_STORAGE_*_PRICE_CENTS": "Built from the add-on key in services/api/src/services/billing-pricing.service.ts.",
+  "PAYPAL_PLAN_STORAGE_*": "Built from the add-on key in services/api/src/services/paypal-plan-map.service.ts.",
+  "STRIPE_STORAGE_*": "Built from the add-on key in billing-pricing.service.ts and commercial-offer.service.ts."
+}

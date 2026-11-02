@@ -217,7 +217,11 @@ export async function evaluateAccountClosurePreflight(
     const orgIds = ownedOrgMemberships.map((m) => m.organizationId);
     const withOthers = await prisma.organizationMembership.groupBy({
       by: ["organizationId"],
-      where: { organizationId: { in: orgIds }, userId: { not: userId } },
+      where: {
+        organizationId: { in: orgIds },
+        userId: { not: userId },
+        status: { in: ["ACTIVE", "SUSPENDED"] },
+      },
       _count: { id: true },
     });
     if (withOthers.length > 0) {
@@ -367,8 +371,13 @@ export async function evaluateOrganizationClosurePreflight(
 
   const [otherMembers, activeHolds, billingTeams, personalTeams] =
     await Promise.all([
+      // Removal keeps a REVOKED row, and someone who has left holds nothing.
       prisma.organizationMembership.count({
-        where: { organizationId: orgId, userId: { not: ownerUserId } },
+        where: {
+          organizationId: orgId,
+          userId: { not: ownerUserId },
+          status: { in: ["ACTIVE", "SUSPENDED"] },
+        },
       }),
       // PHASE 12B CLUSTER 8 — all scopes, all stores.
       countActiveHoldsAllStores({ team: { organizationId: orgId } }),

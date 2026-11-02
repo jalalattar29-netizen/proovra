@@ -35,7 +35,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { PageSection } from "../../../../../../components/ui/PageShell";
 import { Card } from "../../../../../../components/ui/Card";
@@ -89,7 +89,7 @@ function RolesTab() {
       const data = (await apiFetch(`/v1/orgs/${orgId}`)) as OrgResponse;
       setCaller({ kind: "ready", callerRole: data.callerRole });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setCaller({
           kind: "error",
           message: toSafeUserError(err, { message: "Failed to load." }).message,

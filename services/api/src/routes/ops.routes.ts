@@ -26,6 +26,7 @@
  *     PENDING→EXPIRED) or counts orphans so an operator can act.
  */
 
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -727,6 +728,17 @@ export async function opsRoutes(app: FastifyInstance) {
         }
       }
     }
+    // CRYPTO-004 — a KMS signer cannot register itself, so an identity that is
+    // not in signing_keys read ready and then failed every completion. The
+    // instance says so here, before it takes traffic. Bounded code only.
+    if (process.env.NODE_ENV === "production") {
+      const { signerIdentityIssue } = await import("../services/operations/signer-identity-readiness.js");
+      const issue = await signerIdentityIssue(prisma);
+      if (issue) {
+        req.log?.error({ issue }, "readyz.signer_identity_not_ready");
+        return reply.code(503).send({ status: "degraded", reason: issue });
+      }
+    }
     return reply.code(200).send({ status: "ok" });
   });
 
@@ -854,6 +866,17 @@ export async function opsRoutes(app: FastifyInstance) {
   // outside the repository either, and this repository publishes no API
   // document and keeps no access log that could settle it. So the path stays,
   // registered against THE canonical handler, and says so on the wire.
+  // OPS-015 — what is actually running, for a platform operator. The API's own
+  // build, and each live worker's, from the leases they renew. Revisions only.
+  app.get(
+    "/v1/admin/platform/release",
+    { preHandler: requirePlatformAdmin },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const { readReleaseIdentity } = await import("../services/operations/release-identity.service.js");
+      return reply.code(200).send(await readReleaseIdentity(prisma));
+    },
+  );
+
   app.get(
     "/v1/ops/metrics",
     { preHandler: requirePlatformAdmin },
@@ -862,13 +885,12 @@ export async function opsRoutes(app: FastifyInstance) {
 
   // Phase Y — Prometheus exposition endpoint.
   //
-  // Public path conventionally consumed by a scraper inside the
-  // trusted cluster network. Optionally gated by a shared bearer
-  // token (`METRICS_SCRAPE_TOKEN`) — when set, callers must pass
-  // `Authorization: Bearer <token>` or the endpoint returns 401.
-  // When the env is not set, the endpoint is open (typical k8s
-  // deployment where /metrics is network-firewalled). This matches
-  // the existing /healthz + /readyz public-endpoint pattern.
+  // Consumed by a scraper with a shared bearer token
+  // (`METRICS_SCRAPE_TOKEN`): callers pass `Authorization: Bearer <token>` or
+  // the endpoint returns 401. OPS-008 — a deployment with no token answers 503
+  // rather than serving the counters to anyone who asks. No edge configuration
+  // is versioned here, so "the network firewalls it" could not be shown. Only an
+  // explicit development or test environment may read it without a token.
   //
   // Returns Prometheus exposition format with `text/plain;
   // version=0.0.4` content type. Includes the entire COUNTER_NAMES +
@@ -903,6 +925,8 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!cronSecretMatches(requiredToken, m?.[1])) {
         return reply.code(401).send({ error: "unauthorized" });
       }
+    } else if (!developmentSurfacesAllowed()) {
+      return reply.code(503).send({ error: { code: "METRICS_SCRAPE_TOKEN_NOT_CONFIGURED" } });
     }
     const body = buildPrometheusExposition();
     return reply

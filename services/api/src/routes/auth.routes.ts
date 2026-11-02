@@ -22,6 +22,8 @@ import {
 } from "../services/email-password-auth.service.js";
 import {
   dispatchVerificationEmail,
+  EmailVerifyBody,
+  passwordProofRefusal,
   processResendVerification,
   confirmVerificationToken,
 } from "../services/email-verification.service.js";
@@ -32,6 +34,7 @@ import { requireAuth, resolveSessionCredential } from "../middleware/auth.js";
 import { toAuthUserProjection } from "../http/auth-user-projection.js";
 import { prisma } from "../db.js";
 import {
+  resolveSupportedProvenance,
   signJwt,
   verifyJwt,
   signMfaPendingToken,
@@ -53,6 +56,11 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 // PHASE 13 §1.4 — the canonical trusted-client-IP binding; see `readClientIp`.
 import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
+import {
+  completeSsoSession,
+  type SsoSessionCompletion,
+} from "../services/identity/sso-session-completion.service.js";
 import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-limit.js";
 // Phase 2.7Z+ — E2E auth rate-limit bypass (env-gated, production-safe).
 // See services/api/src/services/auth-test-bypass.ts for the three
@@ -70,8 +78,17 @@ import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 import {
   hashSessionId,
   revokeAllSessionsForUser,
+  revokeSession,
 } from "../services/identity-security/session-revocation.service.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
+import { MFA_ENROLLMENT_SCOPE } from "../services/auth/extension-scope.js";
+import {
+  clearMfaEnrollmentCookie,
+  enrolledFactorIdOf,
+  MFA_ENROLLMENT_TTL_SECONDS,
+  setMfaEnrollmentCookie,
+  signMfaEnrollmentToken,
+} from "../services/auth/mfa-enrollment-session.js";
 
 // Phase E10.1 — DEF-037 closure. Per-IP rate limits on the public,
 // unauthenticated email login and password-reset-request surfaces.
@@ -190,10 +207,12 @@ async function recordSessionFromSignedToken(
    * the pending token. Absent for every other login.
    */
   idp?: { authnContext: string | null; authAt: Date | null },
-): Promise<void> {
+  /** IDENT-011 — an SSO session belongs to its connection's workspace. */
+  teamId?: string,
+): Promise<{ sessionId: string; sid: string } | null> {
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return;
+    if (parts.length !== 3) return null;
     const payloadJson = Buffer.from(parts[1] ?? "", "base64url").toString(
       "utf8",
     );
@@ -209,15 +228,15 @@ async function recordSessionFromSignedToken(
       typeof payload.iat !== "number" ||
       typeof payload.exp !== "number"
     ) {
-      return;
+      return null;
     }
     // The token was signed by this process a moment ago, so its provenance
     // claims are the server-verified ceremony — recorded as such.
     const authMethod = typeof payload.authMethod === "string" ? payload.authMethod : null;
     const isSso = authMethod === "SAML" || authMethod === "OIDC";
-    await recordAuthenticatedSession({
+    const session = await recordAuthenticatedSession({
       userId: user.id,
-      teamId: user.currentWorkspaceId ?? null,
+      teamId: teamId ?? user.currentWorkspaceId ?? null,
       sid: payload.sid,
       iat: payload.iat,
       exp: payload.exp,
@@ -232,9 +251,52 @@ async function recordSessionFromSignedToken(
           }
         : {}),
     });
+    // IDENT-019 — scored like an SSO session, which scores in its completion, so
+    // a password or social session does not read as LOW only because nobody
+    // looked. A session with no workspace yet has nothing to compare against.
+    const scoreTeamId = teamId ?? user.currentWorkspaceId ?? null;
+    if (!isSso && scoreTeamId) {
+      await detectAndScoreSession({ teamId: scoreTeamId, sessionId: session.id }).catch(() => null);
+    }
+    return { sessionId: session.id, sid: payload.sid };
   } catch {
     // Best-effort. A failed inventory write must not break login.
+    return null;
   }
+}
+
+/**
+ * IDENT-011 — an SSO sign-in finishing through a second factor gets what one
+ * finishing without it gets: its connection's workspace, managed provisioning,
+ * and the Organization context under its session limit. Unlike the inventory of
+ * an ordinary login, this one cannot be best effort: with no row there is no
+ * context, so the sign-in does not finish.
+ */
+async function recordSsoSessionThroughMfa(
+  req: FastifyRequest,
+  user: { id: string; currentWorkspaceId?: string | null },
+  token: string,
+  sso: { authMethod: "SAML" | "OIDC"; ssoConnId: string },
+  idp?: { authnContext: string | null; authAt: Date | null },
+): Promise<SsoSessionCompletion> {
+  const conn = await prisma.ssoConnection.findUnique({
+    where: { id: sso.ssoConnId },
+    select: { id: true, teamId: true },
+  });
+  if (!conn) return { allowed: false, reason: "sso_connection_unavailable" };
+  const session = await recordSessionFromSignedToken(req, user, token, idp, conn.teamId);
+  if (!session) return { allowed: false, reason: "session_unavailable" };
+  return completeSsoSession(
+    {
+      userId: user.id,
+      teamId: conn.teamId,
+      ssoConnectionId: conn.id,
+      source: sso.authMethod,
+      sessionId: session.sessionId,
+      sid: session.sid,
+    },
+    prisma,
+  );
 }
 
 const TokenBody = z.object({
@@ -590,11 +652,10 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     // ENROLLMENT_REQUIRED — user has NO factor but at least one of
-    // their teams' policies requires MFA for their role. We do NOT
-    // issue a session and we do NOT issue a pending token. The
-    // browser routes to /auth/mfa-challenge which detects this state
-    // and shows the guided enrollment surface. The user can complete
-    // enrollment within the flow; no silent lockout.
+    // their teams' policies requires MFA for their role. No session is
+    // issued. The answer carries an enrolment token, good only for the
+    // enrolment routes, so the person can add a factor and finish
+    // signing in through /v1/auth/mfa/enrollment/complete.
     if (decision.outcome === "ENROLLMENT_REQUIRED") {
       auditAuthEvent(req, {
         userId: user.id,
@@ -618,9 +679,19 @@ export async function authRoutes(app: FastifyInstance) {
           policyLevel: decision.policyLevel,
         },
       });
+      const mfaEnrollmentToken = signMfaEnrollmentToken(
+        jwtPayloadFromUser(user, loginMethod === "email_password" ? "PASSWORD" : "SOCIAL_OAUTH"),
+        jwtSecret as string,
+      );
+      if (req.headers["x-web-client"] === "1") {
+        setMfaEnrollmentCookie(req, reply, mfaEnrollmentToken);
+      }
       reply.code(403).send({
         mfaRequired: true,
         mfaEnrollmentRequired: true,
+        code: "MFA_ENROLLMENT_REQUIRED",
+        mfaEnrollmentToken,
+        mfaEnrollmentExpiresInSeconds: MFA_ENROLLMENT_TTL_SECONDS,
         reason: "org_policy_requires_mfa",
         message:
           "Your organization requires multi-factor authentication. Please enroll an authenticator to continue.",
@@ -1296,7 +1367,6 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // EV4 — email verification: consume the link, auto-sign-in.
-  // Business logic lives in email-verification.service.ts.
   app.post("/v1/auth/email/verify", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `auth:email-verify:ip:${readClientIp(req)}`,
@@ -1308,7 +1378,7 @@ export async function authRoutes(app: FastifyInstance) {
       return replyRateLimited(reply, rl.resetAtMs);
     }
 
-    const parsed = z.object({ token: z.string().min(1).max(256) }).safeParse(req.body);
+    const parsed = EmailVerifyBody.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({
         error: {
@@ -1319,7 +1389,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    const result = await confirmVerificationToken(parsed.data.token);
+    const result = await confirmVerificationToken(parsed.data.token, parsed.data);
     if (!result.ok) {
       auditAuthEvent(req, {
         userId: null,
@@ -1328,6 +1398,8 @@ export async function authRoutes(app: FastifyInstance) {
         severity: "info",
         metadata: { reason: result.reason },
       });
+      const proof = passwordProofRefusal(result.reason);
+      if (proof) return reply.code(403).send(proof);
       return reply.code(400).send({
         error: {
           code: "INVALID_OR_EXPIRED",
@@ -1664,8 +1736,88 @@ export async function authRoutes(app: FastifyInstance) {
     // the real session is issued. It previously set the cookie without
     // writing an AuthenticatedSession row, leaving MFA users with an
     // empty session list. Same canonical helper as every other path.
-    await recordSessionFromSignedToken(req, user, token, ssoProvenance?.idp);
+    if (ssoProvenance) {
+      const completion = await recordSsoSessionThroughMfa(req, user, token, ssoProvenance, ssoProvenance.idp);
+      if (!completion.allowed) {
+        clearMfaPendingCookie(req, reply);
+        return reply.code(403).send({ message: completion.reason });
+      }
+    } else {
+      await recordSessionFromSignedToken(req, user, token);
+    }
     clearMfaPendingCookie(req, reply);
+    maybeSetWebCookie(req, reply, token);
+    return reply.code(200).send({ token, user: toAuthUserProjection(user) });
+  });
+
+  // IDENT-007 — the last step of a sign-in that had to enrol a factor. The
+  // enrolment token proves the primary sign-in; a factor verified during it
+  // proves the second. The new session keeps the primary provenance, exactly as
+  // /v1/auth/mfa/verify does, and the enrolment token ends here.
+  app.post("/v1/auth/mfa/enrollment/complete", { preHandler: requireAuth }, async (req, reply) => {
+    if (req.user?.tokenScope !== MFA_ENROLLMENT_SCOPE) {
+      return reply.code(403).send({ message: "mfa_enrollment_token_required" });
+    }
+    const userId = req.user.sub;
+    const credential = resolveSessionCredential(req);
+    const enrolledFactorId = credential ? enrolledFactorIdOf(credential.token) : null;
+    const factor = enrolledFactorId
+      ? await prisma.mfaFactor.findFirst({
+          where: { id: enrolledFactorId, userId, status: "ACTIVE" },
+          select: { id: true },
+        })
+      : null;
+    if (!factor) {
+      return reply.code(409).send({ message: "mfa_factor_not_enrolled" });
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return reply.code(401).send({ message: "mfa_pending_invalid" });
+    }
+    const authMethod = resolveSupportedProvenance(req.user.authMethod) ?? "PASSWORD";
+    const token = signJwt(
+      {
+        ...jwtPayloadFromUser(
+          { id: user.id, provider: user.provider, email: user.email, platformRole: user.platformRole },
+          authMethod,
+        ),
+        ...(req.user.authAt ? { authAt: req.user.authAt } : {}),
+        ...(req.user.ssoConnId ? { ssoConnId: req.user.ssoConnId } : {}),
+        mfaAt: Math.floor(Date.now() / 1000),
+      },
+      jwtSecret,
+      60 * 60 * 24 * 30,
+    );
+    auditAuthEvent(req, {
+      userId: user.id,
+      action: "auth.mfa_enrollment_completed",
+      outcome: "success",
+      resourceId: user.id,
+      metadata: { method: authMethod },
+    });
+    if (req.user.sessionIdHash) {
+      await revokeSession({
+        teamId: null,
+        userId: user.id,
+        sessionIdHash: req.user.sessionIdHash,
+        reason: "USER_LOGGED_OUT",
+        actorUserId: user.id,
+      });
+    }
+    const ssoMethod = authMethod === "SAML" || authMethod === "OIDC" ? authMethod : null;
+    if (ssoMethod && req.user.ssoConnId) {
+      const completion = await recordSsoSessionThroughMfa(req, user, token, {
+        authMethod: ssoMethod,
+        ssoConnId: req.user.ssoConnId,
+      });
+      if (!completion.allowed) {
+        clearMfaEnrollmentCookie(req, reply);
+        return reply.code(403).send({ message: completion.reason });
+      }
+    } else {
+      await recordSessionFromSignedToken(req, user, token);
+    }
+    clearMfaEnrollmentCookie(req, reply);
     maybeSetWebCookie(req, reply, token);
     return reply.code(200).send({ token, user: toAuthUserProjection(user) });
   });
@@ -1686,6 +1838,7 @@ export async function authRoutes(app: FastifyInstance) {
   // `logout_incomplete`, never a 200 that claims the token is dead. The cookie
   // is still cleared, because forgetting it locally is never wrong.
   app.post("/v1/auth/logout", async (req, reply) => {
+    clearMfaEnrollmentCookie(req, reply);
     let userId: string | null = null;
     const credential = resolveSessionCredential(req);
     let payload: ReturnType<typeof verifyJwt> | null = null;

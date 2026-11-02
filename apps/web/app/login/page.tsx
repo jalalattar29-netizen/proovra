@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiBaseUrl, apiFetch, ApiError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
@@ -30,6 +30,7 @@ import {
   savePendingOAuthLegalAcceptance,
 } from "../../lib/legalAcceptance";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
+import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
 
@@ -234,6 +235,38 @@ function LoginPageContent() {
     nextUrlRef.current = nextUrl;
   }, [nextUrl]);
 
+  // IDENT-020 — the way in for a person whose organization signs in with SSO.
+  const startSingleSignOn = async () => {
+    setError(null);
+    if (!email.trim()) {
+      setError("Enter your work email first.");
+      return;
+    }
+    try {
+      const found = (await apiFetch(
+        "/v1/auth/sso/discover",
+        { method: "POST", body: JSON.stringify({ email: email.trim() }) },
+        { auth: false },
+      )) as { sso?: boolean; loginPath?: string };
+      if (!found?.sso || !found.loginPath) {
+        setError("No single sign-on is set up for that email address. Sign in another way, or ask your administrator.");
+        return;
+      }
+      const next = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
+      window.location.assign(
+        `${apiBaseUrl()}${found.loginPath}?redirectAfter=${encodeURIComponent(next)}`,
+      );
+    } catch (err) {
+      setError(toSafeUserError(err, { message: "Single sign-on could not be started. Try again." }).message);
+    }
+  };
+
+  // IDENT-003 — a failed SSO sign-in arrives here with a reason.
+  useEffect(() => {
+    const failure = ssoSignInFailureMessage(searchParams);
+    if (failure) setError(failure);
+  }, [searchParams]);
+
   // FP3 — auto-open the forgot-password modal when the URL carries
   // `?forgot=1` (the /forgot-password redirect target). On open we
   // strip the param via router.replace so a refresh doesn't keep
@@ -420,6 +453,14 @@ function LoginPageContent() {
       router.replace(currentNextUrl);
     } catch (err) {
       if (!isMountedRef.current) return;
+
+      // IDENT-007 — the sign-in succeeded and the organization requires a
+      // factor this account does not have yet. The API has set the enrolment
+      // cookie, so the next step is the guided setup, not an error.
+      if ((err as { code?: string }).code === "MFA_ENROLLMENT_REQUIRED") {
+        router.replace(`/auth/mfa-challenge?enroll=1&next=${encodeURIComponent(currentNextUrl)}`);
+        return;
+      }
 
       const msg = toSafeUserError(err, { message: "Login failed" }).message;
       const requestId = err instanceof ApiError ? err.requestId : undefined;
@@ -931,7 +972,23 @@ function LoginPageContent() {
                               </div>
                             ) : null}
 
-                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                              <button
+                                type="button"
+                                onClick={() => void startSingleSignOn()}
+                                className="auth-link"
+                                style={{
+                                  color: "#D63E76",
+                                  fontWeight: 600,
+                                  background: "transparent",
+                                  border: 0,
+                                  padding: 0,
+                                  cursor: "pointer",
+                                  font: "inherit",
+                                }}
+                              >
+                                Use single sign-on
+                              </button>
                               <button
                                 ref={forgotTriggerRef}
                                 type="button"

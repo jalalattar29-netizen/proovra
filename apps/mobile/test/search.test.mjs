@@ -186,7 +186,7 @@ test("a row's leading state: legal hold first, else its lifecycle; a subtitle th
 });
 
 test("recent searches: tenant-scoped key, most recent first, deduped, 10 at most", () => {
-  assert.equal(mod.searchRecentKey("ws_1"), "proovra:tenant:ws_1:search:recent");
+  assert.equal(mod.searchRecentKey("u_1", "ws_1"), "proovra:user:u_1:tenant:ws_1:search:recent");
   assert.deepEqual(mod.pushRecentSearch(["a", "b"], " b "), ["b", "a"]);
   assert.equal(mod.pushRecentSearch(Array.from({ length: 10 }, (_, i) => `q${i}`), "new").length, 10);
   assert.deepEqual(mod.parseRecentSearches("not json"), []);

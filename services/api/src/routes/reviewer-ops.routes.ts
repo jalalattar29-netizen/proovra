@@ -10,6 +10,7 @@
  *   POST /v1/reviewer-ops/reviews/:workflowId/reassign
  *   POST /v1/reviewer-ops/reviews/:workflowId/start
  *   POST /v1/reviewer-ops/reviews/:workflowId/pause
+ *   POST /v1/reviewer-ops/reviews/:workflowId/resume
  *   POST /v1/reviewer-ops/reviews/:workflowId/request-info
  *   POST /v1/reviewer-ops/reviews/:workflowId/approve
  *   POST /v1/reviewer-ops/reviews/:workflowId/reject
@@ -31,6 +32,8 @@
  *   - Errors map to the Phase 25 ReviewerOpsErrorCode catalog.
  */
 
+import { listReminders } from "../services/reviewer-ops/reminder-engine.service.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "../services/reviewer-ops/sweep-cursor.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
@@ -45,7 +48,6 @@ import {
   type SavedViewVisibility,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -62,6 +64,7 @@ import {
   evaluateAuthorizedWorkspace,
   type AuthorizedWorkspaceContext,
 } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import {
   ReviewerOpsError,
   approveReview,
@@ -70,6 +73,7 @@ import {
   getReviewerOpsWorkspace,
   listReviewerOpsQueue,
   pauseReview,
+  resumeReview,
   rejectReview,
   requestInformation,
   runReconcile,
@@ -299,6 +303,7 @@ async function requireReviewerActor(
       authorized,
       "evidence_request.review",
     ),
+    mayActOnOthersReviews: contextHasCapability(authorized, "review.assign"),
     isServiceAccount: false,
     authorized,
   };
@@ -603,6 +608,9 @@ function sendDecisionAuthorityError(
 // Param + body schemas
 // -----------------------------------------------------------------------------
 
+/** The workspace the all-teams reconcile sweep resumes after (WORKFLOW-012). */
+const REVIEWER_TEAM_SWEEP_CURSOR = "reviewer_ops_reconcile_teams";
+
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ParamsWorkflowId = z.object({ workflowId: z.string().uuid() });
 const ParamsId = z.object({ id: z.string().uuid() });
@@ -669,12 +677,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -683,7 +687,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const QueueQuery = z.object({
         teamId: z.string().uuid(),
@@ -811,12 +815,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const rawQuery = (req.query ?? {}) as { teamId?: string };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -825,7 +825,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = TeamIdQuery.parse({ teamId: resolvedTeamId });
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
@@ -1045,12 +1045,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -1059,7 +1055,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = z
         .object({
@@ -1143,12 +1139,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -1157,7 +1149,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = z
         .object({ teamId: z.string().uuid() })
@@ -1310,6 +1302,56 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           workflowId,
           pausedReason: body.pausedReason,
         });
+        return reply.code(200).send({ projection: result });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/reviewer-ops/reminders
+  // ===========================================================================
+
+  app.get(
+    "/v1/reviewer-ops/reminders",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = TeamIdQuery.parse(req.query);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
+      if (!ctx) return;
+      // A reminder names the person it is about. Someone who can reassign work
+      // sees the team's; anyone else sees their own.
+      const reminders = await listReminders({
+        teamId: q.teamId,
+        limit: 25,
+        ...(ctx.mayActOnOthersReviews ? {} : { reviewerUserId: ctx.actorUserId }),
+      });
+      return reply.code(200).send({ reminders });
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/reviews/:workflowId/resume
+  // ===========================================================================
+
+  app.post(
+    "/v1/reviewer-ops/reviews/:workflowId/resume",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          note: BoundedNote.nullable().optional(),
+        })
+        .parse(req.body ?? {});
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
+      if (!ctx) return;
+      if (!requireReviewerCapable(ctx, reply)) return;
+      try {
+        const result = await resumeReview(ctx, { workflowId, note: body.note ?? null });
         return reply.code(200).send({ projection: result });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
@@ -2013,9 +2055,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         return reply.code(401).send({ error: { code: "unauthorized" } });
       }
       // Either single-team (legacy: { teamId }) or all-teams sweep
-      // ({ allTeams: true }). All-teams mode enumerates teams from DB
-      // and runs reconcile per team with a per-team timeout. This is
-      // the path the worker tick uses.
+      // ({ allTeams: true }). All-teams mode resumes from a persisted cursor
+      // and stops at a time budget, so the fleet is covered across ticks and
+      // the response comes back before the worker gives up. This is the path
+      // the worker tick uses.
       const body = z
         .union([
           z.object({
@@ -2026,6 +2069,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             allTeams: z.literal(true),
             batchSize: z.number().int().min(1).max(2000).optional(),
             maxTeamsPerSweep: z.number().int().min(1).max(10_000).optional(),
+            maxDurationMs: z.number().int().min(1_000).max(600_000).optional(),
           }),
         ])
         .parse(req.body ?? {});
@@ -2039,12 +2083,18 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       }
 
       const maxTeams = body.maxTeamsPerSweep ?? 500;
+      const startedAtMs = Date.now();
+      const maxDurationMs = body.maxDurationMs ?? 45_000;
+      // WORKFLOW-012 — reviewer-ops only matters for teams that have at least one
+      // review workflow row, and every workspace qualifies once one record
+      // finalizes. Read from a fixed head, a limit starved every workspace past
+      // it for good. The cursor means the next tick continues where this one
+      // stopped, and a sweep that reaches the end wraps to the start.
+      const teamCursor = await readSweepCursor(prisma, REVIEWER_TEAM_SWEEP_CURSOR);
       const teams = await prisma.team.findMany({
-        // Reviewer-ops only matters for teams that have at least one
-        // review workflow row. Limit + ordering keeps the worker tick
-        // bounded — the next tick picks up any team we missed.
         where: {
           evidenceReviewWorkflows: { some: {} },
+          ...afterCursor(teamCursor),
         },
         select: { id: true },
         orderBy: { id: "asc" },
@@ -2071,7 +2121,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // loop carries on, accumulating `failedTeams`. This intentionally
       // keeps the catch out of any route handler so the Phase 25
       // route-layer error-handling contract is preserved.
+      let teamsVisited = 0;
       for (const t of teams) {
+        // Checked between teams: a run already in progress finishes.
+        if (Date.now() - startedAtMs >= maxDurationMs) break;
+        teamsVisited += 1;
         const teamResult = await runReconcileSafely({
           teamId: t.id,
           batchSize: body.batchSize,
@@ -2092,6 +2146,20 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             error: teamResult.error,
           });
         }
+      }
+
+      const stoppedOnBudget = teamsVisited < teams.length;
+      const sweepPosition = await advanceSweepCursor(prisma, REVIEWER_TEAM_SWEEP_CURSOR, teamCursor, {
+        lastId: teams[teamsVisited - 1]?.id ?? teamCursor,
+        // A sweep cut short has not reached the end, however few teams it read.
+        pageSize: stoppedOnBudget ? maxTeams : teams.length,
+        limit: maxTeams,
+      });
+      if (stoppedOnBudget) {
+        app.log.warn(
+          { teamsVisited, teamsRead: teams.length, maxDurationMs },
+          "reviewer_ops.reconcile.stopped_on_time_budget",
+        );
       }
 
       // Phase 32.7.5 — sweep-level canonical heartbeat.
@@ -2140,7 +2208,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               typeof req.headers["x-correlation-id"] === "string"
                 ? req.headers["x-correlation-id"]
                 : null,
-            teams: teams.length,
+            teams: teamsVisited,
+            sweepCompleted: sweepPosition.wrapped,
             failedTeams,
             totalEscalationsCreated,
             totalFlippedBreached,
@@ -2158,7 +2227,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       }
 
       return reply.code(200).send({
-        teams: teams.length,
+        teams: teamsVisited,
+        // True when this tick reached the last workspace. False across a long run
+        // of ticks means the interval cannot cover the fleet.
+        sweepCompleted: sweepPosition.wrapped,
         failedTeams,
         totalEscalationsCreated,
         totalFlippedBreached,

@@ -79,7 +79,7 @@ const SPECIALIST_SURFACES: ReadonlyArray<Surface> = [
     canonicalPath: "/security-center/identity/timeline",
     title: "Identity audit center",
     description:
-      "Unified security-event timeline: login activity, step-up elevations, session governance, geo-risk anomalies, and provisioning events. Filters per event kind + severity.",
+      "Unified security-event timeline: login activity, step-up elevations, session governance, and provisioning events. Filters per event kind + severity.",
   },
   {
     href: "/security-center/identity/sessions",

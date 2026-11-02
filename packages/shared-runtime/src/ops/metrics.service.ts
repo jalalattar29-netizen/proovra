@@ -404,6 +404,7 @@ export const COUNTER_NAMES = [
   "reviewer_review_started_total",
   "reviewer_review_completed_total",
   "reviewer_review_paused_total",
+  "reviewer_review_resumed_total",
   "reviewer_information_requested_total",
   "reviewer_review_approved_total",
   "reviewer_review_rejected_total",

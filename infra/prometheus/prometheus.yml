@@ -16,16 +16,16 @@ global:
   external_labels:
     # Set per deployment. An alert that cannot say WHICH environment it came
     # from wakes somebody up to answer that question first.
-    environment: "${PROOVRA_ENVIRONMENT:-unset}"
+    environment: "${PROOVRA_ENVIRONMENT}"
 
 scrape_configs:
   # The API's own exposition — the entire COUNTER_NAMES/GAUGE_NAMES catalog
   # plus process uptime, served at /metrics in text/plain; version=0.0.4.
   #
-  # `METRICS_SCRAPE_TOKEN` is optional in the API: unset means the endpoint is
-  # open and expected to be network-firewalled. When it IS set, the API
-  # answers 401 without a bearer token, so the scrape must carry one or every
-  # rule reads NoData — which looks exactly like a healthy silence.
+  # A deployed API answers 503 until `METRICS_SCRAPE_TOKEN` is set and 401 without
+  # the bearer token, so the scrape must carry it or `up` reads 0. The file below
+  # holds the same value and is not in the repository: put it at
+  # infra/prometheus/secrets/metrics-scrape-token on the host.
   - job_name: proovra-api
     metrics_path: /metrics
     scheme: http

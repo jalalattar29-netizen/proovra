@@ -107,7 +107,7 @@ describe("members re-audit 2 — a mutation never commits without its audit row 
 
   async function person(role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null = "MEMBER"): Promise<Person> {
     const email = `ra2a-${tag()}@test.proovra.local`;
-    const user = await prisma.user.create({ data: { email, provider: "EMAIL", providerUserId: email }, select: { id: true } });
+    const user = await prisma.user.create({ data: { email, provider: "EMAIL", providerUserId: email, emailVerifiedAt: new Date() }, select: { id: true } });
     await prisma.userLegalAcceptance.createMany({
       data: Object.entries(legalVersions).map(([policyKey, policyVersion]) => ({
         userId: user.id,

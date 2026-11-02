@@ -182,6 +182,53 @@ export async function revokeAllSessionsForUser(
   return row;
 }
 
+/**
+ * End every session of one person except the one acting, inside the caller's
+ * transaction, so a privilege never commits while an older session can use it.
+ *
+ * Each session is revoked by its own hash, because ALL_FOR_USER ends every token
+ * issued before it, the caller's included. Reads the session inventory, the same
+ * source `revoke-others` uses. No event is emitted on the transaction client.
+ */
+export async function revokeOtherSessionsForUserTx(
+  tx: PrismaClient,
+  input: {
+    userId: string;
+    currentSessionIdHash: string | null;
+    reason: SessionRevocationReason;
+  },
+): Promise<{ revoked: number }> {
+  const where = {
+    userId: input.userId,
+    revokedAtUtc: null,
+    ...(input.currentSessionIdHash ? { NOT: { sessionIdHash: input.currentSessionIdHash } } : {}),
+  };
+  const others = await tx.authenticatedSession.findMany({
+    where,
+    select: { sessionIdHash: true, teamId: true },
+  });
+  if (others.length === 0) return { revoked: 0 };
+  await tx.revokedSession.createMany({
+    data: others.map((session) => ({
+      teamId: session.teamId ?? null,
+      userId: input.userId,
+      scope: prismaPkg.RevokedSessionScope.SINGLE_SESSION,
+      sessionIdHash: session.sessionIdHash,
+      reason: input.reason.slice(0, 64),
+      revokedByUserId: input.userId,
+    })),
+  });
+  await tx.authenticatedSession.updateMany({
+    where,
+    data: {
+      revokedAtUtc: new Date(),
+      revokedByUserId: input.userId,
+      revokedReason: input.reason.slice(0, 64),
+    },
+  });
+  return { revoked: others.length };
+}
+
 // -----------------------------------------------------------------------------
 // Check — used by the auth middleware on every request.
 //

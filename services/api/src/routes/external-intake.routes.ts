@@ -442,6 +442,8 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "Too many requests in a short time. Please wait a moment and try again.";
     case "INTERNAL_ERROR":
       return "Something went wrong on our side. Please try again in a moment. If the problem persists, contact the sender.";
+    case "WORKSPACE_NOT_OPERATING":
+      return "This link is not accepting submissions right now. Please contact the sender.";
     case "FEATURE_DISABLED":
       return "External uploads are not enabled. Please contact the sender for an alternative.";
     case "SUBMIT_FAILED":
@@ -521,6 +523,14 @@ function intakeErrorToReply(
         error: {
           code: "LINK_NO_LONGER_AVAILABLE",
           message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
+      });
+      return;
+    case "workspace_not_operating":
+      reply.code(410).send({
+        error: {
+          code: "WORKSPACE_NOT_OPERATING",
+          message: friendly("WORKSPACE_NOT_OPERATING"),
         },
       });
       return;

@@ -80,8 +80,10 @@ describe("Phase 25.5 — SLA policy resolver wiring", () => {
     expect(slaSrc).toMatch(/ReviewerOpsSlaPolicySchema\.safeParse/);
   });
 
-  it("engine uses resolveEffectiveSlaPolicy at assignment time", () => {
-    expect(engineSrc).toMatch(/resolveEffectiveSlaPolicy/);
+  it("assignment uses resolveEffectiveSlaPolicy, through the one stamp service", () => {
+    expect(readSource("../src/services/reviewer-ops/review-sla-stamp.service.ts")).toMatch(/resolveEffectiveSlaPolicy/);
+    expect(readSource("../src/services/review-operations/review-operations.service.ts")).toMatch(/stampReviewDeadlines/);
+    expect(engineSrc).toMatch(/resolveReviewPolicyForEvidence/);
   });
 
   it("engine reconcile wires reminder + inactivity sweeps", () => {

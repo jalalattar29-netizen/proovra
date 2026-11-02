@@ -182,6 +182,16 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
    * not need.
    */
   WORKSPACE_SEAT_CONTENTION: { disposition: "customer", where: "global" },
+  ACCOUNT_PASSWORD_PROOF_REQUIRED: { disposition: "customer", where: "global" },
+  CONTRACT_MANAGED_CLOSURE: { disposition: "customer", where: "global" },
+  OWNER_TARGET_NOT_ACTIVE: { disposition: "customer", where: "global" },
+  TERMINATION_OPERATOR_CONTROLLED: { disposition: "customer", where: "global" },
+  WORKSPACE_NOT_OPERATING: { disposition: "customer", where: "global" },
+  WORKSPACE_SEAT_LIMIT_REACHED: { disposition: "customer", where: "global" },
+  WORKSPACE_NOT_FOUND: {
+    disposition: "internal",
+    why: "Answered only to a platform operator naming a workspace on the entitlement grant routes.",
+  },
   WORKSPACE_CREATION_NOT_SELF_SERVICE: {
     disposition: "customer",
     where: "global",

@@ -33,6 +33,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { sessionsOfWorkspaceWhere } from "./session-inventory.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
@@ -92,7 +93,7 @@ export async function detectAndScoreSession(
   client: PrismaClient = defaultPrisma,
 ): Promise<DetectionResult | null> {
   const session = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
   });
   if (!session) return null;
 
@@ -288,7 +289,7 @@ export async function readSessionRiskScore(
   client: PrismaClient = defaultPrisma,
 ): Promise<number | null> {
   const row = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
     select: { riskScore: true },
   });
   return row?.riskScore ?? null;

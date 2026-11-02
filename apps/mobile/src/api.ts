@@ -1,4 +1,5 @@
 import { triggerLegalGate } from "./auth/legal-gate";
+import { sessionEndReason, type SessionEndReason } from "./auth/session-end";
 import { reportNetworkOffline, reportNetworkOnline } from "./network/network-state";
 
 /** Canonical API origin — the ONE place the base URL is resolved. */
@@ -8,12 +9,33 @@ export function apiBaseUrl(): string {
 
 let authToken: string | null = null;
 
+/**
+ * The workspace on this device's screen, sent on every request as web sends it.
+ * The server's own record of "the current workspace" is one value per person,
+ * shared with their browser tabs, so it cannot say which workspace this device
+ * means. A candidate, never a grant: the server re-proves it on every request.
+ */
+export const WORKSPACE_HEADER = "x-proovra-workspace-id";
+let activeWorkspaceId: string | null = null;
+
+export function setActiveWorkspaceId(workspaceId: string | null) {
+  activeWorkspaceId = workspaceId;
+}
+
 export function setAuthToken(token: string | null) {
+  if (token !== authToken) activeWorkspaceId = null;
   authToken = token;
 }
 
 export function getAuthToken() {
   return authToken;
+}
+
+let sessionEndHandler: ((reason: SessionEndReason) => void) | null = null;
+
+/** The auth provider listens here: one path from a refused token to the boot machine. */
+export function setSessionEndHandler(handler: ((reason: SessionEndReason) => void) | null) {
+  sessionEndHandler = handler;
 }
 
 type MobileApiError = Error & {
@@ -52,8 +74,12 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
     headers.set("content-type", "application/json");
   }
 
-  if (authToken) {
-    headers.set("authorization", `Bearer ${authToken}`);
+  const sentToken = authToken;
+  if (sentToken) {
+    headers.set("authorization", `Bearer ${sentToken}`);
+    if (activeWorkspaceId && !headers.has(WORKSPACE_HEADER)) {
+      headers.set(WORKSPACE_HEADER, activeWorkspaceId);
+    }
   }
 
   let res: Response;
@@ -85,10 +111,11 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
     const obj = asObject(parsed);
     const errObj = obj ? asObject(obj["error"]) : null;
 
+    // A reply with no sentence has no message. Its raw body is not one: it may be
+    // a JSON object, or a proxy's HTML page.
     const message =
       (errObj && typeof errObj["message"] === "string" ? (errObj["message"] as string) : "") ||
       (obj && typeof obj["message"] === "string" ? (obj["message"] as string) : "") ||
-      (raw && raw.trim()) ||
       `HTTP ${res.status}: API error`;
 
     const requestId =
@@ -107,6 +134,8 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
       // such refusal — PART_ALREADY_DECLARED, SESSION_ALREADY_RESERVED — was
       // "API_ERROR" and no caller could act on it.
       (obj && typeof obj["denial"] === "string" ? (obj["denial"] as string) : undefined) ||
+      // The flat form several routes answer: { error: "code_invalid" }.
+      (obj && typeof obj["error"] === "string" ? (obj["error"] as string) : undefined) ||
       "API_ERROR";
 
     const err: MobileApiError = new Error(
@@ -129,6 +158,13 @@ async function apiRequest(path: string, init: RequestInit = {}): Promise<Respons
       const raw = err.details?.["missingPolicies"];
       const missing = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
       triggerLegalGate(missing);
+    }
+
+    // Only the session this request carried, and only if it is still the current
+    // one: a late answer to a previous session must not end the next.
+    if (sentToken && sentToken === authToken) {
+      const ended = sessionEndReason({ status: res.status, code, details: err.details });
+      if (ended) sessionEndHandler?.(ended);
     }
 
     throw err;
@@ -236,6 +272,7 @@ export async function publicFetch(
       (obj && typeof obj["denial"] === "string" ? (obj["denial"] as string) : undefined) ||
       // A top-level { code } too — the same fallback apiFetch reads.
       (obj && typeof obj["code"] === "string" ? (obj["code"] as string) : undefined) ||
+      (obj && typeof obj["error"] === "string" ? (obj["error"] as string) : undefined) ||
       "API_ERROR";
     // The support reference and the refusal's details, as apiFetch keeps them —
     // a public intake fault shows its Support ID, and a 412 SUBMISSION_NOT_READY

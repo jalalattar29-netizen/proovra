@@ -42,6 +42,7 @@
  * "authentic / legally admissible / proven".
  */
 
+import { advanceSweepCursor, readSweepCursor } from "./sweep-cursor.js";
 import type {
   EvidenceReviewWorkflow as DbWorkflow,
   EvidenceReviewWorkflowStatus,
@@ -734,12 +735,24 @@ export async function scanReviewDecisionProjections(
   results: ReconcileProjectionResult[];
 }> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 100, 1), 1000);
+  // Resumes where the last pass stopped: the first N workflows repeated forever,
+  // so workflow N+1 was never checked (WORKFLOW-012).
+  const cursorKey = `reviewer_projection:${input.teamId ?? "all"}`;
+  const cursor = await readSweepCursor(client, cursorKey);
   const rows = await client.workflowReviewDecision.findMany({
-    where: input.teamId ? { teamId: input.teamId } : {},
+    where: {
+      ...(input.teamId ? { teamId: input.teamId } : {}),
+      ...(cursor ? { workflowId: { gt: cursor } } : {}),
+    },
     select: { workflowId: true },
     distinct: ["workflowId"],
     orderBy: { workflowId: "asc" },
     take: batchSize,
+  });
+  await advanceSweepCursor(client, cursorKey, cursor, {
+    lastId: rows.at(-1)?.workflowId ?? null,
+    pageSize: rows.length,
+    limit: batchSize,
   });
   const results: ReconcileProjectionResult[] = [];
   let repaired = 0;

@@ -288,6 +288,43 @@ export async function evaluateEffectiveLegalHold(
   return summarize(matches);
 }
 
+/**
+ * THE SAME ANSWER FOR A WHOLE WORKSPACE (EVID-007), for a surface that filters or
+ * badges many records at once. The clauses are the evaluator's: an ACTIVE hold on
+ * the record, on a linked case, or any workspace-scope or unresolved hold, which
+ * covers everything. Errors propagate: "could not read" is not "nothing is held".
+ */
+export type WorkspaceLegalHoldCoverage =
+  | { wholeWorkspace: true }
+  | { wholeWorkspace: false; evidenceIds: ReadonlySet<string> };
+
+export async function resolveWorkspaceLegalHoldCoverage(
+  prisma: PrismaClient,
+  teamId: string,
+): Promise<WorkspaceLegalHoldCoverage> {
+  const holds = await prisma.evidenceLegalHold.findMany({
+    where: { teamId, status: "ACTIVE" },
+    select: { scope: true, historical: true, evidenceId: true, caseId: true },
+  });
+  if (holds.some((h) => h.historical === true || h.scope === "WORKSPACE")) {
+    return { wholeWorkspace: true };
+  }
+  const evidenceIds = new Set<string>();
+  const caseIds: string[] = [];
+  for (const hold of holds) {
+    if (hold.scope === "CASE" && hold.caseId) caseIds.push(hold.caseId);
+    else if (hold.evidenceId) evidenceIds.add(hold.evidenceId);
+  }
+  if (caseIds.length > 0) {
+    const links = await prisma.caseEvidenceLink.findMany({
+      where: { caseId: { in: caseIds } },
+      select: { evidenceId: true },
+    });
+    for (const link of links) evidenceIds.add(link.evidenceId);
+  }
+  return { wholeWorkspace: false, evidenceIds };
+}
+
 /** Cheap boolean form of {@link evaluateEffectiveLegalHold}. */
 export async function isUnderEffectiveLegalHold(
   prisma: PrismaClient,

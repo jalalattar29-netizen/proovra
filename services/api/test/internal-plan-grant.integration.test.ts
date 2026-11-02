@@ -167,6 +167,7 @@ describe("INTERNAL PLAN GRANT (live PostgreSQL 16)", () => {
       select: { id: true },
     });
     await prisma.teamMember.create({ data: { teamId: team.id, userId: staff.userId, role: "OWNER", status: "ACTIVE" } });
+    await prisma.organizationSecurityPolicy.create({ data: { organizationId: org.id, teamId: team.id } });
     await seedTotp(staff.userId);
     admin = { userId: staff.userId, token: staff.token, teamId: team.id };
   }, 180_000);

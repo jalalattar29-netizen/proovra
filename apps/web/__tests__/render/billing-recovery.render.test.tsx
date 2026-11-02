@@ -37,7 +37,10 @@ vi.mock("../../components/navigation/PageRouteGate", () => ({
 vi.mock("../../lib/platform-context", () => {
   const stamp = () => 0;
   const isStale = () => false;
-  return { useTenantGuard: () => ({ stamp, isStale }) };
+  return {
+    useTenantGuard: () => ({ stamp, isStale }),
+    useActiveCustomerOrganizationId: () => null,
+  };
 });
 
 import BillingPage from "../../app/(app)/billing/page";

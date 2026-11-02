@@ -56,6 +56,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import {
+  resolveWorkspaceLegalHoldCoverage,
+  type WorkspaceLegalHoldCoverage,
+} from "@proovra/shared-runtime";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { recordSearchAudit } from "./search-audit.service.js";
@@ -170,8 +174,29 @@ export async function executeSearch(
   if (filter.reviewStatuses && filter.reviewStatuses.length > 0) {
     where.reviewState = { in: filter.reviewStatuses };
   }
-  if (filter.onLegalHold !== undefined) {
-    where.legalHoldState = filter.onLegalHold ? { not: null } : null;
+  // EVID-007 — "on legal hold" means an application hold, resolved live by the one
+  // hold authority, so placing or releasing one at any scope is true at once with
+  // no reindex. The indexed column carries only the S3 object hold, which is
+  // refused by design, and "OFF" there is not a hold.
+  const holdCoverage = await resolveWorkspaceLegalHoldCoverage(client, filter.teamId);
+  if (filter.onLegalHold === true) {
+    Object.assign(
+      where,
+      holdCoverage.wholeWorkspace
+        ? { evidenceId: { not: null } }
+        : { OR: [{ legalHoldState: "ON" }, { evidenceId: { in: [...holdCoverage.evidenceIds] } }] },
+    );
+  } else if (filter.onLegalHold === false) {
+    // Spelled out, because these columns are nullable and NOT over a NULL matches
+    // nothing: records with no evidence link are "not held", not unknown.
+    if (holdCoverage.wholeWorkspace) {
+      where.evidenceId = null;
+    } else {
+      where.AND = [
+        { OR: [{ legalHoldState: null }, { legalHoldState: { not: "ON" } }] },
+        { OR: [{ evidenceId: null }, { evidenceId: { notIn: [...holdCoverage.evidenceIds] } }] },
+      ];
+    }
   }
   if (filter.exportRestricted !== undefined) {
     where.exportState = filter.exportRestricted
@@ -430,7 +455,7 @@ export async function executeSearch(
       continue;
     }
     safeRows.push(
-      toResultRow(row, filter.q ?? null, input.matchRecipientContact === true),
+      toResultRow(row, filter.q ?? null, holdCoverage, input.matchRecipientContact === true),
     );
   }
 
@@ -991,14 +1016,18 @@ function buildIntakeMatchReasons(
 
 function toResultRow(
   doc: prismaPkg.EvidenceSearchDocument,
-  q: string | null = null,
+  q: string | null,
+  holdCoverage: WorkspaceLegalHoldCoverage,
   matchRecipientContact = false,
 ): SearchResultRow {
   const badges: string[] = [];
   if (doc.workflowInstanceId) badges.push("workflow-linked");
   if (doc.contributorScoped) badges.push("contributor-scoped");
   if (doc.reviewerRestricted) badges.push("visibility-restricted");
-  if (doc.legalHoldState) badges.push("legal-hold");
+  const heldByApplication =
+    doc.evidenceId !== null &&
+    (holdCoverage.wholeWorkspace || holdCoverage.evidenceIds.has(doc.evidenceId));
+  if (heldByApplication || doc.legalHoldState === "ON") badges.push("legal-hold");
   if (doc.exportState === "INTERNAL") badges.push("export-restricted");
   // Search-inclusion-audit — surface `archived` and `locked` tags
   // from `searchableTagsJson` as user-facing badges. The projection
@@ -1019,6 +1048,8 @@ function toResultRow(
     // action on the result row routes to the safe (read-only)
     // detail surface so normal mutations cannot fire.
     if (tagsRaw.includes("in_trash")) badges.push("in_trash");
+    // The governance posture tag. Same badge: this is what it means to a reader.
+    if (tagsRaw.includes("on_hold") && !badges.includes("legal-hold")) badges.push("legal-hold");
   }
   // Defensive: drop any accidental badge that isn't in the allowed
   // catalog. (Belt-and-braces — we control all writers above.)

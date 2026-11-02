@@ -46,11 +46,28 @@ const seatState = vi.hoisted(() => ({
     contractLimits: {},
   },
 }));
-vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
-  // The real admission predicate, over the substituted seat state.
-  ...((await importOriginal()) as Record<string, unknown>),
-  resolveWorkspaceSeatState: async () => seatState.current,
-}));
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof import("../src/services/billing/workspace-seats.service.js");
+  return {
+    ...actual,
+    resolveWorkspaceSeatState: async () => seatState.current,
+    // The claim's order over the substituted state: the lock, its behaviour under
+    // contention and the real count are proven against PostgreSQL in
+    // seat-claim-authority.integration.test.ts.
+    claimWorkspaceSeatTx: async (
+      tx: { teamMember: { findUnique: (a: unknown) => Promise<{ status: string } | null> } },
+      input: { workspaceId: string; userId: string },
+    ) => {
+      const member = await tx.teamMember.findUnique({
+        where: { teamId_userId: { teamId: input.workspaceId, userId: input.userId } },
+      });
+      if (member?.status === "ACTIVE") return { outcome: "HELD" };
+      return actual.workspaceSeatsAdmit(seatState.current as never)
+        ? { outcome: "CLAIMED", seats: seatState.current }
+        : { outcome: "REFUSED", reason: "workspace_seat_limit_reached", seats: seatState.current };
+    },
+  };
+});
 
 import {
   grantOrganizationMembership,

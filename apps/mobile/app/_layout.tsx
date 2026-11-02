@@ -9,6 +9,7 @@ import { initTelemetryIfConsented } from "../src/privacy/telemetry-consent";
 void initTelemetryIfConsented();
 
 import { DeepLinkGate } from "../src/DeepLinkGate";
+import { SessionEndGate } from "../src/auth/session-end-gate";
 import { ErrorBoundary } from "../src/error-boundary";
 import { AuthProvider } from "../src/auth-context";
 import { LocaleProvider } from "../src/locale-context";
@@ -57,6 +58,7 @@ export default function RootLayout() {
         <AuthProvider>
           <ToastProvider>
             <DeepLinkGate />
+            <SessionEndGate />
             <Stack
               screenOptions={{
                 headerShown: false,

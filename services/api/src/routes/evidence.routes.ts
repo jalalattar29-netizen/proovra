@@ -4,6 +4,7 @@ import {
   accessibleWorkspaceIdsFor,
   evidenceReachWhere,
 } from "../services/access/record-reach.js";
+import { readWorkspaceHeader } from "../services/access/request-workspace.js";
 import { loadRecordSigningKeyFacts, resolveRecordSignatureValidity } from "../signing/key-registry.js";
 
 import {
@@ -330,6 +331,7 @@ import {
   recordVerificationShareUse,
   requestIntegrityRecheck,
   resolveEvidenceWorkspaceId,
+  workspaceEvidenceWhere,
   STORED_BYTES_INTEGRITY_SELECT,
   storedBytesVersionPinned,
   resolveVerificationShareToken,
@@ -3191,6 +3193,34 @@ async function assertCaseAccess(userId: string, caseId: string) {
   const err: Error & { statusCode?: number } = new Error("Case not found");
   err.statusCode = 404;
   throw err;
+}
+
+/**
+ * EVID-009 — THE WORKSPACE A LIBRARY READ IS ABOUT.
+ *
+ * The library, its summary and everything built on them are about the workspace
+ * on screen, so a record from another tenant is not mixed in under this one's
+ * name. An explicit `?teamId=` names it; otherwise the client's workspace header
+ * does. A read of one Case follows that Case, wherever the operator is.
+ *
+ * A client that names nothing keeps the aggregate across every workspace it may
+ * reach. A named workspace outside the caller's reach is refused, as a 404, and
+ * Personal includes its legacy unbound rows, through the one scope authority.
+ */
+async function libraryWorkspaceScope(
+  req: FastifyRequest,
+  memberTeamIds: readonly string[],
+  caseId: string | null | undefined,
+): Promise<{ refused: true } | { refused: false; where: Prisma.EvidenceWhereInput | null }> {
+  const explicit = (req.query as Record<string, unknown>).teamId;
+  const named =
+    typeof explicit === "string" ? explicit : caseId ? null : readWorkspaceHeader(req);
+  if (!named) return { refused: false, where: null };
+  if (!memberTeamIds.includes(named)) return { refused: true };
+  return {
+    refused: false,
+    where: await workspaceEvidenceWhere(named, prisma as never),
+  };
 }
 
 async function getAccessibleEvidenceContext(userId: string) {
@@ -7834,16 +7864,13 @@ return {
     // ACTIVE, unexpired, live organization — not a bare status filter.
     const memberTeamIds = await accessibleWorkspaceIdsFor(ownerUserId);
 
-    // PHASE 12 (anti-enumeration closure) — an EXPLICIT ?teamId= request is a
-    // Workspace-scoped read: without ACTIVE membership in exactly that
-    // Workspace it is concealed as 404 (previously the param was silently
-    // ignored and the caller's own list 200'd — caught by the phase-37-95
-    // live probe). With membership, the list is scoped to that Workspace.
-    const requestedTeamId =
-      typeof (req.query as Record<string, unknown>).teamId === "string"
-        ? ((req.query as Record<string, unknown>).teamId as string)
-        : null;
-    if (requestedTeamId && !memberTeamIds.includes(requestedTeamId)) {
+    // PHASE 12 (anti-enumeration closure) — a Workspace-scoped read: without
+    // ACTIVE membership in exactly that Workspace it is concealed as 404
+    // (previously the param was silently ignored and the caller's own list
+    // 200'd — caught by the phase-37-95 live probe). With membership, the list
+    // is scoped to that Workspace (EVID-009).
+    const libraryScope = await libraryWorkspaceScope(req, memberTeamIds, caseId);
+    if (libraryScope.refused) {
       return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
     }
 
@@ -7866,8 +7893,8 @@ return {
       : baseWhere;
 
     // Workspace-scoped request (membership proven above) → pin the filter.
-    const scopedWhere: Prisma.EvidenceWhereInput = requestedTeamId
-      ? { AND: [where, { teamId: requestedTeamId }] }
+    const scopedWhere: Prisma.EvidenceWhereInput = libraryScope.where
+      ? { AND: [where, libraryScope.where] }
       : where;
 
     const items = await prisma.evidence.findMany({
@@ -7965,9 +7992,12 @@ return {
       // The canonical accessible-workspace authority (members audit ACC-03):
       // ACTIVE, unexpired, live organization — not a bare status filter.
       const memberTeamIds = await accessibleWorkspaceIdsFor(ownerUserId);
+      const libraryScope = await libraryWorkspaceScope(req, memberTeamIds, caseId);
+      if (libraryScope.refused) {
+        return reply.code(404).send(PUBLIC_NOT_FOUND_BODY);
+      }
 
-
-      const baseWhere = buildEvidenceListBaseWhere({
+      const reachWhere = buildEvidenceListBaseWhere({
         query: parsedQuery,
         userId: ownerUserId,
         memberTeamIds,
@@ -7977,6 +8007,9 @@ return {
           parsedQuery.search,
         ),
       });
+      const baseWhere: Prisma.EvidenceWhereInput = libraryScope.where
+        ? { AND: [reachWhere, libraryScope.where] }
+        : reachWhere;
 
       const REPORTS_READY_PREDICATE: Prisma.EvidenceWhereInput = {
         reports: { some: {} },
@@ -9067,7 +9100,16 @@ return {
     const id = z.string().uuid().parse((req.params as ParamsId).id);
     const evidence = await getEvidenceWithReadAccess(userId, id);
     const accessContext = await getAccessibleEvidenceContext(userId);
-    const accessWhere = buildEvidenceListBaseWhere({
+    // EVID-009 — a duplicate is a duplicate inside this record's own workspace.
+    // A record in one Organization does not report matches from another.
+    const recordWorkspaceId = await resolveEvidenceWorkspaceId(
+      { teamId: evidence.teamId, ownerUserId: evidence.ownerUserId },
+      prisma as never,
+    );
+    const recordWorkspaceWhere: Prisma.EvidenceWhereInput = recordWorkspaceId
+      ? await workspaceEvidenceWhere(recordWorkspaceId, prisma as never)
+      : { teamId: null, ownerUserId: evidence.ownerUserId };
+    const reachWhere = buildEvidenceListBaseWhere({
       query: {
         caseId: null,
         scope: "all",
@@ -9090,6 +9132,7 @@ return {
       userId,
       memberTeamIds: accessContext.memberTeamIds,
     });
+    const accessWhere: Prisma.EvidenceWhereInput = { AND: [reachWhere, recordWorkspaceWhere] };
 
     const partHashes = await prisma.evidencePart.findMany({
       where: { evidenceId: id, sha256: { not: null } },

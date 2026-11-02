@@ -39,6 +39,8 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { AppError, ErrorCode, inputRefusal } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
+import { MFA_ENROLLMENT_SCOPE } from "../services/auth/extension-scope.js";
+import { issueEnrolledToken } from "../services/auth/mfa-enrollment-session.js";
 import { trustedClientIp } from "../middleware/client-ip.js";
 import {
   verifyAccountStepUp,
@@ -222,6 +224,9 @@ export async function mfaRoutes(app: FastifyInstance) {
       return {
         factorId: result.factorId,
         recoveryCodes: result.recoveryCodes,
+        ...(req.user?.tokenScope === MFA_ENROLLMENT_SCOPE
+          ? { mfaEnrollmentToken: issueEnrolledToken(req, reply, result.factorId) }
+          : {}),
       };
     },
   );

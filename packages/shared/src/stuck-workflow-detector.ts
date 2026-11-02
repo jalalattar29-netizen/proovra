@@ -50,6 +50,33 @@ export type WorkflowReviewStatus =
   | "COMPLETED"
   | "CANCELLED";
 
+/**
+ * The detector's vocabulary, from the workflow's DB status (WORKFLOW-014). The
+ * row's own status is not it: a new row is NOT_STARTED, never SUBMITTED, so the
+ * never-assigned rule could not fire on any real row.
+ */
+export function stuckStatusFromDbStatus(dbStatus: string): WorkflowReviewStatus {
+  switch (dbStatus) {
+    case "NOT_STARTED":
+    case "QUEUED":
+      return "SUBMITTED";
+    case "ASSIGNED":
+      return "ASSIGNED";
+    case "NEEDS_INFO":
+      return "NEEDS_INFO";
+    case "APPROVED_INTERNAL":
+    case "READY_FOR_EXTERNAL_REVIEW":
+      return "APPROVED";
+    case "REJECTED_INSUFFICIENT":
+      return "REJECTED";
+    case "CLOSED":
+      return "COMPLETED";
+    default:
+      // IN_REVIEW, RESPONSE_RECEIVED, ESCALATED and REOPENED all wait on a reviewer.
+      return "IN_REVIEW";
+  }
+}
+
 export type StuckWorkflowFacts = {
   nowEpochMs: number;
   status: WorkflowReviewStatus | string;

@@ -505,9 +505,10 @@ beforeEach(() => {
   resumeReply = () => ({ ok: true });
   provisionReply = () => ({
     organizationId: ORG,
-    workspaceId: WS,
-    ownerUserId: COLLEAGUE,
-    provisioned: true,
+    ownerInviteToken: "token-once",
+    inviteUrl: "/org-invites/token-once/accept",
+    provisioned: false,
+    pendingOwner: true,
   });
   planReply = () => ({
     organizationId: ORG,
@@ -531,6 +532,7 @@ describe("Provisioning — POST /v1/admin/enterprise/provision", () => {
     await mountProvisioning();
     await type(q('[data-testid="provision-org-name"]'), "Acme Corporation");
     await type(q('[data-testid="provision-owner-email"]'), "owner@acme.com");
+    await type(q('[data-testid="provision-seats"]'), "25");
   }
 
   it("asks BEFORE the step-up action starts, naming the organization and the owner", async () => {
@@ -568,6 +570,7 @@ describe("Provisioning — POST /v1/admin/enterprise/provision", () => {
       teamId: WS,
       organizationName: "Acme Corporation",
       ownerEmail: "owner@acme.com",
+      seats: 25,
     });
   });
 
@@ -580,18 +583,19 @@ describe("Provisioning — POST /v1/admin/enterprise/provision", () => {
 
     expect(posts()).toHaveLength(1);
     expect(successToasts()).toHaveLength(0);
-    expect(q('[data-testid="provision-success-created"]')).toBeNull();
+    expect(q('[data-testid="provision-success-pending"]')).toBeNull();
 
     gate.resolve({
       organizationId: ORG,
-      workspaceId: WS,
-      ownerUserId: COLLEAGUE,
-      provisioned: true,
+      ownerInviteToken: "token-once",
+      inviteUrl: "/org-invites/token-once/accept",
+      provisioned: false,
+      pendingOwner: true,
     });
     await settle();
 
-    expect(toastText()).toContain("Enterprise workspace created.");
-    expect(q('[data-testid="provision-success-created"]')).not.toBeNull();
+    expect(toastText()).toContain("Owner invited");
+    expect(q('[data-testid="provision-success-pending"]')).not.toBeNull();
     // The server's own organizationId flows into the downstream grant panel.
     expect(
       (q('[data-testid="grant-org-id"]') as HTMLInputElement).value,

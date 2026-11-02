@@ -118,7 +118,15 @@ import {
   readCaptureDraft,
   type CaptureDraftDetail,
 } from "../../src/capture/capture-draft";
-import { usePlatformContext } from "../../src/product/platform-context";
+import {
+  WORKSPACE_UNCONFIRMED_MESSAGE,
+  confirmedWorkspace,
+  refreshPlatformContext,
+  resolveWorkspace,
+  usePlatformContext,
+} from "../../src/product/platform-context";
+import { projectSpaces, spaceNameFor } from "../../src/product/spaces";
+import { CaptureDestination } from "../../src/ui/capture-destination";
 import { useAuth } from "../../src/auth-context";
 // UC-0 — every item goes through ONE server-issued direct-capture session
 // (src/direct-capture.ts): the record is reserved by the session, each file's
@@ -140,6 +148,7 @@ import {
   captureRecordKey,
   isSessionResumable,
   type PersistedCaptureSession,
+  type PersistedCaptureWorkspace,
 } from "../../src/capture/capture-session-store";
 import {
   PERSONAL_SPACE_UNAVAILABLE_MESSAGE,
@@ -224,7 +233,25 @@ export default function CaptureScreen() {
   // UC-AND-006 — the durable capture record is per user: read it once the
   // signed-in user is known (a mount during boot re-runs when they are).
   const captureOwnerId = useAuth().user?.id ?? null;
-  const teamId = platform.context?.activeTeamId ?? null;
+  // The active workspace, or that it is not known. Null is never read as Personal.
+  const workspace = resolveWorkspace(platform);
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  // The workspace this session files into, fixed when it opens: a switch made
+  // afterwards does not move staged work, and the screen says which one it is.
+  const destinationRef = useRef<PersistedCaptureWorkspace | null>(null);
+  const [destination, setDestination] = useState<PersistedCaptureWorkspace | null>(null);
+  const bindDestination = useCallback((next: PersistedCaptureWorkspace | null) => {
+    destinationRef.current = next;
+    setDestination(next);
+  }, []);
+  const envelopeRef = useRef(platform.envelope);
+  envelopeRef.current = platform.envelope;
+  /** A resumed draft keeps its own workspace, whichever one is active now. */
+  const draftDestination = useCallback((detail: CaptureDraftDetail): PersistedCaptureWorkspace | null => {
+    if (detail.teamId === undefined) return null;
+    return { teamId: detail.teamId, name: spaceNameFor(projectSpaces(envelopeRef.current), detail.teamId) };
+  }, []);
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [useLocation, setUseLocation] = useState(false);
@@ -526,6 +553,7 @@ hasActiveDraft: isSessionActive || isRecording,
       acquisition: acquisitionRef.current,
       location: carriedLocationRef.current ?? { useLocation: useLocationRef.current, outcome: null, recordedAtStart: false },
       linkGroupId: linkGroupRef.current,
+      workspace: destinationRef.current,
     });
   }, []);
 
@@ -626,11 +654,13 @@ hasActiveDraft: isSessionActive || isRecording,
         const draftOnly = persisted.captureSessionId === persisted.evidenceId;
         const draftId = persisted.draftId ?? (draftOnly ? persisted.captureSessionId : null);
         draftIdRef.current = draftId;
+        let resumedInto = persisted.workspace ?? null;
         if (draftId) {
           // The draft holds what the local record does not: the plan, the
           // mode, the location choice and each item's role, note and mapping.
           const detail = await readCaptureDraft(draftId);
           if (detail && detail.status === "DRAFT") {
+            resumedInto ??= draftDestination(detail);
             planChosenRef.current = true;
             setPendingTemplateId(detail.templateId);
             if (detail.planMode) setPlanMode(detail.planMode);
@@ -660,6 +690,7 @@ hasActiveDraft: isSessionActive || isRecording,
         setCarriedLocation(carriedLocationRef.current);
         if (persisted.location) setUseLocation(persisted.location.useLocation);
         linkGroupRef.current = persisted.linkGroupId ?? null;
+        bindDestination(resumedInto);
         setSessionEvidenceId(sessionEvidenceIdRef.current);
         const idx = CAPTURE_TYPES.indexOf(persisted.type);
         if (idx >= 0) setActiveIndex(idx);
@@ -674,6 +705,7 @@ hasActiveDraft: isSessionActive || isRecording,
           carriedLocationRef.current = null;
           setCarriedLocation(null);
           linkGroupRef.current = null;
+          bindDestination(null);
           setSessionEvidenceId(null);
           await clearCaptureSession({ captureSessionId: persisted.captureSessionId, draftId: persisted.draftId });
           addToast("The interrupted capture could not be recovered", "warning");
@@ -686,7 +718,7 @@ hasActiveDraft: isSessionActive || isRecording,
         setResumingKey(null);
       }
     },
-    [setSessionState, addToast],
+    [setSessionState, addToast, bindDestination, draftDestination],
   );
 
   // The operator's unfinished DRAFTs on the server (web useCaptureDraftList). A read.
@@ -724,6 +756,7 @@ hasActiveDraft: isSessionActive || isRecording,
         if (detail.planMode) setPlanMode(detail.planMode);
         setUseLocation(detail.useLocation);
         draftIdRef.current = detail.id;
+        bindDestination(draftDestination(detail));
         setResumedDraft(detail);
         setReattachDismissed(false);
         setDraftsOpen(false);
@@ -736,7 +769,7 @@ hasActiveDraft: isSessionActive || isRecording,
         setDraftBusyId(null);
       }
     },
-    [addToast],
+    [addToast, bindDestination, draftDestination],
   );
 
   const deleteServerDraft = useCallback(
@@ -746,6 +779,7 @@ hasActiveDraft: isSessionActive || isRecording,
         await discardCaptureDraft(draft.id);
         if (draftIdRef.current === draft.id) {
           draftIdRef.current = null;
+          bindDestination(null);
           setResumedDraft(null);
         }
         setServerDrafts((prev) => prev.filter((d) => d.id !== draft.id));
@@ -977,24 +1011,38 @@ hasActiveDraft: isSessionActive || isRecording,
    * committed until Finalize, which is what the canonical lifecycle already
    * specified ("Finalization is initiated by the existing Evidence routes").
    */
-  const ensureDraft = useCallback(async () => {
+  const ensureDraft = useCallback(async (): Promise<string | null> => {
     if (draftIdRef.current) return draftIdRef.current;
+    // No draft while the workspace is unknown: one opened now would be Personal
+    // by default. The item stays staged here, and the effect below opens the
+    // draft as soon as the workspace is confirmed.
+    const target = destinationRef.current ?? confirmedWorkspace(workspaceRef.current);
+    if (!target) return null;
     setSessionCreatingEvidence(true);
     setInfo("Starting capture session...");
     try {
       const draft = await openCaptureDraft({
-        teamId,
+        teamId: target.teamId,
         useLocation,
         templateId: templateRef.current?.id ?? null,
         planMode: planModeRef.current,
       });
       draftIdRef.current = draft.id;
+      bindDestination(target);
       return draft.id;
     } finally {
       setSessionCreatingEvidence(false);
       setInfo(null);
     }
-  }, [teamId, useLocation]);
+  }, [useLocation, bindDestination]);
+
+  useEffect(() => {
+    if (workspace.state !== "resolved" || draftIdRef.current || captureSessionRef.current) return;
+    if (sessionItemsRef.current.length === 0) return;
+    void ensureDraft()
+      .then(() => persistSession())
+      .catch(() => undefined);
+  }, [workspace.state, ensureDraft, persistSession]);
 
   /** The link group's member key this screen already registered for the live record. */
   const linkRegisteredRef = useRef<string | null>(null);
@@ -1020,6 +1068,7 @@ hasActiveDraft: isSessionActive || isRecording,
     draftIdRef.current = null;
     carriedLocationRef.current = null;
     linkRegisteredRef.current = null;
+    bindDestination(null);
     setCarriedLocation(null);
     setSessionEvidenceId(null);
     setSessionState([]);
@@ -1058,7 +1107,7 @@ hasActiveDraft: isSessionActive || isRecording,
       try {
         const draftId = await ensureDraft();
         const group = linkGroupRef.current;
-        if (group && linkRegisteredRef.current !== draftId) {
+        if (group && draftId && linkRegisteredRef.current !== draftId) {
           linkRegisteredRef.current = draftId;
           await registerLinkedRecord(group, draftId).catch(() => undefined);
         }
@@ -1136,6 +1185,7 @@ hasActiveDraft: isSessionActive || isRecording,
         setCarriedLocation(null);
         linkGroupRef.current = null;
         linkRegisteredRef.current = null;
+        bindDestination(null);
         setSessionEvidenceId(null);
         if (draft) void discardCaptureDraft(draft).catch(() => undefined);
         if (session) void discardDirectCaptureSession(session).catch(() => undefined);
@@ -1205,6 +1255,7 @@ hasActiveDraft: isSessionActive || isRecording,
     acquisitionRef.current = null;
     carriedLocationRef.current = null;
     setCarriedLocation(null);
+    bindDestination(null);
     const group = linkGroupRef.current;
     linkGroupRef.current = null;
     linkRegisteredRef.current = null;
@@ -1564,6 +1615,16 @@ if (!isRecording || busy) return;
       return;
     }
 
+    // Refused before anything is reserved: a record filed in the wrong tenant
+    // cannot be moved by the person who filed it. The items stay staged.
+    const target = destinationRef.current ?? confirmedWorkspace(workspaceRef.current);
+    if (!target && !(captureSessionRef.current && sessionEvidenceIdRef.current)) {
+      setError(WORKSPACE_UNCONFIRMED_MESSAGE);
+      addToast(WORKSPACE_UNCONFIRMED_MESSAGE, "error");
+      refreshPlatformContext();
+      return;
+    }
+
     setSessionCompletingEvidence(true);
     setBusy(true);
     setError(null);
@@ -1599,9 +1660,10 @@ if (!isRecording || busy) return;
         }
         const rootType = deriveBatchEvidenceType(items.map((i) => i.mimeType));
         const primary = primaryItem(items);
-        // The active workspace, not always the personal one (2026-09-29, D13).
-        captureSession = await openDirectCaptureSession("PROOVRA_MOBILE_APP", { teamId });
+        // The confirmed workspace, not always the personal one (2026-09-29, D13).
+        captureSession = await openDirectCaptureSession("PROOVRA_MOBILE_APP", { teamId: target?.teamId ?? null });
         captureSessionRef.current = captureSession;
+        bindDestination(target);
         evidenceId = await reserveDirectCaptureEvidence(captureSession, {
           type: rootType,
           mimeType: primary?.mimeType ?? "application/octet-stream",
@@ -1728,6 +1790,7 @@ if (!isRecording || busy) return;
       setCarriedLocation(null);
       linkGroupRef.current = null;
       linkRegisteredRef.current = null;
+      bindDestination(null);
       setSessionEvidenceId(null);
       setSessionState([]);
       setInfo(null);
@@ -1745,7 +1808,7 @@ if (!isRecording || busy) return;
       setBusy(false);
       setSessionCompletingEvidence(false);
     }
-  }, [addToast, pollReport, router, setSessionState, isRecording, recordActivity, resolveFinishLocation, persistSession, teamId]);
+  }, [addToast, pollReport, router, setSessionState, isRecording, recordActivity, resolveFinishLocation, persistSession, bindDestination]);
 
   // The camera's own controls (web CaptureCameraOverlay): which lens, and the light.
   const [facing, setFacing] = useState<"back" | "front">("back");
@@ -1912,6 +1975,10 @@ if (!isRecording || busy) return;
       ) : null}
 
       <CaptureHero />
+
+      {!personalSpaceBlocked ? (
+        <CaptureDestination workspace={destination ? { state: "resolved", ...destination } : workspace} />
+      ) : null}
 
       {personalSpaceBlocked ? (
         <View testID="personal-space-blocked">

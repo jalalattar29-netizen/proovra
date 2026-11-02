@@ -17,14 +17,15 @@ to platform admins at **`/operations/readiness`** (backend
 
 ## Recovery objectives (targets — NOT guarantees)
 
+No RPO or RTO has been approved. Nothing below may be quoted to a customer.
+
 | Objective | Target | Basis |
 |-----------|--------|-------|
-| RPO (recovery point) | Bounded by the managed database platform's backup cadence | **[assumed / managed platform]** — depends on the hosting provider's configured backup frequency; verify out-of-band |
-| RTO (recovery time) | Restore + migrate-forward + artifact regeneration | **[assumed]** — dominated by managed-platform restore time, which is outside this repo |
+| RPO (recovery point) | **Not approved.** With the `pg-backup` service running it is at most `BACKUP_INTERVAL_SECONDS` (default 6 hours) plus the time to the next off-host copy (default 1 hour) | **[configured, once started]** — a provider's point-in-time recovery, if there is one, can only be finer; verify it out-of-band |
+| RTO (recovery time) | **Not approved and not measured on production data.** Restore + migrate-forward + artifact regeneration | **[not measured]** — the local drill proves the restore works, on test data, on a workstation |
 
-These are planning targets. They become real only when the operator
-has configured and **tested** the managed platform's backup/restore
-facility. Until then, treat them as unverified assumptions.
+These are planning figures. They become real when the owner approves them and a
+drill has run against the production database's backup.
 
 ## What is configured vs assumed vs not-in-repo
 
@@ -52,38 +53,62 @@ facility. Until then, treat them as unverified assumptions.
   provider's configuration. The database backup below does NOT back up
   S3 objects.
 
-### Database backup — **[configured: `scripts/ops`; schedule is operator-owned]**
+### Database backup — **[in the deployment; started by the operator]**
 
-- `scripts/ops/pg-backup.sh` takes a logical backup of `DATABASE_URL`:
-  `pg_dump` custom format from ONE exported snapshot, plus a SHA-256
-  (`.dump.sha256`), exact per-table row counts (`.counts`) and a schema
-  fingerprint (`.schema`) taken from the same snapshot. Keeps the newest
-  `BACKUP_RETAIN` (default 14).
-- `scripts/ops/pg-restore-drill.sh` proves a backup restores: checksum
-  first, then `pg_restore --exit-on-error` into a fresh database on a
-  DISPOSABLE server (`DRILL_ADMIN_URL`; it refuses the production
-  server), then requires the row counts and schema fingerprint to match
-  exactly, then drops the drill database.
-- Both are exercised against disposable PostgreSQL 16 containers by
-  `services/api/test/pg-backup-restore-drill.integration.test.ts`.
-- Run on the host with a PostgreSQL 16 client, or in the client image:
-  ```bash
-  docker run --rm --network host -e DATABASE_URL -e BACKUP_DIR=/backups \
-    -v /opt/proovra/backups/postgres:/backups -v "$PWD/scripts/ops:/ops:ro" \
-    postgres:16 bash /ops/pg-backup.sh
-  docker run --rm --network host -e DATABASE_URL -e DRILL_ADMIN_URL \
-    -e BACKUP_FILE=/backups/proovra-<stamp>.dump \
-    -v /opt/proovra/backups/postgres:/backups:ro -v "$PWD/scripts/ops:/ops:ro" \
-    postgres:16 bash /ops/pg-restore-drill.sh
-  ```
-- **Operator action required:** schedule `pg-backup.sh` (cron/systemd
-  timer), copy the backups off the host, and run the restore drill on a
-  schedule. Managed-platform point-in-time recovery, where available,
-  remains the finer-grained option.
-- The readiness posture still reports `databaseBackup:
-  "managed_platform_assumed"` (or `"not_configured"` when `DATABASE_URL`
-  is unset): the application cannot see whether the schedule runs, so it
-  never reports "backed up" as a fabricated positive.
+The scripts in `scripts/ops` are run by two services in
+`infra/docker/docker-compose.prod.yml`, under the `backup` profile. The release
+deploy does not start them, and warns while they are not running:
+
+```bash
+docker compose --env-file /opt/proovra/app/.env \
+  -f infra/docker/docker-compose.prod.yml --profile backup up -d
+```
+
+- `pg-backup` runs `pg-backup-cycle.sh --loop`. Each cycle takes a logical backup
+  of `DIRECT_URL` (`pg-backup.sh`: `pg_dump` custom format from ONE exported
+  snapshot, plus a SHA-256, exact per-table row counts and a schema fingerprint from
+  the same snapshot), keeps the newest `BACKUP_RETAIN` (default 14) under
+  `/opt/proovra/backups/postgres`, and records the outcome.
+- Every `BACKUP_DRILL_EVERY_SECONDS` (default weekly) the same cycle restores the
+  newest backup into a throwaway server inside its own container
+  (`pg-restore-drill-local.sh`), requires row counts and the schema fingerprint to
+  match exactly, and records the outcome. The drill cannot reach production.
+- `pg-backup-offhost` copies the directory to `BACKUP_S3_URI` with its own
+  credentials (`BACKUP_AWS_ACCESS_KEY_ID`, `BACKUP_AWS_SECRET_ACCESS_KEY`,
+  `BACKUP_AWS_REGION`, `BACKUP_S3_ENDPOINT_URL`), confirms the newest dump arrived,
+  and leaves the result for the next cycle to record. Use a bucket outside the
+  evidence bucket's account or region. Retention there is that bucket's lifecycle.
+- The image is `pgvector/pgvector:pg16`: the client major version must be at least
+  the server's, so a server above 16 needs a newer image here first.
+- Each outcome is a row in `platform_backup_records` (counts and a checksum, never
+  data). The readiness posture reads those rows:
+
+| `databaseBackup` | Means |
+|---|---|
+| `restore_verified` | a backup and an off-host copy within 48 hours, and a drill within 35 days |
+| `backup_recorded` | a backup is recorded; the reason names what is missing or stale |
+| `provider_declared_unverified` | no run recorded; `DATABASE_BACKUP_PROVIDER` names a provider, which cannot be seen from here |
+| `no_backup_recorded` | nothing recorded and nothing declared |
+| `not_configured` | `DATABASE_URL` is unset |
+
+A provider's point-in-time recovery, where available, remains the finer-grained
+option. `DATABASE_BACKUP_LAST_VERIFIED_AT` and `DATABASE_RESTORE_TESTED_AT` remain
+the operator's statement about backups this process cannot see.
+
+**Proved locally on 2026-11-01** by
+`services/api/test/pg-backup-restore-drill.integration.test.ts`: the real cycle on
+a fully migrated disposable database, its drill, and the off-host copy to a local
+MinIO. **Not proved:** that these services run on the production host, that a real
+off-host bucket exists, or that the production database's server version suits this
+client. See `docs/operations/deployed-topology.md`.
+
+### Signing keys — **[not in repo]**
+
+The package signing key is a PEM mounted from
+`/opt/proovra/app/services/worker/keys`. It is not in the database, so these
+backups do not contain it. A key that is lost cannot seal new packages under its
+identity; historical packages still verify from their registered public key. Keep an
+offline copy under the owner's control. No such copy can be seen from the repository.
 
 ### Artifact regeneration — **[configured]**
 

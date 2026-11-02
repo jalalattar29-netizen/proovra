@@ -8,13 +8,18 @@
  * helpers these replaced.
  */
 import type { FastifyRequest } from "fastify";
+import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
+
+import { isSealedText, openSealedText } from "../security/sealed-text.js";
 
 /**
  * The SAML AssertionConsumerService URL (HTTP-POST binding endpoint the IdP
  * POSTs the SAMLResponse to).
  */
 export function samlAcsUrl(req: FastifyRequest): string {
-  const env = process.env["SAML_ACS_URL"];
+  // OPS-014 — the same names, in the same order, as the boot guard, so the value
+  // it validates is the value used here.
+  const env = process.env["SAML_SP_ACS_URL"] || process.env["SAML_ACS_URL"];
   if (env) return env;
   const proto = (req.headers["x-forwarded-proto"] as string) || "https";
   const host = req.headers["host"] ?? "";
@@ -35,7 +40,11 @@ export function samlSpEntityId(connectionId: string): string {
  */
 export function samlSpSigningKey(connectionPrivateKey: string | null | undefined): string | null {
   if (connectionPrivateKey && connectionPrivateKey.trim().length > 0) {
-    return connectionPrivateKey;
+    // IDENT-021 — sealed at rest. A key stored before sealing is read as it is
+    // until it is next rotated.
+    return isSealedText(connectionPrivateKey)
+      ? openSealedText(connectionPrivateKey)
+      : connectionPrivateKey;
   }
   const envKey = process.env["SAML_SP_PRIVATE_KEY"];
   if (envKey && envKey.trim().length > 0) {
@@ -53,4 +62,28 @@ export function oidcRedirectUri(req: FastifyRequest): string {
   const proto = (req.headers["x-forwarded-proto"] as string) || "https";
   const host = req.headers["host"] ?? "";
   return `${proto}://${host}/v1/auth/sso/callback`;
+}
+
+/**
+ * IDENT-003 — where a person lands after an SSO callback. The callbacks run on
+ * the API host, which has no pages, so every redirect out of them is absolute on
+ * the web host.
+ */
+export function webPageUrl(path: string): string {
+  return absoluteInternalUrl(
+    process.env["WEB_BASE_URL"] || "https://www.proovra.com",
+    internalNavPath(path),
+  );
+}
+
+/** The sign-in page, carrying a sanitised reason and the page they were after. */
+export function signInErrorUrl(
+  param: "sso_error" | "saml_error",
+  reason: string,
+  destination: string,
+): string {
+  const params = new URLSearchParams();
+  params.set(param, reason.slice(0, 64));
+  if (destination !== "/") params.set("next", destination);
+  return `${webPageUrl("/login")}?${params.toString()}`;
 }

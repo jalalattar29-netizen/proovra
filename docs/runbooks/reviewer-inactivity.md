@@ -9,7 +9,7 @@
 ## Symptoms
 
 - `reviewer_inactivity_detected_total` counter ticking up.
-- Phase 25.5 `REVIEWER_INACTIVE` reminders appearing in `/reviewer-ops/sla` activity.
+- `REVIEWER_INACTIVE` rows in the Reminders table at `/reviewer-ops/sla`. They need `reviewerInactivityHours` set on the workspace governance policy; with it unset no inactivity reminder is scheduled.
 - A reviewer's `capacityScore` is high (idle) but their `activeReviewCount` is non-zero — they hold assignments but are not touching them.
 - Workflow rows where `lastReviewedAt` is older than the workspace's `reviewerInactivityHours` threshold.
 

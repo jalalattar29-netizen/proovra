@@ -108,3 +108,13 @@ test("an absent entitlement withholds rather than offers", () => {
     assert.equal(projectPlatformContext(bad).reviewerOperations, false);
   }
 });
+
+test("AUTHZ-006: the device names its workspace on every request", () => {
+  const api = readFileSync(resolve(HERE, "../src/api.ts"), "utf8");
+  assert.match(api, /x-proovra-workspace-id/);
+  assert.match(api, /headers\.set\(WORKSPACE_HEADER, activeWorkspaceId\)/);
+  // A new sign-in starts with no workspace: the previous account's must not leak.
+  assert.match(api, /if \(token !== authToken\) activeWorkspaceId = null/);
+  const ctx = readFileSync(resolve(HERE, "../src/product/platform-context.ts"), "utf8");
+  assert.match(ctx, /setActiveWorkspaceId\(projectPlatformContext\(envelope\)\.activeTeamId\)/);
+});

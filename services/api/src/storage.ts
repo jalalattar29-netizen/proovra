@@ -1,3 +1,4 @@
+import { ARCHIVE_TIER_OBJECT_TAG } from "@proovra/shared";
 import {
   S3Client,
   PutObjectCommand,
@@ -7,6 +8,8 @@ import {
   GetObjectLockConfigurationCommand,
   PutObjectRetentionCommand,
   CopyObjectCommand,
+  GetObjectTaggingCommand,
+  PutObjectTaggingCommand,
   RestoreObjectCommand,
   type ObjectLockMode,
   type S3ClientConfig,
@@ -963,6 +966,35 @@ export async function copyObjectStorageClass(params: {
       StorageClass: params.storageClass as StorageClass,
       MetadataDirective: "COPY",
     })
+  );
+}
+
+/**
+ * GOV-016 — record a tier on one exact object version, keeping its other tags.
+ * Under Object Lock on a versioned bucket a same-key copy writes a NEW current
+ * version: it saves nothing and leaves the record newer than what was signed.
+ */
+export async function tagObjectVersionTier(params: {
+  bucket: string;
+  key: string;
+  versionId: string;
+  tier: string;
+}): Promise<void> {
+  const existing = await s3.send(
+    new GetObjectTaggingCommand({ Bucket: params.bucket, Key: params.key, VersionId: params.versionId }),
+  );
+  await s3.send(
+    new PutObjectTaggingCommand({
+      Bucket: params.bucket,
+      Key: params.key,
+      VersionId: params.versionId,
+      Tagging: {
+        TagSet: [
+          ...(existing.TagSet ?? []).filter((t) => t.Key !== ARCHIVE_TIER_OBJECT_TAG),
+          { Key: ARCHIVE_TIER_OBJECT_TAG, Value: params.tier },
+        ],
+      },
+    }),
   );
 }
 

@@ -63,6 +63,7 @@ import {
   dispatchPendingMessage,
   hashRecipientPhone,
   projectCommunicationMessage,
+  communicationStatusesBefore,
 } from "../services/communications/communication.service.js";
 import {
   VerificationError,
@@ -357,7 +358,7 @@ export async function communicationsRoutes(app: FastifyInstance) {
       if (!actor) return;
       const row = await prisma.communicationMessage.findFirst({
         where: { id, teamId: body.teamId },
-        select: { id: true, status: true, purpose: true },
+        select: { id: true, status: true, purpose: true, bodyResendable: true },
       });
       if (!row) {
         reply.code(404).send({ error: { code: "not_found" } });
@@ -368,6 +369,11 @@ export async function communicationsRoutes(app: FastifyInstance) {
         row.status !== prismaPkg.CommunicationStatus.RETRY_SCHEDULED
       ) {
         reply.code(409).send({ error: { code: "not_retryable" } });
+        return;
+      }
+      // WORKFLOW-009 — the whole message was not stored, so it cannot go twice.
+      if (!row.bodyResendable) {
+        reply.code(409).send({ error: { code: "reissue_required" } });
         return;
       }
       if (
@@ -728,10 +734,10 @@ async function handleTwilioWebhook(
 
   if (parsed.kind === "status") {
     const ev = parsed.event;
-    // Locate the source row by provider + providerMessageId. Idempotency
-    // is enforced by the unique index on
-    // (provider, providerMessageId, status) — duplicate callbacks
-    // collapse via try/catch.
+    // Locate the source row by provider + providerMessageId. The write is
+    // conditional on the status it may replace, so a duplicate or a late `sent`
+    // after `delivered` changes nothing. There is one row per message, so the
+    // unique index on (provider, providerMessageId, status) cannot catch either.
     const row = await prisma.communicationMessage.findFirst({
       where: {
         provider: prismaPkg.CommunicationProvider.TWILIO,
@@ -744,8 +750,8 @@ async function handleTwilioWebhook(
       return;
     }
     try {
-      await prisma.communicationMessage.update({
-        where: { id: row.id },
+      await prisma.communicationMessage.updateMany({
+        where: { id: row.id, status: { in: [...communicationStatusesBefore(ev.status)] } },
         data: {
           status: ev.status as prismaPkg.CommunicationStatus,
           deliveredAtUtc:
@@ -759,7 +765,7 @@ async function handleTwilioWebhook(
         },
       });
     } catch {
-      // Idempotency: duplicate (provider, sid, status) collapse silently.
+      // A provider callback is answered 200 either way, or it is redelivered.
     }
     reply.code(200).send({ status: "ok" });
     return;

@@ -349,7 +349,9 @@ describe("Phase 37.98 — reviewer workflow lifecycle proof", () => {
     // the honest observable; assert the field exists in the canonical
     // vocabulary and the projection is the same workflow.
     expect(workspaceDetail.projection?.workflowId).toBe(workflowId);
-    expect(["HEALTHY", "DUE_SOON", "BREACHED", "ESCALATED"]).toContain(
+    // COMPLETED once a decision finishes the review (WORKFLOW-013): no deadline is
+    // still running on it.
+    expect(["COMPLETED", "HEALTHY", "DUE_SOON", "BREACHED", "ESCALATED"]).toContain(
       workspaceDetail.projection?.slaRollupState,
     );
 

@@ -35,6 +35,8 @@ describe("communications retry: audited and conditional (live PostgreSQL 16)", (
           recipientHash: randomUUID().replace(/-/g, "").padEnd(64, "0").slice(0, 64),
           recipientPreview: "r•••@example.test",
           status,
+          bodyPreview: "Your request is ready.",
+          bodyResendable: true,
         } as never,
         select: { id: true },
       })

@@ -160,6 +160,7 @@
     },
     "android": {
       "package": "com.jalalattar29.proovra",
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
@@ -178,7 +179,12 @@
             {
               "scheme": "https",
               "host": "www.proovra.com",
-              "pathPrefix": "/portal"
+              "path": "/portal"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/portal/accept"
             },
             {
               "scheme": "https",
@@ -223,7 +229,12 @@
             {
               "scheme": "https",
               "host": "proovra.com",
-              "pathPrefix": "/portal"
+              "path": "/portal"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/portal/accept"
             },
             {
               "scheme": "https",

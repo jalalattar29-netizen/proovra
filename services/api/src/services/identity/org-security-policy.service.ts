@@ -23,6 +23,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { DomainError } from "../../errors.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { ipInRanges, isValidIpRange } from "../access-control/ip-ranges.js";
 // PHASE 10 §10.1 — this service is the SOLE org security-policy authority; it
 // COMPOSES the internal pure evaluator (no second public service).
 import {
@@ -70,6 +71,26 @@ function normaliseCidrs(
     if (!out.includes(trimmed)) out.push(trimmed);
   }
   return out;
+}
+
+/**
+ * IDENT-017 — these ranges are enforced, so an entry that cannot be read is
+ * refused rather than dropped, and a list that would shut out the administrator
+ * saving it is refused while they can still correct it. Zero mutation either way.
+ */
+function assertIpRangesUsable(ranges: readonly string[], actorIp: string | null): void {
+  const refuse = (code: string, message: string): never => {
+    const err = new Error(message) as Error & { statusCode?: number; code?: string };
+    err.statusCode = 409;
+    err.code = code;
+    throw err;
+  };
+  if (ranges.some((entry) => !isValidIpRange(entry))) {
+    refuse("RESTRICTED_IP_RANGE_INVALID", "Every restricted range must be an address or a CIDR block.");
+  }
+  if (ranges.length > 0 && actorIp && !ipInRanges(actorIp, ranges)) {
+    refuse("RESTRICTED_IP_EXCLUDES_ACTOR", "These ranges exclude the address you are saving them from.");
+  }
 }
 
 function clampTimeoutSeconds(value: number | null | undefined): number | null {
@@ -301,6 +322,45 @@ export type ExtendedSecurityPolicyPatch = SecurityPolicyPatch & {
   notes?: string | null;
 };
 
+/**
+ * IDENT-008 — does this policy leave SSO as the only way in?
+ *
+ * Empty `allowedAuthMethods` means every method is allowed, so only a list that
+ * names nothing but SSO narrows anyone to it.
+ */
+export function policyRequiresSso(policy: {
+  ssoRequired?: boolean | null;
+  allowedAuthMethods?: readonly string[] | null;
+}): boolean {
+  if (policy.ssoRequired === true) return true;
+  const methods = policy.allowedAuthMethods ?? [];
+  return methods.length > 0 && methods.every((m) => m === "SSO");
+}
+
+/**
+ * IDENT-008 — mandatory SSO with no connection locks the whole Organization out,
+ * the administrator who set it included, until PROOVRA staff intervene. Refused
+ * with zero mutation, on every path that sets it through the policy authority.
+ */
+async function assertSsoRequirementCanBeMet(
+  organizationId: string,
+  patch: ExtendedSecurityPolicyPatch,
+  client: PrismaClient,
+): Promise<void> {
+  if (!policyRequiresSso(patch)) return;
+  const active = await client.ssoConnection.findFirst({
+    where: { organizationId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (active) return;
+  const err = new Error(
+    "SSO cannot be required before the Organization has an active connection.",
+  ) as Error & { statusCode?: number; code?: string };
+  err.statusCode = 409;
+  err.code = "SSO_REQUIRED_NO_ACTIVE_CONNECTION";
+  throw err;
+}
+
 export async function applySecurityPolicyPatch(
   input: {
     // PHASE 12 CORRECTION 1 — the AUTHORITATIVE key is organizationId. No teamId /
@@ -340,6 +400,7 @@ export async function applySecurityPolicyPatch(
     err.details = { expected: input.expectedPolicyVersion, current: currentVersion };
     throw err;
   }
+  await assertSsoRequirementCanBeMet(organizationId, input.patch, client);
   const nextVersion = currentVersion + 1;
   // PHASE 12B WAVE 1.2 — normalise the folded legacy fields (same rules the
   // deleted upsertOrgSecurityPolicy applied) so unvalidated raw values never
@@ -349,6 +410,7 @@ export async function applySecurityPolicyPatch(
   }
   if (input.patch.restrictedIpRanges !== undefined) {
     input.patch.restrictedIpRanges = normaliseCidrs(input.patch.restrictedIpRanges);
+    assertIpRangesUsable(input.patch.restrictedIpRanges, input.ipAddress ?? null);
   }
   if (input.patch.reviewerSessionTimeoutSeconds !== undefined) {
     input.patch.reviewerSessionTimeoutSeconds = clampTimeoutSeconds(input.patch.reviewerSessionTimeoutSeconds);

@@ -48,9 +48,12 @@
  *      This step is the difference between "we asked" and "it happened".
  *   8. ONLY THEN tombstone, stamp `destroyed_at_utc`, and mint the certificate.
  *
- * If step 6 or step 7 fails: the state goes BACK to TRASHED, `destroyed_at_utc`
- * stays null, and no certificate exists. There is no branch in this file that
- * reaches the certificate without passing step 7.
+ * If step 6 or step 7 fails, `destroyed_at_utc` stays null and no certificate
+ * exists. If nothing was deleted the state goes back to where it was. If anything
+ * was, the record is no longer what it was and is never restorable: it stays
+ * PENDING_DESTRUCTION with `destruction_partial_at_utc` set, and is finished by a
+ * retry. There is no branch in this file that reaches the certificate without
+ * passing step 7.
  *
  * WHAT THE TOMBSTONE KEEPS
  * ---------------------------------------------------------------------------
@@ -58,9 +61,10 @@
  * certifications — those ARE the audit record of a record that used to exist,
  * and the old purge deleted them, which is why a purged record left no trace
  * that anything had ever been destroyed. What does not survive is content:
- * storage pointers are cleared, and the part / report / verification-package
- * rows are removed because the objects they address no longer exist and a
- * dangling pointer is worse than no pointer.
+ * storage pointers and the record's own descriptive fields are cleared, the part
+ * / report / verification-package rows are removed because the objects they
+ * address no longer exist, and everything derived from the content is deleted.
+ * tombstone-classification.ts is the inventory, table by table.
  *
  * PORTS
  * ---------------------------------------------------------------------------
@@ -81,6 +85,7 @@ import { appendCustodyEventTx } from "../custody/custody-chain.js";
 import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 import { reportClaimLiveWhere } from "../reports/report-claim-lease.js";
 import { createHash } from "node:crypto";
+import { destructionExecutionEnabled, resolveDestructionApproval } from "./approval.js";
 
 /**
  * How long a destruction claim stays valid before another executor may take it
@@ -101,7 +106,7 @@ export const DESTRUCTION_CLAIM_LEASE_MS = 30 * 60 * 1000;
  * inventory of V2 certificates that may be inaccurate.
  */
 export const DESTRUCTION_CERTIFICATE_VERSION =
-  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4" as const;
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V5" as const;
 
 /**
  * AUD-49 (2026-10-20) — V4 adds destroyedArtifacts: the identity of every
@@ -114,6 +119,22 @@ export const DESTRUCTION_CERTIFICATE_VERSION =
 export const DESTRUCTION_CERTIFICATE_VERSIONS_WITH_VERIFIED_DELETION = Object.freeze([
   "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V3",
   "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4",
+  "PROOVRA_EVIDENCE_DESTRUCTION_CERT_V5",
+] as const);
+
+/**
+ * V5 (GOV-009, GOV-010, GOV-018) adds what a reader needs to take a certificate
+ * at its word: who approved, whether a person or a worker carried it out, whether
+ * this run finished one a failed attempt began, and what deliberately stays.
+ * Earlier certificates remain valid under their own version.
+ */
+export const DESTRUCTION_RETAINED_BY_DESIGN = Object.freeze([
+  "custody_events",
+  "lifecycle_ledger",
+  "audit_logs",
+  "anchors_and_certifications",
+  "human_authored_notes_pending_policy",
+  "sealed_capture_facts_pending_policy",
 ] as const);
 
 /** One destroyed issued artifact, by identity and digest (AUD-49). */
@@ -202,12 +223,16 @@ export interface ExecuteEvidenceDestructionInput {
   destructionReviewId?: string | null;
   destructionRequestId?: string | null;
   /**
-   * Whether this record's workspace requires an approved destruction record,
-   * and whether one exists. Resolved by the CALLER from its own governance
-   * store — the executor never guesses an approval into existence.
+   * Who carries this out. "WORKER" is a sweep finishing what a person asked for:
+   * `actorUserId` is then that person, and the certificate says a worker ran it.
+   */
+  executedBy?: "USER" | "WORKER";
+  /**
+   * A caller may RAISE the approval requirement, never lower it. Whether a record
+   * needs approval and whether it has one are read by the executor from the
+   * governance store, inside its decision (GOV-001): no input can vouch for it.
    */
   destructionApprovalRequired?: boolean;
-  destructionApproved?: boolean;
   /** The effective legal-hold verdict, fail-closed, resolved by the caller. */
   legalHold: boolean;
   /**
@@ -230,6 +255,12 @@ export interface DestructionCertificateBody {
   destructionReviewId: string | null;
   destructionRequestId: string | null;
   executedByUserId: string | null;
+  /** "WORKER" when a sweep carried out a person's execution request. */
+  executedBy: "USER" | "WORKER" | "SYSTEM";
+  /** Who approved this destruction. Empty for a Personal record. */
+  approvedByUserIds: string[];
+  /** This run finished a deletion an earlier failed attempt began. */
+  resumedAfterPartialDelete: boolean;
   destroyedAtUtc: string;
   /** SHA-256 of the sorted storage keys, so the certificate binds WHAT went. */
   destroyedStorageKeysSha256: string;
@@ -247,6 +278,8 @@ export interface DestructionCertificateBody {
   objectLockRetainUntilUtc: string | null;
   /** AUD-49 — the issued reports and packages destroyed with the record. */
   destroyedArtifacts: DestroyedIssuedArtifacts;
+  /** What deliberately survives, so nobody reads this as total erasure. */
+  retainedByDesign: readonly string[];
 }
 
 export type ExecuteEvidenceDestructionResult =
@@ -287,10 +320,13 @@ export type ExecuteEvidenceDestructionResult =
       ok: false;
       /**
        * Storage refused, or storage still holds an object after the delete.
-       * The record is back in TRASHED, unchanged, uncertified.
+       * Nothing is certified. When `partial` is false no byte was touched and the
+       * record is back where it was. When true, some bytes are gone: the record
+       * stays queued, cannot be restored, and a retry finishes it.
        */
       outcome: "STORAGE_DELETE_FAILED" | "STORAGE_VERIFY_FAILED";
       failedKeys: string[];
+      partial: boolean;
     };
 
 type StorageTarget = { bucket: string; key: string; required?: boolean };
@@ -451,6 +487,7 @@ const EXECUTOR_SELECT = {
   storageKey: true,
   storageObjectLockMode: true,
   storageObjectLockRetainUntilUtc: true,
+  destructionPartialAtUtc: true,
 } as const;
 
 /**
@@ -484,6 +521,12 @@ export async function executeEvidenceDestruction(
     return { ok: true, outcome: "ALREADY_DESTROYED" };
   }
 
+  // THE SWITCH (GOV-002). Here as well as at the API and the sweep because this
+  // is the one place every trigger passes through.
+  if (!destructionExecutionEnabled()) {
+    return { ok: false, outcome: "BLOCKED", reason: "DESTRUCTION_EXECUTION_DISABLED" };
+  }
+
   const priorState = preflight.lifecycleState;
 
   // 0. THE STORAGE-TRUTH READING (owner decision 2026-10-14). Object-version
@@ -512,6 +555,7 @@ export async function executeEvidenceDestruction(
       super("destruction decision refused");
     }
   }
+  let approvedByUserIds: string[] = [];
   let evidence: Awaited<ReturnType<typeof loadForDecision>>;
   async function loadForDecision(tx: PrismaClient) {
     return tx.evidence.findUnique({
@@ -556,6 +600,22 @@ export async function executeEvidenceDestruction(
 
       const row = await loadForDecision(tx);
       if (!row) throw new DecisionRefused({ ok: false, outcome: "NOT_FOUND" });
+
+      // GOV-001 — who may destroy this record is decided HERE, from the record's
+      // own workspace and the governance store. A review or request that is not
+      // this record's, or is not in an executable state, refuses before any
+      // other fact is consulted, so it can learn nothing about a foreign record.
+      const approval = await resolveDestructionApproval(tx, {
+        evidenceId: row.id,
+        teamId: row.teamId,
+        ownerUserId: row.ownerUserId,
+        destructionReviewId: input.destructionReviewId ?? null,
+        destructionRequestId: input.destructionRequestId ?? null,
+      });
+      if (approval.refusedNamedRecord) {
+        throw new DecisionRefused({ ok: false, outcome: "BLOCKED", reason: "DESTRUCTION_APPROVAL_REQUIRED" });
+      }
+      approvedByUserIds = approval.approvedByUserIds ?? [];
 
       let heldNow = true;
       try {
@@ -610,8 +670,8 @@ export async function executeEvidenceDestruction(
           objectLockRetainUntil: row.storageObjectLockRetainUntilUtc,
           objectLockMode: row.storageObjectLockMode,
           legalHold: input.legalHold || heldNow || retentionReading.legalHoldVersion,
-          destructionApprovalRequired: input.destructionApprovalRequired ?? false,
-          destructionApproved: input.destructionApproved ?? false,
+          destructionApprovalRequired: approval.required || input.destructionApprovalRequired === true,
+          destructionApproved: approval.approved,
         },
         now,
       );
@@ -621,6 +681,18 @@ export async function executeEvidenceDestruction(
           outcome: "BLOCKED",
           reason: eligibility.blockReason ?? "NOT_TRASHED",
         });
+      }
+      // GOV-005 — "immutable" means destruction is refused even after expiry.
+      // Only a bound policy version can say so; a superseding policy version is
+      // how an operator lifts it, never this path.
+      if (row.retentionPolicyVersionId) {
+        const version = await tx.evidenceRetentionPolicyVersion.findUnique({
+          where: { id: row.retentionPolicyVersionId },
+          select: { immutable: true },
+        });
+        if (version?.immutable === true) {
+          throw new DecisionRefused({ ok: false, outcome: "BLOCKED", reason: "RETENTION_POLICY_IMMUTABLE" });
+        }
       }
       return row;
     });
@@ -642,8 +714,24 @@ export async function executeEvidenceDestruction(
     });
   };
 
+  // GOV-018 — once any byte is gone the record cannot go back. It stays queued and
+  // marked: every restore path refuses the mark, the claim is released so the next
+  // attempt can run at once, and a hold placed meanwhile still wins.
+  const markPartialDelete = async () => {
+    await prisma.evidence.updateMany({
+      where: { id: input.evidenceId, lifecycleState: "PENDING_DESTRUCTION" },
+      data: { destructionPartialAtUtc: now, destructionClaimedAtUtc: null },
+    });
+  };
+
   // 5. ENUMERATE. Everything the Evidence record owns bytes for.
-  const targets = await enumerateStorageTargets(prisma, evidence.id, evidence, storage);
+  let targets: StorageTarget[];
+  try {
+    targets = await enumerateStorageTargets(prisma, evidence.id, evidence, storage);
+  } catch {
+    await releaseClaim();
+    return { ok: false, outcome: "STORAGE_VERIFY_FAILED", failedKeys: [], partial: false };
+  }
 
   // 5b. INVENTORY every VERSION before touching anything.
   //
@@ -663,6 +751,7 @@ export async function executeEvidenceDestruction(
       ok: false,
       outcome: "STORAGE_VERIFY_FAILED",
       failedKeys: targets.map((t) => t.key).slice(0, 50),
+      partial: false,
     };
   }
   let retainedUntilMs: number | null = null;
@@ -696,6 +785,26 @@ export async function executeEvidenceDestruction(
     } as ExecuteEvidenceDestructionResult;
   }
 
+  // 5c. THE LAST CHECK BEFORE THE FIRST DELETE (GOV-013). Only an evidence-scope
+  //     placement shares the decision's lock, so a case or workspace hold can
+  //     commit after it. Unreadable hold state is a hold.
+  let heldBeforeDelete = true;
+  try {
+    heldBeforeDelete = (
+      await evaluateEffectiveLegalHold(prisma, {
+        teamId: evidence.teamId,
+        evidenceId: evidence.id,
+        caseIds: evidence.caseLinks.map((l) => l.caseId),
+      })
+    ).held;
+  } catch {
+    heldBeforeDelete = true;
+  }
+  if (heldBeforeDelete) {
+    await releaseClaim();
+    return { ok: false, outcome: "BLOCKED", reason: "LEGAL_HOLD_ACTIVE" };
+  }
+
   // 6. DELETE every version (data versions AND delete markers) by VersionId.
   const deleteFailures: string[] = [];
   let destroyedVersionCount = 0;
@@ -707,11 +816,14 @@ export async function executeEvidenceDestruction(
     }
   }
   if (deleteFailures.length > 0) {
-    await releaseClaim();
+    const partial = destroyedVersionCount > 0 || evidence.destructionPartialAtUtc !== null;
+    if (partial) await markPartialDelete();
+    else await releaseClaim();
     return {
       ok: false,
       outcome: "STORAGE_DELETE_FAILED",
       failedKeys: deleteFailures.slice(0, 50),
+      partial,
     };
   }
 
@@ -751,11 +863,14 @@ export async function executeEvidenceDestruction(
     }
   }
   if (survivors.length > 0) {
-    await releaseClaim();
+    const partial = destroyedVersionCount > 0 || evidence.destructionPartialAtUtc !== null;
+    if (partial) await markPartialDelete();
+    else await releaseClaim();
     return {
       ok: false,
       outcome: "STORAGE_VERIFY_FAILED",
       failedKeys: survivors.slice(0, 50),
+      partial,
     };
   }
 
@@ -794,6 +909,9 @@ export async function executeEvidenceDestruction(
     destructionReviewId: input.destructionReviewId ?? null,
     destructionRequestId: input.destructionRequestId ?? null,
     executedByUserId: input.actorUserId ?? null,
+    executedBy: input.executedBy ?? (input.actorUserId ? "USER" : "SYSTEM"),
+    approvedByUserIds,
+    resumedAfterPartialDelete: evidence.destructionPartialAtUtc !== null,
     destroyedAtUtc: now.toISOString(),
     destroyedStorageKeysSha256: sha256Hex(
       targets
@@ -810,6 +928,7 @@ export async function executeEvidenceDestruction(
     objectLockRetainUntilUtc:
       evidence.storageObjectLockRetainUntilUtc?.toISOString() ?? null,
     destroyedArtifacts,
+    retainedByDesign: DESTRUCTION_RETAINED_BY_DESIGN,
   };
   const certificateHash = sha256Hex(canonicalJsonValue(certificate));
 
@@ -828,6 +947,8 @@ export async function executeEvidenceDestruction(
         certificateHash,
         certificateVersion: DESTRUCTION_CERTIFICATE_VERSION,
         trigger: input.trigger,
+        destructionReviewId: input.destructionReviewId ?? null,
+        destructionRequestId: input.destructionRequestId ?? null,
         storageDeletionVerified: true,
         destroyedVersionCount,
         verification: "ALL_OBJECT_VERSIONS_ABSENT",
@@ -880,6 +1001,53 @@ export async function executeEvidenceDestruction(
       where: { evidenceId: evidence.id },
     });
 
+    // EVID-016 — the graph answers by filename and by extracted value. Its nodes
+    // and edges stay as history, stale and with the text gone, and they go in
+    // this transaction so a destroyed record is never searchable between sweeps.
+    const entityIds = (
+      await tx.evidenceEntity.findMany({ where: { evidenceId: evidence.id }, select: { id: true } })
+    ).map((e) => e.id);
+    const graphNodeIds = (
+      await tx.investigationGraphNode.findMany({
+        where: {
+          OR: [
+            { nodeKind: "EVIDENCE", externalId: evidence.id },
+            { nodeKind: "EXTRACTED_ENTITY", externalId: { in: entityIds } },
+          ],
+        },
+        select: { id: true },
+      })
+    ).map((n) => n.id);
+    if (graphNodeIds.length > 0) {
+      await tx.investigationGraphNode.updateMany({
+        where: { id: { in: graphNodeIds } },
+        data: { staleAtUtc: now, safeLabel: null, updatedAtUtc: now },
+      });
+      await tx.investigationGraphEdge.updateMany({
+        where: { OR: [{ sourceNodeId: { in: graphNodeIds } }, { targetNodeId: { in: graphNodeIds } }] },
+        data: { staleAtUtc: now, safeSummary: null, updatedAtUtc: now },
+      });
+    }
+
+    // GOV-010 — the rest of what PROOVRA derived from the content. See
+    // tombstone-classification.ts: a contract test holds this list to the schema.
+    await tx.evidenceEntity.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceAiCategorization.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceSimilarity.deleteMany({
+      where: { OR: [{ sourceEvidenceId: evidence.id }, { targetEvidenceId: evidence.id }] },
+    });
+    await tx.mediaIntelligenceSignal.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.mediaIntelligenceEntity.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.mediaIntelligenceRecord.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.videoTimelineEvent.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.videoTrack.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.videoFrame.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidencePartExifSummary.deleteMany({ where: { evidenceId: evidence.id } });
+    await tx.evidenceUploadSession.updateMany({
+      where: { evidenceId: evidence.id },
+      data: { originalFileName: null },
+    });
+
     // The tombstone. The row stays; the content pointers do not.
     // ET-SEC-12 — the tombstone is written only over THIS executor's own
     // decided claim. Any other state (a claim lost to a takeover, a record moved
@@ -895,6 +1063,18 @@ export async function executeEvidenceDestruction(
         storageKey: null,
         sizeBytes: BigInt(0),
         activeDestructionReviewId: null,
+        // GOV-010 — EVIDENCE_TOMBSTONE_CLEARED_FIELDS, by name so a reader sees
+        // exactly what goes. EVIDENCE_TOMBSTONE_SEALED_FIELDS stay: database
+        // triggers hold them permanent, including on this write.
+        title: null,
+        internalNotes: null,
+        intakePlanJson: prismaPkg.Prisma.DbNull,
+        originalFileName: null,
+        displayFileName: null,
+        submittedByEmail: null,
+        technicalMetadata: prismaPkg.Prisma.DbNull,
+        captureEnvironment: prismaPkg.Prisma.DbNull,
+        intakeCustomerId: null,
       },
     });
     if (tombstoned.count !== 1) {

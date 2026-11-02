@@ -375,9 +375,12 @@ export async function platformContextRoutes(app: FastifyInstance) {
           }
           if (!loginGate.allowed) {
             auditSwitch("denied", loginGate.reason);
+            // Membership was proven above, so naming the rule tells a member why
+            // and tells nobody else anything.
             return reply.code(403).send({
               message: "Not a member of this workspace",
               code: "workspace_membership_required",
+              reason: loginGate.reason,
               requestId: req.id,
             });
           }

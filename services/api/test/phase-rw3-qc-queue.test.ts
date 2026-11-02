@@ -134,9 +134,9 @@ describe("Phase RW3-3 — route source contract", () => {
     );
   });
 
-  it("resolves teamId from currentWorkspaceId when query omits it", () => {
+  it("resolves teamId from the request's workspace when query omits it", () => {
     expect(ROUTE_SRC).toMatch(
-      /\/v1\/reviewer-ops\/qc\/pending-count[\s\S]{0,2000}?currentWorkspaceId/,
+      /\/v1\/reviewer-ops\/qc\/pending-count[\s\S]{0,2000}?requestWorkspaceCandidate/,
     );
   });
 

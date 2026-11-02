@@ -24,6 +24,8 @@ import type {
 import {
   computeReviewSlaStatus,
   decisionRequiresNote,
+  REVIEW_FINISHED_DB_STATUSES,
+  storedReviewSlaStatus,
   decisionTargetStage,
   isAllowedReviewStageTransition,
   mapDbStatusToReviewStage,
@@ -60,6 +62,9 @@ import {
   assertWorkAssigneeEligible,
 } from "../assignment/assignee-eligibility.js";
 import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { stampReviewDeadlines } from "../reviewer-ops/review-sla-stamp.service.js";
+import { resolveEffectiveSlaPolicy } from "../reviewer-ops/sla-policy.service.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "../reviewer-ops/sweep-cursor.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -465,17 +470,21 @@ export async function assignReviewer(
     await assertReviewAssigneeEligible(workflow, input.assignedToUserId, txc as unknown as PrismaClient, {
       inTransaction: true,
     });
-    const moved = await applyTransition(
-      workflow,
-      targetStage,
-      {
-        assignedToUserId: input.assignedToUserId,
-        assignedByUserId: input.actorUserId,
-        assignedAtUtc: workflow.assignedAtUtc ?? now,
-        reassignedAtUtc: isReassignment ? now : workflow.reassignedAtUtc,
-      },
+    const moved = await stampReviewDeadlines(
+      await applyTransition(
+        workflow,
+        targetStage,
+        {
+          assignedToUserId: input.assignedToUserId,
+          assignedByUserId: input.actorUserId,
+          assignedAtUtc: workflow.assignedAtUtc ?? now,
+          reassignedAtUtc: isReassignment ? now : workflow.reassignedAtUtc,
+        },
+        txc as unknown as PrismaClient,
+        { strict: true, guardAssignee: true },
+      ),
+      { requireStatedPolicy: false, source: "assignment", actorUserId: input.actorUserId, now },
       txc as unknown as PrismaClient,
-      { strict: true, guardAssignee: true },
     );
     await txc.evidenceReviewWorkflowEvent.create({
       data: {
@@ -575,16 +584,20 @@ export async function claimReviewerWorkflow(
         inTransaction: true,
       });
     }
-    const moved = await applyTransition(
-      workflow,
-      targetStage,
-      {
-        assignedToUserId: input.actorUserId,
-        assignedByUserId: input.actorUserId,
-        assignedAtUtc: workflow.assignedAtUtc ?? now,
-      },
+    const moved = await stampReviewDeadlines(
+      await applyTransition(
+        workflow,
+        targetStage,
+        {
+          assignedToUserId: input.actorUserId,
+          assignedByUserId: input.actorUserId,
+          assignedAtUtc: workflow.assignedAtUtc ?? now,
+        },
+        txc as unknown as PrismaClient,
+        { strict: true, guardAssignee: true },
+      ),
+      { requireStatedPolicy: false, source: "assignment", actorUserId: input.actorUserId, now },
       txc as unknown as PrismaClient,
-      { strict: true, guardAssignee: true },
     );
     await txc.evidenceReviewWorkflowEvent.create({
       data: {
@@ -853,11 +866,11 @@ export async function updateReviewSla(
     input.firstResponseDueAtUtc !== undefined
       ? input.firstResponseDueAtUtc
       : workflow.firstResponseDueAtUtc;
-  const computed = computeReviewSlaStatus({
-    dueAtUtc: effectiveDue,
+  const computed = storedReviewSlaStatus({
+    ...workflow,
+    dueAt: effectiveDue,
     firstResponseDueAtUtc: effectiveFirstResponse,
-    completedAtUtc: workflow.completedAtUtc,
-    paused: input.paused ?? !!workflow.slaPausedAtUtc,
+    slaPausedAtUtc: (input.paused ?? !!workflow.slaPausedAtUtc) ? new Date() : null,
   });
   patch.slaStatus = computed;
 
@@ -885,104 +898,176 @@ export async function updateReviewSla(
 }
 
 /**
- * Recompute SLA status for a list of workflows and flip BREACHED rows.
- * Best-effort; used by the reconciliation route. Emits SLA_BREACHED
- * events when a row crosses the threshold.
+ * Moves each open review's stored SLA status to what its deadlines now say, one
+ * calculation shared with the badge (WORKFLOW-007).
  *
- * Phase 13.5 guarantees:
- *   - completed workflows are skipped (completedAtUtc set)
- *   - paused workflows are skipped
- *   - SLA_BREACHED event + notification fire ONCE per workflow per
- *     transition into BREACHED. Subsequent sweeps see slaStatus =
- *     BREACHED already and emit nothing.
+ *   - Every deadline counts, not only `dueAt` (WORKFLOW-006). A breach is a missed
+ *     deadline: the policy states the hours, so nothing is added behind them.
+ *   - Finished and paused rows are skipped.
+ *   - The breach event and email fire once, on the move into BREACHED.
+ *   - The read resumes where the last one stopped (WORKFLOW-012). A stable row
+ *     stays eligible, so a first-N read would never get past those N.
  */
 export async function reconcileReviewSlas(
-  input: { teamId?: string; batchSize?: number } = {},
+  input: {
+    teamId?: string;
+    batchSize?: number;
+    /** Pages per call. The engine reads a whole workspace; the default reads one. */
+    maxPages?: number;
+    now?: Date;
+  } = {},
   client: PrismaClient = defaultPrisma,
 ): Promise<{
   scanned: number;
   flippedBreached: number;
-  flippedOverdue: number;
   flippedDueSoon: number;
   skippedCompleted: number;
   skippedPaused: number;
+  /** The rows that moved into BREACHED, for the caller to escalate. */
+  breachedWorkflowIds: string[];
+  /** True when this call reached the last row. */
+  wrapped: boolean;
 }> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 200, 1), 2000);
-  const candidates = await client.evidenceReviewWorkflow.findMany({
-    where: {
-      ...(input.teamId ? { teamId: input.teamId } : {}),
-      dueAt: { not: null },
-      // Skip completed + already-breached rows so the sweep is
-      // idempotent. Already-BREACHED rows do NOT re-emit events.
-      //
-      // PHASE 12 FIX — a NEVER-INITIALIZED slaStatus (null) must be a
-      // candidate too: `in: [...]` silently excluded NULL, so a breached
-      // workflow whose status was never stamped could NEVER be flipped and
-      // never surfaced in the OVERDUE queue or breach notifications
-      // (caught live by the phase-37-98 lifecycle proof).
-      OR: [
-        { slaStatus: { in: ["ON_TRACK", "DUE_SOON", "OVERDUE"] } },
-        { slaStatus: null },
-      ],
-      // Skip closed/terminal workflows; their review is over.
-      status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"] },
-    },
-    take: batchSize,
-  });
+  const maxPages = Math.min(Math.max(input.maxPages ?? 1, 1), 50);
+  const now = input.now ?? new Date();
+  const cursorKey = `reviewer_sla:${input.teamId ?? "all"}`;
+  const windows = new Map<string, number>();
+  const dueSoonFor = async (teamId: string | null): Promise<number | undefined> => {
+    if (!teamId) return undefined;
+    if (!windows.has(teamId)) {
+      const { policy } = await resolveEffectiveSlaPolicy({ teamId }, client);
+      windows.set(teamId, policy.dueSoonHours);
+    }
+    return windows.get(teamId);
+  };
+
+  let scanned = 0;
   let flippedBreached = 0;
-  let flippedOverdue = 0;
   let flippedDueSoon = 0;
   let skippedCompleted = 0;
   let skippedPaused = 0;
-  for (const wf of candidates) {
-    if (wf.completedAtUtc) {
-      skippedCompleted += 1;
-      continue;
-    }
-    if (wf.slaPausedAtUtc) {
-      skippedPaused += 1;
-      continue;
-    }
-    const computed = computeReviewSlaStatus({
-      dueAtUtc: wf.dueAt,
-      firstResponseDueAtUtc: wf.firstResponseDueAtUtc,
-      completedAtUtc: wf.completedAtUtc,
-      paused: false,
+  let wrapped = false;
+  const breachedWorkflowIds: string[] = [];
+
+  for (let page = 0; page < maxPages && !wrapped; page += 1) {
+    const cursor = await readSweepCursor(client, cursorKey);
+    const candidates = await client.evidenceReviewWorkflow.findMany({
+      where: {
+        ...(input.teamId ? { teamId: input.teamId } : {}),
+        ...afterCursor(cursor),
+        status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+        OR: [
+          { assignmentDueAtUtc: { not: null } },
+          { firstResponseDueAtUtc: { not: null } },
+          { dueAt: { not: null } },
+          { completionDueAtUtc: { not: null } },
+          { escalationDueAtUtc: { not: null } },
+        ],
+      },
+      orderBy: { id: "asc" },
+      take: batchSize,
     });
-    if (!computed || computed === wf.slaStatus) continue;
-    const stage = mapDbStatusToReviewStage(wf.status as string);
-    try {
-      await applyTransition(wf, stage, { slaStatus: computed }, client);
-      if (computed === "BREACHED" && wf.slaStatus !== "BREACHED") {
-        flippedBreached += 1;
-        await recordEvent(
-          wf,
-          "SLA_BREACHED",
-          null,
-          null,
-          { slaStatus: wf.slaStatus },
-          { slaStatus: computed },
-          client,
-        );
-        // One overdue-reminder email per BREACHED transition. Safe.
-        notifyReviewSlaBreached({ workflow: wf }, client).catch(() => null);
-      } else if (computed === "OVERDUE") {
-        flippedOverdue += 1;
-      } else if (computed === "DUE_SOON") {
-        flippedDueSoon += 1;
+    scanned += candidates.length;
+    for (const wf of candidates) {
+      if (wf.completedAtUtc) {
+        skippedCompleted += 1;
+        continue;
       }
-    } catch {
-      /* ignore; sweeper is best-effort */
+      if (wf.slaPausedAtUtc) {
+        skippedPaused += 1;
+        continue;
+      }
+      const dueSoonHours = wf.slaDueSoonHours ?? (await dueSoonFor(wf.teamId));
+      const computed = storedReviewSlaStatus(wf, { nowUtc: now, dueSoonHours });
+      if (!computed || computed === wf.slaStatus) continue;
+      const stage = mapDbStatusToReviewStage(wf.status as string);
+      try {
+        await applyTransition(wf, stage, { slaStatus: computed }, client);
+        if (computed === "BREACHED") {
+          flippedBreached += 1;
+          breachedWorkflowIds.push(wf.id);
+          await recordEvent(
+            wf,
+            "SLA_BREACHED",
+            null,
+            null,
+            { slaStatus: wf.slaStatus },
+            { slaStatus: computed },
+            client,
+          );
+          // One overdue-reminder email per BREACHED transition. Safe.
+          notifyReviewSlaBreached({ workflow: wf }, client).catch(() => null);
+        } else if (computed === "DUE_SOON") {
+          flippedDueSoon += 1;
+        }
+      } catch {
+        /* ignore; sweeper is best-effort */
+      }
     }
+    const advanced = await advanceSweepCursor(client, cursorKey, cursor, {
+      lastId: candidates.at(-1)?.id ?? null,
+      pageSize: candidates.length,
+      limit: batchSize,
+    });
+    wrapped = advanced.wrapped;
   }
   return {
-    scanned: candidates.length,
+    scanned,
     flippedBreached,
-    flippedOverdue,
     flippedDueSoon,
     skippedCompleted,
     skippedPaused,
+    breachedWorkflowIds,
+    wrapped,
   };
+}
+
+/**
+ * Gives open reviews that have no stamped policy their deadlines (WORKFLOW-006):
+ * rows written before deadlines existed, and rows whose workspace has since stated
+ * hours. Each window counts from this sweep. A stamped row leaves the set, so this
+ * read cannot stick on its first N.
+ */
+export async function stampOpenReviewDeadlines(
+  input: { teamId: string; batchSize?: number; now?: Date },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ stamped: number }> {
+  const { sources } = await resolveEffectiveSlaPolicy({ teamId: input.teamId }, client);
+  const workspaceStated = Object.keys(sources.workspace).length > 0;
+  const rows = await client.evidenceReviewWorkflow.findMany({
+    where: {
+      teamId: input.teamId,
+      slaDueSoonHours: null,
+      slaPausedAtUtc: null,
+      completedAtUtc: null,
+      closedAt: null,
+      status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+      ...(workspaceStated
+        ? {}
+        : {
+            OR: [
+              { assignedToUserId: { not: null } },
+              { dueAt: { not: null } },
+              { firstResponseDueAtUtc: { not: null } },
+              { completionDueAtUtc: { not: null } },
+              { escalationDueAtUtc: { not: null } },
+            ],
+          }),
+    },
+    orderBy: { id: "asc" },
+    take: Math.min(Math.max(input.batchSize ?? 200, 1), 2000),
+  });
+  let stamped = 0;
+  for (const row of rows) {
+    const next = await stampReviewDeadlines(
+      row,
+      { requireStatedPolicy: false, source: "open_review_sweep", now: input.now },
+      client,
+    ).catch(() => row);
+    if (next !== row) stamped += 1;
+  }
+  return { stamped };
 }
 
 // -----------------------------------------------------------------------------
@@ -1228,8 +1313,14 @@ export async function listReviewQueue(
     where: {
       teamId: input.teamId,
       ...(input.stage ? { status: stageToDbStatus(input.stage) } : {}),
+      // A deadline only describes work still open (WORKFLOW-013).
       ...(input.slaStatus
-        ? { slaStatus: slaStatusToDb(input.slaStatus) }
+        ? {
+            slaStatus: slaStatusToDb(input.slaStatus),
+            status: input.stage
+              ? stageToDbStatus(input.stage)
+              : { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+          }
         : {}),
       ...(input.assignedToUserId
         ? { assignedToUserId: input.assignedToUserId }
@@ -1290,30 +1381,26 @@ export async function getReviewQueueCounts(
     const mapped = mapDbStatusToReviewStage(r.status as string);
     byStage[mapped] += r._count._all;
   }
+  // WORKFLOW-013 — every count below is OPEN work, the same set the queues show.
+  // A review breached and then approved stays BREACHED on its row as history, and
+  // is no longer overdue.
+  const open: Prisma.EvidenceReviewWorkflowWhereInput = {
+    ...scope,
+    status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+  };
   const [overdue, dueSoon, unassigned, mine] = await Promise.all([
     client.evidenceReviewWorkflow.count({
-      where: {
-        ...scope,
-        slaStatus: { in: ["OVERDUE", "BREACHED"] },
-      },
+      where: { ...open, slaStatus: { in: ["OVERDUE", "BREACHED"] } },
     }),
     client.evidenceReviewWorkflow.count({
-      where: { ...scope, slaStatus: "DUE_SOON" },
+      where: { ...open, slaStatus: "DUE_SOON" },
     }),
     client.evidenceReviewWorkflow.count({
-      where: {
-        ...scope,
-        assignedToUserId: null,
-        status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
-      },
+      where: { ...open, assignedToUserId: null },
     }),
     input.meUserId
       ? client.evidenceReviewWorkflow.count({
-          where: {
-            ...scope,
-            assignedToUserId: input.meUserId,
-            status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
-          },
+          where: { ...open, assignedToUserId: input.meUserId },
         })
       : Promise.resolve(0),
   ]);

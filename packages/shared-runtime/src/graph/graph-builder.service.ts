@@ -252,8 +252,15 @@ export async function reconcileTeamGraph(
   };
   try {
     // 1. Materialize EVIDENCE nodes for every Evidence row in this team.
+    // EVID-016 — a record reviewed out of ACTIVE has no deletedAt, so "not deleted"
+    // alone would rebuild the node of a destroyed record on every run.
     const evidence = await client.evidence.findMany({
-      where: { AND: [scope], deletedAt: null },
+      where: {
+        AND: [scope],
+        deletedAt: null,
+        destroyedAtUtc: null,
+        lifecycleState: { notIn: ["DESTROYED", "TRASHED", "RETENTION_ARCHIVED"] },
+      },
       select: {
         id: true,
         type: true,
@@ -1240,6 +1247,39 @@ export async function reconcileTeamGraph(
         }
       }
     }
+
+    // 2a. EVID-016 — EVIDENCE nodes whose record left the working set: every other
+    // family had a sweep and this one did not, so trashed and destroyed records
+    // kept answering graph search and export under their filename. A destroyed
+    // record loses its label as well (records destroyed before the executor did
+    // this). A restored record is rebuilt by the upsert above.
+    await sweepStale("EVIDENCE", () =>
+      client.$executeRawUnsafe(
+        `UPDATE "investigation_graph_nodes" n
+           SET "stale_at_utc" = NOW(),
+               "updated_at_utc" = NOW(),
+               "safe_label" = CASE
+                 WHEN EXISTS (
+                   SELECT 1 FROM "evidence" d
+                    WHERE d."id" = n."external_id"
+                      AND (d."destroyed_at_utc" IS NOT NULL OR d."lifecycle_state" = 'DESTROYED')
+                 ) THEN NULL
+                 ELSE n."safe_label"
+               END
+           WHERE n."team_id" = $1
+             AND n."node_kind" = 'EVIDENCE'
+             AND n."stale_at_utc" IS NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM "evidence" ev
+                WHERE ev."id" = n."external_id"
+                  AND (ev."team_id" = $1 OR ev."team_id" IS NULL)
+                  AND ev."deleted_at" IS NULL
+                  AND ev."destroyed_at_utc" IS NULL
+                  AND ev."lifecycle_state" NOT IN ('DESTROYED', 'TRASHED', 'RETENTION_ARCHIVED')
+             )`,
+        teamId,
+      ),
+    );
 
     // 2b. Phase 31.18 — per-kind stale-tombstone sweep for the three
     // signal-derived node kinds (MEDIA_SIGNAL / OCR / TRANSCRIPT).

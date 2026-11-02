@@ -110,8 +110,10 @@ describe("Phase 26 — SSO service", () => {
     expect(src).toMatch(/externalIdentityMapping\.create/);
   });
 
-  it("OIDC state is single-use (deleted after read)", () => {
-    expect(src).toMatch(/oidcStateStore\.delete\(input\.state\)/);
+  it("OIDC state lives in the ledger, not in process memory (IDENT-014)", () => {
+    // Single use is the atomic claim in consumeCallbackAttempt.
+    expect(src).not.toMatch(/oidcStateStore/);
+    expect(src).toMatch(/attempt\.nonceHash/);
   });
 
   it("client secret resolver is overridable (no leakage from env)", () => {

@@ -61,6 +61,18 @@ const hashStateToken = (raw: string) => m.hardening.hashStateToken(raw);
 
 // ── OIDC test IdP: the JWKS transport is the only thing replaced ────────────
 const oidcKeys = vi.hoisted(() => ({ publicJwk: null as unknown }));
+// The stand-in IdP hosts in this suite have no real address.
+vi.mock("node:dns/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:dns/promises")>();
+  return {
+    ...actual,
+    lookup: async (host: string, options: never) =>
+      host.endsWith(".test") || host === "idp.example.com"
+        ? [{ address: "93.184.216.34", family: 4 }]
+        : actual.lookup(host, options),
+  };
+});
+
 vi.mock("jose", async (importOriginal) => {
   const actual = await importOriginal<typeof import("jose")>();
   return {
@@ -183,11 +195,18 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
     return { xml, id, relayState: u.searchParams.get("RelayState")! };
   }
 
-  const postAcs = (samlResponseBase64: string, relayState: string) =>
+  /** The browser binding a sign-in route set, as a browser would send it back. */
+  const bindingCookie = (res: { headers: Record<string, unknown> }): string => {
+    const raw = res.headers["set-cookie"];
+    const list = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
+    return String(list.find((x) => String(x).startsWith("proovra_sso_bind=")) ?? "").split(";")[0]!;
+  };
+
+  const postAcs = (samlResponseBase64: string, relayState: string, cookie = "") =>
     h.app.inject({
       method: "POST",
       url: "/v1/auth/saml/acs",
-      headers: { "content-type": "application/x-www-form-urlencoded", host: new URL(ACS_URL).host },
+      headers: { "content-type": "application/x-www-form-urlencoded", host: new URL(ACS_URL).host, cookie },
       payload: new URLSearchParams({ SAMLResponse: samlResponseBase64, RelayState: relayState }).toString(),
     });
 
@@ -295,6 +314,7 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
     return postAcs(
       buildSignedSamlResponse({ inResponseTo: req.id, nameId, authnContextClassRef: ctx, authnInstant: instant }),
       req.relayState,
+      bindingCookie(login),
     );
   }
 
@@ -322,7 +342,7 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const u = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       const json = (body: unknown, status = 200) =>
-        ({ ok: status < 300, status, json: async () => body }) as unknown as Response;
+        new Response(JSON.stringify(body), { status });
       if (u === OIDC_ISSUER) {
         return json({
           issuer: OIDC_ISSUER,
@@ -667,6 +687,7 @@ describe("IDP_REAUTH step-up — Enterprise SAML / OIDC reauthentication", () =>
       const cb = await h.app.inject({
         method: "GET",
         url: `/v1/auth/sso/callback?state=${encodeURIComponent(authz.searchParams.get("state")!)}&code=code-${tag}-a`,
+        headers: { cookie: bindingCookie(init) },
       });
       expect(cb.statusCode, cb.body).toBe(302);
       const token = sessionCookie(cb);

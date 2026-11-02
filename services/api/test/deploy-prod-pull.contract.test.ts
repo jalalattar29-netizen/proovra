@@ -53,7 +53,9 @@ esac
 exit 0
 `;
 const CURL_STUB = `#!/usr/bin/env bash
-echo "curl $*" >> "$STUB_LOG"; exit "\${STUB_CURL_RC:-0}"
+echo "curl $*" >> "$STUB_LOG"
+case "$*" in *web.test*) [ -n "\${STUB_WEB_BODY:-}" ] && printf '%s' "$STUB_WEB_BODY" ;; esac
+exit "\${STUB_CURL_RC:-0}"
 `;
 const SLEEP_STUB = `#!/usr/bin/env bash
 exit 0
@@ -119,6 +121,68 @@ function run(args: string[], env: Record<string, string | undefined>, setup?: (s
 }
 
 const deployEnv = { GHCR_OWNER: OWNER, RELEASE_SHA: SHA, IMAGE_TAG: TAG };
+
+describe("deploy-prod-pull.sh — one value per env key (OPS-009, CRYPTO-004)", () => {
+  const withEnv = (lines: string[]) => (_state: string, root: string) =>
+    writeFileSync(join(root, ".env"), lines.join("\n") + "\n");
+
+  it("refuses a repeated key, by name, before touching docker or git, and prints no value", () => {
+    const r = run([], deployEnv, withEnv(["SIGNING_KEY_ID=first-value", "OTHER=1", "SIGNING_KEY_ID=second-value"]));
+    expect(r.status).not.toBe(0);
+    expect(r.out).toMatch(/sets these keys more than once: SIGNING_KEY_ID/);
+    expect(r.out).not.toMatch(/first-value|second-value/);
+    expect(r.log).toEqual([]);
+  });
+
+  it("sees a repeat written with export or spaces, and ignores comments", () => {
+    const r = run([], deployEnv, withEnv(["export TOKEN=a", "  TOKEN = b"]));
+    expect(r.out).toMatch(/more than once: TOKEN/);
+    const clean = run([], deployEnv, withEnv(["# TOKEN=a", "TOKEN=b", "# TOKEN=c"]));
+    expect(clean.out).not.toMatch(/more than once/);
+    expect(clean.status).toBe(0);
+  });
+});
+
+describe("deploy-prod-pull.sh — the release record (OPS-015)", () => {
+  const records = (r: Run) =>
+    readFileSync(join(r.root, ".deploy-state", "releases.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+
+  it("names the web, API and worker builds and the image digests", () => {
+    const r = run([], { ...deployEnv, WEB_HEALTH_URL: "https://web.test/api/health", STUB_WEB_BODY: `{"ok":true,"revision":"${SHA}"}` });
+    expect(r.status).toBe(0);
+    const [rec] = records(r);
+    expect(rec).toMatchObject({ mode: "deploy", api: SHA, worker: SHA, web: SHA, imageTag: TAG });
+    expect(rec.apiDigest).toContain("sha256:");
+    expect(r.out).not.toMatch(/WARNING: web is at/);
+  });
+
+  it("says when the web is on another build, and does not fail a deploy that is already up", () => {
+    const r = run([], { ...deployEnv, WEB_HEALTH_URL: "https://web.test/api/health", STUB_WEB_BODY: `{"revision":"${OLD_SHA}"}` });
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(new RegExp(`web is at ${OLD_SHA}`));
+    expect(records(r)[0].web).toBe(OLD_SHA);
+  });
+
+  it("a web build it cannot read is recorded empty, never guessed", () => {
+    const r = run([], deployEnv);
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/WEB_HEALTH_URL is not set/);
+    expect(records(r)[0].web).toBe("");
+  });
+
+  it("warns when backups are not running or the edge file is absent, and is quiet when they are present", () => {
+    const missing = run([], deployEnv);
+    expect(missing.out).toMatch(/pg-backup service is not running/);
+    expect(missing.out).toMatch(/infra\/caddy\/Caddyfile is not a file/);
+    const present = run([], deployEnv, (state, root) => {
+      writeFileSync(join(state, "cid-pg-backup"), "backup-cid");
+      mkdirSync(join(root, "infra", "caddy"), { recursive: true });
+      writeFileSync(join(root, "infra", "caddy", "Caddyfile"), "x\n");
+    });
+    expect(present.out).not.toMatch(/pg-backup service is not running/);
+    expect(present.out).not.toMatch(/Caddyfile is not a file/);
+  });
+});
 
 describe("deploy-prod-pull.sh — refuses anything but an immutable release", () => {
   it.each([

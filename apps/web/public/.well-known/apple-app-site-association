@@ -15,8 +15,8 @@
             "comment": "Reviewer portal token entry"
           },
           {
-            "/": "/portal/*",
-            "comment": "Reviewer portal and invitation acceptance"
+            "/": "/portal/accept/*",
+            "comment": "Reviewer invitation acceptance. Not all of /portal: the SSO callback must stay in the browser"
           },
           {
             "/": "/legal/*",

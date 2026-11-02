@@ -32,7 +32,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError, apiBaseUrl, readApiToken } from "../../../../../../lib/api";
+import { apiFetch, apiBaseUrl, readApiToken, isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { notifyApiError } from "../../../../../../lib/feedback/notify";
 import { useToast } from "../../../../../../components/ui-legacy";
@@ -176,7 +176,7 @@ function ReportsTab() {
       const data = (await apiFetch(`/v1/orgs/${orgId}`)) as OrgHeader;
       setState({ kind: "ready", data });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setState({
           kind: "error",
           message: err.message,

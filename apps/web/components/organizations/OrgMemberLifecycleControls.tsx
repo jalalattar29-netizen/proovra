@@ -172,7 +172,7 @@ export function OrgMemberLifecycleControls({
         setReason("");
         setNotice(
           action === "suspend"
-            ? `${memberLabel} is suspended. Their sessions have been revoked; the membership is kept and can be restored.`
+            ? `${memberLabel} is suspended from organization administration and signed out. This does not suspend their access to workspaces: suspend them in each workspace too if that access should stop.`
             : `${memberLabel} is active again.`,
         );
         await onChanged();

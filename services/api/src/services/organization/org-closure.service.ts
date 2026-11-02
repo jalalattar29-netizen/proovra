@@ -10,7 +10,9 @@
  * Execution model (ARCHIVE, never destroy evidence):
  *   1. Re-run the canonical preflight — a blocker acquired during the
  *      cooling-off window (a new member, a new legal hold, a re-activated
- *      contract) moves the request to BLOCKED, never to PROCESSING.
+ *      contract) moves the request to BLOCKED, never to PROCESSING. BLOCKED is
+ *      where a self-service request ends. A TERMINATION is only waiting there:
+ *      every tick asks again, and it runs when the hold is released (PROV-008).
  *   2. Atomically claim the row (guarded updateMany → PROCESSING).
  *   3. Archive the organization: status ARCHIVED. `checkOrgAccess`
  *      refuses archived orgs, so every org surface goes dark at once.
@@ -34,7 +36,10 @@ import { emitOrgAuditEvent } from "./org-audit.service.js";
 // PHASE 3 (2026-07-22) — canonical membership orchestrator.
 import { CLOSURE_STALE_MS, closeWorkspacesTx } from "../workspace/workspace-closure.service.js";
 import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
-import { isContractTerminationClosure } from "./enterprise-termination.service.js";
+import {
+  CONTRACT_TERMINATION_REASON_PREFIX,
+  isContractTerminationClosure,
+} from "./enterprise-termination.service.js";
 import { transitionEnterpriseContractStatusTx } from "./enterprise-contract.service.js";
 
 export const ORG_CLOSURE_COOLING_OFF_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -203,7 +208,7 @@ export async function executeOrganizationClosure(input: {
   await dispatchEnqueuedEmailNotifications(noticeIds);
 }
 
-/** A closure request's terminal refusal or failure, and its audit, in one transaction. */
+/** A closure request's refusal or failure, and its audit, in one transaction. */
 async function recordOrganizationClosureOutcome(input: {
   requestId: string;
   organizationId: string;
@@ -266,23 +271,35 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
     data: { status: "SCHEDULED" },
   });
 
-  const due = await prisma.organizationClosureRequest.findMany({
+  const closureRow = {
+    id: true,
+    organizationId: true,
+    requestedByUserId: true,
+    status: true,
+    reason: true,
+  } as const;
+  const scheduled = await prisma.organizationClosureRequest.findMany({
     where: {
       status: { in: ["COOLING_OFF", "SCHEDULED"] },
       coolingOffEndsAtUtc: { lte: now },
     },
     orderBy: { coolingOffEndsAtUtc: "asc" },
     take: PROCESS_BATCH,
-    select: {
-      id: true,
-      organizationId: true,
-      requestedByUserId: true,
-      status: true,
-      reason: true,
+    select: closureRow,
+  });
+  // Selected apart, so terminations that keep waiting cannot fill the batch.
+  const waiting = await prisma.organizationClosureRequest.findMany({
+    where: {
+      status: "BLOCKED",
+      reason: { startsWith: CONTRACT_TERMINATION_REASON_PREFIX },
+      coolingOffEndsAtUtc: { lte: now },
     },
+    orderBy: { coolingOffEndsAtUtc: "asc" },
+    take: PROCESS_BATCH,
+    select: closureRow,
   });
 
-  for (const req of due) {
+  for (const req of [...scheduled, ...waiting]) {
     const termination = isContractTerminationClosure(req.reason);
     const preflight = await evaluateOrganizationClosurePreflight(
       req.organizationId,
@@ -298,6 +315,8 @@ export async function processOrganizationClosures(now: Date): Promise<void> {
         )
       : preflight.blockers;
     if (blockers.length > 0) {
+      // Still waiting: no new row every five minutes for the same fact.
+      if (req.status === "BLOCKED") continue;
       await recordOrganizationClosureOutcome({
         requestId: req.id,
         organizationId: req.organizationId,

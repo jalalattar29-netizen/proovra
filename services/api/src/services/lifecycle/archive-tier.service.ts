@@ -3,9 +3,14 @@
  *
  * Phase 4B C1: Real archive tier storage transitions.
  *
- * HOT / WARM / COLD / DEEP_ARCHIVE now move bytes via S3 StorageClass
- * using CopyObject (same bucket/key + new StorageClass). GLACIER /
- * DEEP_ARCHIVE restores are initiated via RestoreObject.
+ * HOT / WARM / COLD / DEEP_ARCHIVE move bytes via S3 StorageClass. An
+ * unversioned object uses CopyObject (same bucket/key + new StorageClass). A
+ * sealed version on a versioned bucket is tagged instead (GOV-016): a same-key
+ * copy there writes a newer version, leaves the sealed one where it was, and
+ * makes destruction refuse for ever. The tag is read by a bucket lifecycle rule,
+ * so such a row is COMPLETED with storageClassAfter null: the tier is recorded,
+ * the move has not been observed. GLACIER / DEEP_ARCHIVE restores are initiated
+ * via RestoreObject.
  *
  * State machine:
  *   HOT/WARM transitions:    PENDING → COMPLETED  (synchronous CopyObject)
@@ -42,6 +47,7 @@ import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
 import {
   copyObjectStorageClass,
+  tagObjectVersionTier,
   restoreObject,
   headObjectStorageClass,
 } from "../../storage.js";
@@ -143,7 +149,8 @@ async function tryEmitWebhookEvent(
 /**
  * Resolve the current archive tier for an evidence item.
  *
- * Primary: latest ArchiveTierTransition row's toTier.
+ * Primary: latest COMPLETED ArchiveTierTransition row's toTier. A row that is
+ * only planned moved nothing and must not read as the record's tier (GOV-016).
  * Secondary (when checkS3=true): live S3 x-amz-storage-class header.
  * Fallback: HOT.
  */
@@ -157,7 +164,7 @@ export async function currentTierFor(input: {
   const prisma = input.prisma ?? defaultPrisma;
 
   const latest = await prisma.archiveTierTransition.findFirst({
-    where: { teamId: input.teamId, evidenceId: input.evidenceId },
+    where: { teamId: input.teamId, evidenceId: input.evidenceId, state: "COMPLETED" },
     orderBy: { transitionedAtUtc: "desc" },
     select: { toTier: true },
   });
@@ -361,15 +368,14 @@ export async function transitionEvidenceTier(
     });
   }
 
-  // -- 4. S3 CopyObject (changes storage class in-place) --
+  // -- 4. Tag the sealed version, or copy an unversioned object in place --
+  const sealedVersionId = evidence.storageVersionId ?? null;
   try {
-    await copyObjectStorageClass({
-      bucket,
-      key,
-      storageClass: storageClassAfter,
-      // ET-SM-03 — archive the SEALED version, not whatever is latest.
-      sourceVersionId: evidence.storageVersionId ?? null,
-    });
+    if (sealedVersionId) {
+      await tagObjectVersionTier({ bucket, key, versionId: sealedVersionId, tier: input.toTier });
+    } else {
+      await copyObjectStorageClass({ bucket, key, storageClass: storageClassAfter });
+    }
   } catch (err) {
     const failureReason = boundFailureReason(err);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -393,7 +399,11 @@ export async function transitionEvidenceTier(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (prisma.archiveTierTransition.update as any)({
     where: { id: row.id },
-    data: { state: "COMPLETED", executedAtUtc: now },
+    data: {
+      state: "COMPLETED",
+      executedAtUtc: now,
+      ...(sealedVersionId ? { storageClassAfter: null } : {}),
+    },
   });
 
   // -- 6. Fire-and-forget audit + webhooks --

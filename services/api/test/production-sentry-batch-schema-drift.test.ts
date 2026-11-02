@@ -305,9 +305,9 @@ describe("Phase O Stream A — /v1/reviewer-ops/queue (NODE-1G)", () => {
     );
   });
 
-  it("resolves teamId from currentWorkspaceId before parsing", () => {
+  it("resolves teamId from the request's workspace before parsing", () => {
     expect(REVIEWER_OPS_ROUTES).toMatch(
-      /\/v1\/reviewer-ops\/queue[\s\S]{0,2400}currentWorkspaceId: true/,
+      /\/v1\/reviewer-ops\/queue[\s\S]{0,2400}requestWorkspaceCandidate\(req\)/,
     );
   });
 });

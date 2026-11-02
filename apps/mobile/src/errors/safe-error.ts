@@ -89,6 +89,20 @@ function num(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
+/**
+ * What in a thrown error's message a person could read, if anything.
+ *
+ * `err.message` from the api client carries the request id, which belongs to a
+ * support affordance, and a placeholder when the reply had no sentence. Several
+ * routes answer a machine reason in the message slot ({ message: "invalid_body" }).
+ * None of those is copy.
+ */
+function serverSentence(raw: string | undefined): string | undefined {
+  const text = raw?.replace(/ \(requestId: [^)]*\)$/, "");
+  if (!text || SYNTHETIC_ERROR_MESSAGE.test(text) || /^[a-z0-9]+(_[a-z0-9]+)+$/.test(text)) return undefined;
+  return text;
+}
+
 /** Pull fields from any of the known error/envelope shapes, defensively. */
 function extract(err: unknown): Extracted {
   const e = asRecord(err);
@@ -100,7 +114,10 @@ function extract(err: unknown): Extracted {
 
   const code = str(e.code) ?? str(envelope.code);
 
-  const message = str(envelope.message) ?? str(e.message) ?? (typeof e.error === "string" ? str(e.error) : undefined);
+  const message =
+    serverSentence(str(envelope.message)) ??
+    serverSentence(str(e.message)) ??
+    (typeof e.error === "string" ? serverSentence(str(e.error)) : undefined);
 
   const requestId = str(e.requestId) ?? str(envelope.requestId) ?? str(e.requestID);
 
@@ -294,7 +311,8 @@ export function toSafeUserError(err: unknown, fallback?: SafeErrorFallback): Saf
               : captureCopy.message,
         }
       : undefined) ??
-    userFacingErrorFor(realCode ?? (x.status === 429 ? "RATE_LIMITED" : null));
+    userFacingErrorFor(realCode) ??
+    (x.status === 429 ? userFacingErrorFor("RATE_LIMITED") : null);
   if (explained) {
     return {
       kind,

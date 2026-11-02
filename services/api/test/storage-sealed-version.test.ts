@@ -70,6 +70,9 @@ describe("sealed-version addressing (ET-SM-03)", () => {
     expect(complete).toMatch(/key: primaryTarget\.key,\s*versionId: primaryTarget\.versionId \?\? null,/);
     expect((complete.match(/retentionTargets\.push\(\{[^}]*versionId:/g) ?? []).length).toBe(3);
     const archive = read("../src/services/lifecycle/archive-tier.service.ts");
-    expect(archive).toContain("sourceVersionId: evidence.storageVersionId ?? null,");
+    // GOV-016 — a sealed version is tagged in place, by its own id: a same-key
+    // copy would write a newer version over what was signed.
+    expect(archive).toContain("const sealedVersionId = evidence.storageVersionId ?? null;");
+    expect(archive).toContain("versionId: sealedVersionId");
   });
 });

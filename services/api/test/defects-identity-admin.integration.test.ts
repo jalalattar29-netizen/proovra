@@ -185,6 +185,7 @@ describe("identity administration defects (live PostgreSQL 16)", () => {
       },
       select: { id: true },
     });
+    await prisma.organizationSecurityPolicy.create({ data: { organizationId: org.id, teamId: team.id } });
     createdTeamIds.push(team.id);
     await prisma.teamMember.create({ data: { teamId: team.id, userId: user.id, role: "OWNER", status: "ACTIVE" } });
     await seedTotp(user.id);

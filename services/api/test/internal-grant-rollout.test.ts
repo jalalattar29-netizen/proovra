@@ -154,6 +154,20 @@ describe("internal-grant rollout — migration state", () => {
       "20281031000000_billing_product_decisions",
       // Stripe customer per recurring currency, written before the provider call. EXPAND.
       "20281101000000_stripe_customer_per_currency",
+      "20281102000000_destruction_governance_truth",
+      // PROV-001: when a password was proven with its mailbox, and the workspace name waiting on an owner invitation. EXPAND.
+      "20281104000000_account_credential_proof",
+      // BILLING-002, PROV-009: the sales reference on the contract, and the status a withdrawn termination returns to. EXPAND.
+      "20281104000100_enterprise_contract_record",
+      // PROV-017: the two fields the demo form requires, kept with the lead. EXPAND.
+      "20281104000200_demo_request_qualification",
+      // The OIDC client secret, sealed so the code exchange can read it. EXPAND.
+      "20281106000000_sso_client_secret_sealed",
+      // Status components per workspace, the SLA due-soon window, resendable bodies and backup records. EXPAND.
+      "20281107000000_status_components_per_workspace_key",
+      "20281107000100_review_sla_due_soon_window",
+      "20281107000200_communication_body_resendable",
+      "20281107000300_platform_backup_records",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

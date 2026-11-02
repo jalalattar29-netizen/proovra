@@ -30,6 +30,10 @@
  */
 
 import {
+  resolveEmailDeliveryChoice,
+  type NotificationPreferenceType,
+} from "./notification-preferences.service.js";
+import {
   classifyNotificationProviderError,
   NotificationEventType,
   notificationRetryDelaySeconds,
@@ -162,6 +166,19 @@ export function isNotificationsFeatureEnabled(): boolean {
 // Input shapes
 // -----------------------------------------------------------------------------
 
+/** The operational mail a member's preference governs, by category. */
+const EMAIL_EVENT_PREFERENCE: Partial<Record<NotificationEventType, NotificationPreferenceType>> = {
+  REVIEW_REQUEST_ASSIGNED: "REVIEWER_ASSIGNMENT",
+  REVIEW_REASSIGNED: "REVIEWER_ASSIGNMENT",
+  REVIEW_NEEDS_MORE_INFO: "REVIEWER_ASSIGNMENT",
+  REVIEW_RESPONSE_RECEIVED: "REVIEWER_ASSIGNMENT",
+  REVIEW_ESCALATED: "ESCALATION",
+  REVIEW_OVERDUE_REMINDER: "SLA_NEAR_BREACH",
+  REVIEW_DUE_SOON_REMINDER: "SLA_NEAR_BREACH",
+  REVIEW_INACTIVITY_REMINDER: "SLA_NEAR_BREACH",
+  DISCUSSION_MENTION_RECEIVED: "MENTION",
+};
+
 export type SendEmailNotificationInput = {
   eventType: NotificationEventType;
   teamId?: string | null;
@@ -186,6 +203,7 @@ export type NotificationSendResult = {
     | "sent"
     | "skipped_feature_disabled"
     | "skipped_no_recipient"
+    | "skipped_recipient_preference"
     | "failed"
     | "retry_scheduled";
 };
@@ -247,6 +265,38 @@ export async function sendEmailNotification(
       },
     });
     return { delivery, status: "skipped_feature_disabled" };
+  }
+
+  // WORKFLOW-015 — a member's email choice governs this category. Only a member
+  // has one: mail to an outside recipient is not operational mail. The SKIPPED row
+  // keeps the delivery log honest about why nothing was sent.
+  const preferenceType = EMAIL_EVENT_PREFERENCE[input.eventType];
+  if (preferenceType && input.recipientUserId && input.teamId) {
+    const choice = await resolveEmailDeliveryChoice(
+      { userId: input.recipientUserId, teamId: input.teamId, preferenceType },
+      client,
+    );
+    if (choice !== "IMMEDIATE") {
+      const delivery = await client.notificationDelivery.create({
+        data: {
+          teamId: input.teamId,
+          eventType: input.eventType,
+          channel: "EMAIL",
+          provider: "RESEND",
+          recipient: recipientEmail,
+          recipientName: input.recipientName ?? null,
+          recipientUserId: input.recipientUserId,
+          evidenceRequestId: input.evidenceRequestId ?? null,
+          evidenceId: input.evidenceId ?? null,
+          intakeLinkId: input.intakeLinkId ?? null,
+          status: "SKIPPED",
+          templateKey: input.eventType,
+          errorCode: choice === "OFF" ? "recipient_preference_off" : "recipient_preference_digest",
+          initiatedByUserId: input.initiatedByUserId ?? null,
+        },
+      });
+      return { delivery, status: "skipped_recipient_preference" };
+    }
   }
 
   // Render the template before persisting. Rendering is pure — failure

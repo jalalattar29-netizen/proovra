@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { shareFile } from "../../../src/lib/share-file";
+import { exportFileUri, shareFile } from "../../../src/lib/share-file";
 import { CopyButton } from "../../../src/ui/copy-button";
 import { Alert, Pressable, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -335,8 +335,8 @@ export default function CaseDetailScreen() {
     if (!token) { Alert.alert("Not signed in", "Please sign in again."); return; }
     setExporting(true);
     try {
-      const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-      const dest = `${dir}case-${id}.zip`;
+      const dest = await exportFileUri(`case-${id}.zip`);
+      if (!dest) throw new Error("A writable temporary directory is not available on this device.");
       const res = await FileSystem.downloadAsync(`${apiBaseUrl()}/v1/cases/${id}/export`, dest, {
         headers: { Authorization: `Bearer ${token}` },
       });

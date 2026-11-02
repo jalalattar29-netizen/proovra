@@ -30,6 +30,7 @@
  *     Phase 28-A).
  */
 
+import { developmentSurfacesAllowed } from "@proovra/shared-runtime";
 import { decideObjectLockBootstrap, objectLockPostureViolations } from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db.js";
@@ -60,6 +61,7 @@ export type SubsystemId =
    */
   | "job_worker"
   | "metrics"
+  | "dependent_configuration"
   | "sentry"
   | "cron_secrets"
   | "search_indexing"
@@ -130,6 +132,7 @@ const SUBSYSTEM_AFFECTED_DOMAIN: Record<SubsystemId, SubsystemAffectedDomain> = 
   workers: "reviewer_ops",
   job_worker: "core_evidence",
   metrics: "platform_telemetry",
+  dependent_configuration: "platform_telemetry",
   sentry: "platform_telemetry",
   cron_secrets: "platform_telemetry",
   search_indexing: "search_discovery",
@@ -281,6 +284,7 @@ export const TENANT_CAPABILITY_DEPENDENCIES: Readonly<
 export const OPERATOR_ONLY_SUBSYSTEMS: ReadonlySet<SubsystemId> = new Set<SubsystemId>([
   "sentry",
   "metrics",
+  "dependent_configuration",
   "cron_secrets",
   "migrations",
   "media_intelligence",
@@ -1241,15 +1245,98 @@ async function checkJobWorker(): Promise<SubsystemReadiness> {
 
 function checkMetrics(): SubsystemReadiness {
   const hasToken = envPresent("METRICS_SCRAPE_TOKEN");
+  const closedWithoutToken = !developmentSurfacesAllowed();
+  if (!hasToken && closedWithoutToken) {
+    return {
+      id: "metrics",
+      status: "DEGRADED",
+      reasonCode: "token_missing",
+      detail: "Metrics endpoint answers 503 until METRICS_SCRAPE_TOKEN is set, so nothing can scrape it.",
+      remediationHint: "Set METRICS_SCRAPE_TOKEN (16 characters or more) and give Prometheus the same value.",
+      metadata: { tokenGated: false },
+    };
+  }
   return {
     id: "metrics",
     status: "HEALTHY",
-    reasonCode: hasToken ? "token_configured" : "open_endpoint",
+    reasonCode: hasToken ? "token_configured" : "open_development_endpoint",
     detail: hasToken
       ? "Metrics endpoint is token-gated."
-      : "Metrics endpoint is open (network-firewalled).",
+      : "Metrics endpoint is open in this development or test environment.",
     remediationHint: null,
     metadata: { tokenGated: hasToken },
+  };
+}
+
+/**
+ * OPS-012 — a producer in VENDOR_CLOUD runs through the internal extract route,
+ * authorized by INTERNAL_SERVICE_TOKEN. With no token every run failed one at a
+ * time and nothing said why. WORKFLOW-016 — with no callback URL an SMS or
+ * WhatsApp failure reads SENT for good, unless Twilio is configured to call back
+ * by another route, which cannot be seen from here.
+ */
+export function evictionPolicyFromInfo(info: string): string | null {
+  return /^maxmemory_policy:(\S+)/m.exec(info)?.[1] ?? null;
+}
+
+/**
+ * OPS-020 — BullMQ loses jobs under any eviction policy but noeviction. Read from
+ * the server in use, because REDIS_URL decides which that is. A server that does not
+ * report it says nothing here: unknown is not a finding, and the readiness detail
+ * for Redis stays what checkRedis says.
+ */
+async function readRedisEvictionPolicy(): Promise<string | null> {
+  if (!envPresent("REDIS_URL")) return null;
+  let client: import("ioredis").default | null = null;
+  try {
+    const { default: IORedis } = await import("ioredis");
+    client = new IORedis(process.env.REDIS_URL!, {
+      lazyConnect: true,
+      connectTimeout: 500,
+      maxRetriesPerRequest: 0,
+      enableOfflineQueue: false,
+    });
+    client.on("error", () => undefined);
+    await client.connect();
+    return evictionPolicyFromInfo(await client.info("memory"));
+  } catch {
+    return null;
+  } finally {
+    client?.disconnect();
+  }
+}
+
+async function checkDependentConfiguration(): Promise<SubsystemReadiness> {
+  const vendorCloud = ["OCR_PRODUCER_MODE", "TRANSCRIPT_PRODUCER_MODE"].filter(
+    (k) => (process.env[k] ?? "").trim().toUpperCase() === "VENDOR_CLOUD",
+  );
+  const issues: string[] = [];
+  if (vendorCloud.length > 0 && !envPresent("INTERNAL_SERVICE_TOKEN")) {
+    issues.push("vendor_cloud_without_internal_service_token");
+  }
+  if (
+    (process.env.COMMUNICATIONS_ENABLED ?? "").trim() === "true" &&
+    !envPresent("TWILIO_STATUS_CALLBACK_URL")
+  ) {
+    issues.push("twilio_status_callback_not_configured");
+  }
+  const evictionPolicy = await readRedisEvictionPolicy();
+  if (evictionPolicy && evictionPolicy !== "noeviction") {
+    issues.push("redis_eviction_policy_unsafe");
+  }
+  return {
+    id: "dependent_configuration",
+    status: issues.length > 0 ? "DEGRADED" : "HEALTHY",
+    reasonCode: issues[0] ?? "ok",
+    detail:
+      issues.length > 0
+        ? `A configured feature lacks what it depends on: ${issues.join(", ")}.`
+        : "Configured features have what they depend on.",
+    remediationHint:
+      issues.length > 0
+        ? "Set INTERNAL_SERVICE_TOKEN on the API and worker, or leave VENDOR_CLOUD. Set TWILIO_STATUS_CALLBACK_URL to the public status webhook. Set the Redis maxmemory-policy to noeviction."
+        : null,
+    metadata: { issues: issues.join(",") },
   };
 }
 
@@ -1835,6 +1922,7 @@ export async function runReadinessCheck(
     checkWorkers(prisma),
     checkJobWorker(),
     Promise.resolve(checkMetrics()),
+    checkDependentConfiguration(),
     Promise.resolve(checkSentry()),
     Promise.resolve(checkCronSecrets()),
     checkSearchIndexing(prisma),

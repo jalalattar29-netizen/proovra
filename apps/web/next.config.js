@@ -26,6 +26,16 @@ const nextConfig = {
   // files. Moving them here makes routing the source of truth and keeps
   // app/(app)/ clean. End-user behavior is identical (308 permanent
   // redirect to the same destination, queries preserved as-is).
+  // MOBILE-010 — the Apple file has no extension, so it would be served with a
+  // default type, and universal links require application/json. Content type only:
+  // middleware.ts stays the single source of the security headers.
+  async headers() {
+    return ["/.well-known/apple-app-site-association", "/.well-known/assetlinks.json"].map((source) => ({
+      source,
+      headers: [{ key: "Content-Type", value: "application/json" }],
+    }));
+  },
+
   async redirects() {
     return [
       { source: "/dashboard", destination: "/home", permanent: true },

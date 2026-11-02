@@ -73,8 +73,8 @@ type ProvisionProvisionedResult = {
 
 type ProvisionPendingResult = {
   organizationId: string;
-  ownerInviteToken: string;
-  inviteUrl: string;
+  ownerInviteToken: string | null;
+  inviteUrl: string | null;
   /** Macro-Wave A2 — durable email-delivery state of the owner invite
    *  (safe projection: never a token/URL). */
   ownerInviteDelivery?: {
@@ -87,7 +87,9 @@ type ProvisionPendingResult = {
   pendingOwner: true;
 };
 
-type ProvisionResult = ProvisionProvisionedResult | ProvisionPendingResult;
+type ProvisionResult = (ProvisionProvisionedResult | ProvisionPendingResult) & {
+  possibleDuplicateOrganizationIds?: string[];
+};
 
 type GrantPlanResult = {
   organizationId: string;
@@ -145,7 +147,7 @@ function AdminProvisioningInner() {
           <PageHeader
             eyebrow="Platform admin"
             title="Provision enterprise customer"
-            subtitle="Activate an enterprise customer end-to-end — no manual database edits. Create the organization and its enterprise workspace (or invite the owner), then grant the ENTERPRISE plan. Every action requires a fresh step-up approval and is written to the platform audit log."
+            subtitle="Activate an enterprise customer end-to-end — no manual database edits. Create the organization and its contract and invite the owner; the owner's acceptance creates the enterprise workspace. Every action requires a fresh step-up approval and is written to the platform audit log."
           />
         </div>
       }
@@ -160,7 +162,7 @@ function AdminProvisioningInner() {
         <>
           <PageSection
             title="Provision new enterprise customer"
-            description="Stand up a brand-new organization and its enterprise workspace, or invite an owner who doesn't have an account yet."
+            description="Stand up a brand-new organization and invite its owner by email, whether or not they already have an account."
           >
             <ProvisionPanel
               teamId={teamId}
@@ -316,6 +318,7 @@ function ProvisionPanel({
   const idempotencyRef = useRef<{ sig: string; key: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ProvisionResult | null>(null);
+  const [duplicates, setDuplicates] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
 
   const submit = useCallback(async () => {
@@ -334,15 +337,11 @@ function ProvisionPanel({
       return;
     }
 
-    // Optional numeric seats — only send when the operator typed a value.
-    let seatsValue: number | undefined;
-    if (seats.trim().length > 0) {
-      const parsed = Number(seats.trim());
-      if (!Number.isInteger(parsed) || parsed < 1) {
-        setError("Seats must be a whole number of 1 or more.");
-        return;
-      }
-      seatsValue = parsed;
+    // Required: left blank, the contract used to be signed for the catalog's five.
+    const seatsValue = Number(seats.trim());
+    if (seats.trim().length === 0 || !Number.isInteger(seatsValue) || seatsValue < 1) {
+      setError("State the seats sold, as a whole number of 1 or more.");
+      return;
     }
 
     const workspace = workspaceName.trim();
@@ -365,8 +364,8 @@ function ProvisionPanel({
      */
     const ok = await confirm({
       title: "Provision this enterprise customer?",
-      description: `Creates the organization "${name}" on the ENTERPRISE plan${
-        seatsValue !== undefined ? ` with ${seatsValue} seat${seatsValue === 1 ? "" : "s"}` : ""
+      description: `Creates the organization "${name}" on the ENTERPRISE plan with ${seatsValue} seat${
+        seatsValue === 1 ? "" : "s"
       }${workspace ? `, with a workspace named "${workspace}"` : ""}, and invites ${email} as its owner by email. The invitation is external and cannot be recalled; a duplicate submission with the same details is replayed, not repeated.`,
       confirmLabel: "Provision customer",
       tone: "warning",
@@ -386,7 +385,7 @@ function ProvisionPanel({
             teamId,
             organizationName: name,
             ownerEmail: email,
-            ...(seatsValue !== undefined ? { seats: seatsValue } : {}),
+            seats: seatsValue,
             ...(workspace ? { workspaceName: workspace } : {}),
           }),
         })) as ProvisionResult;
@@ -394,10 +393,11 @@ function ProvisionPanel({
       if (isStale(captured)) return;
 
       setResult(res);
+      setDuplicates(res.possibleDuplicateOrganizationIds ?? []);
       if (res.organizationId) onOrganizationProvisioned(res.organizationId);
       addToast(
         isProvisioned(res)
-          ? "Enterprise workspace created."
+          ? "Already provisioned earlier with this owner."
           : "Owner invited — the invitation email is on its way.",
         "success",
       );
@@ -451,10 +451,10 @@ function ProvisionPanel({
       data-section="provision-new-customer"
     >
       <p className="adm-help" style={{ marginTop: 0, marginBottom: 18, maxWidth: 640 }}>
-        Creates the organization. If the owner already has an account, an
-        enterprise workspace is created and they can sign in immediately. If
-        not, the owner is invited — copy the invite URL, and once they accept,
-        return here to grant the plan on the new organization.
+        Creates the organization and its contract, and invites the owner by
+        email, whether or not they already have an account. Accepting the
+        invitation creates the enterprise workspace and activates the contract;
+        nothing else is needed here.
       </p>
 
       <div style={fieldGridStyle}>
@@ -482,7 +482,7 @@ function ProvisionPanel({
         </label>
 
         <label style={labelStyle}>
-          <span>Seats (optional)</span>
+          <span>Seats sold</span>
           <input
             className="adm-input"
             type="number"
@@ -524,11 +524,23 @@ function ProvisionPanel({
         </Card>
       ) : null}
 
+      {duplicates.length > 0 ? (
+        <Card variant="status" tone="risk" padding="compact" data-testid="provision-possible-duplicates">
+          Another customer has this name. Check it is not the same one:{" "}
+          {duplicates.map((orgId) => (
+            <Link key={orgId} href={`/admin/customers/${orgId}`} className="adm-mono" style={{ marginRight: 8 }}>
+              {orgId.slice(0, 8)}
+            </Link>
+          ))}
+        </Card>
+      ) : null}
+
       {result ? (
         isProvisioned(result) ? (
           <Card variant="status" tone="verified" padding="compact" data-testid="provision-success-created">
-            <strong>Enterprise workspace created.</strong> The owner{" "}
-            <span className="adm-mono">{ownerEmail.trim()}</span> can sign in now.
+            <strong>This customer was provisioned earlier.</strong> The
+            organization and workspace below already exist, with{" "}
+            <span className="adm-mono">{ownerEmail.trim()}</span> as owner.
             <div className="adm-help" style={{ marginTop: 8 }}>
               Organization id:{" "}
               <span className="adm-mono">{result.organizationId}</span>
@@ -546,11 +558,10 @@ function ProvisionPanel({
               ? "The invitation email was sent to the owner automatically."
               : result.ownerInviteDelivery?.status === "FAILED"
                 ? "The invitation email could not be sent — share the invite URL below with the owner directly."
-                : "The invitation email is queued for delivery — you can also share the invite URL below directly."}{" "}
-            After they accept, come back and use “Grant enterprise to an
-            existing organization” below with organization id{" "}
-            <span className="adm-mono">{result.organizationId}</span> to activate
-            the plan.
+                : "The invitation email is queued for delivery. A later retry replaces this link, so copy it only if you are sending it now."}{" "}
+            When they accept, the enterprise workspace is created and the
+            contract activates, with nothing more to do here. Organization id:{" "}
+            <span className="adm-mono">{result.organizationId}</span>.
             {result.ownerInviteDelivery ? (
               <div
                 data-testid="provision-invite-delivery"
@@ -560,32 +571,41 @@ function ProvisionPanel({
                 Email delivery: {result.ownerInviteDelivery.status.toLowerCase()}
               </div>
             ) : null}
-            <div
-              style={{
-                marginTop: 10,
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <input
-                readOnly
-                className="adm-input" style={{ maxWidth: 480 }}
-                value={absoluteInviteUrl(result.inviteUrl)}
-                data-testid="provision-invite-url"
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  copyInvite(absoluteInviteUrl(result.inviteUrl))
-                }
-                data-testid="provision-invite-copy"
+            {result.inviteUrl ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
               >
-                {copied ? "Copied" : "Copy invite URL"}
-              </Button>
-            </div>
+                <input
+                  readOnly
+                  className="adm-input" style={{ maxWidth: 480 }}
+                  value={absoluteInviteUrl(result.inviteUrl)}
+                  data-testid="provision-invite-url"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    const url = result.inviteUrl;
+                    if (url) void copyInvite(absoluteInviteUrl(url));
+                  }}
+                  data-testid="provision-invite-copy"
+                >
+                  {copied ? "Copied" : "Copy invite URL"}
+                </Button>
+              </div>
+            ) : (
+              <div className="adm-help" style={{ marginTop: 8 }} data-testid="provision-invite-url-redacted">
+                This request was already processed. The invite link is shown
+                only once; reissue the invitation from the customer page if the
+                owner needs a new one.
+              </div>
+            )}
           </Card>
         )
       ) : null}

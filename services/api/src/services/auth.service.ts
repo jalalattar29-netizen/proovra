@@ -34,6 +34,8 @@ type AuthProfile = {
   provider: prismaPkg.AuthProvider;
   providerUserId: string;
   email?: string | null;
+  /** IDENT-022 — false when the provider did not vouch for the address. */
+  emailVerified?: boolean;
   displayName?: string | null;
   /** Canonical profile picture URL from the identity provider.
       Google exposes it via the `picture` id_token claim. Apple does
@@ -88,7 +90,7 @@ function parseJwt(token: string) {
     email?: string;
     name?: string;
     /** Google-only OIDC claim carrying the user's profile picture URL. */
-    picture?: string;
+    picture?: string; email_verified?: boolean | string;
   };
   return { header, payload, signatureB64, signingInput: `${headerB64}.${payloadB64}` };
 }
@@ -140,6 +142,15 @@ function assertNotExpired(payloadExp: number | undefined) {
   if (Date.now() / 1000 >= payloadExp) throw new Error("Token expired");
 }
 
+/**
+ * IDENT-022 — whether the provider vouches for the address. Apple sends the
+ * string "true". Anything else is not a voucher, so the address gets no verified
+ * stamp and no claim on a historical guest row.
+ */
+function emailVerifiedClaim(claim: unknown): boolean {
+  return claim === true || claim === "true";
+}
+
 export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile> {
   if (!googleJwksCache) {
     googleJwksCache = await fetchJwks("https://www.googleapis.com/oauth2/v3/certs");
@@ -161,6 +172,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
     provider: prismaPkg.AuthProvider.GOOGLE,
     providerUserId: String(payload.sub),
     email: payload.email ? String(payload.email) : null,
+    emailVerified: emailVerifiedClaim(payload.email_verified),
     displayName: payload.name ? String(payload.name) : null,
     avatarUrl: payload.picture ? String(payload.picture) : null,
   };
@@ -259,6 +271,7 @@ export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> 
     provider: prismaPkg.AuthProvider.APPLE,
     providerUserId: String(payload.sub),
     email: payload.email ? String(payload.email) : null,
+    emailVerified: emailVerifiedClaim(payload.email_verified),
     displayName: payload.name ? String(payload.name) : null,
     // Apple id_token does not include a picture claim. Users can upload
     // a custom avatar later (populates the same User.avatarUrl column).
@@ -412,6 +425,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
   const isOAuthProvider =
     profile.provider === prismaPkg.AuthProvider.GOOGLE ||
     profile.provider === prismaPkg.AuthProvider.APPLE;
+  const providerVouchesForEmail = isOAuthProvider && profile.emailVerified !== false;
   const now = new Date();
 
   // HISTORICAL DATA MIGRATION (§7-permitted, non-interactive): Guest Login is
@@ -421,7 +435,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
   // identity, preserving its Evidence ownership/custody. This never
   // authenticates a guest — the resulting session is OAuth. When no historical
   // guest row exists (the common case) this is a no-op.
-  if (!user && profile.email) {
+  if (!user && profile.email && providerVouchesForEmail) {
     const legacyGuestRow = await prisma.user.findFirst({
       where: { email: profile.email, provider: prismaPkg.AuthProvider.GUEST },
     });
@@ -439,7 +453,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
           ...(profile.avatarUrl && !legacyGuestRow.avatarUrl
             ? { avatarUrl: profile.avatarUrl }
             : {}),
-          ...(isOAuthProvider && !legacyGuestRow.emailVerifiedAt
+          ...(providerVouchesForEmail && !legacyGuestRow.emailVerifiedAt
             ? { emailVerifiedAt: now }
             : {}),
         },
@@ -457,7 +471,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         // Provider-supplied avatar (Google `picture` claim, Apple none).
         // Custom uploads (future) overwrite this on the profile page.
         avatarUrl: profile.avatarUrl ?? null,
-        ...(isOAuthProvider ? { emailVerifiedAt: now } : {}),
+        ...(providerVouchesForEmail ? { emailVerifiedAt: now } : {}),
       },
     });
   } else {
@@ -472,7 +486,7 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
         // the original audit point), and never applied for non-OAuth
         // providers. Kept ahead of the avatar backfill so the OAuth
         // verification guard is the first conditional in the payload.
-        ...(isOAuthProvider && !user.emailVerifiedAt
+        ...(providerVouchesForEmail && !user.emailVerifiedAt
           ? { emailVerifiedAt: now }
           : {}),
         // Backfill avatarUrl on repeat sign-in ONLY when the row has

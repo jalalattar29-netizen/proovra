@@ -84,19 +84,17 @@ function isAllowedHost(host: string): boolean {
 }
 
 function isSameOrSafeOrigin(req: Request): boolean {
-  const host = req.headers.get("host")?.toLowerCase() ?? "";
-  if (host && isAllowedHost(host.replace(/:\d+$/, ""))) return true;
-
+  // PROV-022 — the Host header names this site on every request it receives, so
+  // reading it first meant nothing was ever refused. A browser states where a
+  // submission came from; that statement is the one to check.
   const origin = hostFromHeader(req.headers.get("origin"));
-  if (origin && isAllowedHost(origin.replace(/:\d+$/, ""))) return true;
+  if (origin) return isAllowedHost(origin.replace(/:\d+$/, ""));
 
   const referer = hostFromHeader(req.headers.get("referer"));
-  if (referer && isAllowedHost(referer.replace(/:\d+$/, ""))) return true;
+  if (referer) return isAllowedHost(referer.replace(/:\d+$/, ""));
 
-  // No host header at all → likely an internal/server-to-server probe. Allow.
-  if (!host && !origin && !referer) return true;
-
-  return false;
+  // Neither header: not a browser form post. The API's rate limit is the bound.
+  return true;
 }
 
 function rateLimitKey(intent: LeadIntent, ip: string): string {
@@ -273,7 +271,21 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
   };
 
   if (!upstreamConfigured) {
-    // Local/dev or unconfigured prod: log + return success.
+    // PROV-017 — in production there is nowhere for this lead to go, so saying
+    // "received" would lose it silently. Local development keeps the success.
+    if (process.env.NODE_ENV === "production") {
+      logLead({
+        intent: config.intent,
+        sourcePage: config.sourcePage,
+        payload: upstreamPayload,
+        ip,
+        userAgent,
+        referer,
+        upstreamStatus: "skipped",
+        upstreamMessage: "upstream API base not configured",
+      });
+      return jsonError("We couldn't send this just now. Please try again shortly.", 503);
+    }
     logLead({
       intent: config.intent,
       sourcePage: config.sourcePage,
@@ -412,10 +424,10 @@ export async function handleLeadSubmission<TInput extends Record<string, unknown
       upstreamStatus: upstream.status,
     });
 
+    // Not the upstream body: its priority and spam state are the operator's, and
+    // the visitor learns nothing from them that a bot could use.
     return NextResponse.json(
-      parsedUpstream && typeof parsedUpstream === "object"
-        ? { ok: true, message: config.successMessage, ...parsedUpstream }
-        : { ok: true, message: config.successMessage },
+      { ok: true, message: config.successMessage },
       { status: 200 }
     );
   } catch (err) {
