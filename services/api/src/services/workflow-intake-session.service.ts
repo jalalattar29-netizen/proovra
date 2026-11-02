@@ -45,6 +45,7 @@ import {
 
 import { stripControlAndInvisible } from "../lib/text-sanitize.js";
 import { prisma as defaultPrisma } from "../db.js";
+import { isLiveOperatingWorkspace } from "./workspace/operating-workspace.js";
 import {
   constantTimeEqualHex,
   hmacForIntake,
@@ -74,6 +75,8 @@ export type WorkflowIntakeSessionErrorCode =
   // AUD-36 (2026-10-20) — every remaining use is held by a submission still in
   // progress; a new session cannot open another record on this link now.
   | "link_in_use"
+  // PROV-007 — the link is fine; its organization is suspended, or closed.
+  | "workspace_not_operating"
   | "session_not_found"
   | "session_link_mismatch"
   | "session_expired"
@@ -148,6 +151,19 @@ export async function validateIntakeToken(
       throw new WorkflowIntakeSessionError("link_already_submitted");
     }
     throw new WorkflowIntakeSessionError("link_exhausted");
+  }
+
+  /*
+   * PROV-007 — SUSPENSION IS A MASTER HALT, AND THIS PATH HAS NO MEMBER TO HALT.
+   *
+   * An anonymous contributor holds a token, so nothing here consulted the
+   * organization: a suspended tenant kept taking evidence, signing it and
+   * spending storage, TSA and OTS. Every public intake call passes through this
+   * function, so a session issued before the suspension stops on its next call
+   * too. Last in the order, so a submitted link keeps its read-only page.
+   */
+  if (!(await isLiveOperatingWorkspace(link.teamId, client))) {
+    throw new WorkflowIntakeSessionError("workspace_not_operating");
   }
 
   return { link, reason: "ok" };

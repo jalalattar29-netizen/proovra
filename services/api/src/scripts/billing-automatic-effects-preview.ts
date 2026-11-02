@@ -223,6 +223,24 @@ async function main(): Promise<number> {
     });
   }
 
+  // ---- 3b. Enterprise contracts past their stated end ----------------------
+  // Not a sweep: a date on an ACTIVE contract is honoured the moment the switch
+  // is on, by `contractTermHasEnded`, and these are the customers it reaches.
+  const contractsPastTerm = await prisma.enterpriseContract.findMany({
+    where: { status: "ACTIVE", endsAtUtc: { lte: now } },
+    select: { organizationId: true, endsAtUtc: true },
+  });
+  for (const contract of contractsPastTerm) {
+    emit({
+      action: "END_ENTERPRISE_CONTRACT_AT_TERM",
+      provider: "CONTRACT",
+      effectiveMonth: month(contract.endsAtUtc),
+      organizationId: contract.organizationId,
+      endedAtUtc: contract.endsAtUtc?.toISOString() ?? null,
+      held: !automaticPlanLoweringEnabled(),
+    });
+  }
+
   // ---- 4. Plans the sweep would lower --------------------------------------
   const withProviderReads = process.argv.includes("--with-provider-reads");
   let providerUnanswered = 0;

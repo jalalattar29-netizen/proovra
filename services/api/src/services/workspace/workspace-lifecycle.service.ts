@@ -40,13 +40,17 @@
  * (AUD-04), through the notification outbox.
  */
 
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { resolveWorkspaceKind } from "../identity/workspace-kind.js";
+import { claimWorkspaceSeatTx } from "../billing/workspace-seats.service.js";
 // PHASE 3 orchestrator — the only sanctioned membership mutation surface.
 import {
   massReactivateSuspendedWorkspaceMemberships,
   massSuspendWorkspaceMemberships,
+  provisionMembership,
   reopenWorkspaceOwnerMembership,
   transferWorkspaceOwnerRoles,
   type TxClient,
@@ -427,6 +431,84 @@ export async function suspendOrganizationWorkspace(input: {
   });
 
   return result;
+}
+
+export class OrganizationOwnershipTransferError extends Error {
+  readonly code = "WORKSPACE_SEAT_LIMIT_REACHED";
+  constructor(readonly workspaceId: string) {
+    super("A workspace has no free seat for the new owner's predecessor");
+    this.name = "OrganizationOwnershipTransferError";
+  }
+}
+
+/**
+ * PROV-011 — the workspace leg of an organization ownership transfer.
+ *
+ * A workspace of an organization is governed at the organization level, so
+ * `transferWorkspaceOwnership` refuses it, and the organization transfer did not
+ * do it either. The new owner held the title and none of the workspace authority
+ * that goes with it, and the former owner could leave a workspace with no owner.
+ *
+ * Runs in the caller's transaction, so ownership moves as one: the new owner
+ * joins each workspace they are not yet in, and the OWNER role, `Team.ownerUserId`
+ * and `Team.billingOwnerUserId` follow. The outgoing owner stays as an ADMIN, so
+ * they now occupy a seat; a successor who was already a member gives theirs up,
+ * and one who was not takes a claim, and a full workspace refuses the transfer.
+ */
+export async function transferOrganizationWorkspaceOwnersTx(
+  tx: Prisma.TransactionClient,
+  input: { organizationId: string; fromUserId: string; toUserId: string; actorUserId: string },
+): Promise<{ workspaceIds: string[] }> {
+  const owned = await tx.team.findMany({
+    where: {
+      organizationId: input.organizationId,
+      isPersonal: false,
+      closedAtUtc: null,
+      ownerUserId: input.fromUserId,
+    },
+    select: { id: true, billingOwnerUserId: true },
+    orderBy: { id: "asc" },
+  });
+  for (const team of owned) {
+    const held = await tx.teamMember.findUnique({
+      where: { teamId_userId: { teamId: team.id, userId: input.toUserId } },
+      select: { status: true },
+    });
+    if (held?.status !== "ACTIVE") {
+      if (held?.status === "SUSPENDED") throw new OrganizationOwnershipTransferError(team.id);
+      const claim = await claimWorkspaceSeatTx(tx as never, {
+        workspaceId: team.id,
+        userId: input.toUserId,
+      });
+      if (claim.outcome === "REFUSED") throw new OrganizationOwnershipTransferError(team.id);
+      await provisionMembership(tx as never, {
+        intent: "ADMIN_ASSIGNMENT",
+        source: "MANUAL",
+        userId: input.toUserId,
+        workspace: { teamId: team.id, role: "MEMBER" },
+        actorUserId: input.actorUserId,
+        accessReason: "organization ownership transfer",
+        seatClaim: claim,
+      });
+    }
+    const roles = await transferWorkspaceOwnerRoles(tx as never, {
+      teamId: team.id,
+      fromUserId: input.fromUserId,
+      toUserId: input.toUserId,
+      actorUserId: input.actorUserId,
+    });
+    if (!roles.ok) throw new OrganizationOwnershipTransferError(team.id);
+    await tx.team.update({
+      where: { id: team.id },
+      data: {
+        ownerUserId: input.toUserId,
+        ...(team.billingOwnerUserId === input.fromUserId
+          ? { billingOwnerUserId: input.toUserId }
+          : {}),
+      },
+    });
+  }
+  return { workspaceIds: owned.map((team) => team.id) };
 }
 
 /**

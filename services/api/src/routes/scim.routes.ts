@@ -275,6 +275,13 @@ export async function scimRoutes(app: FastifyInstance) {
         }
       } else if (plan.active === true) {
         const result = await scimReactivateUser(ctx, id);
+        if (result.seatRefused) {
+          const status = result.seatRefused === "seat_contention" ? 503 : 409;
+          return reply
+            .type("application/scim+json")
+            .code(status)
+            .send(scimError(status, result.seatRefused));
+        }
         if (!result.ok) {
           return reply
             .type("application/scim+json")

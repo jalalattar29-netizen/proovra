@@ -1155,6 +1155,12 @@ model User {
   passwordHash                  String?                        @map("password_hash")
   timezone                      String?                        @db.VarChar(64)
   emailVerifiedAt               DateTime?                      @map("email_verified_at") @db.Timestamptz(6)
+  /// When mailbox control and this password were last proven TOGETHER: the
+  /// emailed verification link answered with the password, or a password set
+  /// from an emailed reset link. NULL on a password that predates this column
+  /// or was only ever typed at registration, which proves nobody's mailbox.
+  /// PROV-001: first ownership of a customer organization requires it.
+  credentialProvenAtUtc           DateTime?                      @map("credential_proven_at_utc") @db.Timestamptz(6)
   organizationVerificationState OrganizationVerificationState? @map("organization_verification_state")
   currentWorkspaceId            String?                        @map("current_workspace_id") @db.Uuid
 
@@ -2312,8 +2318,14 @@ model EnterpriseContract {
   billingCustomerRef      String?                  @map("billing_customer_ref") @db.VarChar(200)
   billingSubscriptionRef  String?                  @map("billing_subscription_ref") @db.VarChar(200)
   contractOwnerUserId     String?                  @map("contract_owner_user_id") @db.Uuid
+  /// The sales or CRM reference this contract was signed under. Written at
+  /// provisioning and by the operator contract writer.
+  externalContractRef     String?                  @map("external_contract_ref") @db.VarChar(200)
   terminatedAtUtc         DateTime?                @map("terminated_at_utc") @db.Timestamptz(6)
   terminationReason       String?                  @map("termination_reason") @db.VarChar(400)
+  /// What the contract was when a termination began, so that withdrawing the
+  /// termination returns it there. NULL when no termination is open.
+  statusBeforeTermination EnterpriseContractStatus? @map("status_before_termination")
   createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -3249,6 +3261,9 @@ model DemoRequest {
   jobTitle     String? @map("job_title") @db.VarChar(120)
   country      String? @db.VarChar(120)
   teamSize     String? @map("team_size") @db.VarChar(64)
+  /// PROV-017 — the two fields the form requires, kept with the lead.
+  primaryInterest  String? @map("primary_interest") @db.VarChar(64)
+  organizationType String? @map("organization_type") @db.VarChar(64)
   useCase      String  @map("use_case")
   message      String?
 
@@ -11825,6 +11840,9 @@ model Organization {
   /// NULL means "no pending enterprise provisioning" (the default for
   /// every existing and non-enterprise org).
   pendingEnterpriseSeats Int?                           @map("pending_enterprise_seats")
+  /// PROV-001 — the workspace name the operator asked for, held with the seat
+  /// count until the invited owner accepts and the workspace is created.
+  pendingEnterpriseWorkspaceName String?                  @map("pending_enterprise_workspace_name") @db.VarChar(120)
   /// Verification state — mirrors the Team-level field so the
   /// future Stage 5 cutover has a place to land.
   verificationState      OrganizationVerificationState? @map("verification_state")

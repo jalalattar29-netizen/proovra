@@ -68,6 +68,7 @@ import { policyRequiresSso } from "../identity/org-security-policy.service.js";
 import { evaluateExistingAccountLink } from "../security/enterprise-account-linking.service.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import { provisionMembership } from "../identity/membership-provisioning.service.js";
+import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -94,6 +95,9 @@ export class SsoServiceError extends Error {
       | "SSO_CODE_EXCHANGE_FAILED"
       | "SSO_EMAIL_DOMAIN_NOT_ALLOWED"
       | "SSO_JIT_DISABLED"
+      // IDENT-005 — the workspace has no free contracted seat for a new subject.
+      | "SSO_SEAT_LIMIT_REACHED"
+      | "SSO_SEAT_CONTENTION"
       | "SSO_OIDC_USERINFO_INVALID"
       // Phase 3 — Enterprise Identity login-policy denials.
       | "SSO_NOT_ENTERPRISE"
@@ -1298,55 +1302,92 @@ export async function handleOidcCallback(
           reason: link.reason,
         });
       }
-      userId = existingUser.id;
-    } else {
-      // SSO-provisioned users are tagged as EMAIL provider; their IdP
-      // linkage is captured by the ExternalIdentityMapping row below.
-      const created = await client.user.create({
-        data: {
-          email: userinfo.email.toLowerCase(),
-          provider: "EMAIL",
-// Members audit DOM-13 — a subject is unique within its Organization, so the
-          // synthetic provider id carries the Organization (two Organizations may
-          // push the same subject without colliding).
-          providerUserId: `sso-${conn.organizationId}:${userinfo.sub}`,
-        },
-        select: { id: true },
-      });
-      userId = created.id;
-      isNewlyProvisioned = true;
     }
 
-    // Link the external identity mapping.
-    await client.externalIdentityMapping.create({
-      data: {
-        teamId: conn.teamId,
-        organizationId: conn.organizationId,
-        userId,
-        provider: conn.provider,
-        externalSubjectId: userinfo.sub,
-        displayName: userinfo.name ?? null,
-        externalEmail: userinfo.email,
-      },
-    });
+    const jitEmail = userinfo.email;
+    const jitSubject = userinfo.sub;
+    /**
+     * ONE OUTCOME (IDENT-005). The user, the identity mapping and the membership
+     * were three separate writes with no seat check, so a full workspace gained
+     * an ACTIVE member and a failure left a half-built identity. They now share
+     * one transaction under the seat authority: a refused seat leaves nothing,
+     * and the JIT retry cannot take a second seat.
+     */
+    try {
+      const provisioned = await withSeatClaimRetry(() =>
+        client.$transaction(async (tx) => {
+          // SSO-provisioned users are tagged as EMAIL provider; their IdP
+          // linkage is captured by the ExternalIdentityMapping row below.
+          const jitUserId =
+            existingUser?.id ??
+            (
+              await tx.user.create({
+                data: {
+                  email: jitEmail.toLowerCase(),
+                  provider: "EMAIL",
+                  // Members audit DOM-13 — a subject is unique within its
+                  // Organization, so the synthetic provider id carries the
+                  // Organization (two Organizations may push the same subject
+                  // without colliding).
+                  providerUserId: `sso-${conn.organizationId}:${jitSubject}`,
+                },
+                select: { id: true },
+              })
+            ).id;
 
-    // PHASE 3 (2026-07-21) — canonical orchestrator: SSO_JIT intent.
-    // `preserveExistingStatus` keeps the pre-existing behavior that a login
-    // NEVER silently reactivates a SUSPENDED/REVOKED member; the JIT grant
-    // is recorded as an SSO_JIT-source provenance row either way.
-    await provisionMembership(client, {
-      intent: "SSO_JIT",
-      source: "SSO_JIT",
-      userId,
-      workspace: {
-        teamId: conn.teamId,
-        role: role === "VIEWER" ? "VIEWER" : "MEMBER",
-      },
-      actorUserId: conn.createdByUserId ?? null,
-      externalRef: `sso:${conn.provider}:${conn.id}`,
-      accessReason: `SSO JIT (${conn.provider})`,
-      preserveExistingStatus: true,
-    });
+          // Link the external identity mapping.
+          await tx.externalIdentityMapping.create({
+            data: {
+              teamId: conn.teamId,
+              organizationId: conn.organizationId,
+              userId: jitUserId,
+              provider: conn.provider,
+              externalSubjectId: jitSubject,
+              displayName: userinfo.name ?? null,
+              externalEmail: jitEmail,
+            },
+          });
+
+          // PHASE 3 (2026-07-21) — canonical orchestrator: SSO_JIT intent.
+          // `preserveExistingStatus` keeps the pre-existing behavior that a login
+          // NEVER silently reactivates a SUSPENDED/REVOKED member; the JIT grant
+          // is recorded as an SSO_JIT-source provenance row either way.
+          await provisionMembership(tx as never, {
+            intent: "SSO_JIT",
+            source: "SSO_JIT",
+            userId: jitUserId,
+            workspace: {
+              teamId: conn.teamId,
+              role: role === "VIEWER" ? "VIEWER" : "MEMBER",
+            },
+            actorUserId: conn.createdByUserId ?? null,
+            externalRef: `sso:${conn.provider}:${conn.id}`,
+            accessReason: `SSO JIT (${conn.provider})`,
+            preserveExistingStatus: true,
+          });
+          return jitUserId;
+        }),
+      );
+      userId = provisioned;
+      isNewlyProvisioned = !existingUser;
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === "MANAGED_SEAT_LIMIT_REACHED" || code === "WORKSPACE_SEAT_CONTENTION") {
+        const reason = code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "seat_contention";
+        bump("sso_jit_denied_total");
+        safeEmitSecurityEvent({
+          teamId: conn.teamId,
+          eventType: "sso_jit_denied",
+          severity: "WARNING",
+          details: { connectionId: conn.id, reason },
+        });
+        throw new SsoServiceError(
+          code === "MANAGED_SEAT_LIMIT_REACHED" ? "SSO_SEAT_LIMIT_REACHED" : "SSO_SEAT_CONTENTION",
+          { reason },
+        );
+      }
+      throw err;
+    }
 
     bump("sso_jit_provisioned_total");
     safeEmitSecurityEvent({

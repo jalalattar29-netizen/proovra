@@ -59,6 +59,10 @@ const load = (): Promise<Mod> => import(`file://${MODULE_PATH}`) as Promise<Mod>
  * exercises the real probe strings, so a probe that looks for the wrong object
  * fails here instead of passing against a fixture keyed to its own name.
  */
+/** Every column the commercial remediation migrations add. */
+const COMMERCIAL_REMEDIATION_COLUMNS =
+  /'credential_proven_at_utc'|'pending_enterprise_workspace_name'|'external_contract_ref'|'status_before_termination'|'primary_interest'|'organization_type'/;
+
 function databaseWith(present: {
   reconciliationEnumValue?: boolean;
   incidentScopeType?: boolean;
@@ -98,8 +102,13 @@ function databaseWith(present: {
   billingDecisions?: boolean;
   // 20281101000000 — Stripe customer per recurring currency.
   customerCurrency?: boolean;
+  // 20281104000000 onward — the commercial remediation columns.
+  commercialRemediation?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
+    if (COMMERCIAL_REMEDIATION_COLUMNS.test(sql)) {
+      return present.commercialRemediation === true;
+    }
     if (/table_name = 'billing_provider_customers'\s+AND column_name = 'currency'/.test(sql)) {
       return present.customerCurrency === true;
     }
@@ -287,6 +296,7 @@ const STEP_UP_APPLIED: StepUpState = {
 };
 
 const FULLY_MIGRATED = {
+  commercialRemediation: true,
   billingRemediation: true,
   billingDecisions: true,
   customerCurrency: true,
@@ -656,6 +666,18 @@ describe("runtime schema requirements — billing remediation (20281030000000)",
       "subscriptions.provider_schedule_id",
     ]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281030000000_billing_remediation_convergence");
+  });
+});
+
+describe("runtime schema requirements — account credential proof (20281104000000)", () => {
+  it("an image that maps the columns is refused on a database without them", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, commercialRemediation: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(
+      expect.arrayContaining(["users.credential_proven_at_utc", "organizations.pending_enterprise_workspace_name"]),
+    );
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281104000000_account_credential_proof");
   });
 });
 

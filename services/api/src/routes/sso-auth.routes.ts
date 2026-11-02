@@ -70,6 +70,7 @@ import { organizationIdForPolicy } from "../services/identity/org-security-polic
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
 import { resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
 import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
+import { withSeatClaimRetry } from "../services/billing/workspace-seats.service.js";
 import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 // PHASE 11 — canonical safe-destination helper + internal URL builder.
 // Used ONLY to validate/compose the post-login destination string; the
@@ -762,7 +763,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             oidcPolicy.policy.managedIdentityRequired
           ) {
             try {
-              await prisma.$transaction((tx) =>
+              await withSeatClaimRetry(() => prisma.$transaction((tx) =>
                 provisionManagedMembership(tx, {
                   userId: result.user.id,
                   managingTeamId: result.teamId,
@@ -777,13 +778,17 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
                   seatPolicy: "ENFORCE",
                   seatTeamId: result.teamId,
                 }),
-              );
+              ));
             } catch (e) {
               await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
               const code = (e as { code?: string })?.code;
               return bounceToAuthError(
                 reply,
-                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
+                code === "MANAGED_SEAT_LIMIT_REACHED"
+                  ? "seat_limit_reached"
+                  : code === "WORKSPACE_SEAT_CONTENTION"
+                    ? "seat_contention"
+                    : "managed_identity_conflict",
               );
             }
           }
@@ -831,7 +836,11 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         if (err instanceof SsoServiceError) {
           return bounceToAuthError(
             reply,
-            err.code.toLowerCase(),
+            err.code === "SSO_SEAT_LIMIT_REACHED"
+              ? "seat_limit_reached"
+              : err.code === "SSO_SEAT_CONTENTION"
+                ? "seat_contention"
+                : err.code.toLowerCase(),
             attempt.redirectAfter,
           );
         }

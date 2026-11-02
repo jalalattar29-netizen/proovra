@@ -21,7 +21,9 @@
  *     credits do not — credits never grant collaboration);
  *   * does an ACTIVE Enterprise contract state a seat count that bounds the
  *     workspace as a whole? Only then is there a ceiling (`limit`), and the
- *     owner is not counted against it either.
+ *     owner is not counted against it either. An Enterprise contract that is
+ *     absent, not ACTIVE, or ACTIVE with no positive seat count admits nobody
+ *     new. Zero is not "unlimited", and neither is silence (BILLING-011).
  *
  * =============================================================================
  * WHAT IS COUNTED
@@ -173,6 +175,147 @@ export async function resolveWorkspaceSeatState(
     source: ceiling.source,
     contractLimits,
   };
+}
+
+// =============================================================================
+// THE SEAT CLAIM — the one way a person starts occupying a seat
+// =============================================================================
+
+/**
+ * The seat lock could not be taken. Nothing has been refused: the transaction
+ * rolls back and `withSeatClaimRetry` runs it again. If contention outlasts the
+ * retry this reaches the caller as retryable, never as "the workspace is full".
+ */
+export class WorkspaceSeatContendedError extends Error {
+  readonly code = "WORKSPACE_SEAT_CONTENTION";
+  readonly statusCode = 409;
+  constructor() {
+    super("Too many people are joining this workspace at once. Try again in a moment.");
+    this.name = "WorkspaceSeatContendedError";
+  }
+}
+
+const SEAT_CLAIM_ATTEMPTS = 25;
+
+/**
+ * Run a whole transaction, again, for as long as it loses the seat lock.
+ *
+ * The retry has to sit outside the transaction. Inside one, the work already
+ * done (a user row, an identity mapping, a claimed invitation) would commit on
+ * the way out if the callback returned, and only a throw rolls it back. The
+ * jitter matters: without it a burst re-collides on the same schedule.
+ */
+export async function withSeatClaimRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < SEAT_CLAIM_ATTEMPTS; attempt += 1) {
+    try {
+      return await run();
+    } catch (err) {
+      if (!(err instanceof WorkspaceSeatContendedError)) throw err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 40 + Math.floor(Math.random() * 120)));
+  }
+  throw new WorkspaceSeatContendedError();
+}
+
+/**
+ * Take the seat lock of several workspaces, in one global order so two
+ * acceptances taking the same pair cannot deadlock. TRY, never wait: a blocking
+ * lock parks a pooled connection for its whole wait, so a burst empties the pool
+ * doing nothing. Must run on a transaction client; the lock lasts until commit.
+ */
+export async function lockWorkspaceSeatsTx(
+  tx: PrismaClient,
+  workspaceIds: ReadonlyArray<string>,
+): Promise<void> {
+  for (const workspaceId of Array.from(new Set(workspaceIds)).sort()) {
+    const [{ locked }] = await tx.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`})) AS locked
+    `;
+    if (!locked) throw new WorkspaceSeatContendedError();
+  }
+}
+
+/**
+ * A single administrator's act may wait for the lock, but never without bound:
+ * past five seconds it is refused as contention rather than holding a connection.
+ */
+async function waitForWorkspaceSeatLockTx(tx: PrismaClient, workspaceId: string): Promise<void> {
+  await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`}))`;
+  } catch (err) {
+    const pgCode = (err as { meta?: { code?: string } })?.meta?.code;
+    if (pgCode === "55P03" || /lock timeout/i.test(String((err as Error)?.message))) {
+      throw new WorkspaceSeatContendedError();
+    }
+    throw err;
+  }
+  await tx.$executeRaw`SET LOCAL lock_timeout = 0`;
+}
+
+export type WorkspaceSeatRefusal =
+  | "enterprise_contract_required"
+  | "workspace_members_not_included"
+  | "workspace_seat_limit_reached";
+
+export type WorkspaceSeatClaim =
+  /** The workspace owner: never counted, never refused. */
+  | { outcome: "OWNER" }
+  /** Already an ACTIVE member. Repeating a grant consumes nothing. */
+  | { outcome: "HELD" }
+  /** A seat is free and this transaction may now write the ACTIVE row. */
+  | { outcome: "CLAIMED"; seats: WorkspaceSeatState }
+  | { outcome: "REFUSED"; reason: WorkspaceSeatRefusal; seats: WorkspaceSeatState };
+
+function refusalFor(seats: WorkspaceSeatState): WorkspaceSeatRefusal {
+  if (!seats.featureIncluded) {
+    return seats.plan === "ENTERPRISE"
+      ? "enterprise_contract_required"
+      : "workspace_members_not_included";
+  }
+  return "workspace_seat_limit_reached";
+}
+
+/**
+ * THE seat claim. Invitation acceptance (workspace and organization), SSO and
+ * SAML JIT, SCIM create, reactivation and group projection, and an
+ * administrator's reinstatement all pass through here, under one lock, so they
+ * serialise against each other rather than only against themselves.
+ *
+ * There is no seat counter to keep in step. `used` is counted from the ACTIVE
+ * rows on `tx` under the lock, so a suspension, removal or departure frees a
+ * seat by being what it is, and a retry cannot take a second one: a repeat
+ * answers HELD. Suspended and revoked members hold nothing; an account's own
+ * closure ends its memberships, so a closed person cannot hold a seat either.
+ *
+ * The answer is good only until this transaction ends, and the caller writes
+ * the ACTIVE row in that same transaction.
+ */
+export async function claimWorkspaceSeatTx(
+  tx: PrismaClient,
+  input: { workspaceId: string; userId: string; wait?: "TRY" | "BOUNDED" },
+): Promise<WorkspaceSeatClaim> {
+  const workspace = await tx.team.findUnique({
+    where: { id: input.workspaceId },
+    select: { ownerUserId: true },
+  });
+  if (workspace?.ownerUserId === input.userId) return { outcome: "OWNER" };
+
+  if (input.wait === "BOUNDED") await waitForWorkspaceSeatLockTx(tx, input.workspaceId);
+  else await lockWorkspaceSeatsTx(tx, [input.workspaceId]);
+
+  // Read under the lock: a member who became ACTIVE while this waited holds a seat.
+  const membership = await tx.teamMember.findUnique({
+    where: { teamId_userId: { teamId: input.workspaceId, userId: input.userId } },
+    select: { status: true },
+  });
+  if (membership?.status === "ACTIVE") return { outcome: "HELD" };
+
+  const seats = await resolveWorkspaceSeatState(input.workspaceId, tx);
+  if (!workspaceSeatsAdmit(seats)) {
+    return { outcome: "REFUSED", reason: refusalFor(seats), seats };
+  }
+  return { outcome: "CLAIMED", seats };
 }
 
 // =============================================================================

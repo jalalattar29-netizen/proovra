@@ -19,9 +19,16 @@
  *   written by the transaction that won the claim, so double-grant and
  *   split-brain acceptance are structurally impossible.
  *
- * Everything else (email match, expiry, revocation, workspace-assignment
- * validation, enterprise owner-accept completion) is unchanged behavior
- * moved verbatim from the route.
+ * INVITATION BINDING (PROV-001, PROV-021) — the invitation names a mailbox, so
+ *   it can be accepted only by an account that holds that address and has
+ *   proven it. An account with no address no longer skips the comparison. An
+ *   ORG_OWNER invitation also needs a password proven with the mailbox, and
+ *   its acceptance ends the account's other sessions: a password a stranger
+ *   set on this address must not become a way into a customer's organization.
+ *
+ * Everything else (expiry, revocation, workspace-assignment validation,
+ * enterprise owner-accept completion) is unchanged behavior moved verbatim
+ * from the route.
  */
 
 import {
@@ -39,6 +46,12 @@ import { resolveOrganizationPolicy } from "../identity/org-security-policy.servi
 import { domainFromEmail } from "./organization-domain.service.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 import { completeEnterpriseProvisioningOnOwnerAccept } from "../enterprise-provisioning.service.js";
+import { revokeOtherSessionsForUserTx } from "../identity-security/session-revocation.service.js";
+import {
+  WorkspaceSeatContendedError,
+  lockWorkspaceSeatsTx,
+  withSeatClaimRetry,
+} from "../billing/workspace-seats.service.js";
 
 export type OrgInviteAcceptOutcome =
   | { kind: "not_found" }
@@ -46,6 +59,10 @@ export type OrgInviteAcceptOutcome =
   | { kind: "already_accepted" }
   | { kind: "expired" }
   | { kind: "email_mismatch" }
+  /** The account holds the invited address but has not proven it. */
+  | { kind: "email_unverified" }
+  /** ORG_OWNER only: the password has never been proven with the mailbox. */
+  | { kind: "credential_proof_required" }
   | { kind: "org_unavailable" }
   /**
    * The workspace-seat lock could not be taken within the bounded retry.
@@ -70,8 +87,10 @@ export async function acceptOrganizationInvite(input: {
   /** SHA-256 hex of the raw token (the route owns raw-token handling). */
   tokenHash: string;
   userId: string;
+  /** The session accepting; every other session of an accepting owner ends. */
+  sessionIdHash?: string | null;
 }): Promise<OrgInviteAcceptOutcome> {
-  const { tokenHash, userId } = input;
+  const { tokenHash, userId, sessionIdHash = null } = input;
 
   /**
    * Bounded, jittered retry around the seat lock below. The jitter matters:
@@ -79,35 +98,37 @@ export async function acceptOrganizationInvite(input: {
    * simply re-forms the queue. Same shape, same numbers as the workspace
    * invitation path.
    */
-  for (let attempt = 0; attempt < SEAT_LOCK_ATTEMPTS; attempt += 1) {
-    const outcome = await runAcceptance(tokenHash, userId);
-    if (outcome !== SEAT_LOCK_CONTENDED) return outcome;
-    await new Promise((resolve) =>
-      setTimeout(resolve, 40 + Math.floor(Math.random() * 120)),
-    );
+  try {
+    return await withSeatClaimRetry(() => runAcceptance(tokenHash, userId, sessionIdHash));
+  } catch (err) {
+    /**
+     * Sustained contention on one workspace is not a race any more, and saying
+     * so is more useful than a generic error. It is deliberately NOT a seat
+     * refusal: the workspace may have room, and the invitation is untouched and
+     * still acceptable, so the caller should retry rather than be told they were
+     * turned away.
+     */
+    if (err instanceof WorkspaceSeatContendedError) {
+      return { kind: "seat_contention" as const };
+    }
+    throw err;
   }
-  /**
-   * Sustained contention on one workspace is not a race any more, and saying
-   * so is more useful than a generic error. It is deliberately NOT a seat
-   * refusal: the workspace may have room, and the invitation is untouched and
-   * still acceptable, so the caller should retry rather than be told they were
-   * turned away.
-   */
-  return { kind: "seat_contention" as const };
 }
-
-/** The lock could not be taken; the caller rolls back and retries. */
-const SEAT_LOCK_CONTENDED = Symbol("seat_lock_contended");
-const SEAT_LOCK_ATTEMPTS = 25;
 
 async function runAcceptance(
   tokenHash: string,
   userId: string,
-): Promise<OrgInviteAcceptOutcome | typeof SEAT_LOCK_CONTENDED> {
+  sessionIdHash: string | null,
+): Promise<OrgInviteAcceptOutcome> {
   return prisma.$transaction(async (tx) => {
     const caller = await tx.user.findUnique({
       where: { id: userId },
-      select: { email: true },
+      select: {
+        email: true,
+        emailVerifiedAt: true,
+        passwordHash: true,
+        credentialProvenAtUtc: true,
+      },
     });
     const callerEmail = caller?.email?.trim().toLowerCase() ?? null;
 
@@ -122,6 +143,7 @@ async function runAcceptance(
         acceptedAt: true,
         acceptedByUserId: true,
         revokedAt: true,
+        createdAt: true,
         workspaceAssignments: true,
       },
     });
@@ -129,6 +151,8 @@ async function runAcceptance(
     const recordRejection = async (
       reason:
         | "email_mismatch"
+        | "email_unverified"
+        | "credential_proof_required"
         | "expired"
         | "revoked"
         | "already_accepted"
@@ -207,9 +231,20 @@ async function runAcceptance(
     }
 
     const inviteEmail = invite.email.trim().toLowerCase();
-    if (callerEmail && callerEmail !== inviteEmail) {
+    if (callerEmail !== inviteEmail) {
       await recordRejection("email_mismatch");
       return { kind: "email_mismatch" as const };
+    }
+    // Refused here rather than at sign-in: a directory-created account has a
+    // session and an address it merely asserted, and the comparison above means
+    // nothing against an address nobody proved.
+    if (!caller?.emailVerifiedAt) {
+      await recordRejection("email_unverified");
+      return { kind: "email_unverified" as const };
+    }
+    if (invite.role === "ORG_OWNER" && caller.passwordHash && !caller.credentialProvenAtUtc) {
+      await recordRejection("credential_proof_required");
+      return { kind: "credential_proof_required" as const };
     }
 
     // §8.1 archived/closed target denial — an invite must never grant
@@ -267,15 +302,10 @@ async function runAcceptance(
       // rather than after a claim that would have to be undone.
       throw new Error("invalid_workspace_assignments");
     }
-    const seatLockIds = Array.from(
-      new Set(parsedForLock.assignments.map((a) => a.teamId)),
-    ).sort();
-    for (const lockWorkspaceId of seatLockIds) {
-      const [{ locked }] = await tx.$queryRaw<Array<{ locked: boolean }>>`
-        SELECT pg_try_advisory_xact_lock(hashtext(${`workspace-seat:${lockWorkspaceId}`})) AS locked
-      `;
-      if (!locked) return SEAT_LOCK_CONTENDED;
-    }
+    await lockWorkspaceSeatsTx(
+      tx as never,
+      parsedForLock.assignments.map((a) => a.teamId),
+    );
 
     // §8 concurrency — guarded claim BEFORE any grant. The row lock
     // serializes concurrent transactions; exactly one observes count 1.
@@ -348,6 +378,7 @@ async function runAcceptance(
         userId,
         assignment,
         accessReason: `Organization invite ${invite.id}`,
+        invitationCreatedAt: invite.createdAt,
       });
       if (granted.ok) {
         assignedWorkspaceIds.push(assignment.teamId);
@@ -431,6 +462,16 @@ async function runAcceptance(
         inviteRole: invite.role,
         actorUserId: userId,
       });
+
+    // In this transaction: ownership must not commit while an older session of
+    // the account can still use it.
+    if (invite.role === "ORG_OWNER") {
+      await revokeOtherSessionsForUserTx(tx as never, {
+        userId,
+        currentSessionIdHash: sessionIdHash,
+        reason: "OWNERSHIP_ACCEPTED",
+      });
+    }
 
     return {
       kind: "ok" as const,

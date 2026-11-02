@@ -105,6 +105,7 @@ export type MembershipLifecycleContext = {
   workspaceName: string;
   roleLabel: string | null;
   actionUrl: string | null;
+  effectiveOnLabel?: string | null;
 };
 
 // Discriminated union the renderer accepts. Adding an event type means
@@ -238,6 +239,7 @@ export function renderTransactionalTemplate(
     case "WORKSPACE_OWNERSHIP_RECEIVED":
     case "WORKSPACE_CLOSED":
     case "ACCOUNT_CLOSED":
+    case "ORGANIZATION_TERMINATION_SCHEDULED":
       return renderMembershipLifecycle(eventType, expectCtx(ctx, "MembershipLifecycle"));
     default: {
       const _exhaustive: never = eventType;
@@ -668,7 +670,8 @@ type MembershipLifecycleEvent =
   | "WORKSPACE_ROLE_CHANGED"
   | "WORKSPACE_OWNERSHIP_RECEIVED"
   | "WORKSPACE_CLOSED"
-  | "ACCOUNT_CLOSED";
+  | "ACCOUNT_CLOSED"
+  | "ORGANIZATION_TERMINATION_SCHEDULED";
 
 function renderMembershipLifecycle(
   eventType: MembershipLifecycleEvent,
@@ -700,6 +703,12 @@ function renderMembershipLifecycle(
     WORKSPACE_CLOSED: {
       title: "A workspace you belonged to was closed",
       line: `The workspace ${d.workspaceName} was closed, and your access to it has ended. Its records remain governed by retention and legal hold.`,
+    },
+    ORGANIZATION_TERMINATION_SCHEDULED: {
+      title: "Your organization's contract is ending",
+      line: `The contract of ${d.workspaceName} is being terminated${
+        d.effectiveOnLabel ? `, and the organization closes on ${d.effectiveOnLabel}` : ""
+      }. Export what you need before then, and contact your account manager with any questions. Records remain governed by retention and legal hold.`,
     },
     ACCOUNT_CLOSED: {
       title: `Your ${brand} account was closed`,

@@ -35,13 +35,13 @@ import {
 // membership (individual, SCIM/group deprovision, and workspace-wide mass
 // suspension / revocation). HYGIENE ONLY — the pointer authorizes nothing.
 import { repairStaleCurrentWorkspacePointers } from "../access/current-workspace-pointer.js";
-import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 // THE workspace seat authority — contract-first, plan-aware, shared with the
 // invitation path and the entitlement projection. Composed here, never
-// reimplemented: see the seat gate inside `grantWorkspaceMembership`.
+// reimplemented: `claimWorkspaceSeatTx` is the one way anyone takes a seat.
 import {
-  resolveWorkspaceSeatState,
-  workspaceSeatsAdmit,
+  claimWorkspaceSeatTx,
+  type WorkspaceSeatClaim,
+  type WorkspaceSeatRefusal,
 } from "../billing/workspace-seats.service.js";
 import { endStandingReachForMembers, releaseWorkOnSuspension } from "./standing-reach.js";
 import { revokeCreatorShareGrantsTx } from "../sharing/creator-share-grants.js";
@@ -339,6 +339,31 @@ export async function grantOrganizationMembership(
 }
 
 /**
+ * AN INVITATION NEVER REVIVES A MEMBERSHIP AN ADMINISTRATOR ENDED (members
+ * audit INV-01). Both invitation paths ask this one question.
+ *
+ *   SUSPENDED  barred: reinstatement is the governed restore.
+ *   REVOKED    barred when the invitation was issued BEFORE the removal (it is
+ *              the very access that was ended); an invitation issued AFTER it
+ *              is an administrator deliberately re-adding the person.
+ */
+export function invitationCannotReviveMembership(
+  membership: { status: string; revokedAtUtc: Date | null } | null,
+  invitationCreatedAt: Date,
+): "membership_suspended" | "invite_superseded" | null {
+  if (!membership) return null;
+  if (membership.status === "SUSPENDED") return "membership_suspended";
+  if (
+    membership.status === "REVOKED" &&
+    (membership.revokedAtUtc === null ||
+      membership.revokedAtUtc.getTime() >= invitationCreatedAt.getTime())
+  ) {
+    return "invite_superseded";
+  }
+  return null;
+}
+
+/**
  * Idempotently grant OPERATIONAL workspace membership for an explicit
  * assignment. The team MUST belong to `organizationId` (validated here —
  * fail-closed) and must not be a personal space. Re-granting an existing
@@ -357,6 +382,12 @@ export async function grantWorkspaceMembership(
     source?: MembershipGrantSourceValue;
     intent?: MembershipIntent;
     externalRef?: string | null;
+    /**
+     * Set by an invitation: when it was issued. An invitation never reverses a
+     * suspension, and revives a removal only when issued after it, which is an
+     * administrator deliberately re-adding the person (members audit INV-01).
+     */
+    invitationCreatedAt?: Date | null;
   },
 ): Promise<
   | { ok: true }
@@ -365,6 +396,8 @@ export async function grantWorkspaceMembership(
       reason:
         | "team_not_in_organization"
         | "team_is_personal"
+        | "membership_suspended"
+        | "invite_superseded"
         | "workspace_seat_limit_reached";
     }
 > {
@@ -407,32 +440,27 @@ export async function grantWorkspaceMembership(
    * consumes nothing and must never be refused — refusing there would lock
    * existing members out of their own workspace the moment it filled up.
    *
-   * It is counted on `tx`, not the default client: a count taken outside the
-   * transaction that writes is a count of a different snapshot.
-   *
    * The refusal is a typed `ok: false`, which is the shape both call sites
    * already handle by skipping the assignment — an over-limit workspace
    * assignment is dropped and the rest of the acceptance still commits, rather
    * than the whole acceptance 500ing.
    */
-  const existing = await tx.teamMember.findUnique({
-    where: {
-      teamId_userId: {
-        teamId: input.assignment.teamId,
-        userId: input.userId,
+  if (input.invitationCreatedAt) {
+    const held = await tx.teamMember.findUnique({
+      where: {
+        teamId_userId: { teamId: input.assignment.teamId, userId: input.userId },
       },
-    },
-    select: { status: true },
+      select: { status: true, revokedAtUtc: true },
+    });
+    const barred = invitationCannotReviveMembership(held, input.invitationCreatedAt);
+    if (barred) return { ok: false, reason: barred };
+  }
+  const claim = await claimWorkspaceSeatTx(tx as PrismaClient, {
+    workspaceId: input.assignment.teamId,
+    userId: input.userId,
   });
-  const alreadyOccupiesASeat = existing?.status === "ACTIVE";
-  if (!alreadyOccupiesASeat) {
-    const seats = await resolveWorkspaceSeatState(
-      input.assignment.teamId,
-      tx as PrismaClient,
-    );
-    if (!workspaceSeatsAdmit(seats)) {
-      return { ok: false, reason: "workspace_seat_limit_reached" };
-    }
+  if (claim.outcome === "REFUSED") {
+    return { ok: false, reason: "workspace_seat_limit_reached" };
   }
 
   const row = await tx.teamMember.upsert({
@@ -443,11 +471,14 @@ export async function grantWorkspaceMembership(
       },
     },
     // Existing row: re-activate, keep the held role (no invite-driven
-    // demotion), clear suspension bookkeeping.
+    // demotion), clear suspension and removal bookkeeping.
     update: {
       status: "ACTIVE",
       suspendedAtUtc: null,
       suspensionReason: null,
+      revokedAtUtc: null,
+      revokedByUserId: null,
+      revocationReason: null,
     },
     create: {
       teamId: input.assignment.teamId,
@@ -617,6 +648,14 @@ export async function provisionMembership(
      * only an authoritative provisioning source (SCIM/manual) may.
      */
     preserveExistingStatus?: boolean;
+    /**
+     * The claim this transaction already holds for the direct workspace grant.
+     * Omitted, the grant makes its own, so no caller can reach an ACTIVE row
+     * without one. Whoever reaches a seat-consuming grant runs on a transaction
+     * client inside `withSeatClaimRetry`: the lock lasts only as long as the
+     * transaction it was taken in.
+     */
+    seatClaim?: WorkspaceSeatClaim;
   },
 ): Promise<{
   organizationMembershipCreated: boolean;
@@ -728,7 +767,7 @@ export async function provisionMembership(
           userId: input.userId,
         },
       },
-      select: { id: true, role: true },
+      select: { id: true, role: true, status: true },
     });
     const desiredRole = resolveRolePrecedence({
       existingRole: existing?.role ?? null,
@@ -736,6 +775,27 @@ export async function provisionMembership(
       source: input.source,
       ownerRoleName: "OWNER",
     });
+    /**
+     * THE SECOND BRANCH THAT SKIPPED THE SEAT AUTHORITY (BILLING-003, IDENT-005).
+     *
+     * `grantWorkspaceMembership` above asks; this direct grant, the one SSO and
+     * SAML JIT use, did not, so a new IdP subject became an ACTIVE member of a
+     * full workspace. Asked here, nobody reaches an ACTIVE row by this branch
+     * without a claim. A row left where it is (`preserveExistingStatus`) takes
+     * no seat, and the owner never needs one.
+     */
+    const takesSeat =
+      desiredRole !== "OWNER" &&
+      (existing ? existing.status !== "ACTIVE" && !input.preserveExistingStatus : true);
+    if (takesSeat) {
+      const claim =
+        input.seatClaim ??
+        (await claimWorkspaceSeatTx(tx as PrismaClient, {
+          workspaceId: input.workspace.teamId,
+          userId: input.userId,
+        }));
+      if (claim.outcome === "REFUSED") throw new ManagedSeatLimitError(claim.reason);
+    }
     const row = await tx.teamMember.upsert({
       where: {
         teamId_userId: {
@@ -749,6 +809,9 @@ export async function provisionMembership(
             status: "ACTIVE",
             suspendedAtUtc: null,
             suspensionReason: null,
+            revokedAtUtc: null,
+            revokedByUserId: null,
+            revocationReason: null,
           },
       create: {
         teamId: input.workspace.teamId,
@@ -1319,42 +1382,17 @@ export async function massReactivateSuspendedWorkspaceMemberships(
 // re-binding the SAME managing org is a no-op in setManagedIdentity.
 // =============================================================================
 
-/** Fail-closed seat-exhaustion error for managed provisioning (§1). */
+/**
+ * Fail-closed seat refusal. Thrown so the whole transaction rolls back: no user
+ * row, mapping, managed binding or membership survives a refused seat.
+ */
 export class ManagedSeatLimitError extends Error {
   readonly code = "MANAGED_SEAT_LIMIT_REACHED";
   readonly statusCode = 409;
-  constructor(message = "Organization seat limit reached") {
-    super(message);
+  constructor(readonly reason: WorkspaceSeatRefusal = "workspace_seat_limit_reached") {
+    super("Organization seat limit reached");
     this.name = "ManagedSeatLimitError";
   }
-}
-
-/**
- * Fail-closed seat gate. Composes the Phase-9 seat FIGURE (never re-derives a
- * seat model). A re-provision of a user who already holds an ACTIVE seat in the
- * target workspace consumes NO new seat (idempotent). A genuinely NEW active
- * member is denied when the org seat pool has zero remaining. Plans with no
- * seat concept (`limit == null`) impose no constraint.
- */
-async function assertManagedSeatAvailable(
-  tx: TxClient,
-  input: { seatTeamId: string; userId: string; requesterUserId: string },
-): Promise<{ seatEnforced: boolean; alreadyHeld: boolean }> {
-  const existing = await tx.teamMember.findUnique({
-    where: { teamId_userId: { teamId: input.seatTeamId, userId: input.userId } },
-    select: { status: true },
-  });
-  const alreadyHeld = existing?.status === "ACTIVE";
-  if (alreadyHeld) return { seatEnforced: true, alreadyHeld: true };
-
-  const ctx = await resolveCommercialContext({
-    type: "ORGANIZATION_WORKSPACE",
-    teamId: input.seatTeamId,
-    requesterUserId: input.requesterUserId,
-  });
-  if (ctx.seats.limit == null) return { seatEnforced: false, alreadyHeld: false };
-  if ((ctx.seats.remaining ?? 0) <= 0) throw new ManagedSeatLimitError();
-  return { seatEnforced: true, alreadyHeld: false };
 }
 
 export type ManagedProvisioningInput = {
@@ -1421,18 +1459,29 @@ export async function provisionManagedMembership(
   );
 
   // 2) Seat enforcement (fail-closed) — only when this provisioning ADDS a
-  //    direct workspace seat consumer and the caller asked to ENFORCE.
+  //    direct workspace seat consumer and the caller asked to ENFORCE. A login
+  //    that leaves a suspended or revoked row where it is takes no seat, so it
+  //    must not be told the workspace is full.
   let seatEnforced = false;
   let seatAlreadyHeld = false;
+  let seatClaim: WorkspaceSeatClaim | undefined;
   const seatTeamId = input.seatTeamId ?? input.workspace?.teamId ?? input.managingTeamId;
   if (input.seatPolicy === "ENFORCE" && seatTeamId) {
-    const seat = await assertManagedSeatAvailable(tx, {
-      seatTeamId,
-      userId: input.userId,
-      requesterUserId: input.actorUserId ?? input.userId,
+    const existing = await tx.teamMember.findUnique({
+      where: { teamId_userId: { teamId: seatTeamId, userId: input.userId } },
+      select: { status: true },
     });
-    seatEnforced = seat.seatEnforced;
-    seatAlreadyHeld = seat.alreadyHeld;
+    if (existing && existing.status !== "ACTIVE" && input.preserveExistingStatus) {
+      seatEnforced = true;
+    } else {
+      seatClaim = await claimWorkspaceSeatTx(tx as PrismaClient, {
+        workspaceId: seatTeamId,
+        userId: input.userId,
+      });
+      if (seatClaim.outcome === "REFUSED") throw new ManagedSeatLimitError(seatClaim.reason);
+      seatEnforced = true;
+      seatAlreadyHeld = seatClaim.outcome === "HELD";
+    }
   }
 
   // 3) Membership + workspace grants + provenance (the atomic audit-of-record).
@@ -1448,6 +1497,7 @@ export async function provisionManagedMembership(
     externalRef: input.externalRef ?? null,
     accessReason: input.accessReason,
     preserveExistingStatus: input.preserveExistingStatus,
+    ...(seatClaim && seatTeamId === input.workspace?.teamId ? { seatClaim } : {}),
   });
 
   return {

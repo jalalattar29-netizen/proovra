@@ -571,6 +571,51 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "a Stripe checkout resolves the customer of one recurring currency here",
     suppliedBy: "20281101000000_stripe_customer_per_currency",
   },
+  // 20281104000000 — PROV-001: when a password was proven with its mailbox, and the workspace name waiting on an owner invitation. EXPAND.
+  {
+    id: "users.credential_proven_at_utc",
+    kind: "column",
+    detail: 'column public."users"."credential_proven_at_utc" must exist',
+    requiredBy: "every user read selects it through the Prisma client",
+    suppliedBy: "20281104000000_account_credential_proof",
+  },
+  {
+    id: "organizations.pending_enterprise_workspace_name",
+    kind: "column",
+    detail: 'column public."organizations"."pending_enterprise_workspace_name" must exist',
+    requiredBy: "every organization read selects it through the Prisma client",
+    suppliedBy: "20281104000000_account_credential_proof",
+  },
+  // 20281104000100 — BILLING-002, PROV-009: the sales reference on the contract, and the status a withdrawn termination returns to. EXPAND.
+  {
+    id: "enterprise_contracts.external_contract_ref",
+    kind: "column",
+    detail: 'column public."enterprise_contracts"."external_contract_ref" must exist',
+    requiredBy: "every contract read selects it through the Prisma client",
+    suppliedBy: "20281104000100_enterprise_contract_record",
+  },
+  {
+    id: "enterprise_contracts.status_before_termination",
+    kind: "column",
+    detail: 'column public."enterprise_contracts"."status_before_termination" must exist',
+    requiredBy: "every contract read selects it through the Prisma client",
+    suppliedBy: "20281104000100_enterprise_contract_record",
+  },
+  // 20281104000200 — PROV-017: the two fields the demo form requires, kept with the lead. EXPAND.
+  {
+    id: "demo_requests.primary_interest",
+    kind: "column",
+    detail: 'column public."demo_requests"."primary_interest" must exist',
+    requiredBy: "every demo request read selects it through the Prisma client",
+    suppliedBy: "20281104000200_demo_request_qualification",
+  },
+  {
+    id: "demo_requests.organization_type",
+    kind: "column",
+    detail: 'column public."demo_requests"."organization_type" must exist',
+    requiredBy: "every demo request read selects it through the Prisma client",
+    suppliedBy: "20281104000200_demo_request_qualification",
+  },
 ]);
 
 /**
@@ -983,6 +1028,12 @@ const PROBES = Object.freeze({
        AND table_name = 'billing_provider_binding_checks'
      LIMIT 1`,
   "billing_provider_customers.currency": columnProbe("billing_provider_customers", "currency"),
+  "demo_requests.primary_interest": columnProbe("demo_requests", "primary_interest"),
+  "demo_requests.organization_type": columnProbe("demo_requests", "organization_type"),
+  "enterprise_contracts.external_contract_ref": columnProbe("enterprise_contracts", "external_contract_ref"),
+  "enterprise_contracts.status_before_termination": columnProbe("enterprise_contracts", "status_before_termination"),
+  "users.credential_proven_at_utc": columnProbe("users", "credential_proven_at_utc"),
+  "organizations.pending_enterprise_workspace_name": columnProbe("organizations", "pending_enterprise_workspace_name"),
   "billing_provider_customers.table": `
     SELECT 1
       FROM information_schema.tables

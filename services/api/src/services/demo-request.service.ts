@@ -18,6 +18,8 @@ const createDemoRequestSchema = z.object({
   jobTitle: z.string().trim().max(120).optional().nullable(),
   country: z.string().trim().max(120).optional().nullable(),
   teamSize: z.string().trim().max(64).optional().nullable(),
+  primaryInterest: z.string().trim().max(64).optional().nullable(),
+  organizationType: z.string().trim().max(64).optional().nullable(),
   useCase: z.string().trim().min(10).max(5000),
   message: z.string().trim().max(5000).optional().nullable(),
 
@@ -339,6 +341,8 @@ export async function createDemoRequest(
       jobTitle: normalizeText(input.jobTitle),
       country: normalizeText(input.country),
       teamSize: normalizeText(input.teamSize),
+      primaryInterest: normalizeText(input.primaryInterest),
+      organizationType: normalizeText(input.organizationType),
       useCase: input.useCase.trim(),
       message: normalizeText(input.message),
 
@@ -508,20 +512,10 @@ export async function createDemoRequest(
     ok: true,
     message: "Demo request received.",
     data: {
+      // Public route: scoring, spam state and routing are the operator's.
       id: updated.id,
       status: updated.status,
-      priority: updated.priority,
-      leadQuality: updated.leadQuality,
-      leadTrack: updated.leadTrack,
-      recommendedAction: updated.recommendedAction,
-      responseSlaHours: updated.responseSlaHours,
-      isSpam: updated.isSpam,
       createdAt: updated.createdAt,
-      routingTarget: updated.routingTarget,
-      routingReason: updated.routingReason,
-      followUpStatus: updated.followUpStatus,
-      followUpStep: updated.followUpStep,
-      nextFollowUpAt: updated.nextFollowUpAt,
     },
   };
 }

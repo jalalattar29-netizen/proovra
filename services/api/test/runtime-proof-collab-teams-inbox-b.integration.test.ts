@@ -152,7 +152,7 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
     const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");
     const email = `k5-${label}-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({
-      data: { email, firstName: "K5", lastName: label, provider: "EMAIL", providerUserId: email },
+      data: { email, firstName: "K5", lastName: label, provider: "EMAIL", providerUserId: email, emailVerifiedAt: new Date() },
       select: { id: true },
     });
     await prisma.userLegalAcceptance.createMany({

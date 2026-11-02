@@ -371,8 +371,8 @@ export default function OrganizationAdminLayout({
               </>
             ) : state.kind === "loading" ? (
               "Loading organization metadata…"
-            ) : state.status === 403 ? (
-              "You don't have access to this organization."
+            ) : state.status === 403 || state.status === 404 ? (
+              "You don't have access to this organization, or it doesn't exist."
             ) : (
               "Couldn't load organization metadata."
             )}

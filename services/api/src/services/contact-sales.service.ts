@@ -403,10 +403,9 @@ export async function createContactSalesRequest(
     ok: true,
     message: "Contact-sales inquiry received.",
     data: {
+      // Public route: priority and spam state are the operator's.
       id: updated.id,
       status: updated.status,
-      priority: updated.priority,
-      isSpam: updated.isSpam,
       emailDispatched: emailSentAt !== null,
       createdAt: updated.createdAt,
     },

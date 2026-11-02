@@ -159,7 +159,7 @@ describe("§5.2 — no workspace kind is derived from a commercial fact", () => 
     for (const file of WORKSPACE_WRITERS) {
       const src = read(file);
       for (const m of src.matchAll(
-        /(?:tx|prisma|client|db)\.team\.create\(\{[\s\S]{0,900}?\n\s{4,}\}\)/g,
+        /(?:tx|prisma|client|db)\.team\.create\(\{[\s\S]{0,900}?\n\s{2,}\}\)/g,
       )) {
         found.push(`${file}@${m.index}`);
         if (!/workspaceKind:\s*"(PERSONAL|OWNED|ORGANIZATION)"/.test(m[0])) {

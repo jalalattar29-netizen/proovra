@@ -128,6 +128,9 @@ export const NOTIFICATION_EVENT_TYPES = [
   "WORKSPACE_OWNERSHIP_RECEIVED",
   "WORKSPACE_CLOSED",
   "ACCOUNT_CLOSED",
+  // PROV-013 — an organization's owners and administrators are told when a
+  // contract termination is scheduled, not when it has already happened.
+  "ORGANIZATION_TERMINATION_SCHEDULED",
 ] as const;
 export const NotificationEventTypeSchema = z.enum(NOTIFICATION_EVENT_TYPES);
 export type NotificationEventType = z.infer<typeof NotificationEventTypeSchema>;

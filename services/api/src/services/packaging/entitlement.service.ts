@@ -12,9 +12,15 @@
  *     computing current-period consumption from `entitlement_usage`
  *     and comparing against the granted limit.
  *   * `upsertEntitlementGrant` writes a single grant row and emits an
- *     ENTITLEMENT_GRANTED lifecycle event.
+ *     ENTITLEMENT_GRANTED lifecycle event. Reached only by a platform
+ *     operator: `billing.manage` is a customer OWNER's permission, and it
+ *     was the only gate, so a customer could grant themselves anything.
  *   * `applyProductLine` materialises every entitlement in a product
  *     line plan in a single transactional pass with `source='PLAN'`.
+ *   * An ENTERPRISE workspace with an ACTIVE contract holds the ENTERPRISE
+ *     line by right, with nothing stored and no step for the customer: a
+ *     stored grant is an operator's exception to that, never the way a sold
+ *     feature is switched on (BILLING-001).
  *
  * Hard rules:
  *   * Workspace-anchored — every read and every write is scoped to
@@ -381,10 +387,50 @@ async function resolveLegalHoldEntitlement(
   }
 }
 
+/**
+ * Where a workspace stands on the Enterprise line, from the one commercial
+ * authority. A plan label alone is not standing: ACTIVE is the only contract
+ * state that grants anything (BIL-R05).
+ */
+type EnterpriseStanding = "NOT_ENTERPRISE" | "CONTRACT_ACTIVE" | "CONTRACT_LAPSED";
+
+async function resolveEnterpriseStanding(
+  prisma: PrismaClient,
+  teamId: string,
+): Promise<EnterpriseStanding> {
+  try {
+    const workspace = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { ownerUserId: true },
+    });
+    if (!workspace) return "NOT_ENTERPRISE";
+    const { resolveCommercialContext } = await import(
+      "../billing/commercial-context.service.js"
+    );
+    const ctx = await resolveCommercialContext({
+      type: "WORKSPACE",
+      teamId,
+      requesterUserId: workspace.ownerUserId,
+    });
+    if (ctx.plan !== "ENTERPRISE") return "NOT_ENTERPRISE";
+    const { resolveEnterpriseContractLimits } = await import(
+      "../billing/enterprise-contract-limits.js"
+    );
+    return resolveEnterpriseContractLimits(ctx.enterpriseContract).contractGovernsCapability
+      ? "CONTRACT_ACTIVE"
+      : "CONTRACT_LAPSED";
+  } catch {
+    // A commercial engine that cannot answer has not said yes.
+    return "NOT_ENTERPRISE";
+  }
+}
+
 export async function resolveEntitlement(input: {
   prisma?: PrismaClient;
   teamId: string;
   key: EntitlementKey;
+  /** Resolved once by a caller reading several keys of one workspace. */
+  standing?: EnterpriseStanding;
 }): Promise<EntitlementProjection> {
   const prisma = input.prisma ?? defaultPrisma;
   /**
@@ -400,6 +446,9 @@ export async function resolveEntitlement(input: {
   if (input.key === "FEATURE_LEGAL_HOLD") {
     return resolveLegalHoldEntitlement(prisma, input.teamId);
   }
+  const standing = input.standing ?? (await resolveEnterpriseStanding(prisma, input.teamId));
+  // A lapsed contract grants nothing, including through a stored row.
+  if (standing === "CONTRACT_LAPSED") return projectDefault(input.key);
   try {
     const row = (await prisma.entitlementGrant.findUnique({
       where: { teamId_key: { teamId: input.teamId, key: input.key } },
@@ -415,11 +464,27 @@ export async function resolveEntitlement(input: {
         expiresAtUtc: true,
       },
     })) as GrantRow | null;
-    if (!row || isExpired(row)) return projectDefault(input.key);
-    return projectGrant(input.key, row);
+    if (row && !isExpired(row)) return projectGrant(input.key, row);
   } catch {
     return projectDefault(input.key);
   }
+  /*
+   * WHAT THE CONTRACT SOLD. Provisioning never applied a product line, so a new
+   * Enterprise customer held the free baseline until its owner found a hidden
+   * console and granted the features to themselves. An ACTIVE contract is the
+   * activation: nothing is stored, so nothing can go stale when it lapses.
+   */
+  if (standing === "CONTRACT_ACTIVE") {
+    const sold = PLAN_LINE_ENTITLEMENTS.ENTERPRISE[input.key];
+    if (sold !== undefined) {
+      return {
+        ...projectDefault(input.key),
+        value: sold,
+        source: "PLAN",
+      };
+    }
+  }
+  return projectDefault(input.key);
 }
 
 // ===========================================================================
@@ -648,9 +713,10 @@ export async function listEntitlements(input: {
   teamId: string;
 }): Promise<ReadonlyArray<EntitlementProjection>> {
   const prisma = input.prisma ?? defaultPrisma;
+  const standing = await resolveEnterpriseStanding(prisma, input.teamId);
   const out: EntitlementProjection[] = [];
   for (const key of ENTITLEMENT_KEYS) {
-    out.push(await resolveEntitlement({ prisma, teamId: input.teamId, key }));
+    out.push(await resolveEntitlement({ prisma, teamId: input.teamId, key, standing }));
   }
   return out;
 }

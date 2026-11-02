@@ -19,7 +19,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The seat claim itself is proven against PostgreSQL in
+// seat-claim-authority.integration.test.ts; this suite is about what surrounds it.
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  claimWorkspaceSeatTx: async () => ({ outcome: "CLAIMED" }),
+}));
+
 
 import {
   MEMBERSHIP_INTENTS,

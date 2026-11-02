@@ -656,7 +656,14 @@ export type AdminOrgDetail = {
     billingSubscriptionRef: string | null;
     contractOwnerUserId: string | null;
     legacyDerived: boolean;
+    collaborationTeamsMax: number | null;
+    collaborationTeamMembersMax: number | null;
+    legalHoldEnabled: boolean | null;
+    reviewerOperationsEnabled: boolean | null;
+    externalContractRef: string | null;
   } | null;
+  /** PROV-005 — the first owner has not accepted yet. */
+  pendingOwnerInvite: { email: string; expiresAtUtc: string; expired: boolean } | null;
   /**
    * Members audit LIFE-16 — THE organization lifecycle state
    * (ACTIVE / SUSPENDED / TERMINATING / TERMINATED), projected from the
@@ -873,6 +880,31 @@ export async function getAdminOrganizationDetail(
         billingSubscriptionRef: contract.billingSubscriptionRef ?? null,
         contractOwnerUserId: contract.contractOwnerUserId ?? null,
         legacyDerived: contract.legacyDerived === true,
+        collaborationTeamsMax: contract.collaborationTeamsMax ?? null,
+        collaborationTeamMembersMax: contract.collaborationTeamMembersMax ?? null,
+        legalHoldEnabled: contract.legalHoldEnabled ?? null,
+        reviewerOperationsEnabled: contract.reviewerOperationsEnabled ?? null,
+        externalContractRef: contract.externalContractRef ?? null,
+      }
+    : null;
+
+  const ownerInvite =
+    contract?.status === "PENDING_ACTIVATION"
+      ? await safeCall(
+          () =>
+            client.organizationInvite.findFirst({
+              where: { organizationId: org.id, role: "ORG_OWNER", acceptedAt: null, revokedAt: null },
+              orderBy: { createdAt: "desc" },
+              select: { email: true, expiresAt: true },
+            }),
+          null,
+        )
+      : null;
+  const pendingOwnerInvite = ownerInvite
+    ? {
+        email: ownerInvite.email,
+        expiresAtUtc: ownerInvite.expiresAt.toISOString(),
+        expired: ownerInvite.expiresAt.getTime() <= Date.now(),
       }
     : null;
 
@@ -1326,6 +1358,7 @@ export async function getAdminOrganizationDetail(
     },
     workspaces: workspaceMap,
     enterpriseContract: contractProjection,
+    pendingOwnerInvite,
     lifecycleState,
     overview: {
       id: org.id,

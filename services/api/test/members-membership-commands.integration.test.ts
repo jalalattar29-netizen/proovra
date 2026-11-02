@@ -49,7 +49,7 @@ describe("Phase B — governed membership commands", () => {
     const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");
     const email = `phase-b-${tag()}@test.proovra.local`;
     const user = await prisma.user.create({
-      data: { email, firstName: "PhaseB", lastName: "Member", provider: "EMAIL", providerUserId: email },
+      data: { email, firstName: "PhaseB", lastName: "Member", provider: "EMAIL", providerUserId: email, emailVerifiedAt: new Date() },
       select: { id: true },
     });
     await prisma.userLegalAcceptance.createMany({
