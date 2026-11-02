@@ -141,6 +141,27 @@ vi.mock("../src/middleware/authorize.js", () => ({
     }
     return { actorUserId: H.actorUserId, teamId: TEAM };
   },
+  // The in-memory stand-in for the engine's two outcomes these routes see:
+  // no usable membership conceals as 404, and a member short of the permission
+  // is a bounded 403. The real engine runs in the closure integration test.
+  authorizeWorkspaceOrFail: async (
+    _req: unknown,
+    reply: { code: (n: number) => { send: (b: unknown) => void } },
+    options: { workspaceId: string },
+  ) => {
+    const member = (H.db as unknown as { __store: Map<string, Array<Record<string, unknown>>> }).__store
+      .get("teamMember")!
+      .find((m) => m.teamId === options.workspaceId && m.userId === H.actorUserId);
+    if (!member || member.status !== "ACTIVE") {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    if (member.role !== "OWNER" && member.role !== "ADMIN") {
+      reply.code(403).send({ error: { code: "permission_denied", reason: "ROLE_DENIED" } });
+      return null;
+    }
+    return { userId: H.actorUserId };
+  },
 }));
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
   requireStepUpForSensitiveAction: async (input: {
@@ -2257,7 +2278,7 @@ describe("SYSTEMS 3-5 — SCIM ops, SAML mapping, SSO health, session timeline",
     }
   });
 
-  it("membership state and role are separate bounded denials (recorded contract)", async () => {
+  it("an inactive member is concealed, an active non-admin is refused (engine contract)", async () => {
     rows("teamMember").push({
       id: "tm-inactive",
       teamId: TEAM,
@@ -2270,10 +2291,8 @@ describe("SYSTEMS 3-5 — SCIM ops, SAML mapping, SSO health, session timeline",
       method: "GET",
       url: "/v1/sso/health?teamId=" + TEAM,
     });
-    expect(inactive.statusCode).toBe(403);
-    expect(JSON.parse(inactive.body)).toEqual({
-      error: { code: "member_inactive" },
-    });
+    expect(inactive.statusCode).toBe(404);
+    expect(JSON.parse(inactive.body)).toEqual({ error: { code: "not_found" } });
     expect(callsTo("buildSsoHealthSnapshot")).toHaveLength(0);
 
     // An ACTIVE non-admin member is refused on ROLE, with a bounded reason.
@@ -2293,7 +2312,7 @@ describe("SYSTEMS 3-5 — SCIM ops, SAML mapping, SSO health, session timeline",
     expect(JSON.parse(nonAdmin.body)).toEqual({
       error: {
         code: "permission_denied",
-        reason: "identity_ops_require_admin_role",
+        reason: "ROLE_DENIED",
       },
     });
     expect(callsTo("buildSsoHealthSnapshot")).toHaveLength(0);

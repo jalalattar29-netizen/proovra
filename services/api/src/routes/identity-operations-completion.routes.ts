@@ -24,8 +24,9 @@
  * Hard rules:
  *   * Every endpoint requires auth.
  *   * Every endpoint is workspace-scoped (`teamId` mandatory).
- *   * Caller must be an ACTIVE TeamMember with identity-admin
- *     capability; non-members get a 404 (anti-enumeration).
+ *   * Caller must hold `identity.external_mapping.manage` through the
+ *     canonical engine: role, delegated scope, access expiry and
+ *     organization lifecycle all count; non-members get a 404.
  *   * Destructive endpoints route through `requireStepUpForSensitiveAction`.
  *   * No secrets or raw assertions in responses.
  *   * Audit event emission lives in the service layer.
@@ -34,10 +35,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { prisma } from "../db.js";
+
 import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
-import { getAuthUserId } from "../auth.js";
+
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeWorkspaceOrFail } from "../middleware/authorize.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
 import {
   detectScimDrift,
@@ -76,32 +78,15 @@ async function requireIdentityAdmin(
   reply: FastifyReply,
   teamId: string,
 ): Promise<AdminContext | null> {
-  const userId = getAuthUserId(req);
-  const member = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { id: true, status: true, role: true },
+  // One permission for reads and writes: `identity.external_mapping.read`
+  // would widen these to REVIEWER, and drift reports and session timelines
+  // were never reviewer reads. OWNER, ADMIN and a delegated IDENTITY_ADMIN
+  // hold manage (AUTHZ-003).
+  const ctx = await authorizeWorkspaceOrFail(req, reply, {
+    workspaceId: teamId,
+    permission: "identity.external_mapping.manage",
   });
-  if (!member) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (member.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
-  // Identity operations require OWNER or ADMIN. The Phase 17 access
-  // policy engine could also grant identity-delegated permission, but
-  // for the P1.1 completion surface we keep the gate tight to role.
-  if (member.role !== "OWNER" && member.role !== "ADMIN") {
-    reply.code(403).send({
-      error: {
-        code: "permission_denied",
-        reason: "identity_ops_require_admin_role",
-      },
-    });
-    return null;
-  }
-  return { userId };
+  return ctx ? { userId: ctx.userId } : null;
 }
 
 // ---------------------------------------------------------------------------

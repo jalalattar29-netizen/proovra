@@ -11,6 +11,7 @@
  *   EVID-018  a PACKAGE grant sees its work; a CASE grant does not reach a
  *             record closed by another restricted case.
  *   AUTHZ-005 a grantor cannot hand out a scope they do not hold, or self-grant.
+ *   AUTHZ-003 identity operations answer to the engine, not a local role check.
  */
 import { randomUUID } from "node:crypto";
 
@@ -452,6 +453,23 @@ describe("evidence collaboration and search closures (live PostgreSQL)", () => {
         where: { teamMemberId: delegate.memberId, scopeKind: "IDENTITY_ADMIN", revokedAtUtc: null },
       });
       expect(row).not.toBeNull();
+    });
+
+    it("AUTHZ-003: identity operations follow the engine, for delegates and for expired access", async () => {
+      const url = `/v1/sso/health?teamId=${A().teamId}`;
+      const delegate = await identityDelegate();
+      expect((await get(url, delegate)).statusCode).toBe(200);
+      expect((await get(url, admin)).statusCode).toBe(200);
+      expect((await get(url, member)).statusCode).toBe(403);
+      expect((await get(url, viewer)).statusCode).toBe(403);
+
+      const expiring = await person("ADMIN");
+      expect((await get(url, expiring)).statusCode).toBe(200);
+      await prisma.teamMember.update({
+        where: { id: expiring.memberId },
+        data: { accessExpiresAtUtc: new Date(Date.now() - 60_000) },
+      });
+      expect((await get(url, expiring)).statusCode).toBe(404);
     });
   });
 });
