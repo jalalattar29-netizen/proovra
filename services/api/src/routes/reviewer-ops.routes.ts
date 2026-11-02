@@ -1350,6 +1350,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       try {
         const result = await resumeReview(ctx, { workflowId, note: body.note ?? null });
         return reply.code(200).send({ projection: result });
