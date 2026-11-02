@@ -56,7 +56,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError, isApiResponseError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/date";
 import { organizationStatusLabel } from "@proovra/shared";
 import { Card } from "../../../../../../components/ui/Card";

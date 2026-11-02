@@ -74,7 +74,7 @@ import type {
   SystemStateKind,
   SystemStateTone,
 } from "../../../components/feedback/ProovraSystemState";
-import { apiFetch, ApiError, isApiResponseError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { useAuth } from "../../providers";
 import {

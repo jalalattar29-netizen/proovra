@@ -1235,12 +1235,3 @@ const rollupFilterStyle: React.CSSProperties = {
   maxWidth: 260,
 };
 
-const selectStyle: React.CSSProperties = {
-  padding: "8px 10px",
-  border: "1px solid var(--border-strong, #cbd5e1)",
-  borderRadius: 6,
-  fontSize: 14,
-  background: "#fff",
-  color: "var(--ink-primary, #0f172a)",
-  maxWidth: 360,
-};
