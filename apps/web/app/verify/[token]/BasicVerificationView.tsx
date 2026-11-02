@@ -274,8 +274,9 @@ export function VerifyLinkNotice({ link }: { link: VerifyLinkInfo | null | undef
         padding: "10px 14px",
         borderRadius: 12,
         fontSize: 14,
-        color: "#7a5a12",
-        background: "rgba(138,106,47,0.10)",
+        color: "#7C4A0C",
+        background: "#FFF6E5",
+        border: "1px solid rgba(168, 102, 18, 0.24)",
       }}
     >
       {link.kind === "LEGACY_RECORD_ID"

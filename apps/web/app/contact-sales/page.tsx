@@ -203,7 +203,7 @@ function HeroSection() {
         }}
       />
 
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-6 pb-12 pt-14 md:px-8 md:pb-16 md:pt-18 lg:grid-cols-[1fr_1.05fr] lg:items-start lg:pt-20">
+      <div className="relative mx-auto grid max-w-7xl gap-10 px-6 pb-12 pt-24 md:px-8 md:pb-16 md:pt-18 lg:grid-cols-[1fr_1.05fr] lg:items-start lg:pt-20">
         <div className="lg:pt-3">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#2563EB] shadow-[0_2px_8px_rgba(37,99,235,0.06)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />

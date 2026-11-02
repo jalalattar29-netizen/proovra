@@ -2656,6 +2656,21 @@ textarea.app-form-input {
   }
 }
 
+/* The same row with the kind first: the summary used to be squeezed to nothing
+   on a phone, leaving only the pill and the time. */
+.inv-activity-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+@media (max-width: 720px) {
+  .inv-activity-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .inv-activity-row__summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * 23. PINNED ROW ACTIONS — wide viewports only.
  *

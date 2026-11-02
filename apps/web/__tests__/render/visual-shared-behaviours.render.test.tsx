@@ -216,6 +216,34 @@ describe("V-018: the help nudge and the page's primary controls", () => {
   });
 });
 
+describe("narrow screens keep their data readable", () => {
+  it("pins DataTable row actions only where there is room", () => {
+    const table = read("components/ui/DataTable.tsx");
+    expect(table).not.toMatch(/position: "sticky",\s+insetInlineEnd/);
+    const primitives = read("components/app-primitives/app-primitives.css");
+    const bare = primitives.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(bare).toMatch(
+      /@media \(min-width: 721px\) \{\s*\[data-row-actions-head\],\s*\[data-row-actions\] \{\s*position: sticky;/,
+    );
+  });
+
+  it("gives the phone assistant dock the width only while the panel is open", () => {
+    const bare = read("components/ai/assistant.css").replace(/\/\*[\s\S]*?\*\//g, "");
+    const phone = bare.slice(bare.indexOf("@media (max-width: 640px)"));
+    expect(rulesFor(phone, ".assistant-dock").join("")).not.toContain("left:");
+    expect(rulesFor(phone, ".assistant-dock:has(.assistant-panel)").join("")).toContain("left:");
+  });
+
+  it("lets a public section be narrower than its widest table", () => {
+    for (const file of ["app/pricing/page.tsx", "app/legal/[slug]/page.tsx"]) {
+      const shrinkWrapped = [...read(file).matchAll(/<section className="([^"]*)"/g)]
+        .map((match) => match[1])
+        .filter((names) => /\bmx-auto\b/.test(names) && !/\bw-full\b/.test(names));
+      expect(shrinkWrapped, file).toEqual([]);
+    }
+  });
+});
+
 describe("the mobile drawer shows one logo", () => {
   it("lowers the hexagon when it raises the wordmark", () => {
     const shell = read("components/app-shell-v2/app-shell-v2.css");

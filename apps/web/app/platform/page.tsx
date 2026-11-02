@@ -102,7 +102,7 @@ function PlatformHero() {
         }}
       />
 
-      <div className="relative mx-auto grid max-w-[1320px] gap-10 px-6 pb-16 pt-14 md:px-8 md:pb-20 md:pt-20 lg:grid-cols-[46fr_54fr] lg:items-center lg:pb-24 lg:pt-24">
+      <div className="relative mx-auto grid max-w-[1320px] gap-10 px-6 pb-16 pt-24 md:px-8 md:pb-20 md:pt-20 lg:grid-cols-[46fr_54fr] lg:items-center lg:pb-24 lg:pt-24">
         <div>
           <Eyebrow>Platform</Eyebrow>
           <h1 className="mt-4 max-w-[600px] text-[2rem] font-semibold leading-[1.06] tracking-[-0.025em] text-[#0F172A] md:text-[2.6rem] lg:text-[3rem]">

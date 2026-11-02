@@ -458,7 +458,7 @@ function Hero({ content }: { content: UseCasePageContent }) {
         {/* Content-driven section (Platform pattern) — left-aligned text
             block stays anchored, no flex-1/justify-center forcing extra
             vertical space. */}
-        <section className="mx-auto flex w-full max-w-7xl flex-col items-start px-6 pb-16 pt-14 text-left md:px-8 md:pb-20 md:pt-20 lg:pb-24 lg:pt-24">
+        <section className="mx-auto flex w-full max-w-7xl flex-col items-start px-6 pb-16 pt-24 text-left md:px-8 md:pb-20 md:pt-20 lg:pb-24 lg:pt-24">
           <div className="w-full max-w-[720px]">
             {/* Eyebrow — deep navy text on near-white pill for strong
                 contrast against the bright illustrated background. */}

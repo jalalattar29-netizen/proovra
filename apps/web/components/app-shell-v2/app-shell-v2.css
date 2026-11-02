@@ -1667,10 +1667,12 @@
     gap: 0;
   }
 
-  /* The centre zone stops stretching so the button keeps its square. */
+  /* The centre zone stops stretching so the button keeps its square. The
+     margin keeps it from touching the bell, which read as one fused control. */
   .app-header-zone-center {
     flex: 0 0 auto;
     justify-content: center;
+    margin-inline-end: 6px;
   }
 
   /* Below this breakpoint the shell has already collapsed the action cluster

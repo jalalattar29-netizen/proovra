@@ -1034,6 +1034,8 @@ function CaseBulkActionBar({
       {count > 0 ? (
         <>
           <select
+            className="app-form-input"
+            style={{ width: "auto" }}
             data-case-bulk-action
             value={action}
             onChange={(e) => setAction(e.target.value as BulkAction)}
@@ -1048,6 +1050,8 @@ function CaseBulkActionBar({
           </select>
           <input
             type="text"
+            className="app-form-input"
+            style={{ flex: "1 1 220px", width: "auto", minWidth: 0 }}
             data-case-bulk-reason-input
             value={reason}
             maxLength={400}
@@ -1058,6 +1062,7 @@ function CaseBulkActionBar({
           />
           <button
             type="button"
+            className="app-primary-action"
             data-case-bulk-apply
             disabled={busy}
             onClick={() => void onRun(action, reason)}
@@ -1066,7 +1071,7 @@ function CaseBulkActionBar({
               ? "Applying…"
               : `${BULK_ACTION_LABELS[action]} ${count} case${count === 1 ? "" : "s"}`}
           </button>
-          <button type="button" data-case-bulk-clear disabled={busy} onClick={onClear}>
+          <button type="button" className="app-secondary-action" data-case-bulk-clear disabled={busy} onClick={onClear}>
             Clear
           </button>
         </>

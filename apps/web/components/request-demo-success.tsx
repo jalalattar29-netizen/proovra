@@ -56,21 +56,21 @@ export function RequestDemoSuccess({
           href={SALES_ASSETS.sampleReportUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[rgba(183,157,132,0.42)] bg-[linear-gradient(180deg,rgba(62,96,99,0.96)_0%,rgba(24,43,48,0.98)_100%)] px-6 py-3 text-sm font-semibold text-[#eef3f1] shadow-[0_16px_28px_rgba(20,48,52,0.18)] transition duration-300 hover:translate-y-[-1px]"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#6D28D9] bg-[#6D28D9] px-6 py-3 text-sm font-semibold text-white shadow-[0_16px_28px_rgba(20,48,52,0.18)] transition duration-300 hover:translate-y-[-1px]"
         >
           View Sample Report
         </a>
 
         <Link
           href={SALES_ASSETS.verificationDemoUrl}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#E2E8F0] bg-white px-6 py-3 text-sm font-semibold text-[#0F172A] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
         >
           Open Verification Demo
         </Link>
 
         <Link
           href={SALES_ASSETS.methodologyUrl}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#E2E8F0] bg-white px-6 py-3 text-sm font-semibold text-[#0F172A] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
         >
           View Methodology
         </Link>
@@ -79,14 +79,14 @@ export function RequestDemoSuccess({
           <>
             <Link
               href={SALES_ASSETS.pricingUrl}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#E2E8F0] bg-white px-6 py-3 text-sm font-semibold text-[#0F172A] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
             >
               View Pricing
             </Link>
 
             <Link
               href={SALES_ASSETS.contactSalesUrl}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#4f706b]/44 bg-[linear-gradient(180deg,rgba(255,255,255,0.62)_0%,rgba(242,244,241,0.92)_100%)] px-6 py-3 text-sm font-semibold text-[#23373b] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-[16px] border border-[#E2E8F0] bg-white px-6 py-3 text-sm font-semibold text-[#0F172A] shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition duration-300 hover:translate-y-[-1px]"
             >
               Contact Sales
             </Link>
