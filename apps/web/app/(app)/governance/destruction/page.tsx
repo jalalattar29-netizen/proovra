@@ -111,17 +111,6 @@ const ACTION_LABEL: Record<ReviewStatus, string> = {
   CANCELLED: "Cancel review",
 };
 
-const STATUS_LABEL: Record<ReviewStatus, string> = {
-  PENDING: "Pending",
-  UNDER_REVIEW: "Under review",
-  APPROVED: "Approved",
-  DENIED: "Denied",
-  DEFERRED: "Deferred",
-  RESTORED: "Restored",
-  EXECUTED: "Executed",
-  CANCELLED: "Cancelled",
-};
-
 const REASON_LABEL: Record<Review["reason"], string> = {
   retention_expired: "Retention expired",
   manual_review: "Manual review",

@@ -35,6 +35,7 @@ function bufferToDataUrl(
 }
 
 /** Characters no document can print: controls, escape sequences, non-characters. */
+// eslint-disable-next-line no-control-regex -- the control range is what this removes.
 const UNPRINTABLE = /\u001b\[[0-9;?]*[ -/]*[@-~]|[\u0000-\u0008\u000b\u000e-\u001f\u007f-\u009f\ufffe\uffff]/g;
 
 function safeTextExcerpt(text: string, max = 500): string {

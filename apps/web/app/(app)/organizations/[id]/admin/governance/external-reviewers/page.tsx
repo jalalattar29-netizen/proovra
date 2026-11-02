@@ -47,7 +47,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError, isApiResponseError } from "../../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../../lib/feedback/toSafeUserError";
 import { formatUtcAuditDateTime } from "../../../../../../../lib/date";
 import { useTeamId } from "../../../../../../../lib/platform-context";

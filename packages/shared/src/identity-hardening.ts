@@ -251,6 +251,7 @@ export function isSafeRedirectAfter(
   // A browser reads a backslash as a slash and drops tabs and newlines, so
   // "/\\evil.com" and "/<tab>/evil.com" look relative here and leave the site
   // there. Nothing this product links to carries either.
+  // eslint-disable-next-line no-control-regex -- the control range is what this refuses: browsers strip these before parsing a URL.
   if (/[\\\u0000-\u001f\u007f]/.test(value)) return false;
   if (value.startsWith("/")) {
     // The final authority is the same parser a browser uses: resolved against a
