@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { inflateRawSync } from "node:zlib";
 
+import { samlAcsUrl, samlLoginUrl, samlSpMetadataUrl } from "../../../apps/web/lib/identity/ssoSignIn.js";
 import type { IntegrationHarness } from "./integration-harness.js";
 import {
   ACS_URL,
@@ -140,6 +141,20 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     expect(res.headers.location).toBe(`${WEB}/home`);
     expect(sessionSet(res)).toBe(true);
     expect(await prisma.user.count({ where: { email } })).toBe(1);
+  });
+
+  it("IDENT-004: each URL the console tells an administrator to copy is one the API serves", async () => {
+    // The console's own helpers, with the API origin left out because inject has none.
+    const conn = await connection(await seedOrganizationTenant(deps, {}));
+    const metadata = await harness.app.inject({ method: "GET", url: samlSpMetadataUrl("", conn) });
+    expect(metadata.statusCode, metadata.body).toBe(200);
+    expect(metadata.headers["content-type"]).toContain("xml");
+    expect(metadata.body).toContain(`Location="${ACS_URL}"`);
+    const login = await harness.app.inject({ method: "GET", url: samlLoginUrl("", conn) });
+    expect(login.statusCode, login.body).toBe(302);
+    const acs = await harness.app.inject({ method: "POST", url: samlAcsUrl(""), payload: {} });
+    expect(acs.statusCode, "the route exists and refuses an empty post").not.toBe(404);
+    expect(new URL(ACS_URL).pathname).toBe(samlAcsUrl(""));
   });
 
   it("a failure lands on the web sign-in page with its reason", async () => {

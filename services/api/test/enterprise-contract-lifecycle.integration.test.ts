@@ -540,7 +540,8 @@ describe("the Enterprise contract and its lifecycle (live PostgreSQL)", () => {
       const part = await h.app.inject({
         method: "POST",
         url: `/v1/external-intake/${encodeURIComponent(token)}/sessions/${sessionId}/parts`,
-        payload: { partIndex: 0, mimeType: "image/png" },
+        // A whole, valid part: the refusal has to be the suspension, not the body.
+        payload: { partIndex: 0, mimeType: "image/png", sizeBytes: 16, checksumSha256Base64: Buffer.alloc(32, 7).toString("base64") },
       });
       expect(part.statusCode, part.body).toBe(410);
       const submit = await h.app.inject({
