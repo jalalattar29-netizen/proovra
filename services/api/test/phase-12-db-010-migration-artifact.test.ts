@@ -18,7 +18,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +48,7 @@ function migrationPath(artifact: string, name: string): string {
 
 function write(artifact: string, name: string, sql: string): void {
   const p = migrationPath(artifact, name);
+  mkdirSync(path.dirname(p), { recursive: true });
   writeFileSync(p, sql, "utf8");
 }
 
