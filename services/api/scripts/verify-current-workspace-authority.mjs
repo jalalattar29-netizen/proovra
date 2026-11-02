@@ -112,6 +112,14 @@ const CLASSIFIED_MODULES = new Map([
     },
   ],
   [
+    "src/services/access/request-workspace.ts",
+    {
+      reason:
+        "THE REQUEST'S ONE CANDIDATE (AUTHZ-006) — the pointer answers only for a request that names no workspace, once per request, and every caller hands the value to the canonical chain. It authorizes nothing here.",
+      allowedForms: new Set([FORMS.RETURNED, FORMS.FALLBACK]),
+    },
+  ],
+  [
     "src/services/access/current-workspace-pointer.ts",
     {
       reason:
@@ -131,16 +139,16 @@ const CLASSIFIED_MODULES = new Map([
     "src/routes/auth.routes.ts",
     {
       reason:
-        "SESSION INVENTORY METADATA — records which workspace a session was opened in, for the sessions list and audit. `AuthenticatedSession.teamId` is never read as an authorization input.",
-      allowedForms: new Set([FORMS.PASSED]),
+        "SESSION INVENTORY METADATA — records which workspace a session was opened in, for the sessions list and audit, and scores the session against it. `AuthenticatedSession.teamId` is never read as an authorization input.",
+      allowedForms: new Set([FORMS.PASSED, FORMS.FALLBACK]),
     },
   ],
   [
     "src/routes/platform-context.routes.ts",
     {
       reason:
-        "AUDIT METADATA — captures the PREVIOUS pointer so the workspace-context-switch security event can name where the operator came from. The switch itself is authorized against the TARGET workspace, not against this value.",
-      allowedForms: new Set([FORMS.PASSED, FORMS.FALLBACK]),
+        "AUDIT METADATA — captures the PREVIOUS pointer so the workspace-context-switch security event can name where the operator came from, and whose log a refusal belongs to. The switch itself is authorized against the TARGET workspace, not against this value.",
+      allowedForms: new Set([FORMS.PASSED, FORMS.FALLBACK, FORMS.COMPARISON]),
     },
   ],
   [
