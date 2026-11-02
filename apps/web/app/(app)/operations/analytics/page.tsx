@@ -39,7 +39,6 @@ import {
 } from "../../../../components/ui/PageShell";
 import "../../admin/platform/admin-platform.css";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
-import { IdentifierText } from "../../../../components/ui/IdentifierText";
 
 // ---------------------------------------------------------------------------
 // Envelope types — mirror services/api/src/services/analytics/analytics.service.ts
@@ -215,9 +214,9 @@ function MetricCard(props: {
         <div
           style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 8 }}
           data-analytics-source-trace={props.metric}
-          title={`source=${trace.source} filter=${trace.filter} windowed=${trace.windowed ? "yes" : "no"}`}
+          title={`Counted from ${trace.source} where ${trace.filter}${trace.windowed ? " (windowed)" : ""}`}
         >
-          source: <IdentifierText value={trace.source} />
+          Workspace records
           {trace.windowed ? " · windowed" : ""}
         </div>
       ) : null}
@@ -442,7 +441,7 @@ function AnalyticsPageInner(): JSX.Element {
         <PageHeader
           eyebrow={"Operations Center · Analytics"}
           title={"Operational analytics"}
-          subtitle={"Real counts from real tables. Every value traces to a Prisma model + filter. No fake KPIs, no AI predictions, no legal/admissibility scores — operational signal only."}
+          subtitle={"Counts taken directly from your workspace records. Nothing is estimated, and nothing here is a prediction or a legal or admissibility score."}
           secondaryActions={
             <>
               <div
@@ -517,10 +516,10 @@ function AnalyticsPageInner(): JSX.Element {
         }}
       >
         <p style={{ margin: 0, fontSize: 13, color: "var(--info)" }}>
-          <strong>How to read this page.</strong> Each tile shows a count
-          from a specific Prisma model. Tiles render "—" with an amber
-          badge when the underlying source failed — we never estimate.
-          Window-bounded metrics show "windowed" in the source trace.
+          <strong>How to read this page.</strong> Each tile counts one kind
+          of workspace record. A tile shows "—" with an amber badge when its
+          source could not be read; we never estimate. Figures limited to
+          a time window say "windowed".
         </p>
       </section>
 
@@ -835,7 +834,7 @@ function AnalyticsPageInner(): JSX.Element {
         {state.data.operations?.generatedAt
           ? formatUserDateTime(state.data.operations.generatedAt)
           : "unknown"}{" "}
-        · Hover any "source: …" badge to see the table + filter used.
+        · Hover "Workspace records" on a tile to see exactly what it counts.
       </footer>
     </PageShell>
   );

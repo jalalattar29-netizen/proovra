@@ -146,7 +146,7 @@ function BillingTab() {
         variant="summary"
         data-section="billing-rollup"
         title="Billing & seats"
-        subtitle="Enterprise plan + seat usage across all workspaces. Requires ORG_BILLING_ADMIN or higher."
+        subtitle="Enterprise plan and seat usage across all workspaces. Available to Billing admins and above."
       >
         {state.kind === "loading" ? (
           <div data-state="loading" style={mutedText}>
@@ -155,7 +155,7 @@ function BillingTab() {
         ) : state.kind === "error" ? (
           <div data-state="error" role="alert" style={{ fontSize: 13 }}>
             {state.status === 403 || state.status === 404
-              ? "You don't have access to billing (requires ORG_BILLING_ADMIN or higher)."
+              ? "You don't have access to billing (requires the Billing admin role or higher)."
               : state.message}
             {state.requestId ? (
               <div

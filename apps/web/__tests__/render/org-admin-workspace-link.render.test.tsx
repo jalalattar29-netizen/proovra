@@ -58,7 +58,7 @@ describe("DOM-03 — organization surfaces and workspace administration", () => 
     await screen.findByText("Acme Legal");
     const link = container.querySelector('[data-action="workspace-admin-link"]') as HTMLAnchorElement;
     expect(link).toBeTruthy();
-    expect(link.textContent).toBe("Workspace admin");
+    expect(link.textContent).toBe("Workspace administration");
     expect(link.getAttribute("href")).toBe("/workspaces");
     // Nothing in the header sends workspace administration to Collaboration Teams.
     const header = link.closest("header")!;

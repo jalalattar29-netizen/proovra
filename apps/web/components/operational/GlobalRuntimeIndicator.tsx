@@ -655,7 +655,6 @@ function RowGroup({
             margin: 0,
             fontSize: 12,
             color: errored ? OPS_TONES.unknown.inkMuted : OPS_INK.muted,
-            fontStyle: errored ? "italic" : "normal",
           }}
         >
           {empty}

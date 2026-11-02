@@ -31,6 +31,7 @@ import { formatUserDateTime } from "../../../../../../../lib/date";
 import { useTenantGuard } from "../../../../../../../lib/platform-context";
 import { Button } from "../../../../../../../components/ui/Button";
 import { Card } from "../../../../../../../components/ui/Card";
+import { AppListbox } from "../../../../../../../components/app-primitives/AppListbox";
 import { Badge } from "../../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../../components/ui/EmptyState";
 import { useConfirmAction } from "../../../../../../../components/ui/ConfirmActionModal";
@@ -498,20 +499,16 @@ export function StatusPublicationSection({ teamId }: { teamId: string | null }) 
                 >
                   How bad is it
                 </label>
-                <select
-                  style={inputStyle}
+                <AppListbox<(typeof SEVERITIES)[number]>
+                  ariaLabel="How bad is it"
                   value={severity}
-                  onChange={(e) =>
-                    setSeverity(e.target.value as (typeof SEVERITIES)[number])
-                  }
-                  data-testid="status-incident-severity"
-                >
-                  {SEVERITIES.map((s) => (
-                    <option key={s} value={s}>
-                      {s.toLowerCase()}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSeverity}
+                  options={SEVERITIES.map((s) => ({
+                    value: s,
+                    label: s.charAt(0) + s.slice(1).toLowerCase(),
+                  }))}
+                  triggerProps={{ "data-testid": "status-incident-severity" }}
+                />
                 <label
                   style={{ ...mutedStyle, display: "block", margin: "8px 0 4px" }}
                 >
@@ -686,18 +683,18 @@ function IncidentUpdateRow({
         <span style={mutedStyle}>started {formatUserDateTime(startedAtUtc)}</span>
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <select
-          style={{ ...inputStyle, width: 160 }}
-          value={nextState}
-          onChange={(e) => setNextState(e.target.value)}
-          data-testid={`status-incident-next-state-${incidentId}`}
-        >
-          {NEXT_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s.toLowerCase()}
-            </option>
-          ))}
-        </select>
+        <div style={{ width: 180, maxWidth: "100%" }}>
+          <AppListbox
+            ariaLabel="Next state"
+            value={nextState}
+            onChange={setNextState}
+            options={NEXT_STATES.map((s) => ({
+              value: s,
+              label: s.charAt(0) + s.slice(1).toLowerCase(),
+            }))}
+            triggerProps={{ "data-testid": `status-incident-next-state-${incidentId}` }}
+          />
+        </div>
         <input
           style={{ ...inputStyle, flex: 1, minWidth: 200 }}
           placeholder="What changed?"

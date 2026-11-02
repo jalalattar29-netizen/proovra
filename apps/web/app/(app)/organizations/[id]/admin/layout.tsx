@@ -157,7 +157,7 @@ export const ADMIN_TABS: ReadonlyArray<AdminTab> = [
     segment: "billing",
     label: "Billing & seats",
     description:
-      "Enterprise plan + seat rollup across workspaces. Requires ORG_BILLING_ADMIN or higher.",
+      "Enterprise plan and seat usage across workspaces. Available to Billing admins and above.",
   },
   // ---- Security & identity ----
   {
@@ -338,8 +338,9 @@ export default function OrganizationAdminLayout({
         data-state={state.kind}
         style={{
           padding: "1rem 1.1rem",
-          border: "1px solid rgba(127,127,127,0.3)",
-          borderRadius: 8,
+          border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-card)",
+          background: "var(--surface-card)",
           marginBottom: "1rem",
           display: "flex",
           justifyContent: "space-between",
@@ -370,11 +371,11 @@ export default function OrganizationAdminLayout({
                 </span>
               </>
             ) : state.kind === "loading" ? (
-              "Loading organization metadata…"
+              "Loading organization…"
             ) : state.status === 403 || state.status === 404 ? (
               "You don't have access to this organization, or it doesn't exist."
             ) : (
-              "Couldn't load organization metadata."
+              "Couldn't load this organization."
             )}
           </p>
           {state.kind === "error" && state.requestId ? (
@@ -386,7 +387,7 @@ export default function OrganizationAdminLayout({
               }}
               data-testid="org-admin-error-request-id"
             >
-              Request id: {state.requestId}
+              Support reference: {state.requestId}
             </p>
           ) : null}
         </div>
@@ -396,7 +397,7 @@ export default function OrganizationAdminLayout({
             data-action="legacy-detail-link"
             className="cases-filter-chip"
           >
-            Legacy detail
+            Organization profile
           </Link>
           {/* Members audit DOM-03 — "Workspace admin" landed on Collaboration
               Teams. Workspace administration is /workspaces. */}
@@ -405,7 +406,7 @@ export default function OrganizationAdminLayout({
             data-action="workspace-admin-link"
             className="cases-filter-chip"
           >
-            Workspace admin
+            Workspace administration
           </Link>
         </div>
       </header>
@@ -449,7 +450,7 @@ export default function OrganizationAdminLayout({
           gap: "0.5rem",
           marginTop: "1rem",
           marginBottom: "1.25rem",
-          borderBottom: "1px solid rgba(79,112,107,0.18)",
+          borderBottom: "1px solid var(--border-default)",
           paddingBottom: "0.5rem",
           flexWrap: "wrap",
         }}
@@ -464,19 +465,7 @@ export default function OrganizationAdminLayout({
               data-active={isActive ? "true" : "false"}
               aria-current={isActive ? "page" : undefined}
               title={tab.description}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 999,
-                border: "1px solid transparent",
-                background: isActive
-                  ? "linear-gradient(180deg, rgba(62,96,99,0.94) 0%, rgba(24,43,48,0.98) 100%)"
-                  : "transparent",
-                color: isActive ? "#eef3f1" : "#5d6d71",
-                fontSize: "0.92rem",
-                fontWeight: 500,
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}
+              className={`app-tab${isActive ? " is-active" : ""}`}
             >
               {tab.label}
             </Link>

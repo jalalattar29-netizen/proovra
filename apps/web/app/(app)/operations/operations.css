@@ -456,12 +456,11 @@
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
 }
-/* A value whose last observation failed. Muted and italic rather than red:
+/* A value whose last observation failed. Muted rather than red:
    nothing is wrong with the WORKSPACE, the platform simply could not check,
    and dressing that as an alert would compete with the severity beside it. */
 .opsw-condition__metric-stale {
   color: var(--ink-muted);
-  font-style: italic;
 }
 .opsw-condition__metric[data-ops-metric-stale="true"] {
   color: var(--ink-secondary);

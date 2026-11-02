@@ -801,7 +801,6 @@ const summaryMutedStyle: React.CSSProperties = {
   padding: "10px 0",
   fontSize: 12,
   color: "#94a3b8",
-  fontStyle: "italic",
   borderTop: "1px solid #f1f5f9",
 };
 

@@ -284,7 +284,7 @@ export function MfaEventsSection() {
         });
         return (
           <span style={{ display: "grid", gap: 1 }}>
-            <span style={{ fontStyle: actor.unknown ? "italic" : "normal" }}>
+            <span>
               {actor.name}
             </span>
             {actor.reference ? (

@@ -451,7 +451,7 @@ function AutomationPageInner(): JSX.Element {
         }}
       >
         <p style={{ margin: 0, fontSize: 13, color: "var(--success-strong)" }}>
-          <strong>Phase E3.1 — execution runtime active.</strong> Enabled
+          <strong>Automation is running.</strong> Enabled
           rules execute when matching trigger events fire from internal
           services. Rules are always created disabled by default; flip
           the enable switch only after reviewing the action config. The
@@ -735,7 +735,7 @@ function AutomationPageInner(): JSX.Element {
                 filter is applied tells the reader their history is gone. */}
             <p>No automation runs recorded yet.</p>
             <p style={{ fontSize: 12, color: "var(--ink-muted)" }}>
-              Runs appear here once the E3.1 trigger dispatcher is wired.
+              Runs appear here after an enabled rule fires.
             </p>
           </div>
         ) : (

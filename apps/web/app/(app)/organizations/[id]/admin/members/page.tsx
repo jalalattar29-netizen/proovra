@@ -46,6 +46,7 @@ import { usePlatformContext } from "../../../../../../lib/platform-context";
 import { formatUserDate, formatUserDateTime } from "../../../../../../lib/date";
 import { SeatsCard } from "../_lib/SeatsCard";
 import { Card } from "../../../../../../components/ui/Card";
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
 import { Badge } from "../../../../../../components/ui/Badge";
 import { Button } from "../../../../../../components/ui/Button";
 import {
@@ -484,7 +485,7 @@ function MembersTab() {
         variant="summary"
         data-section="invite-form"
         title="Invite a member"
-        subtitle="ORG_ADMIN+ only. The invitee accepts via the returned token URL."
+        subtitle="Available to Admins and Owners. You get a link to share with the invitee, who uses it to accept."
       >
         {!canMutate ? (
           <p data-state="forbidden" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)", margin: 0 }}>
@@ -518,24 +519,21 @@ function MembersTab() {
             </label>
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
               Role
-              <select
+              <AppListbox<OrgRole>
+                ariaLabel="Role"
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as OrgRole)}
+                onChange={setInviteRole}
                 disabled={inviteFormBusy}
-                data-testid="invite-role-select"
-                style={{ ...fieldInput, cursor: "pointer" }}
-              >
-                {ALL_ROLES.map((r) => {
+                options={ALL_ROLES.map((r) => {
                   const above = roleAboveCaller(r, callerRole);
-                  return (
-                    <option key={r} value={r} disabled={above}>
-                      {above
-                        ? `${ROLE_LABEL[r]} — above your role`
-                        : ROLE_LABEL[r]}
-                    </option>
-                  );
+                  return {
+                    value: r,
+                    label: above ? `${ROLE_LABEL[r]} — above your role` : ROLE_LABEL[r],
+                    disabled: above,
+                  };
                 })}
-              </select>
+                triggerProps={{ "data-testid": "invite-role-select" }}
+              />
             </label>
             <Button
               type="submit"
@@ -578,7 +576,7 @@ function MembersTab() {
               color: "var(--ink-secondary, #475569)",
             }}
           >
-            <strong>Invite token URL</strong> — share with the invitee:{" "}
+            <strong>Invitation link</strong>: share it with the invitee:{" "}
             <code>/org-invites/{issuedInviteToken}/accept</code>
           </div>
         ) : null}
@@ -637,35 +635,24 @@ function MembersTab() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {canMutate ? (
-                      <select
-                        data-testid={`member-role-select-${m.membershipId}`}
-                        value={m.role}
-                        disabled={busy}
-                        onChange={(e) =>
-                          void changeRole(m, e.target.value as OrgRole)
-                        }
-                        style={{
-                          minHeight: 34,
-                          padding: "0 10px",
-                          fontSize: 12.5,
-                          border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                          borderRadius: 8,
-                          background: "var(--surface-card, #ffffff)",
-                          color: "var(--ink-primary, #0f172a)",
-                          cursor: busy ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {ALL_ROLES.map((r) => {
-                          const above = roleAboveCaller(r, callerRole);
-                          return (
-                            <option key={r} value={r} disabled={above && r !== m.role}>
-                              {above && r !== m.role
-                                ? `${ROLE_LABEL[r]} — above your role`
-                                : ROLE_LABEL[r]}
-                            </option>
-                          );
-                        })}
-                      </select>
+                      <div style={{ width: 200, maxWidth: "100%" }}>
+                        <AppListbox<OrgRole>
+                          ariaLabel={`Role for ${m.displayName ?? m.email ?? "this member"}`}
+                          value={m.role}
+                          disabled={busy}
+                          onChange={(next) => void changeRole(m, next)}
+                          options={ALL_ROLES.map((r) => {
+                            const above = roleAboveCaller(r, callerRole);
+                            const locked = above && r !== m.role;
+                            return {
+                              value: r,
+                              label: locked ? `${ROLE_LABEL[r]} — above your role` : ROLE_LABEL[r],
+                              disabled: locked,
+                            };
+                          })}
+                          triggerProps={{ "data-testid": `member-role-select-${m.membershipId}` }}
+                        />
+                      </div>
                     ) : (
                       <Badge tone="neutral" subtle>
                         {ROLE_LABEL[m.role]}

@@ -550,7 +550,7 @@ function SsoAdminContent() {
 
                   {/* R8.2.2 — Honest request signing status. Unsigned until R8.3 wires
                       SP private key and signing. Never claim signed if it is not. */}
-                  <p style={{ ...mutedStyle, marginTop: 8, fontStyle: "italic" }}>
+                  <p style={{ ...mutedStyle, marginTop: 8 }}>
                     Request signing: unsigned AuthnRequests (signed requests not yet enabled —
                     planned for a future release). Assertions must be signed by the IdP.
                   </p>

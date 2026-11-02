@@ -662,7 +662,7 @@ function OrganizationDetailInner() {
                 >
                   Members in the Admin console
                 </Link>
-                , pick a role, and share the invite token URL. Each
+                , pick a role, and share the invitation link. Each
                 invitation is recorded in the audit timeline.
               </li>
               <li data-onboarding-step="set-legal-metadata">
@@ -752,8 +752,8 @@ function OrganizationDetailInner() {
           }
           secondary={
             workspaces.kind === "ready" && workspaces.data.callerCanSeeBilling
-              ? "Per-workspace plan + seat usage shown below. Org-level billing unification is on the Phase 2.7X roadmap; for now the workspace is the billing unit."
-              : "Org-level billing unification is on the Phase 2.7X roadmap. Today, plan / seats / addons are managed per workspace. Visibility requires ORG_ADMIN+ or ORG_BILLING_ADMIN."
+              ? "Plan and seat usage for each workspace are shown below. Billing is managed per workspace."
+              : "Plans, seats and add-ons are managed per workspace. Available to Admins, Owners and Billing admins."
           }
           footer={
             <Link
@@ -1476,13 +1476,8 @@ function OrgLifecycleControls({
               onChange={(e) => setTargetUserId(e.target.value)}
               aria-label="New owner"
               data-control="transfer-ownership-target"
-              style={{
-                fontSize: 13,
-                padding: "6px 10px",
-                borderRadius: 8,
-                border: "1px solid var(--border-default, rgba(15,23,42,0.15))",
-                minWidth: 220,
-              }}
+              className="app-form-input"
+              style={{ width: "auto", minWidth: 220, maxWidth: "100%" }}
             >
               <option value="">Select the new owner…</option>
               {eligibleTargets.map((m) => (

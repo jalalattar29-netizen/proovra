@@ -64,6 +64,7 @@ import { usePlatformContext } from "../../../../../../lib/platform-context";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../../lib/date";
 import { Card } from "../../../../../../components/ui/Card";
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
 import { Badge, type BadgeTone } from "../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import { identityProviderLabel } from "../../../../../../lib/labels/identityOrgLabels";
@@ -645,37 +646,51 @@ function OrganizationIncidentList({
   return (
     <div style={{ display: "grid", gap: 8, marginTop: 12 }} data-rollup-incidents>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <label style={mutedStyle}>
+        <label style={rollupFilterStyle}>
           {copy.rollup.filterWorkspace}{" "}
-          <select value={workspaceFilter} onChange={(e) => setWorkspaceFilter(e.target.value)} data-rollup-filter-workspace>
-            <option value="">{copy.rollup.allWorkspaces}</option>
-            {workspaces.map((w) => (
-              <option key={w.workspaceId} value={w.workspaceId}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <AppListbox
+            ariaLabel={copy.rollup.filterWorkspace}
+            value={workspaceFilter}
+            onChange={setWorkspaceFilter}
+            options={[
+              { value: "", label: copy.rollup.allWorkspaces },
+              ...workspaces.map((w) => ({ value: w.workspaceId, label: w.name })),
+            ]}
+            triggerProps={{ "data-rollup-filter-workspace": "" }}
+          />
         </label>
-        <label style={mutedStyle}>
+        <label style={rollupFilterStyle}>
           {copy.rollup.filterSeverity}{" "}
-          <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} data-rollup-filter-severity>
-            <option value="">{copy.rollup.any}</option>
-            <option value="CRITICAL">{copy.severity.CRITICAL.label}</option>
-            <option value="HIGH">{copy.severity.HIGH.label}</option>
-            <option value="WARNING">{copy.severity.WARNING.label}</option>
-            <option value="INFO">{copy.severity.INFO.label}</option>
-          </select>
+          <AppListbox
+            ariaLabel={copy.rollup.filterSeverity}
+            value={severityFilter}
+            onChange={setSeverityFilter}
+            options={[
+              { value: "", label: copy.rollup.any },
+              { value: "CRITICAL", label: copy.severity.CRITICAL.label },
+              { value: "HIGH", label: copy.severity.HIGH.label },
+              { value: "WARNING", label: copy.severity.WARNING.label },
+              { value: "INFO", label: copy.severity.INFO.label },
+            ]}
+            triggerProps={{ "data-rollup-filter-severity": "" }}
+          />
         </label>
-        <label style={mutedStyle}>
+        <label style={rollupFilterStyle}>
           {copy.rollup.filterStatus}{" "}
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} data-rollup-filter-status>
-            <option value="UNRESOLVED">{copy.statusUnresolvedDefault}</option>
-            <option value="ALL">{copy.statusAll}</option>
-            <option value="OPEN">{copy.status.OPEN.label}</option>
-            <option value="ACKNOWLEDGED">{copy.status.ACKNOWLEDGED.label}</option>
-            <option value="SUPPRESSED">{copy.status.SUPPRESSED.label}</option>
-            <option value="RESOLVED">{copy.status.RESOLVED.label}</option>
-          </select>
+          <AppListbox
+            ariaLabel={copy.rollup.filterStatus}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "UNRESOLVED", label: copy.statusUnresolvedDefault },
+              { value: "ALL", label: copy.statusAll },
+              { value: "OPEN", label: copy.status.OPEN.label },
+              { value: "ACKNOWLEDGED", label: copy.status.ACKNOWLEDGED.label },
+              { value: "SUPPRESSED", label: copy.status.SUPPRESSED.label },
+              { value: "RESOLVED", label: copy.status.RESOLVED.label },
+            ]}
+            triggerProps={{ "data-rollup-filter-status": "" }}
+          />
         </label>
       </div>
       {notice ? (
@@ -766,19 +781,16 @@ function WorkspacePicker({
       <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
         Workspace
       </span>
-      <select
-        data-testid="readiness-workspace-select"
+      <AppListbox
+        ariaLabel="Workspace"
         value={selected ?? ""}
-        onChange={(e) => onSelect(e.target.value)}
-        style={selectStyle}
-      >
-        {workspaces.map((w) => (
-          <option key={w.workspaceId} value={w.workspaceId}>
-            {w.name}
-            {w.isPersonal ? " (personal)" : ""}
-          </option>
-        ))}
-      </select>
+        onChange={onSelect}
+        options={workspaces.map((w) => ({
+          value: w.workspaceId,
+          label: w.isPersonal ? `${w.name} (personal)` : w.name,
+        }))}
+        triggerProps={{ "data-testid": "readiness-workspace-select" }}
+      />
     </label>
   );
 }
@@ -1214,6 +1226,15 @@ const errorBoxStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
 };
+const rollupFilterStyle: React.CSSProperties = {
+  ...mutedStyle,
+  display: "grid",
+  gap: 4,
+  flex: "1 1 180px",
+  minWidth: 0,
+  maxWidth: 260,
+};
+
 const selectStyle: React.CSSProperties = {
   padding: "8px 10px",
   border: "1px solid var(--border-strong, #cbd5e1)",

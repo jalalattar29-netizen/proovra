@@ -134,6 +134,68 @@ describe("RT-013: keyboard focus on an open listbox", () => {
   });
 });
 
+describe("RT-008: a migrated select keeps its hooks and its reason", () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  const options = [
+    { value: "a", label: "Admin" },
+    { value: "b", label: "Owner — above your role", disabled: true },
+  ];
+
+  it("passes data hooks and the description to the trigger", () => {
+    render(
+      <AppListbox
+        ariaLabel="Role"
+        value="a"
+        onChange={() => undefined}
+        options={options}
+        triggerProps={{ "data-testid": "role", "aria-describedby": "why" }}
+      />,
+    );
+    const trigger = screen.getByTestId("role");
+    expect(trigger.getAttribute("role")).toBe("combobox");
+    expect(trigger.getAttribute("aria-describedby")).toBe("why");
+    expect(trigger.getAttribute("aria-label")).toBe("Role");
+  });
+
+  it("states why it is disabled, and only while disabled", () => {
+    const { rerender } = render(
+      <AppListbox
+        ariaLabel="Role"
+        value="a"
+        onChange={() => undefined}
+        options={options}
+        disabled
+        disabledReason="Only an Owner can change this."
+      />,
+    );
+    expect(screen.getByRole("combobox").getAttribute("title")).toBe(
+      "Only an Owner can change this.",
+    );
+    rerender(
+      <AppListbox
+        ariaLabel="Role"
+        value="a"
+        onChange={() => undefined}
+        options={options}
+        disabledReason="Only an Owner can change this."
+      />,
+    );
+    expect(screen.getByRole("combobox").getAttribute("title")).toBeNull();
+  });
+
+  it("refuses a disabled option, as a native select does", async () => {
+    const onChange = vi.fn();
+    render(<AppListbox ariaLabel="Role" value="a" onChange={onChange} options={options} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox"));
+    await user.click(screen.getByRole("option", { name: /above your role/ }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
 describe("V-018: the help nudge and the page's primary controls", () => {
   const css = read("components/ai/assistant.css");
 

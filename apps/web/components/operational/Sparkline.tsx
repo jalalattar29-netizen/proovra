@@ -214,7 +214,6 @@ export function Sparkline({
             style={{
               fontSize: 11,
               color: OPS_INK.subtle,
-              fontStyle: "italic",
               width,
               display: "inline-block",
             }}

@@ -26,6 +26,7 @@ import { apiFetch } from "../../../../../../../lib/api";
 import { useTenantGuard } from "../../../../../../../lib/platform-context";
 import { Button } from "../../../../../../../components/ui/Button";
 import { Card } from "../../../../../../../components/ui/Card";
+import { AppListbox } from "../../../../../../../components/app-primitives/AppListbox";
 import { Badge } from "../../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../../components/ui/EmptyState";
 import {
@@ -274,27 +275,15 @@ export function VerificationReferencesSection() {
         one. Previewing it records nothing and delivers nothing.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <select
-          value={previewKind}
-          onChange={(e) =>
-            setPreviewKind(e.target.value as (typeof PREVIEW_KINDS)[number]["key"])
-          }
-          data-testid="trust-package-preview-kind"
-          style={{
-            padding: "6px 8px",
-            borderRadius: 6,
-            border: "1px solid rgba(15, 23, 42, 0.18)",
-            fontSize: 12.5,
-            background: "transparent",
-            color: "inherit",
-          }}
-        >
-          {PREVIEW_KINDS.map((k) => (
-            <option key={k.key} value={k.key}>
-              {k.label}
-            </option>
-          ))}
-        </select>
+        <div style={{ width: 200, maxWidth: "100%" }}>
+          <AppListbox<(typeof PREVIEW_KINDS)[number]["key"]>
+            ariaLabel="Package to preview"
+            value={previewKind}
+            onChange={setPreviewKind}
+            options={PREVIEW_KINDS.map((k) => ({ value: k.key, label: k.label }))}
+            triggerProps={{ "data-testid": "trust-package-preview-kind" }}
+          />
+        </div>
         <Button
           variant="secondary"
           size="sm"

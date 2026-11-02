@@ -59,6 +59,7 @@ import { apiFetch } from "../../lib/api";
 import { useToast } from "../ui-legacy";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
 import { StepUpModal, useStepUpAction } from "../identity-security/StepUpModal";
+import { humaniseCode } from "../../lib/ots-presentation";
 // Phase CASES-PERSONAL-UX / Track 1A — enterprise-experience gate. The
 // advanced Cases filters and card details render only for the Enterprise
 // workspace experience. The signal is the SERVER-projected
@@ -1627,8 +1628,8 @@ function RiskBadge({
       data-risk-level={level}
       data-risk-score={score ?? ""}
     >
-      Risk: {level}
-      {typeof score === "number" ? ` · ${score}` : ""}
+      {level === "NONE" ? "No risk signals" : `Risk: ${humaniseCode(level)}`}
+      {typeof score === "number" ? ` · ${score}/100` : ""}
     </Badge>
   );
 }

@@ -469,9 +469,9 @@ function WorkflowInstancePageInner() {
                 Show legacy step controls
               </label>
               <div style={mutedStyle}>
-                Phase 22 step-level waivers and evidence mappings are
-                retained for in-flight instances. Toggle on only when
-                closing out outstanding step bookkeeping.
+                Step-level waivers and evidence mappings are kept for
+                workflows already in progress. Turn this on only when closing
+                out outstanding steps.
               </div>
             </div>
           </section>

@@ -699,7 +699,6 @@ const sectionEmptyStyle: React.CSSProperties = {
   padding: 14,
   fontSize: 12,
   color: "#64748b",
-  fontStyle: "italic",
 };
 
 const listStyle: React.CSSProperties = {

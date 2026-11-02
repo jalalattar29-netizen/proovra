@@ -31,6 +31,7 @@ import {
 } from "../../lib/platform-context";
 import type { WorkspaceAdminEnvelope } from "./types";
 import { WorkspaceAuditTab } from "./WorkspaceAuditTab";
+import { humaniseCode } from "../../lib/ots-presentation";
 
 // CR1.6 — The legacy `no_workspace` LoadState branch was removed.
 // PageRouteGate (admin.teams) gates access to this surface before
@@ -160,10 +161,10 @@ export function WorkspaceAdminPanel() {
               deliberately not rendered: on a Personal Workspace it is always
               FREE regardless of what the owner pays. */}
           <span data-workspace-plan={env.workspace.effectivePlan}>
-            Plan: {env.workspace.effectivePlan}
+            Plan: {humaniseCode(env.workspace.effectivePlan)}
           </span>
           <span data-workspace-billing-status={env.workspace.billingStatus}>
-            Billing: {env.workspace.billingStatus}
+            Billing: {humaniseCode(env.workspace.billingStatus)}
           </span>
           <span title={env.generatedAt}>
             Refreshed {relTime(env.generatedAt)}

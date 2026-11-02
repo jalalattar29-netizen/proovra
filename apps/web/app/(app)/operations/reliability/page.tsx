@@ -301,7 +301,7 @@ useEffect(() => {
         <PageHeader
           eyebrow="Workspace operations"
           title="Reliability operations"
-          subtitle={"Internal-only view of upload session health for the ACTIVE WORKSPACE — not a platform-wide total. Stalled, failed, and review-required uploads are NEVER auto-deleted. Operator actions move the session through the canonical state machine without mutating the underlying evidence row, custody chain, or stored bytes."}
+          subtitle={"Upload session health for this workspace, not a platform-wide total. Stalled, failed and review-required uploads are never deleted automatically. Actions here move a session on without mutating the underlying evidence row, custody chain, or stored bytes."}
         />
       }
       >

@@ -59,11 +59,9 @@ function DepartmentsTab() {
             color: "var(--ink-secondary, #475569)",
           }}
         >
-          Departments live on the workspace-scoped Governance Platform surface.
-          Members are mapped to departments via the canonical
-          <code> /v1/governance/departments </code>
-          endpoint. The mutation surface enforces delegated-tier checks
-          (ORG_ADMIN+) and emits POLICY-aware audit events.
+          Departments are managed per workspace in the Governance Platform.
+          Organization admins can map members to departments there, and every
+          change is recorded in the audit log.
         </p>
         <div
           data-state="not-configured-explainer"

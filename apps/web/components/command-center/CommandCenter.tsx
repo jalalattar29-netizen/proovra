@@ -52,6 +52,7 @@ import {
   redactWorkspaceId,
 } from "../../lib/platform-context/state-observability";
 import { resolveWorkspaceExperience } from "../../lib/workspace-experience";
+import { humaniseCode } from "../../lib/ots-presentation";
 import {
   resolveDashboardOnboarding,
   resolveDashboardQuickActions,
@@ -340,7 +341,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
       <header className="ec-hero">
         <div className="ec-hero-titles">
           <div className="ec-kicker">Evidence Operations Center</div>
-          <h1 className="ec-title">Operational command surface</h1>
+          <h1 className="ec-title">Operations overview</h1>
           <p className="ec-subtitle">
             Operational pressure, investigation status, reviewer coordination,
             governance posture, and audit readiness — sourced from real
@@ -353,12 +354,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
               ? "Personal workspace"
               : `Team · ${workspace.memberCount} members`}
           </span>
-          <span data-cc-role={role}>Role · {role}</span>
-          {persona ? (
-            <span data-cc-persona-chip={persona}>
-              Persona · {persona.replace(/_/g, " ")}
-            </span>
-          ) : null}
+          <span data-cc-role={role}>Role · {humaniseCode(role)}</span>
           <span title={envelope.generatedAt}>
             Refreshed {relTime(envelope.generatedAt)}
           </span>
@@ -406,7 +402,7 @@ function CommandCenterReady({ envelope }: { envelope: CommandCenterEnvelope }) {
           aria-label="Priority sections for this persona"
         >
           <span className="ec-chip-faint" data-cc-persona-priority-label>
-            {persona ? `${persona.replace(/_/g, " ")} priority` : "Priority"}
+            Priority sections
           </span>
           <ul className="ec-persona-priority-list">
             {sectionOrder.slice(0, 8).map((sectionId, idx) => {
@@ -1784,8 +1780,8 @@ function AccessSecurityClassifierBoard({
           health={rollupHealth ?? null}
         />
         <div className="ec-section-foot" data-cc-classifier-fallback>
-          Detection is operational via the canonical SecurityEvent audit
-          log. The dashboard rollup will re-classify on the next refresh.
+          Detection still runs from the security audit log. This summary
+          updates on the next refresh.
         </div>
       </SectionShell>
     );
@@ -1798,8 +1794,8 @@ function AccessSecurityClassifierBoard({
       >
         <EnterpriseEmpty
           title="No suspicious activity in the last 24h"
-          body="The classifier scans SecurityEvent rows in a bounded 24h window and groups them by (category, actor, eventType). A 0-result state means: no repeated failed access, no blocked export attempts, no API credential changes, no webhook failure spikes, no step-up failures, no permission-denied bursts, no admin role changes flagged above the burst threshold."
-          hint="The classifier is rule-based — no ML scoring. The full audit trail remains on the SecurityEvent log."
+          body="The classifier reads the last 24 hours of the security audit log and groups them by (category, actor, eventType). A 0-result state means: no repeated failed access, no blocked export attempts, no API credential changes, no webhook failure spikes, no step-up failures, no permission-denied bursts, no admin role changes flagged above the burst threshold."
+          hint="The classifier is rule-based — no ML scoring. The full audit trail remains in the security audit log."
         />
       </SectionShell>
     );
@@ -2295,10 +2291,8 @@ function RoutingRow({ item }: { item: OperationalPressureItem }) {
             {item.operationalExplanation}
           </span>
           <span className="ec-routing-meta">
-            {item.reasonCode} · {item.affectedDomain}
+            {humaniseCode(item.reasonCode)} · {humaniseCode(item.affectedDomain)}
             {item.ageMs !== null ? ` · ${formatAge(item.ageMs)}` : ""}
-            {" · source: "}
-            {item.sourceTable}
           </span>
         </div>
       </div>
@@ -2317,9 +2311,10 @@ function RoutingRow({ item }: { item: OperationalPressureItem }) {
             className="ec-routing-cannot-act"
             data-cc-can-act="false"
             data-cc-required-roles={item.requiredRoles.join(",")}
-            title={`Required roles · ${item.requiredRoles.join(" / ")}`}
+            title={`Requires ${item.requiredRoles.map(humaniseCode).join(" or ")}`}
           >
-            {item.safeActionLabel}
+            {/* The server writes role names in capitals into this label. */}
+            {item.safeActionLabel.replace(/\b[A-Z][A-Z_]+\b/g, humaniseCode)}
           </span>
         )}
         {item.secondaryRoute ? (
@@ -2623,9 +2618,9 @@ function QueueCongestionSection({
       </div>
       {section.meta.unsupportedSignals.length > 0 ? (
         <div className="ec-section-foot">
-          Remaining gaps are listed in the Unsupported Signals section. BullMQ
-          depth + worker heartbeat are now persisted by Phase 32.8C+++++
-          telemetry snapshots; see the Queue / Worker Telemetry section.
+          Remaining gaps are listed in the Unsupported Signals section. Queue
+          depth and worker heartbeat are in the Queue / Worker Telemetry
+          section.
         </div>
       ) : null}
     </SectionShell>
@@ -2735,8 +2730,8 @@ function AccessSecurityWatch({
       >
         <EnterpriseEmpty
           title="No suspicious access activity in the last 24 hours"
-          body="The watch reads the SecurityEvent stream filtered to WARNING + HIGH severity in a bounded 24h window. A 0-result state means: no impossible-travel sessions, no suspicious export spikes, no excessive failed access attempts, no admin-role escalations above the threshold."
-          hint="The full SecurityEvent audit trail remains canonical. Operator review is the source-of-truth path."
+          body="The watch reads warning and high-severity entries from the last 24 hours of the security audit log. A 0-result state means: no impossible-travel sessions, no suspicious export spikes, no excessive failed access attempts, no admin-role escalations above the threshold."
+          hint="The full security audit log remains the record. Review it for the complete picture."
         />
       </SectionShell>
     );
@@ -4068,7 +4063,7 @@ function WorkflowsStrip({
                       className="ec-chip-faint"
                       data-cc-workflow-action={a.actionType}
                       data-cc-workflow-action-permission={a.permissionRequired}
-                      title={`Requires ${a.requiredRoles.join(" / ")} · ${a.permissionRequired}`}
+                      title={`Requires ${a.requiredRoles.map(humaniseCode).join(" or ")} · ${a.permissionRequired}`}
                     >
                       {a.safeActionLabel}
                     </span>
@@ -5079,7 +5074,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5091,7 +5086,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5103,7 +5098,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5115,7 +5110,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5127,7 +5122,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5139,7 +5134,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? "Records retry intent only — never invokes the queue."
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5151,7 +5146,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
     {
@@ -5163,7 +5158,7 @@ function BulkActionsToolbar({
           ? "Requires workspace"
           : capabilities.bulkActions
             ? ""
-            : "Requires ADMIN or OWNER",
+            : "Requires an Admin or Owner",
       href: "/operations",
     },
   ];
@@ -5226,10 +5221,9 @@ function BulkActionsToolbar({
         ))}
       </ul>
       <div className="ec-section-foot">
-        Bulk actions are executed on the Operations Center page (
-        <Link href="/operations">/operations</Link>). The dashboard is read-only
-        — chips above link to the canonical surface. Every bulk run fans out to
-        the underlying lifecycle service and is audited per-target.
+        Bulk actions run on the <Link href="/operations">Operations Center</Link>.
+        This dashboard is read-only: the chips above take you there, and every
+        bulk run is audited for each record it touches.
       </div>
     </section>
   );

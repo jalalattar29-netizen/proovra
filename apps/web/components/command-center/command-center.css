@@ -1109,6 +1109,9 @@
 
 .ec-routing-row {
   display: flex;
+  /* Wraps so the action column drops below the text on a phone. As two
+     shrink-fighting columns the text was left one letter wide. */
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
@@ -1137,7 +1140,7 @@
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  flex: 1;
+  flex: 1 1 240px;
   min-width: 0;
 }
 
@@ -1186,17 +1189,16 @@
 }
 
 .ec-routing-meta {
-  font-size: 10px;
+  font-size: 11px;
   color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .ec-routing-actions {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ec-routing-primary {
@@ -1614,10 +1616,7 @@
   font-size: 11px;
   font-weight: 500;
   border: 1px solid #cbd5e1;
-  white-space: nowrap;
   max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   cursor: help;
 }
 
@@ -2574,11 +2573,17 @@
 .ec-bulk-actions-list [data-cc-bulk-action-link] {
   font-size: 12px;
   text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
+/* Disabled by opacity alone, this was the pale lavender line nobody could read;
+   the dashed border says "unavailable" and the words stay at reading contrast. */
 .ec-bulk-actions-list [data-cc-bulk-action-disabled] {
   font-size: 12px;
-  opacity: 0.55;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--app-ink-secondary);
   border-style: dashed;
 }
 

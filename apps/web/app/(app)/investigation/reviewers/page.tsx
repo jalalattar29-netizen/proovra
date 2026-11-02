@@ -29,6 +29,7 @@ import { severityTone } from "../../../../components/ui/StatusBadge";
 import { useTeamId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { useHealthDestination } from "../../../../lib/navigation/healthDestination";
+import { humaniseCode } from "../../../../lib/ots-presentation";
 import { useCanOpenRoute } from "../../../../lib/navigation/useRouteDestination";
 import { OperationalEmptyState } from "../../../../components/operational/OperationalEmptyState";
 import { classifyInvestigationEmptyState } from "../../../../lib/empty-state/classifier";
@@ -396,7 +397,7 @@ useEffect(() => {
         <div style={dataQualityBannerStyle}>
           Some reviewer console counters could not be loaded for this request.
           The remaining tiles still reflect real workspace state. Details:{" "}
-          {data.dataQuality.degradedBlocks.join(", ")}.
+          {data.dataQuality.degradedBlocks.map(humaniseCode).join(", ")}.
         </div>
       ) : null}
 
@@ -1140,7 +1141,6 @@ const emptyStyle: React.CSSProperties = {
   fontSize: 12,
   color: "#64748b",
   lineHeight: 1.5,
-  fontStyle: "italic",
 };
 
 const listStyle: React.CSSProperties = {
