@@ -90,10 +90,11 @@ export async function enforceReviewActionGate(
     teamId: input.teamId,
     userId: input.userId,
     action: gate.adaptive,
+    callerEnforcesStepUp: true,
   });
   if (!adaptive.allow) return false;
   const flags = await loadWorkspaceReviewerOpsFlags(input.teamId);
-  if (!flags[gate.flag]) return true;
+  if (!flags[gate.flag] && !adaptive.stepUpRequired) return true;
   const stepUp = await requireStepUpForSensitiveAction({
     req,
     reply,

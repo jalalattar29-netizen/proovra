@@ -387,6 +387,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         userId: actor.userId,
         action: "SSO_CONNECTION_CREATE",
+        callerEnforcesStepUp: true,
       });
       if (!runtimeGate.allow) return;
       const gate = await requireStepUpForSensitiveAction({
@@ -506,6 +507,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         userId: actor.userId,
         action: "SSO_CONNECTION_CREATE",
+        callerEnforcesStepUp: true,
       });
       if (!runtimeGate.allow) return;
       // Reuse the EXISTING identity-provider step-up purpose.
@@ -629,6 +631,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         teamId: ctx.teamId,
         userId: ctx.userId,
         action: "RBAC_TEMPORARY_ELEVATION",
+        callerEnforcesStepUp: true,
       });
       if (!runtimeGateElev.allow) return;
       const gate = await requireStepUpForSensitiveAction({
@@ -746,6 +749,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         teamId: body.teamId,
         userId: actor.userId,
         action: "SCIM_TOKEN_CREATE",
+        callerEnforcesStepUp: true,
       });
       if (!runtimeGate.allow) return;
       const gate = await requireStepUpForSensitiveAction({

@@ -41,6 +41,7 @@ import { hashSessionId } from "../identity-security/session-revocation.service.j
 import { isSessionQuarantined } from "./session-quarantine.service.js";
 import { decideAdaptiveAuth } from "./adaptive-auth.service.js";
 import { recordIncident } from "../observability/incident.service.js";
+import { requireStepUpForSensitiveAction } from "../identity-security/step-up-middleware.js";
 
 // -----------------------------------------------------------------------------
 // Public — runtimeAdaptiveGate
@@ -54,10 +55,16 @@ export type RuntimeAdaptiveGateInput = {
   action: PrivilegedAction;
   /** Whether the workspace policy demands step-up for sensitive flows. */
   workspaceRequiresStepUp?: boolean;
+  /**
+   * The caller runs requireStepUpForSensitiveAction itself after this gate. A
+   * challenge is single use, so a step-up decision is handed back to it as
+   * `stepUpRequired` instead of being answered here.
+   */
+  callerEnforcesStepUp?: boolean;
 };
 
 export type RuntimeAdaptiveGateResult =
-  | { allow: true }
+  | { allow: true; stepUpRequired?: boolean }
   | { allow: false; sent: true; decision: RuntimeAdaptiveDecision["decision"] };
 
 export async function runtimeAdaptiveGate(
@@ -169,16 +176,27 @@ export async function runtimeAdaptiveGate(
     case "ALLOW":
       bump("adaptive_auth_allow_total");
       return { allow: true };
-    case "REQUIRE_STEP_UP":
+    case "REQUIRE_STEP_UP": {
       bump("adaptive_auth_step_up_total");
-      input.reply.code(401).send({
-        error: {
-          code: "step_up_required",
-          message: "Step-up required for this action.",
+      if (input.callerEnforcesStepUp) return { allow: true, stepUpRequired: true };
+      // The canonical gate, so the answer is one a client can satisfy. This used
+      // to send a lowercase code no client recognised and never read the
+      // challenge header, so a medium-risk session could not act at all.
+      const stepUp = await requireStepUpForSensitiveAction(
+        {
+          req: input.req,
+          reply: input.reply,
+          teamId: input.teamId,
+          userId: input.userId,
           purpose: decision.stepUpPurpose ?? "SESSION_SANITY_CHECK",
+          resourceKind: "adaptive_runtime_gate",
+          resourceId: null,
         },
-      });
-      return { allow: false, sent: true, decision: "REQUIRE_STEP_UP" };
+        client,
+      );
+      if (stepUp.sent) return { allow: false, sent: true, decision: "REQUIRE_STEP_UP" };
+      return { allow: true };
+    }
     case "REQUIRE_REAUTH":
       bump("adaptive_auth_reauth_total");
       input.reply.code(401).send({
