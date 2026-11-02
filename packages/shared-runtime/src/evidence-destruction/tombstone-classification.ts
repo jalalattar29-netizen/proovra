@@ -21,6 +21,9 @@ export type TombstoneClass = "DELETED" | "SCRUBBED" | "AUDIT" | "HUMAN_AUTHORED"
 
 export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneClass>> = Object.freeze({
   // Objects verified gone, so these address nothing.
+  // REPORT-006: storage accounting that outlives the record it accounts for, so
+  // the orphan scan can still count an object nothing references. No content.
+  ArtifactPublicationIntent: "OPERATIONAL",
   EvidencePart: "DELETED",
   Report: "DELETED",
   VerificationPackage: "DELETED",
