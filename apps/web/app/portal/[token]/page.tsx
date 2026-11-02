@@ -17,7 +17,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
-import type { ExternalPortalProjection } from "@proovra/shared";
+import { identifierLabel, type ExternalPortalProjection } from "@proovra/shared";
 
 import {
   authenticate,
@@ -201,7 +201,7 @@ function PortalRibbon({
       }}
     >
       <strong style={{ fontSize: 13 }}>External Reviewer Portal</strong>
-      <Pill label={`Role: ${projection.reviewer.role}`} />
+      <Pill label={`Role: ${identifierLabel(projection.reviewer.role)}`} />
       {projection.reviewer.organization ? (
         <Pill label={projection.reviewer.organization} />
       ) : null}
@@ -211,7 +211,7 @@ function PortalRibbon({
       {/* Phase 2B Closure — federation + adaptive auth chips. */}
       <Pill
         data-portal-auth-method-chip={projection.session.authMethod}
-        label={`Auth: ${projection.session.authMethod}`}
+        label={`Signed in with ${projection.session.authMethod === "SSO" ? "single sign-on" : "invitation link"}`}
       />
       {projection.session.mfaRequired ? (
         <Pill
@@ -350,6 +350,14 @@ function AssignedList({
   );
 }
 
+/** What the portal does not do, in a sentence: these reached the reviewer as raw constants. */
+const LIMITATION_COPY: Record<string, string> = {
+  PORTAL_NOT_A_LEGAL_OPINION: "A decision here is not a legal opinion.",
+  PORTAL_NEVER_ASSERTS_AUTHENTICITY: "PROOVRA records what you decide. It does not assert that content is authentic.",
+  PORTAL_ACCESS_ENDS_AT_GRANT_EXPIRY: "Your access ends when this invitation expires.",
+  PORTAL_ACTIVITY_IS_AUDITED: "Your activity here is audited.",
+};
+
 function LimitationsFooter({ limitations }: { limitations: ReadonlyArray<string> }) {
   return (
     <footer
@@ -368,7 +376,7 @@ function LimitationsFooter({ limitations }: { limitations: ReadonlyArray<string>
       <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
         {limitations.map((l) => (
           <li key={l}>
-            <code>{l}</code>
+            {LIMITATION_COPY[l] ?? identifierLabel(l)}
           </li>
         ))}
       </ul>

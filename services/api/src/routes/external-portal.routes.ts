@@ -340,6 +340,11 @@ async function resolvePortalSession(
       mfaRequired: boolean;
       inactivityTimeoutMs: number;
       maxSessionMs: number;
+      // The dashboard projects these: dropped here, the portal read "Auth: undefined".
+      authMethod: string;
+      ssoConnectionId: string | null;
+      ssoSubjectHash: string | null;
+      mfaSatisfied: boolean;
     }
   | null
 > {
@@ -370,6 +375,10 @@ async function resolvePortalSession(
     s.role as never,
   ) as ReadonlySet<ExternalPortalCapability>;
   return {
+    authMethod: s.authMethod,
+    ssoConnectionId: s.ssoConnectionId,
+    ssoSubjectHash: s.ssoSubjectHash,
+    mfaSatisfied: s.mfaSatisfied,
     grantId: s.grantId,
     teamId: s.teamId,
     sessionId: s.sessionId,
