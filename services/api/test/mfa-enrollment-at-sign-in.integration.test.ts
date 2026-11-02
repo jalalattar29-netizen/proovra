@@ -65,7 +65,7 @@ describe("MFA enrolment during sign-in (live PostgreSQL)", () => {
 
   async function signIn(email: string) {
     const res = await post("/v1/auth/email/login", null, { email, password });
-    return { res, body: JSON.parse(res.body) as Record<string, any> };
+    return { res, body: JSON.parse(res.body) as Record<string, string> };
   }
 
   beforeAll(async () => {

@@ -37,7 +37,6 @@ import {
 
 import type { Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";

@@ -26,7 +26,6 @@ import { z } from "zod";
 import { VERIFICATION_SHARE_AUDIENCE_MAX, VERIFICATION_SHARE_PROJECTIONS } from "@proovra/shared-runtime";
 
 import { getAuthUserId } from "../auth.js";
-import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";

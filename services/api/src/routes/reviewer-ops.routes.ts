@@ -45,7 +45,6 @@ import {
   type SavedViewVisibility,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { requireAuth } from "../middleware/auth.js";
