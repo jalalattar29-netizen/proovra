@@ -30722,8 +30722,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/redaction.routes.ts#redactionDerivative.update@1652",
-      "terminalLocation": "services/api/src/routes/redaction.routes.ts:1652",
+      "writerId": "services/api/src/routes/redaction.routes.ts#redactionDerivative.update@1651",
+      "terminalLocation": "services/api/src/routes/redaction.routes.ts:1651",
       "file": "services/api/src/routes/redaction.routes.ts",
       "enclosingDeclaration": "redactionRoutes",
       "kind": "DATABASE",
@@ -31085,8 +31085,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2370",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2370",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#evidenceReviewerComment.create@2369",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2369",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -31118,8 +31118,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2394",
-      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2394",
+      "writerId": "services/api/src/routes/reviewer-ops.routes.ts#teamActivity.create@2393",
+      "terminalLocation": "services/api/src/routes/reviewer-ops.routes.ts:2393",
       "file": "services/api/src/routes/reviewer-ops.routes.ts",
       "enclosingDeclaration": "reviewerOpsRoutes",
       "kind": "DATABASE",
@@ -103180,7 +103180,7 @@
       "method": "DELETE",
       "path": "/v1/redaction/policies/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:959",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:958",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -103251,7 +103251,7 @@
       "method": "DELETE",
       "path": "/v1/redaction/policy-assignments/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1082",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1081",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -103330,7 +103330,7 @@
       "method": "DELETE",
       "path": "/v1/redaction/regions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:749",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:748",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -103409,7 +103409,7 @@
       "method": "DELETE",
       "path": "/v1/reviewer-ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1802",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1801",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -108308,7 +108308,7 @@
       "method": "GET",
       "path": "/v1/audit-transparency",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:888",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:887",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -110211,7 +110211,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:531",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -110241,7 +110241,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -110257,12 +110257,13 @@
         "teamMember",
         "user"
       ],
-      "modelsWritten": [],
+      "modelsWritten": [
+        "securityEvent"
+      ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -117338,7 +117339,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verify-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:164",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:163",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -117816,7 +117817,7 @@
       "method": "GET",
       "path": "/v1/executive/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:754",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:753",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -117900,7 +117901,7 @@
       "method": "GET",
       "path": "/v1/executive/trends",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:766",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:765",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -118732,7 +118733,7 @@
       "method": "GET",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:566",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:565",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119535,7 +119536,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:820",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:819",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119593,7 +119594,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/is-held",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:905",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:904",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -119654,7 +119655,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:760",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:759",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120076,7 +120077,7 @@
       "method": "GET",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:374",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:373",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120591,7 +120592,7 @@
       "method": "GET",
       "path": "/v1/governance/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:172",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:171",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveGovernancePolicyWorkspace -> services/api/src/routes/governance.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -120722,7 +120723,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-candidates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:859",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:858",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124382,7 +124383,7 @@
       "method": "GET",
       "path": "/v1/intelligence/budgets/breaches",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:859",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:858",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124448,7 +124449,7 @@
       "method": "GET",
       "path": "/v1/intelligence/budgets/spend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:876",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:875",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124625,7 +124626,7 @@
       "method": "GET",
       "path": "/v1/intelligence/evidence/:evidenceId/corrections",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:620",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:619",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124682,7 +124683,7 @@
       "method": "GET",
       "path": "/v1/intelligence/evidence/:evidenceId/records",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:377",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:376",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124884,7 +124885,7 @@
       "method": "GET",
       "path": "/v1/intelligence/providers/budgets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:667",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:666",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124950,7 +124951,7 @@
       "method": "GET",
       "path": "/v1/intelligence/providers/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:741",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:740",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125015,7 +125016,7 @@
       "method": "GET",
       "path": "/v1/intelligence/providers/usage",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:638",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:637",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125081,7 +125082,7 @@
       "method": "GET",
       "path": "/v1/intelligence/quality/providers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:784",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:783",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125149,7 +125150,7 @@
       "method": "GET",
       "path": "/v1/intelligence/quality/reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:801",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:800",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125215,7 +125216,7 @@
       "method": "GET",
       "path": "/v1/intelligence/quality/teams",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:818",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:817",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125282,7 +125283,7 @@
       "method": "GET",
       "path": "/v1/intelligence/records/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:402",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:401",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125340,7 +125341,7 @@
       "method": "GET",
       "path": "/v1/intelligence/records/:id/corrections",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:605",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:604",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -125397,7 +125398,7 @@
       "method": "GET",
       "path": "/v1/intelligence/records/:id/version-chain",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:842",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:841",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -131887,7 +131888,7 @@
       "method": "GET",
       "path": "/v1/redaction/derivatives/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1485",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1484",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -131946,7 +131947,7 @@
       "method": "GET",
       "path": "/v1/redaction/derivatives/:id/download-url",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1581",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1580",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132025,7 +132026,7 @@
       "method": "GET",
       "path": "/v1/redaction/evidence/:evidenceId/detection-manifest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:885",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:884",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132094,7 +132095,7 @@
       "method": "GET",
       "path": "/v1/redaction/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:919",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:918",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132162,7 +132163,7 @@
       "method": "GET",
       "path": "/v1/redaction/policies/:id/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1124",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1123",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132230,7 +132231,7 @@
       "method": "GET",
       "path": "/v1/redaction/policies/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:977",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:976",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132298,7 +132299,7 @@
       "method": "GET",
       "path": "/v1/redaction/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:903",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:902",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132357,7 +132358,7 @@
       "method": "GET",
       "path": "/v1/redaction/policy/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1171",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1170",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132425,7 +132426,7 @@
       "method": "GET",
       "path": "/v1/redaction/policy/effective",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1149",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1148",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132493,7 +132494,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:472",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:471",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132569,7 +132570,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:554",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:553",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132645,7 +132646,7 @@
       "method": "GET",
       "path": "/v1/redaction/projects/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:571",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:570",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132713,7 +132714,7 @@
       "method": "GET",
       "path": "/v1/redaction/providers/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:841",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:840",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132781,7 +132782,7 @@
       "method": "GET",
       "path": "/v1/redaction/versions/:id/derivative",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1676",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1675",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132840,7 +132841,7 @@
       "method": "GET",
       "path": "/v1/redaction/versions/:id/detections",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:795",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:794",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132908,7 +132909,7 @@
       "method": "GET",
       "path": "/v1/redaction/videos/:evidenceId/frames",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1227",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1226",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -132976,7 +132977,7 @@
       "method": "GET",
       "path": "/v1/redaction/videos/:evidenceId/timeline",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1410",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1409",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -133046,7 +133047,7 @@
       "method": "GET",
       "path": "/v1/redaction/videos/:evidenceId/tracks",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1272",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1271",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -133105,7 +133106,7 @@
       "method": "GET",
       "path": "/v1/redaction/workspace/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:431",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:430",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134006,7 +134007,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1828",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1827",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134079,7 +134080,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/analytics/reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1848",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1847",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134160,7 +134161,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/assignable-reviewers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1027",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1026",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134309,7 +134310,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:789",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:788",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134386,7 +134387,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/decisions/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2726",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2725",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134463,7 +134464,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1427",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1426",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134552,7 +134553,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/qc/pending-count",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1125",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1124",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134626,7 +134627,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/queue",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:656",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:655",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134710,7 +134711,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/runtime-probe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:808",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:807",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134782,7 +134783,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1739",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1738",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134846,7 +134847,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1874",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1873",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134921,7 +134922,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workload",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:968",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:967",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -134995,7 +134996,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:853",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:852",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135079,7 +135080,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2489",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2488",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -135168,7 +135169,7 @@
       "method": "GET",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2244",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2243",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -139931,7 +139932,7 @@
       "method": "GET",
       "path": "/v1/verify-links/legacy-inventory",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:328",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:327",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -143482,7 +143483,7 @@
       "method": "PATCH",
       "path": "/v1/redaction/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1204",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1203",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -151912,7 +151913,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:393",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeDirectCapture -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeDirectCapture -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -151942,7 +151943,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -151974,13 +151975,11 @@
         "membershipGrant",
         "organization",
         "organizationMembership",
-        "securityEvent",
         "team",
         "teamMember"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
@@ -152014,7 +152013,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:589",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152035,7 +152034,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152057,13 +152056,13 @@
         "captureDeviceAttestation",
         "captureSession",
         "captureTrustEventRecord",
-        "custodyEvent"
+        "custodyEvent",
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -152084,7 +152083,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:613",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152114,7 +152113,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152169,14 +152168,14 @@
         "fileSecurityScan",
         "integrationWebhookDelivery",
         "reportGenerationRequest",
+        "securityEvent",
         "uploadSession",
         "verificationShareToken"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -152211,7 +152210,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:734",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152241,7 +152240,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152292,18 +152291,16 @@
         "evidenceCreditLedgerEntry",
         "evidenceIntegrityCheck",
         "evidencePart",
-        "externalReviewGrant",
         "fileSecurityScan",
         "integrationWebhookDelivery",
         "reportGenerationRequest",
-        "uploadSession",
-        "verificationShareToken"
+        "securityEvent",
+        "uploadSession"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -152338,7 +152335,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:645",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152368,7 +152365,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152389,13 +152386,13 @@
         "captureSession",
         "captureTrustEventRecord",
         "custodyEvent",
-        "evidence"
+        "evidence",
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
         "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.findUnique — no tenant or self predicate",
@@ -152419,7 +152416,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:471",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152449,7 +152446,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152487,6 +152484,7 @@
         "membershipGrant",
         "organization",
         "organizationMembership",
+        "securityEvent",
         "team",
         "teamMember",
         "uploadSession",
@@ -152494,9 +152492,8 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence.service.ts: team.findUnique — no tenant or self predicate",
         "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
@@ -152532,7 +152529,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:547",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152562,7 +152559,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152582,13 +152579,13 @@
       "modelsWritten": [
         "captureSession",
         "captureTrustEventRecord",
-        "custodyEvent"
+        "custodyEvent",
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: captureSession.updateMany — no tenant or self predicate"
       ],
@@ -152609,7 +152606,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:507",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152639,7 +152636,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152658,13 +152655,13 @@
       "modelsWritten": [
         "captureSession",
         "captureTrustEventRecord",
-        "custodyEvent"
+        "custodyEvent",
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate"
       ],
@@ -152685,7 +152682,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:701",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152715,7 +152712,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152770,14 +152767,14 @@
         "fileSecurityScan",
         "integrationWebhookDelivery",
         "reportGenerationRequest",
+        "securityEvent",
         "uploadSession",
         "verificationShareToken"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -152812,7 +152809,7 @@
       "registrationEvidence": "services/api/src/routes/capture-trust.routes.ts:669",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
-        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
+        "authorizeOwnedSession -> services/api/src/routes/capture-trust.routes.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
       ],
       "gates": [
@@ -152833,7 +152830,7 @@
       "authorizationAuthority": "MULTI_GATE",
       "dataScope": "WORKSPACE_SCOPED",
       "tenantType": "WORKSPACE",
-      "tenantBindingAuthority": "authorizeOrFail + evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
@@ -152888,14 +152885,14 @@
         "fileSecurityScan",
         "integrationWebhookDelivery",
         "reportGenerationRequest",
+        "securityEvent",
         "uploadSession",
         "verificationShareToken"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
-        "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts: evidence.findUnique — no tenant or self predicate",
@@ -160214,7 +160211,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verify-links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:172",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:171",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160290,7 +160287,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verify-links/:linkId/renew",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:274",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:273",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160358,7 +160355,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verify-links/:linkId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:254",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:253",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160434,7 +160431,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verify-links/:linkId/rotate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:304",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:303",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -160505,7 +160502,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/verify-links/legacy/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:235",
+      "registrationEvidence": "services/api/src/routes/verification-share.routes.ts:234",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163257,7 +163254,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:601",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:600",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -163340,7 +163337,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:685",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:684",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -164376,7 +164373,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:400",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:399",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -164459,7 +164456,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:500",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:499",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -164969,7 +164966,7 @@
       "method": "POST",
       "path": "/v1/governance/reconcile-retention",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:882",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:881",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -164981,7 +164978,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:882 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:881 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -171057,7 +171054,7 @@
       "method": "POST",
       "path": "/v1/intelligence/corrections",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:531",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:530",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171132,7 +171129,7 @@
       "method": "POST",
       "path": "/v1/intelligence/corrections/:id/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:558",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:557",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171204,7 +171201,7 @@
       "method": "POST",
       "path": "/v1/intelligence/corrections/:id/revert",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:581",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:580",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171275,7 +171272,7 @@
       "method": "POST",
       "path": "/v1/intelligence/evidence/:evidenceId/run/bytes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:430",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:429",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171360,7 +171357,7 @@
       "method": "POST",
       "path": "/v1/intelligence/evidence/:evidenceId/run/text",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:494",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:493",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -171532,7 +171529,7 @@
       "method": "POST",
       "path": "/v1/intelligence/providers/budgets",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:710",
+      "registrationEvidence": "services/api/src/routes/intelligence-platform.routes.ts:709",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWorkspace -> services/api/src/routes/intelligence-platform.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -178901,7 +178898,7 @@
       "method": "POST",
       "path": "/v1/redaction/derivatives/:id/quarantine",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1553",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1552",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -178980,7 +178977,7 @@
       "method": "POST",
       "path": "/v1/redaction/detections/:id/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1428",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1427",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179063,7 +179060,7 @@
       "method": "POST",
       "path": "/v1/redaction/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:940",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:939",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179135,7 +179132,7 @@
       "method": "POST",
       "path": "/v1/redaction/policies/:id/assignments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1059",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1058",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179208,7 +179205,7 @@
       "method": "POST",
       "path": "/v1/redaction/policies/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1014",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1013",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179283,7 +179280,7 @@
       "method": "POST",
       "path": "/v1/redaction/policy-versions/:id/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1038",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1037",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179356,7 +179353,7 @@
       "method": "POST",
       "path": "/v1/redaction/projects",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:526",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:525",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179446,7 +179443,7 @@
       "method": "POST",
       "path": "/v1/redaction/projects/:id/versions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:591",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:590",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179526,7 +179523,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:635",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:634",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179616,7 +179613,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/decisions/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:816",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:815",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179699,7 +179696,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/derivative",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1457",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1456",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179787,7 +179784,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/detect",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:771",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:770",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179868,7 +179865,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/publish",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:656",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:655",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -179964,7 +179961,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/regions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:726",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:725",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180059,7 +180056,7 @@
       "method": "POST",
       "path": "/v1/redaction/versions/:id/submit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:614",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:613",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180147,7 +180144,7 @@
       "method": "POST",
       "path": "/v1/redaction/video-tracks/:id/decision",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1318",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1317",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180221,7 +180218,7 @@
       "method": "POST",
       "path": "/v1/redaction/video-tracks/:id/split",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1360",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1359",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180295,7 +180292,7 @@
       "method": "POST",
       "path": "/v1/redaction/video-tracks/merge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1339",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1338",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180372,7 +180369,7 @@
       "method": "POST",
       "path": "/v1/redaction/videos/:evidenceId/decisions/range",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1383",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1382",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180446,7 +180443,7 @@
       "method": "POST",
       "path": "/v1/redaction/videos/:evidenceId/frames/batch",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1245",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1244",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -180517,7 +180514,7 @@
       "method": "POST",
       "path": "/v1/redaction/videos/:evidenceId/tracks/group",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1290",
+      "registrationEvidence": "services/api/src/routes/redaction.routes.ts:1289",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations-bulk-invite.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -181537,7 +181534,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1464",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1463",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181636,7 +181633,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/acknowledge",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1521",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1520",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181735,7 +181732,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1544",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1543",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181830,7 +181827,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1574",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1573",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181938,7 +181935,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/escalations/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1620",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1619",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182037,7 +182034,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/queue-intelligence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:763",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:762",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182113,7 +182110,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1975",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1974",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -182133,7 +182130,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1975 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:127 (runReviewerReconciliation)",
+      "dispositionEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1974 — worker caller(s): services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:127 (runReviewerReconciliation)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -182211,7 +182208,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1334",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1333",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182338,7 +182335,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1170",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1169",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182433,7 +182430,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/pause",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1275",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1274",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182518,7 +182515,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reassign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1218",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1217",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182604,7 +182601,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1382",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1381",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182731,7 +182728,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/request-info",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1306",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1305",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182850,7 +182847,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/:workflowId/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1252",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1251",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182936,7 +182933,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/reviews/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1661",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1660",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183050,7 +183047,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1760",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1759",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183126,7 +183123,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/sla-policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1889",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:1888",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183209,7 +183206,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/decisions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2629",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2628",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183307,7 +183304,7 @@
       "method": "POST",
       "path": "/v1/reviewer-ops/workspace/:workflowId/notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2337",
+      "registrationEvidence": "services/api/src/routes/reviewer-ops.routes.ts:2336",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -188914,7 +188911,7 @@
       "method": "PUT",
       "path": "/v1/governance/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:220",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:219",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveGovernancePolicyWorkspace -> services/api/src/routes/governance.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
