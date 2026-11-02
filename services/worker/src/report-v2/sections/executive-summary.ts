@@ -327,11 +327,11 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
 
 function renderCourtReviewIndexPage(vm: ReportViewModel): string {
   return renderPageSection(
-    "Court & Technical Review Index",
+    "Technical Review Index",
     `
       <div class="trust-signal-analysis-page court-review-index-page">
         <section class="trust-signal-analysis-hero">
-          <div class="executive-confirmation-kicker">Court-facing review map</div>
+          <div class="executive-confirmation-kicker">Review map</div>
           <div class="executive-confirmation-title">
             Control points for legal, forensic, and technical review
           </div>

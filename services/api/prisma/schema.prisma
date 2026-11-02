@@ -978,6 +978,25 @@ model EvidenceCertification {
   @@map("evidence_certifications")
 }
 
+/// REPORT-006 — written before an object goes to locked storage, because the row
+/// that references it commits afterwards. An intent older than the scan's
+/// threshold whose key no report or package row holds is an unreferenced object.
+/// Deliberately no foreign key: the accounting outlives what it accounts for.
+model ArtifactPublicationIntent {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId    String   @map("evidence_id") @db.Uuid
+  requestId     String   @map("request_id") @db.Uuid
+  family        String   @db.VarChar(32)
+  storageBucket String   @map("storage_bucket") @db.VarChar(255)
+  storageKey    String   @map("storage_key") @db.VarChar(512)
+  createdAtUtc  DateTime @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+
+  @@unique([storageBucket, storageKey], map: "artifact_publication_intents_bucket_key_key")
+  @@index([createdAtUtc], map: "artifact_publication_intents_created_at_idx")
+  @@index([evidenceId], map: "artifact_publication_intents_evidence_idx")
+  @@map("artifact_publication_intents")
+}
+
 model VerificationPackage {
   id                               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId                       String    @map("evidence_id") @db.Uuid

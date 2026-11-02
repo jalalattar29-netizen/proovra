@@ -156,6 +156,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281101000000_stripe_customer_per_currency",
       // EVID-006 / EVID-008: a presigned URL is a link issued, not a download. One enum value. EXPAND.
       "20281105000000_custody_download_authorized",
+      // REPORT-006: a published object is accounted before its row commits. One new table. EXPAND.
+      "20281105000001_artifact_publication_intents",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

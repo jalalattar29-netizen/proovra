@@ -366,7 +366,6 @@ describe("nextOtsChainCheckDelayMs", () => {
 
   it.each([
     ["INSUFFICIENT_CONFIRMATIONS", { status: "INSUFFICIENT_CONFIRMATIONS" }],
-    ["UNAVAILABLE", { status: "UNAVAILABLE" }],
     // 2026-10-20 (AUD-50) — FAILED NOT_IN_ACTIVE_CHAIN now backs off with the
     // proof's age and is given up after 30 days: ots-chain-recheck-bounds.test.ts.
     ["FAILED REORGED", { status: "FAILED", failureCode: "REORGED" }],
@@ -374,6 +373,10 @@ describe("nextOtsChainCheckDelayMs", () => {
     const r = row(chain(o));
     expect(resolveRowOtsAnchoring(r).chain).not.toBeNull();
     expect(delay(r)).toBe(HOUR);
+  });
+
+  it("UNAVAILABLE → 24 h: a node outage backs off and is never given up (CRYPTO-008)", () => {
+    expect(delay(row(chain({ status: "UNAVAILABLE" })))).toBe(24 * HOUR);
   });
 
   it("terminal ROOT_MISMATCH → null", () => {

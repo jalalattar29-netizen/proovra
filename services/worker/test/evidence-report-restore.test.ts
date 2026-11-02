@@ -397,7 +397,7 @@ const REMOVED_BOUNDARY = [
   "Embedded previews are reviewer aids; rely on the preserved originals and the verification package.",
 ];
 
-describe("Court & Technical Review Index: the Report boundary block is removed", () => {
+describe("Technical Review Index: the Report boundary block is removed", () => {
   for (const [name, input] of [
     ["regression record (heavy)", () => regressionRecordInput()],
     ["single-part upload", () => layoutVariant({ name: "single" }).input],
@@ -405,7 +405,9 @@ describe("Court & Technical Review Index: the Report boundary block is removed",
     it(`${name}: no heading, no child block, no element and no style of it`, async () => {
       const { html, text: t } = await render(input());
       const index = pageSection(html, "court-review-index-section");
-      expect(index).toContain("Court &amp; Technical Review Index");
+      expect(index).toContain("Technical Review Index");
+      // REPORT-009 — the report does not speak of a court it was not reviewed for.
+      expect(t).not.toMatch(/Court (&|&amp;) Technical|Court-facing review map/);
       // The page keeps its review map…
       expect(index).toContain("executive-trust-decision-panel");
       // …and nothing of the block.

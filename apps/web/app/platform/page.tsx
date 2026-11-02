@@ -1996,7 +1996,7 @@ function TrustSection() {
             <TrustCard
               Icon={Anchor}
               title="OpenTimestamp Anchor"
-              body="Blockchain anchoring for independent proof of existence."
+              body="Bitcoin anchoring, where enabled, for proof of existence."
               color="#15803D"
               bg="rgba(21,128,61,0.08)"
               border="rgba(21,128,61,0.22)"
@@ -2041,8 +2041,8 @@ function TrustSection() {
               {[
                 { icon: ShieldCheck, title: "Tamper-Evident", body: "Every record protected.", color: "#0F766E" },
                 { icon: BadgeCheck, title: "Independent Verification", body: "Verification outside capture workflow.", color: "#2563EB" },
-                { icon: Clock3, title: "RFC 3161 Timestamped", body: "Trusted time proof.", color: "#2563EB" },
-                { icon: GitBranch, title: "Chain of Custody", body: "Complete activity history.", color: "#2563EB" },
+                { icon: Clock3, title: "RFC 3161 Timestamped", body: "A token from a timestamp authority, where enabled.", color: "#2563EB" },
+                { icon: GitBranch, title: "Chain of Custody", body: "Recorded activity history.", color: "#2563EB" },
                 { icon: Landmark, title: "Governance Ready", body: "Built for policy enforcement.", color: "#0F766E" },
               ].map((m) => {
                 const Icon = m.icon;

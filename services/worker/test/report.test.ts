@@ -261,7 +261,7 @@ describe("report v2 pipeline", () => {
       "Executive Summary",
       "executive-conclusion-card",
       "Trust Signal Analysis",
-      "Court &amp; Technical Review Index",
+      "Technical Review Index",
       "Chain of Custody",
       "Technical Appendix",
     ]);

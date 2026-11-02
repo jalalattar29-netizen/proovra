@@ -290,8 +290,8 @@ describe("SCENARIO 5 — a commercial FAILED_TERMINAL cannot lock a now-eligible
     expect(code).toMatch(/isRecoverableBlockedTerminalReason/);
     expect(code).toMatch(/blockerStillActive/);
     expect(code).toMatch(/blockedButRecoverable\s*&&/);
-    // The revalidation reads the same rows the worker's claim path reads.
-    expect(code).toMatch(/evidenceLegalHold\.findFirst/);
+    // The revalidation asks what the worker's admission asks.
+    expect(code).toMatch(/evaluateEffectiveLegalHold\(prisma/);
     expect(code).toMatch(/organization\.findUnique/);
     // And it fails closed twice over: an unclassified reason keeps the blocker
     // standing, and so does any error while reading it. (`strip` removes

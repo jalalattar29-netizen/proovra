@@ -493,6 +493,12 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
     expect(reports[0]!.version).toBe(1);
     // 2026-09-29: single-use publication keys, reports/<id>/v<N>/<request>-<uuid>.pdf
     expect(reports[0]!.storageKey).toContain("/v1/");
+    // REPORT-006: the object was accounted before its row existed, on the real path.
+    expect(
+      await prisma.artifactPublicationIntent.count({
+        where: { storageBucket: reports[0]!.storageBucket, storageKey: reports[0]!.storageKey, family: "reports" },
+      }),
+    ).toBe(1);
     /*
      * AND THE BYTES ARE WHERE THE ROW SAYS THEY ARE.
      *

@@ -55,20 +55,20 @@ const compliance: TileItem[] = [
   { kind: "icon", name: "Healthcare workflows", desc: "Workflows for healthcare data handling", Icon: FileCheck2, tint: "#BE123C" },
   { kind: "logo", name: "NIST-aligned controls", desc: "NIST cybersecurity-framework controls", logo: "/assets/logos/nist.svg" },
   { kind: "logo", name: "SAML SSO Supported", desc: "Enterprise single sign-on", logo: "/assets/logos/saml.svg" },
-  { kind: "icon", name: "MFA Enforced", desc: "Multi-factor authentication", Icon: Lock, tint: "#15803D" },
+  { kind: "icon", name: "MFA Policy", desc: "Multi-factor authentication, required by workspace policy", Icon: Lock, tint: "#15803D" },
   { kind: "icon", name: "SCIM Supported", desc: "User provisioning and sync", Icon: Users, tint: "#7C3AED" },
-  { kind: "icon", name: "Audit Logs Complete", desc: "Full activity transparency", Icon: FileCheck2, tint: "#2563EB" },
+  { kind: "icon", name: "Audit Logs", desc: "Workspace activity recorded for review", Icon: FileCheck2, tint: "#2563EB" },
   { kind: "icon", name: "Legal Hold Enabled", desc: "Preserve evidence on demand", Icon: Landmark, tint: "#0F766E" },
   { kind: "icon", name: "Retention Controls", desc: "Policy-based retention", Icon: CalendarClock, tint: "#EA580C" },
-  { kind: "icon", name: "Tamper-Evident Records", desc: "Integrity verified at every step", Icon: Fingerprint, tint: "#BE123C" },
+  { kind: "icon", name: "Tamper-Evident Records", desc: "Hash-linked custody events", Icon: Fingerprint, tint: "#BE123C" },
 ];
 
 const trustBar: { name: string; desc: string; Icon: LucideIcon; color: string }[] = [
   { name: "Enterprise Security", desc: "Built from the ground up", Icon: ShieldCheck, color: "#0F766E" },
   { name: "Data Integrity", desc: "Cryptographic verification", Icon: Lock, color: "#BE123C" },
-  { name: "Operational Trust", desc: "Proven in the field", Icon: CheckCircle2, color: "#15803D" },
+  { name: "Operational Trust", desc: "Reports what was checked, and when", Icon: CheckCircle2, color: "#15803D" },
   { name: "Review-ready", desc: "Reports and packages prepared for review", Icon: Scale, color: "#F97316" },
-  { name: "Global Scale", desc: "Available worldwide", Icon: Globe2, color: "#2563EB" },
+  { name: "Web and Mobile", desc: "Capture and review across devices", Icon: Globe2, color: "#2563EB" },
   { name: "Expert Support", desc: "Enterprise support", Icon: Headphones, color: "#0F172A" },
 ];
 

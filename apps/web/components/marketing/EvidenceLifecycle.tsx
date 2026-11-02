@@ -93,8 +93,8 @@ const STAGES: Stage[] = [
 
 const TRUST_ITEMS: { Icon: LucideIcon; title: string; body: string }[] = [
   { Icon: ShieldCheck, title: "End-to-end integrity", body: "Cryptographic protection at every step" },
-  { Icon: Lock, title: "Tamper-evident", body: "Records you can trust in any environment" },
-  { Icon: Globe2, title: "Independent verification", body: "Anyone can verify anywhere, anytime" },
+  { Icon: Lock, title: "Tamper-evident", body: "A change to a sealed record shows on verification" },
+  { Icon: Globe2, title: "Independent verification", body: "Anyone with a verification link can check the record" },
   { Icon: CheckCircle2, title: "Audit ready", body: "Built for compliance and review" },
   { Icon: Landmark, title: "Enterprise governance", body: "Control access, retention, and legal hold" },
 ];

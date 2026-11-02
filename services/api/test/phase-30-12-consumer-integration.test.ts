@@ -299,7 +299,7 @@ describe("Phase 30.12 — capture-page fork", () => {
       /import\s*\{\s*routeFile\s*\}\s*from\s+"\.\.\/\.\.\/\.\.\/\.\.\/lib\/uploads\/feature-flag"/,
     );
     expect(src).toMatch(
-      /import\s*\{\s*planChunks\s*\}\s*from\s+"\.\.\/\.\.\/\.\.\/\.\.\/lib\/uploads\/retry"/,
+      /import\s*\{\s*[^}]*\bplanChunks\b[^}]*\}\s*from\s+"\.\.\/\.\.\/\.\.\/\.\.\/lib\/uploads\/retry"/,
     );
     expect(src).toMatch(
       /import\s*type\s*\{\s*UseResumableUploadsApi\s*\}/,

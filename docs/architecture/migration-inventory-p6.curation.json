@@ -3766,6 +3766,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'CustodyEventType' AND e.enumlabel = 'DOWNLOAD_AUTHORIZED';\"",
       "evidence": "CUSTODY DOWNLOAD AUTHORIZED (EVID-006, EVID-008, 2026-11-05). One enum value. A presigned URL is a link issued, not a transfer. Historical rows are never rewritten."
+    },
+    "20281105000001_artifact_publication_intents": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('artifact_publication_intents') IS NOT NULL\"",
+      "evidence": "ARTIFACT PUBLICATION INTENTS (REPORT-006, 2026-11-05). One new, empty table the worker writes before publishing. Nothing reads it for behaviour; objects published earlier have no intent and stay uncounted."
     }
   }
 }

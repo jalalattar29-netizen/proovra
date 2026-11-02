@@ -82,8 +82,8 @@ export function SecurityMethodology() {
         <div className="flex flex-col gap-5">
           <SectionBadge>Built on trust. Backed by technology.</SectionBadge>
           <h2 className="text-[30px] font-extrabold leading-[1.1] tracking-[-0.02em] text-white md:text-[36px] lg:text-[42px]">
-            Unmatched security. <br />
-            <span className="text-[#C4B5FD]">Uncompromising integrity.</span>
+            Layered security. <br />
+            <span className="text-[#C4B5FD]">Verifiable integrity.</span>
           </h2>
           <p
             className="max-w-md text-[15.5px] leading-[1.7]"

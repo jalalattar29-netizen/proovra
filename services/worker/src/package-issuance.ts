@@ -37,6 +37,7 @@ import {
 
 import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
+import { recordPublicationIntent } from "./publication-intent.js";
 import { artifactLockFor } from "./object-retention.js";
 import { env } from "./config.js";
 import {
@@ -156,16 +157,24 @@ export async function publishBuiltProfiles(input: {
 }): Promise<PublishedProfile[]> {
   const out: PublishedProfile[] = [];
   for (const b of input.built) {
+    const key = buildPublicationKey({
+      family: "verification",
+      evidenceId: input.evidenceId,
+      version: input.version,
+      requestId: input.requestId,
+      extension: "zip",
+    });
+    await recordPublicationIntent({
+      evidenceId: input.evidenceId,
+      requestId: input.requestId,
+      family: "verification",
+      bucket: env.S3_BUCKET,
+      key,
+    });
     const head = await publishImmutableArtifact({
       lock: await artifactLockFor(input.evidenceId),
       bucket: env.S3_BUCKET,
-      key: buildPublicationKey({
-        family: "verification",
-        evidenceId: input.evidenceId,
-        version: input.version,
-        requestId: input.requestId,
-        extension: "zip",
-      }),
+      key,
       body: { kind: "file", filePath: b.staged.tempPath, sizeBytes: b.staged.sizeBytes },
       sha256Base64: b.staged.sha256Base64,
       contentType: "application/zip",

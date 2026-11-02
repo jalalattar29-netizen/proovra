@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281105000000_custody_download_authorized";
+export const EXPECTED_MIGRATION_HEAD = "20281105000001_artifact_publication_intents";
 
 export type MigrationRow = {
   migration_name: string;

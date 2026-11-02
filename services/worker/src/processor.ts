@@ -129,6 +129,7 @@ import {
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
+import { recordPublicationIntent } from "./publication-intent.js";
 import { artifactLockFor } from "./object-retention.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
@@ -4850,16 +4851,24 @@ async function runReportGeneration(
 
         // DURABLE PROGRESS — rendered; publishing + reading back the stored PDF.
         await recordRequestProgress(command, "VERIFYING_REPORT");
+        const reportPublicationKey = buildPublicationKey({
+          family: "reports",
+          evidenceId: prepared.evidenceId,
+          version: prepared.version,
+          requestId: command.requestId,
+          extension: "pdf",
+        });
+        await recordPublicationIntent({
+          evidenceId: prepared.evidenceId,
+          requestId: command.requestId,
+          family: "reports",
+          bucket: env.S3_BUCKET,
+          key: reportPublicationKey,
+        });
         const publishedReport = await publishImmutableArtifact({
           lock: await artifactLockFor(prepared.evidenceId),
           bucket: env.S3_BUCKET,
-          key: buildPublicationKey({
-            family: "reports",
-            evidenceId: prepared.evidenceId,
-            version: prepared.version,
-            requestId: command.requestId,
-            extension: "pdf",
-          }),
+          key: reportPublicationKey,
           body: { kind: "buffer", buffer: finalizedReportPdf },
           sha256Base64: finalizedReportDigest.toString("base64"),
           contentType: "application/pdf",

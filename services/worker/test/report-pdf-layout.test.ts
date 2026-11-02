@@ -492,7 +492,7 @@ describe.skipIf(!BROWSER)("the corrected rows and the removed sections, rendered
         expect(all.includes("CAPTURE LOCATION") || all.includes("Capture location")).toBe(location === "recorded");
         // The Executive Summary and the review index close cleanly: no gap
         // where the removed blocks stood.
-        for (const title of ["Executive Summary", "Court & Technical Review Index"]) {
+        for (const title of ["Executive Summary", "Technical Review Index"]) {
           const i = pageText.findIndex((t) => t.includes(title));
           expect(i, title).toBeGreaterThan(0);
           expect(largestInnerGap(pages[i]!), title).toBeLessThan(40);
