@@ -23,7 +23,7 @@
       "reviewedAtUtc": "2026-09-22"
     },
     {
-      "site": "apps/web/app/(app)/operations/batch-analysis/page.tsx:167",
+      "site": "apps/web/app/(app)/operations/batch-analysis/page.tsx:164",
       "verdict": "OURS",
       "originBinding": "apiBase — the web app's API origin",
       "evidence": "Batch-analysis export download built against the canonical API origin.",
