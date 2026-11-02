@@ -209,8 +209,9 @@ describe("listActiveSessions — keyset over (lastSeenAtUtc, id)", () => {
     H.rows.authenticatedSession = [sessionRow(1), sessionRow(2), sessionRow(3)];
     const page = await listActiveSessions({ teamId: TEAM, limit: 2 });
     const q = H.findManyArgs[0]!.args;
+    // A workspace's sessions are its own and its members'.
     expect(q.where).toEqual({
-      teamId: TEAM,
+      OR: [{ teamId: TEAM }, { userId: { in: expect.any(Array) } }],
       revokedAtUtc: null,
       expiresAtUtc: { gt: expect.any(Date) },
     });
@@ -235,7 +236,7 @@ describe("listActiveSessions — keyset over (lastSeenAtUtc, id)", () => {
     expect(q.where.AND).toHaveLength(2);
     // includeRevoked drops the revokedAtUtc predicate; expired stays hidden.
     expect(q.where.AND[0]).toEqual({
-      teamId: TEAM,
+      OR: [{ teamId: TEAM }, { userId: { in: expect.any(Array) } }],
       expiresAtUtc: { gt: expect.any(Date) },
     });
     expect(q.where.AND[1]).toEqual(keysetAfter("lastSeenAtUtc", after));

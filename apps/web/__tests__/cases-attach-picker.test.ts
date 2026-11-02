@@ -366,9 +366,9 @@ test("Backend /v1/cases/:id/available-evidence keeps owner-scope authorization (
   const window = availableEvidenceRoute();
   // EVID-009 — the picker answers to the attach's own authority, and offers only
   // what the caller reaches inside the Case's workspace.
-  assert.match(window, /authorizeCaseEvidenceLink({ userId: ownerUserId, caseId: id })/);
-  assert.match(window, /if (!linkAuth.allowed)/);
-  assert.match(window, /evidenceReachWhere(ownerUserId, memberTeamIds), { teamId: caseItem.teamId }/);
+  assert.ok(window.includes("authorizeCaseEvidenceLink({ userId: ownerUserId, caseId: id })"));
+  assert.ok(window.includes("if (!linkAuth.allowed)"));
+  assert.ok(window.includes("evidenceReachWhere(ownerUserId, memberTeamIds), { teamId: caseItem.teamId }"));
 });
 
 // ===========================================================================
