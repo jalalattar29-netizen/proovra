@@ -233,6 +233,12 @@
       "class": "INTERNAL_API_DYNAMIC_SESSION_PATH",
       "evidence": "stageSingleFileRecording(active.session, active.evidenceId, result, rec, …) — ONE RECORDING remediation (2026-10-29). A Start→Stop recording is ONE file: part 0 the recording (source SCREEN_RECORDING), part 1 the manifest. It targets THIS API through the runtime capture-session id (the same reality as every direct-capture site): POST /v1/capture/direct-sessions/:id/parts/:idx/declaration, GET /v1/capture/direct-sessions/:id/parts and POST /v1/evidence/:id/parts — all registered. Reviewed by reading the site.",
       "reviewedAtUtc": "2026-10-29"
+    },
+    {
+      "site": "services/worker/src/index.ts:1709",
+      "class": "INTERNAL_API_ROUTE_TABLE",
+      "evidence": "runApiDeliverySweepTick(sweep): API_DELIVERY_SWEEPS in services/worker/src/api-delivery-sweeps.ts is a closed table of four cron routes on this API (WORKFLOW-008).",
+      "reviewedAtUtc": "2026-11-02"
     }
   ]
 }

@@ -224,6 +224,13 @@
       "originBinding": "const baseUrl = apiBaseUrl()",
       "evidence": "services/worker/src/reviewer-ops/reviewer-reconciliation.worker.ts:84,127 — this is the intended machine caller of POST /v1/reviewer-ops/reconcile, the route whose authorization FINAL-003 investigated.",
       "reviewedAtUtc": "2026-08-15"
+    },
+    {
+      "site": "services/worker/src/api-delivery-sweeps.ts:112",
+      "verdict": "PLUMBING",
+      "originBinding": "base = the API origin the worker is configured with",
+      "evidence": "runApiDeliverySweepTick: the worker's one caller of this API's cron routes; each path comes from API_DELIVERY_SWEEPS.",
+      "reviewedAtUtc": "2026-11-02"
     }
   ]
 }

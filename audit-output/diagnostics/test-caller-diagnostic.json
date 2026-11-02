@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "39ac87a290552fb4a382ab854daf2461426eb5ec74a4aa98ae50e0f8c407f83a",
+  "capabilityRouteInventoryHash": "b230f933ccc7370e616531a540468acb300822eac9042ba537db943176b79455",
   "totals": {
-    "routes": 1225,
+    "routes": 1228,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
     "testCallSites": 107,
@@ -2257,6 +2257,12 @@
     },
     {
       "routeId": "GET /v1/lifecycle/dashboard",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/lifecycle/destruction/eligible-approvers",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6093,6 +6099,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/lifecycle/legal-holds/:id/release-approval",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/lifecycle/legal-holds/:id/release-request",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/lifecycle/retention/policies",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7469,5 +7487,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "4a06120300ca39045bd33afe2930fa25cd4b76e308f7a596964723d7b9f45d2a"
+  "contentHash": "bb0aadaf6d9ce76c3e63f86e70869efd5f6ed329969c0c6c2dfba6ea41a6c870"
 }
