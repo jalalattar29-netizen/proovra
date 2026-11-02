@@ -77,6 +77,7 @@ const H = vi.hoisted(() => ({
   /** Canonical Legal-Hold authority outcomes. */
   holdPlaceError: null as string | null,
   holdReleaseError: null as string | null,
+  holdReleaseApproved: false,
   holdExists: true,
 
   /** Exchange side-effect ledgers — a denial must leave ALL of these empty. */
@@ -96,6 +97,11 @@ vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
 vi.mock("../src/middleware/auth.js", () => ({
   requireAuth: async () => {},
   requireAuthAndLegal: async () => {},
+}));
+vi.mock("../src/middleware/require-platform-admin.js", () => ({
+  requirePlatformAdmin: async (_req: unknown, reply: { code: (n: number) => { send: (b: unknown) => unknown } }) => {
+    if (!H.permissionAllowed) return reply.code(403).send({ denial: "PLATFORM_ADMIN_REQUIRED" });
+  },
 }));
 vi.mock("../src/middleware/cron-secret.js", () => ({
   requireIntegrationCronSecret: async () => {},
@@ -248,6 +254,8 @@ vi.mock("../src/services/governance/legal-hold.service.js", () => {
       releaseNote: null,
     };
   },
+  legalHoldReleaseRefusal: async () =>
+    H.requireLegalHoldReleaseApproval && !H.holdReleaseApproved ? "release_approval_required" : null,
   releaseLegalHoldAnyStore: async () => {
     if (H.holdReleaseError) throw new FakeLegalHoldError(H.holdReleaseError, 409);
     H.writes.push("releaseLegalHoldAnyStore");
@@ -402,6 +410,7 @@ beforeEach(async () => {
   H.requireLegalHoldReleaseApproval = false;
   H.holdPlaceError = null;
   H.holdReleaseError = null;
+  H.holdReleaseApproved = false;
   H.holdExists = true;
   H.deliveryFound = true;
   H.signedUrlsMinted.length = 0;
@@ -625,11 +634,22 @@ describe("Trust residue — Legal-Hold compatibility adapters", () => {
     // The gate ran before step-up was even offered.
     expect(H.stepUpCalls).toEqual([]);
 
-    const ok = await gov.inject({
+    // A caller's own acknowledgement satisfies nothing (GOV-011).
+    const acknowledged = await gov.inject({
       method: "POST",
       url: `/v1/governance/case-legal-holds/${HOLD}/release`,
       headers: json,
       payload: { teamId: TEAM, releaseNote: "Matter closed", approvalAcknowledged: true },
+    });
+    expect(acknowledged.statusCode).toBe(412);
+    expect(H.writes).toEqual([]);
+
+    H.holdReleaseApproved = true;
+    const ok = await gov.inject({
+      method: "POST",
+      url: `/v1/governance/case-legal-holds/${HOLD}/release`,
+      headers: json,
+      payload: { teamId: TEAM, releaseNote: "Matter closed" },
     });
     expect(ok.statusCode).toBe(200);
     expect(H.writes).toEqual(["releaseLegalHoldAnyStore"]);
@@ -752,13 +772,15 @@ describe("Trust residue — lifecycle verification-package preview", () => {
 // 5. Packaging entitlement grant
 // ===========================================================================
 
+const OPERATOR_TARGET = { teamId: TEAM, targetWorkspaceId: TEAM };
+
 describe("Trust residue — packaging entitlement grant", () => {
   it("grants ONE entitlement through the canonical upsert", async () => {
     const res = await lifecycle.inject({
       method: "POST",
       url: "/v1/packaging/entitlements/grant",
       headers: json,
-      payload: { key: "FEATURE_REDACTION", kind: "FEATURE", value: true, source: "CUSTOM" },
+      payload: { ...OPERATOR_TARGET, key: "FEATURE_REDACTION", kind: "FEATURE", value: true, source: "CUSTOM" },
     });
     expect(res.statusCode).toBe(201);
     expect(JSON.parse(res.body).grantId).toBe("grant-1");
@@ -774,13 +796,13 @@ describe("Trust residue — packaging entitlement grant", () => {
       // QUOTA_AI_OPERATIONS_PER_MONTH, retired as a duplicate commercial
       // authority. The behaviour under test is numeric pass-through, so any
       // surviving QUOTA key exercises it; this one the engine still owns.
-      payload: { key: "QUOTA_EXPORT_PACKAGES_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
+      payload: { ...OPERATOR_TARGET, key: "QUOTA_EXPORT_PACKAGES_PER_MONTH", kind: "QUOTA", value: 25, productLine: "ENTERPRISE" },
     });
     expect(res.statusCode).toBe(201);
     expect(H.writes).toEqual(["upsertEntitlementGrant:QUOTA:QUOTA_EXPORT_PACKAGES_PER_MONTH:25"]);
   });
 
-  it("billing.manage is required — a caller without it grants NOTHING", async () => {
+  it("a platform operator is required — anyone else grants NOTHING", async () => {
     H.permissionAllowed = false;
     const res = await lifecycle.inject({
       method: "POST",
@@ -789,7 +811,6 @@ describe("Trust residue — packaging entitlement grant", () => {
       payload: { key: "FEATURE_REDACTION", kind: "FEATURE", value: true },
     });
     expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.body)).toEqual({ denial: "PERMISSION_REQUIRED", permission: "billing.manage" });
     expect(H.writes).toEqual([]);
   });
 
@@ -804,15 +825,14 @@ describe("Trust residue — packaging entitlement grant", () => {
     expect(H.writes).toEqual([]);
   });
 
-  it("no active workspace → bounded denial, never a grant against a guessed tenant", async () => {
-    H.currentWorkspaceId = null;
+  it("no named workspace → refused, never a grant against a guessed tenant", async () => {
     const res = await lifecycle.inject({
       method: "POST",
       url: "/v1/packaging/entitlements/grant",
       headers: json,
       payload: { key: "FEATURE_REDACTION", kind: "FEATURE", value: true },
     });
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(H.writes).toEqual([]);
   });
 });

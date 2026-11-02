@@ -63,7 +63,13 @@ import { runSchemaValidation } from "../../runtime/schema-validation.js";
  * managed-platform assumption or that nothing is configured.
  */
 export type DatabaseBackupPosture =
-  | "managed_platform_assumed"
+  /** Recent backup, off-host copy and restore drill, all recorded. */
+  | "restore_verified"
+  /** A recorded backup, without a recent off-host copy or restore drill. */
+  | "backup_recorded"
+  /** The operator names a provider. Its backups cannot be seen from here. */
+  | "provider_declared_unverified"
+  | "no_backup_recorded"
   | "not_configured";
 
 export type BackupPosture = {
@@ -270,22 +276,84 @@ function readSignerProvider():
  * managed-platform assumption stands (databases in this stack are
  * expected to run on a managed platform that provides backups).
  */
-function readDatabaseBackupPosture(): {
+const BACKUP_FRESH_MS = 48 * 3600 * 1000;
+const DRILL_FRESH_MS = 35 * 24 * 3600 * 1000;
+
+type BackupFacts = {
   posture: DatabaseBackupPosture;
   reason: string;
-} {
-  const hasDatabaseUrl = clean(process.env.DATABASE_URL).length > 0;
-  if (!hasDatabaseUrl) {
+  lastBackupAtUtc: string | null;
+  lastDrillAtUtc: string | null;
+};
+
+/**
+ * OPS-004 — this returned "managed platform" whenever DATABASE_URL was set, whatever
+ * the host was. It now reports what was recorded: only a run that happened can move
+ * it. A schedule that stopped falls back as its records age.
+ */
+async function readDatabaseBackupPosture(prisma: PrismaClient): Promise<BackupFacts> {
+  if (clean(process.env.DATABASE_URL).length === 0) {
     return {
       posture: "not_configured",
       reason:
         "DATABASE_URL is not set; no database is configured for this process, so no backup posture can be reported.",
+      lastBackupAtUtc: null,
+      lastDrillAtUtc: null,
+    };
+  }
+  const last = async (kind: string): Promise<Date | null> => {
+    try {
+      const row = await prisma.platformBackupRecord.findFirst({
+        where: { kind, outcome: "SUCCEEDED" },
+        orderBy: { recordedAtUtc: "desc" },
+        select: { recordedAtUtc: true },
+      });
+      return row?.recordedAtUtc ?? null;
+    } catch {
+      // Unreadable is not "backed up": the posture stays at what is provable.
+      return null;
+    }
+  };
+  const [backup, offhost, drill] = await Promise.all([
+    last("DATABASE_BACKUP"),
+    last("OFFHOST_COPY"),
+    last("RESTORE_DRILL"),
+  ]);
+  const now = Date.now();
+  const fresh = (d: Date | null, ms: number) => d !== null && now - d.getTime() <= ms;
+  const facts = { lastBackupAtUtc: backup?.toISOString() ?? null, lastDrillAtUtc: drill?.toISOString() ?? null };
+  if (fresh(backup, BACKUP_FRESH_MS) && fresh(offhost, BACKUP_FRESH_MS) && fresh(drill, DRILL_FRESH_MS)) {
+    return {
+      ...facts,
+      posture: "restore_verified",
+      reason: "A recent database backup, its off-host copy and a restore drill are all recorded.",
+    };
+  }
+  if (backup !== null) {
+    const missing = [
+      fresh(backup, BACKUP_FRESH_MS) ? null : "a recent backup",
+      fresh(offhost, BACKUP_FRESH_MS) ? null : "a recent off-host copy",
+      fresh(drill, DRILL_FRESH_MS) ? null : "a recent restore drill",
+    ].filter(Boolean);
+    return {
+      ...facts,
+      posture: "backup_recorded",
+      reason: `A database backup is recorded. Still missing: ${missing.join(", ")}.`,
+    };
+  }
+  if (readLabelEnv("DATABASE_BACKUP_PROVIDER")) {
+    return {
+      ...facts,
+      posture: "provider_declared_unverified",
+      reason:
+        "The operator names a backup provider and no backup is recorded here. Provider backups cannot be seen from this process, so nothing is assumed: verify them with the provider and record the date.",
     };
   }
   return {
-    posture: "managed_platform_assumed",
+    ...facts,
+    posture: "no_backup_recorded",
     reason:
-      "No repository-level automated database backup scripts exist. Database backups are assumed to be provided by the managed database platform and MUST be configured and verified out-of-band by the operator. This is an assumption, not a verified guarantee.",
+      "No database backup is recorded and no provider is declared. Nothing is assumed: start the backup services or declare the provider.",
   };
 }
 
@@ -293,16 +361,18 @@ function readDatabaseBackupPosture(): {
 // Sub-computations
 // -----------------------------------------------------------------------------
 
-async function computeBackupPosture(): Promise<BackupPosture> {
+async function computeBackupPosture(prisma: PrismaClient): Promise<BackupPosture> {
   const objectLockStatus = await getObjectLockStatus();
-  const db = readDatabaseBackupPosture();
+  const db = await readDatabaseBackupPosture(prisma);
   // Operator-declared honest backup metadata (labels/timestamps only).
   const databaseBackupProvider = readLabelEnv("DATABASE_BACKUP_PROVIDER");
   const databaseBackupPolicyUrl = readLabelEnv("DATABASE_BACKUP_POLICY_URL");
-  const databaseBackupLastVerifiedAtUtc = readIsoEnv(
-    "DATABASE_BACKUP_LAST_VERIFIED_AT",
-  );
-  const databaseRestoreTestedAtUtc = readIsoEnv("DATABASE_RESTORE_TESTED_AT");
+  // A recorded run wins. The two env dates remain the operator's statement about
+  // backups this process cannot see, such as a provider's point-in-time recovery.
+  const databaseBackupLastVerifiedAtUtc =
+    db.lastBackupAtUtc ?? readIsoEnv("DATABASE_BACKUP_LAST_VERIFIED_AT");
+  const databaseRestoreTestedAtUtc =
+    db.lastDrillAtUtc ?? readIsoEnv("DATABASE_RESTORE_TESTED_AT");
   // Launch gate is HONEST: green only when backups are independently
   // verified AND a restore has actually been tested. Absence => action
   // required (never silently "ready").
@@ -445,7 +515,7 @@ export async function computeReadinessPosture(
   prisma: PrismaClient = defaultPrisma,
 ): Promise<ReadinessPosture> {
   const [backup, resiliency] = await Promise.all([
-    computeBackupPosture(),
+    computeBackupPosture(prisma),
     computeResiliency(prisma),
   ]);
   return {

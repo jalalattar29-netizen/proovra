@@ -222,6 +222,97 @@ describe("AUD-023 — pg-backup.sh + pg-restore-drill.sh against disposable Post
     }
   }, 180_000);
 
+  // OPS-004 — the schedule itself. A script existing is not a backup running, so
+  // this drives the same entry point the compose service runs, once.
+  describe("the scheduled cycle", () => {
+    const CYCLE_RUN = randomUUID().slice(0, 8);
+    const BUCKET = `backup-proof-${CYCLE_RUN}`;
+    const records = async () =>
+      (
+        await src!.query(
+          `SELECT kind, outcome, backup_stamp, table_count, row_count::text AS row_count, sha256 FROM platform_backup_records ORDER BY recorded_at_utc`,
+        )
+      ).rows as Array<{ kind: string; outcome: string; backup_stamp: string | null; table_count: number | null; row_count: string | null; sha256: string | null }>;
+
+    function runAws(script: string, env: Record<string, string>) {
+      const res = spawnSync(
+        "docker",
+        [
+          "run", "--rm", "--add-host", "host.docker.internal:host-gateway",
+          "-v", `${OPS_DIR}:/ops:ro`, "-v", `${backups}:/backups`,
+          "-e", `AWS_ACCESS_KEY_ID=${process.env.S3_ACCESS_KEY}`,
+          "-e", `AWS_SECRET_ACCESS_KEY=${process.env.S3_SECRET_KEY}`,
+          "-e", "AWS_DEFAULT_REGION=us-east-1",
+          "-e", `AWS_ENDPOINT_URL=${fromContainer(process.env.S3_ENDPOINT!).replace(/\/$/, "")}`,
+          ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
+          "--entrypoint", "bash", "amazon/aws-cli:2.17.0", "-c", script,
+        ],
+        { encoding: "utf8" },
+      );
+      return { code: res.status, out: `${res.stdout}\n${res.stderr}` };
+    }
+
+    it("backs up, restore-tests in its own throwaway server, and records both; Prisma's URL parameters do not break it", async () => {
+      await src!.query("DELETE FROM platform_backup_records");
+      const res = runScript(
+        "pg-backup-cycle.sh",
+        { DATABASE_URL: `${SRC_URL}?schema=public&connection_limit=5`, BACKUP_DIR: "/backups", BACKUP_DRILL_EVERY_SECONDS: "0" },
+        backups,
+      );
+      expect(res.code, res.out).toBe(0);
+      expect(res.out).toMatch(/pg-backup: OK/);
+      expect(res.out).toMatch(/pg-restore-drill: PASS/);
+      const rows = await records();
+      expect(rows.map((r) => [r.kind, r.outcome])).toEqual([
+        ["DATABASE_BACKUP", "SUCCEEDED"],
+        ["RESTORE_DRILL", "SUCCEEDED"],
+      ]);
+      expect(rows[0]!.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(Number(rows[0]!.row_count)).toBeGreaterThanOrEqual(1241);
+      expect(rows[1]!.backup_stamp).toBe(rows[0]!.backup_stamp);
+    }, 300_000);
+
+    it("a backup that fails exits non-zero, leaves no dump, and is not reported as a success", () => {
+      const before = readdirSync(backups).filter((f) => f.endsWith(".dump")).length;
+      const res = runScript(
+        "pg-backup-cycle.sh",
+        { DATABASE_URL: "postgresql://nobody:wrong@host.docker.internal:1/none", BACKUP_DIR: "/backups" },
+        backups,
+      );
+      expect(res.code).not.toBe(0);
+      expect(readdirSync(backups).filter((f) => f.endsWith(".dump")).length).toBe(before);
+    }, 120_000);
+
+    it("the off-host copy reaches another store, and its result is recorded on the next cycle", async () => {
+      const made = runAws(`aws s3 mb s3://${BUCKET}`, {});
+      expect(made.code, made.out).toBe(0);
+      const copied = runAws("bash /ops/pg-backup-offhost.sh", { BACKUP_S3_URI: `s3://${BUCKET}/db`, BACKUP_DIR: "/backups" });
+      expect(copied.code, copied.out).toBe(0);
+      expect(copied.out).toMatch(/pg-backup-offhost: OK/);
+      const listed = runAws(`aws s3 ls s3://${BUCKET}/db/`, {});
+      expect(listed.out).toMatch(/proovra-\d{8}T\d{6}Z\.dump\s/);
+      expect(listed.out).toMatch(/\.dump\.sha256/);
+
+      const res = runScript("pg-backup-cycle.sh", { DATABASE_URL: SRC_URL, BACKUP_DIR: "/backups", BACKUP_DRILL_EVERY_SECONDS: "999999" }, backups);
+      expect(res.code, res.out).toBe(0);
+      expect((await records()).filter((r) => r.kind === "OFFHOST_COPY").map((r) => r.outcome)).toEqual(["SUCCEEDED"]);
+      runAws(`aws s3 rb s3://${BUCKET} --force`, {});
+    }, 300_000);
+
+    it("an off-host copy with no destination reports FAILED, never silence", () => {
+      const res = runAws("bash /ops/pg-backup-offhost.sh", { BACKUP_S3_URI: "", BACKUP_DIR: "/backups" });
+      expect(res.code).not.toBe(0);
+      expect(readFileSync(join(backups, ".offhost-status"), "utf8")).toMatch(/ FAILED/);
+    }, 120_000);
+
+    it("a drill that is not due is not run", async () => {
+      await src!.query("DELETE FROM platform_backup_records WHERE kind = 'RESTORE_DRILL'");
+      const res = runScript("pg-backup-cycle.sh", { DATABASE_URL: SRC_URL, BACKUP_DIR: "/backups", BACKUP_DRILL_EVERY_SECONDS: "999999" }, backups);
+      expect(res.code, res.out).toBe(0);
+      expect((await records()).some((r) => r.kind === "RESTORE_DRILL")).toBe(false);
+    }, 180_000);
+  });
+
   it("the drill refuses to restore onto the production (source) server", () => {
     const res = runScript(
       "pg-restore-drill.sh",

@@ -53,7 +53,6 @@ import {
   type RedactionDenialReason,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 // Macro-Wave A1 — the derivative download-url endpoint reuses the CANONICAL
 // short-lived presign primitive (same one evidence.routes.ts uses). Raw

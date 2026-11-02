@@ -26,6 +26,7 @@ import {
   EnterpriseProvisioningError,
   grantEnterprisePlanToOrg,
   provisionEnterpriseCustomerIdempotent,
+  reissueEnterpriseOwnerInvite,
 } from "../services/enterprise-provisioning.service.js";
 // PHASE 4 §7.6 (2026-07-22) — org suspend/resume lifecycle.
 import {
@@ -37,6 +38,8 @@ import {
   beginEnterpriseTermination,
   cancelEnterpriseTermination,
 } from "../services/organization/enterprise-termination.service.js";
+import { EnterpriseContractError } from "../services/organization/enterprise-contract.service.js";
+import { updateEnterpriseContractTerms } from "../services/enterprise-provisioning.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -51,11 +54,42 @@ const GrantPlanBody = StepUpTeamScope.extend({
   seats: z.number().int().min(1).max(100000).optional(),
 });
 
+/*
+ * The terms of a sold contract. A positive whole number or `null`: null clears a
+ * term back to the published default (CT-10), and zero is refused rather than
+ * read as silence or as "unlimited".
+ */
+const positiveTerm = z.number().int().min(1).max(2_000_000_000).nullable().optional();
+const ContractTermsShape = {
+  evidenceRecordsPerMonth: positiveTerm,
+  aiOperationsPerMonth: positiveTerm,
+  collaborationTeamsMax: positiveTerm,
+  collaborationTeamMembersMax: positiveTerm,
+  legalHoldEnabled: z.boolean().nullable().optional(),
+  reviewerOperationsEnabled: z.boolean().nullable().optional(),
+};
+
+const ContractTermsBody = StepUpTeamScope.extend({
+  ...ContractTermsShape,
+  seatCount: z.number().int().min(1).max(100000).optional(),
+  storageGb: positiveTerm,
+  assignmentRequiresTeamPlacement: z.boolean().nullable().optional(),
+  effectiveAtUtc: z.coerce.date().nullable().optional(),
+  endsAtUtc: z.coerce.date().nullable().optional(),
+  region: z.string().trim().min(2).max(40).nullable().optional(),
+  planVersion: z.string().trim().min(1).max(40).nullable().optional(),
+  billingCustomerRef: z.string().trim().min(1).max(200).nullable().optional(),
+  billingSubscriptionRef: z.string().trim().min(1).max(200).nullable().optional(),
+  externalContractRef: z.string().trim().min(1).max(200).nullable().optional(),
+}).strict();
+
 const ProvisionBody = StepUpTeamScope.extend({
   organizationName: z.string().trim().min(1).max(180),
   ownerEmail: z.string().trim().toLowerCase().email().max(320),
-  seats: z.number().int().min(1).max(100000).optional(),
+  // PROV-015 — required. Left out, a contract was signed for the catalog's five.
+  seats: z.number().int().min(1).max(100000),
   workspaceName: z.string().trim().min(1).max(120).optional(),
+  terms: z.object(ContractTermsShape).strict().optional(),
   // PHASE 4 §7.1 (2026-07-22) — REQUIRED immutable idempotency identity
   // (provisioning-request id / CRM contract reference). Names/emails are
   // never a duplicate-prevention identity.
@@ -129,7 +163,11 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
            * and would read identically to a mistyped id.
            */
           const status =
-            err.code === "NOT_CUSTOMER_ORGANIZATION" ? 409 : 404;
+            err.code === "ORG_NOT_FOUND"
+              ? 404
+              : err.code === "SEATS_REQUIRED"
+                ? 400
+                : 409;
           return reply.code(status).send({
             error: { code: err.code, message: err.message },
           });
@@ -142,9 +180,8 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // POST /v1/admin/enterprise/provision
   //
-  // Provision a new enterprise customer: create the Organization and either
-  // an enterprise workspace (existing owner) or an ORG_OWNER invite (owner
-  // does not exist yet).
+  // Provision a new enterprise customer: create the Organization, its contract
+  // and the ORG_OWNER invite. The owner's acceptance creates the workspace.
   // ---------------------------------------------------------------------------
   app.post(
     "/v1/admin/enterprise/provision",
@@ -187,6 +224,7 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
           idempotencyKey: body.idempotencyKey,
           externalContractRef: body.externalContractRef ?? null,
           region: body.region ?? null,
+          ...(body.terms ? { terms: body.terms } : {}),
         });
         return reply.code(outcome.idempotentReplay ? 200 : 201).send({
           ...outcome.result,
@@ -206,6 +244,112 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
               .code(409)
               .send({ error: { code: err.code, message: err.message } });
           }
+        }
+        throw err;
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // PATCH /v1/admin/orgs/:id/contract
+  //
+  // BILLING-002 / PROV-002 — state the terms of a sold contract. Platform
+  // operator plus fresh step-up; the change and its before-and-after are audited
+  // in the same transaction. Nothing a customer holds is decided anywhere else.
+  // ---------------------------------------------------------------------------
+  app.patch(
+    "/v1/admin/orgs/:id/contract",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const idParse = UuidParam.safeParse((req.params as { id?: unknown }).id);
+      if (!idParse.success) {
+        return reply.code(400).send({
+          error: { code: "validation_error", detail: idParse.error.flatten() },
+        });
+      }
+      const bodyParse = ContractTermsBody.safeParse(req.body);
+      if (!bodyParse.success) {
+        return reply.code(400).send({
+          error: { code: "validation_error", detail: bodyParse.error.flatten() },
+        });
+      }
+      const { teamId, ...terms } = bodyParse.data;
+      const userId = actorUserId(req);
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId,
+        userId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "enterprise_contract",
+        resourceId: idParse.data,
+      });
+      if (gate.sent) return;
+      try {
+        const result = await updateEnterpriseContractTerms({
+          organizationId: idParse.data,
+          actorUserId: userId,
+          terms,
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        if (err instanceof EnterpriseContractError) {
+          return reply.code(err.httpStatus).send({
+            error: { code: err.code, message: err.message, requestId: req.id },
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /v1/admin/orgs/:id/owner-invite/reissue
+  //
+  // PROV-005 — recover a customer whose first owner's invitation expired or
+  // failed. Revokes what is open and sends a new link, once, to the operator.
+  // ---------------------------------------------------------------------------
+  app.post(
+    "/v1/admin/orgs/:id/owner-invite/reissue",
+    { preHandler: requirePlatformAdmin },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const idParse = UuidParam.safeParse((req.params as { id?: unknown }).id);
+      if (!idParse.success) {
+        return reply.code(400).send({
+          error: { code: "validation_error", detail: idParse.error.flatten() },
+        });
+      }
+      const bodyParse = StepUpTeamScope.extend({
+        ownerEmail: z.string().trim().toLowerCase().email().max(320).optional(),
+      }).safeParse(req.body);
+      if (!bodyParse.success) {
+        return reply.code(400).send({
+          error: { code: "validation_error", detail: bodyParse.error.flatten() },
+        });
+      }
+      const userId = actorUserId(req);
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: bodyParse.data.teamId,
+        userId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "organization",
+        resourceId: idParse.data,
+      });
+      if (gate.sent) return;
+      try {
+        const result = await reissueEnterpriseOwnerInvite({
+          organizationId: idParse.data,
+          actorUserId: userId,
+          ownerEmail: bodyParse.data.ownerEmail ?? null,
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        if (err instanceof EnterpriseProvisioningError) {
+          return reply
+            .code(err.code === "ORG_NOT_FOUND" ? 404 : 409)
+            .send({ error: { code: err.code, message: err.message } });
         }
         throw err;
       }
@@ -352,7 +496,8 @@ export async function adminProvisioningRoutes(app: FastifyInstance) {
             return reply.code(202).send({ lifecycleState: "TERMINATING", ...result });
           }
           await cancelEnterpriseTermination({ organizationId: idParse.data, actorUserId: userId });
-          return reply.code(200).send({ lifecycleState: "SUSPENDED" });
+          // The contract stays SUSPENDED until an operator resumes it.
+          return reply.code(200).send({ lifecycleState: "SUSPENDED", nextAction: "RESUME" });
         } catch (err) {
           if (err instanceof EnterpriseTerminationError) {
             return reply.code(err.httpStatus).send({

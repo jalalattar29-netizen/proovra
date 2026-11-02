@@ -40,6 +40,7 @@
  * Enterprise surface.
  */
 
+import { automaticPlanLoweringEnabled } from "../billing/automatic-effects.js";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -131,6 +132,11 @@ export type EnterpriseAuthorityInput = {
   /** True when the contract lookup threw. Forces the fail-closed branch. */
   contractReadFailed: boolean;
   now: Date;
+  /**
+   * An end date is a recorded term until automatic plan lowering is on: see
+   * `contractTermHasEnded`, which `resolveEnterpriseContractLimits` also asks.
+   */
+  endDateHeld?: boolean;
 };
 
 /**
@@ -165,6 +171,7 @@ export function deriveEnterpriseAuthority(
       input.contract.effectiveAtUtc === null ||
       input.contract.effectiveAtUtc.getTime() <= nowMs;
     const notEnded =
+      input.endDateHeld === true ||
       input.contract.endsAtUtc === null ||
       input.contract.endsAtUtc.getTime() > nowMs;
     const inEffect = statusLive && started && notEnded;
@@ -257,5 +264,6 @@ export async function resolveEnterpriseAuthority(
     contract,
     contractReadFailed,
     now,
+    endDateHeld: !automaticPlanLoweringEnabled(),
   });
 }

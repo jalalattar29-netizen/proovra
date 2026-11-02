@@ -26,6 +26,7 @@ const SIGN_IN_FAILURES: ReadonlyArray<[RegExp, string]> = [
   [/(state_expired|_expired$)/, "That sign-in took too long. Start it again."],
   [/(state_replayed|_replayed$)/, "That sign-in link has already been used. Start it again."],
   [/seat_limit_reached/, "Your organization has no seats left. Ask your administrator."],
+  [/seat_contention/, "Your organization is busy adding people. Try again in a moment."],
   [/(account_link_denied|managed_identity_conflict)/, "This account cannot be linked to your organization's sign-in. Ask your administrator."],
   [/(email_domain_not_allowed|domain_not_verified)/, "Your organization's sign-in does not accept this email address."],
   [/(jit_disabled|not_provisioned)/, "You have not been added to this organization yet. Ask your administrator."],

@@ -102,7 +102,10 @@ describe("K7-C — public sales lead capture (live PostgreSQL 16)", () => {
       });
       expect(res.statusCode, res.body).toBe(201);
       const body = json(res);
-      expect(body).toMatchObject({ ok: true, data: { status: "NEW", isSpam: false, emailDispatched: true } });
+      expect(body).toMatchObject({ ok: true, data: { status: "NEW", emailDispatched: true } });
+      // Public route: the spam verdict and priority stay with the operator.
+      expect(body.data).not.toHaveProperty("isSpam");
+      expect(body.data).not.toHaveProperty("priority");
 
       const row = await prisma.contactSalesRequest.findUniqueOrThrow({ where: { id: body.data.id } });
       expect(row).toMatchObject({

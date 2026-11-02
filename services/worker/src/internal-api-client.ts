@@ -75,8 +75,8 @@ function apiBaseUrl(): string {
 }
 
 function internalServiceToken(): string {
-  // Read on every call so a hot rotation via secret manager picks
-  // up without a worker restart.
+  // Read from the environment only: secret hydration does not write
+  // process.env, so this comes from the env file and a change needs a restart.
   return process.env.INTERNAL_SERVICE_TOKEN?.trim() || "";
 }
 

@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { seedExecutableReview } from "./support/executable-destruction-review.js";
 
 describe("legal hold × destruction × restore (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
@@ -66,6 +67,7 @@ describe("legal hold × destruction × restore (live PostgreSQL 16)", () => {
     for (const x of [h1, h2]) {
       await holds.releaseCanonicalLegalHold({ teamId: h.fixtures.teamA.teamId, holdId: x.id, actorUserId: h.fixtures.teamA.ownerUserId, releaseNote: "released for the test" });
     }
+    await seedExecutableReview(prisma as never, ev.id);
     const done = await executeEvidenceDestruction(prisma as never, { evidenceId: ev.id, trigger: "manual", legalHold: false }, store.port as never);
     expect(done.outcome).toBe("DESTROYED");
     const again = await executeEvidenceDestruction(prisma as never, { evidenceId: ev.id, trigger: "manual", legalHold: false }, store.port as never);

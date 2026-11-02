@@ -1036,7 +1036,11 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           err instanceof SamlAssertionError
             ? err.code.toLowerCase()
             : err instanceof SamlMappingError
-              ? err.code.toLowerCase()
+              ? err.code === "SAML_SEAT_LIMIT_REACHED"
+                ? "seat_limit_reached"
+                : err.code === "SAML_SEAT_CONTENTION"
+                  ? "seat_contention"
+                  : err.code.toLowerCase()
               : "saml_acs_failed";
 
         await markCallbackFailed(

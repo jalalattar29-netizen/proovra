@@ -39,6 +39,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../db.js";
+import { denyTeamIfNotEnterprise } from "../services/enterprise-gate-resolvers.service.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 12B CLUSTER 10 / 14 — canonical authorization. `resolveWorkspace`
 // below derives the workspace server-side but does NOT check membership
@@ -1217,6 +1218,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
             .max(500),
         })
         .parse(req.body);
+      if (await denyTeamIfNotEnterprise(reply, ctx.teamId, "accessReviews")) return reply;
       const res = await createCampaign({
         teamId: ctx.teamId,
         kind: body.kind,
@@ -1243,6 +1245,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await denyTeamIfNotEnterprise(reply, ctx.teamId, "accessReviews")) return reply;
       const r = await openCampaign({ teamId: ctx.teamId, campaignId: id });
       if (!r.ok) return reply.code(409).send({ denial: "POLICY_REJECTED" });
       return reply.code(200).send({ ok: true });
@@ -1256,6 +1259,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await denyTeamIfNotEnterprise(reply, ctx.teamId, "accessReviews")) return reply;
       const r = await closeCampaign({ teamId: ctx.teamId, campaignId: id });
       if (!r.ok) return reply.code(409).send({ denial: "POLICY_REJECTED" });
       return reply.code(200).send({ ok: true });
@@ -1287,6 +1291,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
           notes: z.string().max(2000).nullable().optional(),
         })
         .parse(req.body);
+      if (await denyTeamIfNotEnterprise(reply, ctx.teamId, "accessReviews")) return reply;
       const r = await recordItemDecision({
         teamId: ctx.teamId,
         itemId: id,
@@ -1294,7 +1299,7 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
         reviewerUserId: ctx.userId,
         notes: body.notes ?? null,
       });
-      if (!r.ok) return reply.code(409).send({ denial: "POLICY_REJECTED" });
+      if (!r.ok) return reply.code(409).send({ denial: r.denial ?? "POLICY_REJECTED" });
       return reply.code(200).send({ ok: true });
     },
   );

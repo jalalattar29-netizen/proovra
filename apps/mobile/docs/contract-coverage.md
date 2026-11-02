@@ -195,7 +195,7 @@ top level of it.
 | OK | `parseStartedChallenge` | `POST /v1/identity-security/step-up/start` | availableMethods, challenge, destinationMask, handoffUrl, method, passkeyOptions | availableMethods, challenge, destinationMask, handoffUrl, method |
 | OK | `parseRecoveryRequest` | `POST /v1/identity/mfa-admin/recovery-requests` | details, error, ok, request, retryAfter | expiresAt, id, request, status |
 | OK | `parseTotpEnrollment` | `POST /v1/identity/mfa/enroll/start` | factorId, otpauthUri, secretBase32 | factorId, otpauthUri, secretBase32 |
-| OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/enroll/verify` | error, factorId, recoveryCodes, retryAfterMs | recoveryCodes |
+| OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/enroll/verify` | <SPREAD>, error, factorId, recoveryCodes, retryAfterMs | recoveryCodes |
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/recovery-codes/regenerate` | recoveryCodes | recoveryCodes |
 | OK | `parseOrgInviteAccept` | `POST /v1/org-invites/:token/accept` | <SPREAD>, assignedWorkspaceIds, invitationAccepted, organizationId, role, workspaceOpened | assignedWorkspaceIds, enterpriseWorkspaceId, organizationId, role, setupRedirect |
 | OK | `parsePortalAuth` | `POST /v1/portal/auth` | expiresAtUtc, newLogin, reviewerEmail, role, sessionId | expiresAtUtc, newLogin, reviewerEmail, role, sessionId |

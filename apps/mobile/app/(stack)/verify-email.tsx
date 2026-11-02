@@ -9,12 +9,14 @@ import { ProovraScreen, ProovraCard, ProovraButton, ProovraSection, ProovraLoadi
 /**
  * Email verification — reached via the emailed deep link (carries ?token=).
  *
- * The web's states (auth/verify-email/page.tsx): any failure is the
- * invalid-or-expired card with an email field to send a fresh link; a resend
- * lands on "Email sent / Check your inbox" or "Retry needed". The resend is
- * held for a minute after each attempt, as on the web.
+ * The web's states (auth/verify-email/page.tsx): a first verification asks for
+ * the account's password (the link alone must not switch on a password someone
+ * else chose); any other failure is the invalid-or-expired card with an email
+ * field to send a fresh link; a resend lands on "Email sent / Check your inbox"
+ * or "Retry needed". The resend is held for a minute after each attempt, as on
+ * the web.
  */
-type State = "verifying" | "success" | "missing-token" | "invalid" | "resend-sent" | "resend-error";
+type State = "verifying" | "password" | "success" | "missing-token" | "invalid" | "resend-sent" | "resend-error";
 type Session = Awaited<ReturnType<typeof verifyEmail>>;
 
 const RESEND_HOLD_MS = 60_000;
@@ -29,6 +31,9 @@ export default function VerifyEmailScreen() {
   const [state, setState] = useState<State>("verifying");
   const [email, setEmail] = useState("");
   const [resendBusy, setResendBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const fired = useRef(false);
   const session = useRef<Session | null>(null);
   const continued = useRef(false);
@@ -45,24 +50,45 @@ export default function VerifyEmailScreen() {
     void completeLogin({ kind: "session", token: s.token, user: s.user }, "email");
   }, [completeLogin]);
 
+  const submit = useCallback(
+    async (withPassword?: string) => {
+      try {
+        session.current = await verifyEmail(token, withPassword);
+        setState("success");
+        timers.current.push(setTimeout(continueToApp, SUCCESS_HOLD_MS));
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === "EMAIL_VERIFICATION_PASSWORD_REQUIRED") {
+          setState("password");
+        } else if (code === "EMAIL_VERIFICATION_PASSWORD_INCORRECT") {
+          setState("password");
+          setPasswordError("That is not the password chosen for this account.");
+        } else {
+          setState("invalid");
+        }
+      }
+    },
+    [token, continueToApp],
+  );
+
   useEffect(() => {
     if (fired.current) return;
     fired.current = true;
-    void (async () => {
-      if (!token) {
-        // No token is a different failure from a dead one: the web says the link was not recognised.
-        setState("missing-token");
-        return;
-      }
-      try {
-        session.current = await verifyEmail(token);
-        setState("success");
-        timers.current.push(setTimeout(continueToApp, SUCCESS_HOLD_MS));
-      } catch {
-        setState("invalid");
-      }
-    })();
-  }, [token, continueToApp]);
+    if (!token) {
+      // No token is a different failure from a dead one: the web says the link was not recognised.
+      setState("missing-token");
+      return;
+    }
+    void submit();
+  }, [token, submit]);
+
+  const submitPassword = async () => {
+    if (passwordBusy || !password) return;
+    setPasswordBusy(true);
+    setPasswordError(null);
+    await submit(password);
+    setPasswordBusy(false);
+  };
 
   const resend = async () => {
     const trimmed = email.trim();
@@ -99,6 +125,25 @@ export default function VerifyEmailScreen() {
               <ProovraText variant="bodySm" color={theme.color.ink.secondary} center>
                 One moment while we confirm the verification link.
               </ProovraText>
+            </View>
+          ) : state === "password" ? (
+            <View style={styles.stack} testID="verify-password">
+              <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>One more step</ProovraText>
+              <ProovraText variant="h3" weight="semibold">Confirm your password</ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Enter the password you chose when you created this account to finish verifying your email.
+              </ProovraText>
+              <ProovraFormField label="Password">
+                <ProovraInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" accessibilityLabel="Password" />
+              </ProovraFormField>
+              {passwordError ? (
+                <View testID="verify-password-error"><ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{passwordError}</ProovraText></View>
+              ) : null}
+              <ProovraButton label={passwordBusy ? "Verifying…" : "Verify my email"} disabled={passwordBusy || !password} onPress={() => void submitPassword()} />
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Did you not create this account, or forgot the password? Set a new password from a link sent to this address. It replaces any password already on the account.
+              </ProovraText>
+              <ProovraButton label="Set a new password" variant="ghost" onPress={() => router.replace("/(stack)/forgot-password")} />
             </View>
           ) : state === "success" ? (
             <View style={styles.stack} testID="verify-success">

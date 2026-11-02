@@ -161,8 +161,7 @@ const ORG = ["GLOBAL_ADMIN", "ORG_ADMIN"] as const;
 const DEPT = ["GLOBAL_ADMIN", "ORG_ADMIN", "DEPARTMENT_ADMIN"] as const;
 type Gate = { method: "GET" | "POST"; path: string; tiers: readonly Tier[] };
 const GATES: Gate[] = [
-  { method: "POST", path: "/v1/packaging/entitlements/apply-product-line", tiers: ORG },
-  { method: "POST", path: "/v1/packaging/entitlements/grant", tiers: ORG },
+  // BILLING-001: the packaging writers are the platform operator's, no tier reaches them.
   { method: "POST", path: "/v1/exchange/packages/:id/revoke", tiers: ORG },
   { method: "POST", path: "/v1/exchange/chain-transfers", tiers: [...ORG, "REVIEWER_LEAD"] },
   { method: "POST", path: "/v1/exchange/chain-transfers/:id/accept", tiers: ORG },

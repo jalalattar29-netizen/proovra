@@ -46,19 +46,20 @@ export const MIGRATED_SECRETS = [
   // PHASE 12 POINT 5 — dedicated provider idempotency secret. Used for nothing
   // else, rotated on its own schedule, never substituted by another secret.
   "EMAIL_IDEMPOTENCY_SECRET",
-  // Phase P2.0B — second migration wave. These names exist in
-  // runtime code today (webhook signature verification, Twilio +
-  // PayPal client config, cron secret tokens, internal API key).
-  // Adding to this list is safe: env fallback is preserved, no
-  // call-site change is required for these to be RESOLVED from AWS
-  // first if present — the existing call-sites that read
-  // `process.env.X` continue to work, but new call-sites that go
-  // through `getSecret()` (and the audit surface) will now report
-  // these names too. Individual call-sites can be flipped to
-  // `getSecret()` opportunistically.
+  // Phase P2.0B — second migration wave. A name is listed here only if a reader
+  // goes through `getSecret()` or the audit surface would report a rotation that
+  // did nothing (OPS-018); ENV_ONLY_SECRETS below names those that do not.
   "STRIPE_WEBHOOK_SECRET",
   "PAYPAL_CLIENT_ID",
   "PAYPAL_WEBHOOK_ID",
+] as const;
+
+/**
+ * Read from `process.env` by the code that uses them, by both the API and the
+ * worker. A value placed in the Secrets Manager bundle changes nothing here:
+ * rotating one means changing the env file and restarting both services.
+ */
+export const ENV_ONLY_SECRETS = [
   "TWILIO_API_KEY",
   "TWILIO_API_SECRET",
   "TWILIO_AUTH_TOKEN",

@@ -5,7 +5,8 @@ import { useLocalSearchParams } from "expo-router";
 import { apiFetch } from "../src/api";
 import { toSafeUserError, type SafeError } from "../src/errors/safe-error";
 import { formatUserDateTime } from "../src/lib/date";
-import { extractVerificationId, extractVerificationPackageId } from "../src/deep-link";
+import * as WebBrowser from "expo-web-browser";
+import { extractVerificationId, extractVerificationPackageId, verificationPackageUrl } from "../src/deep-link";
 import {
   VERIFY_COPY,
   VERIFY_MATRIX_UNAVAILABLE_COPY,
@@ -149,9 +150,9 @@ export default function VerifyScreen() {
     // as a verification id.
     const packageId = extractVerificationPackageId(manual);
     if (packageId) {
-      const origin = webOrigin();
-      if (origin) {
-        void Linking.openURL(`${origin.replace(/\/+$/, "")}/verify/package/${encodeURIComponent(packageId)}`);
+      const packageUrl = verificationPackageUrl(webOrigin(), packageId);
+      if (packageUrl) {
+        void WebBrowser.openBrowserAsync(packageUrl);
       } else {
         setError({ kind: "input", title: "Check the details", message: VERIFY_PACKAGE_LINK_COPY });
       }

@@ -28,6 +28,9 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { dispatchEnqueuedEmailNotifications } from "../notifications/index.js";
+import { enqueueMembershipLifecycleNoticeTx } from "../notifications/membership-lifecycle-notice.js";
 import { emitOrgAuditEvent } from "./org-audit.service.js";
 import { transitionEnterpriseContractStatusTx } from "./enterprise-contract.service.js";
 
@@ -76,10 +79,10 @@ export async function beginEnterpriseTermination(input: {
   effectiveAtUtc?: Date | null;
 }): Promise<{ closureRequestId: string; effectiveAtUtc: Date }> {
   const effectiveAtUtc = input.effectiveAtUtc ?? new Date();
-  return prisma.$transaction(async (tx) => {
+  const { noticeIds, ...result } = await prisma.$transaction(async (tx) => {
     const org = await tx.organization.findUnique({
       where: { id: input.organizationId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!org) throw new EnterpriseTerminationError("ORGANIZATION_NOT_FOUND", 404);
     // Serialise every termination writer of this organization.
@@ -110,6 +113,9 @@ export async function beginEnterpriseTermination(input: {
       organizationId: input.organizationId,
       to: "SUSPENDED",
       terminationReason: input.reason,
+      // Recorded for the way back: a contract that was never activated must
+      // not come back ACTIVE when this termination is withdrawn.
+      ...(contract.status === "SUSPENDED" ? {} : { statusBeforeTermination: contract.status }),
     });
     const row = await tx.organizationClosureRequest.create({
       data: {
@@ -129,14 +135,54 @@ export async function beginEnterpriseTermination(input: {
       targetId: input.organizationId,
       metadata: { kind: "contract_termination", closureRequestId: row.id, effectiveAtUtc: effectiveAtUtc.toISOString() },
     });
-    return { closureRequestId: row.id, effectiveAtUtc };
+    // PROV-013 — the reason stays with operators. Commits with the termination.
+    await emitTenantAudit(
+      {
+        action: "identity.organization_termination_scheduled",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        actorAuthority: "PLATFORM_ADMIN",
+        organizationId: input.organizationId,
+        resourceType: "organization_closure_request",
+        resourceId: row.id,
+        previousState: contract.status,
+        resultingState: "TERMINATING",
+        metadata: { effectiveAtUtc: effectiveAtUtc.toISOString() },
+      },
+      tx as never,
+    );
+    // Those who can act on it hear now, not when the workspaces close.
+    const recipients = await tx.organizationMembership.findMany({
+      where: {
+        organizationId: input.organizationId,
+        status: "ACTIVE",
+        role: { in: ["ORG_OWNER", "ORG_ADMIN"] },
+      },
+      select: { userId: true },
+    });
+    const notices: string[] = [];
+    for (const { userId } of recipients) {
+      const id = await enqueueMembershipLifecycleNoticeTx(tx as Prisma.TransactionClient, {
+        eventType: "ORGANIZATION_TERMINATION_SCHEDULED",
+        teamId: null,
+        recipientUserId: userId,
+        actorUserId: input.actorUserId,
+        subjectName: org.name,
+        effectiveOnLabel: effectiveAtUtc.toISOString().slice(0, 10),
+      });
+      if (id) notices.push(id);
+    }
+    return { closureRequestId: row.id, effectiveAtUtc, noticeIds: notices };
   });
+  await dispatchEnqueuedEmailNotifications(noticeIds);
+  return result;
 }
 
 /**
- * Withdraw a termination that has not executed. The organization returns to
- * SUSPENDED (the contract stays SUSPENDED); an operator resumes it explicitly,
- * so withdrawing a termination never silently restores access.
+ * Withdraw a termination that has not executed. The contract stays SUSPENDED
+ * until an operator resumes the organization, which is what reinstates it, so
+ * withdrawing a termination never silently restores access.
  */
 export async function cancelEnterpriseTermination(input: {
   organizationId: string;
@@ -166,5 +212,20 @@ export async function cancelEnterpriseTermination(input: {
       targetId: input.organizationId,
       metadata: { kind: "contract_termination", closureRequestId: open.id },
     });
+    await emitTenantAudit(
+      {
+        action: "identity.organization_termination_withdrawn",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: input.actorUserId,
+        actorAuthority: "PLATFORM_ADMIN",
+        organizationId: input.organizationId,
+        resourceType: "organization_closure_request",
+        resourceId: open.id,
+        resultingState: "CANCELLED",
+        metadata: {},
+      },
+      tx as never,
+    );
   });
 }

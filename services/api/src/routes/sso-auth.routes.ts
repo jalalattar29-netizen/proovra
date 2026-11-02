@@ -854,7 +854,11 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         if (err instanceof SsoServiceError) {
           return bounceToAuthError(
             reply,
-            err.code.toLowerCase(),
+            err.code === "SSO_SEAT_LIMIT_REACHED"
+              ? "seat_limit_reached"
+              : err.code === "SSO_SEAT_CONTENTION"
+                ? "seat_contention"
+                : err.code.toLowerCase(),
             attempt.redirectAfter,
           );
         }

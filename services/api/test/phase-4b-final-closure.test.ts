@@ -149,14 +149,17 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       count: async () => 0,
     },
     destructionRequest: {
+      updateMany: async () => ({ count: 1 }),
       create: async (args: { data: Record<string, unknown> }) => ({ id: "dreq-1", ...args.data }),
       findFirst: async () => null,
       findMany: async () => [],
       update: async () => ({}),
       count: async () => 0,
     },
+    custodyEvent: { findMany: async () => [] },
     destructionCertificate: {
-      create: async (args: { data: Record<string, unknown> }) => ({ id: "cert-1", ...args.data }),
+      findUnique: async () => null,
+      create: async (args: { data: Record<string, unknown> }) => ({ ...args.data, id: "cert-1" }),
       findFirst: async () => null,
     },
     legalHold: {
@@ -572,6 +575,7 @@ describe("8. C3 — certifyDestruction produces certificate with SHA-256 hash", 
 
     const prisma = makePrismaStub({
       destructionRequest: {
+        updateMany: async () => ({ count: 1 }),
         findFirst: async () => ({
           id: "dreq-1",
           teamId: "team-1",
@@ -586,9 +590,10 @@ describe("8. C3 — certifyDestruction produces certificate with SHA-256 hash", 
         findMany: async () => [],
       },
       destructionCertificate: {
+        findUnique: async () => null,
         create: async (args: { data: Record<string, unknown> }) => {
           certData = args.data;
-          return { id: "cert-1", ...args.data };
+          return { ...args.data, id: "cert-1" };
         },
         findFirst: async () => null,
       },
@@ -639,8 +644,9 @@ describe("8. C3 — certifyDestruction produces certificate with SHA-256 hash", 
     const src = readSrc("services/lifecycle/destruction-governance.service.ts");
     expect(src).toContain("certificateBytesSha256");
     expect(src).toContain("certificateVersion");
-    // PHASE 6 §9.5 — V2 binds the policy decision-context snapshot.
-    expect(src).toContain("PROOVRA_DESTRUCTION_CERT_V2");
+    // PHASE 6 §9.5 bound the policy decision-context snapshot in V2; GOV-009's V3
+    // certifies verified records and lists exceptions.
+    expect(src).toContain("PROOVRA_DESTRUCTION_CERT_V3");
   });
 
   it("getDestructionCertificateArtifact is exported and is a function", async () => {
@@ -669,6 +675,7 @@ describe("9. C3 — certificate route + artifact endpoint", () => {
     );
     const prisma = makePrismaStub({
       destructionCertificate: {
+        findUnique: async () => null,
         findFirst: async () => null,
       },
     });

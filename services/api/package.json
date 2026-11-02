@@ -72,6 +72,7 @@
     "ops:retire-user-evidence": "tsx src/scripts/retire-user-evidence.ts",
     "ops:output-reconciliation-dry-run": "tsx src/scripts/output-reconciliation-dry-run.ts",
     "ops:destruction-certificate-audit": "tsx src/scripts/destruction-certificate-audit.ts",
+    "ops:organization-export-manifest": "tsx src/scripts/organization-export-manifest.ts",
     "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts",
     "db:lifecycle-state-readiness": "node scripts/evidence-lifecycle-state-readiness.mjs",
     "pretypecheck": "pnpm run build:deps",

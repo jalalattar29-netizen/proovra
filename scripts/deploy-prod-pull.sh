@@ -60,6 +60,16 @@ main() {
   [ -r "${COMPOSE_ENV_FILE}" ] ||
     fail "the compose env file ${COMPOSE_ENV_FILE} is not readable (set COMPOSE_ENV_FILE)."
 
+  # OPS-009 / CRYPTO-004 — ONE VALUE PER KEY. Compose keeps the LAST occurrence of a
+  # key and the in-process loaders keep the FIRST, so a repeated key means a host
+  # script and a container can disagree on a signing identity or a hash secret, and
+  # rotating the wrong occurrence does nothing. Refused before anything is pulled.
+  # Names only; values are never printed.
+  local dupes
+  dupes="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=.*/\2/p' "${COMPOSE_ENV_FILE}" | sort | uniq -d | tr '\n' ' ')"
+  [ -z "${dupes}" ] ||
+    fail "the env file ${COMPOSE_ENV_FILE} sets these keys more than once: ${dupes% }. Compose keeps the last and the in-process loaders keep the first, so the effective value depends on the reader. Keep one line for each."
+
   # THE BITCOIN VERIFIER IS WORKER-ONLY. Both services load the shared env file
   # through env_file, which injects EVERY key into the container — so a verifier
   # setting or credential placed there reaches the API. Refused before anything
@@ -174,6 +184,8 @@ main() {
 
   mkdir -p "${STATE_DIR}"
   printf '%s %s %s -> %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${MODE}" "${CUR_TAG:-unknown}" "${TAG}" >>"${STATE_DIR}/history.log"
+  record_release "${MODE}" "${SHA}" "${TAG}" "${API_IMAGE}" "${WORKER_IMAGE}"
+  warn_unattended "${REPO_ROOT}"
   echo ""
   echo "DEPLOY SUCCEEDED: ${API_SVC} + ${WORKER_SVC} at ${TAG} (${SHA})."
   if [ -n "${CUR_SHA}" ] && [ "${CUR_SHA}" != "${SHA}" ]; then
@@ -182,6 +194,40 @@ main() {
 }
 
 ROLLBACK_HINT=""
+
+# OPS-015 — THE RELEASE RECORD. One line per deploy naming the web, API and worker
+# builds, so "what was live on this date" has an answer. Web deploys on its own
+# through Vercel, so its build is read from its health route when WEB_HEALTH_URL
+# names it, and a difference is said out loud. A deploy is not failed over this:
+# the API and worker are already up, and web normally leads.
+record_release() {
+  local mode="$1" sha="$2" tag="$3" api_image="$4" worker_image="$5" web="" note=""
+  if [ -n "${WEB_HEALTH_URL:-}" ]; then
+    web="$(curl -fsS --max-time 10 "${WEB_HEALTH_URL}" 2>/dev/null | sed -nE 's/.*"revision":"([0-9a-f]{40})".*/\1/p' || true)"
+    if [ -z "${web}" ]; then
+      note="the web build could not be read from WEB_HEALTH_URL"
+    elif [ "${web}" != "${sha}" ]; then
+      note="web is at ${web}, not this release"
+    fi
+  else
+    note="WEB_HEALTH_URL is not set, so the web build is not recorded"
+  fi
+  [ -z "${note}" ] || echo "WARNING: ${note}."
+  printf '{"deployedAtUtc":"%s","mode":"%s","api":"%s","worker":"%s","web":"%s","imageTag":"%s","apiDigest":"%s","workerDigest":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${mode}" "${sha}" "${sha}" "${web}" "${tag}" \
+    "$(docker image inspect --format '{{join .RepoDigests ","}}' "${api_image}")" \
+    "$(docker image inspect --format '{{join .RepoDigests ","}}' "${worker_image}")" \
+    >>"${STATE_DIR}/releases.jsonl"
+}
+
+# What a deploy cannot fix but must not hide (OPS-004, OPS-007).
+warn_unattended() {
+  local root="$1"
+  [ -n "$(compose --profile backup ps -q pg-backup 2>/dev/null || true)" ] ||
+    echo "WARNING: the pg-backup service is not running. See docs/runbooks/disaster-recovery.md."
+  [ -f "${root}/infra/caddy/Caddyfile" ] ||
+    echo "WARNING: infra/caddy/Caddyfile is not a file on this host, so the edge cannot be rebuilt from here. See infra/caddy/Caddyfile.example."
+}
 
 fail() {
   echo "ERROR: $*" >&2

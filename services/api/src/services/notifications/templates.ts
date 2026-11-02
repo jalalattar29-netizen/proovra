@@ -105,6 +105,7 @@ export type MembershipLifecycleContext = {
   workspaceName: string;
   roleLabel: string | null;
   actionUrl: string | null;
+  effectiveOnLabel?: string | null;
 };
 
 // Discriminated union the renderer accepts. Adding an event type means
@@ -180,6 +181,18 @@ export function renderTransactionalTemplate(
         "Review overdue",
         "A review you own is past its due date",
       );
+    case "REVIEW_DUE_SOON_REMINDER":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "Review due soon",
+        "A review you own is coming up on its due date",
+      );
+    case "REVIEW_INACTIVITY_REMINDER":
+      return renderReviewVariant(
+        expectCtx(ctx, "ReviewAssigned"),
+        "Review waiting on you",
+        "A review you own has had no recent activity",
+      );
     case "REVIEW_NEEDS_MORE_INFO":
       return renderReviewVariant(
         expectCtx(ctx, "ReviewAssigned"),
@@ -238,6 +251,7 @@ export function renderTransactionalTemplate(
     case "WORKSPACE_OWNERSHIP_RECEIVED":
     case "WORKSPACE_CLOSED":
     case "ACCOUNT_CLOSED":
+    case "ORGANIZATION_TERMINATION_SCHEDULED":
       return renderMembershipLifecycle(eventType, expectCtx(ctx, "MembershipLifecycle"));
     default: {
       const _exhaustive: never = eventType;
@@ -668,7 +682,8 @@ type MembershipLifecycleEvent =
   | "WORKSPACE_ROLE_CHANGED"
   | "WORKSPACE_OWNERSHIP_RECEIVED"
   | "WORKSPACE_CLOSED"
-  | "ACCOUNT_CLOSED";
+  | "ACCOUNT_CLOSED"
+  | "ORGANIZATION_TERMINATION_SCHEDULED";
 
 function renderMembershipLifecycle(
   eventType: MembershipLifecycleEvent,
@@ -700,6 +715,12 @@ function renderMembershipLifecycle(
     WORKSPACE_CLOSED: {
       title: "A workspace you belonged to was closed",
       line: `The workspace ${d.workspaceName} was closed, and your access to it has ended. Its records remain governed by retention and legal hold.`,
+    },
+    ORGANIZATION_TERMINATION_SCHEDULED: {
+      title: "Your organization's contract is ending",
+      line: `The contract of ${d.workspaceName} is being terminated${
+        d.effectiveOnLabel ? `, and the organization closes on ${d.effectiveOnLabel}` : ""
+      }. Export what you need before then, and contact your account manager with any questions. Records remain governed by retention and legal hold.`,
     },
     ACCOUNT_CLOSED: {
       title: `Your ${brand} account was closed`,

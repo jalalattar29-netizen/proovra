@@ -1,8 +1,23 @@
 
+# OPS-006 — with no logging section Docker's default keeps container logs without
+# bound on the host disk. Every service here rotates.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
+    # OPS-020 — whether this instance is the one in use depends on REDIS_URL, which
+    # lives in the server's env file. If it is, queued jobs must survive a restart,
+    # and BullMQ loses jobs under any eviction policy but noeviction.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
@@ -25,6 +40,7 @@ services:
     # tag and verifies the pulled images OCI `org.opencontainers.image.revision`
     # label matches the intended commit for BOTH services.
     image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/proovra-api:${IMAGE_TAG:?IMAGE_TAG must be an immutable release identity (commit SHA or digest); :latest is not permitted}
+    logging: *default-logging
     env_file:
       - /opt/proovra/app/.env
     depends_on:
@@ -32,6 +48,10 @@ services:
         condition: service_healthy
     environment:
       PORT: "8080"
+      # RT-002 — stated, so the deployed configuration says which way this is. The
+      # routes answer 503 FEATURE_DISABLED until it is true. Whether it ships is an
+      # open founder decision; false is what production has been running.
+      EVIDENCE_REQUESTS_ENABLED: ${EVIDENCE_REQUESTS_ENABLED:-false}
       # NOTE: AUTH_JWT_SECRET is sourced from the env_file (and, in
       # production, may be backed by AWS Secrets Manager via P2.0).
       # We no longer pass it explicitly here so it does not appear in
@@ -89,7 +109,6 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=proovra,deployment.environment=production}
-      LOG_AGGREGATION_ENABLED: ${LOG_AGGREGATION_ENABLED:-true}
       # AWS Secrets Manager — Secrets Manager region is decoupled from
       # the app-wide AWS_REGION (which KMS uses on eu-north-1).
       AWS_SECRETS_ENABLED: ${AWS_SECRETS_ENABLED:-false}
@@ -136,6 +155,7 @@ services:
     # ONE IMAGE_TAG by construction, so they cannot skew relative to each
     # other; removing the default means they also cannot both float.
     image: ghcr.io/${GHCR_OWNER:?GHCR_OWNER is required}/proovra-worker:${IMAGE_TAG:?IMAGE_TAG must be an immutable release identity (commit SHA or digest); :latest is not permitted}
+    logging: *default-logging
     env_file:
       - /opt/proovra/app/.env
       # INDEPENDENT BITCOIN VERIFICATION — WORKER ONLY. The verifier's
@@ -189,7 +209,9 @@ services:
       WORKER_PORT: ${WORKER_PORT}
       OTS_ENABLED: "true"
       OTS_BIN: ots
-      OTS_CALENDAR_URL: https://a.pool.opentimestamps.org
+      # OPS-016 / CRYPTO-005 — one calendar was a single point of failure for every
+      # new proof. These are independent operators, and a stamp needs two to answer.
+      OTS_CALENDAR_URLS: ${OTS_CALENDAR_URLS:-https://a.pool.opentimestamps.org,https://b.pool.opentimestamps.org,https://a.pool.eternitywall.com}
       OTS_TIMEOUT_MS: "30000"
       # The Bitcoin RPC password: ONLY this read-only, worker-only file (the
       # mount below). Never an environment variable — in production the worker
@@ -243,7 +265,6 @@ services:
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.namespace=proovra,deployment.environment=production}
-      LOG_AGGREGATION_ENABLED: ${LOG_AGGREGATION_ENABLED:-true}
       # AWS Secrets Manager — same pattern as api. KMS still uses the
       # app-wide AWS_REGION (eu-north-1); Secrets Manager uses
       # AWS_SECRETS_REGION (us-east-1).
@@ -277,9 +298,58 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  # OPS-004 — scheduled database backups, a restore drill, and the off-host copy.
+  # Started on their own, and not by the release deploy:
+  #
+  #   docker compose --env-file /opt/proovra/app/.env \
+  #     -f infra/docker/docker-compose.prod.yml --profile backup up -d
+  #
+  # They do nothing unless started, and running them on a host whose database is
+  # also backed up by a provider costs only the disk. Each result is recorded in
+  # platform_backup_records, which is what the readiness posture reports. See
+  # docs/runbooks/disaster-recovery.md.
+  pg-backup:
+    profiles: ["backup"]
+    # The image the integration database uses: a dump of a pgvector schema restores
+    # only where the extension exists, and the drill runs its own server here.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    logging: *default-logging
+    entrypoint: ["bash", "/ops/pg-backup-cycle.sh", "--loop"]
+    environment:
+      # DIRECT_URL because pg_dump needs a session, which a pooler may not give it.
+      DATABASE_URL: ${DIRECT_URL:-${DATABASE_URL}}
+      BACKUP_DIR: /backups
+      BACKUP_RETAIN: ${BACKUP_RETAIN:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-21600}
+      BACKUP_DRILL_EVERY_SECONDS: ${BACKUP_DRILL_EVERY_SECONDS:-604800}
+    volumes:
+      - /opt/proovra/backups/postgres:/backups
+      - ../../scripts/ops:/ops:ro
+
+  pg-backup-offhost:
+    profiles: ["backup"]
+    image: amazon/aws-cli:2.17.0
+    restart: unless-stopped
+    logging: *default-logging
+    entrypoint: ["bash", "/ops/pg-backup-offhost.sh", "--loop"]
+    environment:
+      BACKUP_DIR: /backups
+      BACKUP_S3_URI: ${BACKUP_S3_URI:-}
+      BACKUP_OFFHOST_INTERVAL_SECONDS: ${BACKUP_OFFHOST_INTERVAL_SECONDS:-3600}
+      # Its own credentials: nothing that can write evidence should reach this.
+      AWS_ACCESS_KEY_ID: ${BACKUP_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${BACKUP_AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${BACKUP_AWS_REGION:-eu-central-1}
+      AWS_ENDPOINT_URL: ${BACKUP_S3_ENDPOINT_URL:-}
+    volumes:
+      - /opt/proovra/backups/postgres:/backups
+      - ../../scripts/ops:/ops:ro
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
@@ -291,5 +361,6 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
+  redis_data:
   caddy_data:
   caddy_config:

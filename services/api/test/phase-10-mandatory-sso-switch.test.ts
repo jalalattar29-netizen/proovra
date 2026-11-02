@@ -76,7 +76,16 @@ describe("§10.2 — mandatory SSO at org-context establishment (real gate)", ()
     const res = await post({ workspaceId: WS });
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.body).code).toBe("workspace_membership_required"); // no org-existence leak
+    // MOBILE-002: membership is proven by now, so a member is told the rule.
+    expect(JSON.parse(res.body).reason).toBe("mandatory_sso_required");
     expect(H.writes.filter((w) => w.startsWith("user.update"))).toEqual([]); // zero mutation
+  });
+  it("someone who is not a member learns nothing about the policy", async () => {
+    H.policy.ssoRequired = true; H.authMethod = "PASSWORD"; H.membershipStatus = "REVOKED";
+    const res = await post({ workspaceId: WS });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).code).toBe("workspace_membership_required");
+    expect(JSON.parse(res.body).reason).toBeUndefined();
   });
   it("managed SAML session bound to THIS Org's ACTIVE connection CAN enter", async () => {
     H.policy.ssoRequired = true; H.authMethod = "SAML"; H.ssoConnId = "conn-A"; H.conn = { status: "ACTIVE", orgId: "org-1" };

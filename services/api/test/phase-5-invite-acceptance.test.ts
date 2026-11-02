@@ -68,7 +68,12 @@ function makeTx() {
               return async (...args: unknown[]) => {
                 H.calls.push({ model, method, args });
                 if (model === "user" && method === "findUnique")
-                  return { email: H.userEmail };
+                  return {
+                    email: H.userEmail,
+                    emailVerifiedAt: H.userEmail ? new Date(0) : null,
+                    passwordHash: null,
+                    credentialProvenAtUtc: null,
+                  };
                 if (model === "organization" && method === "findUnique")
                   return { status: H.orgStatus };
                 if (model === "organizationInvite" && method === "findUnique") {
@@ -142,16 +147,7 @@ vi.mock("../src/services/collaboration-team/billing-guards.js", async (importOri
 
 vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
   ...((await importOriginal()) as Record<string, unknown>),
-  resolveWorkspaceSeatState: async () => ({
-    plan: "TEAM",
-    used: 1,
-    limit: 10,
-    remaining: 9,
-    featureIncluded: true,
-    overLimit: false,
-    source: "PLAN_CATALOG",
-    contractLimits: {},
-  }),
+  claimWorkspaceSeatTx: async () => ({ outcome: "CLAIMED" }),
 }));
 
 import { acceptOrganizationInvite } from "../src/services/organization/org-invite-acceptance.service.js";

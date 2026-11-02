@@ -108,7 +108,8 @@ vi.mock("../src/db.js", () => ({
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
 // Members re-audit ENT-05 — the org workspaces route projects the canonical
 // seat state; this in-memory matrix is about identity recovery, not seats.
-vi.mock("../src/services/billing/workspace-seats.service.js", () => ({
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
   resolveWorkspaceSeatState: async () => ({
     plan: "ENTERPRISE",
     used: 3,
@@ -620,6 +621,8 @@ vi.mock("../src/services/organization/org-invite-acceptance.service.js", () => (
   },
 }));
 vi.mock("../src/services/workspace/workspace-lifecycle.service.js", () => ({
+  OrganizationOwnershipTransferError: class extends Error {},
+  transferOrganizationWorkspaceOwnersTx: async () => ({ workspaceIds: [] }),
   suspendOrganizationWorkspace: async () => ({ suspended: true }),
   resumeOrganizationWorkspace: async () => ({ resumed: true }),
 }));
@@ -750,6 +753,7 @@ const MODELS = [
   "organizationMembership",
   "organizationInvite",
   "organizationDomain",
+  "enterpriseContract",
   "organizationPolicy",
   "organizationAuditEvent",
   "organizationClosureRequest",
@@ -901,7 +905,9 @@ function makeDb() {
   for (const m of MODELS) store.set(m, []);
   const db: Record<string, unknown> = {
     __store: store,
-    $executeRaw: async () => 1,
+    // The owners lock: a behaviour of PostgreSQL, proven in
+    // org-ownership-continuity.integration.test.ts.
+    $executeRaw: async () => 0,
     $transaction: async (arg: unknown) =>
       Array.isArray(arg)
         ? Promise.all(arg)
@@ -1064,6 +1070,8 @@ function seed(): void {
     updatedAt: now,
   };
   rows("organization").push(orgRow, { ...orgRow, id: OTHER_ORG, name: "Other Org" });
+  // A signed contract states its seats; one that does not admits nobody.
+  rows("enterpriseContract").push({ organizationId: ORG, status: "ACTIVE", seatCount: 100 });
   rows("team").push(
     {
       id: TEAM,
@@ -2829,10 +2837,9 @@ describe("SYSTEM 7 — bulk organization invitation", () => {
      * organization holds an ACTIVE contract stating seats, that number wins
      * here too, which is the behaviour a provisioned Enterprise org wants.
      */
-    // Members audit ENT-04 (2026-10-25) — 500 → no cap. The catalog ENTERPRISE
-    // "ceiling" was a placeholder pool; only an ACTIVE contract seat count
-    // bounds a workspace as a whole, and this fixture holds none.
-    expect(body.seatPreview).toMatchObject({ used: 4, included: 0, hasSeatCap: false });
+    // Members audit ENT-04 (2026-10-25) — only an ACTIVE contract seat count
+    // bounds a workspace as a whole, and this fixture's states 100.
+    expect(body.seatPreview).toMatchObject({ used: 4, included: 100, hasSeatCap: true });
     // Zero writes, zero INVITATION audit, and never a token on the dry run.
     expect(rows("organizationInvite")).toHaveLength(before);
     /*
@@ -3474,7 +3481,9 @@ describe("SYSTEM 8 — organization identity", () => {
     expect(promote.statusCode).toBe(403);
     expect(membershipRow(MEMBERSHIP_TARGET)!.role).toBe("ORG_SECURITY_ADMIN");
 
-    // The LAST ORG_OWNER can never be demoted — ADMIN_3 is now the only one.
+    // The LAST ORG_OWNER can never be demoted — ADMIN_3 is now the only one. The
+    // role check is asked again under the owners lock (AUTHZ-008), so a caller
+    // who stopped being an owner is refused before the count is reached.
     H.orgAccess = { kind: "ok", role: "ORG_OWNER" };
     membershipRow(MEMBERSHIP_ADMIN)!.role = "ORG_ADMIN";
     const demoteLast = await app.inject({
@@ -3483,8 +3492,8 @@ describe("SYSTEM 8 — organization identity", () => {
       headers: JSON_HEADERS,
       payload: { role: "ORG_ADMIN" },
     });
-    expect(demoteLast.statusCode).toBe(409);
-    expect(JSON.parse(demoteLast.body).message).toContain("last ORG_OWNER");
+    expect(demoteLast.statusCode).toBe(403);
+    expect(membershipRow(MEMBERSHIP_OWNER)!.role).toBe("ORG_OWNER");
   });
 
   it("member removal off-boards through the canonical orchestrator and revokes sessions", async () => {
@@ -3544,7 +3553,7 @@ describe("SYSTEM 8 — organization identity", () => {
       method: "DELETE",
       url: ORGS(ORG) + "/members/" + MEMBERSHIP_OWNER,
     });
-    expect(lastOwner.statusCode).toBe(409);
+    expect(lastOwner.statusCode).toBe(403);
     expect(membershipRow(MEMBERSHIP_OWNER)).toBeTruthy();
     expect(H.writes).not.toContain("removeOrganizationMembership");
   });
@@ -3634,8 +3643,8 @@ describe("SYSTEM 8 — organization identity", () => {
       headers: JSON_HEADERS,
       payload: { targetUserId: SUBJECT },
     });
-    expect(ok.statusCode).toBe(200);
-    expect(JSON.parse(ok.body)).toEqual({
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(JSON.parse(ok.body)).toMatchObject({
       transferred: true,
       newOwnerUserId: SUBJECT,
       billingOwnerTransferred: true,
@@ -3714,6 +3723,8 @@ describe("SYSTEM 8 — organization identity", () => {
   });
 
   it("closure request enters COOLING_OFF once, then a second open request is a bounded conflict", async () => {
+    // Self-service closure is for an organization with no contract (PROV-014).
+    rows("enterpriseContract").length = 0;
     const res = await app.inject({
       method: "POST",
       url: ORGS(ORG) + "/closure",

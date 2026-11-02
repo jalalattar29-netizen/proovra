@@ -52,6 +52,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
@@ -253,7 +254,7 @@ export async function scimCreateGroup(
   // applied membership. Now any member failure rolls the group row back too.
   let row: DbGroup;
   try {
-    row = await client.$transaction(async (tx) => {
+    row = await withSeatClaimRetry(() => client.$transaction(async (tx) => {
       const txc = tx as unknown as PrismaClient;
       const created = await txc.scimGroup.create({
         data: {
@@ -284,8 +285,10 @@ export async function scimCreateGroup(
         );
       }
       return created;
-    });
+    }));
   } catch (err) {
+    const refused = seatRefusal(err);
+    if (refused) return refused;
     if (err instanceof ScimGroupMemberError) {
       return {
         ok: false,
@@ -438,7 +441,7 @@ export async function scimPatchGroup(
   // returns an explicit SCIM error — never a silent skipped-member / partial
   // group state. Concurrent retries are idempotent (role no-ops short-circuit).
   try {
-    await client.$transaction(async (tx) => {
+    await withSeatClaimRetry(() => client.$transaction(async (tx) => {
       const txc = tx as unknown as PrismaClient;
       for (const op of parsed.data.Operations) {
         const path = op.path.toLowerCase();
@@ -474,8 +477,10 @@ export async function scimPatchGroup(
           continue;
         }
       }
-    });
+    }));
   } catch (err) {
+    const refused = seatRefusal(err);
+    if (refused) return refused;
     if (err instanceof ScimGroupMemberError) {
       return {
         ok: false,
@@ -496,7 +501,7 @@ export async function scimPatchGroup(
             : "managed_identity_unresolved",
       };
     }
-    throw err; // schema-unavailability / seat exhaustion — fail closed
+    throw err; // schema-unavailability — fail closed
   }
 
   bump("scim_group_sync_total");
@@ -763,6 +768,14 @@ export async function applyGroupMembership(
   }
 }
 
+/** A refused or contended seat, as the SCIM answer; the whole operation rolled back. */
+function seatRefusal(err: unknown): { ok: false; status: number; detail: string } | null {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === "MANAGED_SEAT_LIMIT_REACHED") return { ok: false, status: 409, detail: "seat_limit_reached" };
+  if (code === "WORKSPACE_SEAT_CONTENTION") return { ok: false, status: 503, detail: "seat_contention" };
+  return null;
+}
+
 async function provisionIntoProjection(
   ctx: GroupCtx,
   group: DbGroup,
@@ -880,7 +893,7 @@ export async function addScimGroupProjection(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ projectionId: string; applied: number }> {
-  return client.$transaction(async (tx) => {
+  return withSeatClaimRetry(() => client.$transaction(async (tx) => {
     const txc = tx as unknown as PrismaClient;
     const group = await txc.scimGroup.findFirst({
       where: { id: input.groupId, organizationId: input.organizationId, status: "ACTIVE" },
@@ -943,7 +956,7 @@ export async function addScimGroupProjection(
       metadata: { groupId: group.id, mappedRole: input.mappedRole, membersApplied: members.length },
     }, txc);
     return { projectionId: projection.id, applied: members.length };
-  });
+  }));
 }
 
 export async function archiveScimGroupProjection(

@@ -47,7 +47,6 @@
 import type { FastifyRequest } from "fastify";
 
 import { prisma } from "../../db.js";
-import { processAccountDataExports } from "../identity/account-data-export.service.js";
 import { runLifecycleTick } from "../lifecycle/lifecycle-scheduler.service.js";
 import {
   buildInboxAggregation,
@@ -207,17 +206,6 @@ export async function runDigestScheduler(
 
   // Retention first — bounded, best-effort, independent of digest state.
   summary.snapshotsPruned = await pruneOperationsSnapshots(now);
-
-  // Lifecycle Phase 4 — personal account data exports piggyback on the
-  // same cron firing (identical pattern to snapshot pruning above; no
-  // parallel job infrastructure). Generates pending export packages and
-  // securely expires stale ones. Best-effort: an export failure never
-  // blocks digest delivery.
-  try {
-    await processAccountDataExports(now);
-  } catch {
-    /* isolated — digests continue */
-  }
 
 
   // 1. Every enabled EMAIL preference on a digest cadence.

@@ -21,3 +21,17 @@ test("204 and empty 200 bodies resolve to null; JSON still parses", async () => 
   globalThis.fetch = async () => new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
   assert.deepEqual(await A.apiFetch("/v1/x"), { ok: true });
 });
+
+test("a flat refusal keeps its reason as the code, and a raw body never becomes the message", async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: "code_invalid" }), { status: 400 });
+  await assert.rejects(() => A.apiFetch("/x"), (err) => {
+    assert.equal(err.code, "code_invalid");
+    assert.equal(err.message, "HTTP 400: API error");
+    return true;
+  });
+  globalThis.fetch = async () => new Response("<html>bad gateway</html>", { status: 502 });
+  await assert.rejects(() => A.apiFetch("/x"), (err) => {
+    assert.equal(err.message, "HTTP 502: API error");
+    return true;
+  });
+});

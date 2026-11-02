@@ -6,12 +6,11 @@
  *   1. grantEnterprisePlanToOrg flips EVERY workspace (Team) of an org to
  *      ENTERPRISE with the resolved seat count, ACTIVE billing status, and
  *      a recomputed overSeatLimit; writes an org + platform audit row.
- *   2. provisionEnterpriseCustomer (existing owner) creates an Organization,
- *      an ENTERPRISE workspace owned by the user, an ORG_OWNER membership,
- *      and sets org.billingOwnerUserId.
- *   3. provisionEnterpriseCustomer (missing owner) creates an Organization
- *      and a canonical ORG_OWNER invite (hashed token, 7-day expiry, no
- *      workspace) and returns the raw token once.
+ *   2. provisionEnterpriseCustomer binds nothing to an account that happens
+ *      to hold the owner's address (PROV-001).
+ *   3. provisionEnterpriseCustomer creates an Organization and a canonical
+ *      ORG_OWNER invite (hashed token, 7-day expiry, no workspace) and
+ *      returns the raw token once.
  *   4. The admin routes are gated by requirePlatformAdmin — a non-admin
  *      gets 403 and never reaches provisioning.
  *   5. Audit rows are written for every mutation.
@@ -122,6 +121,7 @@ type Org = {
   status: string;
   billingOwnerUserId: string | null;
   pendingEnterpriseSeats: number | null;
+  pendingEnterpriseWorkspaceName?: string | null;
 };
 
 /**
@@ -194,6 +194,7 @@ function makeClient(seed: {
           status: String(d.status),
           billingOwnerUserId: str(d.billingOwnerUserId),
           pendingEnterpriseSeats: typeof d.pendingEnterpriseSeats === "number" ? d.pendingEnterpriseSeats : null,
+          pendingEnterpriseWorkspaceName: typeof d.pendingEnterpriseWorkspaceName === "string" ? d.pendingEnterpriseWorkspaceName : null,
         };
         orgs.set(org.id, org);
         return { id: org.id };
@@ -283,8 +284,11 @@ function makeClient(seed: {
       create: vi.fn(async ({ data }: DelegateArgs) => ({ id: nextId("osp"), ...rec(data) })),
     },
     enterpriseContract: {
+      findUnique: vi.fn(async () => null),
       upsert: vi.fn(async ({ create }: DelegateArgs & { create?: JsonRecord }) => ({ id: nextId("ec"), ...rec(create) })),
     },
+    // The termination lock a plan grant serialises on.
+    $executeRaw: vi.fn(async () => 0),
     // Macro-Wave A2 — durable invite-delivery outbox rows. The delivery
     // service creates the row in the SAME tx as the invite and the inline
     // first attempt reads/updates it after commit.
@@ -403,7 +407,7 @@ describe("grantEnterprisePlanToOrg", () => {
     expect(refreshTeamSeatStateMock.mock.calls.map(([id]) => id).sort()).toEqual(["t1", "t2"]);
   });
 
-  it("defaults seats to the plan catalog includedSeats when omitted", async () => {
+  it("BILLING-006 — a contract silent on seats is refused: the catalog placeholder is never a term", async () => {
     const { client, teams } = makeClient({
       orgs: [{ id: "org-b", name: "B", status: "ACTIVE", billingOwnerUserId: null }],
       teams: [
@@ -422,20 +426,29 @@ describe("grantEnterprisePlanToOrg", () => {
       ],
     });
 
-    const res = await grantEnterprisePlanToOrg(
-      { orgId: "org-b", actorUserId: "admin-1" },
-      client,
-    );
-
-    const expectedSeats = getPlanCapabilities("ENTERPRISE").includedSeats;
-    expect(res.seats).toBe(expectedSeats);
-    expect(teams.get("t1")!.includedSeats).toBe(expectedSeats);
+    await expect(
+      grantEnterprisePlanToOrg({ orgId: "org-b", actorUserId: "admin-1" }, client),
+    ).rejects.toMatchObject({ code: "SEATS_REQUIRED" });
+    expect(teams.get("t1")!.billingPlan).toBe("FREE");
   });
 
   it("writes an org audit row AND a platform audit row", async () => {
     const { client } = makeClient({
       orgs: [{ id: "org-c", name: "C", status: "ACTIVE", billingOwnerUserId: null }],
-      teams: [],
+      teams: [
+        {
+          id: "t1",
+          organizationId: "org-c",
+          ownerUserId: "u1",
+          billingOwnerUserId: "u1",
+          name: "WS",
+          billingPlan: "FREE",
+          billingStatus: "INACTIVE",
+          includedSeats: 0,
+          overSeatLimit: false,
+          memberCount: 1,
+        },
+      ],
     });
 
     await grantEnterprisePlanToOrg(
@@ -477,8 +490,11 @@ describe("grantEnterprisePlanToOrg", () => {
 // provisionEnterpriseCustomer — existing owner
 // ---------------------------------------------------------------------------
 
-describe("provisionEnterpriseCustomer — existing owner", () => {
-  it("creates an org, an ENTERPRISE workspace owned by the user, and an ORG_OWNER membership", async () => {
+describe("provisionEnterpriseCustomer — an account already on the address", () => {
+  // PROV-001: a matching row proves nothing, because users.email is neither
+  // unique nor verified. The owner is invited like anyone else, and binding is
+  // proven against PostgreSQL in prov-001-owner-binding.integration.test.ts.
+  it("invites the address and binds no organization, workspace or owner to the matching row", async () => {
     const { client, orgs, teams, memberships } = makeClient({
       users: [{ id: "user-9", email: "owner@acme.test" }],
     });
@@ -493,31 +509,14 @@ describe("provisionEnterpriseCustomer — existing owner", () => {
       client,
     );
 
-    expect(res).toMatchObject({
-      provisioned: true,
-      ownerUserId: "user-9",
-    });
-    if (!res.provisioned) throw new Error("expected provisioned");
-
-    const org = orgs.get(res.organizationId)!;
-    expect(org.billingOwnerUserId).toBe("user-9");
-
-    const ws = teams.get(res.workspaceId)!;
-    expect(ws.ownerUserId).toBe("user-9");
-    expect(ws.billingPlan).toBe("ENTERPRISE");
-    expect(ws.billingStatus).toBe("ACTIVE");
-    expect(ws.includedSeats).toBe(25);
-
-    expect(memberships).toContainEqual(
-      expect.objectContaining({ userId: "user-9", role: "ORG_OWNER" }),
-    );
-    expect(appendPlatformAuditLogMock).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "ENTERPRISE_PROVISIONED" }),
-    );
+    expect(res).toMatchObject({ provisioned: false, pendingOwner: true });
+    expect(orgs.get(res.organizationId)!.billingOwnerUserId).toBeNull();
+    expect(teams.size).toBe(0);
+    expect(memberships).toHaveLength(0);
   });
 
-  it("uses workspaceName when supplied, else the org name", async () => {
-    const { client, teams } = makeClient({
+  it("keeps the requested workspace name for the owner's acceptance", async () => {
+    const { client, orgs } = makeClient({
       users: [{ id: "user-9", email: "owner@acme.test" }],
     });
     const res = await provisionEnterpriseCustomer(
@@ -529,8 +528,7 @@ describe("provisionEnterpriseCustomer — existing owner", () => {
       },
       client,
     );
-    if (!res.provisioned) throw new Error("expected provisioned");
-    expect(teams.get(res.workspaceId)!.name).toBe("Acme HQ");
+    expect(orgs.get(res.organizationId)!.pendingEnterpriseWorkspaceName).toBe("Acme HQ");
   });
 });
 
@@ -810,12 +808,14 @@ describe("enterprise capability + gate wiring", () => {
     expect(src).toContain("requireStepUpForSensitiveAction");
     expect(src).toContain('"/v1/admin/orgs/:id/plan"');
     expect(src).toContain('"/v1/admin/enterprise/provision"');
-    // One step-up gate per endpoint: plan grant, provision, the PHASE 4 §7.6
+    // One step-up gate per endpoint: plan grant, provision, contract terms, owner
+    // reissue, the PHASE 4 §7.6
     // shared suspend/resume handler (one loop body), and the members audit
     // LIFE-16 shared terminate / terminate-cancel handler (one loop body).
     const gateCount = (src.match(/requireStepUpForSensitiveAction\(/g) ?? [])
       .length;
-    expect(gateCount).toBe(4);
+    // BILLING-002 contract terms and PROV-005 owner reissue add one each.
+    expect(gateCount).toBe(6);
     expect(src).toContain("`/v1/admin/orgs/:id/${leg}`");
   });
 

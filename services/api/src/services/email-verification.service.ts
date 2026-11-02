@@ -17,6 +17,8 @@
  * audit-able surface.
  */
 
+import { z } from "zod";
+
 import { prisma } from "../db.js";
 import { getEmailService } from "./email.service.js";
 import {
@@ -138,8 +140,38 @@ export async function processResendVerification(
  *  service so route code only has to import one module. */
 export async function confirmVerificationToken(
   rawToken: string,
+  options: { password?: string | null } = {},
 ): Promise<ConsumeEmailVerificationTokenResult> {
-  return consumeEmailVerificationToken(rawToken);
+  return consumeEmailVerificationToken(rawToken, options);
+}
+
+export const EmailVerifyBody = z.object({
+  token: z.string().min(1).max(256),
+  password: z.string().min(1).max(1024).optional(),
+});
+
+/**
+ * PROV-001 — the link is good and stays good; it needs the account's password
+ * beside it. Only someone holding the emailed token reaches this answer, so it
+ * tells an outsider nothing.
+ */
+export function passwordProofRefusal(reason: string): {
+  error: { code: string; message: string; timestamp: string };
+} | null {
+  if (reason !== "password_required" && reason !== "password_incorrect") return null;
+  return {
+    error: {
+      code:
+        reason === "password_required"
+          ? "EMAIL_VERIFICATION_PASSWORD_REQUIRED"
+          : "EMAIL_VERIFICATION_PASSWORD_INCORRECT",
+      message:
+        reason === "password_required"
+          ? "Enter the password chosen for this account to finish verifying it."
+          : "That password is not the one chosen for this account.",
+      timestamp: new Date().toISOString(),
+    },
+  };
 }
 
 /** Re-fetch the canonical user row after a successful token consume.

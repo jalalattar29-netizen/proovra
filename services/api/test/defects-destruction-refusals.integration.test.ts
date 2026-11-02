@@ -50,6 +50,19 @@ describe("D63 destruction request refusals (live PostgreSQL 16)", () => {
     ({ prisma } = await import("../src/db.js"));
     const { teamA } = h.fixtures;
     await prisma.user.update({ where: { id: teamA.ownerUserId }, data: { currentWorkspaceId: teamA.teamId } });
+    // Fixture: the write routes now answer to the entitlement (GOV-001), so the
+    // suite's own workspace carries it, as a contract line would land it.
+    await prisma.entitlementGrant.create({
+      data: {
+        teamId: teamA.teamId,
+        key: "FEATURE_DESTRUCTION_GOVERNANCE",
+        kind: "FEATURE",
+        valueBool: true,
+        source: "CUSTOM",
+        grantedAtUtc: new Date(),
+        notes: "D63 test fixture",
+      },
+    });
     // approve/execute are guarded by the canonical permission engine (members
     // audit DOM-09: `governance.retention.manage`; approve is any-of it and
     // `identity.org_policy.manage`). The OWNER holds every permission by role,

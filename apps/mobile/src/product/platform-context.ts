@@ -13,9 +13,10 @@
  * See services/api/src/services/platform-context/types.ts (the authority).
  *
  * usePersonalSpaceAllowed is a thin selector over this hook, so a screen makes at
- * most one /v1/platform/context fetch.
+ * most one /v1/platform/context fetch. The state itself is shared: see below.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AppState } from "react-native";
 import { apiFetch, setActiveWorkspaceId } from "../api";
 import { useAuth } from "../auth-context";
 import { isPersonalSpaceDisallowed } from "../personal-space";
@@ -143,45 +144,166 @@ export function sharedPlatformContextRequest(token: string, force: boolean): Pro
 }
 
 /**
- * Fetches the canonical envelope once per authenticated session and projects it.
- * Fails soft: on a transient error `context` is null and `error` is true; callers
- * decide whether a missing teamId means "personal scope" or "retry".
+ * WHICH WORKSPACE THIS IS, OR THAT NOBODY KNOWS YET (MOBILE-003).
+ *
+ * A null `activeTeamId` used to mean both "personal" and "unknown", and a capture
+ * that sent nothing was filed in Personal by the server. Evidence then sat outside
+ * the organization's retention, review and audit because of a network hiccup. So
+ * the two are different states here: a write that needs a workspace acts only on
+ * `resolved`, where a null `teamId` is a confirmed Personal Space.
+ */
+export type WorkspaceResolution =
+  | { readonly state: "resolving" }
+  | { readonly state: "unavailable" }
+  | { readonly state: "resolved"; readonly teamId: string | null; readonly name: string | null };
+
+export function resolveWorkspace(input: {
+  readonly loading: boolean;
+  readonly error: boolean;
+  readonly context: PlatformContextProjection | null;
+}): WorkspaceResolution {
+  const { context } = input;
+  if (context?.activeTeamId || context?.activeSpaceType === "PERSONAL") {
+    return { state: "resolved", teamId: context.activeTeamId, name: context.displayName };
+  }
+  // An envelope with no active space answers nothing, and the server always sends one.
+  if (context || input.error) return { state: "unavailable" };
+  return { state: "resolving" };
+}
+
+/** The workspace to file into, or null when nobody can say. */
+export function confirmedWorkspace(
+  workspace: WorkspaceResolution,
+): { teamId: string | null; name: string | null } | null {
+  return workspace.state === "resolved" ? { teamId: workspace.teamId, name: workspace.name } : null;
+}
+
+/** What a refused write says. Nothing was filed, and nothing staged was lost. */
+export const WORKSPACE_UNCONFIRMED_MESSAGE =
+  "PROOVRA could not confirm which workspace this belongs to, so nothing has been filed. What you captured stays on this device. Check your connection and try again.";
+
+/*
+ * ONE CONTEXT, FOR EVERYTHING MOUNTED (MOBILE-013).
+ *
+ * Each hook instance used to keep its own copy, and `refresh()` reached only its
+ * own. Tab screens, the header and the shell stay mounted, so after a switch they
+ * went on naming the old workspace while requests that name no team followed the
+ * new server pointer. The pointer is one per user, so a switch on the web did the
+ * same to a running phone.
+ *
+ * So the state lives here, once. It belongs to the session token that read it,
+ * a screen mounting revalidates it, the app returning to the foreground
+ * revalidates it, and `refresh()` reaches every subscriber.
+ *
+ * A revalidation is silent. `loading` means "nothing is known yet": a screen that
+ * shows a spinner on it must not lose its controls because a header remounted,
+ * and a capture in progress must not flicker. A background failure keeps what is
+ * known, but a failed forced read does not, because that read was asked for
+ * precisely because what is known may be wrong.
+ */
+type ContextSnapshot = Omit<PlatformContextState, "refresh"> & { readonly owner: string | null };
+
+const NOTHING_KNOWN: ContextSnapshot = { owner: null, loading: false, error: false, context: null, envelope: null };
+let snapshot: ContextSnapshot = NOTHING_KNOWN;
+const subscribers = new Set<() => void>();
+let readSequence = 0;
+let appliedRead = 0;
+let foreground: { remove: () => void } | null = null;
+
+function publish(next: ContextSnapshot): void {
+  snapshot = next;
+  for (const notify of [...subscribers]) notify();
+}
+
+function readContext(token: string, force: boolean): void {
+  const mine = ++readSequence;
+  if (snapshot.owner !== token) {
+    publish({ owner: token, loading: true, error: false, context: null, envelope: null });
+  } else if (!snapshot.context) {
+    publish({ ...snapshot, loading: true, error: false });
+  }
+  const superseded = () => snapshot.owner !== token || mine < appliedRead;
+  sharedPlatformContextRequest(token, force).then(
+    (envelope) => {
+      if (superseded()) return;
+      appliedRead = mine;
+      publish({ owner: token, loading: false, error: false, context: projectPlatformContext(envelope), envelope });
+    },
+    () => {
+      if (superseded()) return;
+      appliedRead = mine;
+      publish(
+        snapshot.context && !force
+          ? { ...snapshot, loading: false }
+          : { owner: token, loading: false, error: true, context: null, envelope: null },
+      );
+    },
+  );
+}
+
+function subscribeToContext(notify: () => void): () => void {
+  subscribers.add(notify);
+  if (!foreground) {
+    foreground = AppState.addEventListener("change", (next) => {
+      if (next === "active" && snapshot.owner) readContext(snapshot.owner, false);
+    });
+  }
+  return () => {
+    subscribers.delete(notify);
+    if (subscribers.size > 0) return;
+    foreground?.remove();
+    foreground = null;
+    // Nothing is reading it, so nothing keeps it current.
+    readSequence += 1;
+    appliedRead = readSequence;
+    snapshot = NOTHING_KNOWN;
+  };
+}
+
+const readSnapshot = (): ContextSnapshot => snapshot;
+
+/** Force a fresh read for every mounted screen: after a switch, or a Retry. */
+export function refreshPlatformContext(): void {
+  if (snapshot.owner) readContext(snapshot.owner, true);
+}
+
+/**
+ * The canonical envelope and its projection, shared by every caller. On a failed
+ * first read `context` is null and `error` is true. Null context never means
+ * "personal": a caller that needs to know says so with `resolveWorkspace`.
  */
 export function usePlatformContext(): PlatformContextState {
   const { token, authReady } = useAuth();
-  const [state, setState] = useState<Omit<PlatformContextState, "refresh">>({
-    loading: true,
-    error: false,
-    context: null,
-    envelope: null,
-  });
-  const [nonce, setNonce] = useState(0);
+  const held = useSyncExternalStore(subscribeToContext, readSnapshot, readSnapshot);
+  const live = authReady && !!token;
 
   useEffect(() => {
-    let alive = true;
-    if (!authReady || !token) {
-      setState({ loading: false, error: false, context: null, envelope: null });
-      return;
-    }
-    setState((prev) => ({ ...prev, loading: true, error: false }));
-    sharedPlatformContextRequest(token, nonce > 0)
-      .then((envelope) => {
-        if (!alive) return;
-        setState({
-          loading: false,
-          error: false,
-          context: projectPlatformContext(envelope),
-          envelope,
-        });
-      })
-      .catch(() => {
-        if (!alive) return;
-        setState({ loading: false, error: true, context: null, envelope: null });
-      });
-    return () => {
-      alive = false;
-    };
-  }, [authReady, token, nonce]);
+    if (live && token) readContext(token, false);
+  }, [live, token]);
 
-  return { ...state, refresh: () => setNonce((n) => n + 1) };
+  if (!live) return { ...NOTHING_KNOWN, refresh: refreshPlatformContext };
+  // The first render under a new token, before the effect above has run.
+  if (held.owner !== token) {
+    return { loading: true, error: false, context: null, envelope: null, refresh: refreshPlatformContext };
+  }
+  return { loading: held.loading, error: held.error, context: held.context, envelope: held.envelope, refresh: refreshPlatformContext };
+}
+
+/**
+ * Counts changes of the active workspace, from one known workspace to another.
+ *
+ * For a screen whose requests name no team and follow the server pointer: it has
+ * nothing keyed on the workspace, so it would keep showing the previous one's rows.
+ * The first resolution is not a change, so a mount costs one read, not two.
+ */
+export function useWorkspaceChangeCount(): number {
+  const activeTeamId = usePlatformContext().context?.activeTeamId ?? null;
+  const last = useRef(activeTeamId);
+  const [changes, setChanges] = useState(0);
+  useEffect(() => {
+    if (!activeTeamId) return;
+    if (last.current && last.current !== activeTeamId) setChanges((n) => n + 1);
+    last.current = activeTeamId;
+  }, [activeTeamId]);
+  return changes;
 }

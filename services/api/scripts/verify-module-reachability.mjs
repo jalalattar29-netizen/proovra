@@ -180,6 +180,11 @@ const ENTRYPOINTS = Object.freeze({
     // `pnpm --filter proovra-api ops:destruction-certificate-audit`.
     "services/api/src/scripts/output-reconciliation-dry-run.ts",
     "services/api/src/scripts/destruction-certificate-audit.ts",
+    // GOV-015 — the READ-ONLY organization data return manifest:
+    // `pnpm --filter proovra-api ops:organization-export-manifest`, run under
+    // docs/operations/runbooks/32-organization-data-return.md.
+    "services/api/src/scripts/organization-export-manifest.ts",
+    "services/api/src/services/organization/organization-export-manifest.service.ts",
   ],
 });
 

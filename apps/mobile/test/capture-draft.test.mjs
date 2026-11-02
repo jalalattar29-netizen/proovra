@@ -225,3 +225,9 @@ test("the plan mode travels on open and update", async () => {
   assert.equal(bodies[0].planMode, "CHECKLIST_REQUIRED");
   assert.equal(bodies[1].planMode, "FLEXIBLE");
 });
+
+test("a draft says which workspace it belongs to, and an older server says nothing", () => {
+  assert.equal(D.parseCaptureDraft({ id: "d1", teamId: "team-1" }).teamId, "team-1");
+  assert.equal(D.parseCaptureDraft({ id: "d1", teamId: null }).teamId, null, "null is a Personal draft");
+  assert.equal(D.parseCaptureDraft({ id: "d1" }).teamId, undefined, "absent is not Personal");
+});

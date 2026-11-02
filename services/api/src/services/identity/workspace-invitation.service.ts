@@ -45,11 +45,14 @@ import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { provisionMembership } from "./membership-provisioning.service.js";
 import {
+  invitationCannotReviveMembership,
+  provisionMembership,
+} from "./membership-provisioning.service.js";
+import {
+  claimWorkspaceSeatTx,
   resolveWorkspaceInvitationAllowance,
-  resolveWorkspaceSeatState,
-  workspaceSeatsAdmit,
+  withSeatClaimRetry,
 } from "../billing/workspace-seats.service.js";
 import { organizationLifecycleApplies } from "./workspace-kind.js";
 import {
@@ -540,35 +543,24 @@ export type AcceptResult = {
  * invitations all saw the same "one seat left" and all provisioned.
  */
 /**
- * AN INVITATION NEVER REVIVES A MEMBERSHIP AN ADMINISTRATOR ENDED (members
- * audit INV-01).
- *
  * Acceptance upserts the membership to ACTIVE, and only short-circuited an
- * already-ACTIVE row — so a SUSPENDED member holding a still-pending
- * invitation reinstated themself, bypassing the step-up-gated restore, and a
- * REVOKED member did the same despite REVOKED being terminal.
- *
- *   SUSPENDED  refused: reinstatement is the governed restore.
- *   REVOKED    refused when the invitation was issued BEFORE the removal (it
- *              is the very access that was ended); an invitation issued AFTER
- *              it is an administrator deliberately re-adding the person.
+ * already-ACTIVE row — so a SUSPENDED member holding a still-pending invitation
+ * reinstated themself, bypassing the step-up-gated restore, and a REVOKED member
+ * did the same despite REVOKED being terminal.
  */
 function assertInvitationCannotReviveMembership(
   membership: { status: string; revokedAtUtc: Date | null } | null,
   invitationCreatedAt: Date,
 ): void {
-  if (!membership) return;
-  if (membership.status === prismaPkg.TeamMemberStatus.SUSPENDED) {
+  const barred = invitationCannotReviveMembership(membership, invitationCreatedAt);
+  if (barred === "membership_suspended") {
     throw new WorkspaceInvitationError(
       "MEMBERSHIP_SUSPENDED",
       "Your membership in this workspace is suspended. Ask a workspace administrator to reinstate it.",
       409,
     );
   }
-  if (
-    membership.status === prismaPkg.TeamMemberStatus.REVOKED &&
-    (membership.revokedAtUtc === null || membership.revokedAtUtc.getTime() >= invitationCreatedAt.getTime())
-  ) {
+  if (barred === "invite_superseded") {
     throw new WorkspaceInvitationError(
       "INVITE_SUPERSEDED",
       "This invitation was issued before your access to this workspace ended. Ask for a new invitation.",
@@ -659,13 +651,22 @@ export async function acceptWorkspaceInvitation(
 
   const actor = await client.user.findUnique({
     where: { id: input.actorUserId },
-    select: { email: true },
+    select: { email: true, emailVerifiedAt: true },
   });
   const actorEmail = normalizeInviteEmail(actor?.email ?? "");
   if (!actorEmail || actorEmail !== normalizeInviteEmail(invite.email)) {
     throw new WorkspaceInvitationError(
       "INVITE_EMAIL_MISMATCH",
       "Sign in with the address this invitation was sent to.",
+      403,
+    );
+  }
+  // The address is compared only because it was proven. A directory-created
+  // account can hold a session and an address nobody verified (PROV-001).
+  if (!actor?.emailVerifiedAt) {
+    throw new WorkspaceInvitationError(
+      "EMAIL_NOT_VERIFIED",
+      "Verify your email address, then accept this invitation.",
       403,
     );
   }
@@ -721,31 +722,30 @@ export async function acceptWorkspaceInvitation(
    * request needs.
    */
   const run = async (tx: PrismaClient) => {
-    const [{ locked }] = await tx.$queryRaw<Array<{ locked: boolean }>>`
-      SELECT pg_try_advisory_xact_lock(hashtext(${`workspace-seat:${invite.teamId}`})) AS locked
-    `;
-    if (!locked) return null;
-
-    const seats = await resolveWorkspaceSeatState(invite.teamId, tx as PrismaClient);
-    if (!seats.featureIncluded && seats.plan === "ENTERPRISE") {
-      throw new WorkspaceInvitationError(
-        "ENTERPRISE_CONTRACT_REQUIRED",
-        "This organization's contract does not configure members yet. Ask your organization administrator to complete the contract.",
-        409,
-        { plan: seats.plan },
-      );
-    }
-    if (!seats.featureIncluded) {
-      throw new WorkspaceInvitationError(
-        "WORKSPACE_MEMBERS_NOT_INCLUDED",
-        "This workspace's plan does not include additional members.",
-        402,
-        { plan: seats.plan, limit: seats.limit },
-      );
-    }
-    // Only a contract seat count bounds the workspace as a whole; on every
-    // self-serve plan the capacity is per Collaboration Team (ENT-04).
-    if (!workspaceSeatsAdmit(seats)) {
+    const seatClaim = await claimWorkspaceSeatTx(tx, {
+      workspaceId: invite.teamId,
+      userId: input.actorUserId,
+    });
+    if (seatClaim.outcome === "REFUSED") {
+      const { seats, reason } = seatClaim;
+      if (reason === "enterprise_contract_required") {
+        throw new WorkspaceInvitationError(
+          "ENTERPRISE_CONTRACT_REQUIRED",
+          "This organization's contract does not configure members yet. Ask your organization administrator to complete the contract.",
+          409,
+          { plan: seats.plan },
+        );
+      }
+      if (reason === "workspace_members_not_included") {
+        throw new WorkspaceInvitationError(
+          "WORKSPACE_MEMBERS_NOT_INCLUDED",
+          "This workspace's plan does not include additional members.",
+          402,
+          { plan: seats.plan, limit: seats.limit },
+        );
+      }
+      // Only a contract seat count bounds the workspace as a whole; on every
+      // self-serve plan the capacity is per Collaboration Team (ENT-04).
       throw new WorkspaceInvitationError(
         "WORKSPACE_SEAT_LIMIT_REACHED",
         `This workspace has used all ${seats.limit} of its contracted seats.`,
@@ -792,6 +792,7 @@ export async function acceptWorkspaceInvitation(
       workspace: { teamId: invite.teamId, role: invite.role as never },
       externalRef: `team-invite:${invite.id}`,
       accessReason: "workspace invitation acceptance",
+      seatClaim,
     });
 
     const accepted: AcceptResult = {
@@ -803,26 +804,25 @@ export async function acceptWorkspaceInvitation(
     return accepted;
   };
 
-  // Bounded, jittered retry. The jitter matters: without it a burst of
-  // contenders re-collides on the same schedule and simply re-forms the queue.
-  for (let attempt = 0; attempt < 25; attempt += 1) {
-    const outcome = await client.$transaction(
-      (tx) => run(tx as unknown as PrismaClient),
-      { maxWait: 10_000, timeout: 15_000 },
+  try {
+    return await withSeatClaimRetry(() =>
+      client.$transaction((tx) => run(tx as unknown as PrismaClient), {
+        maxWait: 10_000,
+        timeout: 15_000,
+      }),
     );
-    if (outcome) return outcome;
-    await new Promise((resolve) =>
-      setTimeout(resolve, 40 + Math.floor(Math.random() * 120)),
-    );
+  } catch (err) {
+    // Sustained contention on one workspace is not a race any more, and saying
+    // so is more useful than a generic error.
+    if ((err as { code?: string })?.code === "WORKSPACE_SEAT_CONTENTION") {
+      throw new WorkspaceInvitationError(
+        "WORKSPACE_SEAT_CONTENTION",
+        "Too many people are joining this workspace at once. Try again in a moment.",
+        409,
+      );
+    }
+    throw err;
   }
-
-  // Twenty-five failed attempts on one workspace is not a race any more; it is
-  // sustained contention, and saying so is more useful than a generic error.
-  throw new WorkspaceInvitationError(
-    "WORKSPACE_SEAT_CONTENTION",
-    "Too many people are joining this workspace at once. Try again in a moment.",
-    409,
-  );
 }
 
 

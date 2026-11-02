@@ -31,6 +31,7 @@ import { ResultCount } from "../../../../../components/ui/ResultCount";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
 import { identifierLabel } from "@proovra/shared";
+import { CustomerContractPanel, type CustomerContract } from "./CustomerContractPanel";
 import {
   orgAuditEventLabel,
   orgRoleLabel,
@@ -109,7 +110,16 @@ type Detail = {
     billingSubscriptionRef: string | null;
     contractOwnerUserId: string | null;
     legacyDerived: boolean;
+    collaborationTeamsMax: number | null;
+    collaborationTeamMembersMax: number | null;
+    legalHoldEnabled: boolean | null;
+    reviewerOperationsEnabled: boolean | null;
+    externalContractRef: string | null;
   } | null;
+  /** ACTIVE / SUSPENDED / TERMINATING / TERMINATED, from the server. */
+  lifecycleState?: string;
+  /** The first owner has not accepted yet (PROV-005). */
+  pendingOwnerInvite?: { email: string; expiresAtUtc: string; expired: boolean } | null;
   overview: {
     id: string;
     name: string;
@@ -509,7 +519,8 @@ export default function AdminOrganizationDetailPage({
           subtitle="Read-only customer detail: overview, identity posture, evidence operations, governance, billing, and provisioning history. Aggregated from live records; unmeasured fields are shown honestly."
           primaryAction={
             detail ? (
-              detail.overview.status === "SUSPENDED" ? (
+              detail.overview.status === "SUSPENDED" ||
+              (detail.enterpriseContract?.status === "SUSPENDED" && detail.lifecycleState !== "TERMINATING") ? (
                 <Button
                   size="sm"
                   onClick={() => void runLifecycle("resume")}
@@ -585,6 +596,17 @@ export default function AdminOrganizationDetailPage({
         <Card>No data.</Card>
       ) : (
         <>
+          <CustomerContractPanel
+            key={detail.enterpriseContract?.status ?? "none"}
+            organizationId={id}
+            organizationName={detail.overview.name}
+            teamId={teamId ?? null}
+            contract={detail.enterpriseContract as CustomerContract | null}
+            lifecycleState={detail.lifecycleState ?? "ACTIVE"}
+            pendingOwnerInvite={detail.pendingOwnerInvite ?? null}
+            workspaces={detail.overview.workspaces.map((w) => ({ id: w.id, name: w.name }))}
+            onChanged={load}
+          />
           {/* Overview */}
           {/* ADM-015 — contract terms were entirely unreadable from admin.
               Rendered BEFORE the plan projection because the contract is what
@@ -626,6 +648,18 @@ export default function AdminOrganizationDetailPage({
                     </Field>
                     <Field label="AI operations / month">
                       {detail.enterpriseContract.aiOperationsPerMonth ?? "Catalog default"}
+                    </Field>
+                    <Field label="Collaboration Teams">
+                      {detail.enterpriseContract.collaborationTeamsMax ?? "Catalogue default"}
+                    </Field>
+                    <Field label="Members per Collaboration Team">
+                      {detail.enterpriseContract.collaborationTeamMembersMax ?? "Catalogue default"}
+                    </Field>
+                    <Field label="Legal Hold">
+                      {detail.enterpriseContract.legalHoldEnabled === true ? "Sold" : "Not sold"}
+                    </Field>
+                    <Field label="Contract reference">
+                      {detail.enterpriseContract.externalContractRef ?? "—"}
                     </Field>
                     <Field label="Region">
                       {detail.enterpriseContract.region ?? "—"}

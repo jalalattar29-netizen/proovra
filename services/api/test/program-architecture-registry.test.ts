@@ -169,6 +169,7 @@ const CONCERNS: Concern[] = [
         "THE workspace invitation lifecycle (create / resend / revoke / guarded atomic accept) → orchestrator. Registered when the three invitation implementations converged: token generation, hashing, expiry, revocation, resend and the single-use claim now have ONE implementation for the workspace, and it composes provisionMembership like every other acceptance path.",
       "services/organization/org-invite-acceptance.service.ts": "org-invite acceptance orchestration (guarded claim → grantOrganizationMembership/grantWorkspaceMembership)",
       "services/enterprise-provisioning.service.ts": "enterprise bootstrap provisioning → orchestrator",
+      "services/workspace/workspace-lifecycle.service.ts": "PROV-011 — a successor joins a workspace in the organization ownership transfer → orchestrator, under a seat claim",
       "services/access-control/scim.service.ts": "SCIM provisioning → orchestrator",
       // Members audit DOM-13 — an Organization SCIM group applies in every
       // Workspace it projects into; a member missing from a projected

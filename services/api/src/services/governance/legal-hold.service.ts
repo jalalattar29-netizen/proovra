@@ -18,6 +18,10 @@
  *   - step-up (LEGAL_HOLD_PLACE / LEGAL_HOLD_RELEASE) stays at the route
  *     layer, where the request context lives, and is required by every
  *     placement and release route regardless of scope;
+ *   - (GOV-011) a hold under approval is released in two people's steps: one asks,
+ *     a second approves, and the approver cannot be the one who releases. An
+ *     acknowledgement in the request body proved nothing, because the UI always
+ *     sent it.
  *   - the WorkspaceGovernancePolicy `requireLegalHoldReleaseApproval` gate is
  *     captured ON the hold at placement time and enforced here on release,
  *     so a later policy relaxation cannot retroactively unlock a hold that
@@ -40,6 +44,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { triggerLegalHoldCreated } from "../automation/automation-triggers.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { appendLegalHoldCustodyTx, reconcileLegalHoldCustody } from "@proovra/shared-runtime";
 import { emitWebhookEvent } from "../integrations/webhook-dispatcher.js";
 import {
@@ -67,6 +72,9 @@ export type LegalHoldErrorCode =
   | "hold_not_found"
   | "release_note_required"
   | "release_approval_required"
+  | "release_not_requested"
+  | "release_requires_second_person"
+  | "release_not_applicable"
   | "stale_version"
   // ET-SEC-01 — the destruction executor already decided (under the evidence
   // lock, with no hold in force) or the record is destroyed. The hold is NOT
@@ -79,6 +87,9 @@ const STATUS_CODES: Record<LegalHoldErrorCode, number> = {
   hold_not_found: 404,
   release_note_required: 422,
   release_approval_required: 403,
+  release_not_requested: 409,
+  release_requires_second_person: 403,
+  release_not_applicable: 409,
   stale_version: 409,
   destruction_committed: 409,
 };
@@ -119,6 +130,8 @@ const CANONICAL_SELECT = {
   releaseApprovalState: true,
   releaseApprovedByUserId: true,
   releaseApprovedAtUtc: true,
+  releaseRequestedByUserId: true,
+  releaseRequestedAtUtc: true,
   policyVersionAttribution: true,
   version: true,
   sourceStore: true,
@@ -145,6 +158,8 @@ export type CanonicalLegalHoldRow = {
   releaseApprovalState: string;
   releaseApprovedByUserId: string | null;
   releaseApprovedAtUtc: Date | null;
+  releaseRequestedByUserId: string | null;
+  releaseRequestedAtUtc: Date | null;
   policyVersionAttribution: string | null;
   version: number;
   sourceStore: string;
@@ -167,6 +182,9 @@ export type CanonicalLegalHoldProjection = {
   expiresAtUtc: string | null;
   releaseApprovalRequired: boolean;
   releaseApprovalState: string;
+  releaseRequestedByUserId: string | null;
+  releaseRequestedAtUtc: string | null;
+  releaseApprovedByUserId: string | null;
   version: number;
   sourceStore: string;
   historical: boolean;
@@ -196,6 +214,9 @@ export function projectCanonicalLegalHold(
     expiresAtUtc: hold.expiresAtUtc?.toISOString() ?? null,
     releaseApprovalRequired: hold.releaseApprovalRequired,
     releaseApprovalState: hold.releaseApprovalState,
+    releaseRequestedByUserId: hold.releaseRequestedByUserId,
+    releaseRequestedAtUtc: hold.releaseRequestedAtUtc?.toISOString() ?? null,
+    releaseApprovedByUserId: hold.releaseApprovedByUserId,
     version: hold.version,
     sourceStore: hold.sourceStore,
     historical: hold.historical,
@@ -435,6 +456,42 @@ export async function placeCanonicalLegalHold(
   return hold;
 }
 
+/**
+ * GOV-013 — what a CASE or WORKSPACE hold arrived too late for. Only an
+ * evidence-scope placement shares the executor's lock, so a wider hold can commit
+ * after a record's destruction was decided. The executor re-reads holds before its
+ * first delete and most of these stop there; any it had already passed are named
+ * to the person placing the hold rather than left to look protected.
+ */
+export async function listRecordsCommittedToDestruction(
+  hold: Pick<CanonicalLegalHoldRow, "teamId" | "scope" | "caseId">,
+  client: PrismaClient = defaultPrisma,
+): Promise<string[]> {
+  if (hold.scope === "EVIDENCE") return [];
+  const linked =
+    hold.scope === "CASE" && hold.caseId
+      ? (
+          await client.caseEvidenceLink.findMany({
+            where: { caseId: hold.caseId },
+            select: { evidenceId: true },
+          })
+        ).map((l) => l.evidenceId)
+      : null;
+  const rows = await client.evidence.findMany({
+    where: {
+      teamId: hold.teamId,
+      OR: [
+        { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: { not: null } },
+        { destructionPartialAtUtc: { not: null }, destroyedAtUtc: null },
+      ],
+      ...(linked ? { id: { in: linked } } : {}),
+    },
+    select: { id: true },
+    take: 200,
+  });
+  return rows.map((r) => r.id);
+}
+
 // ---------------------------------------------------------------------------
 // releaseLegalHold — the ONE release command, all scopes
 // ---------------------------------------------------------------------------
@@ -449,13 +506,139 @@ export type ReleaseCanonicalLegalHoldInput = {
    * with 409 rather than silently overwriting a concurrent decision.
    */
   expectedVersion?: number | null;
-  /**
-   * Operator confirmation for a hold placed under
-   * `requireLegalHoldReleaseApproval`. Enforced HERE (not only at the route)
-   * so no scope can bypass it.
-   */
-  approvalAcknowledged?: boolean;
 };
+
+function releaseApprovalRefusal(
+  hold: CanonicalLegalHoldRow,
+  actorUserId: string,
+): "release_approval_required" | "release_requires_second_person" | null {
+  if (hold.releaseApprovalState !== "APPROVED" || !hold.releaseApprovedByUserId) {
+    return "release_approval_required";
+  }
+  // The approval is a second person's: whoever gave it does not then act on it.
+  return hold.releaseApprovedByUserId === actorUserId ? "release_requires_second_person" : null;
+}
+
+/**
+ * Asked BEFORE step-up is offered, so nobody re-authenticates for a release the
+ * command would refuse. Null when the release may proceed; the command repeats
+ * the check. An unknown hold answers null and the command says so.
+ */
+export async function legalHoldReleaseRefusal(
+  input: { teamId: string; holdId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<LegalHoldErrorCode | null> {
+  const hold = (await client.evidenceLegalHold.findUnique({
+    where: { id: input.holdId },
+    select: CANONICAL_SELECT,
+  })) as CanonicalLegalHoldRow | null;
+  if (!hold || hold.teamId !== input.teamId || hold.status !== "ACTIVE") return null;
+  if (!(await releaseNeedsApproval(client, hold))) return null;
+  return releaseApprovalRefusal(hold, input.actorUserId);
+}
+
+/** Whether this hold needs a second person: its own flag, or the policy now. */
+async function releaseNeedsApproval(client: PrismaClient, hold: CanonicalLegalHoldRow): Promise<boolean> {
+  if (hold.releaseApprovalRequired) return true;
+  return (await resolvePolicyAttribution(client, hold.teamId)).requireReleaseApproval;
+}
+
+/**
+ * GOV-011 — step one of a release under approval: a person asks, with their
+ * reason, and the hold keeps protecting everything it covers.
+ */
+export async function requestLegalHoldRelease(
+  input: { teamId: string; holdId: string; actorUserId: string; note: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<CanonicalLegalHoldRow> {
+  const note = input.note.trim();
+  if (note.length === 0) throw new LegalHoldError("release_note_required");
+  const hold = (await client.evidenceLegalHold.findUnique({
+    where: { id: input.holdId },
+    select: CANONICAL_SELECT,
+  })) as CanonicalLegalHoldRow | null;
+  if (!hold || hold.teamId !== input.teamId) throw new LegalHoldError("hold_not_found");
+  if (hold.status !== "ACTIVE" || !(await releaseNeedsApproval(client, hold))) {
+    throw new LegalHoldError("release_not_applicable");
+  }
+  const updated = await client.evidenceLegalHold.updateMany({
+    where: { id: hold.id, teamId: input.teamId, version: hold.version, status: "ACTIVE" },
+    data: {
+      releaseApprovalRequired: true,
+      releaseApprovalState: "PENDING",
+      releaseRequestedByUserId: input.actorUserId,
+      releaseRequestedAtUtc: new Date(),
+      releaseRequestNote: note.slice(0, 4000),
+      // A fresh request voids any approval given to an earlier one.
+      releaseApprovedByUserId: null,
+      releaseApprovedAtUtc: null,
+      version: hold.version + 1,
+    },
+  });
+  if (updated.count === 0) throw new LegalHoldError("stale_version", { expectedVersion: hold.version });
+  await emitTenantAudit(
+    {
+      action: "legal_hold.release_requested",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "evidence_legal_hold",
+      resourceId: hold.id,
+      metadata: { scope: hold.scope },
+    },
+    client,
+  );
+  return (await client.evidenceLegalHold.findUniqueOrThrow({
+    where: { id: hold.id },
+    select: CANONICAL_SELECT,
+  })) as CanonicalLegalHoldRow;
+}
+
+/** GOV-011 — step two: a different person records the approval. */
+export async function approveLegalHoldRelease(
+  input: { teamId: string; holdId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<CanonicalLegalHoldRow> {
+  const hold = (await client.evidenceLegalHold.findUnique({
+    where: { id: input.holdId },
+    select: CANONICAL_SELECT,
+  })) as CanonicalLegalHoldRow | null;
+  if (!hold || hold.teamId !== input.teamId) throw new LegalHoldError("hold_not_found");
+  if (hold.status !== "ACTIVE" || !hold.releaseRequestedByUserId) {
+    throw new LegalHoldError("release_not_requested");
+  }
+  if (hold.releaseRequestedByUserId === input.actorUserId) {
+    throw new LegalHoldError("release_requires_second_person");
+  }
+  const updated = await client.evidenceLegalHold.updateMany({
+    where: { id: hold.id, teamId: input.teamId, version: hold.version, status: "ACTIVE" },
+    data: {
+      releaseApprovalState: "APPROVED",
+      releaseApprovedByUserId: input.actorUserId,
+      releaseApprovedAtUtc: new Date(),
+      version: hold.version + 1,
+    },
+  });
+  if (updated.count === 0) throw new LegalHoldError("stale_version", { expectedVersion: hold.version });
+  await emitTenantAudit(
+    {
+      action: "legal_hold.release_approved",
+      outcome: "success",
+      sourceApp: "API",
+      actorUserId: input.actorUserId,
+      workspaceId: input.teamId,
+      resourceType: "evidence_legal_hold",
+      resourceId: hold.id,
+      metadata: { scope: hold.scope, requestedByUserId: hold.releaseRequestedByUserId },
+    },
+    client,
+  );
+  return (await client.evidenceLegalHold.findUniqueOrThrow({
+    where: { id: hold.id },
+    select: CANONICAL_SELECT,
+  })) as CanonicalLegalHoldRow;
+}
 
 export async function releaseCanonicalLegalHold(
   input: ReleaseCanonicalLegalHoldInput,
@@ -488,15 +671,12 @@ export async function releaseCanonicalLegalHold(
     });
   }
 
-  if (
-    hold.releaseApprovalRequired &&
-    hold.releaseApprovalState !== "APPROVED" &&
-    input.approvalAcknowledged !== true
-  ) {
-    throw new LegalHoldError("release_approval_required");
-  }
-
   const policy = await resolvePolicyAttribution(client, input.teamId);
+  const approvalRequired = hold.releaseApprovalRequired || policy.requireReleaseApproval;
+  if (approvalRequired) {
+    const refusal = releaseApprovalRefusal(hold, input.actorUserId);
+    if (refusal) throw new LegalHoldError(refusal);
+  }
 
   // The `version` predicate makes the UPDATE itself the concurrency guard:
   // two concurrent releases cannot both win, even with no expectedVersion.
@@ -510,15 +690,9 @@ export async function releaseCanonicalLegalHold(
       releasedAtUtc: releasedAt,
       releasedByUserId: input.actorUserId,
       releaseNote: note.slice(0, 4000),
-      releaseApprovalState: hold.releaseApprovalRequired
-        ? "APPROVED"
-        : "NOT_REQUIRED",
-      releaseApprovedByUserId: hold.releaseApprovalRequired
-        ? (hold.releaseApprovedByUserId ?? input.actorUserId)
-        : null,
-      releaseApprovedAtUtc: hold.releaseApprovalRequired
-        ? (hold.releaseApprovedAtUtc ?? new Date())
-        : null,
+      releaseApprovalState: approvalRequired ? "APPROVED" : "NOT_REQUIRED",
+      releaseApprovedByUserId: approvalRequired ? hold.releaseApprovedByUserId : null,
+      releaseApprovedAtUtc: approvalRequired ? hold.releaseApprovedAtUtc : null,
       releasePolicyVersionAttribution: policy.attribution,
       version: hold.version + 1,
     },
@@ -827,6 +1001,9 @@ export type LifecycleLegalHoldLegacyShape = {
   scope: CanonicalLegalHoldScope;
   version: number;
   releaseApprovalRequired: boolean;
+  releaseApprovalState: string;
+  releaseRequestedByUserId: string | null;
+  releaseApprovedByUserId: string | null;
 };
 
 function scopeToLegacyKind(
@@ -853,6 +1030,7 @@ export async function listLifecycleLegalHoldsLegacyShape(
     { teamId: input.teamId, limit: input.limit ?? 500 },
     client,
   );
+  const policy = await resolvePolicyAttribution(client, input.teamId);
   const out: LifecycleLegalHoldLegacyShape[] = canonical
     .filter((r) => {
       if (input.state && r.status !== input.state) return false;
@@ -886,7 +1064,11 @@ export async function listLifecycleLegalHoldsLegacyShape(
       expiresAtUtc: r.expiresAtUtc?.toISOString() ?? null,
       scope: r.scope as CanonicalLegalHoldScope,
       version: r.version,
-      releaseApprovalRequired: r.releaseApprovalRequired,
+      // GOV-011 — what a release needs now: the hold's own flag or today's policy.
+      releaseApprovalRequired: r.releaseApprovalRequired || policy.requireReleaseApproval,
+      releaseApprovalState: r.releaseApprovalState,
+      releaseRequestedByUserId: r.releaseRequestedByUserId,
+      releaseApprovedByUserId: r.releaseApprovedByUserId,
     }));
 
   // P12.3 — the legacy union merge is retired: every legacy row is now a
@@ -908,7 +1090,6 @@ export async function releaseLegalHoldAnyStore(
     actorUserId: string;
     releaseNote: string;
     expectedVersion?: number | null;
-    approvalAcknowledged?: boolean;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ store: "CANONICAL" | "CASE_LEGAL_HOLD" | "LIFECYCLE_LEGAL_HOLD" }> {

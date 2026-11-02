@@ -400,6 +400,13 @@ export function extractVerificationPackageId(input: string): string | null {
   }
 }
 
+/** The web page for a package id, or null without an origin or a usable id. */
+export function verificationPackageUrl(origin: string | null, packageId: string): string | null {
+  const id = packageId.trim();
+  if (!origin || !id || !/^[\w.-]+$/.test(id)) return null;
+  return `${origin.replace(/\/+$/, "")}/verify/package/${encodeURIComponent(id)}`;
+}
+
 function verifyUrlSegments(u: URL): string[] {
   return u.protocol === "proovra:"
     ? [u.hostname, ...u.pathname.split("/").filter(Boolean)]

@@ -59,6 +59,10 @@ const load = (): Promise<Mod> => import(`file://${MODULE_PATH}`) as Promise<Mod>
  * exercises the real probe strings, so a probe that looks for the wrong object
  * fails here instead of passing against a fixture keyed to its own name.
  */
+/** Every column the commercial remediation migrations add. */
+const COMMERCIAL_REMEDIATION_COLUMNS =
+  /'credential_proven_at_utc'|'pending_enterprise_workspace_name'|'external_contract_ref'|'status_before_termination'|'primary_interest'|'organization_type'/;
+
 function databaseWith(present: {
   reconciliationEnumValue?: boolean;
   incidentScopeType?: boolean;
@@ -100,9 +104,17 @@ function databaseWith(present: {
   customerCurrency?: boolean;
   // 20281106000000 — the sealed OIDC client secret.
   sealedClientSecret?: boolean;
+  // 20281104000000 onward — the commercial remediation columns.
+  commercialRemediation?: boolean;
+  // 20281102000000 — destruction governance truth.
+  destructionTruth?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (/'client_secret_sealed'/.test(sql)) return present.sealedClientSecret === true;
+    if (COMMERCIAL_REMEDIATION_COLUMNS.test(sql)) {
+      return present.commercialRemediation === true;
+    }
+    if (sql.includes("execution_requested_at_utc")) return present.destructionTruth === true;
     if (/table_name = 'billing_provider_customers'\s+AND column_name = 'currency'/.test(sql)) {
       return present.customerCurrency === true;
     }
@@ -290,10 +302,12 @@ const STEP_UP_APPLIED: StepUpState = {
 };
 
 const FULLY_MIGRATED = {
+  commercialRemediation: true,
   billingRemediation: true,
   billingDecisions: true,
   customerCurrency: true,
   sealedClientSecret: true,
+  destructionTruth: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -670,6 +684,27 @@ describe("runtime schema requirements — sealed OIDC client secret (20281106000
     expect(result.ok).toBe(false);
     expect(result.missing.map((m) => m.id)).toEqual(["sso_connections.client_secret_sealed"]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281106000000_sso_client_secret_sealed");
+  });
+});
+
+describe("runtime schema requirements — account credential proof (20281104000000)", () => {
+  it("an image that maps the columns is refused on a database without them", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, commercialRemediation: false }));
+    expect(result.ok).toBe(false);
+    expect(result.missing.map((m) => m.id)).toEqual(
+      expect.arrayContaining(["users.credential_proven_at_utc", "organizations.pending_enterprise_workspace_name"]),
+    );
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281104000000_account_credential_proof");
+  });
+});
+
+describe("runtime schema requirements — destruction governance truth", () => {
+  it("names the migration when the column is missing", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, destructionTruth: false }));
+    expect(result.missing.map((m) => m.id)).toEqual(["destruction_reviews.execution_requested_at_utc"]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281102000000");
   });
 });
 

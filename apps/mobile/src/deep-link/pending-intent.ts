@@ -73,6 +73,12 @@ export function peekPendingRoute(): string | null {
   return pending;
 }
 
+/** Sign-out: where the last person was going is not where the next one is. */
+export function clearPendingRoute(): void {
+  pending = null;
+  clearPersisted();
+}
+
 /** Read and clear the pending route (one-shot) — clears memory AND storage. */
 export function takePendingRoute(): string | null {
   const r = pending;

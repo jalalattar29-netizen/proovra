@@ -34,7 +34,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { prisma } from "../db.js";
 import { requireOrganizationIdentityAuthority } from "../services/identity/organization-identity-authority.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";

@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281106000000_sso_client_secret_sealed";
+export const EXPECTED_MIGRATION_HEAD = "20281107000300_platform_backup_records";
 
 export type MigrationRow = {
   migration_name: string;

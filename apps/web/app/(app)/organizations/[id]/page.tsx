@@ -1260,10 +1260,12 @@ type OrgClosureRequestRow = {
 };
 
 type OrgClosureState = {
-  request: OrgClosureRequestRow | null;
+  request: (OrgClosureRequestRow & { kind?: "CONTRACT_TERMINATION" | "SELF_SERVICE" }) | null;
   blockers: OrgClosureBlocker[];
   confirmationPhrase: string;
   coolingOffDays: number;
+  /** A contract ends through the account manager, not this panel (PROV-014). */
+  contractManaged?: boolean;
 };
 
 const ORG_CLOSURE_STATUS_LABEL: Record<string, string> = {
@@ -1507,13 +1509,18 @@ function OrgLifecycleControls({
       <div data-control="close-organization">
         <strong>Close organization.</strong>{" "}
         <span style={{ color: "var(--ink-secondary, #475569)" }}>
-          Archives the organization after a {closure?.coolingOffDays ?? 7}-day
-          cancellation window. Workspace access and machine credentials are
-          revoked; evidence is never deleted by closure — it stays governed
-          by retention and legal-hold rules.
+          {closure?.contractManaged
+            ? "This organization is under contract, so closing it is arranged with your account manager."
+            : `Archives the organization after a ${closure?.coolingOffDays ?? 7}-day cancellation window. Workspace access and machine credentials are revoked; evidence is never deleted by closure — it stays governed by retention and legal-hold rules.`}
         </span>
 
-        {openClosure && req ? (
+        {req?.kind === "CONTRACT_TERMINATION" && openClosure ? (
+          <p style={{ margin: "6px 0 0" }} data-org-closure-status="CONTRACT_TERMINATION">
+            Your contract is ending
+            {req.coolingOffEndsAtUtc ? ` and this organization closes on ${formatUserDate(req.coolingOffEndsAtUtc)}` : ""}
+            . Export what you need before then, and contact your account manager with any questions.
+          </p>
+        ) : closure?.contractManaged ? null : openClosure && req ? (
           <div className="mt-2" data-org-closure-status={req.status}>
             <p style={{ margin: "6px 0 0" }}>
               {ORG_CLOSURE_STATUS_LABEL[req.status] ?? identifierLabel(req.status)}

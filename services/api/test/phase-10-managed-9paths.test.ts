@@ -36,14 +36,24 @@ vi.mock("../src/services/identity/identity-mode.service.js", () => ({
     if (M.setThrows) throw M.setThrows;
   },
 }));
-vi.mock("../src/services/billing/commercial-context.service.js", async (importOriginal) => ({
-  // The module's constants stay real: membership code now reaches the
-  // Collaboration Team capacity guard (reinstatement), which reads them at
-  // import. Only the context resolver is observed here.
+vi.mock("../src/services/billing/workspace-seats.service.js", async (importOriginal) => ({
+  // The claim's lock and count are proven against PostgreSQL in
+  // seat-claim-authority.integration.test.ts. Here only its place in the
+  // composition order is observed, over the seat figure this suite states.
   ...(await importOriginal<Record<string, unknown>>()),
-  resolveCommercialContext: async () => {
+  claimWorkspaceSeatTx: async (
+    tx: { teamMember: { findUnique: (a: unknown) => Promise<{ status: string } | null> } },
+    input: { workspaceId: string; userId: string },
+  ) => {
+    const held = await tx.teamMember.findUnique({
+      where: { teamId_userId: { teamId: input.workspaceId, userId: input.userId } },
+    });
+    if (held?.status === "ACTIVE") return { outcome: "HELD" };
     M.seatCalls += 1;
-    return { seats: M.seat };
+    const { limit, remaining } = M.seat as { limit: number | null; remaining: number | null };
+    return limit === null || (remaining ?? 0) > 0
+      ? { outcome: "CLAIMED", seats: M.seat }
+      : { outcome: "REFUSED", reason: "workspace_seat_limit_reached", seats: M.seat };
   },
 }));
 

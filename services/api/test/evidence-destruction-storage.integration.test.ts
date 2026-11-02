@@ -35,6 +35,7 @@ import { versionedDestructionPort } from "./helpers/versioned-destruction-port.j
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { seedExecutableReview } from "./support/executable-destruction-review.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -117,6 +118,7 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
   async function seed(
     store: DisposableStore,
     over: Record<string, unknown> = {},
+    approval: "approved" | "unapproved" = "approved",
   ): Promise<{ id: string; bucket: string; key: string }> {
     const team = harness.fixtures.teamA;
     const bucket = "disposable-test-bucket";
@@ -136,6 +138,7 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
       select: { id: true },
     });
     store.put(bucket, key);
+    if (approval === "approved") await seedExecutableReview(prisma as never, row.id);
     return { id: row.id, bucket, key };
   }
 
@@ -296,7 +299,6 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
           trigger: "manual",
           legalHold,
           destructionApprovalRequired: false,
-          destructionApproved: false,
         },
         store.port,
       );
@@ -323,7 +325,7 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
 
   it("refuses when the workspace requires an approval that does not exist", async () => {
     const store = new DisposableStore();
-    const rec = await seed(store, trashedAndExpired());
+    const rec = await seed(store, trashedAndExpired(), "unapproved");
 
     const result = await executeEvidenceDestruction(
       prisma,
@@ -332,7 +334,6 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
         trigger: "trash_grace_reconciler",
         legalHold: false,
         destructionApprovalRequired: true,
-        destructionApproved: false,
       },
       store.port,
     );
@@ -399,9 +400,69 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
     // And the object is still there, so nothing may claim otherwise.
     expect(store.has(rec.bucket, rec.key)).toBe(true);
     const after = await state(rec.id);
-    expect(after.lifecycleState).toBe("TRASHED");
+    // A delete that reported success cannot be taken back (GOV-018): the record
+    // stays queued for the next attempt rather than back on a restorable shelf.
+    expect(after.lifecycleState).toBe("PENDING_DESTRUCTION");
     expect(after.destroyedAtUtc).toBeNull();
     expect(await certificateCount(rec.id)).toBe(0);
+  });
+
+  it("GOV-018: a delete that stops part way leaves a marked record no restore can bring back, and a retry finishes it", async () => {
+    const store = new DisposableStore();
+    const rec = await seed(store, trashedAndExpired());
+    // Two objects: the record's own and a part. One deletes, the other refuses.
+    const partKey = `${rec.key}.part0`;
+    await prisma.evidencePart.create({
+      data: { evidenceId: rec.id, partIndex: 0, storageBucket: rec.bucket, storageKey: partKey } as never,
+    });
+    store.put(rec.bucket, partKey);
+    store.refuse.add(`${rec.bucket}/${partKey}`);
+
+    const result = await executeEvidenceDestruction(
+      prisma,
+      { evidenceId: rec.id, trigger: "manual", legalHold: false },
+      store.port,
+    );
+    expect(result).toMatchObject({ ok: false, outcome: "STORAGE_DELETE_FAILED", partial: true });
+    expect(store.has(rec.bucket, rec.key), "the first object really went").toBe(false);
+    const marked = await prisma.evidence.findUniqueOrThrow({
+      where: { id: rec.id },
+      select: { lifecycleState: true, destructionPartialAtUtc: true, destroyedAtUtc: true, destructionClaimedAtUtc: true },
+    });
+    expect(marked.lifecycleState).toBe("PENDING_DESTRUCTION");
+    expect(marked.destructionPartialAtUtc).not.toBeNull();
+    expect(marked.destructionClaimedAtUtc).toBeNull();
+    expect(marked.destroyedAtUtc).toBeNull();
+    expect(await certificateCount(rec.id)).toBe(0);
+
+    // Every way back is refused.
+    const restored = await applyEvidenceLifecycleAction({
+      evidenceId: rec.id,
+      actorUserId: harness.fixtures.teamA.ownerUserId,
+      action: "RESTORE_FROM_TRASH",
+      source: "single",
+    });
+    expect(restored).toMatchObject({ ok: false, statusCode: 409, code: "DESTRUCTION_IN_PROGRESS" });
+    const { transitionLifecycle } = await import("../src/services/governance-lifecycle/lifecycle-orchestrator.service.js");
+    await expect(
+      transitionLifecycle(
+        { teamId: harness.fixtures.teamA.teamId, evidenceId: rec.id, toState: "ACTIVE", actorUserId: null, summary: "resurrect" },
+        prisma as never,
+      ),
+    ).rejects.toMatchObject({ code: "LIFECYCLE_INVALID_TRANSITION" });
+
+    // The next attempt finishes it, and says so on the certificate.
+    store.refuse.delete(`${rec.bucket}/${partKey}`);
+    const resumed = await executeEvidenceDestruction(
+      prisma,
+      { evidenceId: rec.id, trigger: "manual", legalHold: false },
+      store.port,
+    );
+    expect(resumed).toMatchObject({ ok: true, outcome: "DESTROYED" });
+    if (resumed.ok && resumed.outcome === "DESTROYED") {
+      expect(resumed.certificate.resumedAfterPartialDelete).toBe(true);
+    }
+    expect(store.has(rec.bucket, partKey)).toBe(false);
   });
 
   // =========================================================================
@@ -442,7 +503,6 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
         actorUserId: harness.fixtures.teamA.ownerUserId,
         legalHold: false,
         destructionApprovalRequired: true,
-        destructionApproved: true,
       },
       store.port,
     );
@@ -536,7 +596,7 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
 
     const result = await executeEvidenceDestruction(
       prisma,
-      { evidenceId: rec.id, trigger: "destruction_review", actorUserId: harness.fixtures.teamA.ownerUserId, legalHold: false, destructionApprovalRequired: true, destructionApproved: true },
+      { evidenceId: rec.id, trigger: "destruction_review", actorUserId: harness.fixtures.teamA.ownerUserId, legalHold: false, destructionApprovalRequired: true },
       store.port,
     );
     expect(result.ok).toBe(true);
@@ -546,7 +606,7 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
       reports: [{ version: 1, pdfSha256: "a1".repeat(32) }],
       packages: [{ packageId: pkg.id, version: 1, reportVersion: 1, disclosureProfile: "FULL_FORENSIC", state: "PUBLISHED", packageSha256: "b2".repeat(32), sealSha256: "c3".repeat(32) }],
     };
-    expect(result.certificate.certificateVersion).toBe("PROOVRA_EVIDENCE_DESTRUCTION_CERT_V4");
+    expect(result.certificate.certificateVersion).toBe("PROOVRA_EVIDENCE_DESTRUCTION_CERT_V5");
     expect(result.certificate.destroyedArtifacts).toEqual(expected);
     const purge = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId: rec.id, eventType: "EVIDENCE_PURGED" }, select: { payload: true } });
     expect((purge.payload as { destroyedArtifacts?: unknown }).destroyedArtifacts).toEqual(expected);
@@ -604,7 +664,6 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
         actorUserId: harness.fixtures.teamA.ownerUserId,
         legalHold: false,
         destructionApprovalRequired: true,
-        destructionApproved: true,
       },
       store.port,
     );
@@ -630,7 +689,8 @@ describe("Evidence physical destruction — live PostgreSQL 16 + disposable obje
     if (!result.ok && result.outcome === "STORAGE_VERIFY_FAILED") expect(result.failedKeys).toContain(late);
     else throw new Error(`expected STORAGE_VERIFY_FAILED, got ${JSON.stringify(result)}`);
     expect(await certificateCount(rec.id)).toBe(0);
-    expect((await state(rec.id)).lifecycleState).toBe("TRASHED");
+    // Some bytes went, so the record stays queued rather than restorable (GOV-018).
+    expect((await state(rec.id)).lifecycleState).toBe("PENDING_DESTRUCTION");
     // The next attempt inventories the late object and destroys it too.
     const again = await executeEvidenceDestruction(prisma, { evidenceId: rec.id, trigger: "manual", legalHold: false }, store.port);
     expect(again.ok, JSON.stringify(again)).toBe(true);

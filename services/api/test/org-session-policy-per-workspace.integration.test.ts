@@ -107,6 +107,27 @@ describe("Organization security policy per workspace (live PostgreSQL)", () => {
     expect(roster.statusCode, roster.body).toBe(404);
   });
 
+  it("a session anchored in the Organization is refused with the rule, so a client can say what to do", async () => {
+    const org = await seedOrganizationTenant(deps, { memberCount: 1 });
+    const member = org.members[0]!;
+    await prisma.authenticatedSession.updateMany({
+      where: { userId: member.userId },
+      data: { teamId: org.workspaceId },
+    });
+    const allowed = await get("/v1/auth/me", member.token);
+    expect(allowed.statusCode, allowed.body).toBe(200);
+
+    await requireSso(org);
+
+    const refused = await get("/v1/auth/me", member.token);
+    expect(refused.statusCode, refused.body).toBe(401);
+    expect(refused.json().error.code).toBe("UNAUTHORIZED");
+    expect(refused.json().error.details).toMatchObject({
+      reason: "reauthentication_required",
+      policy: "mandatory_sso_required",
+    });
+  });
+
   it("the same session keeps its Personal workspace, which no Organization governs", async () => {
     const personal = await seedPersonalTenant(deps, "FREE");
     const org = await seedOrganizationTenant(deps);

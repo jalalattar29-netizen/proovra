@@ -31,8 +31,9 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }) }));
 const addToast = vi.fn();
 vi.mock("../../components/ui", () => ({ useToast: () => ({ addToast }) }));
+let activeSpace: { id: string | null; type: "ORGANIZATION" | "PERSONAL" } | null = { id: "team-1", type: "ORGANIZATION" };
 vi.mock("../../lib/platform-context", () => ({
-  useActiveSpaceId: () => "team-1",
+  useActiveSpace: () => activeSpace,
   useTenantGuard: () => ({ stamp: () => 1, isStale: () => false }),
 }));
 vi.mock("../../app/(app)/capture/_lib/hash-utils", () => ({
@@ -125,12 +126,61 @@ beforeEach(() => {
   failPutFor = new Set();
   artifactStatus = { report: { available: true }, outputs: { report: { state: "READY" }, pollIntervalMs: null } };
   apiHandler = defaultHandler;
+  activeSpace = { id: "team-1", type: "ORGANIZATION" };
   addToast.mockReset();
   push.mockReset();
   vi.stubGlobal("XMLHttpRequest", FakeXhr as unknown as typeof XMLHttpRequest);
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("INGEST-009 — a record is never filed into a workspace nobody confirmed", () => {
+  it("refuses a new record while the workspace is unknown, and keeps the staged items", async () => {
+    activeSpace = null;
+    const { result } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(0);
+    expect(result.current.sessionItems).toHaveLength(1);
+    expect(result.current.error).toContain("could not confirm which workspace");
+  });
+
+  it("names the organization workspace once it is known", async () => {
+    const { result } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(JSON.parse(String(creates()[0]?.init?.body)).teamId).toBe("team-1");
+  });
+
+  it("a confirmed Personal Space with no id still goes through, unnamed", async () => {
+    activeSpace = { id: null, type: "PERSONAL" };
+    const { result } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(1);
+    expect(JSON.parse(String(creates()[0]?.init?.body)).teamId).toBeUndefined();
+  });
+
+  it("a retry into a reserved record is not refused if the context drops meanwhile", async () => {
+    failPutFor = new Set(["a.png"]);
+    const { result, rerender } = setup([item("1", "a.png")]);
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(1);
+    activeSpace = null;
+    rerender();
+    failPutFor = new Set();
+    await act(async () => {
+      await result.current.finalizeSession();
+    });
+    expect(creates()).toHaveLength(1);
+    expect(completes().map((c) => c.path)).toEqual(["/v1/evidence/ev-1/complete"]);
+  });
 });
 
 describe("UC-WEB-001 — resumable Finish & Sign", () => {

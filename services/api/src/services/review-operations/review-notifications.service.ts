@@ -42,7 +42,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { safeSendEmailNotification } from "../notifications/index.js";
+import { safeSendEmailNotification, type NotificationSendResult } from "../notifications/index.js";
 import { getEmailWebBaseUrl } from "../notifications/templates.js";
 
 async function resolveAssigneeAndWorkspace(
@@ -104,22 +104,24 @@ type DispatchKind =
   | { eventType: Extract<NotificationEventType, "REVIEW_ESCALATED"> }
   | { eventType: Extract<NotificationEventType, "REVIEW_NEEDS_MORE_INFO"> }
   | { eventType: Extract<NotificationEventType, "REVIEW_RESPONSE_RECEIVED"> }
-  | { eventType: Extract<NotificationEventType, "REVIEW_OVERDUE_REMINDER"> };
+  | { eventType: Extract<NotificationEventType, "REVIEW_OVERDUE_REMINDER"> }
+  | { eventType: Extract<NotificationEventType, "REVIEW_DUE_SOON_REMINDER"> }
+  | { eventType: Extract<NotificationEventType, "REVIEW_INACTIVITY_REMINDER"> };
 
 async function dispatchToAssignee(
   workflow: Pick<DbWorkflow, "evidenceId" | "teamId" | "assignedToUserId">,
   kind: DispatchKind,
   initiatedByUserId: string | null,
   client: PrismaClient,
-): Promise<void> {
+): Promise<NotificationSendResult | null> {
   const { reviewer, workspaceName, evidenceUrl } =
     await resolveAssigneeAndWorkspace(workflow, client);
 
   // No assignee → nothing to do. Caller may still want to log an
   // operations event; the notification is just a no-op.
-  if (!reviewer) return;
+  if (!reviewer) return null;
 
-  await safeSendEmailNotification(
+  return safeSendEmailNotification(
     {
       eventType: kind.eventType,
       teamId: workflow.teamId ?? null,
@@ -218,6 +220,22 @@ export async function notifyReviewResponseReceived(
   } catch {
     /* swallow */
   }
+}
+
+/** The reminder engine's send. Reports the outcome, so the row can record it. */
+export async function sendReviewReminder(
+  input: {
+    workflow: Pick<DbWorkflow, "evidenceId" | "teamId" | "assignedToUserId">;
+    kind: "DUE_SOON" | "REVIEWER_INACTIVE";
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<NotificationSendResult | null> {
+  return dispatchToAssignee(
+    input.workflow,
+    { eventType: input.kind === "DUE_SOON" ? "REVIEW_DUE_SOON_REMINDER" : "REVIEW_INACTIVITY_REMINDER" },
+    null,
+    client,
+  );
 }
 
 export async function notifyReviewSlaBreached(

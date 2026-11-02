@@ -672,7 +672,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
   });
 
   describe("POST /v1/admin/enterprise/provision", () => {
-    it("provisions a customer for an existing owner: org, enterprise workspace, owner seat, request row, org + platform audit; same key replays", async () => {
+    it("provisions a customer whose owner has an account: invited like anyone, and the workspace, seat and audit follow acceptance; same key replays", async () => {
       const op = await newOperator("provisioner");
       const owner = await seedUser(deps, "future-owner");
       const idempotencyKey = randomUUID();
@@ -696,11 +696,22 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
       });
       expect(res.statusCode, res.body).toBe(201);
       const body = json(res);
-      expect(body).toMatchObject({ provisioned: true, ownerUserId: owner.userId, idempotentReplay: false });
+      expect(body).toMatchObject({ provisioned: false, pendingOwner: true, idempotentReplay: false });
+      expect(await prisma.team.count({ where: { organizationId: body.organizationId } })).toBe(0);
+      expect(
+        await prisma.organizationMembership.count({ where: { organizationId: body.organizationId, userId: owner.userId } }),
+      ).toBe(0);
+
+      const accepted = await call({
+        method: "POST",
+        url: `/v1/org-invites/${body.ownerInviteToken}/accept`,
+        token: owner.token,
+      });
+      expect(accepted.statusCode, accepted.body).toBe(200);
 
       const org = await prisma.organization.findUniqueOrThrow({ where: { id: body.organizationId } });
       expect(org).toMatchObject({ name: organizationName, kind: "CUSTOMER", status: "ACTIVE", billingOwnerUserId: owner.userId });
-      const ws = await prisma.team.findUniqueOrThrow({ where: { id: body.workspaceId } });
+      const ws = await prisma.team.findUniqueOrThrow({ where: { id: json(accepted).enterpriseWorkspaceId } });
       expect(ws).toMatchObject({
         organizationId: org.id,
         name: "Claims",
@@ -725,7 +736,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
       const platform = await prisma.adminAuditLog.findFirstOrThrow({
         where: { action: "ENTERPRISE_PROVISIONED", resourceId: org.id },
       });
-      expect(platform).toMatchObject({ userId: op.userId, organizationId: org.id, workspaceId: ws.id, outcome: "success" });
+      expect(platform).toMatchObject({ userId: op.userId, organizationId: org.id, outcome: "success" });
 
       // Same key + same payload: the original result, nothing new created.
       const replayChallenge = await approvedStepUp(op, "CAPABILITY_GRANT", "enterprise_provision", null);
@@ -792,6 +803,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
           teamId: harness.fixtures.teamA.teamId,
           organizationName: name,
           ownerEmail: owner.email,
+          seats: 10,
         },
       });
       expect(refused.statusCode).toBe(403);
@@ -804,7 +816,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         method: "POST",
         url: "/v1/admin/enterprise/provision",
         token: op.token,
-        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} A`, ownerEmail: owner.email },
+        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} A`, ownerEmail: owner.email, seats: 10 },
         headers: { "x-proovra-step-up-challenge-id": first },
       });
       expect(created.statusCode, created.body).toBe(201);
@@ -814,7 +826,7 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
         method: "POST",
         url: "/v1/admin/enterprise/provision",
         token: op.token,
-        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} B`, ownerEmail: owner.email },
+        payload: { idempotencyKey, teamId: op.stepUpTeamId, organizationName: `${name} B`, ownerEmail: owner.email, seats: 10 },
         headers: { "x-proovra-step-up-challenge-id": second },
       });
       expect(conflict.statusCode).toBe(409);

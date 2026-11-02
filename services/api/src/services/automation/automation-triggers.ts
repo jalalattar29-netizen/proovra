@@ -47,6 +47,10 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import {
+  REVIEWER_OPS_DEFAULT_SLA_POLICY,
+  REVIEWER_OPS_SLA_POLICY_HOURS_MAX,
+} from "@proovra/shared";
 import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -193,8 +197,12 @@ function utcDayKey(nowMs: number): string {
   return new Date(nowMs).toISOString().slice(0, 10);
 }
 
-/** How far ahead "due soon" looks. Bounded and stated, never configurable per rule. */
-export const SLA_DUE_SOON_WINDOW_HOURS = 24;
+/**
+ * How far ahead "due soon" looks for a review with no stamped window, such as a
+ * date typed before the workspace's first sweep. A stamped review uses its own
+ * window, so the automation and the Due soon queue agree (WORKFLOW-007).
+ */
+export const SLA_DUE_SOON_WINDOW_HOURS = REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours;
 
 /** Rows examined per detector per tick. */
 const DETECT_LIMIT = 100;
@@ -275,7 +283,7 @@ export async function detectTimeBasedAutomationTriggers(input?: {
   // never produces both in the same tick.
   // -------------------------------------------------------------------------
   try {
-    const horizon = new Date(nowMs + SLA_DUE_SOON_WINDOW_HOURS * 3600 * 1000);
+    const horizon = new Date(nowMs + REVIEWER_OPS_SLA_POLICY_HOURS_MAX * 3600 * 1000);
     const soon = await prisma.evidenceReviewWorkflow.findMany({
       where: {
         teamId: { not: null },
@@ -283,12 +291,21 @@ export async function detectTimeBasedAutomationTriggers(input?: {
         closedAt: null,
         status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT"] },
       },
-      select: { id: true, teamId: true, dueAt: true, status: true, priority: true },
+      select: {
+        id: true,
+        teamId: true,
+        dueAt: true,
+        status: true,
+        priority: true,
+        slaDueSoonHours: true,
+      },
       orderBy: { dueAt: "asc" },
       take: DETECT_LIMIT,
     });
     for (const w of soon) {
       if (!w.teamId || !w.dueAt) continue;
+      const windowHours = w.slaDueSoonHours ?? SLA_DUE_SOON_WINDOW_HOURS;
+      if (w.dueAt.getTime() > nowMs + windowHours * 3600 * 1000) break;
       const r = await enqueueAutomationTrigger(prisma, {
         teamId: w.teamId,
         triggerType: "SLA_DUE_SOON",

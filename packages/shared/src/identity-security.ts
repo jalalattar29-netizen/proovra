@@ -744,6 +744,9 @@ export const SESSION_REVOCATION_REASONS = [
   // PHASE 4 §7.6 (2026-07-22) — organization suspension revokes every
   // session of the org's workspace members (re-auth after resume).
   "ORG_SUSPENDED",
+  // PROV-001 — accepting ownership of an organization ends the account's other
+  // sessions in the same transaction.
+  "OWNERSHIP_ACCEPTED",
 ] as const;
 export const SessionRevocationReasonSchema = z.enum(SESSION_REVOCATION_REASONS);
 export type SessionRevocationReason = z.infer<

@@ -27,7 +27,6 @@ import { z } from "zod";
 
 import type { Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
@@ -54,6 +53,7 @@ import {
   listCaseScopedLegalHoldsLegacyShape,
   listEvidenceScopedLegalHoldsLegacyShape,
   placeCanonicalLegalHold,
+  legalHoldReleaseRefusal,
   releaseLegalHoldAnyStore,
 } from "../services/governance/legal-hold.service.js";
 import {
@@ -135,29 +135,6 @@ async function resolveGovernancePolicyWorkspace(
 function toIso(v: Date | string | null | undefined): string | null {
   if (!v) return null;
   return v instanceof Date ? v.toISOString() : String(v);
-}
-
-/**
- * Workspace release-approval gate for the COMPATIBILITY_TEMPORARY release
- * adapters. Reads the workspace governance policy and refuses with 412 when
- * the policy demands an explicit acknowledgement that the caller did not
- * supply. It performs NO release and is evaluated BEFORE step-up.
- */
-async function assertReleaseApproval(
-  reply: FastifyReply,
-  teamId: string,
-  acknowledged: boolean,
-): Promise<boolean> {
-  const policy = await loadWorkspaceGovernancePolicy(teamId);
-  const required = Boolean(
-    (policy as { requireLegalHoldReleaseApproval?: boolean } | null)
-      ?.requireLegalHoldReleaseApproval,
-  );
-  if (required && !acknowledged) {
-    reply.code(412).send({ error: { code: "release_approval_required" } });
-    return false;
-  }
-  return true;
 }
 
 export async function governanceRoutes(app: FastifyInstance) {
@@ -506,19 +483,23 @@ export async function governanceRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           releaseNote: z.string().max(4000).nullable().optional(),
-          approvalAcknowledged: z.boolean().optional(),
           expectedVersion: z.coerce.number().int().nullable().optional(),
         })
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
 
-      const approval = await assertReleaseApproval(
-        reply,
-        body.teamId,
-        body.approvalAcknowledged === true,
-      );
-      if (!approval) return;
+      // Before step-up is offered: nobody re-authenticates for a release that is
+      // going to be refused. GOV-011 — only a second person's recorded approval
+      // satisfies this; an acknowledgement in the body proved nothing.
+      const refusal = await legalHoldReleaseRefusal({
+        teamId: body.teamId,
+        holdId: id,
+        actorUserId: ok.actorUserId,
+      });
+      if (refusal) {
+        return reply.code(412).send({ error: { code: refusal } });
+      }
 
       const gate = await requireStepUpForSensitiveAction({
         req,
@@ -538,7 +519,6 @@ export async function governanceRoutes(app: FastifyInstance) {
           actorUserId: ok.actorUserId,
           releaseNote: body.releaseNote ?? "",
           expectedVersion: body.expectedVersion ?? null,
-          approvalAcknowledged: body.approvalAcknowledged === true,
         });
       } catch (err) {
         if (err instanceof CanonicalLegalHoldError) {
@@ -691,22 +671,23 @@ export async function governanceRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           releaseNote: z.string().max(4000).nullable().optional(),
-          approvalAcknowledged: z.boolean().optional(),
           expectedVersion: z.coerce.number().int().nullable().optional(),
         })
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
 
-      // The workspace approval gate runs BEFORE step-up is offered: an
-      // operator must not be asked to re-authenticate for a release the
-      // workspace policy is going to refuse anyway.
-      const approval = await assertReleaseApproval(
-        reply,
-        body.teamId,
-        body.approvalAcknowledged === true,
-      );
-      if (!approval) return;
+      // Before step-up is offered: nobody re-authenticates for a release that is
+      // going to be refused. GOV-011 — only a second person's recorded approval
+      // satisfies this; an acknowledgement in the body proved nothing.
+      const refusal = await legalHoldReleaseRefusal({
+        teamId: body.teamId,
+        holdId: id,
+        actorUserId: ok.actorUserId,
+      });
+      if (refusal) {
+        return reply.code(412).send({ error: { code: refusal } });
+      }
 
       const gate = await requireStepUpForSensitiveAction({
         req,
@@ -726,7 +707,6 @@ export async function governanceRoutes(app: FastifyInstance) {
           actorUserId: ok.actorUserId,
           releaseNote: body.releaseNote ?? "",
           expectedVersion: body.expectedVersion ?? null,
-          approvalAcknowledged: body.approvalAcknowledged === true,
         });
       } catch (err) {
         if (err instanceof CanonicalLegalHoldError) {

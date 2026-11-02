@@ -23,7 +23,9 @@
  *   - Lifecycle state ∈ {PENDING_DESTRUCTION, DESTROYED} → BLOCKED_BY_LIFECYCLE.
  *   - Lifecycle state ∈ {ON_HOLD, RETENTION_LOCKED} → BLOCKED_BY_LIFECYCLE
  *     (same outcome class — operator-readable reason carries the detail).
- *   - Active destruction review (non-terminal) → BLOCKED_BY_REVIEW_GATE.
+ *   - An APPROVED destruction review → BLOCKED_BY_REVIEW_GATE: a person has
+ *     decided this record goes. A review that is merely open is a question, not a
+ *     decision, and never takes a record's downloads away (GOV-006).
  *   - Immutable retention (policy version says immutable=true) does NOT
  *     block export — it only blocks destruction.
  *   - Everything else → ALLOWED.
@@ -49,7 +51,7 @@ import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
-const REVIEW_GATING_STATUSES = ["PENDING", "UNDER_REVIEW", "DEFERRED", "APPROVED"];
+const REVIEW_GATING_STATUSES = ["APPROVED"];
 
 export type CheckExportEligibilityInput = {
   /** The record's PERSISTED workspace — null for a Personal record. */
@@ -162,9 +164,9 @@ export async function checkExportEligibility(
     };
   }
 
-  // Active review gate — a non-terminal destruction review pauses
-  // export until the review resolves. APPROVED counts because the
-  // evidence is queued for execution.
+  // Review gate — APPROVED means the evidence is queued for execution. Expiry
+  // opens reviews by itself, so gating on an open review removed downloads on a
+  // date nobody chose, and a workspace off the plan could not clear it.
   const activeReview = await client.destructionReview.findFirst({
     where: {
       evidenceId: ev.id,

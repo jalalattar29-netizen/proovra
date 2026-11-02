@@ -87,6 +87,15 @@ export interface PersistedCarriedLocation {
 }
 
 /**
+ * The workspace a session files into, fixed when it was opened. Absent on a
+ * record from an older build. A null `teamId` is a confirmed Personal Space.
+ */
+export interface PersistedCaptureWorkspace {
+  teamId: string | null;
+  name: string | null;
+}
+
+/**
  * A screen acquisition carried on the session, when one produced it.
  *
  * The manifest is built by the acquiring surface at Stop — it is the record of
@@ -126,6 +135,7 @@ export interface PersistedCaptureSession {
    * linked through the evidence relationships API (capture-links.ts).
    */
   linkGroupId?: string | null;
+  workspace?: PersistedCaptureWorkspace | null;
   /** ISO timestamp of the last persist — drives the staleness policy. */
   updatedAtIso: string;
   /** UC-AND-006 — the user this record belongs to. */
@@ -142,6 +152,7 @@ export interface CaptureSessionInput {
   draftId?: string | null;
   location?: PersistedCarriedLocation | null;
   linkGroupId?: string | null;
+  workspace?: PersistedCaptureWorkspace | null;
   now?: number;
 }
 
@@ -169,6 +180,7 @@ export function serializeSession(input: CaptureSessionInput): PersistedCaptureSe
     draftId: input.draftId ?? null,
     location: input.location ?? null,
     linkGroupId: input.linkGroupId ?? null,
+    workspace: input.workspace ?? null,
     updatedAtIso: new Date(now).toISOString(),
   };
 }
@@ -254,9 +266,17 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
     draftId: typeof o.draftId === "string" && o.draftId ? o.draftId : null,
     location: parsePersistedLocation(o.location),
     linkGroupId: typeof o.linkGroupId === "string" && o.linkGroupId ? o.linkGroupId : null,
+    workspace: parsePersistedWorkspace(o.workspace),
     updatedAtIso: typeof o.updatedAtIso === "string" ? o.updatedAtIso : new Date(0).toISOString(),
     ownerUserId: typeof o.ownerUserId === "string" && o.ownerUserId ? o.ownerUserId : null,
   };
+}
+
+export function parsePersistedWorkspace(raw: unknown): PersistedCaptureWorkspace | null {
+  if (!raw || typeof raw !== "object") return null;
+  const w = raw as Record<string, unknown>;
+  if (w.teamId !== null && (typeof w.teamId !== "string" || !w.teamId)) return null;
+  return { teamId: w.teamId as string | null, name: typeof w.name === "string" && w.name ? w.name : null };
 }
 
 function parsePersistedLocation(raw: unknown): PersistedCarriedLocation | null {

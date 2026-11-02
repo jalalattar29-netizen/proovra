@@ -12,6 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { detectAndScoreSession } from "../access-control/suspicious-session.service.js";
+import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 import { hashSessionId } from "../identity-security/session-revocation.service.js";
 import { establishOrganizationSessionContext } from "./concurrent-session.service.js";
 import { provisionManagedMembership } from "./membership-provisioning.service.js";
@@ -46,7 +47,7 @@ export async function completeSsoSession(
   const policy = await resolveOrganizationPolicy(input.teamId, client);
   if (policy.applicability === "ORGANIZATION" && policy.policy.managedIdentityRequired) {
     try {
-      await client.$transaction((tx) =>
+      await withSeatClaimRetry(() => client.$transaction((tx) =>
         provisionManagedMembership(tx, {
           userId: input.userId,
           managingTeamId: input.teamId,
@@ -61,13 +62,18 @@ export async function completeSsoSession(
           seatPolicy: "ENFORCE",
           seatTeamId: input.teamId,
         }),
-      );
+      ));
     } catch (err) {
       await dropSession();
       const code = (err as { code?: string })?.code;
       return {
         allowed: false,
-        reason: code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
+        reason:
+          code === "MANAGED_SEAT_LIMIT_REACHED"
+            ? "seat_limit_reached"
+            : code === "WORKSPACE_SEAT_CONTENTION"
+              ? "seat_contention"
+              : "managed_identity_conflict",
       };
     }
   }

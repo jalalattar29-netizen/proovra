@@ -138,6 +138,7 @@ const ACCESS_DENY_REASON_SET: ReadonlySet<string> = new Set<AccessDenyReason>([
   "member_access_expired",
   "organization_not_active",
   "workspace_kind_unresolved",
+  "organization_session_policy",
   "service_account_revoked",
   "service_account_disabled",
   "service_account_expired",
@@ -508,7 +509,7 @@ async function evaluateSupportContextGuard(
 // Response sender — bounded shape, no free-text.
 // =============================================================================
 
-function sendDenyResponse(
+export function sendDenyResponse(
   reply: FastifyReply,
   outcome: Extract<AuthorizationOutcome, { allowed: false }>,
 ): void {

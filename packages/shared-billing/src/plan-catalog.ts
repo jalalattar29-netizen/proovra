@@ -833,8 +833,10 @@ export function resolveWorkspaceMemberCeiling(input: {
    * Is an ACTIVE Enterprise contract governing this workspace? An ENTERPRISE
    * workspace without one admits nobody new (members audit CT-10): its
    * capacity is contract-defined, and a missing or lapsed contract is a typed
-   * "configure the contract" state — never an unlimited fallback. Omitted on
-   * self-serve plans, where it is irrelevant.
+   * "configure the contract" state — never an unlimited fallback. The same goes
+   * for an ACTIVE contract that states no seat count, or states zero: Enterprise
+   * seats are never unlimited by omission (BILLING-011). Omitted on self-serve
+   * plans, where it is irrelevant.
    */
   contractGoverns?: boolean;
 }): WorkspaceMemberCeiling {
@@ -842,6 +844,9 @@ export function resolveWorkspaceMemberCeiling(input: {
     return { included: false, limit: 0, source: "PLAN_CATALOG" };
   }
   if (input.plan === "ENTERPRISE" && input.contractGoverns === false) {
+    return { included: false, limit: 0, source: "ENTERPRISE_CONTRACT" };
+  }
+  if (input.plan === "ENTERPRISE" && (input.contractSeats === null || input.contractSeats <= 0)) {
     return { included: false, limit: 0, source: "ENTERPRISE_CONTRACT" };
   }
   if (input.contractSeats !== null) {

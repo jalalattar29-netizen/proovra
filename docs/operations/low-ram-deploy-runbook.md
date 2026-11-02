@@ -5,94 +5,43 @@
 
 ---
 
-## 1. When to follow this runbook
+## 1. How a deploy works
 
-Any change to:
-- A service `Dockerfile`
-- `package.json` / `pnpm-lock.yaml` (including the O1.3 `@opentelemetry/api` pin)
-- TypeScript source in `services/api`, `services/worker`, or `apps/web`
-- A worker / shared-runtime that the api also depends on
+Images are built off the server by `.github/workflows/deploy-images.yml`. The server
+only pulls them, so a deploy needs no build memory. There is no on-server build path:
+the old one here named a workflow and services that do not exist, and it went around
+the revision and schema checks.
 
-If you're only changing env vars or config, `docker compose up -d --force-recreate <service>` is enough — no build step needed.
+## 2. Deploy
 
-## 2. Preferred path — off-server build
-
-Use the existing GitHub Actions workflow to build + push the container images to GHCR. The production server only pulls + recreates. Off-server builds completely sidestep the memory pressure.
+Apply migrations first, through the migration runbook. Then, on the server:
 
 ```bash
-# Locally (or via PR merge), trigger the build workflow.
-gh workflow run build-images.yml --ref main
-
-# After the workflow finishes, on the production server:
-docker compose pull proovra-api proovra-worker proovra-web
-docker compose up -d --force-recreate proovra-api proovra-worker proovra-web
+GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7> \
+  ./scripts/deploy-prod-pull.sh --plan      # prints what would happen, changes nothing
+GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7> \
+  ./scripts/deploy-prod-pull.sh
 ```
 
-If the GHA workflow is unavailable or you need a hotfix faster than CI can build, use §3.
+It proves each image's revision, gates on the database schema, recreates the API
+then the worker, waits for each to be ready, and writes the release record. The web
+deploys through Vercel.
 
-## 3. On-server staged build (last resort)
+If the workflow cannot publish images, fix that. Do not build on the server: a
+hand-built image carries no revision label, and the deploy refuses it.
 
-The principle: never let two service builds run concurrently. Free RAM between each build.
-
-### 3.1 Pre-build housekeeping
+## 3. If memory is tight
 
 ```bash
-# Stop non-essential containers to free RAM. proovra-api + proovra-worker
-# can keep running until step 3.3 swaps them.
-docker compose stop grafana-agent || true
-docker compose stop sentry-relay || true
-
-# Free Docker cruft.
-docker builder prune --force --filter "until=72h"
+free -h
 docker image prune --force
-
-# Check available memory (Linux).
-free -h
+docker builder prune --force --filter "until=72h"
 ```
 
-Target: at least **2 GB free** before starting each container build. If you can't get there, fall back to off-server build (§2).
-
-### 3.2 Build services one at a time
-
-Build order: **shared deps first → api → worker → web**.
-
-```bash
-# 1. API container (includes shared-runtime + shared + shared-billing build
-#    inside the Dockerfile).
-docker compose build --no-cache proovra-api
-
-# Confirm the build succeeded and we have RAM headroom.
-free -h
-
-# 2. Worker container.
-docker compose build --no-cache proovra-worker
-
-# 3. Web container.
-docker compose build --no-cache proovra-web
-```
-
-If any individual build OOMs, stop, free more RAM (drop more sidecars), and resume from the failed step. Builds are independent — repeating one does not re-build the others.
-
-### 3.3 Roll the containers
-
-Roll backend first (api, worker), then frontend (web). This ensures the new web build talks to the new api.
-
-```bash
-docker compose up -d --force-recreate proovra-api
-# Wait for bootstrap; see §4.
-
-docker compose up -d --force-recreate proovra-worker
-# Wait for bootstrap; see §4.
-
-docker compose up -d --force-recreate proovra-web
-```
-
-### 3.4 Restart sidecars
-
-```bash
-docker compose start grafana-agent
-docker compose start sentry-relay
-```
+Only env or config changed? Use `--force-recreate` on the one service, with the same
+`IMAGE_TAG` the service runs now. Rollback is
+`GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback`, which restores code
+only; migrations are forward-only.
 
 ## 4. Post-deploy validation (Phase O1.3)
 
