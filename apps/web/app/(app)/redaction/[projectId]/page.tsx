@@ -102,6 +102,18 @@ type VersionProjection = {
   } | null;
 };
 
+/**
+ * The redaction routes refuse with a flat `{ denial }`, which `apiFetch`
+ * carries on `details`: the code the operator needs is there, never on the
+ * error itself.
+ */
+function refusalBanner(err: unknown, fallback: string): string {
+  const denial = (err as { details?: { denial?: unknown } } | null)?.details?.denial;
+  return typeof denial === "string"
+    ? `Refused: ${identifierLabel(denial)}`
+    : toSafeUserError(err, { message: fallback }).message;
+}
+
 export default function RedactionProjectPage({
   params,
 }: {
@@ -210,8 +222,7 @@ function RedactionProjectShell({
       await refresh();
       setActivityRevision((v) => v + 1);
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setBanner(`Refused: ${((err as any)?.denial ?? "POLICY_REJECTED")}`);
+      setBanner(refusalBanner(err, "We couldn't create a new version."));
     }
   }, [projectId, refresh]);
 
@@ -256,17 +267,7 @@ function RedactionProjectShell({
           setBanner("Step-up cancelled — the redaction was not published.");
           return;
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const denial = (err as any)?.denial as string | undefined;
-        if (denial) {
-          setBanner(`Refused: ${denial}`);
-          return;
-        }
-        setBanner(
-          toSafeUserError(err, {
-            message: `We couldn't complete the ${action} action.`,
-          }).message,
-        );
+        setBanner(refusalBanner(err, `We couldn't complete the ${action} action.`));
       }
     },
     [refresh, stepUp],

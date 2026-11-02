@@ -309,10 +309,17 @@ export async function listRedactionProjectsForTeam(input: {
   prisma?: PrismaClient;
   teamId: string;
   limit?: number;
+  /** Records closed to the caller (hiddenRecordIdsInWorkspace). */
+  hiddenEvidenceIds?: readonly string[];
 }) {
   const prisma = input.prisma ?? defaultPrisma;
   return prisma.redactionProject.findMany({
-    where: { teamId: input.teamId },
+    where: {
+      teamId: input.teamId,
+      ...(input.hiddenEvidenceIds?.length
+        ? { evidenceId: { notIn: [...input.hiddenEvidenceIds] } }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: Math.min(input.limit ?? 100, 500),
   });
