@@ -30,7 +30,7 @@ ALTER TABLE "destruction_reviews"
   ADD COLUMN IF NOT EXISTS "execution_not_before_utc" TIMESTAMPTZ(6),
   ADD COLUMN IF NOT EXISTS "queued_from_state" VARCHAR(32);
 
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -47,7 +47,7 @@ BEGIN
   ) THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "destruction_reviews_execution_due_idx" ON "destruction_reviews" ("execution_not_before_utc", "execution_requested_at_utc") WHERE "status" = ''APPROVED'' AND "execution_requested_at_utc" IS NOT NULL';
   END IF;
-END $;
+END $$;
 
 ALTER TABLE "destruction_requests"
   ADD COLUMN IF NOT EXISTS "execution_started_at_utc" TIMESTAMPTZ(6);
@@ -58,7 +58,7 @@ ALTER TABLE "destruction_certificates"
 ALTER TABLE "evidence"
   ADD COLUMN IF NOT EXISTS "destruction_partial_at_utc" TIMESTAMPTZ(6);
 
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -67,7 +67,7 @@ BEGIN
   ) THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS "evidence_destruction_partial_idx" ON "evidence" ("destruction_partial_at_utc") WHERE "destruction_partial_at_utc" IS NOT NULL';
   END IF;
-END $;
+END $$;
 
 ALTER TABLE "evidence_legal_holds"
   ADD COLUMN IF NOT EXISTS "release_requested_by_user_id" UUID,

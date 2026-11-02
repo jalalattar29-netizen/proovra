@@ -665,6 +665,7 @@ describe("runtime schema requirements — billing remediation (20281030000000)",
 
 describe("runtime schema requirements — destruction governance truth", () => {
   it("names the migration when the column is missing", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
     const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, destructionTruth: false }));
     expect(result.missing.map((m) => m.id)).toEqual(["destruction_reviews.execution_requested_at_utc"]);
     expect(describeRuntimeSchemaFailure(result)).toContain("20281102000000");
