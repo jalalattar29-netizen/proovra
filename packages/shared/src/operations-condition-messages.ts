@@ -96,7 +96,7 @@ const PACKAGE_DENIAL_OUTCOMES = [
 ] as const;
 type PackageDenialOutcome = (typeof PACKAGE_DENIAL_OUTCOMES)[number];
 
-const BLOCK_CAUSES = ["hold", "immutable"] as const;
+const BLOCK_CAUSES = ["hold", "immutable", "retention", "lifecycle"] as const;
 const RETENTION_UNVERIFIED_CAUSES = ["storage_unavailable", "metadata_missing", "metadata_inconsistent"] as const;
 const ARCHIVE_RESTORE_FAILURES = ["object_missing", "digest_mismatch", "artifact_invalid", "storage_unavailable"] as const;
 
@@ -935,21 +935,33 @@ const CATALOGUE = {
       summary:
         p.cause === "hold"
           ? "Destruction was blocked because a legal hold became active before execution."
-          : "Destruction was blocked because the retention policy is immutable at execution time.",
+          : p.cause === "immutable"
+            ? "Destruction was blocked because the record is locked or its retention policy is immutable."
+            : p.cause === "retention"
+              ? "Destruction was blocked because retention on this record has not ended."
+              : "Destruction was blocked because the record is no longer in a state that can be destroyed.",
     }),
     de: (p) => ({
       title: "Vernichtung bei der Ausführung gesperrt",
       summary:
         p.cause === "hold"
           ? "Die Vernichtung wurde gesperrt, weil vor der Ausführung eine gerichtliche Aufbewahrungspflicht wirksam wurde."
-          : "Die Vernichtung wurde gesperrt, weil die Aufbewahrungsrichtlinie zum Ausführungszeitpunkt unveränderlich ist.",
+          : p.cause === "immutable"
+            ? "Die Vernichtung wurde gesperrt, weil der Datensatz gesperrt oder seine Aufbewahrungsrichtlinie unveränderlich ist."
+            : p.cause === "retention"
+              ? "Die Vernichtung wurde gesperrt, weil die Aufbewahrung dieses Datensatzes noch nicht beendet ist."
+              : "Die Vernichtung wurde gesperrt, weil der Datensatz sich nicht mehr in einem vernichtbaren Zustand befindet.",
     }),
     ar: (p) => ({
       title: "حُظر الإتلاف عند التنفيذ",
       summary:
         p.cause === "hold"
           ? "حُظر الإتلاف لأن حجزًا قانونيًا أصبح نشطًا قبل التنفيذ."
-          : "حُظر الإتلاف لأن سياسة الاحتفاظ غير قابلة للتعديل وقت التنفيذ.",
+          : p.cause === "immutable"
+            ? "حُظر الإتلاف لأن السجل مقفل أو لأن سياسة الاحتفاظ به غير قابلة للتعديل."
+            : p.cause === "retention"
+              ? "حُظر الإتلاف لأن مدة الاحتفاظ بهذا السجل لم تنته بعد."
+              : "حُظر الإتلاف لأن السجل لم يعد في حالة تسمح بإتلافه.",
     }),
   }),
   "ops.governance.notification.immutable_drift": def({

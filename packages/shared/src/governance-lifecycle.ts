@@ -56,13 +56,28 @@ const EVIDENCE_LIFECYCLE_TRANSITIONS: Readonly<
     "PENDING_DESTRUCTION",
     "ARCHIVED",
   ],
-  UNDER_REVIEW: ["ACTIVE", "ON_HOLD", "ARCHIVED"],
+  UNDER_REVIEW: ["ACTIVE", "ON_HOLD", "ARCHIVED", "PENDING_DESTRUCTION"],
   ON_HOLD: ["ACTIVE", "RETENTION_LOCKED", "ARCHIVED"],
   RETENTION_LOCKED: ["ACTIVE", "ON_HOLD", "ARCHIVED"],
-  PENDING_DESTRUCTION: ["ACTIVE", "DESTROYED", "ARCHIVED"],
+  PENDING_DESTRUCTION: ["ACTIVE", "UNDER_REVIEW", "DESTROYED", "ARCHIVED"],
   DESTROYED: [], // terminal
-  ARCHIVED: ["ACTIVE", "DESTROYED"],
+  ARCHIVED: ["ACTIVE", "DESTROYED", "PENDING_DESTRUCTION"],
 };
+
+/**
+ * GOV-004 — product states that are already on their way out. TRASHED and
+ * RETENTION_ARCHIVED are `Evidence.lifecycleState` values this governance table
+ * has never listed, so a review on such a record was refused as an invalid
+ * transition and could never be approved. They need no queueing step: the
+ * executor claims them directly. Every hold, retention and approval check still
+ * applies. Not added to the state list, whose consumers mean the governance
+ * postures an operator may set.
+ */
+export const DESTRUCTION_BOUND_STATES = ["TRASHED", "RETENTION_ARCHIVED"] as const;
+
+export function isDestructionBoundState(state: string): boolean {
+  return (DESTRUCTION_BOUND_STATES as readonly string[]).includes(state);
+}
 
 export function isAllowedEvidenceLifecycleTransition(
   from: EvidenceLifecycleState,

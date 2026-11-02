@@ -6764,7 +6764,6 @@ export async function processPurgeDeletedEvidence(job: Job<unknown>) {
         legalHold: hold.held,
         objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
         destructionApprovalRequired: approval.required,
-        destructionApproved: approval.approved,
         destructionReviewId: approval.destructionReviewId,
         correlationId: decoded.traceId || null,
       },

@@ -70,13 +70,14 @@ describe("destruction review approval queues the record (live PostgreSQL 16)", (
     return review.id;
   }
 
+  // The owner proposed; a second person decides (GOV-003).
   const transition = (id: string, nextStatus: string) =>
     svc.transitionDestructionReview({
       teamId: h.fixtures.teamA.teamId,
       id,
       nextStatus,
       decisionNote: "approval-queues test",
-      actorUserId: h.fixtures.teamA.ownerUserId,
+      actorUserId: h.fixtures.teamA.adminUserId,
     } as never);
 
   it("approving a review on an ACTIVE record moves it to PENDING_DESTRUCTION (the state EXECUTED can leave)", async () => {

@@ -38,6 +38,7 @@ import * as prismaPkg from "@prisma/client";
 import {
   EVIDENCE_LIFECYCLE_STATES,
   isAllowedEvidenceLifecycleTransition,
+  isDestructionBoundState,
   isTerminalLifecycleState,
   LIFECYCLE_EVENT_TYPES,
   type EvidenceLifecycleState,
@@ -61,7 +62,7 @@ const FINALIZED_LIFECYCLE_STATES: ReadonlySet<string> = new Set([
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -154,35 +155,30 @@ function boundedMetadata(input: unknown): prismaPkg.Prisma.InputJsonValue | null
   }
 }
 
+/**
+ * GOV-013 — THE union evaluator, fail-closed. This read evidence and case holds
+ * by hand, so a workspace-scope hold was invisible here and a review could be
+ * approved under one, moving the record into routine disposition.
+ */
 async function evidenceHasActiveHold(
+  teamId: string,
   evidenceId: string,
   client: PrismaClient,
 ): Promise<boolean> {
-  const direct = await client.evidenceLegalHold.findFirst({
-    where: { evidenceId, status: prismaPkg.LegalHoldStatus.ACTIVE },
-    select: { id: true },
-  });
-  if (direct) return true;
-  // Cascade through case-level holds. Track 1B closure — a hold on
-  // ANY linked case (canonical CaseEvidenceLink) blocks.
-  const links = await client.caseEvidenceLink.findMany({
-    where: { evidenceId },
-    select: { caseId: true },
-    take: 100,
-  });
-  if (links.length === 0) return false;
-  // PHASE 12 POINT 3 — canonical-only. Case holds are scope=CASE rows on
-  // the canonical table after the backfill; the scope filter keeps this a
-  // CASE-hold probe rather than any hold in the workspace.
-  const caseHold = await client.evidenceLegalHold.findFirst({
-    where: {
-      scope: prismaPkg.LegalHoldScope.CASE,
-      caseId: { in: links.map((l) => l.caseId) },
-      status: prismaPkg.LegalHoldStatus.ACTIVE,
-    },
-    select: { id: true },
-  });
-  return Boolean(caseHold);
+  try {
+    const links = await client.caseEvidenceLink.findMany({
+      where: { evidenceId },
+      select: { caseId: true },
+    });
+    const held = await evaluateEffectiveLegalHold(client, {
+      teamId,
+      evidenceId,
+      caseIds: links.map((l) => l.caseId),
+    });
+    return held.held;
+  } catch {
+    return true;
+  }
 }
 
 async function evidenceHasImmutableRetention(
@@ -276,14 +272,15 @@ export async function preflightLifecycleTransition(
   if (isTerminalLifecycleState(fromState) && fromState !== input.toState) {
     return { allowed: false, code: "LIFECYCLE_TERMINAL_STATE", fromState };
   }
-  if (!isAllowedEvidenceLifecycleTransition(fromState, input.toState)) {
+  const destructive = input.toState === "PENDING_DESTRUCTION" || input.toState === "DESTROYED";
+  if (
+    !(destructive && isDestructionBoundState(fromState)) &&
+    !isAllowedEvidenceLifecycleTransition(fromState, input.toState)
+  ) {
     return { allowed: false, code: "LIFECYCLE_INVALID_TRANSITION", fromState };
   }
-  if (
-    input.toState === "PENDING_DESTRUCTION" ||
-    input.toState === "DESTROYED"
-  ) {
-    if (await evidenceHasActiveHold(input.evidenceId, client)) {
+  if (destructive) {
+    if (await evidenceHasActiveHold(input.teamId, input.evidenceId, client)) {
       return { allowed: false, code: "LIFECYCLE_BLOCKED_BY_HOLD", fromState };
     }
     if (await evidenceHasImmutableRetention(input.evidenceId, client)) {
@@ -407,7 +404,7 @@ export async function transitionLifecycle(
     input.toState === "PENDING_DESTRUCTION" ||
     input.toState === "DESTROYED"
   ) {
-    if (await evidenceHasActiveHold(input.evidenceId, client)) {
+    if (await evidenceHasActiveHold(input.teamId, input.evidenceId, client)) {
       bump("lifecycle_transition_blocked_total");
       bump("destruction_blocked_by_hold_total");
       safeEmitSecurityEvent({
@@ -457,7 +454,13 @@ export async function transitionLifecycle(
     // is destroying, nor overwrite a state that changed underneath it.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.evidenceId}))`;
     const written = await tx.evidence.updateMany({
-      where: { id: input.evidenceId, lifecycleState: fromState as prismaPkg.EvidenceLifecycleState, destructionClaimedAtUtc: null },
+      where: {
+        id: input.evidenceId,
+        lifecycleState: fromState as prismaPkg.EvidenceLifecycleState,
+        destructionClaimedAtUtc: null,
+        // GOV-018 — a partly deleted record leaves the queue only by being finished.
+        destructionPartialAtUtc: null,
+      },
       data: {
         lifecycleState: input.toState as prismaPkg.EvidenceLifecycleState,
       },

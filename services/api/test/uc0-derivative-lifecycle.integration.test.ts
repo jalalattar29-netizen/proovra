@@ -26,6 +26,7 @@ import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+import { seedExecutableReview } from "./support/executable-destruction-review.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -194,6 +195,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     const d1 = await seedDerived(store, rec);
     const d2 = await seedDerived(store, rec, { kind: "video_frame" });
     await seedDerivedText(rec);
+    await seedExecutableReview(prisma as never, rec.id);
 
     const result = await executeEvidenceDestruction(
       prisma,
@@ -370,6 +372,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
       data: trashedAndExpired() as never,
     });
     store.put(bucket, "derived-assets/proxy-v2");
+    await seedExecutableReview(prisma as never, rec.id);
     const destroyed = await executeEvidenceDestruction(
       prisma,
       { evidenceId: rec.id, trigger: "manual", legalHold: false },

@@ -1693,6 +1693,8 @@ export {
   RetentionPolicyUpdateInputSchema,
   canEnterPendingDestruction,
   isAllowedDestructionReviewTransition,
+  DESTRUCTION_BOUND_STATES,
+  isDestructionBoundState,
   isAllowedEvidenceLifecycleTransition,
   isAllowedRetentionPolicyTransition,
   isTerminalDestructionReviewStatus,
@@ -2272,6 +2274,7 @@ export type {
 
 export {
   ARCHIVE_TIERS,
+  ARCHIVE_TIER_OBJECT_TAG,
   CHAIN_TRANSFER_STATES,
   DESTRUCTION_LIFECYCLE_CODES,
   DESTRUCTION_STATES,

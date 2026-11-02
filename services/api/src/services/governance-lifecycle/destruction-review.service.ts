@@ -12,6 +12,13 @@
  *   - Transitions are validated against the shared
  *     `DESTRUCTION_REVIEW_TRANSITIONS` table. Anything outside is
  *     refused with `DESTRUCTION_REVIEW_INVALID_TRANSITION`.
+ *   - Two people (GOV-003): whoever proposed destruction cannot approve it.
+ *     The proposer is the person who opened the review, or on a review a
+ *     sweep opened, the person who took it up.
+ *   - Approval is a decision, not the point of no return (GOV-002). It is
+ *     refused while a dated barrier stands, with that date (GOV-007), and
+ *     reversible until a person asks for EXECUTED. Nothing reaches storage
+ *     without that request, including the worker sweep.
  *   - Hold-aware: APPROVED + EXECUTED are refused while a legal hold
  *     is active. The hold check is delegated to the lifecycle
  *     orchestrator (single source of truth).
@@ -36,6 +43,7 @@ import {
   DESTRUCTION_REVIEW_REASONS,
   DESTRUCTION_REVIEW_STATUSES,
   isAllowedDestructionReviewTransition,
+  isDestructionBoundState,
   isTerminalDestructionReviewStatus,
   type DestructionReviewReason,
   type DestructionReviewStatus,
@@ -65,11 +73,13 @@ import {
 //
 // Both are additive imports from the same package; neither replaces the other.
 import {
+  destructionExecutionEnabled,
   executeEvidenceDestruction,
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { readDestructionBarriers } from "./destruction-barriers.service.js";
 
 // -----------------------------------------------------------------------------
 // Error
@@ -84,6 +94,9 @@ export type DestructionReviewErrorCode =
   | "DESTRUCTION_REVIEW_BLOCKED_BY_HOLD"
   | "DESTRUCTION_REVIEW_BLOCKED_BY_IMMUTABLE"
   | "DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE"
+  | "DESTRUCTION_REVIEW_BLOCKED_BY_RETENTION"
+  | "DESTRUCTION_REVIEW_SEPARATION_OF_DUTIES"
+  | "DESTRUCTION_EXECUTION_DISABLED"
   | "DESTRUCTION_REVIEW_DECISION_NOTE_REQUIRED";
 
 export class DestructionReviewError extends Error {
@@ -113,6 +126,9 @@ export type DestructionReviewProjection = {
   initiatedByUserId: string | null;
   decidedByUserId: string | null;
   decidedAtUtc: string | null;
+  reviewStartedByUserId: string | null;
+  executionRequestedAtUtc: string | null;
+  executionRequestedByUserId: string | null;
   executedAtUtc: string | null;
   certificateHash: string | null;
   createdAt: string;
@@ -133,6 +149,9 @@ export function projectReview(row: DbReview): DestructionReviewProjection {
     initiatedByUserId: row.initiatedByUserId,
     decidedByUserId: row.decidedByUserId,
     decidedAtUtc: row.decidedAtUtc?.toISOString() ?? null,
+    reviewStartedByUserId: row.reviewStartedByUserId,
+    executionRequestedAtUtc: row.executionRequestedAtUtc?.toISOString() ?? null,
+    executionRequestedByUserId: row.executionRequestedByUserId,
     executedAtUtc: row.executedAtUtc?.toISOString() ?? null,
     certificateHash: row.certificateHash,
     createdAt: row.createdAt.toISOString(),
@@ -356,6 +375,17 @@ export async function transitionDestructionReview(
       "DESTRUCTION_REVIEW_DECISION_NOTE_REQUIRED",
     );
   }
+  // GOV-003 — the person who proposed destruction cannot be the one who approves
+  // it. Nothing compared them; one administrator could open, take up and approve
+  // alone. A sweep-opened review has no initiator, so the person who took it up
+  // is the proposer and the approver is still the second person.
+  if (input.nextStatus === "APPROVED") {
+    const proposer = existing.initiatedByUserId ?? existing.reviewStartedByUserId;
+    if (!proposer || proposer === input.actorUserId) {
+      throw new DestructionReviewError("DESTRUCTION_REVIEW_SEPARATION_OF_DUTIES");
+    }
+  }
+  let queuedFromState: string | null = existing.queuedFromState;
   // Hold re-check on APPROVED (operators may have placed a hold between
   // create + approve — the hold MUST win).
   if (input.nextStatus === "APPROVED") {
@@ -407,31 +437,73 @@ export async function transitionDestructionReview(
         { code: preflight.code },
       );
     }
-    // The approval QUEUES the record for destruction: ACTIVE -> PENDING_DESTRUCTION
-    // through the orchestrator (the single lifecycle writer), BEFORE the review is
-    // marked APPROVED, so an approval never exists for a record left ACTIVE. The
-    // lifecycle table has no ACTIVE -> DESTROYED edge, so an approved review on an
-    // ACTIVE record could never execute (every manual review from the
-    // Destruction page ended in 409 LIFECYCLE_INVALID_TRANSITION).
-    try {
-      await transitionLifecycle(
-        {
-          teamId: input.teamId,
-          evidenceId: existing.evidenceId,
-          toState: "PENDING_DESTRUCTION",
-          actorUserId: input.actorUserId,
-          summary: "Destruction review approved — evidence queued for destruction",
-          // The review's own destruction_review_approved row is written below.
-          eventType: "lifecycle_transition",
-          metadata: { destructionReviewId: existing.id },
-          requestId: input.requestId ?? null,
-        },
-        client,
-      );
-    } catch (err) {
-      throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE", {
-        code: (err as { code?: string }).code ?? "LIFECYCLE_TRANSITION_FAILED",
+    // GOV-007 — refused with its date while the record cannot be destroyed. This
+    // used to be met only at the executor, after approval had queued the record
+    // and blocked its downloads, sometimes for years.
+    const barriers = await readDestructionBarriers(client, existing.evidenceId);
+    if (!barriers.eligible) {
+      throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_RETENTION", {
+        blockReason: barriers.blockReason,
+        eligibleAtUtc: barriers.eligibleAt?.toISOString() ?? null,
       });
+    }
+    // The approval QUEUES the record for destruction, through the orchestrator
+    // (the single lifecycle writer), BEFORE the review is marked APPROVED, so an
+    // approval never exists for a record left ACTIVE. The lifecycle table has no
+    // ACTIVE -> DESTROYED edge, so an approved review on an ACTIVE record could
+    // never execute (every manual review from the Destruction page ended in 409
+    // LIFECYCLE_INVALID_TRANSITION). A trashed or retention-archived record needs
+    // no queueing: the executor claims it from where it is (GOV-004).
+    if (!isDestructionBoundState(preflight.fromState)) {
+      try {
+        await transitionLifecycle(
+          {
+            teamId: input.teamId,
+            evidenceId: existing.evidenceId,
+            toState: "PENDING_DESTRUCTION",
+            actorUserId: input.actorUserId,
+            summary: "Destruction review approved — evidence queued for destruction",
+            // The review's own destruction_review_approved row is written below.
+            eventType: "lifecycle_transition",
+            metadata: { destructionReviewId: existing.id },
+            requestId: input.requestId ?? null,
+          },
+          client,
+        );
+      } catch (err) {
+        throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE", {
+          code: (err as { code?: string }).code ?? "LIFECYCLE_TRANSITION_FAILED",
+        });
+      }
+    }
+    queuedFromState = preflight.fromState;
+  }
+
+  // An approved review that is CANCELLED releases the record it queued, back to
+  // where approval found it and before the review stops saying so: if the record
+  // is under an execution claim this refuses, and the review remains the truth.
+  if (input.nextStatus === "CANCELLED" && from === "APPROVED") {
+    const backTo = existing.queuedFromState ?? "ACTIVE";
+    if (!isDestructionBoundState(backTo)) {
+      try {
+        await transitionLifecycle(
+          {
+            teamId: input.teamId,
+            evidenceId: existing.evidenceId,
+            toState: backTo as DestructionReviewReleaseState,
+            actorUserId: input.actorUserId,
+            summary: "Approved destruction review cancelled — evidence released from the queue",
+            eventType: "lifecycle_transition",
+            metadata: { destructionReviewId: existing.id },
+            requestId: input.requestId ?? null,
+          },
+          client,
+        );
+      } catch (err) {
+        throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE", {
+          code: (err as { code?: string }).code ?? "LIFECYCLE_TRANSITION_FAILED",
+        });
+      }
     }
   }
 
@@ -452,10 +524,19 @@ export async function transitionDestructionReview(
   const decisionNote = input.decisionNote?.trim().slice(0, 2000) ?? null;
 
   const updated = await client.$transaction(async (tx) => {
-    const row = await tx.destructionReview.update({
-      where: { id: existing.id },
+    // Compare-and-set on the status this transition was validated from (GOV-019).
+    const moved = await tx.destructionReview.updateMany({
+      where: { id: existing.id, status: from },
       data: {
         status: input.nextStatus,
+        queuedFromState,
+        reviewStartedByUserId:
+          input.nextStatus === "UNDER_REVIEW"
+            ? existing.reviewStartedByUserId ?? input.actorUserId
+            : existing.reviewStartedByUserId,
+        // Leaving APPROVED withdraws any execution request with it.
+        executionRequestedAtUtc: input.nextStatus === "CANCELLED" ? null : existing.executionRequestedAtUtc,
+        executionRequestedByUserId: input.nextStatus === "CANCELLED" ? null : existing.executionRequestedByUserId,
         decisionNote:
           input.nextStatus === "APPROVED" ||
           input.nextStatus === "DENIED" ||
@@ -482,6 +563,14 @@ export async function transitionDestructionReview(
             : existing.decidedAtUtc,
       },
     });
+    if (moved.count !== 1) {
+      throw new DestructionReviewError("DESTRUCTION_REVIEW_INVALID_TRANSITION", {
+        from,
+        to: input.nextStatus,
+        reason: "STATUS_CHANGED",
+      });
+    }
+    const row = await tx.destructionReview.findUniqueOrThrow({ where: { id: existing.id } });
 
     // Clear the active review pointer on terminal statuses (or RESTORED
     // / DENIED, both of which mean "evidence is no longer queued for
@@ -538,23 +627,6 @@ export async function transitionDestructionReview(
         actorUserId: input.actorUserId,
         summary: "Destruction review restored — evidence returned to ACTIVE",
         eventType: "destruction_review_restored",
-        metadata: { destructionReviewId: existing.id },
-        requestId: input.requestId ?? null,
-      },
-      client,
-    ).catch(() => null);
-  }
-
-  // An approved review that is CANCELLED releases the record it queued.
-  if (input.nextStatus === "CANCELLED" && from === "APPROVED") {
-    await transitionLifecycle(
-      {
-        teamId: input.teamId,
-        evidenceId: existing.evidenceId,
-        toState: "ACTIVE",
-        actorUserId: input.actorUserId,
-        summary: "Approved destruction review cancelled — evidence returned to ACTIVE",
-        eventType: "lifecycle_transition",
         metadata: { destructionReviewId: existing.id },
         requestId: input.requestId ?? null,
       },
@@ -624,6 +696,27 @@ type ExecuteApprovedReviewInput = {
   requestId?: string | null;
 };
 
+type DestructionReviewReleaseState = "ACTIVE" | "UNDER_REVIEW" | "ARCHIVED";
+
+/**
+ * GOV-019 — the hash of the certificate the executor already minted for this
+ * record, for when this caller lost the race or the executor reports the record
+ * was already destroyed. Never a second certificate, and never a null written
+ * over a real one.
+ */
+async function certificateHashFromLedger(
+  evidenceId: string,
+  client: PrismaClient,
+): Promise<string | null> {
+  const event = await client.evidenceLifecycleEvent.findFirst({
+    where: { evidenceId, eventType: "destruction_executed" },
+    orderBy: { createdAt: "desc" },
+    select: { metadata: true },
+  });
+  const hash = (event?.metadata as { certificateHash?: unknown } | null)?.certificateHash;
+  return typeof hash === "string" ? hash : null;
+}
+
 async function executeApprovedReview(
   input: ExecuteApprovedReviewInput,
   client: PrismaClient,
@@ -640,6 +733,9 @@ async function executeApprovedReview(
       "DESTRUCTION_REVIEW_INVALID_TRANSITION",
       { from, to: "EXECUTED" },
     );
+  }
+  if (!destructionExecutionEnabled()) {
+    throw new DestructionReviewError("DESTRUCTION_EXECUTION_DISABLED");
   }
 
   // Final hold + immutable check at execution time (defense in depth —
@@ -690,6 +786,24 @@ async function executeApprovedReview(
   // certificate of its own — it records the one the executor earned.
   const executedAt = new Date();
 
+  // GOV-002 — this person's request is what authorises execution; the executor
+  // reads it back and the worker only ever continues it.
+  const requested = await client.destructionReview.updateMany({
+    where: { id: existing.id, status: "APPROVED" },
+    data: {
+      executionRequestedAtUtc: existing.executionRequestedAtUtc ?? executedAt,
+      executionRequestedByUserId: existing.executionRequestedByUserId ?? input.actorUserId,
+      executionNotBeforeUtc: null,
+    },
+  });
+  if (requested.count !== 1) {
+    throw new DestructionReviewError("DESTRUCTION_REVIEW_INVALID_TRANSITION", {
+      from,
+      to: "EXECUTED",
+      reason: "STATUS_CHANGED",
+    });
+  }
+
   const evidenceRow = await client.evidence.findUnique({
     where: { id: existing.evidenceId },
     select: { id: true, teamId: true, caseLinks: { select: { caseId: true } } },
@@ -713,12 +827,9 @@ async function executeApprovedReview(
       destructionReviewId: existing.id,
       legalHold: hold.held,
       objectLockExpected: String(process.env.S3_OBJECT_LOCK_ENABLED ?? "").trim().toLowerCase() === "true",
-      // The APPROVED review IS the approval. Declaring the requirement rather
-      // than omitting it keeps the executor's fail-closed branch live: if this
-      // review ever stops being the thing that satisfies approval, the executor
-      // refuses instead of assuming.
+      // Named, not vouched for: the executor reads this review back and refuses
+      // unless it is this record's, APPROVED, with an execution request.
       destructionApprovalRequired: true,
-      destructionApproved: true,
       correlationId: input.requestId ?? null,
     },
     apiEvidenceDestructionStorage,
@@ -730,15 +841,26 @@ async function executeApprovedReview(
         bump("destruction_blocked_by_hold_total");
         throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_HOLD");
       }
+      if (destruction.reason === "DESTRUCTION_EXECUTION_DISABLED") {
+        throw new DestructionReviewError("DESTRUCTION_EXECUTION_DISABLED");
+      }
       if (
         destruction.reason === "EVIDENCE_LOCKED" ||
-        destruction.reason === "APP_RETENTION_ACTIVE" ||
-        destruction.reason === "OBJECT_LOCK_RETENTION_ACTIVE"
+        destruction.reason === "RETENTION_POLICY_IMMUTABLE"
       ) {
         bump("destruction_blocked_by_immutable_total");
         throw new DestructionReviewError(
           "DESTRUCTION_REVIEW_BLOCKED_BY_IMMUTABLE",
         );
+      }
+      if (
+        destruction.reason === "APP_RETENTION_ACTIVE" ||
+        destruction.reason === "OBJECT_LOCK_RETENTION_ACTIVE"
+      ) {
+        throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_RETENTION", {
+          blockReason: destruction.reason,
+          eligibleAtUtc: destruction.retainedUntilUtc ?? null,
+        });
       }
       throw new DestructionReviewError(
         "DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE",
@@ -746,7 +868,8 @@ async function executeApprovedReview(
       );
     }
     // Storage refused, or an object survived the delete. The review stays
-    // APPROVED — recoverable, retryable, and honestly NOT executed.
+    // APPROVED — recoverable, retryable, and honestly NOT executed. The
+    // execution request stands, so the sweep carries on with it.
     throw new DestructionReviewError(
       "DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE",
       { code: destruction.outcome },
@@ -755,14 +878,17 @@ async function executeApprovedReview(
 
   // The hash the executor minted, mirrored onto the review row. There is no
   // second certificate: a redelivery that finds the record already destroyed
-  // records the review as executed without minting anything.
+  // records the review as executed with the hash already on the ledger.
   const certificateHash =
-    destruction.outcome === "DESTROYED" ? destruction.certificateHash : null;
+    destruction.outcome === "DESTROYED"
+      ? destruction.certificateHash
+      : await certificateHashFromLedger(existing.evidenceId, client);
 
-  // Flip the review to EXECUTED + clear the active pointer.
+  // Flip the review to EXECUTED + clear the active pointer. Compare-and-set: if
+  // the worker got here first its row stands and is never overwritten (GOV-019).
   const updated = await client.$transaction(async (tx) => {
-    const row = await tx.destructionReview.update({
-      where: { id: existing.id },
+    const moved = await tx.destructionReview.updateMany({
+      where: { id: existing.id, status: "APPROVED" },
       data: {
         status: "EXECUTED",
         executedAtUtc: executedAt,
@@ -771,11 +897,13 @@ async function executeApprovedReview(
         decidedAtUtc: existing.decidedAtUtc ?? executedAt,
       },
     });
-    await tx.evidence.update({
-      where: { id: existing.evidenceId },
-      data: { activeDestructionReviewId: null },
-    });
-    return row;
+    if (moved.count === 1) {
+      await tx.evidence.update({
+        where: { id: existing.evidenceId },
+        data: { activeDestructionReviewId: null },
+      });
+    }
+    return tx.destructionReview.findUniqueOrThrow({ where: { id: existing.id } });
   });
 
   bump("destruction_executed_total");

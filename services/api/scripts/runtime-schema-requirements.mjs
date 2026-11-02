@@ -616,6 +616,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     requiredBy: "every demo request read selects it through the Prisma client",
     suppliedBy: "20281104000200_demo_request_qualification",
   },
+  // 20281102000000 — a review reaches storage only after a person asks for it.
+  {
+    id: "destruction_reviews.execution_requested_at_utc",
+    kind: "column",
+    detail: 'column public."destruction_reviews"."execution_requested_at_utc" must exist',
+    requiredBy: "the destruction sweep and executor read this to see that a person asked for execution",
+    suppliedBy: "20281102000000_destruction_governance_truth",
+  },
 ]);
 
 /**
@@ -1034,6 +1042,8 @@ const PROBES = Object.freeze({
   "enterprise_contracts.status_before_termination": columnProbe("enterprise_contracts", "status_before_termination"),
   "users.credential_proven_at_utc": columnProbe("users", "credential_proven_at_utc"),
   "organizations.pending_enterprise_workspace_name": columnProbe("organizations", "pending_enterprise_workspace_name"),
+  },
+  "destruction_reviews.execution_requested_at_utc": columnProbe("destruction_reviews", "execution_requested_at_utc"),
   "billing_provider_customers.table": `
     SELECT 1
       FROM information_schema.tables

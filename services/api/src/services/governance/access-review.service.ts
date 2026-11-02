@@ -11,6 +11,11 @@
  *   * Campaign state machine: DRAFT → OPEN → CLOSED (or CANCELLED).
  *   * Items are added at campaign creation; reviewers update decisions
  *     individually.
+ *   * (GOV-014) An item names a real member and a real grant of this workspace,
+ *     checked at creation. A decision needs an OPEN campaign and a reviewer who
+ *     is not the subject. REVOKED is recorded only once the grant is revoked: a
+ *     failed revoke leaves the item PENDING and says why. The decision and its
+ *     audit commit together.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -49,7 +54,52 @@ export type CreateCampaignInput = {
 
 export type CreateCampaignResult =
   | { ok: true; campaignId: string; itemCount: number }
-  | { ok: false; denial: "POLICY_REJECTED" };
+  | { ok: false; denial: "POLICY_REJECTED" | "SUBJECT_NOT_A_MEMBER" | "GRANT_NOT_RECOGNISED" };
+
+/** The grants an access review can actually revoke. */
+const REVOCABLE_GRANT_KINDS = [
+  "delegated_admin",
+  "delegated_scope",
+  "external_review",
+  "department_membership",
+] as const;
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseGrantRef(ref: string | null): { kind: string; id: string } | null {
+  const [kind, id, ...rest] = String(ref ?? "").split(":");
+  if (!kind || !id || rest.length > 0) return null;
+  if (!(REVOCABLE_GRANT_KINDS as readonly string[]).includes(kind) || !UUID_SHAPE.test(id)) return null;
+  return { kind, id };
+}
+
+/** A grant reference must resolve to a live grant of this workspace and subject. */
+async function grantExists(
+  prisma: PrismaClient,
+  teamId: string,
+  subjectUserId: string,
+  grant: { kind: string; id: string },
+): Promise<boolean> {
+  if (grant.kind === "department_membership") {
+    const row = await prisma.departmentMembership.findFirst({
+      where: { id: grant.id, teamId, state: "ACTIVE", userId: subjectUserId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  if (grant.kind === "external_review") {
+    const row = await prisma.externalReviewGrant.findFirst({
+      where: { id: grant.id, teamId },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+  const row = await prisma.memberDelegatedAdminScope.findFirst({
+    where: { id: grant.id, teamId, revokedAtUtc: null, teamMember: { userId: subjectUserId } },
+    select: { id: true },
+  });
+  return row !== null;
+}
 
 export async function createCampaign(
   input: CreateCampaignInput,
@@ -61,6 +111,17 @@ export async function createCampaign(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  for (const item of input.items) {
+    // A fact about the campaign's data, not a gate on the caller.
+    const members = await prisma.teamMember.count({
+      where: { teamId: input.teamId, userId: item.subjectUserId },
+    });
+    if (members === 0) return { ok: false, denial: "SUBJECT_NOT_A_MEMBER" };
+    const grant = parseGrantRef(item.grantRef);
+    if (!grant || !(await grantExists(prisma, input.teamId, item.subjectUserId, grant))) {
+      return { ok: false, denial: "GRANT_NOT_RECOGNISED" };
+    }
+  }
   const campaign = await prisma.accessReviewCampaign.create({
     data: {
       teamId: input.teamId,
@@ -134,9 +195,74 @@ export type RecordItemDecisionInput = {
   notes?: string | null;
 };
 
+export type RecordItemDecisionResult =
+  | { ok: true }
+  | {
+      ok: false;
+      denial?:
+        | "CAMPAIGN_NOT_OPEN"
+        | "SELF_REVIEW_REFUSED"
+        | "GRANT_NOT_REVOCABLE"
+        | "GRANT_REVOKE_FAILED"
+        | "ALREADY_DECIDED";
+    };
+
+/**
+ * Carry out a REVOKED decision. Answers whether the grant is gone, so the decision
+ * can never report a revocation that did not happen. Already revoked counts: the
+ * state the reviewer asked for holds, and a retried decision must not fail on it.
+ */
+async function revokeGrant(
+  prisma: PrismaClient,
+  input: { teamId: string; reviewerUserId: string; grant: { kind: string; id: string } },
+): Promise<boolean> {
+  const { kind, id } = input.grant;
+  try {
+    if (kind === "delegated_admin" || kind === "delegated_scope") {
+      // Members audit DOM-09 — the one delegated-admin authority.
+      await revokeDelegatedAdminScope(
+        {
+          teamId: input.teamId,
+          scopeId: id,
+          actorUserId: input.reviewerUserId,
+          reason: "access_review_revoked",
+        },
+        prisma,
+      );
+      return true;
+    }
+    if (kind === "external_review") {
+      const res = await revokeInvitation({
+        prisma,
+        teamId: input.teamId,
+        grantId: id,
+        revokedByUserId: input.reviewerUserId,
+        reason: "access_review_revoked",
+      });
+      return res.ok;
+    }
+    const res = await revokeDepartmentMembership({
+      prisma,
+      teamId: input.teamId,
+      membershipId: id,
+      actorUserId: input.reviewerUserId,
+    });
+    return res.ok || (res as { denial?: string }).denial === "ALREADY_REVOKED";
+  } catch (err) {
+    if ((err as { code?: string }).code === "delegated_scope_not_found") {
+      const gone = await prisma.memberDelegatedAdminScope.findFirst({
+        where: { id, teamId: input.teamId, revokedAtUtc: { not: null } },
+        select: { id: true },
+      });
+      return gone !== null;
+    }
+    return false;
+  }
+}
+
 export async function recordItemDecision(
   input: RecordItemDecisionInput,
-): Promise<{ ok: boolean }> {
+): Promise<RecordItemDecisionResult> {
   if (!(ACCESS_REVIEW_ITEM_DECISIONS as ReadonlyArray<string>).includes(input.decision)) {
     return { ok: false };
   }
@@ -144,53 +270,57 @@ export async function recordItemDecision(
   const prisma = input.prisma ?? defaultPrisma;
   const row = await prisma.accessReviewItem.findFirst({
     where: { id: input.itemId, teamId: input.teamId },
-    select: { id: true, decision: true, grantRef: true },
-  });
-  if (!row) return { ok: false };
-  if (row.decision !== "PENDING") return { ok: false };
-  await prisma.accessReviewItem.update({
-    where: { id: row.id },
-    data: {
-      decision: input.decision,
-      reviewerUserId: input.reviewerUserId,
-      reviewedAtUtc: new Date(),
-      notes: input.notes?.slice(0, 2000) ?? null,
+    select: {
+      id: true,
+      decision: true,
+      grantRef: true,
+      subjectUserId: true,
+      campaign: { select: { state: true } },
     },
   });
+  if (!row) return { ok: false };
+  if (row.campaign?.state !== "OPEN") return { ok: false, denial: "CAMPAIGN_NOT_OPEN" };
+  if (row.subjectUserId === input.reviewerUserId) return { ok: false, denial: "SELF_REVIEW_REFUSED" };
+  if (row.decision !== "PENDING") return { ok: false, denial: "ALREADY_DECIDED" };
 
-  // Side-effects: REVOKED dispatches actual grant revocation.
-  if (input.decision === "REVOKED" && row.grantRef) {
-    const [kind, uuid] = row.grantRef.split(":");
-    if (kind && uuid) {
-      if (kind === "delegated_admin" || kind === "delegated_scope") {
-        // Members audit DOM-09 — the one delegated-admin authority.
-        await revokeDelegatedAdminScope(
-          {
-            teamId: input.teamId,
-            scopeId: uuid,
-            actorUserId: input.reviewerUserId,
-            reason: "access_review_revoked",
-          },
-          prisma,
-        ).catch(() => {});
-      } else if (kind === "external_review") {
-        await revokeInvitation({
-          prisma,
-          teamId: input.teamId,
-          grantId: uuid,
-          revokedByUserId: input.reviewerUserId,
-          reason: "access_review_revoked",
-        }).catch(() => {});
-      } else if (kind === "department_membership") {
-        await revokeDepartmentMembership({
-          prisma,
-          teamId: input.teamId,
-          membershipId: uuid,
-          actorUserId: input.reviewerUserId,
-        }).catch(() => {});
-      }
-    }
+  // REVOKED acts first: if the grant cannot be revoked the item stays PENDING and
+  // the reviewer is told, rather than a certification saying access was removed.
+  // A crash after this leaves a PENDING item whose retry finds the grant gone.
+  if (input.decision === "REVOKED") {
+    const grant = parseGrantRef(row.grantRef);
+    if (!grant) return { ok: false, denial: "GRANT_NOT_REVOCABLE" };
+    const revoked = await revokeGrant(prisma, {
+      teamId: input.teamId,
+      reviewerUserId: input.reviewerUserId,
+      grant,
+    });
+    if (!revoked) return { ok: false, denial: "GRANT_REVOKE_FAILED" };
   }
+
+  // Compare-and-set, with its audit in one transaction.
+  const recorded = await prisma.$transaction(async (txClient) => {
+    const tx = txClient as unknown as PrismaClient;
+    const claim = await tx.accessReviewItem.updateMany({
+      where: { id: row.id, decision: "PENDING" },
+      data: {
+        decision: input.decision,
+        reviewerUserId: input.reviewerUserId,
+        reviewedAtUtc: new Date(),
+        notes: input.notes?.slice(0, 2000) ?? null,
+      },
+    });
+    if (claim.count !== 1) return false;
+    await emitAccessReviewDecisionEvent({
+      prisma: tx,
+      teamId: input.teamId,
+      itemId: row.id,
+      decision: input.decision,
+      actorUserId: input.reviewerUserId,
+      reason: input.notes ?? null,
+    });
+    return true;
+  });
+  if (!recorded) return { ok: false, denial: "ALREADY_DECIDED" };
 
   // Side-effects: ESCALATED dispatches the escalation service.
   if (input.decision === "ESCALATED") {
@@ -202,16 +332,6 @@ export async function recordItemDecision(
       reason: input.notes ?? null,
     }).catch(() => {});
   }
-
-  // Always emit an audit event for every decision.
-  void emitAccessReviewDecisionEvent({
-    prisma,
-    teamId: input.teamId,
-    itemId: row.id,
-    decision: input.decision,
-    actorUserId: input.reviewerUserId,
-    reason: input.notes ?? null,
-  }).catch(() => {});
 
   return { ok: true };
 }

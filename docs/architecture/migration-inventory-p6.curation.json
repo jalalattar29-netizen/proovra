@@ -3814,6 +3814,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.platform_backup_records') IS NOT NULL;\"",
       "evidence": "OPS-004 (2026-11-01). New append-only table written by the backup schedule, so the readiness posture reports recorded runs and not an assumption from DATABASE_URL. No existing row is touched."
+    },
+    "20281102000000_destruction_governance_truth": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='destruction_reviews' AND column_name='execution_requested_at_utc') = 1 AND (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='destruction_certificates' AND column_name='certificate_body') = 1 AND (SELECT count(*) FROM pg_trigger WHERE tgname='destruction_certificates_append_only') = 1;\"",
+      "evidence": "DESTRUCTION GOVERNANCE TRUTH (2026-11-01). Nullable columns on destruction_reviews, destruction_requests, destruction_certificates, evidence and evidence_legal_holds; two partial indexes; destruction_certificates becomes append-only and destruction_requests, destruction_reviews and destruction_executions refuse DELETE. No row is rewritten. Nothing in the code updates a certificate or deletes one of these rows."
     }
   }
 }

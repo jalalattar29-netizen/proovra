@@ -366,6 +366,9 @@ function buildLocalValues({ webPort, apiPort, databaseUrl, redisUrl }) {
     PACKAGE_SIGNING_PRIVATE_KEY_PATH: signingKeys.privatePath,
     PACKAGE_SIGNING_PUBLIC_KEY_PATH: signingKeys.publicPath,
     S3_OBJECT_LOCK_ENABLED: "false",
+    // Off unless set in every deployment (GOV-002). The local journeys execute
+    // destruction against disposable storage, so this stack turns it on.
+    DESTRUCTION_EXECUTION_ENABLED: "true",
     /*
      * "OFF", not "false" — this one is an ENUM, not a boolean.
      *

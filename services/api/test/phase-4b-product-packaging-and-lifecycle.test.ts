@@ -193,6 +193,7 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
     },
     // Transfers append custody in their own transaction (ET-CUS-02).
     custodyEvent: {
+      findMany: async () => [],
       findFirst: async () => null,
       create: async (args: { data: Record<string, unknown> }) => ({ id: "ce-1", ...args.data }),
     },
@@ -238,6 +239,7 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       update: async () => ({}),
     },
     destructionRequest: {
+      updateMany: async () => ({ count: 1 }),
       create: async (args: { data: Record<string, unknown>; select: unknown }) => ({
         id: "dreq-1",
         ...args.data,
@@ -248,9 +250,10 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       update: async () => ({}),
     },
     destructionCertificate: {
+      findUnique: async () => null,
       create: async (args: { data: Record<string, unknown>; select: unknown }) => ({
-        id: "cert-1",
         ...args.data,
+        id: "cert-1",
       }),
       findFirst: async () => null,
     },
@@ -902,6 +905,7 @@ describe("8. Destruction dual approval", () => {
     ];
     const prisma = makePrismaStub({
       destructionRequest: {
+        updateMany: async () => ({ count: 1 }),
         findFirst: async () => ({
           id: "dreq-1",
           state: "REQUESTED",
@@ -935,6 +939,7 @@ describe("8. Destruction dual approval", () => {
     ];
     const prisma = makePrismaStub({
       destructionRequest: {
+        updateMany: async () => ({ count: 1 }),
         findFirst: async () => ({
           id: "dreq-1",
           state: "REQUESTED",
@@ -976,7 +981,9 @@ describe("9. Destruction blocked by legal hold", () => {
       evidence: {
         findUnique: async () => ({ id: "ev-1", caseId: null }),
         findFirst: async () => null,
-        findMany: async () => [],
+        // The record is in this workspace and in the trash.
+        count: async () => 1,
+        findMany: async () => [{ lifecycleState: "TRASHED", deletedAt: new Date(), destroyedAtUtc: null }],
       },
       evidenceLegalHold: {
         count: async () => 1,
@@ -984,6 +991,7 @@ describe("9. Destruction blocked by legal hold", () => {
         findMany: async () => [{ id: "lh-1", evidenceId: "ev-1", status: "ACTIVE" }],
       },
       destructionRequest: {
+        updateMany: async () => ({ count: 1 }),
         create: async (args: { data: Record<string, unknown> }) => ({ id: "dreq-1", ...args.data }),
         findFirst: async () => null,
         findMany: async () => [],
@@ -1019,6 +1027,7 @@ describe("10. Destruction certificate", () => {
     const executedAt = new Date();
     const prisma = makePrismaStub({
       destructionRequest: {
+        updateMany: async () => ({ count: 1 }),
         findFirst: async () => ({
           id: "dreq-1",
           teamId: "team-1",
@@ -1033,9 +1042,10 @@ describe("10. Destruction certificate", () => {
         findMany: async () => [],
       },
       destructionCertificate: {
+        findUnique: async () => null,
         create: async (args: { data: Record<string, unknown>; select: unknown }) => ({
-          id: "cert-1",
           ...args.data,
+          id: "cert-1",
         }),
         findFirst: async () => null,
       },
@@ -1333,11 +1343,13 @@ describe("14. Chain transfer state machine", () => {
         findMany: async () => [],
         update: async () => ({}),
       },
+      organization: { findUnique: async () => ({ id: "org-two" }) },
     });
     const result = await initiateChainTransfer({
       prisma: prisma as never,
       teamId: "team-1",
       fromOrganizationId: "org-1",
+      toOrganizationId: "org-two",
       toOrganizationSlug: "org-two",
       evidenceIds: ["ev-1"],
       initiatedByUserId: "user-1",
@@ -1350,11 +1362,15 @@ describe("14. Chain transfer state machine", () => {
     let updatedState: string | undefined;
     const prisma = makePrismaStub({
       chainTransfer: {
-        findFirst: async () => ({
+        findUnique: async () => ({
           id: "xfer-1",
+          teamId: "team-sender",
           state: "INITIATED",
           fromOrganizationId: "org-1",
+          toOrganizationId: "org-two",
           toOrganizationSlug: "org-two",
+          evidenceIds: [],
+          expiresAtUtc: null,
         }),
         updateMany: async (args: { data: Record<string, unknown> }) => {
           updatedState = args.data.state as string;
@@ -1363,6 +1379,7 @@ describe("14. Chain transfer state machine", () => {
         create: async () => ({ id: "xfer-1" }),
         findMany: async () => [],
       },
+      team: { findUnique: async () => ({ organizationId: "org-two" }) },
     });
     const result = await acceptChainTransfer({
       prisma: prisma as never,

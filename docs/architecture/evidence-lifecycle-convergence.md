@@ -156,6 +156,10 @@ destruction-in-progress/FAILED, **not** DESTROYED, and **no final certificate**.
 
 The current three paths converge onto this ONE executor:
 - Trash-grace worker (§8) enqueues it.
+- `DESTRUCTION_EXECUTION_ENABLED` is the one switch, read by the API, the sweep and
+  the executor, and off unless set. Approval is a decision: only a person's
+  stepped-up EXECUTED act authorises execution, and the executor reads that from the
+  governance store rather than taking it as an input (GOV-001, GOV-002).
 - Governance orchestrator (`destruction-orchestrator.worker.ts`) calls/enqueues it
   instead of flipping `DESTROYED` with no deletion.
 - Manual Phase-4B (`destruction-governance.service.ts` /

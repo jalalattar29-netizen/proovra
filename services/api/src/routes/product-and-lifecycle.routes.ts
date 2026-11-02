@@ -80,6 +80,11 @@ import {
   listLifecycleLegalHoldsLegacyShape,
   placeCanonicalLegalHold,
   releaseLegalHoldAnyStore,
+  approveLegalHoldRelease,
+  legalHoldReleaseRefusal,
+  listRecordsCommittedToDestruction,
+  projectCanonicalLegalHold,
+  requestLegalHoldRelease,
 } from "../services/governance/legal-hold.service.js";
 import {
   listArchiveTransitions,
@@ -87,7 +92,9 @@ import {
   transitionEvidenceTier,
 } from "../services/lifecycle/archive-tier.service.js";
 import {
+  assertDestructionRequestActionable,
   createDestructionRequest,
+  listEligibleDestructionApprovers,
   getDestructionCertificate,
   getDestructionCertificateArtifact,
   listDestructionRequests,
@@ -155,9 +162,23 @@ async function resolveWorkspace(
  */
 function sendDestructionRefusal(reply: FastifyReply, err: unknown) {
   if (isDomainError(err)) {
-    return reply.code(err.httpStatus).send({ denial: err.publicCode });
+    const eligibleAtUtc = err.metadata.eligibleAtUtc;
+    return reply
+      .code(err.httpStatus)
+      .send({ denial: err.publicCode, ...(eligibleAtUtc ? { eligibleAtUtc } : {}) });
   }
   throw err;
+}
+
+/**
+ * GOV-001 — every write on the destruction path answers to the entitlement, the
+ * same one its read route has always checked. Returns true when it refused.
+ */
+async function denyWithoutDestructionGovernance(reply: FastifyReply, teamId: string): Promise<boolean> {
+  const featureOk = await assertFeatureEntitlement({ teamId, key: "FEATURE_DESTRUCTION_GOVERNANCE" });
+  if (featureOk.ok) return false;
+  reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
+  return true;
 }
 
 export async function productAndLifecycleRoutes(app: FastifyInstance) {
@@ -840,7 +861,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const transfers = await listChainTransfers({ teamId: ctx.teamId });
-      return reply.code(200).send({ transfers });
+      const team = await prisma.team.findUnique({
+        where: { id: ctx.teamId },
+        select: { organizationId: true },
+      });
+      // A sender names the recipient by this id, so the recipient has to see it.
+      return reply.code(200).send({ transfers, organizationId: team?.organizationId ?? null });
     },
   );
 
@@ -870,18 +896,25 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
 
       const body = z
         .object({
-          fromOrganizationId: z.string().uuid(),
-          toOrganizationSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/),
+          // Optional: the workspace's own organization unless a caller states it.
+          fromOrganizationId: z.string().uuid().optional(),
+          toOrganizationId: z.string().uuid(),
+          toOrganizationSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/).optional(),
           evidenceIds: z.array(z.string().uuid()).min(1).max(500),
           caseId: z.string().uuid().nullable().optional(),
-          reasonNote: z.string().min(1).max(400).optional(),
+          reasonNote: z.string().min(1).max(400).nullable().optional(),
           expiresAtUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body);
+      const sender = await prisma.team.findUnique({
+        where: { id: ctx.teamId },
+        select: { organizationId: true },
+      });
       const res = await initiateChainTransfer({
         teamId: ctx.teamId,
-        fromOrganizationId: body.fromOrganizationId,
-        toOrganizationSlug: body.toOrganizationSlug,
+        fromOrganizationId: body.fromOrganizationId ?? sender?.organizationId ?? "",
+        toOrganizationId: body.toOrganizationId,
+        toOrganizationSlug: body.toOrganizationSlug ?? null,
         evidenceIds: body.evidenceIds,
         caseId: body.caseId ?? null,
         reasonNote: body.reasonNote ?? null,
@@ -900,16 +933,14 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
-      const body = z
-        .object({ acceptingOrgId: z.string().uuid().optional() })
-        .parse(req.body ?? {});
       const res = await acceptChainTransfer({
         teamId: ctx.teamId,
         transferId: id,
         acceptingUserId: ctx.userId,
-        acceptingOrgId: body.acceptingOrgId ?? null,
       });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial });
+      if (!res.ok) {
+        return reply.code(res.denial === "NOT_FOUND" ? 404 : 409).send({ denial: res.denial });
+      }
       return reply.code(200).send({ ok: true });
     },
   );
@@ -1477,7 +1508,11 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           reason: body.reason,
           expiresAtUtc: body.expiresAtUtc ? new Date(body.expiresAtUtc) : null,
         });
-        return reply.code(201).send({ holdId: hold.id });
+        return reply.code(201).send({
+          holdId: hold.id,
+          // GOV-013 — anything this hold arrived too late to protect, by name.
+          alreadyCommittedToDestruction: await listRecordsCommittedToDestruction(hold),
+        });
       } catch (err) {
         if (err instanceof LegalHoldError) {
           return reply.code(err.statusCode === 404 ? 409 : err.statusCode).send({
@@ -1522,14 +1557,21 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const body = z
         .object({
           reason: z.string().min(1).max(600).optional(),
-          // CLUSTER 8 — release note, optimistic concurrency and the
-          // approval acknowledgement now apply to EVERY scope, not just the
-          // case-scoped surface that used to enforce them.
+          // CLUSTER 8 — release note and optimistic concurrency apply to EVERY
+          // scope, not just the case-scoped surface that used to enforce them.
           releaseNote: z.string().min(1).max(4000).optional(),
           expectedVersion: z.number().int().min(1).optional(),
-          approvalAcknowledged: z.boolean().optional(),
         })
         .parse(req.body ?? {});
+
+      // GOV-011 — refused before step-up is offered, by the second person's
+      // recorded approval and nothing the caller can say about itself.
+      const refusal = await legalHoldReleaseRefusal({
+        teamId: ctx.teamId,
+        holdId: id,
+        actorUserId: ctx.userId,
+      });
+      if (refusal) return reply.code(403).send({ denial: refusal.toUpperCase() });
 
       // CLUSTER 8 — releasing a hold is a sensitive custody action.
       // LEGAL_HOLD_RELEASE is in the MFA force-list and the sibling
@@ -1552,7 +1594,6 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           actorUserId: ctx.userId,
           releaseNote: body.releaseNote ?? body.reason ?? "Released by operator.",
           expectedVersion: body.expectedVersion ?? null,
-          approvalAcknowledged: body.approvalAcknowledged === true,
         });
         return reply.code(200).send({ ok: true });
       } catch (err) {
@@ -1562,6 +1603,87 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
               err.code === "hold_not_found"
                 ? "NOT_FOUND"
                 : err.code.toUpperCase(),
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // GOV-011 — a hold under release approval: one person asks, a second approves.
+  app.post(
+    "/v1/lifecycle/legal-holds/:id/release-request",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.legal_hold.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const body = z.object({ note: z.string().min(1).max(4000) }).parse(req.body ?? {});
+      try {
+        const hold = await requestLegalHoldRelease({
+          teamId: ctx.teamId,
+          holdId: id,
+          actorUserId: ctx.userId,
+          note: body.note,
+        });
+        return reply.code(200).send({ hold: projectCanonicalLegalHold(hold) });
+      } catch (err) {
+        if (err instanceof LegalHoldError) {
+          return reply.code(err.statusCode).send({
+            denial: err.code === "hold_not_found" ? "NOT_FOUND" : err.code.toUpperCase(),
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/lifecycle/legal-holds/:id/release-approval",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (
+        !(await authorizeOrFail(req, reply, {
+          teamId: ctx.teamId,
+          permission: "governance.legal_hold.manage",
+          antiEnumeration: true,
+        }))
+      ) {
+        return reply;
+      }
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      const stepUpGate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: ctx.teamId,
+        userId: ctx.userId,
+        purpose: "LEGAL_HOLD_RELEASE",
+        resourceKind: "evidence_legal_hold",
+        resourceId: id,
+      });
+      if (stepUpGate.sent) return;
+      try {
+        const hold = await approveLegalHoldRelease({
+          teamId: ctx.teamId,
+          holdId: id,
+          actorUserId: ctx.userId,
+        });
+        return reply.code(200).send({ hold: projectCanonicalLegalHold(hold) });
+      } catch (err) {
+        if (err instanceof LegalHoldError) {
+          return reply.code(err.statusCode).send({
+            denial: err.code === "hold_not_found" ? "NOT_FOUND" : err.code.toUpperCase(),
           });
         }
         throw err;
@@ -1683,6 +1805,26 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     },
   );
 
+  app.get(
+    "/v1/lifecycle/destruction/eligible-approvers",
+    {
+      preHandler: [
+        requireAuth,
+        requireWorkspacePermission("governance.destruction.request"),
+      ],
+    },
+    async (req, reply) => {
+      const ctx = await resolveWorkspace(req, reply);
+      if (!ctx) return reply;
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      const approvers = await listEligibleDestructionApprovers({
+        teamId: ctx.teamId,
+        requesterUserId: ctx.userId,
+      });
+      return reply.code(200).send({ approvers });
+    },
+  );
+
   app.post(
     "/v1/lifecycle/destruction/requests",
     {
@@ -1702,16 +1844,21 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           requiredApproverUserIds: z.array(z.string().uuid()).min(1),
         })
         .parse(req.body);
-      const res = await createDestructionRequest({
-        teamId: ctx.teamId,
-        evidenceIds: body.evidenceIds,
-        reason: body.reason,
-        policyRef: body.policyRef ?? null,
-        requestedByUserId: ctx.userId,
-        requiredApproverUserIds: body.requiredApproverUserIds,
-      });
-      if (!res.ok) return reply.code(409).send({ denial: res.denial, holdIds: res.holdIds ?? [] });
-      return reply.code(201).send({ requestId: res.requestId });
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      try {
+        const res = await createDestructionRequest({
+          teamId: ctx.teamId,
+          evidenceIds: body.evidenceIds,
+          reason: body.reason,
+          policyRef: body.policyRef ?? null,
+          requestedByUserId: ctx.userId,
+          requiredApproverUserIds: body.requiredApproverUserIds,
+        });
+        if (!res.ok) return reply.code(409).send({ denial: res.denial, holdIds: res.holdIds ?? [] });
+        return reply.code(201).send({ requestId: res.requestId });
+      } catch (err) {
+        return sendDestructionRefusal(reply, err);
+      }
     },
   );
 
@@ -1727,7 +1874,25 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
+        await assertDestructionRequestActionable({
+          teamId: ctx.teamId,
+          requestId: id,
+          action: "APPROVE",
+          actorUserId: ctx.userId,
+        });
+        // SEC-03 — approving destruction needs a fresh factor, on this path too.
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "EVIDENCE_DESTRUCTION_APPROVE",
+          resourceKind: "destruction_request",
+          resourceId: id,
+        });
+        if (gate.sent) return reply;
         const res = await recordApproval({
           teamId: ctx.teamId,
           requestId: id,
@@ -1745,7 +1910,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
     {
       preHandler: [
         requireAuth,
-        requireWorkspacePermission("governance.destruction.request"),
+        // GOV-003 — rejecting is a decision on the request, so it takes the
+        // decider's permission, not the requester's.
+        requireWorkspacePermission("governance.destruction.approve"),
       ],
     },
     async (req, reply) => {
@@ -1755,6 +1922,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const body = z
         .object({ reason: z.string().min(1).max(600) })
         .parse(req.body ?? { reason: "rejected" });
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       const res = await rejectDestructionRequest({
         teamId: ctx.teamId,
         requestId: id,
@@ -1775,7 +1943,24 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
+        await assertDestructionRequestActionable({
+          teamId: ctx.teamId,
+          requestId: id,
+          action: "EXECUTE",
+          actorUserId: ctx.userId,
+        });
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: ctx.teamId,
+          userId: ctx.userId,
+          purpose: "EVIDENCE_DESTRUCTION_EXECUTE",
+          resourceKind: "destruction_request",
+          resourceId: id,
+        });
+        if (gate.sent) return reply;
         const res = await executeDestruction({
           teamId: ctx.teamId,
           requestId: id,

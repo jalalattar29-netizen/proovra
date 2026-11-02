@@ -104,11 +104,14 @@ function databaseWith(present: {
   customerCurrency?: boolean;
   // 20281104000000 onward — the commercial remediation columns.
   commercialRemediation?: boolean;
+  // 20281102000000 — destruction governance truth.
+  destructionTruth?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (COMMERCIAL_REMEDIATION_COLUMNS.test(sql)) {
       return present.commercialRemediation === true;
     }
+    if (sql.includes("execution_requested_at_utc")) return present.destructionTruth === true;
     if (/table_name = 'billing_provider_customers'\s+AND column_name = 'currency'/.test(sql)) {
       return present.customerCurrency === true;
     }
@@ -300,6 +303,7 @@ const FULLY_MIGRATED = {
   billingRemediation: true,
   billingDecisions: true,
   customerCurrency: true,
+  destructionTruth: true,
   teamArchiveStepUp: STEP_UP_APPLIED,
   reconciliationEnumValue: true,
   incidentScopeType: true,
@@ -678,6 +682,15 @@ describe("runtime schema requirements — account credential proof (202811040000
       expect.arrayContaining(["users.credential_proven_at_utc", "organizations.pending_enterprise_workspace_name"]),
     );
     expect(describeRuntimeSchemaFailure(result)).toContain("20281104000000_account_credential_proof");
+  });
+});
+
+describe("runtime schema requirements — destruction governance truth", () => {
+  it("names the migration when the column is missing", async () => {
+    const { checkRuntimeSchemaRequirements, describeRuntimeSchemaFailure } = await load();
+    const result = await checkRuntimeSchemaRequirements(databaseWith({ ...FULLY_MIGRATED, destructionTruth: false }));
+    expect(result.missing.map((m) => m.id)).toEqual(["destruction_reviews.execution_requested_at_utc"]);
+    expect(describeRuntimeSchemaFailure(result)).toContain("20281102000000");
   });
 });
 

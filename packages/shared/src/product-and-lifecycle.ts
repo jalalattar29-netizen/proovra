@@ -202,6 +202,8 @@ export const CHAIN_TRANSFER_STATES = [
 export type ChainTransferState = (typeof CHAIN_TRANSFER_STATES)[number];
 
 export type ChainTransferProjection = {
+  /** OUTGOING is this workspace's transfer; INCOMING is one it may accept or reject. */
+  direction?: "OUTGOING" | "INCOMING";
   id: string;
   teamId: string;
   fromOrganizationId: string;
@@ -344,6 +346,14 @@ export const ARCHIVE_TIERS = [
 ] as const;
 
 export type ArchiveTier = (typeof ARCHIVE_TIERS)[number];
+
+/**
+ * GOV-016 — the tag that records a tier on the exact sealed object version.
+ * Tagging touches no bytes and writes no new version, so the version the record's
+ * signature covers stays current and destruction can still prove it is gone. A
+ * bucket lifecycle rule filtering on this tag moves the bytes.
+ */
+export const ARCHIVE_TIER_OBJECT_TAG = "proovra-archive-tier";
 
 export type ArchiveTransitionProjection = {
   evidenceId: string;
