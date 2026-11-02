@@ -103,31 +103,31 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:752",
+      "site": "services/api/src/services/access-control/sso.service.ts:760",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) — the customer's OIDC identity provider discovery document.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:921",
+      "site": "services/api/src/services/access-control/sso.service.ts:938",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) on the callback path.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:802",
+      "site": "services/api/src/services/access-control/sso.service.ts:804",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) — building the forced-reauthentication authorize URL for an IDP_REAUTH step-up (prompt=login, max_age=0).",
       "reviewedAtUtc": "2026-10-28"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:958",
+      "site": "services/api/src/services/access-control/sso.service.ts:965",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.token_endpoint) — the IdP's token endpoint.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:1114",
+      "site": "services/api/src/services/access-control/sso.service.ts:1127",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.userinfo_endpoint) — the IdP's userinfo endpoint.",
       "reviewedAtUtc": "2026-08-15"

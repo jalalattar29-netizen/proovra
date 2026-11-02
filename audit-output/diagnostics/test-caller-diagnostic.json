@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "b230f933ccc7370e616531a540468acb300822eac9042ba537db943176b79455",
+  "capabilityRouteInventoryHash": "9a8f02cf02237ab44a968983d258bd98949a0f468dc56d9884327d90a66cfd6d",
   "totals": {
-    "routes": 1228,
+    "routes": 1229,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
-    "testCallSites": 107,
+    "testCallSites": 108,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -1218,9 +1218,10 @@
     },
     {
       "routeId": "GET /v1/evidence",
-      "testCallerCount": 3,
+      "testCallerCount": 4,
       "testOnly": false,
       "testCallerFiles": [
+        "apps/web/__tests__/render/api-response-error-shapes.render.test.tsx",
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
         "services/api/test/web-apifetch-single-flight.test.ts"
       ]
@@ -4188,6 +4189,12 @@
     },
     {
       "routeId": "POST /v1/auth/saml/acs",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/auth/sso/discover",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7487,5 +7494,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "bb0aadaf6d9ce76c3e63f86e70869efd5f6ed329969c0c6c2dfba6ea41a6c870"
+  "contentHash": "50526b825f6414db85e96bd86b84eecf79e27cdf8dede47a247dd539f7775bf1"
 }
