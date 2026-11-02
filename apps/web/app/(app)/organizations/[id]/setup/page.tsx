@@ -947,12 +947,11 @@ function OrganizationSetupInner() {
                 />
               </Field>
               <Field label="Role">
-                <AppListbox<OrgRole>
+                <AppListbox
                   ariaLabel="Role"
                   value={inviteRole}
                   onChange={setInviteRole}
                   disabled={!canManage || busy}
-                  disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
                   disabledReason={!canManage ? SETUP_READ_ONLY_REASON : undefined}
                   options={INVITE_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
                   triggerProps={{
@@ -1066,7 +1065,7 @@ function OrganizationSetupInner() {
               style={formGrid}
             >
               <Field label="MFA policy">
-                <AppListbox<MfaPolicyLevel>
+                <AppListbox
                   ariaLabel="MFA policy"
                   value={mfaLevel}
                   onChange={setMfaLevel}
@@ -1134,7 +1133,7 @@ function OrganizationSetupInner() {
             style={formGrid}
           >
             <Field label="Default retention window">
-              <AppListbox<RetentionTemplate>
+              <AppListbox
                 ariaLabel="Default retention window"
                 value={retentionTemplate}
                 onChange={setRetentionTemplate}
@@ -1205,7 +1204,7 @@ function OrganizationSetupInner() {
               holds when litigation is anticipated.
             </p>
             <Field label="Hold scope">
-              <AppListbox<HoldKind>
+              <AppListbox
                 ariaLabel="Hold scope"
                 value={holdKind}
                 onChange={setHoldKind}
