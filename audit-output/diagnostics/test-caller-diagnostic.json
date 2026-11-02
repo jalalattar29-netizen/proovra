@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "eb4f7102777fd9d0012ce9b83921be3795a50130e6a063c11589386a08bb825c",
+  "capabilityRouteInventoryHash": "39ac87a290552fb4a382ab854daf2461426eb5ec74a4aa98ae50e0f8c407f83a",
   "totals": {
-    "routes": 1220,
+    "routes": 1225,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
-    "testCallSites": 106,
+    "testCallSites": 107,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -576,6 +576,12 @@
     },
     {
       "routeId": "GET /v1/admin/platform/readiness",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/platform/release",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -2983,6 +2989,12 @@
       ]
     },
     {
+      "routeId": "GET /v1/reviewer-ops/reminders",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/reviewer-ops/runtime-probe",
       "testCallerCount": 1,
       "testOnly": true,
@@ -3554,6 +3566,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "PATCH /v1/admin/orgs/:id/contract",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "PATCH /v1/admin/orgs/:id/plan",
       "testCallerCount": 0,
       "testOnly": false,
@@ -3994,6 +4012,12 @@
     },
     {
       "routeId": "POST /v1/admin/incidents/:id/resolve",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/orgs/:id/owner-invite/reissue",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6857,6 +6881,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/resume",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/start",
       "testCallerCount": 1,
       "testOnly": false,
@@ -7439,5 +7469,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "bbf8004c2f14e9f75223949a0d61327a079ed62c33503b2931ac3767c68a98aa"
+  "contentHash": "4a06120300ca39045bd33afe2930fa25cd4b76e308f7a596964723d7b9f45d2a"
 }

@@ -67,7 +67,7 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/demo-request.service.ts:264",
+      "site": "services/api/src/services/demo-request.service.ts:266",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "sendWebhookIfConfigured — outbound demo-request notification to an operator-configured endpoint.",
       "reviewedAtUtc": "2026-08-15"
@@ -103,31 +103,31 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:748",
+      "site": "services/api/src/services/access-control/sso.service.ts:752",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) — the customer's OIDC identity provider discovery document.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:917",
+      "site": "services/api/src/services/access-control/sso.service.ts:921",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) on the callback path.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:798",
+      "site": "services/api/src/services/access-control/sso.service.ts:802",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) — building the forced-reauthentication authorize URL for an IDP_REAUTH step-up (prompt=login, max_age=0).",
       "reviewedAtUtc": "2026-10-28"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:954",
+      "site": "services/api/src/services/access-control/sso.service.ts:958",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.token_endpoint) — the IdP's token endpoint.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:1110",
+      "site": "services/api/src/services/access-control/sso.service.ts:1114",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.userinfo_endpoint) — the IdP's userinfo endpoint.",
       "reviewedAtUtc": "2026-08-15"

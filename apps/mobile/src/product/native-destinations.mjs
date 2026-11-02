@@ -893,7 +893,7 @@ export const NATIVE_DESTINATIONS = {
       "every call goes through publicFetch, never apiFetch: an upload must be attributed to the intake token, not to whichever account happens to be signed in on the device that opened the link",
       "an anonymous link offers a pseudonym and no email box - offering one would invite a contributor to type an address that is then discarded",
       "consent is an explicit recorded act: an intake that captured evidence without recording what the person agreed to is the gap that matters years later in front of somebody who was not there",
-      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Both association files hold real values. Unverified: that the domain serves them with the right type, and that assetlinks lists the Play app-signing key. Until then an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). The files hold real values. Whether the Android fingerprint is the Play app-signing key is unverified and needs the Play Console. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/intake/[token]/capture": {
@@ -907,7 +907,7 @@ export const NATIVE_DESTINATIONS = {
       "it opens NO capture draft and does not run the authenticated orchestration, which is the web's contract too: there is no Evidence record to hold because the workspace creates one when the session is submitted",
       "the part bound (100) is the route's and is refused before submitting rather than returned as an opaque 400",
       "no location is asked for: this link's template decides whether a position is wanted, and prompting for one the workspace never requested is a request for data it cannot justify holding",
-      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Both association files hold real values. Unverified: that the domain serves them with the right type, and that assetlinks lists the Play app-signing key. Until then an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). The files hold real values. Whether the Android fingerprint is the Play app-signing key is unverified and needs the Play Console. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal": {
@@ -919,7 +919,7 @@ export const NATIVE_DESTINATIONS = {
     gaps: [
       "the bounded token-entry surface, for a reviewer whose email client stripped or rewrote the link but who still has the token in front of them",
       "it exchanges nothing itself - it hands the token to /portal/[token], because two screens that both authenticate would be two places for the MFA and denial behaviour to drift apart",
-      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Both association files hold real values. Unverified: that the domain serves them with the right type, and that assetlinks lists the Play app-signing key. Until then an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). The files hold real values. Whether the Android fingerprint is the Play app-signing key is unverified and needs the Play Console. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal/[token]": {
@@ -932,7 +932,7 @@ export const NATIVE_DESTINATIONS = {
       "token exchange, the MFA code step, reviewer identity, scope and expiry, assigned reviews, the bounded limitations footer, and sign-out",
       "denials are the product, not errors: expired, revoked, throttled, unavailable and not-found each say what happened and what to do, because 'something went wrong' sends a reviewer to email somebody to find out which of four things occurred",
       "the credential is held in MEMORY only - a phone that is shared, lost or handed over must not carry access to somebody else's evidence past the moment it is used, and a relaunch simply re-authenticates from the link",
-      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Both association files hold real values. Unverified: that the domain serves them with the right type, and that assetlinks lists the Play app-signing key. Until then an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). The files hold real values. Whether the Android fingerprint is the Play app-signing key is unverified and needs the Play Console. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal/[token]/work/[workflowId]": {
@@ -945,7 +945,7 @@ export const NATIVE_DESTINATIONS = {
       "the review: comments, an optional note, and the decision, each confirmed before it is recorded",
       "marking a review VIEWED is a real record the workspace relies on, so it is sent once on open - not on every render, and not for a row that merely scrolled past",
       "the decision vocabulary is accept / reject / needs more information. None is a verdict about truth, authorship or admissibility - a reviewer portal is exactly where such a claim would look most authoritative, and the platform does not make it.",
-      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Both association files hold real values. Unverified: that the domain serves them with the right type, and that assetlinks lists the Play app-signing key. Until then an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). The files hold real values. Whether the Android fingerprint is the Play app-signing key is unverified and needs the Play Console. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
   "/portal/accept/[grantId]": {
@@ -958,7 +958,7 @@ export const NATIVE_DESTINATIONS = {
       "acceptance, then straight into the portal with the same token so the reviewer does not have to go back and find a second email",
       "both halves of the link are required: the grant id names the invitation and the token proves it, and posting an empty token would spend the one attempt a valid grant has and then report the reader's own good link as already handled",
       "guarded against a double-invoke, because the acceptance is single-use",
-      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). Both association files hold real values. Unverified: that the domain serves them with the right type, and that assetlinks lists the Play app-signing key. Until then an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
+      "externalLink DEPLOYMENT_PENDING: repository configuration is complete (app.json associatedDomains + autoVerify App Links, and the association files at apps/web/public/.well-known/). The files hold real values. Whether the Android fingerprint is the Play app-signing key is unverified and needs the Play Console. Until the domain serves them an https link opens the browser; proovra:// reaches every screen today. See docs/universal-links.md.",
     ],
   },
 };

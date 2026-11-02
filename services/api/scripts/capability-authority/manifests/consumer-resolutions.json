@@ -82,9 +82,10 @@
         "POST /v1/reviewer-ops/reviews/:workflowId/start",
         "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
         "POST /v1/reviewer-ops/reviews/:workflowId/reject",
-        "POST /v1/reviewer-ops/reviews/:workflowId/pause"
+        "POST /v1/reviewer-ops/reviews/:workflowId/pause",
+        "POST /v1/reviewer-ops/reviews/:workflowId/resume"
       ],
-      "evidence": "The seven call sites pass exactly these five literals: \"approve\", \"start\", \"request-info\", \"reject\", \"pause\".",
+      "evidence": "The call sites pass exactly these six literals: \"approve\", \"start\", \"request-info\", \"reject\", \"pause\", \"resume\".",
       "reviewedAtUtc": "2026-08-15"
     },
     {

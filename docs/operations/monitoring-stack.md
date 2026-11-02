@@ -51,12 +51,28 @@ the target, which is the outage.
 | `infra/grafana/provisioning/alerting/notification-policies.yaml` | grouping, repeat, and a faster path for `severity=critical` |
 | `infra/docker/docker-compose.monitoring.yml` | Prometheus + Grafana + redis-exporter, loopback-bound |
 
-Deploy alongside the production stack:
+It runs as its own project, joined to the production network. Do not merge it
+with `docker-compose.prod.yml`: this document used to say to, and under the
+overlay's old project name that started a second API, worker, Redis and Caddy.
+
+On the host:
+
+1. Put the same value as `METRICS_SCRAPE_TOKEN` in
+   `infra/prometheus/secrets/metrics-scrape-token`. A deployed API answers 503
+   to `/metrics` until the token is set.
+2. Set `REDIS_ADDR` to the Redis the API actually uses. It has no default, because
+   the old default watched the compose-local Redis whatever `REDIS_URL` said.
+3. Set `PROOVRA_ENVIRONMENT`, `PROOVRA_ALERT_WEBHOOK_URL` and
+   `GRAFANA_ADMIN_PASSWORD`.
+4. Start it:
 
 ```
-docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml \
-               -f infra/docker/docker-compose.monitoring.yml up -d
+docker compose -p proovra-monitoring --env-file /opt/proovra/app/.env \
+  -f infra/docker/docker-compose.monitoring.yml up -d
 ```
+
+`PROOVRA_PROD_NETWORK` overrides the network if the production project is not
+called `docker`. Check `docker compose ls`: there is exactly one API.
 
 ## Proof of delivery
 

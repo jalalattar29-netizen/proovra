@@ -13,11 +13,12 @@
  *     "already scheduled" — bumping `reviewer_reminder_duplicate_blocked_total`.
  *   - `safeSummary` is bounded (400 chars) and scrubbed against the
  *     forbidden-overclaim phrase catalog.
- *   - Reminders are SCHEDULED only. This engine has no dispatcher: no
- *     notification is sent from here, and a scheduled row stays SCHEDULED.
- *     (Corrected 2026-08-17, Phase 13 §4 — the previous wording, "notification
- *     dispatch is best-effort; failure marks the row FAILED", described a
- *     delivery path that was never built.)
+ *   - `deliverScheduledReminders` is the dispatcher (WORKFLOW-010): a due
+ *     SCHEDULED row is claimed once, sent through the review notification path,
+ *     and ends DELIVERED, SUPPRESSED or FAILED. A reminder is best-effort like the
+ *     other review mail, and the rows are readable at
+ *     `GET /v1/reviewer-ops/reminders`, so a person who has not opted in to email
+ *     still has it on the SLA page.
  *   - No private reviewer note text in any field. No legal-hold
  *     reason. No raw evidence content.
  */
@@ -27,13 +28,16 @@ import { createHash } from "node:crypto";
 import type { PrismaClient, ReviewerOpsReminder } from "@prisma/client";
 import {
   REVIEWER_OPS_REMINDER_KINDS,
+  isReviewOpenDbStatus,
   stringContainsForbiddenOverclaim,
   type ReviewerOpsReminderKind,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { bump } from "../ops/metrics.service.js";
+import { sendReviewReminder } from "../review-operations/review-notifications.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
 
 // -----------------------------------------------------------------------------
 // Projection
@@ -203,27 +207,83 @@ export async function scheduleReminder(
 }
 
 // -----------------------------------------------------------------------------
-// PHASE 13 §4 (2026-08-17) — `markReminderDelivered` and `markReminderFailed`
-// were REMOVED here.
-//
-// The manifest recorded them as waiting on a dispatcher that "does not report
-// delivery outcomes back to the reminder engine". Reading the tree, the gap is
-// larger than that: there is no dispatcher. Nothing selects due reminders,
-// nothing sends one, nothing consumes `communicationMessageId`. The engine
-// SCHEDULES — `sweepDueSoonReminders` and `sweepInactivityReminders` create rows
-// with status SCHEDULED through `scheduleReminder`, driven for real by the
-// cron-secret reconcile route — and the row is never touched again. Three of the
-// four values in the status vocabulary (DELIVERED, FAILED, SUPPRESSED) are
-// unreachable in production, and the reviewer-ops runtime probe’s status
-// `groupBy` will forever report a 100% SCHEDULED distribution.
-//
-// So these were not two functions one call away from being live; they were the
-// outcome half of a delivery mechanism that does not exist. Keeping executable
-// writers warm for it makes the reminder engine look like it delivers reminders.
-// The capability is unbuilt backlog — a due-reminder selector, a
-// notification send, and an outcome callback are one unit of work, and when it
-// is built these two transitions are the smallest part of it.
+// Public — deliverScheduledReminders (WORKFLOW-010).
 // -----------------------------------------------------------------------------
+
+/** A reminder older than this describes a state that has moved on. */
+const REMINDER_DELIVERY_WINDOW_MS = 24 * 3600 * 1000;
+
+export type ReminderDeliveryResult = {
+  delivered: number;
+  suppressed: number;
+  failed: number;
+};
+
+export async function deliverScheduledReminders(
+  input: { teamId: string; batchSize?: number; now?: Date },
+  client: PrismaClient = defaultPrisma,
+): Promise<ReminderDeliveryResult> {
+  const now = input.now ?? new Date();
+  // Rows scheduled while nothing could deliver them stay in the ledger, closed,
+  // rather than reaching a person days late.
+  const stale = await client.reviewerOpsReminder.updateMany({
+    where: {
+      teamId: input.teamId,
+      status: "SCHEDULED",
+      createdAt: { lt: new Date(now.getTime() - REMINDER_DELIVERY_WINDOW_MS) },
+    },
+    data: { status: "SUPPRESSED" },
+  });
+  const rows = await client.reviewerOpsReminder.findMany({
+    where: {
+      teamId: input.teamId,
+      status: "SCHEDULED",
+      kind: { in: ["DUE_SOON", "REVIEWER_INACTIVE"] },
+    },
+    orderBy: { createdAt: "asc" },
+    take: Math.min(Math.max(input.batchSize ?? 200, 1), 1000),
+  });
+  const out: ReminderDeliveryResult = { delivered: 0, suppressed: stale.count, failed: 0 };
+  for (const row of rows) {
+    // The claim: an overlapping sweep sends nothing.
+    const claimed = await client.reviewerOpsReminder.updateMany({
+      where: { id: row.id, status: "SCHEDULED" },
+      data: { status: "SUPPRESSED" },
+    });
+    if (claimed.count !== 1) continue;
+    const workflow = row.workflowId
+      ? await client.evidenceReviewWorkflow.findFirst({
+          where: { id: row.workflowId, teamId: input.teamId },
+          select: { evidenceId: true, teamId: true, assignedToUserId: true, status: true, slaPausedAtUtc: true },
+        })
+      : null;
+    // Still true? A review finished, paused or handed on since has nothing to say.
+    if (
+      !workflow ||
+      workflow.slaPausedAtUtc ||
+      !isReviewOpenDbStatus(String(workflow.status)) ||
+      workflow.assignedToUserId !== row.reviewerUserId
+    ) {
+      out.suppressed += 1;
+      continue;
+    }
+    const sent = await sendReviewReminder(
+      { workflow, kind: row.kind as "DUE_SOON" | "REVIEWER_INACTIVE" },
+      client,
+    ).catch(() => null);
+    if (sent?.status === "sent") {
+      await client.reviewerOpsReminder.update({ where: { id: row.id }, data: { status: "DELIVERED" } });
+      out.delivered += 1;
+    } else if (sent?.status === "skipped_recipient_preference") {
+      out.suppressed += 1;
+    } else {
+      await client.reviewerOpsReminder.update({ where: { id: row.id }, data: { status: "FAILED" } });
+      bump("reviewer_reminder_failed_total");
+      out.failed += 1;
+    }
+  }
+  return out;
+}
 
 // -----------------------------------------------------------------------------
 // Public — sweepDueSoonReminders + sweepInactivityReminders.
@@ -243,15 +303,19 @@ export async function sweepDueSoonReminders(
   client: PrismaClient = defaultPrisma,
 ): Promise<ReminderSweepResult> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 200, 1), 1000);
+  const cursorKey = `reviewer_due_soon:${input.teamId}`;
+  const cursor = await readSweepCursor(client, cursorKey);
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: {
       teamId: input.teamId,
+      ...afterCursor(cursor),
       slaStatus: "DUE_SOON",
       assignedToUserId: { not: null },
       status: {
         notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
       },
     },
+    orderBy: { id: "asc" },
     take: batchSize,
     select: {
       id: true,
@@ -259,6 +323,11 @@ export async function sweepDueSoonReminders(
       priority: true,
       dueAt: true,
     },
+  });
+  await advanceSweepCursor(client, cursorKey, cursor, {
+    lastId: rows.at(-1)?.id ?? null,
+    pageSize: rows.length,
+    limit: batchSize,
   });
   let scheduled = 0;
   let duplicates = 0;
@@ -285,9 +354,12 @@ export async function sweepInactivityReminders(
 ): Promise<ReminderSweepResult> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 200, 1), 1000);
   const cutoff = new Date(Date.now() - input.thresholdHours * 3600_000);
+  const cursorKey = `reviewer_inactive:${input.teamId}`;
+  const cursor = await readSweepCursor(client, cursorKey);
   const rows = await client.evidenceReviewWorkflow.findMany({
     where: {
       teamId: input.teamId,
+      ...afterCursor(cursor),
       assignedToUserId: { not: null },
       status: {
         notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
@@ -297,6 +369,7 @@ export async function sweepInactivityReminders(
         { lastReviewedAt: null, assignedAtUtc: { lte: cutoff } },
       ],
     },
+    orderBy: { id: "asc" },
     take: batchSize,
     select: {
       id: true,
@@ -304,6 +377,11 @@ export async function sweepInactivityReminders(
       assignedAtUtc: true,
       lastReviewedAt: true,
     },
+  });
+  await advanceSweepCursor(client, cursorKey, cursor, {
+    lastId: rows.at(-1)?.id ?? null,
+    pageSize: rows.length,
+    limit: batchSize,
   });
   let scheduled = 0;
   let duplicates = 0;

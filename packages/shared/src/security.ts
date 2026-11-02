@@ -217,6 +217,7 @@ export const SECURITY_EVENT_TYPES = [
   "reviewer_reassigned",
   "reviewer_review_started",
   "reviewer_review_paused",
+  "reviewer_review_resumed",
   "reviewer_information_requested",
   "reviewer_review_approved",
   "reviewer_review_rejected",

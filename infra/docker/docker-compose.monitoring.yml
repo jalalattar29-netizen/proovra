@@ -5,20 +5,44 @@
 # infra/grafana/alerts/, which is why "we have alerting" was true of the
 # repository and false of the deployment.
 #
-# Deployed alongside the production stack:
+# Runs as its OWN project, joined to the production network. Never merge it with
+# docker-compose.prod.yml: merged under a project name of its own it would start a
+# second API, worker, Redis and Caddy against the same queues and database.
 #
-#   docker compose -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d
+#   docker compose -p proovra-monitoring --env-file /opt/proovra/app/.env \
+#     -f infra/docker/docker-compose.monitoring.yml up -d
+#
+# OPS-005 — this file carried `name: proovra-monitoring`, which is exactly what
+# made the old merged command do that. It has no project name now, so nothing can
+# take a merged file away from project `docker`.
 #
 # Nothing here is exposed publicly. Grafana and Prometheus bind to LOOPBACK
 # only; reaching them is a deliberate tunnel, not an open port on the host.
-name: proovra-monitoring
+networks:
+  # The network `proovra-api` is on. scripts/deploy-prod-pull.sh runs the production
+  # file as project `docker`, so by default this is `docker_default`.
+  production:
+    external: true
+    name: ${PROOVRA_PROD_NETWORK:-docker_default}
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
 
 services:
   prometheus:
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
+    logging: *default-logging
+    networks: [default, production]
+    environment:
+      PROOVRA_ENVIRONMENT: ${PROOVRA_ENVIRONMENT:-unset}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
+      # Without this the label in prometheus.yml is the literal ${...} text.
+      - --enable-feature=expand-external-labels
       - --storage.tsdb.path=/prometheus
       # Thirty days is enough to review an incident that happened while
       # somebody was away, and small enough to sit on one disk.
@@ -43,14 +67,20 @@ services:
   redis-exporter:
     image: oliver006/redis_exporter:v1.62.0
     restart: unless-stopped
+    logging: *default-logging
+    networks: [default, production]
     environment:
-      REDIS_ADDR: ${REDIS_ADDR:-redis://redis:6379}
+      # OPS-005 — NO DEFAULT. The default watched the compose-local Redis, which is
+      # idle if REDIS_URL points elsewhere, so the alert would watch the wrong one.
+      # Set it to the Redis the API uses (`redis://redis:6379` on project docker).
+      REDIS_ADDR: ${REDIS_ADDR:?set REDIS_ADDR to the Redis the API uses}
     expose:
       - "9121"
 
   grafana:
     image: grafana/grafana:11.2.2
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       prometheus:
         condition: service_healthy

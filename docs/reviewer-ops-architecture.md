@@ -12,7 +12,7 @@ five engines, and how an operator can verify it is alive.
 | SLA progression | `review-operations.service.ts::reconcileReviewSlas` (Phase 13) | Walks active workflows, flips `slaStatus` from `ON_TRACK` → `DUE_SOON` → `BREACHED` based on `dueAt` / `firstResponseDueAtUtc`. |
 | Escalation | [`escalation-engine.service.ts`](../services/api/src/services/reviewer-ops/escalation-engine.service.ts) | Opens `REVIEW_OVERDUE` escalation when a workflow flips to `BREACHED` and has no open escalation. Fingerprint-dedup per `(teamId, workflowId, reason, day)`. HIGH/CRITICAL escalations fan out to `OperationalIncident` via `recordIncident()`. |
 | Workload | [`workload.service.ts`](../services/api/src/services/reviewer-ops/workload.service.ts) | Computes per-reviewer capacity score; writes immutable `reviewer_workload_snapshots` rows. |
-| Reminders | [`reminder-engine.service.ts`](../services/api/src/services/reviewer-ops/reminder-engine.service.ts) | `sweepDueSoonReminders`, `sweepInactivityReminders`; fans out to notification service. |
+| Reminders | [`reminder-engine.service.ts`](../services/api/src/services/reviewer-ops/reminder-engine.service.ts) | `sweepDueSoonReminders`, `sweepInactivityReminders` schedule; `deliverScheduledReminders` sends through the review notification path under each member's email preference, and records the outcome on the row. |
 
 The five engines are orchestrated by **one master function**:
 

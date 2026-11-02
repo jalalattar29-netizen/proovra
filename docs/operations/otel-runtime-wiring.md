@@ -23,7 +23,6 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-eu-west-2.grafana.net/otlp
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <ROTATED_GRAFANA_TOKEN>
 OTEL_RESOURCE_ATTRIBUTES=service.namespace=proovra,deployment.environment=production
-LOG_AGGREGATION_ENABLED=true
 ```
 
 Per-container in `infra/docker/docker-compose.prod.yml`:

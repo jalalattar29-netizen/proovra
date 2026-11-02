@@ -1785,6 +1785,9 @@ model EvidenceReviewWorkflow {
   // reviewer-ops can score the four dimensions independently.
   assignmentDueAtUtc DateTime? @map("assignment_due_at_utc") @db.Timestamptz(6)
   completionDueAtUtc DateTime? @map("completion_due_at_utc") @db.Timestamptz(6)
+  // WORKFLOW-007 — the due-soon window stamped with these deadlines, so the
+  // queue, the badge and the reminders read one number for this review.
+  slaDueSoonHours    Int?      @map("sla_due_soon_hours")
   // Operator-readable reason a workflow is paused (legal hold, awaiting
   // contributor response, etc). Never carries internal legal text — the
   // service truncates to 400 chars and forbids overclaim wording.
@@ -6837,6 +6840,11 @@ enum VerificationAttemptStatus {
 model CommunicationMessage {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid
+
+  // WORKFLOW-009 — true only when bodyPreview is the whole message, so a retry
+  // can send it. Raw bodies are not stored, so a sanitized, cut-off or template
+  // message cannot be sent twice and has to be issued again.
+  bodyResendable Boolean @default(false) @map("body_resendable")
 
   channel   CommunicationChannel
   direction CommunicationDirection @default(OUTBOUND)
@@ -15284,6 +15292,26 @@ model SignerControlState {
 
   @@index([status], map: "signer_control_state_status_idx")
   @@map("signer_control_state")
+}
+
+/// OPS-004 — what the backup schedule did, written by scripts/ops/pg-backup-cycle.sh.
+/// Append-only. Counts and a checksum, never data. The readiness posture reads
+/// this, so only a recorded run can be reported as a backup or a restore.
+model PlatformBackupRecord {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// DATABASE_BACKUP | OFFHOST_COPY | RESTORE_DRILL (DB CHECK).
+  kind          String   @db.VarChar(32)
+  /// SUCCEEDED | FAILED (DB CHECK).
+  outcome       String   @db.VarChar(16)
+  backupStamp   String?  @map("backup_stamp") @db.VarChar(32)
+  tableCount    Int?     @map("table_count")
+  rowCount      BigInt?  @map("row_count")
+  byteCount     BigInt?  @map("byte_count")
+  sha256        String?  @db.VarChar(64)
+  recordedAtUtc DateTime @default(now()) @map("recorded_at_utc") @db.Timestamptz(6)
+
+  @@index([kind, outcome, recordedAtUtc(sort: Desc)], map: "platform_backup_records_kind_outcome_recorded_idx")
+  @@map("platform_backup_records")
 }
 
 /// ET-Q-05 (2026-09-29) — where a bounded worker sweep resumes. A sweep that

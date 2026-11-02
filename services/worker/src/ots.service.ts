@@ -57,8 +57,25 @@ export function otsClientIdentityFromVersionOutput(output: string): string | nul
   return m ? `opentimestamps-client ${m[1]}` : null;
 }
 
-function calendarUrl(): string | null {
-  return clean(process.env.OTS_CALENDAR_URL);
+/**
+ * OPS-016 / CRYPTO-005 — the calendars a proof is submitted to. OTS_CALENDAR_URLS is
+ * a comma list; OTS_CALENDAR_URL still names one. A stamp asks for answers from two
+ * when it has two, so a proof no longer rests on a single operator, and one calendar
+ * being down no longer stops new proofs while another two answer.
+ */
+export function otsCalendarArgs(env: NodeJS.ProcessEnv = process.env): string[] {
+  const urls = (clean(env.OTS_CALENDAR_URLS) ?? clean(env.OTS_CALENDAR_URL) ?? "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (urls.length === 0) return [];
+  return [...urls.flatMap((u) => ["-c", u]), "-m", String(Math.min(urls.length, 2))];
+}
+
+/** The calendars a proof went to, as the row records them. */
+export function otsCalendarLabel(env: NodeJS.ProcessEnv = process.env): string | null {
+  const urls = otsCalendarArgs(env).filter((a) => a.startsWith("http"));
+  return urls.length > 0 ? urls.join(",") : null;
 }
 
 async function mkWorkDir(): Promise<string> {
@@ -202,7 +219,6 @@ async function createOpenTimestampInner(params: {
   filenameStem?: string;
 }): Promise<OtsStampResult> {
   const bin = resolveOtsBin();
-  const calendar = calendarUrl();
   const workDir = await mkWorkDir();
   const stem =
     clean(params.filenameStem)?.replace(/[^a-zA-Z0-9._-]+/g, "_") ||
@@ -216,7 +232,7 @@ async function createOpenTimestampInner(params: {
 
 const stampArgs = [
   "stamp",
-  ...(calendar ? ["-c", calendar, "-m", "1"] : []),
+  ...otsCalendarArgs(),
   inputFile,
 ];
 
@@ -264,7 +280,7 @@ const stampArgs = [
       status: "PENDING",
       proofBase64: proofForRecord,
       hash: contentHash,
-      calendar,
+      calendar: otsCalendarLabel(),
       bitcoinTxid: null,
       anchoredAtUtc: null,
       upgradedAtUtc,

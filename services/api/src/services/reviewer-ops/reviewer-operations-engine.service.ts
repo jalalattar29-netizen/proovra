@@ -21,11 +21,15 @@ import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.servic
 import type { PrismaClient, EvidenceReviewWorkflow as DbWorkflow } from "@prisma/client";
 import {
   REVIEWER_OPS_DEFAULT_SLA_POLICY,
+  REVIEW_FINISHED_DB_STATUSES,
   computeReviewerOpsSlaSnapshot,
   deriveLifecycleState,
   isAllowedLifecycleTransition,
+  isReviewOpenDbStatus,
   mapDbStatusToReviewStage,
+  reviewSlaInputFromRow,
   rollupReviewerOpsSlaState,
+  storedReviewSlaStatus,
   stringContainsForbiddenOverclaim,
   type ReviewSlaDimensionSnapshot,
   type ReviewerOpsLifecycleState,
@@ -61,6 +65,7 @@ import {
   getReviewQueueCounts as legacyGetReviewQueueCounts,
   projectReviewWorkflow as legacyProjectReviewWorkflow,
   reconcileReviewSlas as legacyReconcileReviewSlas,
+  stampOpenReviewDeadlines,
   updateReviewSla as legacyUpdateReviewSla,
 } from "../review-operations/review-operations.service.js";
 // Track 1C — canonical review-decision authority. Approve / reject /
@@ -86,12 +91,12 @@ import {
   type ReviewerSuggestion,
   type WorkloadDashboardRow,
 } from "./workload.service.js";
-import {
-  loadWorkspaceReviewerOpsFlags,
-  resolveEffectiveSlaPolicy,
-} from "./sla-policy.service.js";
+import { loadWorkspaceReviewerOpsFlags } from "./sla-policy.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
+import { resolveReviewPolicyForEvidence } from "./review-sla-stamp.service.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "./sweep-cursor.js";
 import {
+  deliverScheduledReminders,
   sweepDueSoonReminders,
   sweepInactivityReminders,
 } from "./reminder-engine.service.js";
@@ -101,8 +106,8 @@ import {
 import { sampleClosedWorkflow } from "../reviewer-workspace/qc-sample.service.js";
 import {
   detectStuckWorkflow,
+  stuckStatusFromDbStatus,
   type StuckClassification,
-  type WorkflowReviewStatus,
   type WorkflowSlaStatus,
 } from "@proovra/shared";
 
@@ -125,6 +130,12 @@ import {
  * `SWEEP_NAMES`, and a literal string here would be a second spelling of a
  * name the shared authority already owns.
  */
+export {
+  resolveTemplateIdForEvidence,
+  type SlaTemplateResolution,
+  type SlaTemplateResolutionSource,
+} from "./review-sla-stamp.service.js";
+
 export const RECOVERED_WORK_TYPES = [
   "REVIEWER_RECONCILIATION",
 ] as const;
@@ -156,202 +167,6 @@ export class ReviewerOpsError extends Error {
 }
 
 // -----------------------------------------------------------------------------
-// SLA policy resolution
-// -----------------------------------------------------------------------------
-
-function resolveSlaPolicy() {
-  // Phase 25 env-tunable defaults. We read at call time so test
-  // harnesses can override per-test. Fallback to shared defaults.
-  const env = process.env;
-  const parse = (key: string, fallback: number) => {
-    const raw = env[key];
-    if (!raw) return fallback;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : fallback;
-  };
-  return {
-    assignmentHours: parse(
-      "REVIEW_SLA_ASSIGNMENT_HOURS",
-      REVIEWER_OPS_DEFAULT_SLA_POLICY.assignmentHours,
-    ),
-    firstReviewHours: parse(
-      "REVIEW_SLA_FIRST_REVIEW_HOURS",
-      REVIEWER_OPS_DEFAULT_SLA_POLICY.firstReviewHours,
-    ),
-    completionHours: parse(
-      "REVIEW_SLA_COMPLETION_HOURS",
-      REVIEWER_OPS_DEFAULT_SLA_POLICY.completionHours,
-    ),
-    escalationHours: parse(
-      "REVIEW_SLA_ESCALATION_HOURS",
-      REVIEWER_OPS_DEFAULT_SLA_POLICY.escalationHours,
-    ),
-    dueSoonHours: parse(
-      "REVIEW_SLA_DUE_SOON_HOURS",
-      REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours,
-    ),
-  };
-}
-
-// -----------------------------------------------------------------------------
-// Template id resolution for SLA layering.
-//
-// Phase R wiring: the Phase 25.5 SLA policy resolver already supports a
-// `templateId` parameter (`sla-policy.service.ts:loadTemplateOverride`).
-// Until this phase the call sites passed nothing, so the template-override
-// branch was unreachable in production.
-//
-// Phase T simplification: Phase 4 stamped the canonical template identity
-// trio (templateSlug, templateVersion, templateDbId) directly onto
-// EvidenceReviewWorkflow at upsert time. The SLA resolver now prefers
-// those columns as the primary source — a single indexed read on the
-// workflow row replaces the two-join discovery for any row stamped after
-// Phase 4. The legacy two-join discovery is retained as a fallback so
-// pre-Phase-4 rows (NULL trio columns) still resolve their SLA template
-// without any backfill job.
-//
-// Order of precedence:
-//
-//   1. DIRECT — EvidenceReviewWorkflow.templateDbId   (new column, fast)
-//   2. DIRECT — EvidenceReviewWorkflow.templateSlug   → DB row by (slug, teamId)
-//      (returns null when the slug is seed-only with no DB row backing it;
-//       SLA falls back to workspace / env / baseline as designed)
-//   3. DISCOVERED — EvidenceWorkflowInstanceEvidence → instance.templateId
-//   4. DISCOVERED — WorkflowIntakeSession.evidenceId → link.workflowTemplateId
-//
-// Both legacy joins are read-only and the CaptureSession.templateId column
-// is intentionally NOT used here: its value is an in-code seed VarChar slug,
-// not a UUID FK.
-//
-// Hard rule: NEVER let resolution failure break assignment. Every read is
-// wrapped; on any error we return null and the resolver falls back to
-// workspace / env / baseline as it does today.
-// -----------------------------------------------------------------------------
-
-export type SlaTemplateResolutionSource =
-  // Phase T — new column on EvidenceReviewWorkflow was set.
-  | "direct"
-  // Phase R legacy join paths, retained for rows with NULL trio columns.
-  | "workflow_instance"
-  | "intake_link"
-  // No template binding could be resolved (clean baseline path).
-  | "none"
-  // Any read threw; caller falls back to baseline.
-  | "error";
-
-export type SlaTemplateResolution = {
-  templateId: string | null;
-  source: SlaTemplateResolutionSource;
-};
-
-export async function resolveTemplateIdForEvidence(
-  evidenceId: string,
-  client: PrismaClient,
-): Promise<SlaTemplateResolution> {
-  // ---------------------------------------------------------------------------
-  // Path 0 — Direct read of the trio columns on EvidenceReviewWorkflow.
-  //
-  // Phase 4 stamps these at upsert time. When templateDbId is set we have a
-  // canonical UUID and we are done; when only templateSlug is set we look
-  // up the DB row by (slug, teamId) using the same pattern as
-  // workflow-intake-link.service:resolveTemplateForLink (workspace row wins;
-  // global row falls back).
-  // ---------------------------------------------------------------------------
-  try {
-    const workflowRow = await client.evidenceReviewWorkflow.findUnique({
-      where: { evidenceId },
-      select: { templateDbId: true, templateSlug: true, teamId: true },
-    });
-    if (workflowRow?.templateDbId) {
-      return { templateId: workflowRow.templateDbId, source: "direct" };
-    }
-    if (workflowRow?.templateSlug) {
-      const slug = workflowRow.templateSlug;
-      const teamId = workflowRow.teamId ?? null;
-      // Workspace-scoped row wins; otherwise fall back to a global row.
-      // Either match is enough; if neither exists the slug is seed-only.
-      const workspaceTemplate = teamId
-        ? await client.evidenceWorkflowTemplate.findFirst({
-            where: { teamId, slug, archived: false },
-            select: { id: true },
-          })
-        : null;
-      if (workspaceTemplate?.id) {
-        return { templateId: workspaceTemplate.id, source: "direct" };
-      }
-      const globalTemplate = await client.evidenceWorkflowTemplate.findFirst({
-        where: { teamId: null, slug, archived: false },
-        select: { id: true },
-      });
-      if (globalTemplate?.id) {
-        return { templateId: globalTemplate.id, source: "direct" };
-      }
-      // Slug present but no DB row backs it (seed-only template). The trio
-      // columns are the canonical source of truth; do NOT fall through to
-      // legacy joins — SLA correctly falls back to workspace / env baseline.
-      return { templateId: null, source: "direct" };
-    }
-    // Trio columns are entirely NULL — this is a pre-Phase-4 row. Fall
-    // through to the legacy discovery joins.
-  } catch (err) {
-    logWarn("reviewer_ops.sla_template_resolve_failed", {
-      stage: "direct",
-      evidenceId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { templateId: null, source: "error" };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Path 1 (legacy) — EvidenceWorkflowInstanceEvidence join. Take the most
-  // recent mapping; the template UUID lives on the instance row.
-  // ---------------------------------------------------------------------------
-  try {
-    const link = await client.evidenceWorkflowInstanceEvidence.findFirst({
-      where: { evidenceId },
-      orderBy: { createdAt: "desc" },
-      include: { instance: { select: { templateId: true } } },
-    });
-    if (link?.instance?.templateId) {
-      return { templateId: link.instance.templateId, source: "workflow_instance" };
-    }
-  } catch (err) {
-    logWarn("reviewer_ops.sla_template_resolve_failed", {
-      stage: "workflow_instance",
-      evidenceId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { templateId: null, source: "error" };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Path 2 (legacy) — WorkflowIntakeSession.evidenceId (unique back-pointer)
-  // → WorkflowIntakeLink.workflowTemplateId.
-  // ---------------------------------------------------------------------------
-  try {
-    const session = await client.workflowIntakeSession.findUnique({
-      where: { evidenceId },
-      include: { intakeLink: { select: { workflowTemplateId: true } } },
-    });
-    if (session?.intakeLink?.workflowTemplateId) {
-      return {
-        templateId: session.intakeLink.workflowTemplateId,
-        source: "intake_link",
-      };
-    }
-  } catch (err) {
-    logWarn("reviewer_ops.sla_template_resolve_failed", {
-      stage: "intake_link",
-      evidenceId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { templateId: null, source: "error" };
-  }
-
-  return { templateId: null, source: "none" };
-}
-
-// -----------------------------------------------------------------------------
 // Projection — Phase 25 enriched workflow projection.
 // -----------------------------------------------------------------------------
 
@@ -363,6 +178,9 @@ export type ReviewerOpsWorkflowProjection = {
   assignedToUserId: string | null;
   assignedAtUtc: string | null;
   priority: string;
+  /** Set while the SLA clock is stopped; the way out is resume. */
+  slaPausedAtUtc: string | null;
+  pausedReason: string | null;
   slaRollupState: ReviewerOpsSlaState;
   slaDimensions: ReadonlyArray<ReviewSlaDimensionSnapshot>;
   legacy: ReturnType<typeof legacyProjectReviewWorkflow>;
@@ -377,20 +195,12 @@ export function buildWorkflowProjection(
     stage,
     Boolean(opts?.hasOpenEscalation),
   );
-  const snapshots = computeReviewerOpsSlaSnapshot({
-    nowUtc: opts?.nowUtc,
-    paused: Boolean(row.slaPausedAtUtc),
-    hasOpenEscalation: Boolean(opts?.hasOpenEscalation),
-    assignmentDueAtUtc: row.assignmentDueAtUtc ?? null,
-    assignedAtUtc: row.assignedAtUtc ?? null,
-    firstReviewDueAtUtc: row.firstResponseDueAtUtc ?? row.dueAt ?? null,
-    firstReviewedAtUtc: row.lastReviewedAt ?? null,
-    completionDueAtUtc: row.completionDueAtUtc ?? null,
-    completedAtUtc: row.completedAtUtc ?? null,
-    escalationDueAtUtc: row.escalationDueAtUtc ?? null,
-    escalationResolvedAtUtc: null,
-    dueSoonMinutes: resolveSlaPolicy().dueSoonHours * 60,
-  });
+  const snapshots = computeReviewerOpsSlaSnapshot(
+    reviewSlaInputFromRow(row, {
+      nowUtc: opts?.nowUtc,
+      hasOpenEscalation: opts?.hasOpenEscalation,
+    }),
+  );
   return {
     workflowId: row.id,
     evidenceId: row.evidenceId,
@@ -399,6 +209,8 @@ export function buildWorkflowProjection(
     assignedToUserId: row.assignedToUserId,
     assignedAtUtc: row.assignedAtUtc?.toISOString() ?? null,
     priority: row.priority,
+    slaPausedAtUtc: row.slaPausedAtUtc?.toISOString() ?? null,
+    pausedReason: row.pausedReason ?? null,
     slaRollupState: rollupReviewerOpsSlaState(snapshots),
     slaDimensions: snapshots,
     legacy: legacyProjectReviewWorkflow(row),
@@ -471,19 +283,18 @@ async function listReviewerOpsQueueInner(
   nextCursor: string | null;
 }> {
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
-  const baseWhere: Record<string, unknown> = { teamId: input.teamId };
+  // WORKFLOW-013 — every work queue shows open work. Only Completed recently looks
+  // at finished reviews; it sets its own filter below.
+  const baseWhere: Record<string, unknown> = {
+    teamId: input.teamId,
+    status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+  };
   switch (input.queue) {
     case "MY_REVIEWS":
       baseWhere.assignedToUserId = input.meUserId;
-      baseWhere.status = {
-        notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
-      };
       break;
     case "UNASSIGNED":
       baseWhere.assignedToUserId = null;
-      baseWhere.status = {
-        notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
-      };
       break;
     case "OVERDUE":
       baseWhere.slaStatus = { in: ["OVERDUE", "BREACHED"] };
@@ -508,15 +319,26 @@ async function listReviewerOpsQueueInner(
       // through the included filter shape.
       baseWhere.evidence = { legalHolds: { some: { status: "ACTIVE" } } };
       break;
-    case "INTEGRITY_RISK":
-      // Best-available proxy: escalations of reason VERIFICATION_MISMATCH
-      // or INTEGRITY_RISK.
-      baseWhere.activeEscalationId = { not: null };
+    case "INTEGRITY_RISK": {
+      // An ordinary SLA escalation is not an integrity risk (WORKFLOW-013).
+      const escalations = await client.reviewEscalation.findMany({
+        where: {
+          teamId: input.teamId,
+          status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
+          reason: { in: ["INTEGRITY_RISK", "VERIFICATION_MISMATCH"] },
+        },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+        take: 1000,
+      });
+      baseWhere.activeEscalationId = { in: escalations.map((e) => e.id) };
       break;
+    }
     case "EXTERNAL_INTAKE":
       baseWhere.workspaceType = "EXTERNAL_INTAKE";
       break;
     case "COMPLETED_RECENTLY":
+      delete baseWhere.status;
       baseWhere.completedAtUtc = {
         gte: new Date(Date.now() - 7 * 86400_000),
       };
@@ -727,6 +549,8 @@ export type LifecycleActorContext = {
   actorUserId: string;
   /** Asserted by the route layer; the engine re-checks for safety. */
   isReviewerCapable: boolean;
+  /** Holds `review.assign`, so may act on a review held by someone else. */
+  mayActOnOthersReviews?: boolean;
   /** Asserted by the route layer; service accounts CANNOT approve / reject. */
   isServiceAccount: boolean;
 };
@@ -864,70 +688,18 @@ async function assignReviewerToWorkflowInner(
     }
     throw err;
   });
-  // Initialise assignmentDueAtUtc if not set. Phase 25.5 reads the
-  // effective policy from template → workspace → env so per-team and
-  // per-template overrides take effect at the moment of assignment.
-  //
-  // Phase R — resolve the workflow's template via existing UUID joins so
-  // the template SLA override branch (sla-policy.service.ts:loadTemplateOverride)
-  // is finally reachable. Resolution failure NEVER breaks assignment;
-  // the resolver returns null and the policy falls back to workspace/env
-  // baselines exactly as it did before this wiring.
-  if (!updated.assignmentDueAtUtc) {
-    let templateResolution: SlaTemplateResolution = {
-      templateId: null,
-      source: "none",
-    };
-    try {
-      templateResolution = await resolveTemplateIdForEvidence(
-        updated.evidenceId,
-        client,
-      );
-    } catch (err) {
-      // Defensive: resolveTemplateIdForEvidence already catches and
-      // returns {source:"error"}, but if a future refactor changes
-      // that, we still must not break the assignment lifecycle.
-      logWarn("reviewer_ops.sla_template_resolve_unexpected", {
-        evidenceId: updated.evidenceId,
-        workflowId: updated.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      templateResolution = { templateId: null, source: "error" };
-    }
-
-    let resolved: Awaited<ReturnType<typeof resolveEffectiveSlaPolicy>>;
-    try {
-      resolved = await resolveEffectiveSlaPolicy(
-        { teamId: ctx.teamId, templateId: templateResolution.templateId },
-        client,
-      );
-    } catch (err) {
-      // Fall back to baseline if even the resolver call fails. We log
-      // and continue — assignment must succeed.
-      logWarn("reviewer_ops.sla_policy_resolve_failed", {
-        teamId: ctx.teamId,
-        workflowId: updated.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      resolved = {
-        policy: { ...REVIEWER_OPS_DEFAULT_SLA_POLICY },
-        sources: { template: {}, workspace: {}, env: {} },
-      };
-    }
-    const { policy, sources } = resolved;
-
-    // Phase R — one audit row per resolution so operators can trace
-    // which layer set the assignment SLA. Reuses the existing audit
-    // emitter; no new audit table. Failures here are swallowed (audit
-    // must never break the assignment lifecycle).
-    const hasTemplateOverride =
-      Object.keys(sources.template).length > 0;
-    const hasWorkspaceOverride =
-      Object.keys(sources.workspace).length > 0;
+  // The deadlines were stamped inside the assignment's transaction
+  // (`stampReviewDeadlines`). This records which layer set them, once, on the
+  // first assignment. Audit must never break the assignment lifecycle.
+  if (!row.assignedAtUtc) {
+    const resolved = await resolveReviewPolicyForEvidence(
+      { teamId: ctx.teamId, evidenceId: updated.evidenceId },
+      client,
+    );
     const sourceLabel: "template_override" | "team_default" | "platform_baseline" =
-      hasTemplateOverride
+      resolved?.templateOverridden
         ? "template_override"
-        : hasWorkspaceOverride
+        : resolved?.stated
           ? "team_default"
           : "platform_baseline";
     try {
@@ -942,10 +714,11 @@ async function assignReviewerToWorkflowInner(
           resourceId: updated.id,
           metadata: {
             workflowId: updated.id,
-            templateId: templateResolution.templateId,
-            templateResolutionSource: templateResolution.source,
+            templateId: resolved?.templateResolution.templateId ?? null,
+            templateResolutionSource: resolved?.templateResolution.source ?? "error",
             source: sourceLabel,
-            completionHours: policy.completionHours,
+            completionHours:
+              resolved?.policy.completionHours ?? REVIEWER_OPS_DEFAULT_SLA_POLICY.completionHours,
           },
         },
         client,
@@ -956,18 +729,6 @@ async function assignReviewerToWorkflowInner(
         error: err instanceof Error ? err.message : String(err),
       });
     }
-
-    await client.evidenceReviewWorkflow.update({
-      where: { id: updated.id },
-      data: {
-        assignmentDueAtUtc: new Date(
-          Date.now() - 1000, // mark assigned-on-time; assignment SLA met by the assign action.
-        ),
-        completionDueAtUtc:
-          updated.completionDueAtUtc ??
-          new Date(Date.now() + policy.completionHours * 3600_000),
-      },
-    });
   }
   const isReassignment = !!row.assignedToUserId;
   bump(
@@ -1087,18 +848,30 @@ export async function pauseReview(
   requireHuman(ctx);
   assertNoteIfRequired(input.pausedReason);
   const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
+  assertMayChangeSlaClock(ctx, row);
+  if (row.slaPausedAtUtc) {
+    bump("reviewer_invalid_transition_blocked_total");
+    throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "already_paused" });
+  }
   const now = new Date();
   // The pause, its workflow event and its audit entry together (2026-10-24):
   // it used to write the row alone, invisible to the Review history and the
   // tenant audit.
   const updated = await client.$transaction(async (tx) => {
-    const paused = await tx.evidenceReviewWorkflow.update({
-      where: { id: row.id },
+    // Conditional on the state read: a Close that landed meanwhile refuses this.
+    const claimed = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: row.id, status: row.status, slaPausedAtUtc: null },
       data: {
         slaPausedAtUtc: now,
         pausedReason: input.pausedReason.trim().slice(0, 400),
+        slaStatus: row.slaStatus ? "PAUSED" : null,
       },
     });
+    if (claimed.count !== 1) {
+      bump("reviewer_invalid_transition_blocked_total");
+      throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "concurrent_change" });
+    }
+    const paused = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: row.id } });
     await tx.evidenceReviewWorkflowEvent.create({
       data: {
         workflowId: row.id,
@@ -1125,6 +898,109 @@ export async function pauseReview(
   safeEmitSecurityEvent({
     teamId: ctx.teamId,
     eventType: "reviewer_review_paused",
+    severity: "INFO",
+    details: { workflowId: row.id, actorUserId: ctx.actorUserId },
+  });
+  return buildWorkflowProjection(updated);
+}
+
+/**
+ * Pausing stops a review's clock, so it is refused on a finished review, and on a
+ * review held by someone else unless the actor can reassign it (WORKFLOW-011).
+ */
+function assertMayChangeSlaClock(ctx: LifecycleActorContext, row: DbWorkflow): void {
+  if (!isReviewOpenDbStatus(String(row.status)) || row.completedAtUtc || row.closedAt) {
+    bump("reviewer_invalid_transition_blocked_total");
+    throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "review_finished" });
+  }
+  if (
+    row.assignedToUserId &&
+    row.assignedToUserId !== ctx.actorUserId &&
+    !ctx.mayActOnOthersReviews
+  ) {
+    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "actor_not_assignee" });
+  }
+}
+
+// ----- resumeReview -----------------------------------------------------------
+
+/**
+ * The way out of a pause (WORKFLOW-011). The clock stopped, so each deadline still
+ * open moves later by exactly the time spent paused, and the status is recomputed
+ * from the moved dates in the same write.
+ */
+export async function resumeReview(
+  ctx: LifecycleActorContext,
+  input: { workflowId: string; note?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<ReviewerOpsWorkflowProjection> {
+  requireHuman(ctx);
+  if (input.note && stringContainsForbiddenOverclaim(input.note)) {
+    throw new ReviewerOpsError("REVIEW_PERMISSION_DENIED", { reason: "forbidden_wording" });
+  }
+  const row = await loadWorkflowOrThrow(ctx, input.workflowId, client);
+  assertMayChangeSlaClock(ctx, row);
+  const pausedAt = row.slaPausedAtUtc;
+  if (!pausedAt) {
+    bump("reviewer_invalid_transition_blocked_total");
+    throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "not_paused" });
+  }
+  const now = new Date();
+  const heldMs = Math.max(now.getTime() - pausedAt.getTime(), 0);
+  const moved = (d: Date | null, met: boolean = false) =>
+    d && !met ? new Date(d.getTime() + heldMs) : d;
+  const next = {
+    assignmentDueAtUtc: moved(row.assignmentDueAtUtc, Boolean(row.assignedAtUtc)),
+    firstResponseDueAtUtc: moved(row.firstResponseDueAtUtc, Boolean(row.lastReviewedAt)),
+    completionDueAtUtc: moved(row.completionDueAtUtc),
+    dueAt: moved(row.dueAt),
+    escalationDueAtUtc: moved(row.escalationDueAtUtc, Boolean(row.escalatedAtUtc)),
+  };
+  const slaStatus = storedReviewSlaStatus({ ...row, ...next, slaPausedAtUtc: null }, { nowUtc: now });
+  const updated = await client.$transaction(async (tx) => {
+    const claimed = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: row.id, status: row.status, slaPausedAtUtc: pausedAt },
+      data: { ...next, slaPausedAtUtc: null, pausedReason: null, slaStatus },
+    });
+    if (claimed.count !== 1) {
+      bump("reviewer_invalid_transition_blocked_total");
+      throw new ReviewerOpsError("REVIEW_INVALID_TRANSITION", { reason: "concurrent_change" });
+    }
+    const resumed = await tx.evidenceReviewWorkflow.findUniqueOrThrow({ where: { id: row.id } });
+    await tx.evidenceReviewWorkflowEvent.create({
+      data: {
+        workflowId: row.id,
+        evidenceId: row.evidenceId,
+        actorUserId: ctx.actorUserId,
+        eventType: "SLA_UPDATED",
+        previousValue: {
+          slaPausedAtUtc: pausedAt.toISOString(),
+          pausedReason: row.pausedReason,
+          dueAt: row.dueAt?.toISOString() ?? null,
+        },
+        nextValue: {
+          slaPausedAtUtc: null,
+          heldSeconds: Math.round(heldMs / 1000),
+          dueAt: resumed.dueAt?.toISOString() ?? null,
+        },
+        note: input.note?.trim().slice(0, 1000) || null,
+      },
+    });
+    await recordReviewActivityTx(tx, {
+      evidenceId: row.evidenceId,
+      workflowId: row.id,
+      teamId: ctx.teamId,
+      actorUserId: ctx.actorUserId,
+      code: "REVIEW_SLA_CHANGED",
+      previousState: String(row.status),
+      resultingState: String(resumed.status),
+    });
+    return resumed;
+  });
+  bump("reviewer_review_resumed_total");
+  safeEmitSecurityEvent({
+    teamId: ctx.teamId,
+    eventType: "reviewer_review_resumed",
     severity: "INFO",
     details: { workflowId: row.id, actorUserId: ctx.actorUserId },
   });
@@ -1351,49 +1227,61 @@ async function runReconcileInner(
   bump("reviewer_reconcile_run_total");
   let escalationsCreated = 0;
   try {
-    const sla = await legacyReconcileReviewSlas(
+    // Deadlines first, so a row stamped in this pass is read by the sweep below.
+    await stampOpenReviewDeadlines(
       { teamId: input.teamId, batchSize: input.batchSize ?? 200 },
       client,
     );
+    const sla = await legacyReconcileReviewSlas(
+      { teamId: input.teamId, batchSize: input.batchSize ?? 200, maxPages: 10 },
+      client,
+    );
 
-    // Any workflow that just flipped to BREACHED but has no open
-    // escalation gets a fresh REVIEW_OVERDUE escalation. The escalation
-    // engine's fingerprint dedup prevents duplicates for the same day.
-    if (sla.flippedBreached > 0) {
-      const breached = await client.evidenceReviewWorkflow.findMany({
-        where: {
-          teamId: input.teamId,
-          slaStatus: "BREACHED",
-          activeEscalationId: null,
-          status: {
-            notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"],
-          },
-        },
-        take: 100,
-      });
-      for (const wf of breached) {
-        const res = await createEscalation(
+    // A workflow that just moved to BREACHED, and one whose escalation deadline
+    // has passed, each get an automatic escalation. The stated Escalation hours
+    // govern the second (WORKFLOW-006). A row that was already escalated is not in
+    // either set, and the engine's fingerprint dedup holds within a day.
+    const escalationDue = await client.evidenceReviewWorkflow.findMany({
+      where: {
+        teamId: input.teamId,
+        OR: [
+          { id: { in: sla.breachedWorkflowIds } },
           {
-            teamId: input.teamId,
-            workflowId: wf.id,
-            reason: "REVIEW_OVERDUE",
-            safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
-            conditionMessage: { code: "ops.review.escalation.overdue_auto" },
-            severity: "HIGH",
-            evidenceId: wf.evidenceId,
+            escalationDueAtUtc: { lte: new Date() },
+            escalatedAtUtc: null,
+            slaPausedAtUtc: null,
+            completedAtUtc: null,
+            closedAt: null,
           },
-          client,
-        );
-        if (res.ok && res.created) {
-          escalationsCreated += 1;
-          bump("reviewer_sla_breached_total");
-          safeEmitSecurityEvent({
-            teamId: input.teamId,
-            eventType: "reviewer_sla_breached",
-            severity: "WARNING",
-            details: { workflowId: wf.id, escalationId: res.escalation.id },
-          });
-        }
+        ],
+        activeEscalationId: null,
+        status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
+      },
+      orderBy: { escalationDueAtUtc: "asc" },
+      take: Math.max(100, sla.breachedWorkflowIds.length),
+    });
+    for (const wf of escalationDue) {
+      const res = await createEscalation(
+        {
+          teamId: input.teamId,
+          workflowId: wf.id,
+          reason: "REVIEW_OVERDUE",
+          safeSummary: "Review past due — automatic escalation by reviewer ops reconcile.",
+          conditionMessage: { code: "ops.review.escalation.overdue_auto" },
+          severity: "HIGH",
+          evidenceId: wf.evidenceId,
+        },
+        client,
+      );
+      if (res.ok && res.created) {
+        escalationsCreated += 1;
+        bump("reviewer_sla_breached_total");
+        safeEmitSecurityEvent({
+          teamId: input.teamId,
+          eventType: "reviewer_sla_breached",
+          severity: "WARNING",
+          details: { workflowId: wf.id, escalationId: res.escalation.id },
+        });
       }
     }
 
@@ -1420,6 +1308,12 @@ async function runReconcileInner(
             client,
           )
         : { scanned: 0, scheduled: 0, duplicates: 0 };
+
+    // WORKFLOW-010 — what the two sweeps above scheduled now reaches the person.
+    await deliverScheduledReminders(
+      { teamId: input.teamId, batchSize: input.batchSize },
+      client,
+    );
 
     // PHASE 13 §4 (2026-08-17) — repair drifted workflow stage projections.
     //
@@ -1499,14 +1393,14 @@ async function runReconcileInner(
         where: {
           teamId: input.teamId,
           slaStatus: "BREACHED",
-          status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"] },
+          status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
         },
       });
       const dueSoon = await client.evidenceReviewWorkflow.count({
         where: {
           teamId: input.teamId,
           slaStatus: "DUE_SOON",
-          status: { notIn: ["CLOSED", "REJECTED_INSUFFICIENT", "APPROVED_INTERNAL"] },
+          status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
         },
       });
       setGauge("reviewer_queue_overdue", overdue);
@@ -1523,25 +1417,24 @@ async function runReconcileInner(
 
     // Phase 25.7 — stuck workflow sweep. Catches the operational
     // states the SLA flip path doesn't catch (submitted_never_assigned,
-    // escalated_unacknowledged, approved_export_blocked, etc.) and
+    // escalated_unacknowledged, etc.) and
     // raises a fresh escalation for any CRITICAL-severity stuck row.
     // Bounded scan + the escalation engine's fingerprint dedup keeps
     // re-runs idempotent.
     let stuckDetected = 0;
     let stuckEscalated = 0;
     try {
+      const stuckCursorKey = `reviewer_stuck:${input.teamId}`;
+      const stuckCursor = await readSweepCursor(client, stuckCursorKey);
+      const stuckLimit = 200;
       const nonTerminal = await client.evidenceReviewWorkflow.findMany({
         where: {
           teamId: input.teamId,
-          status: {
-            notIn: [
-              "CLOSED",
-              "APPROVED_INTERNAL",
-              "REJECTED_INSUFFICIENT",
-            ] as never,
-          },
+          ...afterCursor(stuckCursor),
+          status: { notIn: [...REVIEW_FINISHED_DB_STATUSES] },
         },
-        take: 200,
+        orderBy: { id: "asc" },
+        take: stuckLimit,
         select: {
           id: true,
           evidenceId: true,
@@ -1553,25 +1446,48 @@ async function runReconcileInner(
           activeEscalationId: true,
         },
       });
+      await advanceSweepCursor(client, stuckCursorKey, stuckCursor, {
+        lastId: nonTerminal.at(-1)?.id ?? null,
+        pageSize: nonTerminal.length,
+        limit: stuckLimit,
+      });
+      const activeIds = nonTerminal.flatMap((w) => (w.activeEscalationId ? [w.activeEscalationId] : []));
+      const acknowledged = new Set(
+        activeIds.length === 0
+          ? []
+          : (
+              await client.reviewEscalation.findMany({
+                where: { id: { in: activeIds }, status: "ACKNOWLEDGED" },
+                select: { id: true },
+              })
+            ).map((e) => e.id),
+      );
       const nowMs = Date.now();
       for (const wf of nonTerminal) {
+        // A row still stored OVERDUE predates "a missed deadline is a breach".
         const slaStatus: WorkflowSlaStatus =
-          wf.slaStatus === "ON_TRACK" ||
-          wf.slaStatus === "DUE_SOON" ||
-          wf.slaStatus === "BREACHED"
-            ? wf.slaStatus
-            : null;
+          wf.slaStatus === "OVERDUE"
+            ? "BREACHED"
+            : wf.slaStatus === "ON_TRACK" ||
+                wf.slaStatus === "DUE_SOON" ||
+                wf.slaStatus === "BREACHED"
+              ? wf.slaStatus
+              : null;
         const classification: StuckClassification = detectStuckWorkflow({
           nowEpochMs: nowMs,
-          status: wf.status as WorkflowReviewStatus,
+          status: stuckStatusFromDbStatus(String(wf.status)),
           submittedAtEpochMs: wf.createdAt.getTime(),
           assignedAtEpochMs: wf.assignedAtUtc?.getTime() ?? null,
           firstOpenedAtEpochMs: wf.lastReviewedAt?.getTime() ?? null,
           lastReviewerTouchAtEpochMs: wf.lastReviewedAt?.getTime() ?? null,
+          // A contributor's answer moves the row out of NEEDS_INFO to
+          // RESPONSE_RECEIVED, so a row still waiting has none on record.
           lastContributorResponseAtEpochMs: null,
           slaStatus,
           hasOpenEscalation: !!wf.activeEscalationId,
-          escalationAcknowledged: false,
+          escalationAcknowledged: wf.activeEscalationId ? acknowledged.has(wf.activeEscalationId) : false,
+          // This sweep reads open reviews, and an approved review is finished,
+          // so the export-blocked rule does not apply here.
           approvedButExportBlocked: false,
         });
         if (!classification.isStuck) continue;

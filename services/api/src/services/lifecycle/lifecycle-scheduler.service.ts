@@ -20,6 +20,7 @@
 import { processAccountClosures } from "../identity/account-closure.service.js";
 import { processOrganizationClosures } from "../organization/org-closure.service.js";
 import { processWorkspaceClosures } from "../workspace/workspace-closure.service.js";
+import { processAccountDataExports } from "../identity/account-data-export.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
 
@@ -31,14 +32,22 @@ export const RECOVERED_WORK_TYPES = ["LIFECYCLE"] as const;
 
 export type LifecycleTickSummary = {
   ranAt: string;
-  processors: Record<"accountClosures" | "organizationClosures" | "workspaceClosures", "ok" | "failed">;
+  processors: Record<
+    "accountClosures" | "organizationClosures" | "workspaceClosures" | "accountDataExports",
+    "ok" | "failed"
+  >;
   failures: number;
 };
 
 export async function runLifecycleTick(now: Date = new Date()): Promise<LifecycleTickSummary> {
   const summary: LifecycleTickSummary = {
     ranAt: now.toISOString(),
-    processors: { accountClosures: "ok", organizationClosures: "ok", workspaceClosures: "ok" },
+    processors: {
+      accountClosures: "ok",
+      organizationClosures: "ok",
+      workspaceClosures: "ok",
+      accountDataExports: "ok",
+    },
     failures: 0,
   };
   const step = async (
@@ -60,6 +69,11 @@ export async function runLifecycleTick(now: Date = new Date()): Promise<Lifecycl
   await step("accountClosures", () => processAccountClosures(now));
   await step("organizationClosures", () => processOrganizationClosures(now));
   await step("workspaceClosures", () => processWorkspaceClosures(now));
+  // WORKFLOW-008 — a person's data export is not a digest. It used to run after
+  // the digest's schema refusal, so a digest problem stopped it.
+  await step("accountDataExports", async () => {
+    await processAccountDataExports(now);
+  });
   bump("lifecycle_tick_completed_total");
   return summary;
 }

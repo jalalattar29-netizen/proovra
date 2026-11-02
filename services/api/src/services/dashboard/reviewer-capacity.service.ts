@@ -14,9 +14,10 @@
  *   - Recommendations are idempotent on (teamId, recommendationKey).
  */
 
+import { REVIEWER_OPS_DEFAULT_SLA_POLICY } from "@proovra/shared";
+
 import { prisma } from "../../db.js";
 
-const DUE_SOON_HOURS = 48;
 const STALE_HOURS = 72;
 const SATURATION_HIGH = 15;
 const SATURATION_CRITICAL = 30;
@@ -46,7 +47,6 @@ export async function computeReviewerCapacityForWorkspace(input: {
   let failed = 0;
   try {
     const now = new Date();
-    const dueSoonCutoff = new Date(Date.now() + DUE_SOON_HOURS * 60 * 60 * 1000);
     const staleCutoff = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
     const seven = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const thirty = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -63,6 +63,7 @@ export async function computeReviewerCapacityForWorkspace(input: {
         assignedToUserId: true,
         dueAt: true,
         updatedAt: true,
+        slaDueSoonHours: true,
       },
     });
 
@@ -90,7 +91,11 @@ export async function computeReviewerCapacityForWorkspace(input: {
       }
       b.assignedCount += 1;
       if (r.dueAt && r.dueAt < now) b.overdueCount += 1;
-      else if (r.dueAt && r.dueAt < dueSoonCutoff) b.dueSoonCount += 1;
+      else if (r.dueAt) {
+        // The window the review was stamped with, so this agrees with the queue.
+        const hours = r.slaDueSoonHours ?? REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours;
+        if (r.dueAt.getTime() < now.getTime() + hours * 3_600_000) b.dueSoonCount += 1;
+      }
       if (r.updatedAt < staleCutoff) b.staleCount += 1;
     }
 

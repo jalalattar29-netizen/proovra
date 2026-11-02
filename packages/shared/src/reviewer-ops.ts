@@ -462,6 +462,105 @@ export function rollupReviewerOpsSlaState(
 }
 
 // -----------------------------------------------------------------------------
+// One reading of a review row's deadlines (WORKFLOW-006, WORKFLOW-007).
+//
+// The stored `slaStatus` drives the queues, counts and reminders, and the
+// per-dimension snapshot drives the badge. They used to be two calculations with
+// different windows, so a row could read Due soon on the badge and be absent from
+// the Due soon queue. Both now start from this mapping.
+// -----------------------------------------------------------------------------
+
+/** Workflow DB statuses whose review is over. The one definition of open work. */
+export const REVIEW_FINISHED_DB_STATUSES = [
+  "CLOSED",
+  "REJECTED_INSUFFICIENT",
+  "APPROVED_INTERNAL",
+] as const;
+
+export function isReviewOpenDbStatus(status: string): boolean {
+  return !(REVIEW_FINISHED_DB_STATUSES as ReadonlyArray<string>).includes(status);
+}
+
+export type ReviewSlaRowFacts = {
+  slaPausedAtUtc?: Date | null;
+  assignmentDueAtUtc?: Date | null;
+  assignedAtUtc?: Date | null;
+  firstResponseDueAtUtc?: Date | null;
+  lastReviewedAt?: Date | null;
+  /** The review's deadline. An operator-typed date wins over the stamped one. */
+  dueAt?: Date | null;
+  completionDueAtUtc?: Date | null;
+  completedAtUtc?: Date | null;
+  closedAt?: Date | null;
+  escalationDueAtUtc?: Date | null;
+  escalatedAtUtc?: Date | null;
+  /** The due-soon window stamped with the row's deadlines. */
+  slaDueSoonHours?: number | null;
+};
+
+export function reviewSlaInputFromRow(
+  row: ReviewSlaRowFacts,
+  opts: { nowUtc?: Date; hasOpenEscalation?: boolean; dueSoonHours?: number } = {},
+): ReviewSlaComputationInput {
+  const finishedAt = row.completedAtUtc ?? row.closedAt ?? null;
+  const dueSoonHours =
+    row.slaDueSoonHours ?? opts.dueSoonHours ?? REVIEWER_OPS_DEFAULT_SLA_POLICY.dueSoonHours;
+  return {
+    nowUtc: opts.nowUtc,
+    paused: Boolean(row.slaPausedAtUtc),
+    hasOpenEscalation: Boolean(opts.hasOpenEscalation),
+    assignmentDueAtUtc: row.assignmentDueAtUtc ?? null,
+    assignedAtUtc: row.assignedAtUtc ?? finishedAt,
+    firstReviewDueAtUtc: row.firstResponseDueAtUtc ?? null,
+    firstReviewedAtUtc: row.lastReviewedAt ?? finishedAt,
+    completionDueAtUtc: row.dueAt ?? row.completionDueAtUtc ?? null,
+    completedAtUtc: finishedAt,
+    escalationDueAtUtc: row.escalationDueAtUtc ?? null,
+    // The escalation deadline is met once the review is escalated or finished.
+    escalationResolvedAtUtc: row.escalatedAtUtc ?? finishedAt,
+    dueSoonMinutes: dueSoonHours * 60,
+  };
+}
+
+/** True when the row carries at least one deadline. */
+export function reviewRowHasDeadline(row: ReviewSlaRowFacts): boolean {
+  return Boolean(
+    row.assignmentDueAtUtc ??
+      row.firstResponseDueAtUtc ??
+      row.dueAt ??
+      row.completionDueAtUtc ??
+      row.escalationDueAtUtc,
+  );
+}
+
+export type StoredReviewSlaStatus = "ON_TRACK" | "DUE_SOON" | "BREACHED" | "PAUSED";
+
+/**
+ * The value the queues read. A missed deadline is a breach: the policy states the
+ * hours, so no grace period is added behind it. Null when the row has no deadline.
+ */
+export function storedReviewSlaStatus(
+  row: ReviewSlaRowFacts,
+  opts: { nowUtc?: Date; dueSoonHours?: number } = {},
+): StoredReviewSlaStatus | null {
+  if (!reviewRowHasDeadline(row)) return null;
+  // An open escalation changes the badge's wording, never the timing.
+  const snapshots = computeReviewerOpsSlaSnapshot(
+    reviewSlaInputFromRow(row, { ...opts, hasOpenEscalation: false }),
+  );
+  switch (rollupReviewerOpsSlaState(snapshots)) {
+    case "BREACHED":
+      return "BREACHED";
+    case "DUE_SOON":
+      return "DUE_SOON";
+    case "PAUSED":
+      return "PAUSED";
+    default:
+      return "ON_TRACK";
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Default SLA policy. The route layer reads env vars; the shared
 // defaults are the brief's documented values.
 // -----------------------------------------------------------------------------
