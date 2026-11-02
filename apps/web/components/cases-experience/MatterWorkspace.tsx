@@ -34,6 +34,7 @@
  *     existing utility classes so the component is portable.
  */
 
+import { getDisplayTitle } from "../../app/(app)/evidence/lib/evidence-library-status";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -88,6 +89,11 @@ import { ReasonedActionButton } from "../../app/(app)/evidence/[id]/components/R
 // =============================================================================
 // Envelope shape (mirror of services/api/src/services/cases/matter-workspace.service.ts)
 // =============================================================================
+
+/** The envelope carries the stored title (often null) and the file names; the cascade names the row. */
+function evidenceRowTitle(row: { id: string; title?: string | null; type?: string | null }): string {
+  return getDisplayTitle(row as Parameters<typeof getDisplayTitle>[0]);
+}
 
 type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
 
@@ -1355,10 +1361,10 @@ function EvidenceTab({
               ev.items,
               filterText,
               (it) =>
-                `${it.title ?? ""} ${it.type ?? ""} ${it.status ?? ""} ${it.verificationStatus ?? ""} ${it.lifecycleState ?? ""} ${it.linkRole ?? ""}`,
+                `${evidenceRowTitle(it)} ${it.type ?? ""} ${it.status ?? ""} ${it.verificationStatus ?? ""} ${it.lifecycleState ?? ""} ${it.linkRole ?? ""}`,
             ).map((it) => (
               <tr key={it.id} onClick={() => onOpenEvidence?.(it.id)}>
-                <td>{it.title || it.id}</td>
+                <td>{evidenceRowTitle(it)}</td>
                 <td>{identifierLabel(it.type)}</td>
                 <td>{identifierLabel(it.status)}</td>
                 <td>{it.verificationStatus ? identifierLabel(it.verificationStatus) : "—"}</td>
@@ -1376,11 +1382,11 @@ function EvidenceTab({
                       loading={links.busyLinkId === it.linkId}
                       disabled={!links.canUnlink || links.busyLinkId !== null}
                       disabledReason={links.unlinkDisabledReason}
-                      aria-label={`Unlink ${it.title || "evidence"}`}
+                      aria-label={`Unlink ${evidenceRowTitle(it)}`}
                       onClick={() =>
                         links.onUnlink({
                           linkId: it.linkId as string,
-                          title: it.title || "Untitled evidence",
+                          title: evidenceRowTitle(it),
                         })
                       }
                       data-matter-evidence-unlink={it.linkId}

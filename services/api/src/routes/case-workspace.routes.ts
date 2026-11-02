@@ -868,12 +868,20 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
           ...(caseRow.teamId ? { AND: [evidenceVisibleThroughCasesWhere(callerUserId)] } : {}),
           ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
           ...(search
-            ? { title: { contains: search, mode: "insensitive" } }
+            ? {
+                OR: [
+                  { title: { contains: search, mode: "insensitive" } },
+                  { displayFileName: { contains: search, mode: "insensitive" } },
+                  { originalFileName: { contains: search, mode: "insensitive" } },
+                ],
+              }
             : {}),
         },
         select: {
           id: true,
           title: true,
+          displayFileName: true,
+          originalFileName: true,
           type: true,
           status: true,
           verificationStatus: true,
@@ -907,7 +915,8 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         items: page.map((e) => ({
           id: e.id,
-          title: e.title ?? "Untitled evidence",
+          // An upload has a file name and often no title: that name is what the person knows it by.
+          title: e.title ?? e.displayFileName ?? e.originalFileName ?? "Untitled evidence",
           type: String(e.type),
           status: String(e.status),
           verificationStatus: e.verificationStatus

@@ -522,6 +522,8 @@ export async function buildCaseWorkspace(input: {
       select: {
         id: true,
         title: true,
+        displayFileName: true,
+        originalFileName: true,
         type: true,
         status: true,
         verificationStatus: true,
@@ -560,7 +562,7 @@ export async function buildCaseWorkspace(input: {
         status: "ok",
         items: items.map((e) => ({
           id: e.id,
-          title: e.title ?? "Untitled evidence",
+          title: e.title ?? e.displayFileName ?? e.originalFileName ?? "Untitled evidence",
           type: String(e.type),
           status: String(e.status),
           verificationStatus: e.verificationStatus
