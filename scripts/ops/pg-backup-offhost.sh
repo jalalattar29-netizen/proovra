@@ -27,8 +27,12 @@ INTERVAL="${BACKUP_OFFHOST_INTERVAL_SECONDS:-3600}"
 URI="${BACKUP_S3_URI:-}"
 
 report() {
-  # Atomic: the cycle in the other container never reads half a line.
+  # Atomic: the cycle in the other container never reads half a line. That
+  # container is another image and may run as another user, and this line is a
+  # stamp and an outcome, not backup content: under the script's umask it would
+  # be unreadable there, and the off-host result would go unrecorded.
   printf '%s %s\n' "$1" "$2" >"$BACKUP_DIR/.offhost-status.partial"
+  chmod 0644 "$BACKUP_DIR/.offhost-status.partial"
   mv "$BACKUP_DIR/.offhost-status.partial" "$BACKUP_DIR/.offhost-status"
 }
 
