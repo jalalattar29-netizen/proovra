@@ -36,9 +36,19 @@
  * expensive, immutable part — re-reading the stored package and verifying its
  * seal bytes — is memoized. A storage failure is not memoized, so a transient
  * outage is re-checked on the next request and is never stated as FAILED.
+ *
+ * WHAT A FIRST VIEW COSTS (REPORT-014). The first check of a package in a
+ * process reads it back on a public request, so it must not stop the API: entries
+ * are inflated and hashed without holding the event loop, a few checks run at
+ * once, and the memo has a ceiling.
+ *
+ * ZIP64 (REPORT-005). A package past 4 GiB is read through its ZIP64 records.
+ * It is beyond the completeness bound, so its seal is checked and its
+ * completeness is not stated; that answer is final, never a promised re-check.
  */
 import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
-import { inflateRawSync } from "node:zlib";
+import { promisify } from "node:util";
+import { inflateRaw } from "node:zlib";
 
 import {
   resolveSealKeyBinding,
@@ -77,6 +87,33 @@ const SEAL_MATERIAL = new Set(["package-seal.json", "package-seal.sig", "package
 
 /** The immutable byte check of a legacy seal, per package seal identity and key. */
 const byteCheckMemo = new Map<string, Promise<ByteCheck>>();
+/** A ceiling, oldest out: forgetting a check costs one re-read, nothing else. */
+const DEFAULT_MEMOIZED_BYTE_CHECKS = 2048;
+let maxMemoizedByteChecks = DEFAULT_MEMOIZED_BYTE_CHECKS;
+const MAX_CONCURRENT_BYTE_CHECKS = 2;
+const HASH_SLICE_BYTES = 4 * 1024 * 1024;
+const ZIP_32_BIT_SENTINEL = 0xffffffff;
+const inflateRawAsync = promisify(inflateRaw);
+
+let activeByteChecks = 0;
+const waitingByteChecks: Array<() => void> = [];
+
+/** At most a few packages are read back at once; the rest queue. */
+async function inByteCheckSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (activeByteChecks >= MAX_CONCURRENT_BYTE_CHECKS) {
+    await new Promise<void>((resolve) => waitingByteChecks.push(resolve));
+  } else {
+    activeByteChecks += 1;
+  }
+  try {
+    return await run();
+  } finally {
+    // A waiter inherits this slot; otherwise it is freed.
+    const next = waitingByteChecks.shift();
+    if (next) next();
+    else activeByteChecks -= 1;
+  }
+}
 
 export async function resolvePackageSealCheck(pkg: SealCheckPackageRow | null): Promise<PackageSealCheck> {
   if (!pkg) return { fact: { kind: "NONE" }, completenessVerified: null };
@@ -95,6 +132,12 @@ export async function resolvePackageSealCheck(pkg: SealCheckPackageRow | null): 
 /** Test seam: forget memoized byte checks. */
 export function clearPackageSealCheckMemo(): void {
   byteCheckMemo.clear();
+}
+
+/** Test seam: how many byte checks are remembered, under what ceiling. */
+export function packageSealCheckMemoSize(ceiling: number = DEFAULT_MEMOIZED_BYTE_CHECKS): number {
+  maxMemoizedByteChecks = ceiling;
+  return byteCheckMemo.size;
 }
 
 /** KEY_REVOKED, with "after issuance" only when the dates show it. */
@@ -199,7 +242,10 @@ async function checkSealBytesOnce(pkg: SealCheckPackageRow, recordedFp: string):
   const memoKey = [pkg.id, pkg.sealSha256, recordedFp, pkg.storageBucket, pkg.storageKey, pkg.s3VersionId ?? ""].join("|");
   let pending = byteCheckMemo.get(memoKey);
   if (!pending) {
-    pending = checkLegacySealBytes(pkg, recordedFp).catch((): ByteCheck => ({ kind: "TRANSIENT" }));
+    pending = inByteCheckSlot(() => checkLegacySealBytes(pkg, recordedFp)).catch((): ByteCheck => ({ kind: "TRANSIENT" }));
+    if (byteCheckMemo.size >= maxMemoizedByteChecks) {
+      byteCheckMemo.delete(byteCheckMemo.keys().next().value as string);
+    }
     byteCheckMemo.set(memoKey, pending);
   }
   const bytes = await pending;
@@ -261,6 +307,57 @@ function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+/** The same digest in slices, giving the event loop a turn between them. */
+async function sha256HexInSlices(bytes: Uint8Array): Promise<string> {
+  const hash = createHash("sha256");
+  for (let at = 0; at < bytes.length; at += HASH_SLICE_BYTES) {
+    hash.update(bytes.subarray(at, at + HASH_SLICE_BYTES));
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  return hash.digest("hex");
+}
+
+/** The location of the central directory, through the ZIP64 records when it is past 32 bits. */
+async function centralDirectoryOf(
+  tail: Buffer,
+  eocd: number,
+  range: (start: number, end: number) => Promise<Buffer>,
+): Promise<{ offset: number; size: number }> {
+  const size = tail.readUInt32LE(eocd + 12);
+  const offset = tail.readUInt32LE(eocd + 16);
+  if (size !== ZIP_32_BIT_SENTINEL && offset !== ZIP_32_BIT_SENTINEL) return { offset, size };
+  const locator = eocd - 20;
+  if (locator < 0 || tail.readUInt32LE(locator) !== 0x07064b50) throw new Error("no zip64 locator");
+  const recordAt = Number(tail.readBigUInt64LE(locator + 8));
+  const record = await range(recordAt, recordAt + 55);
+  if (record.readUInt32LE(0) !== 0x06064b50) throw new Error("no zip64 end of central directory");
+  return { size: Number(record.readBigUInt64LE(40)), offset: Number(record.readBigUInt64LE(48)) };
+}
+
+/** A central record's 64-bit values live in its ZIP64 extra, in this order, only where the 32-bit field is the sentinel. */
+function resolveZip64Sizes(
+  extra: Buffer,
+  entry: Pick<CentralEntry, "size" | "compressedSize" | "localHeaderOffset">,
+): Pick<CentralEntry, "size" | "compressedSize" | "localHeaderOffset"> {
+  const out = { ...entry };
+  for (let p = 0; p + 4 <= extra.length; ) {
+    const id = extra.readUInt16LE(p);
+    const length = extra.readUInt16LE(p + 2);
+    if (id === 0x0001) {
+      let at = p + 4;
+      for (const field of ["size", "compressedSize", "localHeaderOffset"] as const) {
+        if (out[field] === ZIP_32_BIT_SENTINEL) {
+          out[field] = Number(extra.readBigUInt64LE(at));
+          at += 8;
+        }
+      }
+      break;
+    }
+    p += 4 + length;
+  }
+  return out;
+}
+
 type CentralEntry = { name: string; method: number; compressedSize: number; size: number; localHeaderOffset: number };
 
 /**
@@ -290,10 +387,8 @@ async function readPackageEntries(
     }
   }
   if (eocd < 0) throw new Error("no end of central directory");
-  const cdSize = tail.readUInt32LE(eocd + 12);
-  const cdOffset = tail.readUInt32LE(eocd + 16);
-  if (cdSize === 0xffffffff || cdOffset === 0xffffffff) throw new Error("zip64 package");
-  const cd = await range(cdOffset, cdOffset + cdSize - 1);
+  const directory = await centralDirectoryOf(tail, eocd, range);
+  const cd = await range(directory.offset, directory.offset + directory.size - 1);
   const central: CentralEntry[] = [];
   for (let p = 0; p + 46 <= cd.length && cd.readUInt32LE(p) === 0x02014b50; ) {
     const nameLen = cd.readUInt16LE(p + 28);
@@ -301,10 +396,12 @@ async function readPackageEntries(
     const commentLen = cd.readUInt16LE(p + 32);
     central.push({
       method: cd.readUInt16LE(p + 10),
-      compressedSize: cd.readUInt32LE(p + 20),
-      size: cd.readUInt32LE(p + 24),
-      localHeaderOffset: cd.readUInt32LE(p + 42),
       name: cd.subarray(p + 46, p + 46 + nameLen).toString("utf8"),
+      ...resolveZip64Sizes(cd.subarray(p + 46 + nameLen, p + 46 + nameLen + extraLen), {
+        compressedSize: cd.readUInt32LE(p + 20),
+        size: cd.readUInt32LE(p + 24),
+        localHeaderOffset: cd.readUInt32LE(p + 42),
+      }),
     });
     p += 46 + nameLen + extraLen + commentLen;
   }
@@ -322,12 +419,19 @@ async function readPackageEntries(
     if (header.readUInt32LE(0) !== 0x04034b50) throw new Error("bad local header");
     const dataStart = e.localHeaderOffset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
     const raw = e.compressedSize === 0 ? Buffer.alloc(0) : await range(dataStart, dataStart + e.compressedSize - 1);
-    const bytes = e.method === 0 ? raw : e.method === 8 ? inflateRawSync(raw) : null;
+    // An entry that will not inflate within its bound is unreadable for good: it
+    // is simply not among the entries, which the seal check then states.
+    const bytes =
+      e.method === 0
+        ? raw
+        : e.method === 8
+          ? await inflateRawAsync(raw, { maxOutputLength: MAX_ENTRY_BYTES }).catch(() => null)
+          : null;
     if (!bytes) {
       complete = false;
       continue;
     }
-    entries.set(e.name, material ? new Uint8Array(bytes) : { sha256: sha256Hex(bytes), sizeBytes: bytes.length });
+    entries.set(e.name, material ? new Uint8Array(bytes) : { sha256: await sha256HexInSlices(bytes), sizeBytes: bytes.length });
   }
   return { entries, complete };
 }

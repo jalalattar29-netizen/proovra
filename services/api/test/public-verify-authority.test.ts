@@ -266,6 +266,33 @@ describe("projectPublicVerification — the allowlist", () => {
    * attribution") plus the J4 cross-surface journey pin it. Only the categorical
    * labels beside a WITHHELD identity statement (AUD-45, above) are withheld.
    */
+  it("REPORT-015: with content, the recording grouping and its statement leave; without, nothing does", () => {
+    const f = facts();
+    (f.evidenceContent as Record<string, unknown>).artifacts = {
+      recording: { layout: "SEGMENTED", statement: "One continuous recording.", audioStatement: null, internalNote: "x-sentinel" },
+      userItems: [
+        { kind: "recording", label: "Screen recording", partIndexes: [0, 1], primaryPartIndex: 0, layout: "SEGMENTED", storageKey: "x-sentinel" },
+        { kind: "file", label: "private-name.pdf", partIndexes: [2], primaryPartIndex: 2, layout: null },
+      ],
+      technical: { originalPartCount: 3, captureRecordCount: 1, storedPartCount: 4, captureRecordPartIndexes: [3], bucket: "x-sentinel" },
+      counts: { userItems: 2 },
+    };
+    const cp = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE", CP), { attributionExposed: false });
+    const artifacts = (cp.evidenceContent as { artifacts: Record<string, unknown> }).artifacts;
+    expect(artifacts).toEqual({
+      recording: { layout: "SEGMENTED", statement: "One continuous recording.", audioStatement: null },
+      userItems: [
+        { kind: "recording", label: "Screen recording", partIndexes: [0, 1], primaryPartIndex: 0, layout: "SEGMENTED" },
+        { kind: "file", label: null, partIndexes: [2], primaryPartIndex: 2, layout: null },
+      ],
+      technical: { originalPartCount: 3, captureRecordCount: 1, storedPartCount: 4, captureRecordPartIndexes: [3] },
+      counts: { userItems: 2 },
+    });
+    expect(JSON.stringify(cp)).not.toContain("x-sentinel");
+    const vo = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE"), { attributionExposed: false });
+    expect((vo.evidenceContent as { artifacts: unknown }).artifacts).toBeNull();
+  });
+
   it("F-27b: no browser, OS or device-model details leave, even with content preview", () => {
     const f = facts();
     f.captureManifest = {

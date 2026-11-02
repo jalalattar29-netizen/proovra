@@ -159,6 +159,31 @@ function projectItem(item: Obj, position: number, d: PublicVerifyDisclosureFacts
   };
 }
 
+/**
+ * REPORT-015 — how the items group for a reader: one recording item and its
+ * statement, the rest technical. Named fields only; it says nothing beyond the
+ * content a CONTENT_PREVIEW answer already shows, and a label that is not the
+ * recording's fixed wording (a file's own name) never leaves here.
+ */
+function projectContentArtifacts(artifacts: unknown, d: PublicVerifyDisclosureFacts): Obj | null {
+  if (d.mode !== "CONTENT_PREVIEW" || !isObj(artifacts)) return null;
+  const userItems = Array.isArray(artifacts.userItems) ? (artifacts.userItems as Obj[]) : [];
+  const recording = isObj(artifacts.recording)
+    ? pick(artifacts.recording, ["layout", "statement", "observedByProovra", "audioStatement"])
+    : null;
+  return {
+    recording,
+    userItems: userItems.map((item) => ({
+      ...pick(item, ["kind", "partIndexes", "primaryPartIndex", "layout"]),
+      label: item.kind === "recording" && typeof item.label === "string" ? item.label : null,
+    })),
+    technical: isObj(artifacts.technical)
+      ? pick(artifacts.technical, ["originalPartCount", "captureRecordCount", "storedPartCount", "captureRecordPartIndexes"])
+      : null,
+    counts: isObj(artifacts.counts) ? pick(artifacts.counts, ["userItems"]) : null,
+  };
+}
+
 function projectEvidenceContent(content: unknown, d: PublicVerifyDisclosureFacts): Obj | null {
   if (!isObj(content)) return null;
   const items = Array.isArray(content.items) ? (content.items as Obj[]).map((it, i) => projectItem(it, i, d)) : [];
@@ -176,6 +201,7 @@ function projectEvidenceContent(content: unknown, d: PublicVerifyDisclosureFacts
   return {
     summary,
     items,
+    artifacts: projectContentArtifacts(content.artifacts, d),
     primaryItem: primary,
     defaultPreviewItemId: defaultPreview ? (defaultPreview.id as string) : null,
     // The preview policy is stated from THIS answer's disclosure, never passed

@@ -76,13 +76,26 @@ const ListQuery = z.object({
 
 type CursorShape = { c: string; i: string };
 
-function decodeCursor(raw: string | undefined): CursorShape | null {
-  if (!raw) return null;
+const CURSOR_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `undefined` when no cursor was given, `null` when one was given and is not a
+ * cursor of this list. REPORT-011 — the two strings reach the database as a
+ * timestamp and a UUID, so both are proved here; a cursor that is neither would
+ * otherwise fail inside the query as a server error.
+ */
+function decodeCursor(raw: string | undefined): CursorShape | null | undefined {
+  if (!raw) return undefined;
   try {
     const parsed = JSON.parse(
       Buffer.from(raw, "base64").toString("utf8"),
     ) as Partial<CursorShape>;
-    if (typeof parsed.c === "string" && typeof parsed.i === "string") {
+    if (
+      typeof parsed.c === "string" &&
+      typeof parsed.i === "string" &&
+      !Number.isNaN(new Date(parsed.c).getTime()) &&
+      CURSOR_ID_SHAPE.test(parsed.i)
+    ) {
       return { c: parsed.c, i: parsed.i };
     }
     return null;
@@ -176,6 +189,14 @@ export default async function registerReportsRoutes(
       const userId = getAuthUserId(req);
       const limit = query.limit ?? 50;
       const cursor = decodeCursor(query.cursor);
+      if (cursor === null) {
+        return reply.code(400).send({
+          error: {
+            code: "INVALID_CURSOR",
+            message: "The report list cursor is not valid.",
+          },
+        });
+      }
 
       // -----------------------------------------------------------------
       // ET-SEC-18 — every workspace this list reads is admitted by THE

@@ -25,7 +25,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildVerificationMatrix, serializePackageSeal, buildPackageSeal, PUBLIC_PACKAGE_KEY_BINDING_TEXT } from "@proovra/shared";
 
-const store = vi.hoisted(() => ({ object: null as Buffer | null, fail: false, reads: 0 }));
+const store = vi.hoisted(() => ({ object: null as Buffer | null, fail: false, reads: 0, virtualPrefix: 0 }));
 const registry = vi.hoisted(() => ({
   keyed: null as null | { publicKeyPem: string; revokedAt: Date | null; createdAt: Date; fingerprintSha256: string },
   byFingerprint: null as null | { keyId: string; version: number; publicKeyPem: string; revokedAt?: Date | null },
@@ -34,13 +34,13 @@ const registry = vi.hoisted(() => ({
 vi.mock("../src/storage.js", () => ({
   headObject: async () => {
     if (store.fail || !store.object) throw new Error("storage unavailable");
-    return { sizeBytes: store.object.length };
+    return { sizeBytes: store.object.length + store.virtualPrefix };
   },
   getObjectRange: async ({ range }: { range: string }) => {
     store.reads += 1;
     if (store.fail || !store.object) throw new Error("storage unavailable");
     const [, a, b] = /bytes=(\d+)-(\d+)/.exec(range)!;
-    return store.object.subarray(Number(a), Number(b) + 1);
+    return store.object.subarray(Number(a) - store.virtualPrefix, Number(b) + 1 - store.virtualPrefix);
   },
 }));
 vi.mock("../src/db.js", () => ({
@@ -65,7 +65,7 @@ const sha = (b: Buffer | string) => createHash("sha256").update(b).digest("hex")
 
 type Built = { zip: Buffer; sealSha256: string; fingerprint: string; pem: string };
 
-async function buildPackage(opts: { tamperSignature?: boolean } = {}): Promise<Built> {
+async function buildPackage(opts: { tamperSignature?: boolean; forceZip64?: boolean } = {}): Promise<Built> {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
   const fingerprint = sha(publicKey.export({ type: "spki", format: "der" }) as Buffer);
@@ -113,7 +113,7 @@ async function buildPackage(opts: { tamperSignature?: boolean } = {}): Promise<B
       signatureInput: "SHA-256(package-seal.json) raw bytes",
     }),
   );
-  const archive = archiver("zip", { zlib: { level: 6 } });
+  const archive = archiver("zip", { zlib: { level: 6 }, forceZip64: opts.forceZip64 === true });
   const out = new PassThrough();
   const chunks: Buffer[] = [];
   out.on("data", (c: Buffer) => chunks.push(c));
@@ -126,6 +126,61 @@ async function buildPackage(opts: { tamperSignature?: boolean } = {}): Promise<B
   await archive.finalize();
   await done;
   return { zip: Buffer.concat(chunks), sealSha256, fingerprint, pem };
+}
+
+/**
+ * The same archive as it would stand with `prefix` bytes before its first entry:
+ * every offset is 64-bit and past `prefix`, as a package above 4 GiB has them.
+ */
+function relocateZip64(zip: Buffer, prefix: number): Buffer {
+  const recordAt = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x06, 0x06]));
+  const cdAt = Number(zip.readBigUInt64LE(recordAt + 48));
+  const cdSize = Number(zip.readBigUInt64LE(recordAt + 40));
+  const count = zip.readBigUInt64LE(recordAt + 32);
+  const records: Buffer[] = [];
+  for (let p = cdAt; p < cdAt + cdSize; ) {
+    const nameLen = zip.readUInt16LE(p + 28);
+    const extraLen = zip.readUInt16LE(p + 30);
+    const commentLen = zip.readUInt16LE(p + 32);
+    const name = zip.subarray(p + 46, p + 46 + nameLen);
+    const end64 = p + 46 + nameLen + extraLen;
+    let field = p + 46 + nameLen;
+    while (field < end64 && zip.readUInt16LE(field) !== 1) field += 4 + zip.readUInt16LE(field + 2);
+    const has64 = field < end64;
+    const head = Buffer.from(zip.subarray(p, p + 46));
+    const extra = Buffer.alloc(28);
+    extra.writeUInt16LE(1, 0);
+    extra.writeUInt16LE(24, 2);
+    extra.writeBigUInt64LE(has64 ? zip.readBigUInt64LE(field + 4) : BigInt(zip.readUInt32LE(p + 24)), 4);
+    extra.writeBigUInt64LE(has64 ? zip.readBigUInt64LE(field + 12) : BigInt(zip.readUInt32LE(p + 20)), 12);
+    extra.writeBigUInt64LE(BigInt(zip.readUInt32LE(p + 42) + prefix), 20);
+    head.writeUInt32LE(0xffffffff, 20);
+    head.writeUInt32LE(0xffffffff, 24);
+    head.writeUInt32LE(0xffffffff, 42);
+    head.writeUInt16LE(extra.length, 30);
+    head.writeUInt16LE(0, 32);
+    records.push(head, name, extra);
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  const cd = Buffer.concat(records);
+  const zip64End = Buffer.alloc(56);
+  zip64End.writeUInt32LE(0x06064b50, 0);
+  zip64End.writeBigUInt64LE(44n, 4);
+  zip64End.writeBigUInt64LE(count, 24);
+  zip64End.writeBigUInt64LE(count, 32);
+  zip64End.writeBigUInt64LE(BigInt(cd.length), 40);
+  zip64End.writeBigUInt64LE(BigInt(cdAt + prefix), 48);
+  const locator = Buffer.alloc(20);
+  locator.writeUInt32LE(0x07064b50, 0);
+  locator.writeBigUInt64LE(BigInt(cdAt + cd.length + prefix), 8);
+  locator.writeUInt32LE(1, 16);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0xffff, 8);
+  end.writeUInt16LE(0xffff, 10);
+  end.writeUInt32LE(0xffffffff, 12);
+  end.writeUInt32LE(0xffffffff, 16);
+  return Buffer.concat([zip.subarray(0, cdAt), cd, zip64End, locator, end]);
 }
 
 const row = (b: Built, over: Record<string, unknown> = {}) => ({
@@ -162,6 +217,7 @@ describe("resolvePackageSealCheck — one seal authority", () => {
     store.object = good.zip;
     store.fail = false;
     store.reads = 0;
+    store.virtualPrefix = 0;
     registry.keyed = null;
     registry.byFingerprint = null;
   });
@@ -287,6 +343,39 @@ describe("resolvePackageSealCheck — one seal authority", () => {
     const rows = matrixRows(check.fact);
     expect(rows.signature.status).toBe("NOT_CHECKED");
     expect(rows.signature.qualifiers ?? []).not.toContain("LEGACY_SEAL");
+  });
+
+  it("REPORT-005: a ZIP64 package verifies, past 4 GiB too: seal checked, completeness not stated, nothing promised", async () => {
+    const big = await buildPackage({ forceZip64: true });
+    registry.byFingerprint = { keyId: "pkg-seal", version: 1, publicKeyPem: big.pem };
+    store.object = big.zip;
+    const small = await mod.resolvePackageSealCheck({ ...row(big), id: "zip64-small" });
+    expect(small.fact.kind).toBe("LEGACY_VERIFIED");
+    expect(small.completenessVerified).toBe(true);
+
+    const prefix = 5 * 1024 * 1024 * 1024;
+    store.object = relocateZip64(big.zip, prefix);
+    store.virtualPrefix = prefix;
+    const beyond = await mod.resolvePackageSealCheck({ ...row(big), id: "zip64-5gib" });
+    expect(beyond.fact.kind).toBe("LEGACY_VERIFIED");
+    expect(beyond.completenessVerified).toBe(false);
+    // Remembered: a later visit does not read the package again.
+    const reads = store.reads;
+    await mod.resolvePackageSealCheck({ ...row(big), id: "zip64-5gib" });
+    expect(store.reads).toBe(reads);
+  });
+
+  it("REPORT-014: the memo has a ceiling, and concurrent first views all answer", async () => {
+    registry.byFingerprint = { keyId: "pkg-seal", version: 1, publicKeyPem: good.pem };
+    const answers = await Promise.all(
+      Array.from({ length: 12 }, (_, i) => mod.resolvePackageSealCheck({ ...row(good), id: `parallel-${i}` })),
+    );
+    expect(answers.every((a) => a.fact.kind === "LEGACY_VERIFIED")).toBe(true);
+    mod.clearPackageSealCheckMemo();
+    mod.packageSealCheckMemoSize(8);
+    for (let i = 0; i < 24; i += 1) await mod.resolvePackageSealCheck({ ...row(good), id: `ceiling-${i}` });
+    expect(mod.packageSealCheckMemoSize(8)).toBeLessThanOrEqual(8);
+    mod.packageSealCheckMemoSize();
   });
 
   it("storage unavailable: not checked now, and checked again next time — never FAILED, never 'legacy' (F-30)", async () => {

@@ -156,6 +156,35 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
   // R9 — a legal hold that is STILL ACTIVE is not a blocker that has ended
   // =========================================================================
 
+  it("REPORT-007: a workspace-scoped hold is still a standing blocker; nothing new is minted", async () => {
+    const { evidenceId, teamId, ownerUserId } = harness.fixtures.teamA;
+    await resetChain(evidenceId);
+    await seedBlocked({ evidenceId, teamId, key: baseKey(evidenceId), terminalReasonCode: "LEGAL_HOLD_ACTIVE" });
+    const hold = await prisma.evidenceLegalHold.create({
+      data: {
+        evidenceId: null,
+        teamId,
+        scope: "WORKSPACE",
+        status: "ACTIVE",
+        title: "supersession-integration-workspace",
+        reason: "supersession-integration-workspace",
+        placedByUserId: ownerUserId,
+      },
+      select: { id: true },
+    });
+    try {
+      for (let tick = 0; tick < 3; tick += 1) {
+        const blocked = await request(evidenceId);
+        expect(blocked.created).toBe(true);
+        if (!blocked.created) return;
+        expect(blocked.superseded).toBe(false);
+      }
+      expect(await prisma.reportGenerationRequest.count({ where: { evidenceId } })).toBe(1);
+    } finally {
+      await prisma.evidenceLegalHold.delete({ where: { id: hold.id } });
+    }
+  });
+
   it("R9: an ACTIVE legal hold is NOT superseded, and the refusal says it could end", async () => {
     const { evidenceId, teamId, ownerUserId } = harness.fixtures.teamA;
     await resetChain(evidenceId);

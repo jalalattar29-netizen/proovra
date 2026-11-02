@@ -76,6 +76,18 @@ describe("reports lists honour the authorization decision (live PostgreSQL 16)",
     }
   });
 
+  it("REPORT-011: a cursor that is not one of this list is a 400, never a server error", async () => {
+    const token = h.fixtures.teamA.memberToken;
+    const b64 = (v: unknown) => encodeURIComponent(Buffer.from(JSON.stringify(v)).toString("base64"));
+    for (const cursor of [b64({ c: "x", i: "y" }), b64({ c: new Date().toISOString(), i: "y" }), b64({ c: "x", i: randomUUID() }), "not-a-cursor"]) {
+      const res = await get(`/v1/reports?cursor=${cursor}`, token);
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error.code).toBe("INVALID_CURSOR");
+    }
+    const ok = await get(`/v1/reports?cursor=${b64({ c: new Date().toISOString(), i: randomUUID() })}`, token);
+    expect(ok.statusCode).toBe(200);
+  });
+
   it("a trashed record is never listed", async () => {
     const A = h.fixtures.teamA;
     const trashed = await signedIn(A.teamId, A.ownerUserId);

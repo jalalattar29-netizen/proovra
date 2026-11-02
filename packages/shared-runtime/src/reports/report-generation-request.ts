@@ -47,6 +47,7 @@ import {
   type OutputProductionEntitlement,
   type OutputProductionRefusal,
 } from "@proovra/shared";
+import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
 
 /**
@@ -741,18 +742,18 @@ export async function blockerStillActive(
         return false;
 
       /*
-       * THE SAME PREDICATE THE CLAIM PATH USES. `resolveAndClaimReportRequest`
-       * blocks on `EvidenceLegalHold(evidenceId, status: ACTIVE)`, and this asks
-       * exactly that. It deliberately does NOT consult case-scoped holds: those
-       * govern EXPORT (`checkExportEligibility`), not generation, and widening
-       * the rule here would invent a second hold policy.
+       * THE SAME PREDICATE THE WORKER USES. Its admission refuses on the
+       * effective hold (record, linked case or workspace), so asking only about
+       * a record-direct hold here read a standing case or workspace hold as
+       * ended: each reconciler pass superseded the blocked request with a new
+       * one the worker blocked again (REPORT-007).
        */
       case "LEGAL_HOLD_ACTIVE": {
-        const hold = await prisma.evidenceLegalHold.findFirst({
-          where: { evidenceId: input.evidenceId, status: "ACTIVE" },
-          select: { id: true },
+        const hold = await evaluateEffectiveLegalHold(prisma, {
+          teamId: input.teamId,
+          evidenceId: input.evidenceId,
         });
-        return hold !== null;
+        return hold.held;
       }
 
       /*
