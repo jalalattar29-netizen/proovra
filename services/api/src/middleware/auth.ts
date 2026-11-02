@@ -29,6 +29,7 @@ import { gateSecurityAction } from "../services/governance/policy-runtime-gates.
 import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
 import { bindRequestSession } from "../services/auth/request-session-context.js";
 import { trustedClientIpKey } from "./client-ip.js";
+import { refuseSupportContextWrite } from "./support-context-boundary.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -462,6 +463,10 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
         return reply.code(403).send(createErrorResponse(ErrorCode.FORBIDDEN, req.id));
       }
     }
+
+    // A READ_ONLY support context writes nothing, on any authenticated route
+    // (support-context-boundary.ts says why this is decided here).
+    if (await refuseSupportContextWrite(req, reply, payload.sub, routePatternOf(req) ?? req.url)) return reply;
 
     // Phase 26.75 — Sampled heartbeat. Fire-and-forget; the helper is
     // self-throttled via shouldWriteHeartbeat() so it writes at most

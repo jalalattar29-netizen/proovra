@@ -32,6 +32,14 @@ const H = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
+// The routes read the scope a grant names and the Organization of the workspace
+// an emergency action runs on.
+vi.mock("../src/db.js", () => ({
+  prisma: {
+    organization: { findUnique: async () => ({ id: "44444444-4444-4444-8444-444444444444" }) },
+    team: { findUnique: async () => ({ organizationId: "44444444-4444-4444-8444-444444444444" }) },
+  },
+}));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => {} }));
 // PHASE 12B C10 — support-access / break-glass are now PLATFORM-STAFF gated
 // (they previously gated on the CUSTOMER capability `identity.org_policy.manage`

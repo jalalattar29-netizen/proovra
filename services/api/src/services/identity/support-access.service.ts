@@ -18,19 +18,54 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { emitOrgAuditEvent } from "../organization/org-audit.service.js";
 
 export type SupportAccessLevel = "READ_ONLY" | "ELEVATED";
 
-/** Actions support access may NEVER perform (even ELEVATED needs a separate cap). */
+/**
+ * Actions support access may NEVER perform (even ELEVATED needs a separate cap).
+ *
+ * The guard evaluates the canonical `Permission` of the route, so this list has
+ * to speak that vocabulary. It used to name actions no route asks about
+ * ("billing.change", "membership.change"), which forbade nothing: an ELEVATED
+ * grant could suspend members, change the security policy and move legal holds.
+ */
 export const SUPPORT_FORBIDDEN_ACTIONS = [
+  // Destruction of evidence.
   "evidence.delete",
   "evidence.destroy",
+  "evidence.purge",
+  "governance.destruction.request",
+  "governance.destruction.approve",
+  "governance.destruction.execute",
+  // Legal hold and retention.
   "legal_hold.remove",
+  "governance.legal_hold.manage",
   "retention.weaken",
+  "retention.configure",
+  "governance.retention.manage",
+  "governance.retention_policy.manage",
+  // Membership and ownership.
   "membership.owner_change",
   "membership.change",
+  "identity.member.invite",
+  "identity.member.role.change",
+  "identity.member.suspend",
+  "identity.member.revoke",
+  "identity.member.restore",
+  "identity.capability.grant",
+  "identity.capability.revoke",
+  "identity.delegated_admin.grant",
+  "identity.delegated_admin.revoke",
+  // Security policy and identity configuration.
   "security_policy.update",
+  "identity.org_policy.manage",
+  "identity.external_mapping.manage",
+  "identity.service_account.manage",
+  "identity.service_account.disable",
+  // Billing.
   "billing.change",
+  "billing.manage",
   "break_glass.create",
 ] as const;
 
@@ -177,6 +212,23 @@ export async function startSupportAccess(
     },
   }, client).catch(() => null);
 
+  await recordSupportAccessForCustomer(client, {
+    eventType: "ORG_SUPPORT_ACCESS_STARTED",
+    organizationId: input.organizationId,
+    actorUserId: input.supportUserId,
+    grantId: row.id,
+    metadata: {
+      teamId: input.teamId ?? null,
+      reason: row.reason,
+      accessLevel,
+      approvedByUserId: input.approvedByUserId ?? null,
+      customerApprovalUnavailableReason: input.approvedByUserId
+        ? null
+        : (input.customerApprovalUnavailableReason ?? null),
+      expiresAtUtc: expiresAtUtc.toISOString(),
+    },
+  });
+
   return {
     id: row.id,
     supportUserId: row.supportUserId,
@@ -191,29 +243,72 @@ export async function startSupportAccess(
   };
 }
 
+/**
+ * THE CUSTOMER SEES WHO WAS LET IN.
+ *
+ * The banner renders for the support actor, and the tenant audit lands in the
+ * platform log, whose only customer read filters by the reader's own user id. So
+ * a customer had no way to learn that staff held a grant over its Organization.
+ * These rows are on the customer's own trail (`/v1/orgs/:id/audit-events`).
+ * Best-effort like the sibling audits here: revoking must never fail on it.
+ */
+export async function recordSupportAccessForCustomer(
+  client: PrismaClient,
+  input: {
+    eventType:
+      | "ORG_SUPPORT_ACCESS_STARTED"
+      | "ORG_SUPPORT_ACCESS_ENTERED"
+      | "ORG_SUPPORT_ACCESS_REVOKED";
+    organizationId: string;
+    actorUserId: string;
+    grantId: string;
+    metadata?: Record<string, string | null>;
+  },
+): Promise<void> {
+  await emitOrgAuditEvent(client as never, {
+    organizationId: input.organizationId,
+    actorUserId: input.actorUserId,
+    eventType: input.eventType,
+    targetType: "support_access_grant",
+    targetId: input.grantId,
+    metadata: input.metadata ?? {},
+  }).catch(() => null);
+}
+
+/** Returns false when no such grant exists; revoking one twice is still true. */
 export async function revokeSupportAccess(
   input: { grantId: string; revokedByUserId: string },
   client: PrismaClient = defaultPrisma,
-): Promise<void> {
+): Promise<boolean> {
   // Persisted grant scope (never the request) for the audit's tenant columns.
   const grant = await client.supportAccessGrant.findUnique({
     where: { id: input.grantId },
     select: { organizationId: true, teamId: true, supportUserId: true },
   });
-  await client.supportAccessGrant.updateMany({
+  if (!grant) return false;
+  const ended = await client.supportAccessGrant.updateMany({
     where: { id: input.grantId, status: "ACTIVE" },
     data: { status: "REVOKED", revokedAtUtc: new Date() },
   });
+  if (ended.count > 0) {
+    await recordSupportAccessForCustomer(client, {
+      eventType: "ORG_SUPPORT_ACCESS_REVOKED",
+      organizationId: grant.organizationId,
+      actorUserId: input.revokedByUserId,
+      grantId: input.grantId,
+    });
+  }
   await emitTenantAudit({
     action: "identity.support_access.revoked",
     outcome: "success",
     sourceApp: "API",
     actorUserId: input.revokedByUserId,
-    supportActorUserId: grant?.supportUserId ?? null,
-    organizationId: grant?.organizationId ?? null,
-    workspaceId: grant?.teamId ?? null,
+    supportActorUserId: grant.supportUserId,
+    organizationId: grant.organizationId,
+    workspaceId: grant.teamId,
     resourceType: "support_access_grant",
     resourceId: input.grantId,
     metadata: { grantId: input.grantId },
   }, client).catch(() => null);
+  return true;
 }

@@ -110,6 +110,21 @@ export const ORG_AUDIT_EVENT_TYPES = [
   //     { report: string, rowCount: number, truncated?: boolean,
   //       eventType?: string | null }
   "ORG_REPORT_EXPORTED",
+  // Support staff and emergency access into this Organization, so the customer
+  // can read who was let in.
+  //   ORG_SUPPORT_ACCESS_STARTED:
+  //     { teamId, reason, accessLevel, approvedByUserId,
+  //       customerApprovalUnavailableReason, expiresAtUtc }
+  //   ORG_SUPPORT_ACCESS_ENTERED: { accessLevel }
+  //   ORG_SUPPORT_ACCESS_REVOKED: {}
+  //   ORG_BREAK_GLASS_ACTIVATED:
+  //     { emergencyUserId, grantedRole, reason, expiresAtUtc }
+  //   ORG_BREAK_GLASS_REVOKED: {}
+  "ORG_SUPPORT_ACCESS_STARTED",
+  "ORG_SUPPORT_ACCESS_ENTERED",
+  "ORG_SUPPORT_ACCESS_REVOKED",
+  "ORG_BREAK_GLASS_ACTIVATED",
+  "ORG_BREAK_GLASS_REVOKED",
   // Phase 8 (Enterprise Production Readiness) — SCOPE A/B. Bulk org
   // invitation batches (paste, array, or CSV source).
   //   ORG_BULK_INVITATION_STARTED:
@@ -138,7 +153,9 @@ export type OrgAuditTargetType =
   | "organization_membership"
   | "organization_invite"
   // Phase 3 — Enterprise Identity: domain-ownership target.
-  | "organization_domain";
+  | "organization_domain"
+  | "support_access_grant"
+  | "emergency_access_grant";
 
 /**
  * Per-event metadata documentation. Routes building metadata MUST
