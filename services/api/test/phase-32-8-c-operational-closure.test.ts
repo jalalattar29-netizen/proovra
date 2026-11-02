@@ -278,9 +278,8 @@ describe("Phase 32.8C closure — no false red states", () => {
   });
 
   it("classifier degraded banner explains the canonical fallback", () => {
-    expect(CC).toMatch(
-      /Detection is operational via the canonical SecurityEvent audit\s+log/,
-    );
+    // RT-011 — the same fallback in customer words.
+    expect(CC).toMatch(/Detection still runs from the security audit\s+log/);
   });
 
   it("section copies never claim the entire platform failed — every kind explicitly frames an operational fallback", () => {

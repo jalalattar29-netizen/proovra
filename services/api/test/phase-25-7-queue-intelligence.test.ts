@@ -160,9 +160,17 @@ describe("Phase 25.7 — stuck workflow sweep wired into runReconcile", () => {
   });
 
   it("loads non-terminal workflows in a bounded scan (take: 200)", () => {
+    // WORKFLOW-012 — the sweep is keyed on a cursor so row 201 is reached, and the
+    // terminal statuses are the one shared list rather than a local copy.
     expect(src).toMatch(
-      /evidenceReviewWorkflow\.findMany\(\{[\s\S]*?status:\s*\{\s*notIn:\s*\[[\s\S]*?"CLOSED"[\s\S]*?"APPROVED_INTERNAL"[\s\S]*?"REJECTED_INSUFFICIENT"[\s\S]*?\]\s*as never[\s\S]*?\}[\s\S]*?take:\s*200/,
+      /const stuckLimit = 200;\s*const nonTerminal = await client\.evidenceReviewWorkflow\.findMany\(\{[\s\S]*?status:\s*\{\s*notIn:\s*\[\.\.\.REVIEW_FINISHED_DB_STATUSES\]\s*\}[\s\S]*?take:\s*stuckLimit/,
     );
+    const finished = readSource("../../../packages/shared/src/reviewer-ops.ts").match(
+      /REVIEW_FINISHED_DB_STATUSES = \[([\s\S]*?)\]/,
+    )?.[1];
+    expect(finished).toContain('"CLOSED"');
+    expect(finished).toContain('"APPROVED_INTERNAL"');
+    expect(finished).toContain('"REJECTED_INSUFFICIENT"');
   });
 
   it("computes detectStuckWorkflow per row inside the reconcile sweep", () => {

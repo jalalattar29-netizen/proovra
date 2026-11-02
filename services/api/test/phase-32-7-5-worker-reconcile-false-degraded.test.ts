@@ -107,7 +107,9 @@ describe("Phase 32.7.5 — sweep-level canonical heartbeat fires on every all-te
     expect(block).toMatch(/source:\s*"sweep"/);
     expect(block).toMatch(/trigger:/);
     expect(block).toMatch(/correlationId:/);
-    expect(block).toMatch(/teams:\s*teams\.length/);
+    // WORKFLOW-012 — a tick can stop on its budget, so the count is the teams it
+    // visited, not the teams it read.
+    expect(block).toMatch(/teams:\s*teamsVisited/);
     expect(block).toMatch(/failedTeams/);
   });
 
@@ -130,7 +132,7 @@ describe("Phase 32.7.5 — sweep-level canonical heartbeat fires on every all-te
       fileName: FILE,
     });
     for (const key of [
-      "teams: teams.length",
+      "teams: teamsVisited",
       "failedTeams",
       "totalEscalationsCreated",
       "totalFlippedBreached",

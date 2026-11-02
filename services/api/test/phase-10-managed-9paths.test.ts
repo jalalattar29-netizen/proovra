@@ -189,6 +189,9 @@ const SCIM = read("src/services/access-control/scim.service.ts");
 const GROUPS = read("src/services/access-control/scim-groups.service.ts");
 const SAML = read("src/routes/saml-auth.routes.ts");
 const OIDC = read("src/routes/sso-auth.routes.ts");
+// IDENT-011 — managed binding and the session context moved out of both SSO
+// routes into the one routine the MFA routes also run.
+const COMPLETION = read("src/services/identity/sso-session-completion.service.ts");
 const INVITE = read("src/services/organization/org-invite-acceptance.service.ts");
 
 /**
@@ -262,28 +265,36 @@ describe("§1 — 9-path managed-identity matrix", () => {
     expect(block).toMatch(/restoreOrganizationMembership\(/);
   });
   it("6. SAML first login → binds BEFORE session establishment when managed is required", () => {
-    const bindIdx = SAML.indexOf("provisionManagedMembership(tx");
-    const estIdx = SAML.indexOf("establishOrganizationSessionContext(");
+    const bindIdx = COMPLETION.indexOf("provisionManagedMembership(tx");
+    const estIdx = COMPLETION.indexOf("establishOrganizationSessionContext(");
     expect(bindIdx).toBeGreaterThan(-1);
     expect(estIdx).toBeGreaterThan(bindIdx); // bind precedes establishment
-    expect(SAML).toMatch(/source: "SAML", ssoConnectionId: conn\.id/);
-    expect(SAML).toMatch(/managedIdentityRequired/);
+    // The evidence is the verified connection the route hands the completion.
+    expect(COMPLETION).toMatch(/evidence: \{ source: input\.source, ssoConnectionId: input\.ssoConnectionId \}/);
+    expect(SAML).toMatch(/completeSsoSession\(\s*\{[\s\S]{0,200}ssoConnectionId: conn\.id,\s*source: "SAML"/);
+    expect(COMPLETION).toMatch(/managedIdentityRequired/);
   });
   it("7. OIDC first login → binds BEFORE session establishment when managed is required", () => {
-    const bindIdx = OIDC.indexOf("provisionManagedMembership(tx");
-    const estIdx = OIDC.indexOf("establishOrganizationSessionContext(");
+    const bindIdx = COMPLETION.indexOf("provisionManagedMembership(tx");
+    const estIdx = COMPLETION.indexOf("establishOrganizationSessionContext(");
     expect(bindIdx).toBeGreaterThan(-1);
     expect(estIdx).toBeGreaterThan(bindIdx);
-    expect(OIDC).toMatch(/source: "OIDC", ssoConnectionId: conn\.id/);
+    expect(OIDC).toMatch(/completeSsoSession\(\s*\{[\s\S]{0,200}ssoConnectionId: conn\.id,\s*source: "OIDC"/);
   });
   it("8. existing-user linking → the SAME fail-closed path (a cross-org conflict bounces, no cookie)", () => {
-    // Both SSO callbacks, inside the managed-provisioning try/catch, delete the
-    // just-created session row and bounce on a managed conflict; the cookie is
-    // only set AFTER establishment succeeds (paths 6/7 share this catch).
+    // The completion, inside the managed-provisioning try/catch, deletes the
+    // just-created session row and refuses on a managed conflict; both SSO
+    // callbacks bounce on that refusal, and set the cookie only AFTER the
+    // completion succeeds (paths 6/7 share this catch).
+    const block = enclosingTry(COMPLETION, "provisionManagedMembership(tx");
+    expect(COMPLETION).toMatch(/dropSession = \(\) =>\s*client\.authenticatedSession\.delete/);
+    expect(block).toMatch(/await dropSession\(\)/);
+    expect(block).toMatch(/managed_identity_conflict/);
     for (const src of [SAML, OIDC]) {
-      const block = enclosingTry(src, "provisionManagedMembership(tx");
-      expect(block).toMatch(/authenticatedSession\.delete/);
-      expect(block).toMatch(/managed_identity_conflict/);
+      const refusalIdx = src.indexOf("if (!completion.allowed)");
+      expect(refusalIdx).toBeGreaterThan(src.indexOf("completeSsoSession("));
+      expect(src.indexOf("setSessionCookie(req, reply, token)", refusalIdx)).toBeGreaterThan(refusalIdx);
+      expect(src).toMatch(/if \(!completion\.allowed\) \{\s*return bounceTo\w+\(reply, completion\.reason/);
     }
   });
   it("9. managed invitation → binds via DOMAIN evidence (verified domain), atomic with acceptance", () => {

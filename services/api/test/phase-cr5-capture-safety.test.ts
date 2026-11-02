@@ -261,7 +261,9 @@ export const PRE_CR5_PAGE_BYTES = 54441;
 // records NOT_REQUESTED when location is off, and states a trusted timestamp
 // the provider did not issue (shared tsaCompletionNotice). The location logic
 // itself lives in _hooks/useCaptureLocation.ts; this file only calls it.
-export const PRE_CR5_ORCH_BYTES = 42446; // Rebaselined 2026-11-01: size and digest declared to the upload session (INGEST-006).
+// Rebaselined 2026-11-01: size and digest declared to the upload session (INGEST-006).
+// Rebaselined 2026-11-02: 42,446 -> 43,048 — INGEST-009: Finish refuses a new record until the workspace is known
+export const PRE_CR5_ORCH_BYTES = 43048;
 // PHASE 13 rebaseline (2026-08-17): 13,423 → 13,630 — NEW-036. `StartResumableInput`
 // gained one optional pass-through flag, `multipartAlreadyInitiated`, and the one
 // line that forwards it to `MultipartUploader`. The capture orchestration runs
@@ -280,7 +282,8 @@ const SESSION_READINESS_BYTES_EXACT = 9559;
   // the caller-supplied `body.teamId` before the CaptureSession row is written.
 // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
 // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
-const CAPTURE_ROUTES_BYTES_EXACT = 23876;
+// Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
+const CAPTURE_ROUTES_BYTES_EXACT = 23898;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.

@@ -196,8 +196,13 @@ describe("Phase 32.8C FINAL-4 — persona priority strip", () => {
     expect(CC_TSX).toMatch(/data-cc-persona=\{persona \?\? "VIEWER"\}/);
   });
 
-  it("hero meta renders a persona chip when persona is known", () => {
-    expect(CC_TSX).toMatch(/data-cc-persona-chip/);
+  it("hero meta names the role in words and prints no persona (RT-011)", () => {
+    // RT-011 removed the chip: "PERSONA" is internal shorthand on a customer
+    // page. The persona still orders the strip and stays on the root hook above.
+    const hero = CC_TSX.match(/<div className="ec-hero-meta" data-cc-meta>[\s\S]*?<\/div>/)?.[0];
+    expect(hero).toMatch(/Role · \{humaniseCode\(role\)\}/);
+    expect(hero).not.toMatch(/\bpersona\b/i);
+    expect(CC_TSX).not.toMatch(/data-cc-persona-chip/);
   });
 
   it("strip is capped at 8 priority items", () => {
@@ -238,9 +243,9 @@ describe("Phase 32.8C FINAL-4 — bulk actions toolbar", () => {
     }
   });
 
-  it("disabled chips render a clear reason ('Requires team workspace' / 'Requires ADMIN or OWNER')", () => {
+  it("disabled chips render a clear reason ('Requires team workspace' / 'Requires an Admin or Owner')", () => {
     expect(CC_TSX).toMatch(/"Requires workspace"/);
-    expect(CC_TSX).toMatch(/"Requires ADMIN or OWNER"/);
+    expect(CC_TSX).toMatch(/"Requires an Admin or Owner"/); // RT-011 — words, not role codes
   });
 
   it("schedule-retry chip explicitly notes retry-intent semantics", () => {
@@ -271,11 +276,12 @@ describe("Phase 32.8C FINAL-4 — bulk actions toolbar", () => {
     // WORKSPACE dashboard. Both sentences said the dashboard is read-only, so
     // the branch bought nothing and cost the reader a different explanation
     // for the same fact. It is now unconditional.
+    // RT-011 — the same two facts without "canonical surface" or a bare path.
     expect(CC_TSX).toMatch(
-      /dashboard is read-only[\s\S]{0,40}chips above link to the canonical surface/,
+      /dashboard is read-only[\s\S]{0,40}chips above take you there/,
     );
     expect(CC_TSX).toMatch(
-      /Bulk actions are executed on the Operations Center page[\s\S]{0,120}href="\/operations"/,
+      /Bulk actions run on the[\s\S]{0,120}href="\/operations"[\s\S]{0,40}Operations Center/,
     );
   });
 });

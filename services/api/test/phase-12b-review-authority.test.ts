@@ -260,6 +260,9 @@ function makeDb(seed: {
         return args.data;
       },
     },
+    // WORKFLOW-012 — the bounded scan resumes from a persisted cursor. No pass
+    // has run here, so there is no row, and a short page leaves it unwritten.
+    workerSweepCursor: { findUnique: async () => null },
   };
 
   const prisma = {

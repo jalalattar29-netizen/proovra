@@ -131,7 +131,8 @@ const PRE_R10_GLOBALS_CSS_LINES = 4237;
 const PRE_R10_UI_TSX_LINES = 500;
 const PRE_R10_CAPTURE_V2_CSS_LINES = 8875;
 const PRE_R10_APP_SHELL_V2_CSS_LINES = 2402;
-const PRE_R10_COMMAND_CENTER_CSS_LINES = 2301;
+// Rebaselined 2026-11-02: 2,301 -> 2,606 — 3c9a998ac: the .cc-* names had no stylesheet, so Workspace Administration and the Governance Control Plane rendered unstyled
+const PRE_R10_COMMAND_CENTER_CSS_LINES = 2606;
 
 // ---------------------------------------------------------------------------
 // Group 1 — File-size guards
@@ -556,7 +557,8 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
   // the caller-supplied `body.teamId` before the CaptureSession row is written.
     // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
     // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23876);
+    // Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23898);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {

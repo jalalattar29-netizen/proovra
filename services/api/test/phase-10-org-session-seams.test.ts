@@ -32,8 +32,7 @@ describe("§2.9 — establishOrganizationSessionContext callers are LOCKED", () 
   const ALLOWED = new Set([
     "src/services/identity/concurrent-session.service.ts", // the authority itself (definition)
     "src/routes/platform-context.routes.ts", // switch-workspace + deep-link/session-restore open
-    "src/routes/saml-auth.routes.ts", // §2.1 SAML return
-    "src/routes/sso-auth.routes.ts", // §2.2 OIDC return
+    "src/services/identity/sso-session-completion.service.ts", // §2.1/§2.2 SAML + OIDC return, IDENT-011
     "src/routes/organizations.routes.ts", // §2.2 invitation accept → governance-only open
   ]);
 
@@ -75,34 +74,59 @@ describe("§2.9 — establishOrganizationSessionContext callers are LOCKED", () 
   });
 });
 
+// IDENT-011 — the establishment moved out of both SSO routes into the one
+// completion routine, which the MFA routes also run. The route keeps the
+// inventory write, the bounce and the cookie; the routine keeps the rest.
+const COMPLETION = read("src/services/identity/sso-session-completion.service.ts");
+
+describe("SSO session completion — the establishment both SSO returns share", () => {
+  it("resolves the org from the connection's workspace and hashes the session's sid", () => {
+    expect(COMPLETION).toMatch(/establishOrganizationSessionContext\(/);
+    expect(COMPLETION).toMatch(/organizationIdForPolicy\(input\.teamId/);
+    expect(COMPLETION).toMatch(/sessionIdHash:\s*hashSessionId\(input\.sid\)/);
+  });
+
+  it("a denial deletes the just-created orphan session and refuses with the reason", () => {
+    expect(COMPLETION).toMatch(
+      /dropSession = \(\) =>\s*client\.authenticatedSession\.delete\(\{ where: \{ id: input\.sessionId \} \}\)/,
+    );
+    expect(COMPLETION).toMatch(
+      /if \(!seat\.allowed\) \{\s*await dropSession\(\);\s*return \{ allowed: false, reason: seat\.reason \};/,
+    );
+  });
+
+  it("the establishment does not re-sign or reset authAt", () => {
+    expect(COMPLETION).not.toMatch(/authAt/);
+  });
+});
+
 // ── §2.1 SAML return wiring + ordering ──────────────────────────────────────
 describe("§2.1 — SAML return establishes org context before returning workspace context", () => {
   const SAML = read("src/routes/saml-auth.routes.ts");
 
-  it("calls the establishment authority with the SAML session's org + sessionId", () => {
-    expect(SAML).toMatch(/establishOrganizationSessionContext\(/);
-    expect(SAML).toMatch(/organizationIdForPolicy\(conn\.teamId/);
-    expect(SAML).toMatch(/sessionIdHash:\s*hashSessionId\(sid\)/);
+  it("calls the completion with the SAML connection's workspace + the session's sid", () => {
+    expect(SAML).toMatch(
+      /completeSsoSession\(\s*\{[\s\S]{0,160}teamId: conn\.teamId,[\s\S]{0,160}sessionId: session\.id,\s*sid,/,
+    );
   });
 
   it("records the session (inventory) BEFORE establishing context, and bounces on denial", () => {
     const recordIdx = SAML.indexOf("recordAuthenticatedSession(");
-    const establishIdx = SAML.indexOf("establishOrganizationSessionContext(");
+    const completeIdx = SAML.indexOf("completeSsoSession(");
     const cookieIdx = SAML.lastIndexOf("setSessionCookie(req, reply, token)");
     expect(recordIdx).toBeGreaterThan(-1);
-    expect(recordIdx).toBeLessThan(establishIdx); // inventory first
-    expect(establishIdx).toBeLessThan(cookieIdx); // context/limit before returning session
-    // §2.1 — denial deletes the just-created orphan session, then bounces.
-    expect(SAML).toMatch(/if \(!seat\.allowed\)/);
-    expect(SAML).toMatch(/bounceToSamlError\(reply, seat\.reason/);
-    expect(SAML).toMatch(/authenticatedSession\.delete\(\{ where: \{ id: session\.id \} \}\)/);
+    expect(recordIdx).toBeLessThan(completeIdx); // inventory first
+    expect(completeIdx).toBeLessThan(cookieIdx); // context/limit before returning session
+    // §2.1 — denial bounces; the completion has already deleted the orphan row.
+    expect(SAML).toMatch(/if \(!completion\.allowed\)/);
+    expect(SAML).toMatch(/bounceToSamlError\(reply, completion\.reason/);
   });
 
   it("preserves SAML provenance + original authAt (no reset at establishment)", () => {
     expect(SAML).toMatch(/authMethod:\s*"SAML"/);
     expect(SAML).toMatch(/authAt:\s*issuedAt/);
     // The establishment does not re-sign or reset authAt.
-    expect(SAML).not.toMatch(/establishOrganizationSessionContext[\s\S]{0,200}authAt:/);
+    expect(SAML).not.toMatch(/completeSsoSession\([\s\S]{0,200}authAt:/);
   });
 });
 
@@ -110,22 +134,20 @@ describe("§2.1 — SAML return establishes org context before returning workspa
 describe("§2.2 — OIDC return establishes org context before returning workspace context", () => {
   const OIDC = read("src/routes/sso-auth.routes.ts");
 
-  it("calls the establishment authority with the OIDC session's org + sessionId", () => {
-    expect(OIDC).toMatch(/establishOrganizationSessionContext\(/);
-    expect(OIDC).toMatch(/organizationIdForPolicy\(result\.teamId/);
-    expect(OIDC).toMatch(/sessionIdHash:\s*hashSessionId\(sid\)/);
+  it("calls the completion with the OIDC session's workspace + sid", () => {
+    expect(OIDC).toMatch(
+      /completeSsoSession\(\s*\{[\s\S]{0,160}teamId: result\.teamId,[\s\S]{0,160}sessionId: session\.id,\s*sid,/,
+    );
   });
 
   it("records session BEFORE establishing context; denial bounces before the cookie", () => {
     const recordIdx = OIDC.indexOf("recordAuthenticatedSession(");
-    const establishIdx = OIDC.indexOf("establishOrganizationSessionContext(");
+    const completeIdx = OIDC.indexOf("completeSsoSession(");
     const cookieIdx = OIDC.lastIndexOf("setSessionCookie(req, reply, token)");
-    expect(recordIdx).toBeLessThan(establishIdx);
-    expect(establishIdx).toBeLessThan(cookieIdx);
-    expect(OIDC).toMatch(/if \(!seat\.allowed\)/);
-    expect(OIDC).toMatch(/bounceToAuthError\(reply, seat\.reason\)/);
-    // §2.1 — denial deletes the just-created orphan session.
-    expect(OIDC).toMatch(/authenticatedSession\.delete\(\{ where: \{ id: session\.id \} \}\)/);
+    expect(recordIdx).toBeLessThan(completeIdx);
+    expect(completeIdx).toBeLessThan(cookieIdx);
+    expect(OIDC).toMatch(/if \(!completion\.allowed\)/);
+    expect(OIDC).toMatch(/bounceToAuthError\(reply, completion\.reason/);
   });
 
   it("preserves OIDC provenance + original authAt", () => {
