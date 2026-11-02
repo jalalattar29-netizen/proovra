@@ -615,7 +615,7 @@ export type OtsFacts = {
 };
 
 export const ADVANCE_SENTENCES: Readonly<Record<string, string>> = {
-  CHAIN_VERIFIED_SINCE_ISSUE: "Independently verified since the report was issued",
+  CHAIN_VERIFIED_SINCE_ISSUE: "Verified by PROOVRA against Bitcoin since the report was issued",
   ATTESTATION_RECORDED_SINCE_ISSUE: "Bitcoin attestation recorded since the report was issued",
   PENDING_SINCE_ISSUE: "Submitted for OpenTimestamps anchoring since the report was issued",
 };

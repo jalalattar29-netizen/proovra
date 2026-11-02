@@ -1292,6 +1292,9 @@ export async function evaluateUploadSessionFinalizeGate(
     aborted_at_utc: Date | null;
     expires_at_utc: Date;
     created_at_utc: Date;
+    target_part_index?: number | null;
+    original_file_name?: string | null;
+    bridged_evidence_part_id?: string | null;
   }>;
   try {
     rows = (await client.$queryRawUnsafe(
