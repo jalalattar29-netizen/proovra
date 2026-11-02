@@ -30,6 +30,7 @@
  *     means something different on a lifetime cap and a rolling 30-day cap.
  */
 
+import { nonOwnerActiveMemberWhere } from "./workspace-seats.service.js";
 import * as prismaPkg from "@prisma/client";
 import { IN_FLIGHT_REPORT_REQUEST_STATES, type PlanLapseState } from "@proovra/shared";
 import {
@@ -2253,14 +2254,15 @@ async function buildOrganizationProjection(input: {
   const limits = resolveEnterpriseContractLimits(contract);
   const workspaceIds = await organizationWorkspaceIds(account.id);
 
-  // Org-wide seat occupancy: ACTIVE memberships only. The previous rollup
-  // counted every membership row, so revoked members inflated the number the
-  // customer was shown against their contracted seats.
+  // Org-wide seat occupancy, as the seat ceiling counts it: ACTIVE memberships
+  // other than each workspace owner's. Counting the owner read "4 in use" against
+  // 3 contracted seats on a workspace that had exactly filled them.
+  const seatOwners = await prisma.team.findMany({
+    where: { id: { in: workspaceIds } },
+    select: { id: true, ownerUserId: true },
+  });
   const seatsUsed = await prisma.teamMember.count({
-    where: {
-      teamId: { in: workspaceIds },
-      status: prismaPkg.TeamMemberStatus.ACTIVE,
-    },
+    where: { OR: seatOwners.map(nonOwnerActiveMemberWhere) },
   });
 
   const storageAgg = await prisma.evidence.aggregate({
