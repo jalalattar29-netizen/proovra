@@ -6,9 +6,8 @@ import { render, screen, waitFor } from "@testing-library/react";
  * The MFA recovery link's failure states.
  *
  * The verify route answers a flat `{ error: "<reason>" }`. `apiFetch` raises
- * that as a plain Error, not ApiError, and with no `message` in the body it
- * puts the raw response text on the error. So the page has to read the reason
- * back out of that text, and every failure used to land in "unknown".
+ * that as a plain Error, not ApiError, carrying the reason as `flatReason`. The
+ * page has to read it from there, or every failure lands in "unknown".
  *
  * The real `apiFetch` runs against a stubbed network, because a mocked
  * `apiFetch` would prove a branch the page never reaches. The bodies are the

@@ -82,6 +82,8 @@ type GenericApiError = Error & {
   statusCode?: number;
   requestId?: string;
   details?: Record<string, unknown>;
+  /** A flat `{ error: "<reason>" }` body's reason. Control flow, never shown. */
+  flatReason?: string;
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -543,6 +545,7 @@ async function runApiFetch(
     error.statusCode = res.status;
     error.requestId = requestId;
     error.details = detailsFromBody ?? promotedDetails ?? billingWall;
+    if (typeof obj?.["error"] === "string") error.flatReason = obj["error"] as string;
 
     throw error;
   }
