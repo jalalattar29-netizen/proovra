@@ -229,6 +229,36 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
     });
   });
 
+  it("a session revocation cannot be aimed outside the workspace", async () => {
+    const other = await (await enterpriseTenantMaker(h))();
+    const session = () => kit.call("GET", "/v1/auth/me", other.member);
+    expect((await session()).statusCode).toBe(200);
+    const before = await prisma.revokedSession.count({ where: { userId: other.member.id } });
+    for (const url of ["/v1/identity-security/sessions/revoke-all", "/v1/identity-security/sessions/revoke"]) {
+      const refused = await kit.call(
+        "POST",
+        url,
+        tenant.owner,
+        { teamId: tenant.teamId, userId: other.member.id, sessionIdHash: "a".repeat(64) },
+        headers(),
+      );
+      expect(refused.statusCode, refused.body).toBe(404);
+    }
+    expect(await prisma.revokedSession.count({ where: { userId: other.member.id } })).toBe(before);
+    expect((await session()).statusCode).toBe(200);
+
+    // The same request at the workspace's own member lands.
+    const mine = await kit.call(
+      "POST",
+      "/v1/identity-security/sessions/revoke-all",
+      tenant.owner,
+      { teamId: tenant.teamId, userId: tenant.viewer.id },
+      headers(),
+    );
+    expect(mine.statusCode, mine.body).toBe(200);
+    expect(await prisma.revokedSession.count({ where: { userId: tenant.viewer.id } })).toBe(1);
+  });
+
   it("the unrestricted record stays counted for both", async () => {
     const theirs = await get(`/v1/investigation/diagnostics?${q()}`, off);
     expect(theirs.json().workspace.evidenceCount).toBeGreaterThanOrEqual(1);

@@ -65,7 +65,8 @@ export async function enterpriseTenantMaker(h: IntegrationHarness): Promise<() =
     });
     await prisma.teamMember.create({ data: { teamId: team.id, userId: owner.id, role: "OWNER", status: "ACTIVE" } as never });
     await prisma.user.update({ where: { id: owner.id }, data: { currentWorkspaceId: team.id } as never });
-    const [admin, admin2, member, viewer] = await Promise.all([
+    const [approver, admin, admin2, member, viewer] = await Promise.all([
+      kit.person(team.id, "OWNER"),
       kit.person(team.id, "ADMIN"),
       kit.person(team.id, "ADMIN"),
       kit.person(team.id, "MEMBER"),
@@ -77,7 +78,7 @@ export async function enterpriseTenantMaker(h: IntegrationHarness): Promise<() =
       });
     }
     await enterpriseTeam(team.id, organization.id);
-    return { teamId: team.id, orgId: organization.id, owner, admin, admin2, member, viewer };
+    return { teamId: team.id, orgId: organization.id, owner, admin, admin2, approver, member, viewer };
   }
 
   return makeTenant;

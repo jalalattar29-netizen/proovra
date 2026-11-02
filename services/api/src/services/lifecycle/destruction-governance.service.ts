@@ -1392,7 +1392,7 @@ export async function destructionRequestClosedTo(
     where: { id: requestId, teamId },
     select: { evidenceIds: true },
   });
-  const ids = row ? ((row.evidenceIds as string[]) ?? []) : [];
+  const ids = Array.isArray(row?.evidenceIds) ? (row.evidenceIds as string[]) : [];
   if (ids.length === 0) return false;
   const closed = await client.evidence.count({
     where: { id: { in: ids }, NOT: evidenceVisibleThroughCasesWhere(userId) },
@@ -1416,7 +1416,7 @@ export async function listDestructionRequests(
   });
   const closed = new Set(input.closedEvidenceIds ?? []);
   return rows
-    .filter((r) => !((r.evidenceIds as string[]) ?? []).some((id) => closed.has(id)))
+    .filter((r) => !(Array.isArray(r.evidenceIds) && (r.evidenceIds as string[]).some((id) => closed.has(id))))
     .map((r) => projectRequest(r));
 }
 

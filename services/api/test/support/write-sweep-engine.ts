@@ -55,7 +55,7 @@ export function liveRoutes(printed: string): LiveRoute[] {
   const out = new Map<string, LiveRoute>();
   const stack: string[] = [];
   for (const line of printed.split(/\r?\n/)) {
-    const m = line.match(/^([│ ]*)(?:├──|└──)\s?(.*)$/);
+    const m = line.match(/^([\u2502 ]*)(?:\u251C\u2500\u2500|\u2514\u2500\u2500)\s?(.*)$/);
     if (!m) continue;
     const depth = m[1].length / 4;
     const mm = m[2].match(/^(.*?)\s\(([A-Z, ]+)\)\s*$/);
@@ -216,6 +216,7 @@ const SEGMENT_MODELS: Record<string, string> = {
 
 const PREFIXED_SEGMENT_MODELS: Record<string, string> = {
   "collaboration-teams|collaboration-teams": "CollaborationTeam",
+  "external-review|invitations": "ExternalReviewerRoleAssignment",
   "ops|incidents": "OperationalIncident",
   "admin|incidents": "OperationalIncident",
   "ops|workflows": "OperationalWorkflow",
@@ -291,6 +292,7 @@ export function pathParams(url: string): PathParam[] {
     const names = part.split("|").map((p) => p.replace(/^:/, ""));
     const before = parts[i - 1] ?? "";
     const model =
+      (before === ":type" ? "Organization" : undefined) ??
       PREFIXED_SEGMENT_MODELS[`${area}|${before}`] ??
       names.map((n) => PARAM_MODELS[n]).find(Boolean) ??
       SEGMENT_MODELS[before] ??
@@ -311,6 +313,7 @@ export type Tenant = {
   owner: Actor;
   admin: Actor;
   admin2: Actor;
+  approver: Actor;
   member: Actor;
   viewer: Actor;
 };
@@ -382,8 +385,21 @@ const ORG_FIELDS = new Set(["organizationId", "orgId"]);
 const ROW_OVERRIDES: Record<string, (t: Tenant) => Record<string, unknown>> = {
   Evidence: () => ({ status: "SIGNED", type: "PHOTO", sizeBytes: 1000n, lifecycleState: "ACTIVE", title: "sweep record" }),
   ManualRelationship: () => ({ edgeType: "MANUALLY_LINKED_TO", status: "ACTIVE" }),
-  AutomationRule: () => ({ actionType: "NOTIFY_USER" }),
-  ExternalReviewGrant: () => ({ expiresAtUtc: new Date(Date.now() + 86_400_000) }),
+  AutomationRule: () => ({ actionType: "NOTIFY_USER", triggerType: "EVIDENCE_CREATED" }),
+  ExternalReviewGrant: () => ({
+    expiresAtUtc: new Date(Date.now() + 86_400_000),
+    scopeKind: "EVIDENCE",
+    evidenceId: "$Evidence",
+  }),
+  EvidenceLegalHold: () => ({ scope: "EVIDENCE", evidenceId: "$Evidence", caseId: null, status: "ACTIVE" }),
+  MediaIntelligenceSignal: () => ({ signalType: "EXIF_MISSING" }),
+  MediaIntelligenceRun: () => ({ kind: "analyze_metadata" }),
+  DestructionRequest: (t) => ({
+    state: "PENDING_APPROVAL",
+    evidenceIds: [],
+    approverUserIds: [t.approver.id],
+    requestedByUserId: t.owner.id,
+  }),
   EvidenceUploadSession: () => ({ expiresAtUtc: new Date(Date.now() + 86_400_000) }),
   InvestigationGraphEdge: () => ({ edgeType: "SAME_HASH_AS" }),
   EvidenceTrashed: () => ({ status: "SIGNED", type: "PHOTO", sizeBytes: 1000n, lifecycleState: "TRASHED", deletedAt: new Date() }),
@@ -455,7 +471,8 @@ export class RowFactory {
       if (!required && !tenantLinked) continue;
       fks.forEach((fk) => fromRelation.add(fk));
       if (fks.length !== 1) continue;
-      const parent = await set.id(field.type);
+      // A row's author or owner is the tenant's owner, who runs the control.
+      const parent = field.type === "User" ? tenant.owner.id : await set.id(field.type);
       if (parent === null) {
         if (required) return null;
         continue;
@@ -481,7 +498,10 @@ export class RowFactory {
       if (field.name === "id") continue;
       data[field.name] = this.scalar(field);
     }
-    Object.assign(data, ROW_OVERRIDES[alias ?? model]?.(tenant) ?? {});
+    for (const [key, value] of Object.entries(ROW_OVERRIDES[alias ?? model]?.(tenant) ?? {})) {
+      const symbol = typeof value === "string" ? value.match(SYMBOL) : null;
+      data[key] = symbol ? await set.id(symbol[1]) : value;
+    }
     try {
       const row = await this.accessor(model).create({ data });
       return (row.id as string) ?? null;
@@ -523,6 +543,7 @@ export class RowSet {
     if (model === "User") return t.member.id;
     if (model === "Admin") return t.admin.id;
     if (model === "Admin2") return t.admin2.id;
+    if (model === "Approver") return t.approver.id;
     if (model === "TeamMember") {
       const row = await this.prisma.teamMember.findFirst({
         where: { teamId: t.teamId, userId: t.member.id },
@@ -841,7 +862,7 @@ export const REFUSAL_LOG_TABLES = new Set([
 
 /** A refusal by a validating lookup: the row is not this tenant's, or the person is not its member. */
 const NAMED_REFUSAL =
-  /NOT_FOUND|not_found|NOT_MEMBER|not_workspace_member|NOT_A_MEMBER|invalid_assignee|NOT_ELIGIBLE|INVALID_EVIDENCE|mismatch|REGION_INVALID|POLICY_REJECTED/;
+  /NOT_FOUND|not_found|NOT_MEMBER|not_workspace_member|NOT_A_MEMBER|invalid_assignee|NOT_ELIGIBLE|INVALID_EVIDENCE|mismatch|REGION_INVALID|POLICY_REJECTED|indexing_failed/;
 
 const SESSION_ENDING = [
   /^POST \/v1\/auth\/logout/,
@@ -990,7 +1011,9 @@ export class WriteSweep {
     const hint = this.deps.hints[route.key];
     const shape: RequestShape = {
       body: { ...(hint?.body ?? {}) },
-      query: { teamId: "$Team", ...(hint?.query ?? {}) },
+      // A collaboration route's own :teamId is the group, so the workspace travels in
+      // the header there and a `teamId` query would name something else.
+      query: { ...(route.url.startsWith("/v1/collaboration-teams/:") ? {} : { teamId: "$Team" }), ...(hint?.query ?? {}) },
     };
     const values = await this.pathValues(params, set, missing);
     const operator = klass === "platform" ? await this.deps.newOperator() : null;
@@ -1070,6 +1093,9 @@ export class WriteSweep {
     const sent = await this.send(route, pathValues, payload, actor, headers, stepUpTeamId ? { stepUpTeamId } : undefined);
     await this.deps.h.handlersSettled();
     const insider = variant === "viewer";
+    // An id the request itself carried, echoed in a per-item refusal, discloses nothing.
+    const sentText = `${pathValues.join(" ")} ${JSON.stringify(payload)}`;
+    const leakable = markers.filter((m) => !sentText.includes(m));
     const writes = await drainWrites(this.deps.prisma);
     const hits = writes.filter((w) => !REFUSAL_LOG_TABLES.has(w.tbl) && markers.some((m) => w.doc.includes(m)));
     const effectTables = [...new Set(hits.map((w) => w.tbl))];
@@ -1077,7 +1103,7 @@ export class WriteSweep {
     let outcome: AttackResult["outcome"];
     if (ok && hits.length > 0) outcome = "ACCEPTED_EFFECT";
     else if (hits.length > 0) outcome = "REFUSED_BUT_WROTE";
-    else if (ok && !insider && markers.some((m) => sent.body.includes(m))) outcome = "LEAK";
+    else if (ok && !insider && leakable.some((m) => sent.body.includes(m))) outcome = "LEAK";
     else if (ok) outcome = "ACCEPTED_NO_EFFECT";
     else if (sent.status >= 500 && sent.status !== 503 && sent.status !== 501) outcome = "SERVER_ERROR";
     else if ([401, 403, 404].includes(sent.status)) outcome = "REFUSED";
@@ -1159,7 +1185,7 @@ export class WriteSweep {
     const ownQuery = (await materialize(shape.query, ownRows)) as Record<string, Json>;
     const mixedBody = { ...(victimBody as object), ...this.pickTenant(ownBody) };
     const markers = [
-      ...victimRows.markers().filter((m) => m !== victim.member.id),
+      ...victimRows.markers(),
       victim.teamId,
       victim.orgId,
       victim.owner.id,
@@ -1186,14 +1212,22 @@ export class WriteSweep {
     await run(
       this.attack("claimed-workspace", route, victimPath, { body: victimBody, query: victimQuery }, attacker.owner, claimHeaders, markers, attacker.teamId),
     );
-    if (bodyNamesRows) {
+    // One foreign field at a time, the rest the attacker's own. Aiming every field at
+    // the victim lets an unrelated check refuse first and hide a missing guard: that
+    // is how GOV-001 stayed hidden behind the approver check.
+    for (const [field, value] of Object.entries(shape.body)) {
+      if (!containsSymbol(value, (n) => n !== "Team" && n !== "Organization")) continue;
+      const own = ownBody as Record<string, Json>;
+      const foreign = (victimBody as Record<string, Json>)[field];
       await run(
-        this.attack("mixed-body", route, ownPath, { body: mixedBody, query: ownQuery }, attacker.owner, ownHeaders, markers, attacker.teamId),
+        this.attack("mixed-body", route, ownPath, { body: { ...own, [field]: foreign }, query: ownQuery }, attacker.owner, ownHeaders, markers, attacker.teamId),
       );
-    }
-    if (hasArrayOfSymbols(shape.body)) {
-      const bulk = { ...((await materializeBulk(shape.body, ownRows, victimRows)) as object), ...this.pickTenant(ownBody) };
-      await run(this.attack("bulk-array", route, ownPath, { body: bulk, query: ownQuery }, attacker.owner, ownHeaders, markers, attacker.teamId));
+      if (hasArrayOfSymbols(value)) {
+        const bulk = await materializeBulk(value, ownRows, victimRows);
+        await run(
+          this.attack("bulk-array", route, ownPath, { body: { ...own, [field]: bulk }, query: ownQuery }, attacker.owner, ownHeaders, markers, attacker.teamId),
+        );
+      }
     }
     if (params.length >= 2) {
       const parentOwn = [ownPath[0], ...victimPath.slice(1)];
@@ -1209,7 +1243,7 @@ export class WriteSweep {
         const restrictedPath = await this.pathValues(params, restrictedRows);
         const restrictedBody = await materialize(shape.body, restrictedRows);
         const restrictedQuery = (await materialize(shape.query, restrictedRows)) as Record<string, Json>;
-        const restrictedMarkers = restrictedRows.markers().filter((m) => m !== victim.member.id && m !== victim.teamId && m !== victim.orgId);
+        const restrictedMarkers = restrictedRows.markers().filter((m) => m !== victim.teamId && m !== victim.orgId);
         await run(this.attack("off-list", route, restrictedPath, { body: restrictedBody, query: restrictedQuery }, offList, inHeaders, restrictedMarkers, victim.teamId));
       }
     }

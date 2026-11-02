@@ -974,6 +974,13 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
         resourceId: userId,
       });
       if (gate.sent) return;
+      // A revocation ends the person's sessions everywhere, so it is aimed only at
+      // someone of the administrator's own workspace.
+      const target = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: body.teamId, userId } },
+        select: { id: true },
+      });
+      if (!target) return reply.code(404).send({ error: { code: "not_found" } });
       const result = await revokeAllSessionsForUserAdmin({
         teamId: body.teamId,
         userId,

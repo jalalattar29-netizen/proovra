@@ -54,6 +54,8 @@ import {
   type RedactionDenialReason,
 } from "@proovra/shared";
 
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
 import { prisma } from "../db.js";
 // Macro-Wave A1 — the derivative download-url endpoint reuses the CANONICAL
 // short-lived presign primitive (same one evidence.routes.ts uses). Raw
@@ -430,6 +432,20 @@ async function gate(
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
+
+/** A video route names a record by id, and that record must be this workspace's. */
+async function videoEvidenceInWorkspace(
+  reply: FastifyReply,
+  teamId: string,
+  evidenceId: string,
+): Promise<boolean> {
+  const held = await prisma.evidence.count({
+    where: { AND: [{ id: evidenceId }, await workspaceEvidenceWhere(teamId, prisma)] },
+  });
+  if (held > 0) return true;
+  reply.code(404).send({ denial: "NOT_FOUND" });
+  return false;
+}
 
 export async function redactionRoutes(app: FastifyInstance) {
   installRecordReachGuard(app);
@@ -1252,6 +1268,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const rows = await listVideoFrames({
         teamId: ctx.teamId,
         evidenceId,
@@ -1270,6 +1287,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const body = FrameBatchBody.parse(req.body);
       const res = await registerVideoFrameBatch({
         teamId: ctx.teamId,
@@ -1297,6 +1315,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const rows = await listVideoTracksForEvidence({
         teamId: ctx.teamId,
         evidenceId,
@@ -1315,6 +1334,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const body = TrackGroupingBody.parse(req.body);
       const res = await groupDetectionsIntoTracks({
         teamId: ctx.teamId,
@@ -1417,6 +1437,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const body = RangeDecisionBody.parse(req.body);
       const res = await propagateRangeDecision({
         teamId: ctx.teamId,
@@ -1444,6 +1465,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const timeline = await projectVideoTimeline({
         teamId: ctx.teamId,
         evidenceId,
