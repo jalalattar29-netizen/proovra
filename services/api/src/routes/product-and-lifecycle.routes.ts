@@ -24,6 +24,7 @@ import { requireAuth } from "../middleware/auth.js";
 // delivery-history read. `resolveWorkspace` below derives the workspace
 // server-side but checks neither ACTIVE membership, parent-Organization
 // lifecycle, access expiry, nor capability.
+import { getAuthUserId } from "../auth.js";
 import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { provenRequestWorkspace } from "../services/access/request-workspace.js";
