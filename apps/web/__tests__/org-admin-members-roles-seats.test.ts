@@ -188,7 +188,7 @@ test("members page is enterprise-only (organizations prefix is ENTERPRISE)", () 
 test("members page invites against the real invite endpoint with a role", () => {
   assert.match(MEMBERS_PAGE, /\/v1\/orgs\/\$\{orgId\}\/invites`/);
   assert.match(MEMBERS_PAGE, /invite-role-select/);
-  assert.match(MEMBERS_PAGE, /body:\s*JSON\.stringify\(\{\s*email,\s*role: inviteRole\s*\}\)/);
+  assert.match(MEMBERS_PAGE, /body:\s*JSON\.stringify\(\{\s*email,\s*role: inviteRole,\s*\.\.\.inviteWorkspaceAssignments\(/);
 });
 
 test("members page changes org role via PATCH on the real members endpoint", () => {
