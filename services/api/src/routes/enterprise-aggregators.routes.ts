@@ -16,35 +16,22 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
-import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeWorkspaceOrFail } from "../middleware/authorize.js";
 
 import { buildWorkspaceAdmin } from "../services/workspace-admin/workspace-admin.service.js";
 import { buildGovernanceControlPlane } from "../services/governance/governance-control-plane.service.js";
 
 const Query = z.object({ teamId: z.string().uuid() });
 
-async function requireWorkspaceMember(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  teamId: string,
-): Promise<{ userId: string; role: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { role: true, status: true },
-  });
-  if (!membership) {
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (membership.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
-  return { userId, role: membership.role };
-}
+/**
+ * Both reads answer to the canonical engine and a named permission (AUTHZ-003).
+ * The local gate tested `status` only, so access expiry and organization
+ * lifecycle did not count here. `workspaceRole` is the canonical role; the
+ * envelope's `role` label stays the stored one the clients render.
+ */
+const STORED_ROLE_LABEL: Record<string, string> = { REVIEWER: "MEMBER" };
+const roleLabel = (canonical: string): string => STORED_ROLE_LABEL[canonical] ?? canonical;
 
 export async function enterpriseAggregatorsRoutes(app: FastifyInstance) {
   // ----------- Workspace administration (Teams) -----------
@@ -53,12 +40,17 @@ export async function enterpriseAggregatorsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const query = Query.parse(req.query ?? {});
-      const member = await requireWorkspaceMember(req, reply, query.teamId);
-      if (!member) return;
+      const ctx = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "identity.member.read",
+      });
+      if (!ctx) return;
       const envelope = await buildWorkspaceAdmin({
         teamId: query.teamId,
-        userId: member.userId,
-        role: member.role,
+        userId: ctx.userId,
+        role: roleLabel(ctx.workspaceRole),
+        // The rule `GET /v1/teams/:id/members` applies (AZ-R07, AUTHZ-004).
+        canSeeContact: ctx.workspaceRole === "OWNER" || ctx.workspaceRole === "ADMIN",
       });
       if ("notFound" in envelope) {
         return reply.code(404).send({ error: { code: "not_found" } });
@@ -73,12 +65,15 @@ export async function enterpriseAggregatorsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const query = Query.parse(req.query ?? {});
-      const member = await requireWorkspaceMember(req, reply, query.teamId);
-      if (!member) return;
+      const ctx = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "governance.policy.read",
+      });
+      if (!ctx) return;
       const envelope = await buildGovernanceControlPlane({
         teamId: query.teamId,
-        userId: member.userId,
-        role: member.role,
+        userId: ctx.userId,
+        role: roleLabel(ctx.workspaceRole),
       });
       return reply.code(200).send(envelope);
     },

@@ -77,6 +77,9 @@ export function initSentry() {
   // a test asserts on the REAL capture decision instead of a stub of it.
   const mode = resolveObservabilityMode();
   if (mode === "off") return;
+  // OPS-019 — the operator's switch. Compose defaults it to true and passes it, so
+  // only an explicit false turns capture off; the recording mode is a test double.
+  if (mode !== "recording" && (process.env.SENTRY_ENABLED ?? "").trim().toLowerCase() === "false") return;
   const dsn = resolveObservabilityDsn(mode);
   if (mode !== "recording" && !dsn) return;
   // Phase P2.0B — performance + profiling are now first-class. Sample

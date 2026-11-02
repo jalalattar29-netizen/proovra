@@ -310,6 +310,17 @@ export async function indexNote(
     return { ok: false, reason: "note_not_found" };
   }
   if (!row.teamId) return { ok: false, reason: "note_team_missing" };
+  // A comment outlives a deleted case, because it has no foreign key. It must
+  // not become searchable again with no case left to hide it (EVID-005).
+  const liveCase = row.caseId
+    ? await client.case.findUnique({ where: { id: row.caseId }, select: { id: true } })
+    : null;
+  if (!liveCase) {
+    await client.evidenceSearchDocument.deleteMany({
+      where: { teamId: row.teamId, documentType: "NOTE", sourceId: row.id },
+    });
+    return { ok: false, reason: "note_case_deleted" };
+  }
 
   // Notes don't have a separate title. First-sentence-ish snippet
   // is the display title; the full body goes into searchableText.

@@ -223,7 +223,8 @@ describe("R8.1.3 — durable MFA pending challenge model + enforcement", () => {
     // Frontend page renders a dedicated surface with the data-cc
     // attribute; no silent lockout.
     expect(MFA_PAGE).toMatch(/data-cc-mfa-state=["']enrollment-required["']/);
-    expect(MFA_PAGE).toMatch(/data-cc-mfa-enrollment-cta/);
+    // IDENT-007 — the call to action became the guided setup itself.
+    expect(MFA_PAGE).toMatch(/MfaEnrollmentAtSignIn/);
   });
 
   // ---------------------------------------------------------------------------

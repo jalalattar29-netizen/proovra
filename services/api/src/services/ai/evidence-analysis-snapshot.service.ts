@@ -19,6 +19,7 @@
  * anything moved, the reservation is released and the operator is told to
  * refresh. Cheap, because it is one indexed read against ids already known.
  */
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
   buildEvidenceAnalysisRevision,
   type EvidenceAnalysisContext,
@@ -217,9 +218,20 @@ export async function loadEvidenceAnalysisSnapshots(input: {
   ids: ReadonlyArray<string>;
   teamId: string;
   scope: AnalysisScope;
+  /**
+   * The person the model is answering. A record a restricted case closes to
+   * them is not loaded, so it cannot reach a prompt or a provider, and the count
+   * mismatch refuses the request exactly as for a record that does not exist
+   * (AUTHZ-002).
+   */
+  viewerUserId: string;
 }): Promise<EvidenceAnalysisSnapshot[]> {
   const rows = (await prisma.evidence.findMany({
-    where: { id: { in: [...input.ids] }, teamId: input.teamId },
+    where: {
+      id: { in: [...input.ids] },
+      teamId: input.teamId,
+      AND: [evidenceVisibleThroughCasesWhere(input.viewerUserId)],
+    },
     select: EVIDENCE_ANALYSIS_SELECT,
   })) as unknown as EvidenceAnalysisRow[];
   return rows.map((r) => toSnapshot(r, input.scope));
@@ -241,12 +253,14 @@ export async function findDriftedSnapshot(input: {
   snapshots: ReadonlyArray<EvidenceAnalysisSnapshot>;
   teamId: string;
   scope: AnalysisScope;
+  viewerUserId: string;
 }): Promise<string | null> {
   if (input.snapshots.length === 0) return null;
   const fresh = await loadEvidenceAnalysisSnapshots({
     ids: input.snapshots.map((s) => s.row.id),
     teamId: input.teamId,
     scope: input.scope,
+    viewerUserId: input.viewerUserId,
   });
   const byId = new Map(fresh.map((s) => [s.row.id, s.revision]));
   for (const s of input.snapshots) {

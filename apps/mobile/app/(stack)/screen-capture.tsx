@@ -19,8 +19,15 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
-import { usePlatformContext } from "../../src/product/platform-context";
-import { useAuth } from "../../src/auth-context";
+import { PERSONAL_SPACE_UNAVAILABLE_MESSAGE, PERSONAL_SPACE_UNAVAILABLE_TITLE } from "../../src/personal-space";
+import {
+  WORKSPACE_UNCONFIRMED_MESSAGE,
+  confirmedWorkspace,
+  refreshPlatformContext,
+  resolveWorkspace,
+  usePlatformContext,
+} from "../../src/product/platform-context";
+import { CaptureDestination } from "../../src/ui/capture-destination";import { useAuth } from "../../src/auth-context";
 import { discardScreenCaptureFiles, ScreenStagingError, stageScreenCapture } from "../../src/screen-capture";
 import {
   clearPendingScreenStaging,
@@ -33,7 +40,7 @@ import {
   ensureCaptureNotificationPermission,
   NOTIFICATION_DENIED_COPY,
 } from "../../src/capture/notification-permission";
-import { captureRecordKey, saveCaptureSession } from "../../src/capture/capture-session-store";
+import { captureRecordKey, saveCaptureSession, type PersistedCaptureWorkspace } from "../../src/capture/capture-session-store";
 import { toScreenDraftItem } from "../../src/capture/screen-acquisition";
 import {
   acquireLocationWithChoice,
@@ -75,8 +82,10 @@ export default function ScreenCaptureScreen() {
   const router = useRouter();
   const toast = useToast();
   const personalSpace = usePersonalSpaceAllowed();
-  // ET-DC-08 — the capture belongs to the ACTIVE workspace, as on /capture.
-  const teamId = usePlatformContext().context?.activeTeamId ?? null;
+  // ET-DC-08 — the capture belongs to the ACTIVE workspace, as on /capture, fixed
+  // when it starts. Nothing starts while that workspace is unknown (MOBILE-003).
+  const workspace = resolveWorkspace(usePlatformContext());
+  const destinationRef = useRef<PersistedCaptureWorkspace | null>(null);
   // The kept staging is per user (screen-staging-store): offered once the user is known.
   const userId = useAuth().user?.id ?? null;
   const [state, dispatch] = useReducer(screenFlowReducer, INITIAL_SCREEN_FLOW);
@@ -171,6 +180,13 @@ export default function ScreenCaptureScreen() {
   }, [state.phase]);
 
   const start = useCallback(async (opts: { notificationAcknowledged?: boolean } = {}) => {
+    const target = confirmedWorkspace(workspace);
+    if (!target) {
+      toast.addToast(WORKSPACE_UNCONFIRMED_MESSAGE, "error");
+      refreshPlatformContext();
+      return;
+    }
+    destinationRef.current = target;
     setBusy(true);
     try {
       // Decision 2 — LOCATION FIRST, before Android's consent: the location
@@ -211,7 +227,7 @@ export default function ScreenCaptureScreen() {
     } finally {
       setBusy(false);
     }
-  }, [useLocation, locationRequired]);
+  }, [useLocation, locationRequired, workspace, toast]);
 
   const captureFrame = useCallback(async () => {
     setBusy(true);
@@ -251,8 +267,18 @@ export default function ScreenCaptureScreen() {
    * reservation and commits nothing.
    */
   const stageForReview = useCallback(async () => {
-    dispatch({ type: "FINALIZE" });
     const resume = pendingRef.current;
+    // A kept staging holds its own workspace. A recording this screen did not
+    // start (the app restarted under it) waits for one to be confirmed.
+    const target: PersistedCaptureWorkspace | null = resume
+      ? { teamId: resume.teamId, name: null }
+      : (destinationRef.current ?? confirmedWorkspace(workspace));
+    if (!target) {
+      toast.addToast(WORKSPACE_UNCONFIRMED_MESSAGE, "error");
+      refreshPlatformContext();
+      return;
+    }
+    dispatch({ type: "FINALIZE" });
     try {
       const result = resume ? (resume.result as unknown as ScreenCaptureResult) : await stopScreenCapture();
       lastResultRef.current = result;
@@ -267,7 +293,7 @@ export default function ScreenCaptureScreen() {
         locationRef.current ??
         reservationLocationFields({ useLocation, result: null });
       const staged = await stageScreenCapture(result, {
-        teamId: resume ? resume.teamId : teamId,
+        teamId: target.teamId,
         location,
         pending: resume,
         persist: savePendingScreenStaging,
@@ -287,7 +313,7 @@ export default function ScreenCaptureScreen() {
         outcome: location.gps ? "GRANTED" : location.locationRequestOutcome && location.locationRequestOutcome !== "NOT_REQUESTED" ? location.locationRequestOutcome : null,
         recordedAtStart: true,
       };
-      const draft = await openCaptureDraft({ items: [item], teamId, useLocation: carried.useLocation }).catch(() => null);
+      const draft = await openCaptureDraft({ items: [item], teamId: target.teamId, useLocation: carried.useLocation }).catch(() => null);
 
       // The durable record the canonical surface resumes. Its parts are
       // already uploaded, so finalize seals without re-uploading them.
@@ -317,6 +343,7 @@ export default function ScreenCaptureScreen() {
         },
         location: carried,
         linkGroupId: linkGroup,
+        workspace: target,
       });
       if (linkGroup) {
         await registerLinkedRecord(
@@ -357,7 +384,7 @@ export default function ScreenCaptureScreen() {
       await clearScreenCaptureLedger().catch(() => undefined);
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
-  }, [toast, teamId, useLocation, linkGroup]);
+  }, [toast, workspace, useLocation, linkGroup]);
 
   /** Discard / Try Again / Capture Another: the local screenshots go too (UC-AND-010). */
   const reset = useCallback(() => {
@@ -365,6 +392,7 @@ export default function ScreenCaptureScreen() {
     const pending = pendingRef.current;
     lastResultRef.current = null;
     pendingRef.current = null;
+    destinationRef.current = null;
     void discardScreenCaptureFiles(last);
     if (pending) {
       // AUD-005 — the user's explicit discard of a kept staging: release its
@@ -392,7 +420,7 @@ export default function ScreenCaptureScreen() {
   if (!personalSpace.allowed) {
     return (
       <ProovraScreen scroll={false}>
-        <ProovraEmptyState title="Not available here" message="Direct Screen Capture is available in your Personal Space on this device." action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
+        <ProovraEmptyState title={PERSONAL_SPACE_UNAVAILABLE_TITLE} message={PERSONAL_SPACE_UNAVAILABLE_MESSAGE} action={<ProovraButton label="Back" fullWidth={false} onPress={() => router.back()} />} />
       </ProovraScreen>
     );
   }
@@ -457,10 +485,11 @@ export default function ScreenCaptureScreen() {
             <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="How screen capture works" onPress={() => router.push("/legal/screen-capture")}>
               How screen capture works
             </ProovraText>
+            <CaptureDestination workspace={workspace} />
             <ProovraButton
               label="Start Screen Capture"
               loading={busy}
-              disabled={locationRequired && !useLocation}
+              disabled={(locationRequired && !useLocation) || workspace.state !== "resolved"}
               onPress={() => void start()}
             />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />

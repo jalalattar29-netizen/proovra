@@ -44,9 +44,8 @@ async function deleteQuietly(uri: string | null | undefined): Promise<void> {
   await quietly(() => FileSystem.deleteAsync(uri, { idempotent: true }));
 }
 
-export async function teardownCaptureOnSignOut(): Promise<void> {
-  // 1. Native capture stops first: nothing more is recorded after sign-out.
-  const localFiles = new Set<string>();
+/** Stops the recorders, adding whatever they hold to `localFiles`. */
+async function stopNativeCapture(localFiles: Set<string>): Promise<void> {
   await quietly(async () => {
     // AUD-006 — iOS names the recording (the focused one, else the live broadcast).
     const native = getScreenContinuousState();
@@ -64,6 +63,22 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
       for (const f of r?.frames ?? []) localFiles.add(f.uri);
     }
   });
+}
+
+/**
+ * A session the SERVER ended (MOBILE-008) is not a sign-out. Nothing more should
+ * be recorded under it, but the token is already dead, so no server session can
+ * be released, and the person may sign straight back in: the staged records and
+ * files stay, under their owner, for Capture to offer.
+ */
+export async function stopCaptureOnSessionEnd(): Promise<void> {
+  await stopNativeCapture(new Set());
+}
+
+export async function teardownCaptureOnSignOut(): Promise<void> {
+  // 1. Native capture stops first: nothing more is recorded after sign-out.
+  const localFiles = new Set<string>();
+  await stopNativeCapture(localFiles);
 
   // 2. Release the open server sessions while the token is still valid.
   const live = await loadLiveContinuousSession();

@@ -32,8 +32,9 @@ import {
   type WebhookEventKind,
 } from "@proovra/shared";
 import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { allOpen, hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 
-import { caseVisibleToWhere } from "../cases/case-visibility.js";
+import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { signPackageManifest } from "./signed-delivery.service.js";
@@ -91,6 +92,29 @@ export type CreateExchangePackageResult =
   | { ok: true; packageId: string }
   | { ok: false; denial: "INVALID_KIND" | "INVALID_EVIDENCE" | "INVALID_CASE" };
 
+/**
+ * May this caller act on this package? It holds records, so it is open only if
+ * every record in it is. A package built before a case was restricted closes
+ * with the case. False for a package that does not exist, so a caller answers
+ * both the same way.
+ */
+export async function exchangePackageOpenTo(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  packageId: string;
+  userId: string;
+}): Promise<boolean> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const row = await prisma.evidenceExchangePackage.findFirst({
+    where: { id: input.packageId, teamId: input.teamId },
+    select: { evidenceIds: true },
+  });
+  if (!row) return false;
+  const ids = Array.isArray(row.evidenceIds) ? (row.evidenceIds as string[]) : [];
+  const closed = await hiddenRecordIdsInWorkspace(input.teamId, input.userId, prisma);
+  return allOpen(ids, closed.evidenceIds);
+}
+
 export async function createExchangePackage(
   input: CreateExchangePackageInput,
 ): Promise<CreateExchangePackageResult> {
@@ -107,8 +131,16 @@ export async function createExchangePackage(
   // carry team_id NULL and are still its own.
   const uniqueIds = [...new Set(input.evidenceIds)];
   const scope = await workspaceEvidenceWhere(input.teamId, prisma);
+  // Reach as well as tenancy: a package hands out the record's bytes, and a
+  // named caseId never stood in for the rule on the ids themselves (AUTHZ-002).
   const owned = await prisma.evidence.count({
-    where: { AND: [{ id: { in: uniqueIds } }, scope] },
+    where: {
+      AND: [
+        { id: { in: uniqueIds } },
+        scope,
+        evidenceVisibleThroughCasesWhere(input.createdByUserId),
+      ],
+    },
   });
   if (owned !== uniqueIds.length) {
     return { ok: false, denial: "INVALID_EVIDENCE" };
@@ -536,6 +568,8 @@ export async function revokePackage(
 export type ListPackagesInput = {
   prisma?: PrismaClient;
   teamId: string;
+  /** The reader: a package holding a record closed to them is not listed. */
+  viewerUserId: string;
   kind?: ExchangePackageKind;
   state?: ExchangePackageState;
   limit?: number;
@@ -561,16 +595,19 @@ export async function listPackages(
 ): Promise<ReadonlyArray<ExchangePackageListItem>> {
   const prisma = input.prisma ?? defaultPrisma;
   const limit = Math.min(input.limit ?? 100, 500);
-  const rows = await prisma.evidenceExchangePackage.findMany({
-    where: {
-      teamId: input.teamId,
-      ...(input.kind ? { kind: input.kind } : {}),
-      ...(input.state ? { state: input.state } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: { _count: { select: { deliveries: true } } },
-  });
+  const closed = await hiddenRecordIdsInWorkspace(input.teamId, input.viewerUserId, prisma);
+  const rows = (
+    await prisma.evidenceExchangePackage.findMany({
+      where: {
+        teamId: input.teamId,
+        ...(input.kind ? { kind: input.kind } : {}),
+        ...(input.state ? { state: input.state } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: { _count: { select: { deliveries: true } } },
+    })
+  ).filter((r) => allOpen(Array.isArray(r.evidenceIds) ? (r.evidenceIds as string[]) : [], closed.evidenceIds));
   const failedBuilds =
     rows.length === 0
       ? []

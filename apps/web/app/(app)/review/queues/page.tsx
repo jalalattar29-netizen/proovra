@@ -96,16 +96,8 @@ import {
   useQueueIntelligence,
 } from "./_queue-intelligence";
 import { EvidenceRequestReviewQueue } from "./_evidence-request-queue";
+import { toQueueRow, type QueueRow } from "./_queue-row";
 
-type QueueRow = {
-  id: string;
-  evidenceId: string;
-  status: string;
-  priority: string;
-  assignedToUserId: string | null;
-  dueAt: string | null;
-  createdAt: string;
-};
 
 // -----------------------------------------------------------------------------
 // Backend contract constants
@@ -272,7 +264,7 @@ function QueuesShell() {
         const res = await apiFetch(url, { method: "GET" });
         // Stale-context rejection — the workspace changed mid-flight.
         if (requestTeamId !== activeTeamRef.current) return;
-        const pageRows = (res?.rows ?? res?.workflows ?? []) as QueueRow[];
+        const pageRows = ((res?.rows ?? []) as Parameters<typeof toQueueRow>[0][]).map(toQueueRow);
         const nextCursorValue =
           typeof res?.nextCursor === "string" && res.nextCursor.length > 0
             ? res.nextCursor

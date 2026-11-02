@@ -27,7 +27,7 @@ import { PageSection } from "../../../../../../components/ui/PageShell";
 import { Card } from "../../../../../../components/ui/Card";
 import { Button } from "../../../../../../components/ui/Button";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../../lib/date";
 
 interface RetentionResponse {
@@ -72,7 +72,7 @@ function RetentionTab() {
       )) as RetentionResponse;
       setPolicy({ kind: "ready", data });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setPolicy({
           kind: "error",
           message: err.message,

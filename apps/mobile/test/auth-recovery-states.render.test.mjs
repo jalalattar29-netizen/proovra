@@ -112,3 +112,17 @@ test("a good link shows Email verified with Continue to PROOVRA before moving on
   assert.ok(r.hasText("Your account has been successfully verified. You’ll land in your PROOVRA workspace in a moment."));
   assert.ok(r.byLabel("Continue to PROOVRA").length >= 1);
 });
+
+test("PROV-001 — a first verification asks for the password, and the link stays alive", async () => {
+  globalThis.__EXPO_PARAMS__ = { token: "vt-proof" };
+  answer = (p) =>
+    p === "/v1/auth/email/verify"
+      ? { status: 403, body: { error: { code: "EMAIL_VERIFICATION_PASSWORD_REQUIRED", message: "x" } } }
+      : { status: 200, body: {} };
+  const r = await render(Verify);
+  assert.equal(r.byTestId("verify-password").length, 1, r.texts().join(" | "));
+  assert.ok(r.hasText("Confirm your password"));
+  assert.ok(r.byLabel("Set a new password").length >= 1);
+  assert.equal(r.byTestId("verify-invalid").length, 0);
+  assert.deepEqual(posts.map((c) => c.body), [{ token: "vt-proof" }]);
+});

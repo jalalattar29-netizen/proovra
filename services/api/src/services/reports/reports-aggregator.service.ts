@@ -22,7 +22,7 @@
  *     while the artifact list still renders.
  */
 
-import { caseVisibleToWhere } from "../cases/case-visibility.js";
+import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import type { Prisma } from "@prisma/client";
 
 import { evidenceIntakeIdentityArms } from "../search/intake-identity-search.js";
@@ -488,7 +488,16 @@ export async function listWorkspaceArtifacts(input: {
   // Resolved outside the two try/catch blocks deliberately: if the scope
   // itself cannot be resolved, neither section may fall back to a strict
   // filter and report a confident smaller number. Both degrade instead.
-  const scope: WorkspaceEvidenceScope = await workspaceEvidenceWhere(input.teamId, prisma);
+  //
+  // One population means the case rule goes here too (sweep R3): the row, the
+  // count and the filter of a closed record all stop at this line. Only the
+  // case NAME used to be scoped, so the record's filename and status stayed.
+  const scope = {
+    AND: [
+      await workspaceEvidenceWhere(input.teamId, prisma),
+      evidenceVisibleThroughCasesWhere(input.callerUserId ?? null),
+    ],
+  } as never as WorkspaceEvidenceScope;
   const finalized = finalizedPopulation(scope);
   // ONE classification per request, shared by the summary and the list
   // filters, so a count and the rows its filter returns are one id set.

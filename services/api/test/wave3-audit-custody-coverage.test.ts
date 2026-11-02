@@ -85,7 +85,7 @@ describe("Wave 3 Phase 7B — audit + custody coverage", () => {
 
   // ------------------------------------------------------------------ 2
   it("POST /v1/graph/relationships/manual — audit + custody emit", () => {
-    const block = sliceRoute(GRAPH_ROUTES, '"/v1/graph/relationships/manual"', 4000);
+    const block = sliceRoute(GRAPH_ROUTES, '"/v1/graph/relationships/manual"', 5000);
     expect(block).toContain('action: "GRAPH_MANUAL_RELATIONSHIP_CREATED"');
     expect(block).toContain("appendInvestigationCustody");
     expect(block).toContain(

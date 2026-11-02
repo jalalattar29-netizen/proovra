@@ -18,6 +18,8 @@
  * permission; read routes pass `governance.policy.read`.
  */
 
+import { caseClosedTo, evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -27,10 +29,10 @@ import { z } from "zod";
 
 import type { Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { runGovernanceHandler } from "./_governance-error-bound.js";
 import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
@@ -53,6 +55,7 @@ import {
   listCaseScopedLegalHoldsLegacyShape,
   listEvidenceScopedLegalHoldsLegacyShape,
   placeCanonicalLegalHold,
+  legalHoldReleaseRefusal,
   releaseLegalHoldAnyStore,
 } from "../services/governance/legal-hold.service.js";
 import {
@@ -104,32 +107,25 @@ async function requireMember(
  *
  * This helper reuses the SAME server-side resolution path as
  * `redaction.routes.ts#resolveWorkspace` and
- * `intelligence-platform.routes.ts#authorizeWorkspace`: the persisted
- * `User.currentWorkspaceId` rail (written only by the audited workspace
- * switcher in `platform-context.routes.ts`) handed to the canonical
- * `authorizeOrFail` primitive, which supplies ACTIVE membership +
- * parent-Organization lifecycle + capability + fail-closed + anti-enumeration.
- *
- * No request field participates. There is no header, query or body override.
+ * `intelligence-platform.routes.ts#authorizeWorkspace`: the request's one
+ * workspace candidate (AUTHZ-006) handed to the canonical `authorizeOrFail`
+ * primitive, which supplies ACTIVE membership + parent-Organization lifecycle
+ * + capability + fail-closed + anti-enumeration.
  */
 async function resolveGovernancePolicyWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
   permission: Permission,
 ): Promise<{ teamId: string; actorUserId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  if (!user?.currentWorkspaceId) {
+  const teamId = await requestWorkspaceCandidate(req);
+  if (!teamId) {
     // No active workspace context — anti-enumeration 404, matching the
     // canonical primitive's not-a-member path.
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
   const outcome = await authorizeOrFail(req, reply, {
-    teamId: user.currentWorkspaceId,
+    teamId,
     permission,
     antiEnumeration: true,
   });
@@ -143,30 +139,21 @@ function toIso(v: Date | string | null | undefined): string | null {
   return v instanceof Date ? v.toISOString() : String(v);
 }
 
-/**
- * Workspace release-approval gate for the COMPATIBILITY_TEMPORARY release
- * adapters. Reads the workspace governance policy and refuses with 412 when
- * the policy demands an explicit acknowledgement that the caller did not
- * supply. It performs NO release and is evaluated BEFORE step-up.
- */
-async function assertReleaseApproval(
-  reply: FastifyReply,
-  teamId: string,
-  acknowledged: boolean,
-): Promise<boolean> {
-  const policy = await loadWorkspaceGovernancePolicy(teamId);
-  const required = Boolean(
-    (policy as { requireLegalHoldReleaseApproval?: boolean } | null)
-      ?.requireLegalHoldReleaseApproval,
+/** A hold names a record or a case; that rule decides who may act on it (GOV-017). */
+async function legalHoldClosedTo(id: string, teamId: string, userId: string): Promise<boolean> {
+  const hold = await prisma.evidenceLegalHold.findFirst({
+    where: { id, teamId },
+    select: { evidenceId: true, caseId: true },
+  });
+  if (!hold) return false;
+  return (
+    (hold.evidenceId !== null && (await evidenceClosedTo(hold.evidenceId, userId))) ||
+    (hold.caseId !== null && (await caseClosedTo(hold.caseId, userId)))
   );
-  if (required && !acknowledged) {
-    reply.code(412).send({ error: { code: "release_approval_required" } });
-    return false;
-  }
-  return true;
 }
 
 export async function governanceRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // GET policy
   //
   // PHASE 12B CLUSTER 9 — the Workspace subject is resolved SERVER-SIDE. The
@@ -397,7 +384,10 @@ export async function governanceRoutes(app: FastifyInstance) {
           status: query.status,
           limit: query.limit,
         });
-        reply.code(200).send({ legalHolds: rows });
+        const closed = await hiddenRecordIdsInWorkspace(query.teamId, ok.actorUserId);
+        reply.code(200).send({
+          legalHolds: rows.filter((h) => !closed.evidenceIds.includes(h.evidenceId as string)),
+        });
       });
     },
   );
@@ -418,6 +408,12 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (
+        (await evidenceClosedTo(body.evidenceId, ok.actorUserId)) ||
+        (body.caseId && (await caseClosedTo(body.caseId, ok.actorUserId)))
+      ) {
+        return reply.code(404).send({ error: { code: "evidence_not_found" } });
+      }
 
       /*
        * THE COMMERCIAL GATE THIS ROUTE NEVER HAD (2026-09-08).
@@ -512,19 +508,26 @@ export async function governanceRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           releaseNote: z.string().max(4000).nullable().optional(),
-          approvalAcknowledged: z.boolean().optional(),
           expectedVersion: z.coerce.number().int().nullable().optional(),
         })
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (await legalHoldClosedTo(id, body.teamId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
-      const approval = await assertReleaseApproval(
-        reply,
-        body.teamId,
-        body.approvalAcknowledged === true,
-      );
-      if (!approval) return;
+      // Before step-up is offered: nobody re-authenticates for a release that is
+      // going to be refused. GOV-011 — only a second person's recorded approval
+      // satisfies this; an acknowledgement in the body proved nothing.
+      const refusal = await legalHoldReleaseRefusal({
+        teamId: body.teamId,
+        holdId: id,
+        actorUserId: ok.actorUserId,
+      });
+      if (refusal) {
+        return reply.code(412).send({ error: { code: refusal } });
+      }
 
       const gate = await requireStepUpForSensitiveAction({
         req,
@@ -544,7 +547,6 @@ export async function governanceRoutes(app: FastifyInstance) {
           actorUserId: ok.actorUserId,
           releaseNote: body.releaseNote ?? "",
           expectedVersion: body.expectedVersion ?? null,
-          approvalAcknowledged: body.approvalAcknowledged === true,
         });
       } catch (err) {
         if (err instanceof CanonicalLegalHoldError) {
@@ -598,7 +600,10 @@ export async function governanceRoutes(app: FastifyInstance) {
           status: query.status,
           limit: query.limit,
         });
-        reply.code(200).send({ caseLegalHolds: rows });
+        const closed = await hiddenRecordIdsInWorkspace(query.teamId, ok.actorUserId);
+        reply.code(200).send({
+          caseLegalHolds: rows.filter((h) => !closed.caseIds.includes(h.caseId as string)),
+        });
       });
     },
   );
@@ -618,6 +623,9 @@ export async function governanceRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (await caseClosedTo(body.caseId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "case_not_found" } });
+      }
 
       /*
        * Same commercial gate as the evidence-scoped route above, for the same
@@ -697,22 +705,26 @@ export async function governanceRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           releaseNote: z.string().max(4000).nullable().optional(),
-          approvalAcknowledged: z.boolean().optional(),
           expectedVersion: z.coerce.number().int().nullable().optional(),
         })
         .parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "governance.legal_hold.manage");
       if (!ok) return;
+      if (await legalHoldClosedTo(id, body.teamId, ok.actorUserId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
-      // The workspace approval gate runs BEFORE step-up is offered: an
-      // operator must not be asked to re-authenticate for a release the
-      // workspace policy is going to refuse anyway.
-      const approval = await assertReleaseApproval(
-        reply,
-        body.teamId,
-        body.approvalAcknowledged === true,
-      );
-      if (!approval) return;
+      // Before step-up is offered: nobody re-authenticates for a release that is
+      // going to be refused. GOV-011 — only a second person's recorded approval
+      // satisfies this; an acknowledgement in the body proved nothing.
+      const refusal = await legalHoldReleaseRefusal({
+        teamId: body.teamId,
+        holdId: id,
+        actorUserId: ok.actorUserId,
+      });
+      if (refusal) {
+        return reply.code(412).send({ error: { code: refusal } });
+      }
 
       const gate = await requireStepUpForSensitiveAction({
         req,
@@ -732,7 +744,6 @@ export async function governanceRoutes(app: FastifyInstance) {
           actorUserId: ok.actorUserId,
           releaseNote: body.releaseNote ?? "",
           expectedVersion: body.expectedVersion ?? null,
-          approvalAcknowledged: body.approvalAcknowledged === true,
         });
       } catch (err) {
         if (err instanceof CanonicalLegalHoldError) {

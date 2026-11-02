@@ -166,7 +166,7 @@ describe("organization invite — concurrent acceptance cannot exceed the seat l
       const uid = randomUUID();
       const email = `contender-${i}-${uid.slice(0, 8)}@example.test`;
       await prisma.user.create({
-        data: { id: uid, email, provider: "EMAIL", providerUserId: uid },
+        data: { id: uid, email, provider: "EMAIL", providerUserId: uid, emailVerifiedAt: new Date() },
       });
       contenderIds.push(uid);
 

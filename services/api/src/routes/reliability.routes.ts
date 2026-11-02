@@ -14,6 +14,7 @@
  * webhook retry sweeper.
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -91,6 +92,7 @@ async function requireAdminMember(
 }
 
 export async function reliabilityRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   app.get(
     "/v1/reliability/summary",
     { preHandler: requireAuth },

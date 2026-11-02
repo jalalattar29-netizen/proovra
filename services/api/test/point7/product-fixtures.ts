@@ -84,6 +84,8 @@ export async function seedUser(
       lastName: label,
       provider: "EMAIL",
       providerUserId: email,
+      // A signed-in person has proven this address; invitations rely on it.
+      emailVerifiedAt: new Date(),
     },
     select: { id: true },
   });
@@ -329,8 +331,8 @@ export async function seedOrganizationTenant(
     /** Account plan of the org owner. Used to prove the org plan is NOT derived from it. */
     ownerAccountPlan?: CanonicalPlan;
     /**
-     * The contract's Collaboration Team figures (members ledger M5: an ACTIVE
-     * contract that states none grants none). Stated by default, as a signed
+     * The contract's Collaboration Team figures (CT-10: an ACTIVE contract that
+     * states none gets the published defaults). Stated by default, as a signed
      * contract would; `null` seeds a contract SILENT on them.
      */
     contractCollaboration?: { teams: number; membersPerTeam: number } | null;
@@ -389,6 +391,8 @@ export async function seedOrganizationTenant(
     data: {
       organizationId: org.id,
       status: opts.contractStatus ?? "ACTIVE",
+      // A signed contract states its seats; silence admits nobody (BILLING-011).
+      seatCount: 100,
       ...(opts.contractCollaboration === null
         ? {}
         : {

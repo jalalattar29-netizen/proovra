@@ -8,7 +8,7 @@ import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
 // Phase HOME-DATA-OWNERSHIP — capture stamps the ACTIVE workspace id
 // (personal Team id or team id) on every new evidence record.
-import { useActiveSpaceId, useTenantGuard } from "../../../../lib/platform-context";
+import { useActiveSpace, useTenantGuard } from "../../../../lib/platform-context";
 // Phase 30.12 — resumable upload adoption. Only the routing helper +
 // chunk planner are imported eagerly; the orchestrator type is
 // imported as a type-only reference so the bundle isn't pulled in
@@ -291,7 +291,8 @@ export function useCaptureSessionOrchestration({
 }: UseCaptureSessionOrchestrationParams) {
   const router = useRouter();
   const { addToast } = useToast();
-  const activeSpaceId = useActiveSpaceId();
+  // Null while the envelope is loading or failed. That is "unknown", never Personal.
+  const activeSpace = useActiveSpace();
   // PHASE 7 §10.3/§10.E — capture the tenant generation when finalize
   // begins; if the operator switches workspace mid-finalize the Evidence
   // is still safely bound server-side to the ORIGINAL workspace
@@ -635,6 +636,16 @@ export function useCaptureSessionOrchestration({
     const resuming = reservation.evidenceId !== null;
     let currentItemId: string | null = null;
 
+    // INGEST-009 — an omitted teamId is filed in Personal by the server, so a new
+    // record is refused until the workspace is known. Staged items stay.
+    if (!resuming && !activeSpace) {
+      const unknownMessage =
+        "PROOVRA could not confirm which workspace this belongs to, so nothing has been filed. Your staged materials are kept. Check your connection and try again.";
+      setError(unknownMessage);
+      addToast(unknownMessage, "warning");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setSessionStatus("Creating evidence record...");
@@ -741,9 +752,9 @@ export function useCaptureSessionOrchestration({
         method: "POST",
         body: JSON.stringify({
           type: rootType,
-          // Active workspace stamp; backend resolves the personal Team
-          // itself when omitted (envelope still loading).
-          teamId: activeSpaceId ?? undefined,
+          // Active workspace stamp. Omitted only for a confirmed Personal Space
+          // whose id the server has not resolved; the guard above covers unknown.
+          teamId: activeSpace?.id || undefined,
           mimeType: primaryMimeType,
           internalNotes: internalNotes.trim() || undefined,
           originalFileName: items[0]?.relativePath || primaryFile.name,

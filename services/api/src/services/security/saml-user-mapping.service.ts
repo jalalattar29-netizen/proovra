@@ -39,8 +39,10 @@ import type { SamlAssertion } from "./saml-assertion.service.js";
 // P0 remediation (2026-07-21) — canonical guard for linking an IdP-asserted
 // email to a PRE-EXISTING User (cross-tenant account-takeover fix).
 import { evaluateExistingAccountLink } from "./enterprise-account-linking.service.js";
+import { isAccountClosed } from "../identity/account-closed.js";
 // PHASE 3 (2026-07-21) — canonical membership orchestrator.
 import { provisionMembership } from "../identity/membership-provisioning.service.js";
+import { withSeatClaimRetry } from "../billing/workspace-seats.service.js";
 
 // ---------------------------------------------------------------------------
 // Error class
@@ -53,7 +55,10 @@ export type SamlMappingErrorCode =
   | "SAML_CONNECTION_NOT_FOUND"
   | "SAML_CONNECTION_INACTIVE"
   // P0 remediation (2026-07-21) — unsafe existing-account link denial.
-  | "SAML_ACCOUNT_LINK_DENIED";
+  | "SAML_ACCOUNT_LINK_DENIED"
+  // IDENT-005 — the workspace has no free contracted seat for a new subject.
+  | "SAML_SEAT_LIMIT_REACHED"
+  | "SAML_SEAT_CONTENTION";
 
 export class SamlMappingError extends Error {
   constructor(
@@ -183,6 +188,15 @@ const NAME_ATTR_NAMES = [
  *  2. NameID if it has an email format
  *  3. Well-known email attribute names (EMAIL_ATTR_NAMES)
  */
+/** The asserted email, normalised, or null when there is no usable one. */
+export function resolveAssertedEmail(
+  assertion: SamlAssertion,
+  mapping: SamlAttributeMapping | null | undefined,
+): string | null {
+  const email = resolveEmail(assertion, mapping)?.trim().toLowerCase() ?? null;
+  return email && email.includes("@") ? email : null;
+}
+
 function resolveEmail(
   assertion: SamlAssertion,
   mapping: SamlAttributeMapping | null | undefined,
@@ -297,10 +311,8 @@ export async function handleSamlAssertion(
   // registration / SSO / SCIM do (trim + lowercase). Without this, an IdP
   // asserting a different casing than the stored (lowercased) account
   // silently created a DUPLICATE User instead of matching the existing one.
-  const email =
-    resolveEmail(assertion, attributeMapping ?? null)?.trim().toLowerCase() ??
-    null;
-  if (!email || !email.includes("@")) {
+  const email = resolveAssertedEmail(assertion, attributeMapping ?? null);
+  if (!email) {
     // R8.2.1 — Attribute mapping failure: IdP did not return a mappable email.
     // Emit the new hardening event so operators can diagnose attribute name mismatches.
     bump("saml_attribute_mapping_failure_total");
@@ -401,6 +413,15 @@ export async function handleSamlAssertion(
       throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
         connectionId,
         reason: revalidationFailure,
+      });
+    }
+
+    // IDENT-010 — a closed account stays closed, whatever an IdP still says.
+    if (await isAccountClosed(externalMapping.userId, client)) {
+      bump("saml_login_failure_total");
+      throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+        connectionId,
+        reason: "account_closed",
       });
     }
 
@@ -508,52 +529,87 @@ export async function handleSamlAssertion(
           reason: link.reason,
         });
       }
-      userId = existingUser.id;
-    } else {
-      const created = await client.user.create({
-        data: {
-          email,
-          provider: "EMAIL",
-// Members audit DOM-13 — a subject is unique within its Organization, so the
-          // synthetic provider id carries the Organization (two Organizations may
-          // push the same subject without colliding).
-          providerUserId: `saml-${organizationId}:${externalSubjectId}`,
-        },
-        select: { id: true },
-      });
-      userId = created.id;
-      isNewlyProvisioned = true;
+      if (await isAccountClosed(existingUser.id, client)) {
+        throw new SamlMappingError("SAML_ACCOUNT_LINK_DENIED", {
+          connectionId,
+          reason: "account_closed",
+        });
+      }
     }
 
-    // Create ExternalIdentityMapping
-    await client.externalIdentityMapping.create({
-      data: {
-        teamId,
-        organizationId,
-        userId,
-        provider: provider as never,
-        externalSubjectId,
-        displayName: displayName ?? null,
-        externalEmail: email,
-      },
-    });
+    // ONE OUTCOME (IDENT-005) — user, mapping and membership commit together
+    // under the seat authority, so a refused seat leaves nothing behind.
+    try {
+      userId = await withSeatClaimRetry(() =>
+        client.$transaction(async (tx) => {
+          const jitUserId =
+            existingUser?.id ??
+            (
+              await tx.user.create({
+                data: {
+                  email,
+                  provider: "EMAIL",
+                  // Members audit DOM-13 — a subject is unique within its
+                  // Organization, so the synthetic provider id carries the
+                  // Organization (two Organizations may push the same subject
+                  // without colliding).
+                  providerUserId: `saml-${organizationId}:${externalSubjectId}`,
+                },
+                select: { id: true },
+              })
+            ).id;
 
-    // PHASE 3 (2026-07-21) — canonical orchestrator: SSO_JIT intent.
-    // `preserveExistingStatus` — a SAML login never silently reactivates a
-    // SUSPENDED/REVOKED member; the grant provenance is recorded either way.
-    await provisionMembership(client, {
-      intent: "SSO_JIT",
-      source: "SSO_JIT",
-      userId,
-      workspace: {
-        teamId,
-        role: role === "VIEWER" ? "VIEWER" : "MEMBER",
-      },
-      actorUserId: null, // self-provisioned via IdP assertion
-      externalRef: `saml:${provider}:${externalSubjectId}`.slice(0, 200),
-      accessReason: `SAML JIT (${provider})`,
-      preserveExistingStatus: true,
-    });
+          // Create ExternalIdentityMapping
+          await tx.externalIdentityMapping.create({
+            data: {
+              teamId,
+              organizationId,
+              userId: jitUserId,
+              provider: provider as never,
+              externalSubjectId,
+              displayName: displayName ?? null,
+              externalEmail: email,
+            },
+          });
+
+          // PHASE 3 (2026-07-21) — canonical orchestrator: SSO_JIT intent.
+          // `preserveExistingStatus` — a SAML login never silently reactivates
+          // a SUSPENDED/REVOKED member; the grant provenance is recorded either way.
+          await provisionMembership(tx as never, {
+            intent: "SSO_JIT",
+            source: "SSO_JIT",
+            userId: jitUserId,
+            workspace: {
+              teamId,
+              role: role === "VIEWER" ? "VIEWER" : "MEMBER",
+            },
+            actorUserId: null, // self-provisioned via IdP assertion
+            externalRef: `saml:${provider}:${externalSubjectId}`.slice(0, 200),
+            accessReason: `SAML JIT (${provider})`,
+            preserveExistingStatus: true,
+          });
+          return jitUserId;
+        }),
+      );
+      isNewlyProvisioned = !existingUser;
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === "MANAGED_SEAT_LIMIT_REACHED" || code === "WORKSPACE_SEAT_CONTENTION") {
+        const reason = code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "seat_contention";
+        bump("saml_jit_denied_total");
+        safeEmitSecurityEvent({
+          teamId,
+          eventType: "saml_jit_denied",
+          severity: "WARNING",
+          details: { connectionId, reason, nameIdHash: assertion.nameIdHash },
+        });
+        throw new SamlMappingError(
+          code === "MANAGED_SEAT_LIMIT_REACHED" ? "SAML_SEAT_LIMIT_REACHED" : "SAML_SEAT_CONTENTION",
+          { connectionId, reason },
+        );
+      }
+      throw err;
+    }
 
     bump("saml_jit_provisioned_total");
     safeEmitSecurityEvent({

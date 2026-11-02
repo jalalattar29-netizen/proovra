@@ -9,7 +9,13 @@
  *
  * Hard rules:
  *   * Every entry point is workspace-anchored (teamId).
- *   * Recipient org slug is bounded and validated.
+ *   * (AUTHZ-007) A transfer names a real organization, and ACCEPTED or REJECTED
+ *     is that organization's act: only a member of a workspace in it can record
+ *     either, and to anyone else the transfer does not exist. These states reach
+ *     the custody chain, which must never claim a counterparty did something it
+ *     did not. The sender can initiate, revoke and complete.
+ *   * The recipient label (`toOrganizationSlug`) is free text for display:
+ *     organizations have no slug, so identity is `toOrganizationId`.
  *   * Webhook emission is forward-declared (best-effort) and MUST
  *     never break the operational write.
  */
@@ -17,6 +23,8 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { appendCustodyEventTx, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { allOpen, hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
   CHAIN_TRANSFER_STATES,
   type ChainTransferProjection,
@@ -78,9 +86,12 @@ async function appendTransferCustodyTx(
   payload: {
     transferId: string;
     fromOrganizationId: string;
+    toOrganizationId?: string | null;
     toOrganizationSlug: string;
     state: string;
     actorUserId: string | null;
+    /** The organization whose member acted. */
+    actorOrganizationId?: string | null;
     transitionedAt: Date;
   },
 ): Promise<void> {
@@ -92,12 +103,39 @@ async function appendTransferCustodyTx(
       payload: {
         transferId: payload.transferId,
         fromOrganizationId: payload.fromOrganizationId,
+        toOrganizationId: payload.toOrganizationId ?? null,
         toOrganizationSlug: payload.toOrganizationSlug,
         state: payload.state,
         actorUserId: payload.actorUserId,
+        actorOrganizationId: payload.actorOrganizationId ?? null,
       },
     });
   }
+}
+
+/**
+ * The transfer as its RECIPIENT sees it. Anyone but a workspace of the receiving
+ * organization gets nothing, the same answer as an id that does not exist, and
+ * that includes the sender: a transfer's own initiator cannot accept it.
+ */
+async function loadForRecipient(prisma: PrismaClient, transferId: string, teamId: string) {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { organizationId: true } });
+  if (!team?.organizationId) return null;
+  const row = await prisma.chainTransfer.findUnique({
+    where: { id: transferId },
+    select: {
+      id: true,
+      teamId: true,
+      state: true,
+      fromOrganizationId: true,
+      toOrganizationId: true,
+      toOrganizationSlug: true,
+      evidenceIds: true,
+      expiresAtUtc: true,
+    },
+  });
+  if (!row || row.toOrganizationId !== team.organizationId) return null;
+  return { row, recipientOrganizationId: team.organizationId };
 }
 
 const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
@@ -123,7 +161,10 @@ export type InitiateChainTransferInput = {
   prisma?: PrismaClient;
   teamId: string;
   fromOrganizationId: string;
-  toOrganizationSlug: string;
+  /** The receiving organization. */
+  toOrganizationId: string;
+  /** Display label for the recipient. */
+  toOrganizationSlug?: string | null;
   evidenceIds: ReadonlyArray<string>;
   caseId?: string | null;
   initiatedByUserId: string;
@@ -141,7 +182,8 @@ export async function initiateChainTransfer(
   if (!Array.isArray(input.evidenceIds) || input.evidenceIds.length === 0) {
     return { ok: false, denial: "INVALID_EVIDENCE" };
   }
-  if (!SLUG_PATTERN.test(input.toOrganizationSlug)) {
+  const recipientLabel = input.toOrganizationSlug ?? input.toOrganizationId;
+  if (input.toOrganizationSlug != null && !SLUG_PATTERN.test(input.toOrganizationSlug)) {
     return { ok: false, denial: "INVALID_SLUG" };
   }
   const prisma = input.prisma ?? defaultPrisma;
@@ -161,10 +203,24 @@ export async function initiateChainTransfer(
   if (!team?.organizationId || team.organizationId !== input.fromOrganizationId) {
     return { ok: false, denial: "INVALID_ORGANIZATION" };
   }
+  // AUTHZ-007 — a transfer to nobody, or to itself, could only ever be accepted by
+  // the sender.
+  if (input.toOrganizationId === input.fromOrganizationId) {
+    return { ok: false, denial: "INVALID_ORGANIZATION" };
+  }
+  const recipient = await prisma.organization.findUnique({
+    where: { id: input.toOrganizationId },
+    select: { id: true },
+  });
+  if (!recipient) return { ok: false, denial: "INVALID_ORGANIZATION" };
   const evidenceIds = [...new Set(input.evidenceIds)];
   const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   const owned = await prisma.evidence.count({
-    where: { AND: [scope], id: { in: evidenceIds }, deletedAt: null },
+    where: {
+      AND: [scope, evidenceVisibleThroughCasesWhere(input.initiatedByUserId)],
+      id: { in: evidenceIds },
+      deletedAt: null,
+    },
   });
   if (owned !== evidenceIds.length) return { ok: false, denial: "INVALID_EVIDENCE" };
 
@@ -174,7 +230,8 @@ export async function initiateChainTransfer(
       data: {
         teamId: input.teamId,
         fromOrganizationId: input.fromOrganizationId,
-        toOrganizationSlug: input.toOrganizationSlug.slice(0, 120),
+        toOrganizationId: input.toOrganizationId,
+        toOrganizationSlug: recipientLabel.slice(0, 64),
         evidenceIds: evidenceIds as unknown as object,
         caseId: input.caseId ?? null,
         state: "INITIATED",
@@ -187,9 +244,11 @@ export async function initiateChainTransfer(
     await appendTransferCustodyTx(tx, evidenceIds, {
       transferId: created.id,
       fromOrganizationId: input.fromOrganizationId,
-      toOrganizationSlug: input.toOrganizationSlug,
+      toOrganizationId: input.toOrganizationId,
+      toOrganizationSlug: recipientLabel,
       state: "INITIATED",
       actorUserId: input.initiatedByUserId,
+      actorOrganizationId: input.fromOrganizationId,
       transitionedAt: initiatedAt,
     });
     return created;
@@ -199,7 +258,7 @@ export async function initiateChainTransfer(
     {
       transferId: row.id,
       fromOrganizationId: input.fromOrganizationId,
-      toOrganizationSlug: input.toOrganizationSlug,
+      toOrganizationSlug: recipientLabel,
       evidenceCount: input.evidenceIds.length,
     },
     { prisma, teamId: input.teamId },
@@ -213,27 +272,48 @@ export async function initiateChainTransfer(
 
 export type AcceptChainTransferInput = {
   prisma?: PrismaClient;
+  /** The accepting member's workspace, in the receiving organization. */
   teamId: string;
   transferId: string;
   acceptingUserId: string;
-  acceptingOrgId?: string | null;
 };
 
 export type AcceptChainTransferResult =
   | { ok: true }
   | { ok: false; denial: "NOT_FOUND" | "INVALID_STATE" };
 
+/** May this caller act on this transfer? False when it does not exist too. */
+export async function chainTransferOpenTo(input: {
+  prisma?: PrismaClient;
+  teamId: string;
+  transferId: string;
+  userId: string;
+}): Promise<boolean> {
+  const prisma = input.prisma ?? defaultPrisma;
+  const row = await prisma.chainTransfer.findUnique({
+    where: { id: input.transferId },
+    select: { teamId: true, evidenceIds: true },
+  });
+  if (!row) return false;
+  // The case rule is the sending workspace's. A receiving workspace holds no
+  // such case, and each service decides whether this workspace may act at all.
+  if (row.teamId !== input.teamId) return true;
+  const closed = await hiddenRecordIdsInWorkspace(input.teamId, input.userId, prisma);
+  return allOpen(Array.isArray(row.evidenceIds) ? (row.evidenceIds as string[]) : [], closed.evidenceIds);
+}
+
 export async function acceptChainTransfer(
   input: AcceptChainTransferInput,
 ): Promise<AcceptChainTransferResult> {
   const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.chainTransfer.findFirst({
-    where: { id: input.transferId, teamId: input.teamId },
-    select: { id: true, state: true, fromOrganizationId: true, toOrganizationSlug: true, evidenceIds: true },
-  });
-  if (!row) return { ok: false, denial: "NOT_FOUND" };
+  const found = await loadForRecipient(prisma, input.transferId, input.teamId);
+  if (!found) return { ok: false, denial: "NOT_FOUND" };
+  const { row, recipientOrganizationId } = found;
   if (row.state !== "INITIATED") return { ok: false, denial: "INVALID_STATE" };
   const at = new Date();
+  if (row.expiresAtUtc && row.expiresAtUtc.getTime() <= at.getTime()) {
+    return { ok: false, denial: "INVALID_STATE" };
+  }
   const moved = await prisma.$transaction(async (tx) => {
     const claim = await tx.chainTransfer.updateMany({
       where: { id: row.id, state: "INITIATED" },
@@ -241,16 +321,17 @@ export async function acceptChainTransfer(
         state: "ACCEPTED",
         acceptedByUserId: input.acceptingUserId,
         respondedAtUtc: at,
-        ...(input.acceptingOrgId ? { toOrganizationId: input.acceptingOrgId } : {}),
       },
     });
     if (claim.count !== 1) return false;
     await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
       transferId: row.id,
       fromOrganizationId: row.fromOrganizationId,
+      toOrganizationId: row.toOrganizationId,
       toOrganizationSlug: row.toOrganizationSlug,
       state: "ACCEPTED",
       actorUserId: input.acceptingUserId,
+      actorOrganizationId: recipientOrganizationId,
       transitionedAt: at,
     });
     return true;
@@ -264,7 +345,8 @@ export async function acceptChainTransfer(
       toOrganizationSlug: row.toOrganizationSlug,
       acceptingUserId: input.acceptingUserId,
     },
-    { prisma, teamId: input.teamId },
+    // The sender's endpoints hear about it: the event belongs to their transfer.
+    { prisma, teamId: row.teamId },
   );
   return { ok: true };
 }
@@ -289,11 +371,9 @@ export async function rejectChainTransfer(
   input: RejectChainTransferInput,
 ): Promise<RejectChainTransferResult> {
   const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.chainTransfer.findFirst({
-    where: { id: input.transferId, teamId: input.teamId },
-    select: { id: true, state: true, evidenceIds: true, fromOrganizationId: true, toOrganizationSlug: true },
-  });
-  if (!row) return { ok: false, denial: "NOT_FOUND" };
+  const found = await loadForRecipient(prisma, input.transferId, input.teamId);
+  if (!found) return { ok: false, denial: "NOT_FOUND" };
+  const { row, recipientOrganizationId } = found;
   if (row.state !== "INITIATED") return { ok: false, denial: "INVALID_STATE" };
   const at = new Date();
   const moved = await prisma.$transaction(async (tx) => {
@@ -310,9 +390,11 @@ export async function rejectChainTransfer(
     await appendTransferCustodyTx(tx, idsOf(row.evidenceIds), {
       transferId: row.id,
       fromOrganizationId: row.fromOrganizationId,
+      toOrganizationId: row.toOrganizationId,
       toOrganizationSlug: row.toOrganizationSlug,
       state: "REJECTED",
       actorUserId: input.rejectingUserId,
+      actorOrganizationId: recipientOrganizationId,
       transitionedAt: at,
     });
     return true;
@@ -425,6 +507,8 @@ export async function completeChainTransfer(
 export type ListChainTransfersInput = {
   prisma?: PrismaClient;
   teamId: string;
+  /** The reader: a transfer of a record closed to them is not listed. */
+  viewerUserId: string;
   state?: ChainTransferState;
 };
 
@@ -432,15 +516,29 @@ export async function listChainTransfers(
   input: ListChainTransfersInput,
 ): Promise<ReadonlyArray<ChainTransferProjection>> {
   const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.chainTransfer.findMany({
-    where: {
-      teamId: input.teamId,
-      ...(input.state ? { state: input.state } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
+  // A transfer is visible to the workspace that sent it and to any workspace of
+  // the organization receiving it: the recipient had no read at all. The sending
+  // workspace's own readers still lose a transfer of a record closed to them.
+  const team = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { organizationId: true },
   });
+  const closed = await hiddenRecordIdsInWorkspace(input.teamId, input.viewerUserId, prisma);
+  const rows = (
+    await prisma.chainTransfer.findMany({
+      where: {
+        OR: [
+          { teamId: input.teamId },
+          ...(team?.organizationId ? [{ toOrganizationId: team.organizationId }] : []),
+        ],
+        ...(input.state ? { state: input.state } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    })
+  ).filter((r) => allOpen(Array.isArray(r.evidenceIds) ? (r.evidenceIds as string[]) : [], closed.evidenceIds));
   return rows.map((r) => ({
+    direction: r.teamId === input.teamId ? ("OUTGOING" as const) : ("INCOMING" as const),
     id: r.id,
     teamId: r.teamId,
     fromOrganizationId: r.fromOrganizationId,

@@ -40,6 +40,7 @@ export type ReleaseTx = Pick<
   | "evidenceRequestEvent"
   | "reviewerDisagreement"
   | "caseSiuProfile"
+  | "discussionThread"
 >;
 
 /** Why the work is released — recorded on every history row it writes. */
@@ -61,6 +62,7 @@ export type ReleasedWork = {
   evidenceRequests: number;
   disagreements: number;
   siuAssignments: number;
+  discussionThreads: number;
 };
 
 /** Review states that are finished work — history, not held work. */
@@ -177,6 +179,7 @@ export async function releaseWorkHeldByTx(
         evidenceRequests: 0,
         disagreements: 0,
         siuAssignments: 0,
+        discussionThreads: 0,
       };
       perUser.set(userId, b);
     }
@@ -398,6 +401,25 @@ export async function releaseWorkHeldByTx(
       data: { assignedSiuReviewerUserId: null },
     });
     if (written.count > 0) bucket(profile.assignedSiuReviewerUserId!).siuAssignments += 1;
+  }
+
+  // Discussion threads (WORKFLOW-017) — back to the workspace, still open. The
+  // inbox routes an assigned thread to its assignee only, so one left on a person
+  // who cannot act is seen by nobody. The tenant audit row below keeps who held it.
+  const threads = await tx.discussionThread.findMany({
+    where: {
+      teamId: input.teamId,
+      assignedToUserId: { in: userIds },
+      status: { in: ["OPEN", "IN_PROGRESS"] },
+    },
+    select: { id: true, assignedToUserId: true },
+  });
+  for (const thread of threads) {
+    const written = await tx.discussionThread.updateMany({
+      where: { id: thread.id, assignedToUserId: thread.assignedToUserId },
+      data: { assignedToUserId: null, assignedAtUtc: null },
+    });
+    if (written.count > 0) bucket(thread.assignedToUserId!).discussionThreads += 1;
   }
 
   // One audit row per person who held anything: what was released, and why.

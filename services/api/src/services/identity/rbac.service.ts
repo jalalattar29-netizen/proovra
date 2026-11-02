@@ -31,6 +31,7 @@ import {
   type TeamMemberStatus,
   PERMISSIONS,
   isAllowedTeamMemberStatusTransition,
+  listPermissionsForDelegatedAdminScope,
   mapTeamRoleToCanonical,
   roleHasPermission,
 } from "@proovra/shared";
@@ -57,8 +58,9 @@ import {
 // inert while the membership is not ACTIVE, back with a restore.
 import { endStandingReach, releaseWorkOnSuspension } from "./standing-reach.js";
 import {
-  resolveWorkspaceSeatState,
-  workspaceSeatsAdmit,
+  WorkspaceSeatContendedError,
+  claimWorkspaceSeatTx,
+  type WorkspaceSeatClaim,
 } from "../billing/workspace-seats.service.js";
 import {
   BillingLimitError,
@@ -214,6 +216,25 @@ async function settleLifecycleNotice(
     typeof (client as unknown as { $transaction?: unknown }).$transaction === "function";
   if (ownsTransaction) await dispatchEnqueuedEmailNotifications([noticeId], client);
   else sink?.push(noticeId);
+}
+
+/**
+ * Whom a grant may go to: an ACTIVE member other than the grantor (AUTHZ-005).
+ * A self-grant adds nothing for someone who already holds the permission, and
+ * a suspended member cannot use what they are given.
+ */
+async function loadGrantTarget(
+  client: PrismaClient,
+  teamId: string,
+  teamMemberId: string,
+  actorUserId: string,
+) {
+  const target = await loadTargetMember(client, teamId, teamMemberId);
+  if (target.userId === actorUserId) throw new RbacError("self_action_forbidden");
+  if (target.status !== prismaPkg.TeamMemberStatus.ACTIVE) {
+    throw new RbacError("invalid_status_transition");
+  }
+  return target;
 }
 
 async function loadTargetMember(
@@ -651,18 +672,16 @@ async function assertReinstatementFitsCapacityTx(
    * indefinitely: past the bound it is refused as retryable contention rather
    * than holding a connection.
    */
-  await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
+  let claim: WorkspaceSeatClaim;
   try {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`workspace-seat:${workspaceId}`}))`;
+    claim = await claimWorkspaceSeatTx(tx, { workspaceId, userId, wait: "BOUNDED" });
   } catch (err) {
-    if ((err as { meta?: { code?: string }; code?: string })?.meta?.code === "55P03" || /lock timeout/i.test(String((err as Error)?.message))) {
+    if (err instanceof WorkspaceSeatContendedError) {
       throw new RbacError("workspace_seat_contention");
     }
     throw err;
   }
-  await tx.$executeRaw`SET LOCAL lock_timeout = 0`;
-  const seats = await resolveWorkspaceSeatState(workspaceId, tx);
-  if (!workspaceSeatsAdmit(seats)) throw new RbacError("workspace_seat_limit_reached");
+  if (claim.outcome === "REFUSED") throw new RbacError("workspace_seat_limit_reached");
   const groups = await tx.collaborationTeamMember.findMany({
     where: {
       userId,
@@ -925,7 +944,7 @@ export async function grantCapability(
     throw new RbacError("grantor_lacks_permission");
   }
   return runAtomically(client, async (tx) => {
-  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+  const target = await loadGrantTarget(tx, input.teamId, input.teamMemberId, input.actorUserId);
   // Re-issue path: if a grant already exists, refuse so callers must
   // explicitly revoke first. This keeps the audit trail honest about
   // when a grant was last issued.
@@ -1145,8 +1164,22 @@ export async function grantDelegatedAdminScope(
   input: GrantDelegatedAdminInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.MemberDelegatedAdminScope> {
+  /*
+   * AZ-R06, the rule D54 set for capabilities, for the other writer (AUTHZ-005).
+   * A scope is a bundle of permissions, so the grantor must hold every one of
+   * them. `identity.delegated_admin.grant` says who may grant, not what.
+   * Without this, a member holding IDENTITY_ADMIN could hand themself
+   * GOVERNANCE_ADMIN and INTEGRATION_ADMIN.
+   */
+  for (const permission of listPermissionsForDelegatedAdminScope(input.scopeKind)) {
+    const decision = await evaluateMemberAccess(
+      { teamId: input.teamId, userId: input.actorUserId, permission: permission as Permission },
+      client,
+    );
+    if (!decision.allowed) throw new RbacError("grantor_lacks_permission");
+  }
   return runAtomically(client, async (tx) => {
-  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+  const target = await loadGrantTarget(tx, input.teamId, input.teamMemberId, input.actorUserId);
   const existing = await tx.memberDelegatedAdminScope.findUnique({
     where: {
       teamMemberId_scopeKind: {

@@ -23,8 +23,10 @@
 import { Suspense, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isSafeRedirectAfter } from "@proovra/shared";
 
 import { Button } from "../../../components/ui";
+import { MfaEnrollmentAtSignIn } from "../../../components/identity-security/MfaEnrollmentAtSignIn";
 import { MfaRecoveryRequestPanel } from "../../../components/mfa-recovery/MfaRecoveryRequestPanel";
 import { apiFetch } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
@@ -34,15 +36,9 @@ type ChallengeMode = "totp" | "recovery_code";
 const SAFE_NEXT_FALLBACK = "/home";
 
 function isSafeNext(value: string | null): value is string {
-  if (!value) return false;
-  // The same safety contract as `sanitiseRedirectAfter` on the API
-  // side: must be a relative path, must not start with "//" (which
-  // would be host-relative), must not contain raw newlines.
-  if (value.startsWith("//")) return false;
-  if (!value.startsWith("/")) return false;
-  if (/[\r\n]/.test(value)) return false;
-  if (value.length > 400) return false;
-  return true;
+  if (!value || !value.startsWith("/") || value.length > 400) return false;
+  // The one safety contract, shared with the API (IDENT-012).
+  return isSafeRedirectAfter(value);
 }
 
 function MfaChallengeBody() {
@@ -180,13 +176,10 @@ function MfaChallengeBody() {
     setRecoveryCode("");
   };
 
-  // R8.1.3 — enrollment-required surface. Renders when the SSO/OIDC
-  // gate redirected here with `?enroll=1`. No code input — the path
-  // forward is enrollment. The operator session is NOT live yet; we
-  // route them to /login → enrollment so the enrollment endpoint's
-  // requireAuth pre-handler can pick up a fresh session once they
-  // re-authenticate primary credentials and complete enrollment.
-  // This is explicitly NOT a silent lockout.
+  // R8.1.3 — enrollment-required surface. Renders when the login form
+  // or the SSO gate sent the person here with `?enroll=1`. The session
+  // is NOT live yet; the enrolment cookie reaches only the enrolment
+  // routes, and the session is issued when a factor has been verified.
   if (enrollmentRequired) {
     return (
       <main
@@ -203,29 +196,10 @@ function MfaChallengeBody() {
           Set up two-factor authentication
         </h1>
         <p style={{ color: "#475569", marginBottom: 16 }}>
-          Your organization requires two-factor authentication. To
-          continue, you need to enroll an authenticator on your
-          account.
+          Your organization requires two-factor authentication. Add an
+          authenticator to finish signing in.
         </p>
-        <p style={{ color: "#475569", marginBottom: 24 }}>
-          Sign in again and your operator menu will guide you through
-          enrollment. You will not be able to access workspace data
-          until enrollment is complete.
-        </p>
-        <Link
-          href="/login"
-          style={{
-            display: "inline-block",
-            padding: "10px 18px",
-            background: "#1d4ed8",
-            color: "white",
-            borderRadius: 8,
-            textDecoration: "none",
-          }}
-          data-cc-mfa-enrollment-cta
-        >
-          Sign in to start enrollment
-        </Link>
+        <MfaEnrollmentAtSignIn onSignedIn={() => router.replace(next)} />
         <p style={{ marginTop: 24, fontSize: 14, color: "#64748b" }}>
           Need help?{" "}
           <Link href="/support" style={{ color: "#1d4ed8" }}>

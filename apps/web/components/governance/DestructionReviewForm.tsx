@@ -43,6 +43,7 @@ import {
   governanceFieldRowStyle,
 } from "./GovernanceFormField";
 import { isUuid, useGovernanceAction } from "./governance-action-state";
+import { RecordPicker } from "./RecordPicker";
 
 const REASON_LABEL: Record<DestructionReviewReason, string> = {
   retention_expired: "Retention expired",
@@ -94,10 +95,7 @@ export function DestructionReviewForm({
     const next: Record<string, string | null> = {};
     const trimmed = evidenceId.trim();
     if (!trimmed) {
-      next[`${uid}-evidence`] = "An evidence id is required.";
-    } else if (!isUuid(trimmed)) {
-      next[`${uid}-evidence`] =
-        "An evidence id is a UUID — copy it from the evidence record's address bar.";
+      next[`${uid}-evidence`] = "Choose the record to propose for destruction.";
     }
     if (!(DESTRUCTION_REVIEW_REASONS as ReadonlyArray<string>).includes(reason)) {
       next[`${uid}-reason`] = "Choose why this evidence is being proposed for destruction.";
@@ -184,20 +182,24 @@ export function DestructionReviewForm({
     >
       <form onSubmit={submit} noValidate>
         <div style={governanceFieldGridStyle}>
-          <GovernanceTextField
-            id={`${uid}-evidence`}
-            label="Evidence id"
-            value={evidenceId}
-            onChange={(v) => {
-              setEvidenceId(v);
-              reset();
-            }}
-            error={errors[`${uid}-evidence`]}
-            hint="The UUID of the evidence record, as shown in its URL."
-            placeholder="00000000-0000-0000-0000-000000000000"
-            disabled={!permitted || busy}
-            testAttr="data-destruction-review-evidence"
-          />
+          <div data-destruction-review-evidence>
+            <RecordPicker
+              kind="evidence"
+              evidenceScope="all"
+              label="Record"
+              value={evidenceId}
+              disabled={!permitted || busy}
+              onChange={(id) => {
+                setEvidenceId(id);
+                reset();
+              }}
+            />
+            {errors[`${uid}-evidence`] ? (
+              <span role="alert" style={{ fontSize: 12, color: "#991b1b" }}>
+                {errors[`${uid}-evidence`]}
+              </span>
+            ) : null}
+          </div>
           <GovernanceSelectField
             id={`${uid}-reason`}
             label="Reason"

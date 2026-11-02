@@ -48,6 +48,21 @@ type TxClient = Pick<PrismaClient, "organizationMembership"> & {
   $queryRawUnsafe: PrismaClient["$queryRawUnsafe"];
 };
 
+/**
+ * Serialise every act that can reduce an Organization's live owners (AUTHZ-008).
+ *
+ * The generation fence below protects one membership row. "Never zero owners" is
+ * a fact about several rows: two owners demoting each other each move a different
+ * row, each count two, and both commit. So the count has to happen under one lock
+ * per Organization. Short transactions, so waiting is cheap.
+ */
+export async function lockOrganizationOwnersTx(
+  tx: Pick<PrismaClient, "$executeRaw">,
+  organizationId: string,
+): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`org-owners:${organizationId}`}))`;
+}
+
 export const ORG_MEMBERSHIP_STATUSES = ["ACTIVE", "SUSPENDED", "REVOKED"] as const;
 export type OrgMembershipStatus = (typeof ORG_MEMBERSHIP_STATUSES)[number];
 

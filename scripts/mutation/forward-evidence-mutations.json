@@ -7507,8 +7507,8 @@
     "aud": "ENT-05",
     "name": "an org-plan grant stops persisting the canonical seat state",
     "file": "services/api/src/services/enterprise-provisioning.service.ts",
-    "find": "    await refreshTeamSeatState(workspaceId, client as never);",
-    "replace": "    void workspaceId;",
+    "find": "  for (const workspaceId of result.workspaceIds) {\n    await refreshTeamSeatState(workspaceId, client as never);",
+    "replace": "  for (const workspaceId of result.workspaceIds) {\n    void workspaceId;",
     "tests": [
       {
         "cwd": "services/api",
@@ -10862,10 +10862,10 @@
   {
     "id": "MEX-L-SILENT-CONTRACT",
     "aud": "MEX-L",
-    "name": "a contract silent on Collaboration Teams grants the catalog placeholder",
+    "name": "an Enterprise contract that is not ACTIVE still grants the catalogue Collaboration Teams (CT-10)",
     "file": "services/api/src/services/billing/enterprise-contract-limits.ts",
-    "find": "  // (typed upstream as ENTERPRISE_CONTRACT_REQUIRED); never the placeholder.\n  if (input.plan === \"ENTERPRISE\") return 0;",
-    "replace": "  // (typed upstream as ENTERPRISE_CONTRACT_REQUIRED); never the placeholder.\n  if (input.plan === \"ENTERPRISE\" && input.contract?.contractGovernsCapability !== true) return 0;",
+    "find": "  // CT-10 — no ACTIVE contract, no capacity (typed upstream).\n  if (enterpriseContractWithheld(input)) return 0;",
+    "replace": "  // CT-10 — no ACTIVE contract, no capacity (typed upstream).\n  if (false) return 0;",
     "tests": [
       {
         "cwd": "services/api",

@@ -1308,7 +1308,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const items = await prisma.case.findMany({
-        where: { AND: [await workspaceCaseWhere(teamId, prisma)] },
+        where: { AND: [await workspaceCaseWhere(teamId, prisma), caseVisibleToWhere(userId)] },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,

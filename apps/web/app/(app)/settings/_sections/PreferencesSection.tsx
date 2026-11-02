@@ -28,12 +28,11 @@ import {
   timezoneOptions,
 } from "../../../../lib/timezones";
 
-// Translation completeness (packages/shared/src/i18n.ts). T-17 / RC-17
-// (2026-09-24): fr/es/tr/ru used to be English-fallback stubs and were
-// labelled partial; all seven dictionaries now carry real translations, and
-// apps/mobile/test/locale-translation-coverage.test.mjs fails if one regresses
-// to a stub. A locale absent from this set is still labelled partial.
-const COMPLETE_LOCALES: ReadonlySet<string> = new Set(["en", "ar", "de", "fr", "es", "tr", "ru"]);
+// Translation completeness (packages/shared/src/i18n.ts). All seven dictionaries
+// are real translations, and apps/mobile/test/locale-translation-coverage.test.mjs
+// fails if one regresses to a stub, but each holds about forty strings. Most of the
+// product stays in English, so only English is complete (MOBILE-009).
+const COMPLETE_LOCALES: ReadonlySet<string> = new Set(["en"]);
 
 const LOCALE_NAMES: Record<string, string> = {
   en: "English",

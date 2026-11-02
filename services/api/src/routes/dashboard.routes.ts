@@ -31,9 +31,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { getAuthUserId } from "../auth.js";
-import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  authorizeWorkspaceOrFail,
+  contextHasCapability,
+  type AuthorizedWorkspaceContext,
+} from "../middleware/authorize.js";
 
 import { buildCommandCenter } from "../services/dashboard/command-center.service.js";
 import { getLatestOrgHealthSnapshot } from "../services/dashboard/org-health.service.js";
@@ -44,30 +47,27 @@ import { buildRecordsByType } from "../services/dashboard/records-by-type.servic
 
 const Query = z.object({ teamId: z.string().uuid() });
 
+/**
+ * The canonical engine, not a local reading of the membership row (AUTHZ-003):
+ * access expiry, organization lifecycle and delegated capability count here as
+ * everywhere else. Concealed as 404, the same posture as reviewer-ops and
+ * governance. `evidence.read` is what every role that opens Home holds; the
+ * security read below asks for more.
+ */
 async function requireMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: string } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { role: true, status: true },
+): Promise<AuthorizedWorkspaceContext | null> {
+  return authorizeWorkspaceOrFail(req, reply, {
+    workspaceId: teamId,
+    permission: "evidence.read",
   });
-  if (!membership) {
-    // 404 on non-member to avoid enumeration. Same posture as
-    // reviewer-ops and governance.
-    reply.code(404).send({ error: { code: "not_found" } });
-    return null;
-  }
-  if (membership.status !== "ACTIVE") {
-    reply.code(403).send({
-      error: { code: "member_inactive" },
-    });
-    return null;
-  }
-  return { userId, role: membership.role };
 }
+
+/** The envelope keeps the stored role label its clients render. */
+const roleLabel = (ctx: AuthorizedWorkspaceContext): string =>
+  ctx.workspaceRole === "REVIEWER" ? "MEMBER" : ctx.workspaceRole;
 
 export async function dashboardRoutes(app: FastifyInstance) {
   app.get(
@@ -80,7 +80,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       const envelope = await buildCommandCenter({
         teamId: query.teamId,
-        role: member.role,
+        role: roleLabel(member),
+        userId: member.userId,
+        canReadSecurity: contextHasCapability(member, "audit.read"),
       });
 
       return reply.code(200).send(envelope);
@@ -102,7 +104,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const member = await requireMember(req, reply, query.teamId);
       if (!member) return;
 
-      const summary = await buildTrustSummary({ teamId: query.teamId });
+      const summary = await buildTrustSummary({ teamId: query.teamId, userId: member.userId });
       return reply.code(200).send(summary);
     },
   );
@@ -125,7 +127,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const member = await requireMember(req, reply, query.teamId);
       if (!member) return;
 
-      const aggregate = await buildRecordsByType({ teamId: query.teamId });
+      const aggregate = await buildRecordsByType({ teamId: query.teamId, userId: member.userId });
       return reply.code(200).send(aggregate);
     },
   );
@@ -181,7 +183,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const query = AnomaliesQuery.parse(req.query ?? {});
-      const member = await requireMember(req, reply, query.teamId);
+      // AUTHZ-004: who tripped a security anomaly is audit data. VIEWER "may
+      // look" at records, and does not hold `audit.read`.
+      const member = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: query.teamId,
+        permission: "audit.read",
+      });
       if (!member) return;
       const anomalies = await listWorkspaceAccessAnomalies({
         teamId: query.teamId,

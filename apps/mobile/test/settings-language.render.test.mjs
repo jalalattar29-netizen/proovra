@@ -47,6 +47,12 @@ test("every language is offered by its own name, none as beta", async () => {
   assert.ok(!r.texts().some((t) => t.includes("beta")), "a translated language is still labelled beta");
 });
 
+test("MOBILE-009: the picker says how far a translation goes", async () => {
+  const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
+  assert.equal(r.byTestId("settings-language-scope").length, 1);
+  assert.ok(r.hasText("Most screens, reports and legal documents are in English"));
+});
+
 test("editing the display name says where it appears (OverviewSection :227)", async () => {
   const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
   for (let i = 0; i < 3; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });

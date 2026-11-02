@@ -72,6 +72,7 @@ import { evaluateMemberAccess } from "../services/identity/access-policy.service
 // approximation that `requireIdentityAdmin` (still used by the SSO / SCIM /
 // session surfaces owned by other tracks) performs inline.
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import {
   cronSecretMatches,
   readCronSecretFromEnvs,
@@ -189,7 +190,8 @@ function sendError(reply: FastifyReply, err: unknown): boolean {
             ? 403
             : // A duplicate connection is a conflict with a state that
               // already exists, not a bad request and not an upstream fault.
-              err.code === "SSO_CONNECTION_EXISTS"
+              err.code === "SSO_CONNECTION_EXISTS" ||
+                err.code === "SSO_LAST_REQUIRED_CONNECTION"
               ? 409
               : 502;
     reply.code(status).send({
@@ -285,9 +287,8 @@ async function auditOperatorReconcile(
 
 /**
  * PHASE 12B (2026-07-30) — SERVER-DERIVED workspace subject for the identity
- * administration console. The authoritative workspace is the persisted
- * `User.currentWorkspaceId` rail (written only by the audited workspace
- * switcher in platform-context.routes.ts). A `teamId` supplied by the client
+ * administration console. The authoritative workspace is the request's one
+ * candidate (AUTHZ-006), revalidated below. A `teamId` supplied by the client
  * is accepted only to REJECT a mismatch — it never selects the scope. Absent
  * context is a concealed 404, matching the canonical primitive's
  * not-a-member path.
@@ -298,12 +299,7 @@ async function resolveAdminWorkspace(
   declaredTeamId: string | undefined,
   permission: Permission,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  const teamId = user?.currentWorkspaceId ?? null;
+  const teamId = await requestWorkspaceCandidate(req);
   if (!teamId || (declaredTeamId && declaredTeamId !== teamId)) {
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
@@ -489,6 +485,8 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           // Write-only key material. Empty string clears; omit to leave as-is.
           samlSpPrivateKey: z.string().max(16384).nullable().optional(),
           samlSpCertificate: z.string().max(8192).nullable().optional(),
+          // Write-only. IDENT-002: how a connection holding only a hash recovers.
+          clientSecret: z.string().min(8).max(400).optional(),
         })
         .parse(req.body ?? {});
       const actor = await requireIdentityAdmin(
@@ -530,6 +528,7 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
           restrictToVerifiedDomains: body.restrictToVerifiedDomains,
           samlSpPrivateKey: body.samlSpPrivateKey,
           samlSpCertificate: body.samlSpCertificate,
+          clientSecret: body.clientSecret,
         });
         return reply.code(200).send({ projection });
       } catch (err) {

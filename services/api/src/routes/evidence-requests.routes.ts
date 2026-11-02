@@ -24,6 +24,7 @@
  * evidence.read via the authenticated projection.
  */
 
+import { caseClosedTo, evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -90,6 +91,28 @@ async function requireMember(
     antiEnumeration: true,
   });
   return outcome ? { userId: outcome.actorUserId } : null;
+}
+
+/**
+ * A request names a record or a case. One closed to the caller answers exactly
+ * like a request that does not exist (AUTHZ-002).
+ */
+async function requireRequestMember(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  row: { teamId: string; evidenceId: string | null; caseId: string | null },
+  permission: Permission,
+): Promise<{ userId: string } | null> {
+  const ok = await requireMember(req, reply, row.teamId, permission);
+  if (!ok) return null;
+  const closed =
+    (row.evidenceId !== null && (await evidenceClosedTo(row.evidenceId, ok.userId))) ||
+    (row.caseId !== null && (await caseClosedTo(row.caseId, ok.userId)));
+  if (closed) {
+    reply.code(404).send({ error: { code: "request_not_found" } });
+    return null;
+  }
+  return ok;
 }
 
 function intakeUrlFromToken(rawToken: string | null): string | null {
@@ -235,6 +258,13 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const body = EvidenceRequestInputSchema.parse(req.body ?? {});
       const ok = await requireMember(req, reply, body.teamId, "evidence_request.create");
       if (!ok) return;
+      const bodyRef = body as { evidenceId?: string | null; caseId?: string | null };
+      if (
+        (bodyRef.evidenceId && (await evidenceClosedTo(bodyRef.evidenceId, ok.userId))) ||
+        (bodyRef.caseId && (await caseClosedTo(bodyRef.caseId, ok.userId)))
+      ) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
       // Secure-intake plan gate (2026-07-15) — submission requests are
       // excluded from FREE per the Pricing contract. Enforced before any
@@ -298,6 +328,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
 
       const rows = await listEvidenceRequests({
         teamId: query.teamId,
+        hidden: await hiddenRecordIdsInWorkspace(query.teamId, ok.userId),
         evidenceId: query.evidenceId,
         caseId: query.caseId,
         status: query.status,
@@ -321,7 +352,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const { id } = ParamsId.parse(req.params);
       const row = await getEvidenceRequest(id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, row.teamId, "evidence.read");
+      const ok = await requireRequestMember(req, reply, row, "evidence.read");
       if (!ok) return;
       return reply.code(200).send({
         request: projectRequestForAuthenticatedView(row),
@@ -343,7 +374,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const { id } = ParamsId.parse(req.params);
       const row = await getEvidenceRequest(id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, row.teamId, "evidence.read");
+      const ok = await requireRequestMember(req, reply, row, "evidence.read");
       if (!ok) return;
       const deliveries = await prisma.notificationDelivery.findMany({
         where: { evidenceRequestId: id },
@@ -387,7 +418,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
         .parse(req.params);
       const row = await getEvidenceRequest(params.id);
       if (!row) return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, row.teamId, "evidence_request.create");
+      const ok = await requireRequestMember(req, reply, row, "evidence_request.create");
       if (!ok) return;
       // The delivery must belong to THIS request (cross-workspace /
       // cross-request retries are impossible by construction).
@@ -422,7 +453,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.create");
       if (!ok) return;
 
       try {
@@ -460,7 +491,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.cancel");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.cancel");
       if (!ok) return;
 
       try {
@@ -495,7 +526,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.close");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.close");
       if (!ok) return;
 
       try {
@@ -531,7 +562,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.review");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.review");
       if (!ok) return;
 
       try {
@@ -571,7 +602,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(params.id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.review");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.review");
       if (!ok) return;
 
       try {
@@ -632,7 +663,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(params.id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.review");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.review");
       if (!ok) return;
 
       try {
@@ -685,7 +716,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(params.id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.create");
       if (!ok) return;
 
       try {
@@ -778,7 +809,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.create");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.create");
       if (!ok) return;
 
       if (!(await assigneeBelongsToWorkspace(existing.teamId, body.assignedReviewerUserId))) {
@@ -812,7 +843,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence.read");
+      const ok = await requireRequestMember(req, reply, existing, "evidence.read");
       if (!ok) return;
 
       const events = await listEvidenceRequestEvents(id);
@@ -836,7 +867,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
       const existing = await getEvidenceRequest(id);
       if (!existing)
         return reply.code(404).send({ error: { code: "request_not_found" } });
-      const ok = await requireMember(req, reply, existing.teamId, "evidence_request.assign");
+      const ok = await requireRequestMember(req, reply, existing, "evidence_request.assign");
       if (!ok) return;
 
       if (UNASSIGNABLE_REQUEST_STATUSES.has(existing.status)) {
@@ -896,6 +927,7 @@ export async function evidenceRequestsRoutes(app: FastifyInstance) {
 
       const rows = await listEvidenceRequests({
         teamId: query.teamId,
+        hidden: await hiddenRecordIdsInWorkspace(query.teamId, ok.userId),
         status: query.status,
         assignedReviewerUserId: query.assignedReviewerUserId,
         unassigned: query.unassigned === "true",

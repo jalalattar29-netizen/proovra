@@ -17,7 +17,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { DeclaredSegment } from "../continuous-manifest";
-import { getCaptureSessionOwner } from "./capture-session-store";
+import { getCaptureSessionOwner, parsePersistedWorkspace, type PersistedCaptureWorkspace } from "./capture-session-store";
 
 const KEY_PREFIX = "proovra.continuous.live.v1:";
 
@@ -41,6 +41,8 @@ export type LiveContinuousSession = {
    * first upload). A restart during finalization stages exactly this again.
    */
   stagedManifest?: { manifestJson: string; manifestPartIndex: number } | null;
+  /** The workspace the session was opened in, for the record it hands to Capture. */
+  workspace?: PersistedCaptureWorkspace | null;
 };
 
 export function liveContinuousSessionKey(userId: string): string {
@@ -85,6 +87,7 @@ export function parseLiveContinuousSession(raw: unknown, ownerUserId: string | n
     openedAtIso: typeof o.openedAtIso === "string" ? o.openedAtIso : new Date(0).toISOString(),
     ownerUserId,
     stagedManifest: parseStagedManifest(o.stagedManifest),
+    workspace: parsePersistedWorkspace(o.workspace),
   };
 }
 

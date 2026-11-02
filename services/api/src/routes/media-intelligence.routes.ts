@@ -26,6 +26,9 @@
  *     safe wording is the operator's only guidance.
  */
 
+import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { resolveGraphReach } from "../services/graph/graph-reach.js";
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -130,6 +133,7 @@ function projectSignal(row: {
 // =============================================================================
 
 export async function mediaIntelligenceRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ---------------------------------------------------------------------------
   // GET /v1/evidence/:evidenceId/media-intelligence?teamId=…
   // ---------------------------------------------------------------------------
@@ -338,11 +342,15 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       if (!actor) return;
       // Verify the signal belongs to this team (anti-enumeration).
       const owner = (await prisma.$queryRawUnsafe(
-        `SELECT "team_id" FROM "media_intelligence_signals"
+        `SELECT "team_id", "evidence_id" FROM "media_intelligence_signals"
            WHERE "id" = $1 LIMIT 1`,
         signalId,
-      )) as Array<{ team_id: string }>;
-      if (owner.length === 0 || owner[0]!.team_id !== body.teamId) {
+      )) as Array<{ team_id: string; evidence_id: string }>;
+      if (
+        owner.length === 0 ||
+        owner[0]!.team_id !== body.teamId ||
+        (await evidenceClosedTo(owner[0]!.evidence_id, actor.actorUserId))
+      ) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       // Idempotent transition. Acknowledged-at carries the actor +
@@ -527,6 +535,9 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // Totals and rows are the caller's: what a restricted case closes to them
+      // is excluded in each query, so it reaches neither a list nor a count.
+      const closed = await hiddenRecordIdsInWorkspace(teamId, actor.actorUserId);
 
       // 1) Severity + status totals.
       let totals = {
@@ -549,8 +560,10 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
              COUNT(*) FILTER (WHERE "status" = 'ACKNOWLEDGED')::int AS "acknowledged",
              COUNT(*) FILTER (WHERE "status" = 'DISMISSED')::int AS "dismissed"
            FROM "media_intelligence_signals"
-           WHERE "team_id" = $1`,
+           WHERE "team_id" = $1
+             AND NOT ("evidence_id" = ANY($2::uuid[]))`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           total: number;
           attention: number;
@@ -596,6 +609,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
                   "created_at_utc"
              FROM "media_intelligence_signals"
             WHERE "team_id" = $1
+              AND NOT ("evidence_id" = ANY($2::uuid[]))
               AND "status" IN ('PENDING','ACKNOWLEDGED')
             ORDER BY
               CASE "severity"
@@ -606,6 +620,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
               "created_at_utc" DESC
             LIMIT 20`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           id: string;
           signal_type: string;
@@ -648,6 +663,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
                FROM "investigation_graph_nodes" n
                WHERE n."team_id" = $1
                  AND n."stale_at_utc" IS NULL
+                 AND NOT (n."id" = ANY($2::uuid[]))
            )
            UNION ALL
            (
@@ -658,10 +674,13 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
                FROM "investigation_graph_edges" e
                WHERE e."team_id" = $1
                  AND e."stale_at_utc" IS NULL
+                 AND NOT (e."source_node_id" = ANY($2::uuid[]))
+                 AND NOT (e."target_node_id" = ANY($2::uuid[]))
            )
            ORDER BY "at_utc" DESC
            LIMIT 30`,
           teamId,
+          [...(await resolveGraphReach(teamId, actor.actorUserId)).hiddenNodeIds],
         )) as Array<{
           kind: "NODE_CREATED" | "EDGE_CREATED";
           at_utc: Date;
@@ -721,6 +740,9 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+      // Totals and rows are the caller's: what a restricted case closes to them
+      // is excluded in each query, so it reaches neither a list nor a count.
+      const closed = await hiddenRecordIdsInWorkspace(teamId, actor.actorUserId);
 
       // Phase Repair — track per-block read failures so the page can
       // surface a bounded "dataQuality: degraded" hint without leaking
@@ -751,8 +773,10 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
              COUNT(*) FILTER (WHERE "status" = 'COMPLETED')::int AS "completed",
              COUNT(*) FILTER (WHERE "status" = 'REJECTED_INSUFFICIENT')::int AS "rejected"
            FROM "evidence_review_workflows"
-           WHERE "team_id" = $1`,
+           WHERE "team_id" = $1
+             AND NOT ("evidence_id" = ANY($2::uuid[]))`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           total: number;
           not_started: number;
@@ -801,8 +825,10 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
              COUNT(*) FILTER (WHERE "status" = 'RESOLVED')::int AS "resolved",
              COUNT(*) FILTER (WHERE "status" = 'SUPPRESSED')::int AS "suppressed"
            FROM "review_escalations"
-           WHERE "team_id" = $1`,
+           WHERE "team_id" = $1
+             AND ("evidence_id" IS NULL OR NOT ("evidence_id" = ANY($2::uuid[])))`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           total: number;
           open: number;
@@ -847,8 +873,12 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
              COUNT(*) FILTER (WHERE "state" = 'EXPIRED')::int AS "expired",
              COUNT(*) FILTER (WHERE "state" = 'REVOKED')::int AS "revoked"
            FROM "external_review_grants"
-           WHERE "team_id" = $1`,
+           WHERE "team_id" = $1
+             AND ("evidence_id" IS NULL OR NOT ("evidence_id" = ANY($2::uuid[])))
+             AND ("case_id" IS NULL OR NOT ("case_id" = ANY($3::uuid[])))`,
           teamId,
+          closed.evidenceIds,
+          closed.caseIds,
         )) as Array<{
           total: number;
           invited: number;
@@ -894,6 +924,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
                   "severity", "status", "safe_summary", "created_at"
              FROM "review_escalations"
             WHERE "team_id" = $1
+              AND ("evidence_id" IS NULL OR NOT ("evidence_id" = ANY($2::uuid[])))
               AND "status" IN ('OPEN','ACKNOWLEDGED')
             ORDER BY
               CASE "severity"
@@ -905,6 +936,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
               "created_at" DESC
             LIMIT 20`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           id: string;
           workflow_id: string;
@@ -955,10 +987,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
                   "expires_at_utc", "created_at_utc", "access_count"
              FROM "external_review_grants"
             WHERE "team_id" = $1
+              AND ("evidence_id" IS NULL OR NOT ("evidence_id" = ANY($2::uuid[])))
+              AND ("case_id" IS NULL OR NOT ("case_id" = ANY($3::uuid[])))
               AND "state" IN ('INVITED','ACTIVE')
             ORDER BY "created_at_utc" DESC
             LIMIT 20`,
           teamId,
+          closed.evidenceIds,
+          closed.caseIds,
         )) as Array<{
           id: string;
           scope_kind: string;
@@ -1064,6 +1100,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
                   "confidence", "safe_summary", "created_at_utc"
              FROM "media_intelligence_signals"
             WHERE "team_id" = $1
+              AND NOT ("evidence_id" = ANY($2::uuid[]))
               AND "status" = 'PENDING'
             ORDER BY
               CASE "severity"
@@ -1074,6 +1111,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
               "created_at_utc" DESC
             LIMIT 20`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           id: string;
           evidence_id: string;
@@ -1147,8 +1185,10 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
              COUNT(*) FILTER (WHERE "kind" IN ('TRANSCRIPT_AUDIO','TRANSCRIPT_VIDEO'))::int AS "transcript_available",
              COUNT(*) FILTER (WHERE "kind" IN ('TRANSCRIPT_AUDIO','TRANSCRIPT_VIDEO') AND "status" = 'COMPLETED')::int AS "transcript_indexed"
            FROM "evidence_extracted_texts"
-           WHERE "team_id" = $1`,
+           WHERE "team_id" = $1
+             AND NOT ("evidence_id" = ANY($2::uuid[]))`,
           teamId,
+          closed.evidenceIds,
         )) as Array<{
           ocr_available: number;
           ocr_indexed: number;

@@ -512,6 +512,8 @@ describe("Phase 12 Point 4 — lifecycle/exchange routes carry canonical capabil
     // retired delegated-tier guard): the canonical engine, a named permission.
     /requireWorkspacePermission\(\[?\s*"[a-z_.]+"/.test(b) ||
     /requireIntegrationCronSecret/.test(b) ||
+    // BILLING-001 — operator-only writers: the platform gate plus a step-up.
+    /preHandler:\s*requirePlatformAdmin/.test(b) ||
     tombstone(b);
 
   it("the retired delegated-tier guard gates nothing any more", () => {

@@ -26,9 +26,9 @@ import { z } from "zod";
 import { VERIFICATION_SHARE_AUDIENCE_MAX, VERIFICATION_SHARE_PROJECTIONS } from "@proovra/shared-runtime";
 
 import { getAuthUserId } from "../auth.js";
-import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   evaluatePublicDisclosureGrant,
@@ -438,16 +438,13 @@ export async function verificationShareRoutes(app: FastifyInstance) {
   });
 
   app.get("/v1/verify-links/legacy-inventory", { preHandler: requireAuth }, async (req, reply) => {
-    // The workspace is the caller's persisted active workspace, never a query value.
-    const user = await prisma.user.findUnique({
-      where: { id: getAuthUserId(req) },
-      select: { currentWorkspaceId: true },
-    });
-    if (!user?.currentWorkspaceId) {
+    // The workspace is the request's own (AUTHZ-006), never a query value.
+    const teamId = await requestWorkspaceCandidate(req);
+    if (!teamId) {
       return reply.code(404).send({ message: "Workspace not found" });
     }
     const authz = await authorizeOrFail(req, reply, {
-      teamId: user.currentWorkspaceId,
+      teamId,
       permission: "evidence.publish_verify",
       antiEnumeration: true,
     });

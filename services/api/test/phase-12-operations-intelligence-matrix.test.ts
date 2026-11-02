@@ -251,6 +251,8 @@ vi.mock("../src/db.js", () => {
     // The workflow assign decides and writes in ONE transaction (members
     // re-audit B5); the seam runs the callback on itself.
     $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
+    // Record reach is proved on real rows in case-reach-matrix.integration.test.ts.
+    mediaIntelligenceRecord: { findFirst: async () => null },
     // Graph provenance + diagnostics read through raw SQL. The seam answers
     // by TABLE so each read stays independently controllable.
     $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
@@ -495,6 +497,11 @@ vi.mock("../src/services/siu/siu-saved-views.service.js", async (importOriginal)
   };
 });
 
+// Reach itself is proved on real rows in case-reach-matrix.integration.test.ts.
+vi.mock("../src/services/graph/graph-reach.js", () => ({
+  resolveGraphReach: async () => ({ hiddenNodeIds: [] }),
+}));
+
 vi.mock("../src/services/graph/graph-builder.service.js", () => ({
   buildEvidenceSubgraph: async () => ({
     nodes: [
@@ -521,7 +528,7 @@ vi.mock("../src/services/graph/graph-builder.service.js", () => ({
   },
   retractManualRelationship: async () => {
     H.writes.push("retractManualRelationship");
-    return { ok: true };
+    return { ok: true, retracted: true };
   },
 }));
 

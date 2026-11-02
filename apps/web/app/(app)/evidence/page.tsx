@@ -9,6 +9,7 @@ import { PageShell, useToast } from "../../../components/ui";
 import { apiFetch } from "../../../lib/api";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import {
+  useActiveSpaceId,
   useEnterpriseSurfaceAccess,
   usePlatformContext,
 } from "../../../lib/platform-context";
@@ -107,6 +108,8 @@ function buildEvidenceLibrarySummaryPath(query: EvidenceListQuery) {
   if (query.acquisition && query.acquisition !== "all") {
     params.set("acquisition", query.acquisition);
   }
+  if (query.review && query.review !== "all") params.set("review", query.review);
+  if (query.retention && query.retention !== "all") params.set("retention", query.retention);
   return `/v1/evidence/library-summary?${params.toString()}`;
 }
 
@@ -141,6 +144,8 @@ function buildEvidenceListPath(query: EvidenceListQuery) {
   if (query.acquisition && query.acquisition !== "all") {
     params.set("acquisition", query.acquisition);
   }
+  if (query.review && query.review !== "all") params.set("review", query.review);
+  if (query.retention && query.retention !== "all") params.set("retention", query.retention);
   if (query.sort) params.set("sort", query.sort);
 
   return `/v1/evidence?${params.toString()}`;
@@ -231,6 +236,7 @@ function EvidenceLibraryPageInner() {
   const { addToast } = useToast();
   // The canonical workspace/context envelope — identity, not commerce.
   const { envelope } = usePlatformContext();
+  const activeSpaceId = useActiveSpaceId();
   const detailCacheRef = useRef<Record<string, { detail: DetailWorkspaceState; loadedAtMs: number }>>({});
   const evidenceRequestRef = useRef(0);
   /** Part 3 — monotonic id so only the NEWEST detail request may write state. */
@@ -344,6 +350,8 @@ function EvidenceLibraryPageInner() {
       verificationStatus:
         filters.verificationStatus !== "all" ? filters.verificationStatus : undefined,
       acquisition: filters.acquisition !== "all" ? filters.acquisition : undefined,
+      review: filters.review !== "all" ? filters.review : undefined,
+      retention: filters.retention !== "all" ? filters.retention : undefined,
       sort:
         filters.sort === "oldest" || filters.sort === "priority"
           ? filters.sort
@@ -363,6 +371,8 @@ function EvidenceLibraryPageInner() {
       filters.verificationDisclosure,
       filters.verificationStatus,
       filters.acquisition,
+      filters.review,
+      filters.retention,
     ]
   );
 
@@ -569,7 +579,11 @@ function EvidenceLibraryPageInner() {
       return;
     }
 
-    const defaultView = library.savedViews.find((view) => view.isDefault);
+    // The list spans every workspace the caller belongs to; a default applies
+    // only where it was saved (EVID-014).
+    const defaultView = library.savedViews.find(
+      (view) => view.isDefault && (view.teamId === null || view.teamId === activeSpaceId),
+    );
     if (!defaultView) {
       defaultSavedViewAppliedRef.current = true;
       return;
@@ -588,7 +602,7 @@ function EvidenceLibraryPageInner() {
       ...defaultView.filters,
       scope: defaultView.scope,
     });
-  }, [filters, library.savedViews, updateFilters]);
+  }, [activeSpaceId, filters, library.savedViews, updateFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -609,28 +623,8 @@ function EvidenceLibraryPageInner() {
   }, [loadLibraryPage, serverQuery]);
 
   const visibleItems = useMemo(() => {
-    const next = library.items.filter((item) => {
-      if (filters.review === "review-ready" && !item.reviewReadyAtUtc) return false;
-      if (
-        filters.review === "review-required" &&
-        String(item.verificationStatus ?? "").toUpperCase() !== "REVIEW_REQUIRED"
-      ) {
-        return false;
-      }
-      if (
-        filters.review === "verification-failed" &&
-        String(item.verificationStatus ?? "").toUpperCase() !== "FAILED"
-      ) {
-        return false;
-      }
-
-      // The ONE classification — not `verified`, which is provenance only.
-      const storageProtected = storageProtectionClassOf(item.storage) === "PROTECTED";
-      if (filters.retention === "protected" && !storageProtected) return false;
-      if (filters.retention === "unprotected" && storageProtected) return false;
-
-      return true;
-    });
+    // Review and retention are server filters now, so the page is the result.
+    const next = [...library.items];
 
     if (filters.sort === "priority") {
       next.sort((a, b) => {
@@ -642,7 +636,7 @@ function EvidenceLibraryPageInner() {
     }
 
     return next;
-  }, [filters.retention, filters.review, filters.sort, library.items, selectedDetail, selectedId]);
+  }, [filters.sort, library.items, selectedDetail, selectedId]);
 
   useEffect(() => {
     if (!selectedId && visibleItems.length > 0) {

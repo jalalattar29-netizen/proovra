@@ -111,6 +111,13 @@ for (const re of [
 
 const isLayout = (f) => /(^|\/)_layout\.(t|j)sx?$/.test(f);
 const isBootGate = (f) => f === "index.tsx" || f === "index.jsx";
+/** The router's own page for a path with no route. Nothing navigates to it. */
+const isRouterPage = (f) => f.startsWith("+");
+/**
+ * Entered only from outside the app, through a claimed link. The claim itself is
+ * guarded by apps/web/__tests__/universal-link-parity.test.ts.
+ */
+const LINK_ENTRY_ROUTES = new Set(["verify/[id].tsx", "verify/package/[id].tsx"]);
 
 test("guard the guard: the route tree and navigation graph both parsed", () => {
   assert.ok(diskRoutes.length >= 15, `expected >=15 route files, found ${diskRoutes.length}`);
@@ -120,7 +127,7 @@ test("guard the guard: the route tree and navigation graph both parsed", () => {
 test("every native route file is reachable by real navigation", () => {
   const unreachable = [];
   for (const f of diskRoutes) {
-    if (isLayout(f) || isBootGate(f)) continue;
+    if (isLayout(f) || isBootGate(f) || isRouterPage(f) || LINK_ENTRY_ROUTES.has(f)) continue;
     const target = shape(routeFileToPath(f));
     const reachable =
       navTargets.has(target) ||

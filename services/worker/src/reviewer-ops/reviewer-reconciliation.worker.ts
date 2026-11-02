@@ -136,6 +136,11 @@ export async function runReviewerReconciliation(
         allTeams: true,
         batchSize: options.batchSize,
         maxTeamsPerSweep: options.maxTeamsPerSweep,
+        // Leaves room for the team in progress and the reply, so a large fleet
+        // finishes this tick cleanly and the next one resumes after it, instead
+        // of being aborted here while the API keeps working behind a released
+        // lock (WORKFLOW-012).
+        maxDurationMs: Math.max(1_000, timeoutMs - 15_000),
       }),
       signal: controller.signal,
     });

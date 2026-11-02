@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
+import { useWorkspaceChangeCount } from "../../src/product/platform-context";
 import { useRouter } from "expo-router";
 import { apiFetch } from "../../src/api";
 import { toSafeUserError, type SafeError } from "../../src/errors/safe-error";
@@ -109,6 +110,8 @@ export default function CollaborationScreen() {
     return () => clearTimeout(t);
   }, [searchText]);
   const [busy, setBusy] = useState(false);
+  // These requests name no team and follow the server pointer.
+  const workspaceChanges = useWorkspaceChangeCount();
 
   const load = useCallback(async (nextCursor: string | null, existing: CollaborationTeamRow[]) => {
     if (nextCursor) setLoadingMore(true);
@@ -156,7 +159,7 @@ export default function CollaborationScreen() {
 
   useEffect(() => {
     void load(null, []);
-  }, [load]);
+  }, [load, workspaceChanges]);
 
   // Members audit CT-13 — the server filtered and ordered these; the rows are
   // shown as they arrive, never re-sorted as if one page were the list.
@@ -173,7 +176,7 @@ export default function CollaborationScreen() {
 
   useEffect(() => {
     void loadEntitlement();
-  }, [loadEntitlement]);
+  }, [loadEntitlement, workspaceChanges]);
 
   const planLocked = entitlement?.planLocked === true;
   const disabledReason = entitlement ? createDisabledReason(entitlement) : null;

@@ -18,10 +18,17 @@ import { recordHeartbeat } from "../services/access-control/session-inventory.se
 // lock exists to prevent.
 import { touchMemberLastSeen } from "../services/identity/membership-provisioning.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
-import { isRestrictedScope, isRouteAllowedForScope } from "../services/auth/extension-scope.js";
+import {
+  isRestrictedScope,
+  isRouteAllowedForScope,
+  MFA_ENROLLMENT_SCOPE,
+} from "../services/auth/extension-scope.js";
+import { MFA_ENROLLMENT_COOKIE } from "../services/auth/mfa-enrollment-session.js";
 import { prisma } from "../db.js";
 import { gateSecurityAction } from "../services/governance/policy-runtime-gates.service.js";
 import { enforceSessionTimeoutPolicy } from "../services/identity-security/session-timeout-policy.service.js";
+import { bindRequestSession } from "../services/auth/request-session-context.js";
+import { trustedClientIpKey } from "./client-ip.js";
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null;
@@ -55,9 +62,28 @@ export function sessionCookieOf(req: FastifyRequest): string | null {
   );
 }
 
+function routePatternOf(req: FastifyRequest): string | null {
+  return (
+    (req as { routeOptions?: { url?: string } }).routeOptions?.url ??
+    (req as { routerPath?: string }).routerPath ??
+    null
+  );
+}
+
+/** The enrolment cookie, on the enrolment routes only. It is no credential elsewhere. */
+export function enrollmentCookieOf(req: FastifyRequest): string | null {
+  const cookie =
+    (req.cookies as Record<string, string | undefined> | undefined)?.[MFA_ENROLLMENT_COOKIE] ??
+    readCookie(req.headers.cookie, MFA_ENROLLMENT_COOKIE);
+  if (!cookie) return null;
+  return isRouteAllowedForScope(MFA_ENROLLMENT_SCOPE, req.method, routePatternOf(req)) ? cookie : null;
+}
+
 export function resolveSessionCredential(req: FastifyRequest): SessionCredential | null {
   const bearer = bearerTokenOf(req);
   if (bearer) return { token: bearer, source: "bearer" };
+  const enrollment = enrollmentCookieOf(req);
+  if (enrollment) return { token: enrollment, source: "cookie" };
   const cookie = sessionCookieOf(req);
   if (cookie) return { token: cookie, source: "cookie" };
   return null;
@@ -247,6 +273,25 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
           .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
       }
 
+      // AUTHZ-001 — the proven session, for the authorities that resolve the
+      // workspace this request actually acts in. The row's anchor below is only
+      // the workspace the session started in. Provenance is SUPPORTED here, so
+      // the policy method is never null.
+      const authAtSec = typeof payload.authAt === "number" ? payload.authAt : iat;
+      const boundMethod = provenanceToPolicyAuthMethod(payload.authMethod);
+      if (boundMethod) {
+        bindRequestSession({
+          userId: payload.sub,
+          policyMethod: boundMethod,
+          ssoConnId: typeof payload.ssoConnId === "string" ? payload.ssoConnId : null,
+          authAtMs: authAtSec > 0 ? authAtSec * 1000 : Date.now(),
+          issuedAtSec: iat,
+          lastSeenAtMs: sessionRow?.lastSeenAtUtc ? sessionRow.lastSeenAtUtc.getTime() : Date.now(),
+          mfaAtSec: typeof payload.mfaAt === "number" ? payload.mfaAt : null,
+          clientIp: trustedClientIpKey(req),
+        });
+      }
+
       const teamId = sessionRow?.teamId ?? null;
       sessionTeamId = teamId;
       // Only workspace-bound sessions carry Organization security policy.
@@ -270,7 +315,8 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
             teamId,
             userId: payload.sub,
             action: "session_authenticate",
-            mfaSatisfied: payload.mfa !== "pending",
+            mfaSatisfied: typeof payload.mfaAt === "number",
+            samlAuthenticated: boundMethod === "SSO",
           });
           // Provenance is guaranteed SUPPORTED here (unsupported was rejected
           // at the door), so policyMethod is non-null.
@@ -330,6 +376,9 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
           return reply.code(401).send(
             createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
               reason: "reauthentication_required",
+              // The member's own organization's rule, so a client can say what
+              // to do instead of looping through a sign-in that cannot pass.
+              policy: orgGate.reason,
             }),
           );
         }
@@ -404,10 +453,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
     // authorization — the route's own requireAuth + authorizeOrFail still run.
     const tokenScope = (payload as { scope?: unknown }).scope;
     if (isRestrictedScope(tokenScope)) {
-      const routePattern =
-        (req as { routeOptions?: { url?: string } }).routeOptions?.url ??
-        (req as { routerPath?: string }).routerPath ??
-        null;
+      const routePattern = routePatternOf(req);
       if (!isRouteAllowedForScope(tokenScope, req.method, routePattern)) {
         req.log.warn(
           { userId: payload.sub, scope: tokenScope, method: req.method, routePattern },

@@ -438,6 +438,22 @@ export async function deleteCaseAtomically(
     const removed = await tx.caseEvidenceLink.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseAccess.deleteMany({ where: { caseId: input.caseId } });
     await tx.caseCollaborationTeamAccess.deleteMany({ where: { caseId: input.caseId } });
+    // EVID-005: the search documents go with the case. Reach hides them by
+    // looking up the live case row, so once it is gone a restricted case's
+    // name and note text would match for every member, with no expiry. Comments
+    // stay as stored; the reconcile no longer indexes a comment with no case.
+    await tx.evidenceSearchDocument.deleteMany({
+      where: {
+        OR: [
+          { documentType: "CASE", sourceId: input.caseId },
+          { documentType: "NOTE", caseId: input.caseId },
+        ],
+      },
+    });
+    await tx.evidenceSearchDocument.updateMany({
+      where: { caseId: input.caseId },
+      data: { caseId: null },
+    });
     await tx.case.delete({ where: { id: input.caseId } });
     await emitTenantAudit(
       {

@@ -27,7 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
-import { apiFetch } from "../../../../../lib/api";
+import { ApiError, apiFetch } from "../../../../../lib/api";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../../../lib/platform-context";
 
@@ -43,7 +43,7 @@ type State =
       // from the accept response (empty = governance-only invite).
       assignedWorkspaceIds: string[];
     }
-  | { kind: "error"; status: number; message: string };
+  | { kind: "error"; status: number; message: string; code?: string };
 
 export default function OrgInviteAcceptPage() {
   // Phase A.1 — wrapped in PageRouteGate per `account.org-invite-accept`
@@ -123,7 +123,8 @@ function OrgInviteAcceptPageInner() {
         router.push(`/login?next=${encodeURIComponent(here)}`);
         return;
       }
-      setState({ kind: "error", status, message });
+      const code = err instanceof ApiError ? err.code : undefined;
+      setState({ kind: "error", status, message, code });
     }
   }, [token, refresh, router]);
 
@@ -272,7 +273,40 @@ function OrgInviteAcceptPageInner() {
         </div>
       )}
 
-      {state.kind === "error" && (
+      {state.kind === "error" && state.code === "ACCOUNT_PASSWORD_PROOF_REQUIRED" && (
+        <div data-state="password-proof-required">
+          <ProovraSystemState
+            context="authenticated"
+            presentation="contained"
+            kind="invitation-invalid"
+            testId="org-invite-password-proof"
+            title="Set a new password to take ownership"
+            message="This invitation makes you the owner of an organization and is still valid. Send yourself a password reset at the invited address, set a new password, then open this invitation again."
+            actions={[
+              { label: "Reset password", href: "/forgot-password", variant: "primary" },
+              { label: "Return to dashboard", href: "/home", variant: "secondary" },
+            ]}
+          />
+        </div>
+      )}
+
+      {state.kind === "error" && state.code === "EMAIL_NOT_VERIFIED" && (
+        <div data-state="email-unverified">
+          <ProovraSystemState
+            context="authenticated"
+            presentation="contained"
+            kind="invitation-invalid"
+            testId="org-invite-email-unverified"
+            title="Verify your email first"
+            message="This invitation can only be accepted from a verified address. Verify your email, then open this invitation again."
+            actions={[{ label: "Return to dashboard", href: "/home", variant: "primary" }]}
+          />
+        </div>
+      )}
+
+      {state.kind === "error" &&
+        state.code !== "ACCOUNT_PASSWORD_PROOF_REQUIRED" &&
+        state.code !== "EMAIL_NOT_VERIFIED" && (
         <div data-state="error">
           <ProovraSystemState
             context="authenticated"

@@ -281,7 +281,8 @@ describe("Phase 26.5 — end-user SSO routes", () => {
   });
 
   it("callback runs first-pass suspicious-session scoring", () => {
-    expect(src).toMatch(/detectAndScoreSession\(/);
+    // IDENT-011 — scoring is part of the one completion every path runs.
+    expect(src).toMatch(/completeSsoSession\(/);
   });
 
   it("invalid state / replay / expired all bounce to /auth?sso_error=…", () => {

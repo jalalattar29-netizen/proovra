@@ -31,6 +31,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { hiddenWorkflowIdsInWorkspace } from "../access/record-reach.js";
 // Phase 4 — wire audit emission via the canonical tenant-audit facade.
 // `.catch(() => {})` keeps emission best-effort so audit failure cannot
 // roll back the primary QC mutation.
@@ -283,11 +284,15 @@ export async function listSamples(input: {
   qcReviewerUserId?: string;
   state?: string;
   limit?: number;
+  /** The reader. A sample of a closed record is not listed (WORKFLOW-003). */
+  viewerUserId: string;
 }) {
   const prisma = input.prisma ?? defaultPrisma;
+  const closed = await hiddenWorkflowIdsInWorkspace(input.teamId, input.viewerUserId, prisma);
   return prisma.qcSample.findMany({
     where: {
       teamId: input.teamId,
+      ...(closed.length > 0 ? { workflowId: { notIn: closed } } : {}),
       ...(input.qcReviewerUserId
         ? { qcReviewerUserId: input.qcReviewerUserId }
         : {}),
@@ -320,11 +325,17 @@ export async function listSamples(input: {
 export async function countPendingQcSamples(input: {
   prisma?: PrismaClient;
   teamId: string;
+  /** The reader, or null for the runtime probe's machine count. */
+  viewerUserId: string | null;
 }): Promise<{ pendingCount: number }> {
   const prisma = input.prisma ?? defaultPrisma;
+  const closed = input.viewerUserId
+    ? await hiddenWorkflowIdsInWorkspace(input.teamId, input.viewerUserId, prisma)
+    : [];
   const pendingCount = await prisma.qcSample.count({
     where: {
       teamId: input.teamId,
+      ...(closed.length > 0 ? { workflowId: { notIn: closed } } : {}),
       // Pending states only; VERDICT_RENDERED is terminal and is
       // excluded from the count card.
       state: { in: ["SAMPLED", "ASSIGNED"] },

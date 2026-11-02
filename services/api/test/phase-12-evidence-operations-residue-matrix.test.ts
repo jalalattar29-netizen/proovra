@@ -96,6 +96,19 @@ const H = vi.hoisted(() => ({
 // Process boundaries
 // ---------------------------------------------------------------------------
 
+// Nothing in this matrix is closed by a restricted case; the rule itself runs
+// against PostgreSQL in case-reach-matrix.integration.test.ts.
+vi.mock("../src/services/access/record-reach.js", async (importOriginal) => {
+  const hidden = { caseIds: [], evidenceIds: [] };
+  return {
+    ...(await importOriginal<object>()),
+    hiddenRecordIdsInWorkspace: async () => hidden,
+    viewerReachInWorkspace: async () => ({ evidence: {}, cases: {}, hidden }),
+    hiddenWorkflowIdsInWorkspace: async () => [],
+    evidenceClosedTo: async () => false,
+    caseClosedTo: async () => false,
+  };
+});
 vi.mock("../src/auth.js", () => ({
   getAuthUserId: () => H.actorUserId,
   getAuthUserIdOrNull: () => H.actorUserId,

@@ -97,6 +97,7 @@ export * from "./governance/legal-hold-custody.js";
 export * from "./evidence-destruction/executor.js";
 export * from "./evidence-destruction/version-port.js";
 export * from "./evidence-destruction/approval.js";
+export * from "./evidence-destruction/tombstone-classification.js";
 export * from "./evidence-destruction/reconcile-destroyed-derivatives.js";
 
 // UC-0 — THE provenance-chain projection and the public Verify acquisition
@@ -120,5 +121,6 @@ export * from "./scheduled-sweep-health.js";
 export * from "./verification-share/authority.js";
 export * from "./verification-share/canonical-identity.js";
 export * from "./evidence-retention/object-retention.js";
+export * from "./evidence-retention/policy-binding.js";
 // UC-ARCH-006 — THE integrity digest rules (composite / manifest / stream SHA-256).
 export * from "./integrity/digest.js";

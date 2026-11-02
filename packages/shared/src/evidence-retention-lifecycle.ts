@@ -108,7 +108,12 @@ export type EvidenceLifecycleBlockReason =
   // F-09 (independent forward audit) — a report or package run holds a LIVE
   // claim on this record: destruction waits until it settles, so no object it
   // publishes can survive a destruction certificate.
-  | "OUTPUT_ISSUANCE_IN_FLIGHT";
+  | "OUTPUT_ISSUANCE_IN_FLIGHT"
+  // GOV-002 — DESTRUCTION_EXECUTION_ENABLED is off: nothing is destroyed by any
+  // trigger, and the record is untouched.
+  | "DESTRUCTION_EXECUTION_DISABLED"
+  // GOV-005 — the retention policy version bound to this record is immutable.
+  | "RETENTION_POLICY_IMMUTABLE";
 
 /**
  * The subset of persisted Evidence columns + resolved verdicts the authority

@@ -318,7 +318,7 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
       category: "REPORT",
     });
 
-    const page = await incidents.listIncidents({
+    const page = await incidents.listIncidents({ incidentReach: {},
       teamId: team.teamId,
       now: new Date(),
       limit: 100,
@@ -330,7 +330,7 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
 
     // The COUNTS agree with the list. A surface that hid the row and still
     // counted it would be the same lie with an extra step.
-    const s = await summary.buildOperationsSummary({
+    const s = await summary.buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } },
       workspaceId: team.teamId,
     });
     expect(s.open).toBe(1);
@@ -363,7 +363,7 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
       sourceId: null,
       fingerprint: "legacy:unknown:shape",
     });
-    const page = await incidents.listIncidents({
+    const page = await incidents.listIncidents({ incidentReach: {},
       teamId: team.teamId,
       now: new Date(),
       limit: 100,
@@ -382,7 +382,7 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
       fingerprint: `search:index_reconciliation:${team.teamId}`,
       category: "RECONCILIATION",
     });
-    const page = await incidents.listIncidents({
+    const page = await incidents.listIncidents({ incidentReach: {},
       teamId: team.teamId,
       now: new Date(),
       limit: 100,

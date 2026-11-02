@@ -69,23 +69,17 @@ const EVIDENCE_ROUTES_TS = readFileSync(
   "utf8",
 );
 
-describe("collaboration.routes guard: requireReviewerMember requires ACTIVE membership", () => {
-  it(".ts source: the guard checks TeamMemberStatus.ACTIVE before the permission check", () => {
-    // The active-membership check must appear and must use the
-    // canonical enum reference (no string-literal "ACTIVE" drift).
-    expect(ROUTES_TS).toMatch(
-      /membership\.status\s*===\s*prismaPkg\.TeamMemberStatus\.ACTIVE/,
-    );
-    // The ACTIVE check must occur BEFORE the permission check — the
-    // guard rejects non-active membership without consulting the
-    // permission matrix. Source-order check: substring index of the
-    // active-status line must come BEFORE the permission line.
-    const activeIdx = ROUTES_TS.indexOf("isActiveMember");
-    const permIdx = ROUTES_TS.indexOf(
-      'requirePermission(membership.role, "evidence_request.review")',
-    );
-    expect(activeIdx).toBeGreaterThan(0);
-    expect(permIdx).toBeGreaterThan(activeIdx);
+describe("collaboration.routes guard: requireReviewerMember goes through the canonical engine", () => {
+  it(".ts source: the guard asks evaluateAuthorize, which owns status, expiry and organization lifecycle", () => {
+    // AUTHZ-003: this gate used to read the row and test `status`, so access
+    // expiry, organization lifecycle and delegated capability did not count.
+    // It must not read the membership row itself again.
+    const start = ROUTES_TS.indexOf("async function requireReviewerMember");
+    const guard = ROUTES_TS.slice(start, ROUTES_TS.indexOf("\nasync function loadThreadInReach", start));
+    expect(guard).toMatch(/evaluateAuthorize\(req,/);
+    expect(guard).toMatch(/permission:\s*"evidence_request\.review"/);
+    expect(guard).not.toMatch(/teamMember\.find/);
+    expect(guard).not.toMatch(/requirePermission\(/);
   });
 
   it(".ts source: anti-enumeration — every rejection path is a bare 404 not_found", () => {
@@ -94,22 +88,19 @@ describe("collaboration.routes guard: requireReviewerMember requires ACTIVE memb
     // and the next blank-line `}` followed by `function`.
     const start = ROUTES_TS.indexOf("async function requireReviewerMember");
     expect(start).toBeGreaterThan(0);
-    const after = ROUTES_TS.indexOf("\nfunction ", start);
+    const after = ROUTES_TS.indexOf("\nasync function loadThreadInReach", start);
     expect(after).toBeGreaterThan(start);
     const guard = ROUTES_TS.slice(start, after);
 
+    // Every DENIAL is the one opaque 404. The only other outcomes are not
+    // denials of this workspace: no session (401) and an authority outage
+    // (503, which must never read as "allowed" or as "absent"). A 403 would
+    // leak the gating factor.
     const replyCalls = guard.match(/reply\.code\(\s*\d+\s*\)/g) ?? [];
-    // The guard has exactly TWO rejection paths (non-active +
-    // no-permission), both 404. Anything else (401, 403, 500, ...)
-    // would either leak the gating factor or change the failure
-    // semantics the frontend depends on.
-    expect(replyCalls.length).toBe(2);
-    for (const call of replyCalls) {
-      expect(call).toMatch(/reply\.code\(\s*404\s*\)/);
-    }
+    expect(replyCalls.length).toBe(3);
+    expect(replyCalls.map((c) => Number(/\d+/.exec(c)![0])).sort()).toEqual([401, 404, 503]);
     expect(guard).not.toMatch(/reply\.code\(\s*403\s*\)/);
-    expect(guard).not.toMatch(/reply\.code\(\s*401\s*\)/);
-    expect(guard.match(/not_found/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(guard.match(/not_found/g)?.length ?? 0).toBeGreaterThanOrEqual(1);
   });
 
   // The previous ".js shadow: compiled artifact is in lockstep
@@ -117,17 +108,12 @@ describe("collaboration.routes guard: requireReviewerMember requires ACTIVE memb
   // .js files were purged. The .ts source-pin above is now the
   // single source of truth; runtime always loads the .ts.
 
-  it("frontend ↔ backend parity: both sides use prismaPkg.TeamMemberStatus.ACTIVE", () => {
+  it("frontend capability still requires ACTIVE membership by the canonical enum", () => {
     // The Evidence Detail capability computation
-    // (computeDiscussionCapability) and the collaboration route
-    // guard MUST share the same enum reference. If either drifts to
-    // a string literal "ACTIVE" or to a different enum import, the
-    // two surfaces could disagree and reintroduce the gap.
+    // (computeDiscussionCapability) keeps the enum reference; the backend
+    // answer is the canonical engine's, which refuses every non-ACTIVE row.
     expect(EVIDENCE_ROUTES_TS).toMatch(
       /callerMembership\.status\s*===\s*prismaPkg\.TeamMemberStatus\.ACTIVE/,
-    );
-    expect(ROUTES_TS).toMatch(
-      /membership\.status\s*===\s*prismaPkg\.TeamMemberStatus\.ACTIVE/,
     );
   });
 

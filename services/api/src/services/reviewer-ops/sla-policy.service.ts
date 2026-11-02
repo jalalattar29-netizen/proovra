@@ -42,38 +42,25 @@ export type UpsertWorkspaceSlaPolicyInput = {
   overrides: ReviewerOpsSlaPolicyOverride;
 };
 
-export async function upsertWorkspaceSlaPolicy(
-  input: UpsertWorkspaceSlaPolicyInput,
-  client: PrismaClient = defaultPrisma,
-): Promise<ReviewerOpsSlaPolicyOverride> {
-  // Re-validate via the shared schema; the route layer should have
-  // validated already, but defence in depth.
-  const parsed = ReviewerOpsSlaPolicySchema.safeParse(input.overrides);
+/**
+ * The policy columns these overrides are stored in. Only the keys the caller
+ * sent: an omitted key is unchanged, it never erases another override
+ * (WORKFLOW-002). The write itself goes through the ONE versioned writer,
+ * `updateWorkspaceGovernancePolicyWithVersion`.
+ */
+export function slaOverridesToPolicyPatch(overrides: ReviewerOpsSlaPolicyOverride) {
+  const parsed = ReviewerOpsSlaPolicySchema.safeParse(overrides);
   if (!parsed.success) {
     throw new Error("invalid_sla_policy_overrides");
   }
   const o = parsed.data;
-  await client.workspaceGovernancePolicy.upsert({
-    where: { teamId: input.teamId },
-    update: {
-      defaultAssignmentDueHours: o.assignmentHours ?? null,
-      defaultFirstResponseDueHours: o.firstReviewHours ?? null,
-      defaultCompletionDueHours: o.completionHours ?? null,
-      defaultEscalationDueHours: o.escalationHours ?? null,
-      defaultDueSoonHours: o.dueSoonHours ?? null,
-      updatedByUserId: input.actorUserId,
-    },
-    create: {
-      teamId: input.teamId,
-      defaultAssignmentDueHours: o.assignmentHours ?? null,
-      defaultFirstResponseDueHours: o.firstReviewHours ?? null,
-      defaultCompletionDueHours: o.completionHours ?? null,
-      defaultEscalationDueHours: o.escalationHours ?? null,
-      defaultDueSoonHours: o.dueSoonHours ?? null,
-      updatedByUserId: input.actorUserId,
-    },
-  });
-  return o;
+  return {
+    ...(o.assignmentHours !== undefined ? { defaultAssignmentDueHours: o.assignmentHours } : {}),
+    ...(o.firstReviewHours !== undefined ? { defaultFirstResponseDueHours: o.firstReviewHours } : {}),
+    ...(o.completionHours !== undefined ? { defaultCompletionDueHours: o.completionHours } : {}),
+    ...(o.escalationHours !== undefined ? { defaultEscalationDueHours: o.escalationHours } : {}),
+    ...(o.dueSoonHours !== undefined ? { defaultDueSoonHours: o.dueSoonHours } : {}),
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -110,52 +97,6 @@ export async function loadWorkspaceReviewerOpsFlags(
     requireStepUpForBulk: row?.requireStepUpForBulk ?? false,
     reviewerInactivityHours: row?.reviewerInactivityHours ?? null,
   };
-}
-
-export async function upsertWorkspaceReviewerOpsFlags(
-  input: {
-    teamId: string;
-    actorUserId: string;
-    flags: Partial<WorkspaceReviewerOpsFlags>;
-  },
-  client: PrismaClient = defaultPrisma,
-): Promise<WorkspaceReviewerOpsFlags> {
-  const f = input.flags;
-  await client.workspaceGovernancePolicy.upsert({
-    where: { teamId: input.teamId },
-    update: {
-      ...(f.requireStepUpForApprove !== undefined
-        ? { requireStepUpForApprove: f.requireStepUpForApprove }
-        : {}),
-      ...(f.requireStepUpForReject !== undefined
-        ? { requireStepUpForReject: f.requireStepUpForReject }
-        : {}),
-      ...(f.requireStepUpForEscalationResolve !== undefined
-        ? {
-            requireStepUpForEscalationResolve:
-              f.requireStepUpForEscalationResolve,
-          }
-        : {}),
-      ...(f.requireStepUpForBulk !== undefined
-        ? { requireStepUpForBulk: f.requireStepUpForBulk }
-        : {}),
-      ...(f.reviewerInactivityHours !== undefined
-        ? { reviewerInactivityHours: f.reviewerInactivityHours }
-        : {}),
-      updatedByUserId: input.actorUserId,
-    },
-    create: {
-      teamId: input.teamId,
-      requireStepUpForApprove: f.requireStepUpForApprove ?? false,
-      requireStepUpForReject: f.requireStepUpForReject ?? false,
-      requireStepUpForEscalationResolve:
-        f.requireStepUpForEscalationResolve ?? false,
-      requireStepUpForBulk: f.requireStepUpForBulk ?? false,
-      reviewerInactivityHours: f.reviewerInactivityHours ?? null,
-      updatedByUserId: input.actorUserId,
-    },
-  });
-  return loadWorkspaceReviewerOpsFlags(input.teamId, client);
 }
 
 export { REVIEWER_OPS_DEFAULT_SLA_POLICY };

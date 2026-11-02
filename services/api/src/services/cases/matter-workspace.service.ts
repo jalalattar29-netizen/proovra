@@ -41,11 +41,12 @@ import { resolveEvidenceOutputEligibilityByRecord } from "../billing/evidence-ou
 import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
 import {
   computeCaseRisk,
-  listCaseEvidenceIds,
+  listCaseEvidenceIdsForViewer,
   recordCaseRiskSnapshot,
   type CaseRiskComputation,
   type RiskReasonCode,
 } from "./case-risk-engine.service.js";
+import { evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
 import {
   getCaseAssignmentRoles,
   resolveCaseViewerCapabilities,
@@ -498,9 +499,9 @@ export async function buildMatterWorkspace(input: {
     assignmentRoles: activeAssignmentRoleNames,
   });
 
-  const evidenceIds = await listCaseEvidenceIds({
-    teamId: caseRow.teamId,
+  const evidenceIds = await listCaseEvidenceIdsForViewer({
     caseId: caseRow.id,
+    viewerUserId: input.userId,
   });
 
   // Risk projection (lazy write).
@@ -526,7 +527,7 @@ export async function buildMatterWorkspace(input: {
   ] = await Promise.all([
     runCommandSummary(caseRow.id, caseRow.teamId, evidenceIds),
     runEvidenceBoard(caseRow.id, evidenceIds),
-    runRelationships(caseRow.id, evidenceIds),
+    runRelationships(caseRow.id, evidenceIds, input.userId),
     runWorkflows(caseRow.id),
     runIncidentsAndCausality(caseRow.id, evidenceIds),
     runReviewerCoordination(caseRow.id, caseRow.teamId, evidenceIds),
@@ -644,7 +645,7 @@ async function runCommandSummary(
       Promise.resolve(evidenceIds.length),
       // Recently linked: union of (Evidence.caseId where createdAt >= since7d) + CaseEvidenceLink.linkedAtUtc
       prisma.caseEvidenceLink.count({
-        where: { caseId, linkedAtUtc: { gte: since7d } },
+        where: { caseId, evidenceId: { in: evidenceIds }, linkedAtUtc: { gte: since7d } },
       }),
       // P12.3 canonical-only: case holds are scope='CASE' canonical rows.
       prisma.evidenceLegalHold.count({
@@ -942,10 +943,11 @@ async function runEvidenceBoard(
 async function runRelationships(
   caseId: string,
   evidenceIds: string[],
+  viewerUserId: string,
 ): Promise<MatterWorkspaceEnvelope["sections"]["relationships"]> {
   try {
     const links = await prisma.caseEvidenceLink.findMany({
-      where: { caseId },
+      where: { caseId, evidenceId: { in: evidenceIds } },
       orderBy: { linkedAtUtc: "desc" },
       take: SECTION_EVIDENCE_LIMIT,
     });
@@ -989,8 +991,12 @@ async function runRelationships(
       note: string | null;
     }> = [];
     if (evidenceIds.length > 0) {
+      const visible = evidenceVisibleThroughCasesWhere(viewerUserId);
       const rels = await prisma.evidenceRelationship.findMany({
         where: {
+          // The far end may belong to another case; it is listed only if open.
+          sourceEvidence: visible,
+          targetEvidence: visible,
           OR: [
             { sourceEvidenceId: { in: evidenceIds } },
             { targetEvidenceId: { in: evidenceIds } },
@@ -1624,11 +1630,17 @@ async function runTimeline(
     // 1. Direct projection reads (OperationalTimelineEvent has caseId).
     const projectionRows = await prisma.operationalTimelineEvent.findMany({
       where: {
-        OR: [
-          { caseId },
-          ...(evidenceIds.length > 0
-            ? [{ evidenceId: { in: evidenceIds } }]
-            : []),
+        // A case-level row that names a closed record is that record's row.
+        AND: [
+          { OR: [{ evidenceId: null }, { evidenceId: { in: evidenceIds } }] },
+          {
+            OR: [
+              { caseId },
+              ...(evidenceIds.length > 0
+                ? [{ evidenceId: { in: evidenceIds } }]
+                : []),
+            ],
+          },
         ],
       },
       orderBy: { occurredAtUtc: "desc" },
@@ -1663,7 +1675,7 @@ async function runTimeline(
           take: 25,
         }),
         prisma.caseEvidenceLink.findMany({
-          where: { caseId },
+          where: { caseId, evidenceId: { in: evidenceIds } },
           orderBy: { linkedAtUtc: "desc" },
           take: 25,
         }),

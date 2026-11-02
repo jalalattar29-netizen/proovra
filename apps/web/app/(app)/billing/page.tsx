@@ -42,7 +42,7 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { LifeBuoy } from "lucide-react";
 import { captureException } from "../../../lib/sentry";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
-import { useTenantGuard } from "../../../lib/platform-context";
+import { useActiveCustomerOrganizationId, useTenantGuard } from "../../../lib/platform-context";
 import {
   listBillingAccounts,
   readBillingAccount,
@@ -221,6 +221,7 @@ function BillingPageInner() {
     () => parseBillingWorkspaceLocator(searchParams),
     [searchParams],
   );
+  const activeOrganizationId = useActiveCustomerOrganizationId();
 
   // ---- Accounts ----------------------------------------------------------
   useEffect(() => {
@@ -235,7 +236,13 @@ function BillingPageInner() {
           setPhase({ kind: "NO_ACCOUNTS" });
           return;
         }
-        setSelected(accountFromLocator(requestedLocator, list) ?? list[0]!);
+        // RT-007 — an owner working in their organization opens on its contract,
+        // not on a Free personal plan with purchase buttons. An explicit link
+        // still wins, and Personal stays one click away in the selector.
+        const activeOrganization = list.find(
+          (a) => a.type === "ORGANIZATION" && a.id === activeOrganizationId,
+        );
+        setSelected(accountFromLocator(requestedLocator, list) ?? activeOrganization ?? list[0]!);
         setPhase({ kind: "READY" });
       })
       .catch((err) => {

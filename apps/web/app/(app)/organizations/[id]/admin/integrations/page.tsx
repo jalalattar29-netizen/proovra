@@ -36,7 +36,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { Card } from "../../../../../../components/ui/Card";
 import { Button } from "../../../../../../components/ui/Button";
@@ -137,7 +137,7 @@ function IntegrationsTab() {
       )) as WorkspacesResponse;
       setState({ kind: "ready", data });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setState({
           kind: "error",
           message: err.message,

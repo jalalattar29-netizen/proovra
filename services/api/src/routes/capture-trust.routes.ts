@@ -45,6 +45,7 @@
  *     storage keys.
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -62,7 +63,7 @@ import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { bumpCaptureFailure, isCaptureFailure } from "@proovra/shared-runtime";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
+import { evaluateAuthorize, evaluateCurrentWorkspace, sendDenyResponse } from "../middleware/authorize.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { assertPersonalUploadMutationAllowed } from "./upload-sessions.routes.js";
 
@@ -272,6 +273,7 @@ const DIRECT_SESSION_OPEN_LIMIT_PER_MIN = 30;
 // =============================================================================
 
 export async function captureTrustRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ---------------------------------------------------------------------------
   // POST /v1/capture/devices — register a workspace-bound device
   // ---------------------------------------------------------------------------
@@ -837,13 +839,22 @@ async function authorizeDirectCapture(
   teamId: string,
   userId: string,
 ): Promise<string | null> {
-  const auth = await authorizeOrFail(req, reply, {
+  const auth = await evaluateAuthorize(req, {
     teamId,
     permission: "evidence.create",
     resourceKind: "capture_session",
     antiEnumeration: true,
   });
-  if (!auth) return null;
+  if (!auth.allowed) {
+    // A member whose sign-in this Organization refuses can act on the answer:
+    // the extension asks them to sign in again.
+    if (auth.reasonCode === "organization_session_policy") {
+      reply.code(401).send({ denial: "REAUTHENTICATION_REQUIRED" });
+    } else {
+      sendDenyResponse(reply, auth);
+    }
+    return null;
+  }
   const personalDenial = await assertPersonalUploadMutationAllowed(auth.teamId, userId);
   if (personalDenial) {
     reply.code(personalDenial.statusCode).send({

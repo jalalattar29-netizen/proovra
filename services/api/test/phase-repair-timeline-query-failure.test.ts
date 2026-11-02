@@ -220,6 +220,7 @@ describe("Phase Repair Problem 13 — Runtime: buildInvestigationTimeline failur
         evidenceId: null,
         fromUtc: null,
         toUtc: null,
+        reach: { hiddenNodeIds: [] },
       },
       fakeClient,
     );
@@ -251,6 +252,7 @@ describe("Phase Repair Problem 13 — Runtime: buildInvestigationTimeline failur
         evidenceId: null,
         fromUtc: null,
         toUtc: null,
+        reach: { hiddenNodeIds: [] },
       },
       fakeClient,
     );

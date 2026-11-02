@@ -261,21 +261,23 @@ describe("Phase 26.75 — trusted device decay", () => {
 
 describe("Phase 26.75 — gate applied to reviewer-ops", () => {
   const src = readSource("../src/routes/reviewer-ops.routes.ts");
+  const gate = readSource("../src/services/reviewer-ops/review-action-gate.ts");
 
-  it("approve / reject / bulk / escalation-resolve all call runtimeAdaptiveGate", () => {
-    expect(src).toMatch(/runtimeAdaptiveGate/);
-    expect(src).toMatch(/action: "REVIEWER_APPROVE"/);
-    expect(src).toMatch(/action: "REVIEWER_REJECT"/);
-    expect(src).toMatch(/action: "REVIEWER_BULK"/);
-    expect(src).toMatch(/action: "REVIEW_ESCALATION_RESOLVE"/);
+  it("approve / reject / bulk / escalation-resolve all reach runtimeAdaptiveGate through the one gate", () => {
+    expect(gate).toMatch(/runtimeAdaptiveGate/);
+    expect(gate).toMatch(/adaptive: "REVIEWER_APPROVE"/);
+    expect(gate).toMatch(/adaptive: "REVIEWER_REJECT"/);
+    expect(gate).toMatch(/adaptive: "REVIEWER_BULK"/);
+    expect(gate).toMatch(/adaptive: "REVIEW_ESCALATION_RESOLVE"/);
+    for (const action of ["approve", "reject", "bulk", "escalationResolve"]) {
+      expect(src).toContain(`action: "${action}"`);
+    }
   });
 
-  it("each gate call returns when not allowed (never widens)", () => {
-    // Pattern: `const gate<Anything> = await runtimeAdaptiveGate({...});`
-    // followed by `if (!gate<Anything>.allow) return;`. Use a looser
-    // regex that matches any local name beginning with `gate`.
-    const matches = src.match(/if \(!gate\w*\.allow\) return;/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(4);
+  it("the gate stops when not allowed (never widens)", () => {
+    expect(gate).toMatch(/if \(!adaptive\.allow\) return false;/);
+    const callers = src.match(/!\(await enforceReviewActionGate\(/g) ?? [];
+    expect(callers.length).toBeGreaterThanOrEqual(4);
   });
 });
 

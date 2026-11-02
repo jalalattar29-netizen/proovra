@@ -28,6 +28,137 @@ import {
   evidenceVisibleThroughCasesWhere,
 } from "../cases/case-visibility.js";
 
+/**
+ * WHICH RECORDS OF ONE WORKSPACE ARE CLOSED TO THIS CALLER — the same rule,
+ * answered as id lists, for the surfaces that cannot join the Case or Evidence
+ * relation: raw SQL (the investigation graph, the aggregators) and denormalised
+ * rows that hold an evidence id with no relation (search documents, discussion
+ * threads, signals). Pass `null` for a machine path: only unrestricted records
+ * stay open.
+ *
+ * It is not a second predicate: both lists are `case-visibility.ts` applied by
+ * the database. The caller must already have established workspace authority.
+ */
+export type HiddenRecordIds = {
+  caseIds: string[];
+  evidenceIds: string[];
+};
+
+type HiddenRecordClient = Pick<PrismaClient, "case" | "evidence">;
+
+export async function hiddenRecordIdsInWorkspace(
+  workspaceId: string,
+  callerUserId: string | null,
+  client: HiddenRecordClient = defaultPrisma,
+): Promise<HiddenRecordIds> {
+  const [cases, evidence] = await Promise.all([
+    client.case.findMany({
+      // NOT visible already implies restricted (caseVisibleToWhere admits
+      // every unrestricted Case), by the canonical rule rather than the flag.
+      where: { teamId: workspaceId, NOT: caseVisibleToWhere(callerUserId) },
+      select: { id: true },
+    }),
+    client.evidence.findMany({
+      where: { teamId: workspaceId, NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
+      select: { id: true },
+    }),
+  ]);
+  return { caseIds: cases.map((c) => c.id), evidenceIds: evidence.map((e) => e.id) };
+}
+
+/**
+ * One caller's reach inside one workspace, for a surface that reads many
+ * models: relation filters where a relation exists, id lists where it does not.
+ * Every piece is `case-visibility.ts`; none of it is a separate rule.
+ */
+export type ViewerReach = {
+  evidence: Prisma.EvidenceWhereInput;
+  cases: Prisma.CaseWhereInput;
+  hidden: HiddenRecordIds;
+};
+
+export async function viewerReachInWorkspace(
+  workspaceId: string,
+  callerUserId: string | null,
+  client: HiddenRecordClient = defaultPrisma,
+): Promise<ViewerReach> {
+  return {
+    evidence: evidenceVisibleThroughCasesWhere(callerUserId),
+    cases: caseVisibleToWhere(callerUserId),
+    hidden: await hiddenRecordIdsInWorkspace(workspaceId, callerUserId, client),
+  };
+}
+
+/** An id column may be NULL, and `NOT IN` drops NULL rows: keep them explicitly. */
+function nullableNotIn<K extends string>(column: K, ids: string[]) {
+  return ids.length === 0
+    ? []
+    : [{ OR: [{ [column]: null }, { [column]: { notIn: ids } }] }];
+}
+
+/** An operational incident that names a closed record is that record's row. */
+export function incidentInReach(reach: ViewerReach): Prisma.OperationalIncidentWhereInput {
+  return { AND: nullableNotIn("relatedEvidenceId", reach.hidden.evidenceIds) };
+}
+
+/** A legal hold names a record or a case; either may be closed to the caller. */
+export function holdInReach(reach: ViewerReach): Prisma.EvidenceLegalHoldWhereInput[] {
+  return [
+    ...nullableNotIn("evidenceId", reach.hidden.evidenceIds),
+    ...nullableNotIn("caseId", reach.hidden.caseIds),
+  ];
+}
+
+/** For a row whose evidence id is required and has no relation. */
+export function evidenceIdInReach(reach: ViewerReach): { evidenceId?: { notIn: string[] } } {
+  return reach.hidden.evidenceIds.length > 0 ? { evidenceId: { notIn: reach.hidden.evidenceIds } } : {};
+}
+
+/**
+ * The review workflows of closed records, for rows that name a workflow with no
+ * relation to it (disagreements, QC samples).
+ */
+export async function hiddenWorkflowIdsInWorkspace(
+  workspaceId: string,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "evidenceReviewWorkflow"> = defaultPrisma,
+): Promise<string[]> {
+  const rows = await client.evidenceReviewWorkflow.findMany({
+    where: { teamId: workspaceId, NOT: { evidence: evidenceVisibleThroughCasesWhere(callerUserId) } },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+/** True when this record exists and a restricted case closes it to the caller. */
+export async function evidenceClosedTo(
+  evidenceId: string,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "evidence"> = defaultPrisma,
+): Promise<boolean> {
+  const closed = await client.evidence.count({
+    where: { id: evidenceId, NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
+  });
+  return closed > 0;
+}
+
+/** True when this case exists and is restricted away from the caller. */
+export async function caseClosedTo(
+  caseId: string,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "case"> = defaultPrisma,
+): Promise<boolean> {
+  const closed = await client.case.count({
+    where: { id: caseId, NOT: caseVisibleToWhere(callerUserId) },
+  });
+  return closed > 0;
+}
+
+/** Keep a record list to what the caller may open, for a list stored as JSON ids. */
+export function allOpen(ids: readonly string[], closedIds: readonly string[]): boolean {
+  return !ids.some((id) => closedIds.includes(id));
+}
+
 export async function accessibleWorkspaceIdsFor(
   userId: string,
   client: PrismaClient = defaultPrisma,

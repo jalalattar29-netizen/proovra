@@ -404,6 +404,7 @@ export const COUNTER_NAMES = [
   "reviewer_review_started_total",
   "reviewer_review_completed_total",
   "reviewer_review_paused_total",
+  "reviewer_review_resumed_total",
   "reviewer_information_requested_total",
   "reviewer_review_approved_total",
   "reviewer_review_rejected_total",
@@ -432,6 +433,7 @@ export const COUNTER_NAMES = [
   "reviewer_saved_view_created_total",
   "reviewer_saved_view_deleted_total",
   "reviewer_sla_policy_updated_total",
+  "reviewer_decision_projection_repaired_total",
   "reviewer_analytics_viewed_total",
   // Phase 26 — Enterprise identity governance.
   "sso_connection_created_total",

@@ -278,11 +278,9 @@ export async function notificationsRoutes(app: FastifyInstance) {
 
   // POST /v1/notifications/process-retries
   //
-  // Workspace-agnostic admin trigger for the retry sweeper. Designed to
-  // be called by an external scheduler (cron / k8s CronJob / Vercel
-  // cron). Auth ensures only an authenticated workspace member can
-  // invoke it (we deliberately do not gate on a single platform-admin
-  // role because the sweep is idempotent and safe to call repeatedly).
+  // Workspace-agnostic trigger for the retry sweeper. The worker calls this
+  // and the two routes below on a timer (api-delivery-sweeps.ts). The sweep is
+  // idempotent and safe to call repeatedly, so an operator can also call it.
   app.post(
     "/v1/notifications/process-retries",
     async (req: FastifyRequest, reply: FastifyReply) => {

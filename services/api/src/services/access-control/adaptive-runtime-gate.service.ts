@@ -98,7 +98,7 @@ export async function runtimeAdaptiveGate(
   // (1) Quarantine block. Read-only paths are never gated here (gate
   // only runs from routes that already know they are privileged).
   const quarantined = await isSessionQuarantined(
-    { teamId: input.teamId, sessionId: session.id },
+    { sessionId: session.id },
     client,
   );
   if (quarantined) {

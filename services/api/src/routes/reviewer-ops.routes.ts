@@ -10,6 +10,7 @@
  *   POST /v1/reviewer-ops/reviews/:workflowId/reassign
  *   POST /v1/reviewer-ops/reviews/:workflowId/start
  *   POST /v1/reviewer-ops/reviews/:workflowId/pause
+ *   POST /v1/reviewer-ops/reviews/:workflowId/resume
  *   POST /v1/reviewer-ops/reviews/:workflowId/request-info
  *   POST /v1/reviewer-ops/reviews/:workflowId/approve
  *   POST /v1/reviewer-ops/reviews/:workflowId/reject
@@ -31,6 +32,8 @@
  *   - Errors map to the Phase 25 ReviewerOpsErrorCode catalog.
  */
 
+import { listReminders } from "../services/reviewer-ops/reminder-engine.service.js";
+import { advanceSweepCursor, afterCursor, readSweepCursor } from "../services/reviewer-ops/sweep-cursor.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
@@ -45,7 +48,6 @@ import {
   type SavedViewVisibility,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -62,6 +64,7 @@ import {
   evaluateAuthorizedWorkspace,
   type AuthorizedWorkspaceContext,
 } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import {
   ReviewerOpsError,
   approveReview,
@@ -70,6 +73,7 @@ import {
   getReviewerOpsWorkspace,
   listReviewerOpsQueue,
   pauseReview,
+  resumeReview,
   rejectReview,
   requestInformation,
   runReconcile,
@@ -95,9 +99,8 @@ import {
 import {
   loadWorkspaceReviewerOpsFlags,
   resolveEffectiveSlaPolicy,
-  upsertWorkspaceReviewerOpsFlags,
-  upsertWorkspaceSlaPolicy,
-  type WorkspaceReviewerOpsFlags,
+  slaOverridesToPolicyPatch,
+
 } from "../services/reviewer-ops/sla-policy.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 // THE ONE commercial authority for review — the same capability ladder the
@@ -106,8 +109,19 @@ import {
   workspaceIncludesReviewCapability,
   type ReviewCapability,
 } from "../services/billing-enforcement.service.js";
-import type { StepUpPurpose } from "@proovra/shared";
-import { runtimeAdaptiveGate } from "../services/access-control/adaptive-runtime-gate.service.js";
+import {
+  enforceReviewActionGate,
+  gateForVerdict,
+  holdsReviewBulkAuthority,
+  workflowIdsInReach,
+} from "../services/reviewer-ops/review-action-gate.js";
+import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
+import {
+  GovernancePolicyVersionConflictError,
+  loadWorkspaceGovernancePolicyVersion,
+  updateWorkspaceGovernancePolicyWithVersion,
+} from "../services/governance.service.js";
 import { executeBulkTriage } from "../services/reviewer-ops/bulk-triage.service.js";
 import { captureException } from "../observability/sentry.js";
 import {
@@ -204,6 +218,31 @@ type ReviewerActorContext = LifecycleActorContext & {
  * behavioural expectation changes shape. The newly-enforced lifecycle
  * denials reuse the same bounded envelope.
  */
+async function requireWorkflowInReach(
+  ctx: ReviewerActorContext,
+  reply: FastifyReply,
+  workflowId: string,
+  notFound: "engine" | "plain" = "engine",
+): Promise<boolean> {
+  const open = await workflowIdsInReach({
+    teamId: ctx.teamId,
+    userId: ctx.actorUserId,
+    workflowIds: [workflowId],
+  });
+  if (open.has(workflowId)) return true;
+  // The caller's own 404 for a workflow that does not exist, so a record closed
+  // by a restricted case cannot be told from a missing one (WORKFLOW-003).
+  reply
+    .code(404)
+    .send({
+      error:
+        notFound === "plain"
+          ? { code: "not_found" }
+          : { code: "REVIEW_WORKFLOW_NOT_FOUND", details: null },
+    });
+  return false;
+}
+
 async function requireReviewerActor(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -264,6 +303,7 @@ async function requireReviewerActor(
       authorized,
       "evidence_request.review",
     ),
+    mayActOnOthersReviews: contextHasCapability(authorized, "review.assign"),
     isServiceAccount: false,
     authorized,
   };
@@ -413,12 +453,7 @@ function requireReviewerBulkCapable(
   ctx: ReviewerActorContext,
   reply: FastifyReply,
 ): boolean {
-  const role = provenRole(ctx);
-  const isAdministrativeTier = role === "OWNER" || role === "ADMIN";
-  if (
-    !isAdministrativeTier ||
-    !contextHasCapability(ctx.authorized, "review.escalate")
-  ) {
+  if (!holdsReviewBulkAuthority(provenRole(ctx), contextHasCapability(ctx.authorized, "review.escalate"))) {
     reply.code(403).send({
       error: {
         code: "REVIEW_PERMISSION_DENIED",
@@ -428,58 +463,6 @@ function requireReviewerBulkCapable(
     return false;
   }
   return true;
-}
-
-// -----------------------------------------------------------------------------
-// Phase 25.5 — Step-up gate driven by workspace governance flags.
-//
-// If the matching workspace flag (`requireStepUpForApprove`, etc.) is
-// false, this is a no-op. When true, the request must carry a fresh
-// approved step-up challenge for the given purpose; otherwise the
-// middleware sends the challenge response and we return `true` so the
-// caller bails out cleanly.
-// -----------------------------------------------------------------------------
-
-type StepUpGateKey =
-  | "approve"
-  | "reject"
-  | "escalationResolve"
-  | "bulk";
-
-const STEP_UP_PURPOSE_BY_GATE: Record<StepUpGateKey, StepUpPurpose> = {
-  approve: "REVIEW_APPROVAL_HIGH_RISK",
-  reject: "REVIEWER_OPS_REJECT",
-  escalationResolve: "REVIEWER_OPS_ESCALATION_RESOLVE",
-  bulk: "REVIEWER_OPS_BULK_ACTION",
-};
-
-const STEP_UP_FLAG_BY_GATE: Record<StepUpGateKey, keyof WorkspaceReviewerOpsFlags> = {
-  approve: "requireStepUpForApprove",
-  reject: "requireStepUpForReject",
-  escalationResolve: "requireStepUpForEscalationResolve",
-  bulk: "requireStepUpForBulk",
-};
-
-async function enforceStepUpIfFlagged(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  ctx: LifecycleActorContext,
-  gate: StepUpGateKey,
-  resource: { kind: string; id: string },
-): Promise<boolean> {
-  const flags = await loadWorkspaceReviewerOpsFlags(ctx.teamId);
-  const flagKey = STEP_UP_FLAG_BY_GATE[gate];
-  if (!flags[flagKey]) return false; // not required → proceed
-  const result = await requireStepUpForSensitiveAction({
-    req,
-    reply,
-    teamId: ctx.teamId,
-    userId: ctx.actorUserId,
-    purpose: STEP_UP_PURPOSE_BY_GATE[gate],
-    resourceKind: resource.kind,
-    resourceId: resource.id,
-  });
-  return result.sent; // true → middleware already replied
 }
 
 // -----------------------------------------------------------------------------
@@ -523,6 +506,19 @@ function sendEngineError(reply: FastifyReply, err: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/** A concurrent policy edit: nothing was written, and the caller must re-read. */
+function sendPolicyVersionConflict(reply: FastifyReply, err: unknown): boolean {
+  if (!(err instanceof GovernancePolicyVersionConflictError)) return false;
+  reply.code(409).send({
+    error: {
+      code: err.code,
+      message: "This policy was changed by someone else. Reload the latest values and reapply your change.",
+      details: { expectedVersion: err.expectedVersion, currentVersion: err.currentVersion },
+    },
+  });
+  return true;
 }
 
 /**
@@ -573,6 +569,11 @@ function sendDecisionAuthorityError(
         },
       });
       return;
+    case "reviewer_required":
+      reply.code(403).send({
+        error: { code: "REVIEW_PERMISSION_DENIED", reason: "reviewer_required" },
+      });
+      return;
     case "adjudicator_role_required":
       reply.code(403).send({
         error: {
@@ -606,6 +607,9 @@ function sendDecisionAuthorityError(
 // -----------------------------------------------------------------------------
 // Param + body schemas
 // -----------------------------------------------------------------------------
+
+/** The workspace the all-teams reconcile sweep resumes after (WORKFLOW-012). */
+const REVIEWER_TEAM_SWEEP_CURSOR = "reviewer_ops_reconcile_teams";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 const ParamsWorkflowId = z.object({ workflowId: z.string().uuid() });
@@ -673,12 +677,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -687,7 +687,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const QueueQuery = z.object({
         teamId: z.string().uuid(),
@@ -815,12 +815,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const rawQuery = (req.query ?? {}) as { teamId?: string };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -829,7 +825,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = TeamIdQuery.parse({ teamId: resolvedTeamId });
       const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
@@ -865,10 +861,12 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const q = TeamIdQuery.parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       try {
         const ws = await getReviewerOpsWorkspace({
           teamId: q.teamId,
           workflowId,
+          viewerUserId: ctx.actorUserId,
         });
         // Phase B-2 — surface real governance signals the engine
         // projection doesn't carry: ACTIVE legal holds on the
@@ -938,6 +936,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               ids: [evidenceId],
               teamId: q.teamId,
               scope: { scope: "reviewer", scopeId: workflowId },
+              viewerUserId: ctx.actorUserId,
             })
           : [];
         return reply.code(200).send({
@@ -990,6 +989,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         const counts = await computeReviewerWorkload({
           teamId: q.teamId,
           reviewerUserId: q.reviewerUserId,
+          viewerUserId: ctx.actorUserId,
         });
         return reply.code(200).send({ counts });
       }
@@ -1045,12 +1045,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -1059,7 +1055,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = z
         .object({
@@ -1143,12 +1139,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       };
       let resolvedTeamId = rawQuery.teamId;
       if (!resolvedTeamId) {
-        const userId = getAuthUserId(req);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { currentWorkspaceId: true },
-        });
-        if (!user?.currentWorkspaceId) {
+        const candidate = await requestWorkspaceCandidate(req);
+        if (!candidate) {
           return reply.code(400).send({
             error: {
               code: "WORKSPACE_CONTEXT_REQUIRED",
@@ -1157,7 +1149,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             },
           });
         }
-        resolvedTeamId = user.currentWorkspaceId;
+        resolvedTeamId = candidate;
       }
       const q = z
         .object({ teamId: z.string().uuid() })
@@ -1169,7 +1161,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // a misleading discovery hint otherwise.
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
-        const result = await countPendingQcSamples({ teamId: q.teamId });
+        const result = await countPendingQcSamples({ teamId: q.teamId, viewerUserId: ctx.actorUserId });
         return reply.code(200).send(result);
       } catch (err) {
         if (sendEngineError(reply, err)) return;
@@ -1196,6 +1188,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       if (!requireReviewAssigner(ctx, reply)) return;
       /**
@@ -1244,6 +1237,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ASSIGNMENTS");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       if (!requireReviewAssigner(ctx, reply)) return;
       try {
@@ -1272,6 +1266,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const body = z.object({ teamId: z.string().uuid() }).parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
         const result = await startReview(ctx, { workflowId });
@@ -1300,12 +1295,63 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
         const result = await pauseReview(ctx, {
           workflowId,
           pausedReason: body.pausedReason,
         });
+        return reply.code(200).send({ projection: result });
+      } catch (err) {
+        if (sendEngineError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/reviewer-ops/reminders
+  // ===========================================================================
+
+  app.get(
+    "/v1/reviewer-ops/reminders",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = TeamIdQuery.parse(req.query);
+      const ctx = await requireReviewerActor(req, reply, q.teamId, "REVIEW_TASKS_AND_QUEUES");
+      if (!ctx) return;
+      // A reminder names the person it is about. Someone who can reassign work
+      // sees the team's; anyone else sees their own.
+      const reminders = await listReminders({
+        teamId: q.teamId,
+        limit: 25,
+        ...(ctx.mayActOnOthersReviews ? {} : { reviewerUserId: ctx.actorUserId }),
+      });
+      return reply.code(200).send({ reminders });
+    },
+  );
+
+  // ===========================================================================
+  // POST /v1/reviewer-ops/reviews/:workflowId/resume
+  // ===========================================================================
+
+  app.post(
+    "/v1/reviewer-ops/reviews/:workflowId/resume",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { workflowId } = ParamsWorkflowId.parse(req.params);
+      const body = z
+        .object({
+          teamId: z.string().uuid(),
+          note: BoundedNote.nullable().optional(),
+        })
+        .parse(req.body ?? {});
+      const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
+      if (!ctx) return;
+      if (!requireReviewerCapable(ctx, reply)) return;
+      try {
+        const result = await resumeReview(ctx, { workflowId, note: body.note ?? null });
         return reply.code(200).send({ projection: result });
       } catch (err) {
         if (sendEngineError(reply, err)) return;
@@ -1328,6 +1374,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
       try {
         const result = await requestInformation(ctx, {
@@ -1359,21 +1406,15 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
-      // Phase 26.75 — adaptive runtime gate (quarantine + age + risk).
-      const gateApprove = await runtimeAdaptiveGate({
-        req,
-        reply,
-        teamId: body.teamId,
-        userId: ctx.actorUserId,
-        action: "REVIEWER_APPROVE",
-      });
-      if (!gateApprove.allow) return;
       if (
-        await enforceStepUpIfFlagged(req, reply, ctx, "approve", {
-          kind: "review_workflow",
-          id: workflowId,
-        })
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: "approve",
+          resource: { kind: "review_workflow", id: workflowId },
+        }))
       ) {
         return;
       }
@@ -1404,21 +1445,15 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId))) return;
       if (!requireReviewerCapable(ctx, reply)) return;
-      // Phase 26.75 — adaptive runtime gate.
-      const gateReject = await runtimeAdaptiveGate({
-        req,
-        reply,
-        teamId: body.teamId,
-        userId: ctx.actorUserId,
-        action: "REVIEWER_REJECT",
-      });
-      if (!gateReject.allow) return;
       if (
-        await enforceStepUpIfFlagged(req, reply, ctx, "reject", {
-          kind: "review_workflow",
-          id: workflowId,
-        })
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: "reject",
+          resource: { kind: "review_workflow", id: workflowId },
+        }))
       ) {
         return;
       }
@@ -1467,6 +1502,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         reason: q.reason,
         assignedToUserId: q.assignedToUserId,
         limit: q.limit,
+        viewerUserId: ctx.actorUserId,
       });
       return reply.code(200).send({ escalations });
     },
@@ -1495,6 +1531,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      if (!(await requireWorkflowInReach(ctx, reply, body.workflowId))) return;
       // Routing the escalation to a NAMED person hands them work: the assigner
       // needs `review.assign` (REV-05). An unrouted escalation stays a
       // reviewer act.
@@ -1600,20 +1637,13 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
-      // Phase 26.75 — adaptive runtime gate.
-      const gateResolveEsc = await runtimeAdaptiveGate({
-        req,
-        reply,
-        teamId: body.teamId,
-        userId: ctx.actorUserId,
-        action: "REVIEW_ESCALATION_RESOLVE",
-      });
-      if (!gateResolveEsc.allow) return;
       if (
-        await enforceStepUpIfFlagged(req, reply, ctx, "escalationResolve", {
-          kind: "review_escalation",
-          id,
-        })
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: "escalationResolve",
+          resource: { kind: "review_escalation", id },
+        }))
       ) {
         return;
       }
@@ -1646,11 +1676,17 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_ESCALATION");
       if (!ctx) return;
       if (!requireReviewerCapable(ctx, reply)) return;
+      // Deciding the workspace stops hearing about something is the
+      // administrative tier's call, not the reviewer's (WF-R09): the bulk
+      // authority, the same floor the permission matrix states for Operations.
+      if (!requireReviewerBulkCapable(ctx, reply)) return;
       if (
-        await enforceStepUpIfFlagged(req, reply, ctx, "escalationResolve", {
-          kind: "review_escalation",
-          id,
-        })
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: "escalationSuppress",
+          resource: { kind: "review_escalation", id },
+        }))
       ) {
         return;
       }
@@ -1707,20 +1743,13 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // bulk-ASSIGN privilege-escalation bypass and aligns authority with
       // the single-assign route + the reviewer-workspace bulk surface.
       if (!requireReviewerBulkCapable(ctx, reply)) return;
-      // Phase 26.75 — adaptive runtime gate.
-      const gateBulk = await runtimeAdaptiveGate({
-        req,
-        reply,
-        teamId: body.teamId,
-        userId: ctx.actorUserId,
-        action: "REVIEWER_BULK",
-      });
-      if (!gateBulk.allow) return;
       if (
-        await enforceStepUpIfFlagged(req, reply, ctx, "bulk", {
-          kind: "review_workflow_bulk",
-          id: body.workflowIds.slice(0, 8).join(","),
-        })
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: "bulk",
+          resource: { kind: "review_workflow_bulk", id: body.workflowIds.slice(0, 8).join(",") },
+        }))
       ) {
         return;
       }
@@ -1855,6 +1884,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const analytics = await getEscalationAnalytics({
         teamId: q.teamId,
         rangeDays: q.rangeDays,
+        viewerUserId: ctx.actorUserId,
       });
       return reply.code(200).send(analytics);
     },
@@ -1877,6 +1907,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         rangeDays: q.rangeDays,
         limit: q.limit,
+        viewerUserId: ctx.actorUserId,
       });
       return reply.code(200).send(analytics);
     },
@@ -1909,6 +1940,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           overrides: ReviewerOpsSlaPolicySchema.optional(),
+          /** Optional: a client that read the policy version can assert it. */
+          expectedVersion: z.number().int().min(0).optional(),
           flags: z
             .object({
               requireStepUpForApprove: z.boolean().optional(),
@@ -1928,10 +1961,15 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ctx = await requireReviewerActor(req, reply, body.teamId, "REVIEW_TASKS_AND_QUEUES");
       if (!ctx) return;
-      if (!requireReviewerCapable(ctx, reply)) return;
-      // Editing the SLA / step-up policy is itself a high-risk action.
-      // Gate behind GOVERNANCE_POLICY_UPDATE (reuses existing Phase 19
-      // purpose so we don't need a new catalog entry).
+      // WORKFLOW-002: this is the workspace governance policy, so it takes the
+      // governance permission. It asked for the review permission, and a step-up
+      // on the caller's own factor is a re-proof, not an authorization, so a
+      // reviewer could switch off the controls on their own approvals.
+      if (!contextHasCapability(ctx.authorized, "governance.policy.manage")) {
+        return reply.code(403).send({
+          error: { code: "REVIEW_PERMISSION_DENIED", reason: "governance_policy_manage_required" },
+        });
+      }
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -1942,39 +1980,49 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         resourceId: body.teamId,
       });
       if (gate.sent) return;
-      if (body.overrides) {
-        await upsertWorkspaceSlaPolicy({
+      const patch = {
+        ...slaOverridesToPolicyPatch(body.overrides ?? {}),
+        ...(body.flags ?? {}),
+      };
+      const expectedVersion =
+        body.expectedVersion ?? (await loadWorkspaceGovernancePolicyVersion(body.teamId));
+      let written: Awaited<ReturnType<typeof updateWorkspaceGovernancePolicyWithVersion>>;
+      try {
+        written = await updateWorkspaceGovernancePolicyWithVersion({
           teamId: body.teamId,
           actorUserId: ctx.actorUserId,
-          overrides: body.overrides,
+          patch,
+          expectedVersion,
         });
-        bump("reviewer_sla_policy_updated_total");
-        safeEmitSecurityEvent({
-          teamId: body.teamId,
-          eventType: "reviewer_sla_policy_updated",
-          severity: "WARNING",
-          details: {
-            actorUserId: ctx.actorUserId,
-            keys: Object.keys(body.overrides),
-          },
-        });
+      } catch (err) {
+        if (sendPolicyVersionConflict(reply, err)) return;
+        throw err;
       }
-      if (body.flags) {
-        await upsertWorkspaceReviewerOpsFlags({
-          teamId: body.teamId,
-          actorUserId: ctx.actorUserId,
-          flags: body.flags,
-        });
-        safeEmitSecurityEvent({
-          teamId: body.teamId,
-          eventType: "reviewer_governance_flags_updated",
-          severity: "WARNING",
-          details: {
-            actorUserId: ctx.actorUserId,
-            keys: Object.keys(body.flags),
-          },
-        });
-      }
+      await emitTenantAudit({
+        action: "governance.workspace_policy_updated",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.actorUserId,
+        workspaceId: body.teamId,
+        resourceType: "workspace_governance_policy",
+        resourceId: written.row.id,
+        capability: "governance.policy.manage",
+        policyId: written.row.id,
+        policyVersion: written.newVersion,
+        correlationId: req.id ?? null,
+        metadata: {
+          previousVersion: written.previousVersion,
+          newVersion: written.newVersion,
+          changedFields: written.changedFields,
+        },
+      });
+      bump("reviewer_sla_policy_updated_total");
+      safeEmitSecurityEvent({
+        teamId: body.teamId,
+        eventType: "reviewer_sla_policy_updated",
+        severity: "WARNING",
+        details: { actorUserId: ctx.actorUserId, keys: written.changedFields },
+      });
       const [policy, flags] = await Promise.all([
         resolveEffectiveSlaPolicy({ teamId: body.teamId }, prisma),
         loadWorkspaceReviewerOpsFlags(body.teamId),
@@ -2007,9 +2055,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         return reply.code(401).send({ error: { code: "unauthorized" } });
       }
       // Either single-team (legacy: { teamId }) or all-teams sweep
-      // ({ allTeams: true }). All-teams mode enumerates teams from DB
-      // and runs reconcile per team with a per-team timeout. This is
-      // the path the worker tick uses.
+      // ({ allTeams: true }). All-teams mode resumes from a persisted cursor
+      // and stops at a time budget, so the fleet is covered across ticks and
+      // the response comes back before the worker gives up. This is the path
+      // the worker tick uses.
       const body = z
         .union([
           z.object({
@@ -2020,6 +2069,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             allTeams: z.literal(true),
             batchSize: z.number().int().min(1).max(2000).optional(),
             maxTeamsPerSweep: z.number().int().min(1).max(10_000).optional(),
+            maxDurationMs: z.number().int().min(1_000).max(600_000).optional(),
           }),
         ])
         .parse(req.body ?? {});
@@ -2033,12 +2083,18 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       }
 
       const maxTeams = body.maxTeamsPerSweep ?? 500;
+      const startedAtMs = Date.now();
+      const maxDurationMs = body.maxDurationMs ?? 45_000;
+      // WORKFLOW-012 — reviewer-ops only matters for teams that have at least one
+      // review workflow row, and every workspace qualifies once one record
+      // finalizes. Read from a fixed head, a limit starved every workspace past
+      // it for good. The cursor means the next tick continues where this one
+      // stopped, and a sweep that reaches the end wraps to the start.
+      const teamCursor = await readSweepCursor(prisma, REVIEWER_TEAM_SWEEP_CURSOR);
       const teams = await prisma.team.findMany({
-        // Reviewer-ops only matters for teams that have at least one
-        // review workflow row. Limit + ordering keeps the worker tick
-        // bounded — the next tick picks up any team we missed.
         where: {
           evidenceReviewWorkflows: { some: {} },
+          ...afterCursor(teamCursor),
         },
         select: { id: true },
         orderBy: { id: "asc" },
@@ -2065,7 +2121,11 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       // loop carries on, accumulating `failedTeams`. This intentionally
       // keeps the catch out of any route handler so the Phase 25
       // route-layer error-handling contract is preserved.
+      let teamsVisited = 0;
       for (const t of teams) {
+        // Checked between teams: a run already in progress finishes.
+        if (Date.now() - startedAtMs >= maxDurationMs) break;
+        teamsVisited += 1;
         const teamResult = await runReconcileSafely({
           teamId: t.id,
           batchSize: body.batchSize,
@@ -2086,6 +2146,20 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
             error: teamResult.error,
           });
         }
+      }
+
+      const stoppedOnBudget = teamsVisited < teams.length;
+      const sweepPosition = await advanceSweepCursor(prisma, REVIEWER_TEAM_SWEEP_CURSOR, teamCursor, {
+        lastId: teams[teamsVisited - 1]?.id ?? teamCursor,
+        // A sweep cut short has not reached the end, however few teams it read.
+        pageSize: stoppedOnBudget ? maxTeams : teams.length,
+        limit: maxTeams,
+      });
+      if (stoppedOnBudget) {
+        app.log.warn(
+          { teamsVisited, teamsRead: teams.length, maxDurationMs },
+          "reviewer_ops.reconcile.stopped_on_time_budget",
+        );
       }
 
       // Phase 32.7.5 — sweep-level canonical heartbeat.
@@ -2134,7 +2208,8 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
               typeof req.headers["x-correlation-id"] === "string"
                 ? req.headers["x-correlation-id"]
                 : null,
-            teams: teams.length,
+            teams: teamsVisited,
+            sweepCompleted: sweepPosition.wrapped,
             failedTeams,
             totalEscalationsCreated,
             totalFlippedBreached,
@@ -2152,7 +2227,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       }
 
       return reply.code(200).send({
-        teams: teams.length,
+        teams: teamsVisited,
+        // True when this tick reached the last workspace. False across a long run
+        // of ticks means the interval cannot cover the fleet.
+        sweepCompleted: sweepPosition.wrapped,
         failedTeams,
         totalEscalationsCreated,
         totalFlippedBreached,
@@ -2269,6 +2347,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId, "history");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId, "plain"))) return;
 
       // Resolve the evidenceId behind the workflow within the same team.
       const workflow = await prisma.evidenceReviewWorkflow.findFirst({
@@ -2366,6 +2445,10 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const body = parsed.data;
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      // The baseline above admits every reader; adding to the record needs the
+      // review permission (WORKFLOW-001).
+      if (!requireReviewerCapable(ctx, reply)) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId, "plain"))) return;
 
       // Resolve the evidenceId behind the workflow within the team.
       const workflow = await prisma.evidenceReviewWorkflow.findFirst({
@@ -2511,6 +2594,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ctx = await requireReviewerActor(req, reply, q.teamId, "history");
       if (!ctx) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId, "plain"))) return;
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: q.teamId },
@@ -2658,12 +2742,30 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
       const body = parsed.data;
       const ctx = await requireReviewerActor(req, reply, body.teamId, "BASIC_RECORD_REVIEW");
       if (!ctx) return;
+      // WORKFLOW-001: this door had no capability, adaptive or step-up check,
+      // so a VIEWER could record a binding verdict and any role could step
+      // round the console's controls.
+      if (!requireReviewerCapable(ctx, reply)) return;
+      if (!(await requireWorkflowInReach(ctx, reply, workflowId, "plain"))) return;
 
       const wf = await prisma.evidenceReviewWorkflow.findFirst({
         where: { id: workflowId, teamId: body.teamId },
         select: { id: true, evidenceId: true },
       });
       if (!wf) return reply.code(404).send({ error: { code: "not_found" } });
+
+      const verdictGate = gateForVerdict(body.decision);
+      if (
+        verdictGate &&
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ctx.actorUserId,
+          action: verdictGate,
+          resource: { kind: "review_workflow", id: workflowId },
+        }))
+      ) {
+        return;
+      }
 
       // AUTH-005 — adjudicator authority read from the PROVEN context
       // rather than from a second, status-blind TeamMember query. The
@@ -2768,6 +2870,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
         where: {
           teamId: q.teamId,
           updatedAt: { gte: windowStart },
+          evidence: evidenceVisibleThroughCasesWhere(ctx.actorUserId),
         },
         select: {
           id: true,

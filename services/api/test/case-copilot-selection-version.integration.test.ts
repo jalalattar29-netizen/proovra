@@ -185,7 +185,7 @@ describe("Case Copilot concurrency guard (live PostgreSQL 16)", () => {
 
   /** The revision as the ROUTE would recompute it, for one record. */
   async function currentRevision(id: string): Promise<string | undefined> {
-    const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({
+    const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({ viewerUserId: "00000000-0000-4000-8000-000000000000",
       ids: [id],
       teamId,
       scope: { scope: "case", scopeId: caseId },
@@ -631,7 +631,7 @@ describe("Case Copilot concurrency guard (live PostgreSQL 16)", () => {
         // The write landed after the re-check: the run is grounded in the exact
         // snapshot that was accepted, which is the guarantee. Prove the drift
         // detector itself is live rather than trivially passing.
-        const drifted = await snapshots.findDriftedSnapshot({
+        const drifted = await snapshots.findDriftedSnapshot({ viewerUserId: "00000000-0000-4000-8000-000000000000",
           snapshots: [
             {
               row: { id } as never,
@@ -675,7 +675,7 @@ describe("Case Copilot concurrency guard (live PostgreSQL 16)", () => {
         update: {},
       });
 
-      const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({
+      const [snap] = await snapshots.loadEvidenceAnalysisSnapshots({ viewerUserId: "00000000-0000-4000-8000-000000000000",
         ids: [personal.evidenceId],
         teamId: personal.teamId,
         scope: { scope: "case", scopeId: personal.caseId },

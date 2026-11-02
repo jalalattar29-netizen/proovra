@@ -126,11 +126,18 @@ export type WorkspaceSearchHealthFacts = {
  * then an honest omission rather than a claim that the queue was empty.
  */
 export async function collectWorkspaceSearchHealthFacts(
-  input: { teamId: string; now?: Date },
+  input: {
+    teamId: string;
+    now?: Date;
+    /** For a member's reading: closed records leave every count (EVID-012). */
+    closed?: { evidenceIds: readonly string[]; caseIds: readonly string[] };
+  },
   client: PrismaClient = defaultPrisma,
 ): Promise<WorkspaceSearchHealthFacts> {
   const now = input.now ?? new Date();
   const teamId = input.teamId;
+  const closedEvidence = [...(input.closed?.evidenceIds ?? [])];
+  const closedCases = [...(input.closed?.caseIds ?? [])];
 
   const [breakdownRaw, indexedByTypeRaw, run, removalRows] = await Promise.all([
     // Per-state breakdown — one round trip. A mutually-exclusive partition of
@@ -176,8 +183,10 @@ export async function collectWorkspaceSearchHealthFacts(
            WHERE COALESCE(lifecycle_state, 'ACTIVE') = 'PENDING_DESTRUCTION'
          )::bigint AS pending_destruction_excluded
        FROM evidence
-       WHERE team_id = $1::uuid`,
+       WHERE team_id = $1::uuid
+         AND NOT (id = ANY($2::uuid[]))`,
       teamId,
+      closedEvidence,
     ),
     client.$queryRawUnsafe<
       Array<{ document_type: string; n: bigint; last_indexed: Date | null }>
@@ -187,8 +196,12 @@ export async function collectWorkspaceSearchHealthFacts(
               MAX(indexed_at_utc) AS last_indexed
          FROM evidence_search_documents
         WHERE team_id = $1::uuid
+          AND (evidence_id IS NULL OR NOT (evidence_id = ANY($2::uuid[])))
+          AND (case_id IS NULL OR NOT (case_id = ANY($3::uuid[])))
         GROUP BY document_type`,
       teamId,
+      closedEvidence,
+      closedCases,
     ),
     latestSearchRun(client, teamId, now),
     client.$queryRawUnsafe<Array<{ pending: number }>>(

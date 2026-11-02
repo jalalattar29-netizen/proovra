@@ -11,7 +11,7 @@
  * one file at a time, each under its own RFC 6266 name. A single-file record
  * (a single-file recording included) downloads exactly as before.
  */
-import { apiFetch, ApiError } from "../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { captureException } from "../../../../../lib/sentry";
 import { tryDownloadFile } from "../_tabs/_lib";
 
@@ -31,7 +31,7 @@ export function useOriginalDownload({
    * (409 ORIGINAL_IS_MULTIPART). The originals are its parts, one file each.
    */
   const isMultipartOriginal = (err: unknown): boolean =>
-    err instanceof ApiError && err.code === "ORIGINAL_IS_MULTIPART";
+    isApiResponseError(err) && err.code === "ORIGINAL_IS_MULTIPART";
 
   const downloadOriginalParts = async () => {
     if (!evidenceId) return;

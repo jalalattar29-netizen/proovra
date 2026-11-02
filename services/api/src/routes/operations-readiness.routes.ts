@@ -16,7 +16,7 @@
  * Honesty is paramount (see readiness-posture.service.ts): backup /
  * DR posture is reported strictly from verified config. Where a value
  * cannot be proven the service returns an honest assumption label
- * ("managed_platform_assumed") or null + reason. This route asserts
+ * (from recorded backup runs) or null + reason. This route asserts
  * NO SOC2 / ISO / uptime SLA / penetration-test claims.
  *
  * Every access emits a platform audit event.

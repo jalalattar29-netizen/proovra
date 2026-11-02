@@ -214,6 +214,7 @@ export async function reviewerConsoleRoutes(
                 teamId,
                 status: "OPEN",
                 limit: SECTION_LIMIT,
+                viewerUserId: ctx.userId,
               },
               client,
             ),

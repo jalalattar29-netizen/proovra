@@ -316,7 +316,9 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     // every session issued before it.
     // 2026-10-15 (AUD-020) rebaselined 59567→62873: sign-out revokes the
     // presented session and fails closed when it cannot.
-    const expected = 62873;
+    // 2026-11-01 (IDENT-007, IDENT-011) rebaselined 62873→71447: sign-in completes
+    // after enrolment, and an SSO sign-in through MFA gets its full completion.
+    const expected = 71447;
     const low = Math.floor(expected * 0.95);
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);

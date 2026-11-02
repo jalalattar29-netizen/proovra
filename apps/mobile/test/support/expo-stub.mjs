@@ -12,11 +12,15 @@ export const calls = {
   push: [],
   replace: [],
   back: 0,
+  dismissAll: 0,
+  redirect: null,
   openURL: [],
   reset() {
+    calls.redirect = null;
     calls.push = [];
     calls.replace = [];
     calls.back = 0;
+    calls.dismissAll = 0;
     calls.openURL = [];
   },
 };
@@ -34,6 +38,10 @@ const stableRouter = {
   },
   navigate: (r) => calls.push.push(r),
   canGoBack: () => true,
+  canDismiss: () => true,
+  dismissAll: () => {
+    calls.dismissAll += 1;
+  },
 };
 export const useRouter = () => stableRouter;
 export const usePathname = () => "/";
@@ -51,7 +59,10 @@ export const Tabs = Object.assign(({ children }) => children ?? null, {
   Screen: () => null,
 });
 export const Link = ({ children }) => children ?? null;
-export const Redirect = () => null;
+export const Redirect = ({ href }) => {
+  calls.redirect = href;
+  return null;
+};
 
 /* ---------------------------------------------------------------- expo-audio */
 export const RecordingPresets = { HIGH_QUALITY: {} };
@@ -105,6 +116,7 @@ export const readAsStringAsync = async (uri, options) => {
   return options?.encoding === "base64" ? slice.toString("base64") : slice.toString("utf8");
 };
 export const copyAsync = async () => {};
+export const makeDirectoryAsync = async () => {};
 // Every local deletion is recorded on globalThis.__DELETED__ (array of URIs).
 export const deleteAsync = async (uri) => {
   (globalThis.__DELETED__ ??= []).push(uri);
@@ -143,7 +155,7 @@ export const getCurrentPositionAsync = async () => {
 export const getDocumentAsync = async () => globalThis.__DOC_PICK__ ?? { canceled: true, assets: null };
 
 /* --------------------------------------------------------------- expo-linking */
-export const useURL = () => null;
+export const useURL = () => globalThis.__EXPO_URL__ ?? null;
 export const openURL = async (url) => {
   calls.openURL.push(url);
   return true;
@@ -170,6 +182,12 @@ const AsyncStorage = {
   },
   async removeItem(k) {
     store.delete(k);
+  },
+  async getAllKeys() {
+    return [...store.keys()];
+  },
+  async multiRemove(keys) {
+    for (const k of keys) store.delete(k);
   },
   __reset() {
     store.clear();

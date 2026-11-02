@@ -28,12 +28,10 @@ docker compose -f infra/docker/docker-compose.full.yml up -d
 Uses the same `.env` in the repo root.
 
 ### Production (Docker, external services)
-For Hetzner deployment, use external Neon Postgres, Redis, and Cloudflare R2.
-Create a `.env` in the repo root with production values (see
-`services/api/.env.example` and `services/worker/.env.example`) and run:
-```
-docker compose -f infra/docker/docker-compose.prod.yml up -d --build
-```
+Production runs prebuilt images through `scripts/deploy-prod-pull.sh`. See
+`docs/operations/low-ram-deploy-runbook.md` for the steps and
+`docs/operations/deployed-topology.md` for what is and is not known about the
+deployment.
 
 ### Create MinIO bucket (local only)
 ```
@@ -155,9 +153,8 @@ Invoke-RestMethod -Method Get -Uri "$base/public/verify/$($e.id)"
 
 ### Production notes (Proovra)
 - Domain: `proovra.com`
-- Database: Neon Postgres (Frankfurt)
-- Object storage: Cloudflare R2 (`proovra-prod-assets`)
-- Redis: managed Redis via `REDIS_URL`
+- Database, object storage and Redis: see `docs/operations/deployed-topology.md`.
+  The sources in this repository disagree, and that record says which is unverified.
 - Use `prisma migrate deploy` in production
 
 ## CSP (Web)

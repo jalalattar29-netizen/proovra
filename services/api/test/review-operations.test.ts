@@ -53,6 +53,7 @@ function mockWorkflowRow(
     reopenedByUserId: null,
     // Phase 25 — additive nullable columns on EvidenceReviewWorkflow.
     assignmentDueAtUtc: null,
+    slaDueSoonHours: null,
     completionDueAtUtc: null,
     pausedReason: null,
     activeEscalationId: null,

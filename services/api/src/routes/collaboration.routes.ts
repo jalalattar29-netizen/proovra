@@ -43,10 +43,11 @@ import {
 
 import prismaPkg from "@prisma/client";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { requirePermission } from "../services/governance.service.js";
+import { evaluateAuthorize } from "../middleware/authorize.js";
+import { hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { invalidateOperationsSummary } from "../services/notifications/operations-summary-cache.js";
 import {
   DiscussionError,
@@ -56,7 +57,7 @@ import {
   getDiscussionThread,
   listDiscussionThreads,
   listMessagesForThread,
-  postMessage,
+  postMessageWithMentionOutcome,
   projectDiscussionMessage,
   projectDiscussionThread,
   reopenDiscussionThread,
@@ -65,46 +66,54 @@ import {
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
+/**
+ * The canonical engine, not a local reading of the membership row: access
+ * expiry, organization lifecycle, delegated capability and support-context
+ * rules all live there, and this gate used to test `status` and the role table
+ * only (AUTHZ-003), so an expired member and a member of a suspended
+ * organization kept every thread.
+ *
+ * Anti-enumeration: every rejection path returns the same opaque 404, so a
+ * caller never learns whether the team, the membership or the permission was
+ * the gating factor. An authority outage stays a 503.
+ */
 async function requireReviewerMember(
   req: FastifyRequest,
   reply: FastifyReply,
   teamId: string,
-): Promise<{ userId: string; role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" } | null> {
-  const userId = getAuthUserId(req);
-  const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
+): Promise<{ userId: string } | null> {
+  const outcome = await evaluateAuthorize(req, {
+    teamId,
+    permission: "evidence_request.review",
+    antiEnumeration: true,
   });
-  // Phase DISCUSSION-CAPABILITY-FIX (backend-parity) — the
-  // collaboration routes must reject SUSPENDED / REVOKED memberships
-  // even when the underlying role still carries the reviewer
-  // permission. Without this check, a suspended user whose
-  // TeamMember row still exists could call /v1/collaboration/*
-  // directly and bypass the workspace's access-lifecycle controls.
-  //
-  // The Evidence Detail capability flag
-  // (`workspaceCapabilitySnapshot.discussionEnabled` — see
-  // services/api/src/routes/evidence.routes.ts
-  // `computeDiscussionCapability`) already requires status === ACTIVE
-  // for the same reason; this guard brings the backend write surface
-  // into parity so the frontend gate and the backend authorization
-  // never disagree.
-  //
-  // Anti-enumeration: every rejection path returns the same opaque
-  // 404 — we never leak whether the team / membership / permission
-  // is the gating factor.
-  const isActiveMember =
-    membership !== null &&
-    membership.status === prismaPkg.TeamMemberStatus.ACTIVE;
-  if (!isActiveMember) {
-    reply.code(404).send({ error: { code: "not_found" } });
+  if (outcome.allowed) return { userId: outcome.actorUserId };
+  if (outcome.httpStatus === 401) {
+    reply.code(401).send({ error: { code: "unauthenticated" } });
     return null;
   }
-  const perm = requirePermission(membership.role, "evidence_request.review");
-  if (!perm.allowed) {
-    reply.code(404).send({ error: { code: "not_found" } });
+  if (outcome.httpStatus === 503) {
+    reply.code(503).send({ error: { code: "authorization_unavailable" } });
     return null;
   }
-  return { userId, role: membership.role };
+  reply.code(404).send({ error: { code: "not_found" } });
+  return null;
+}
+
+/**
+ * THE THREAD BELONGS TO ITS RECORD (EVID-002). A thread is a conversation about
+ * one evidence record, so whoever cannot open the record cannot read, post into
+ * or move the thread: the record authority, the same 404 as a missing thread.
+ */
+async function loadThreadInReach(threadId: string, teamId: string, userId: string) {
+  const thread = await getDiscussionThread(threadId);
+  if (!thread || thread.teamId !== teamId) return null;
+  const record = await resolveEvidenceRecordAccess({
+    userId,
+    evidenceId: thread.evidenceId,
+    permission: "evidence.read",
+  });
+  return record.allowed ? thread : null;
 }
 
 function discussionErrorToReply(err: unknown, reply: FastifyReply): void {
@@ -154,7 +163,11 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireReviewerMember(req, reply, query.teamId);
       if (!ok) return;
-      const rows = await listDiscussionThreads(query);
+      const hidden = await hiddenRecordIdsInWorkspace(query.teamId, ok.userId);
+      const rows = await listDiscussionThreads({
+        ...query,
+        hiddenEvidenceIds: hidden.evidenceIds,
+      });
       return reply.code(200).send({
         threads: rows.map(projectDiscussionThread),
       });
@@ -182,6 +195,16 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
+      const record = await resolveEvidenceRecordAccess({
+        userId: ok.userId,
+        evidenceId: body.evidenceId,
+        permission: "evidence.read",
+      });
+      if (!record.allowed) {
+        return reply.code(404).send({
+          error: { code: "evidence_not_in_workspace", details: null },
+        });
+      }
       try {
         const thread = await createDiscussionThread({
           teamId: body.teamId,
@@ -212,8 +235,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireReviewerMember(req, reply, query.teamId);
       if (!ok) return;
-      const thread = await getDiscussionThread(id);
-      if (!thread || thread.teamId !== query.teamId) {
+      const thread = await loadThreadInReach(id, query.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       return reply.code(200).send({
@@ -241,8 +264,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
-      const thread = await getDiscussionThread(id);
-      if (!thread || thread.teamId !== body.teamId) {
+      const thread = await loadThreadInReach(id, body.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       try {
@@ -273,8 +296,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
-      const thread = await getDiscussionThread(id);
-      if (!thread || thread.teamId !== body.teamId) {
+      const thread = await loadThreadInReach(id, body.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       try {
@@ -305,8 +328,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
-      const thread = await getDiscussionThread(id);
-      if (!thread || thread.teamId !== body.teamId) {
+      const thread = await loadThreadInReach(id, body.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       // D34 — the assignee must be an ACTIVE member of the thread's workspace.
@@ -356,8 +379,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
-      const thread = await getDiscussionThread(id);
-      if (!thread || thread.teamId !== body.teamId) {
+      const thread = await loadThreadInReach(id, body.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       try {
@@ -389,8 +412,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.query ?? {});
       const ok = await requireReviewerMember(req, reply, query.teamId);
       if (!ok) return;
-      const thread = await getDiscussionThread(id);
-      if (!thread || thread.teamId !== query.teamId) {
+      const thread = await loadThreadInReach(id, query.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       const rows = await listMessagesForThread(id);
@@ -413,8 +436,12 @@ export async function collaborationRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
       const ok = await requireReviewerMember(req, reply, body.teamId);
       if (!ok) return;
+      const thread = await loadThreadInReach(id, body.teamId, ok.userId);
+      if (!thread) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       try {
-        const message = await postMessage({
+        const { message, unresolvedMentions } = await postMessageWithMentionOutcome({
           threadId: id,
           teamId: body.teamId,
           authorKind: "USER",
@@ -423,7 +450,7 @@ export async function collaborationRoutes(app: FastifyInstance) {
         });
         return reply
           .code(201)
-          .send({ message: projectDiscussionMessage(message) });
+          .send({ message: projectDiscussionMessage(message), unresolvedMentions });
       } catch (err) {
         return discussionErrorToReply(err, reply);
       }
@@ -505,11 +532,8 @@ export async function collaborationRoutes(app: FastifyInstance) {
 
       // Cross-workspace safety: ensure the thread actually belongs to
       // the workspace the caller is authenticated against.
-      const thread = await prisma.discussionThread.findUnique({
-        where: { id: params.id },
-        select: { id: true, teamId: true },
-      });
-      if (!thread || thread.teamId !== query.teamId) {
+      const thread = await loadThreadInReach(params.id, query.teamId, ok.userId);
+      if (!thread) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 

@@ -33,6 +33,7 @@ export type MembershipLifecycleNoticeEvent = Extract<
   | "WORKSPACE_ROLE_CHANGED"
   | "WORKSPACE_OWNERSHIP_RECEIVED"
   | "WORKSPACE_CLOSED"
+  | "ORGANIZATION_TERMINATION_SCHEDULED"
   | "ACCOUNT_CLOSED"
 >;
 
@@ -54,6 +55,9 @@ export async function enqueueMembershipLifecycleNoticeTx(
     recipientUserId: string;
     actorUserId: string | null;
     newRole?: string | null;
+    /** Named when the change is the organization's rather than a workspace's. */
+    subjectName?: string | null;
+    effectiveOnLabel?: string | null;
   },
 ): Promise<string | null> {
   const user = await tx.user.findUnique({
@@ -78,9 +82,10 @@ export async function enqueueMembershipLifecycleNoticeTx(
     template: {
       kind: "MembershipLifecycle",
       data: {
-        workspaceName: team?.name ?? "your workspace",
+        workspaceName: input.subjectName ?? team?.name ?? "your workspace",
         roleLabel: roleLabel(input.newRole),
         actionUrl,
+        effectiveOnLabel: input.effectiveOnLabel ?? null,
       },
     },
   });

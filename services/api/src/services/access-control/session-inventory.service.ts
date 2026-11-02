@@ -19,6 +19,7 @@
  */
 
 import type {
+  Prisma,
   PrismaClient,
   AuthenticatedSession as DbSession,
 } from "@prisma/client";
@@ -204,6 +205,24 @@ export type SessionInventoryPage = {
   hasMore: boolean;
 };
 
+/**
+ * Sessions a workspace administrator answers for: those that started here, and
+ * those of its members. A session is global and can enter any workspace its
+ * owner belongs to, so the workspace recorded at login is not the set of
+ * sessions that can reach this workspace (IDENT-001).
+ */
+export async function sessionsOfWorkspaceWhere(
+  teamId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<Prisma.AuthenticatedSessionWhereInput> {
+  // Every status: a suspended member's session is still theirs to end.
+  const members = await client.teamMember.findMany({
+    where: { teamId, status: { in: ["ACTIVE", "SUSPENDED", "REVOKED"] } },
+    select: { userId: true },
+  });
+  return { OR: [{ teamId }, { userId: { in: members.map((m) => m.userId) } }] };
+}
+
 export const SESSION_INVENTORY_DEFAULT_LIMIT = 100;
 export const SESSION_INVENTORY_MAX_LIMIT = 500;
 
@@ -227,7 +246,7 @@ export async function listActiveSessions(
   );
   const now = new Date();
   const filters = {
-    teamId: input.teamId,
+    ...(await sessionsOfWorkspaceWhere(input.teamId, client)),
     ...(input.userId ? { userId: input.userId } : {}),
     ...(input.includeRevoked ? {} : { revokedAtUtc: null }),
     ...(input.includeExpired ? {} : { expiresAtUtc: { gt: now } }),
@@ -291,7 +310,7 @@ export async function revokeActiveSession(
   // identical to a cross-Organization id) from "already revoked" (409, a
   // bounded conflict the operator can act on).
   const row = await client.authenticatedSession.findFirst({
-    where: { id: input.sessionId, teamId: input.teamId },
+    where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
   });
   if (!row) return { ok: false, reason: "not_found" };
   if (row.revokedAtUtc !== null) {

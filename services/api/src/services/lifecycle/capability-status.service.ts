@@ -9,13 +9,16 @@
  *   - retention:      entitled + RETENTION_RECONCILIATION_ENABLED=true   -> FULLY_OPERATIONAL
  *                     entitled + worker off                              -> WRITES_BUT_NOT_ENFORCED
  *                     not entitled                                       -> DISABLED
+ *                     (the plan's retention flag, not the Legal Hold entitlement:
+ *                     this used to read the latter, which needs a contract term)
  *   - legalHolds:     entitled                                           -> FULLY_OPERATIONAL  (no worker needed; resolved against the ONE canonical store)
  *                     not entitled                                       -> DISABLED
- *   - archive:        entitled + ARCHIVE_AUTO_TRANSITION_ENABLED=true    -> FULLY_OPERATIONAL
- *                     entitled + worker off                              -> CONFIGURATION_ONLY
+ *   - archive:        entitled + a storage lifecycle rule does the moving -> CONFIGURATION_ONLY
+ *                     (GOV-016: the auto worker records a planned tier, it moves
+ *                     no bytes, so it can never report FULLY_OPERATIONAL)
  *                     not entitled                                       -> DISABLED
- *   - destruction:    entitled + DESTRUCTION_ORCHESTRATOR_ENABLED=true   -> FULLY_OPERATIONAL
- *                     entitled + worker off                              -> WRITES_BUT_NOT_ENFORCED
+ *   - destruction:    entitled + DESTRUCTION_EXECUTION_ENABLED=true      -> FULLY_OPERATIONAL
+ *                     entitled + execution off                           -> WRITES_BUT_NOT_ENFORCED
  *                     not entitled                                       -> DISABLED
  *   - webhooks:       entitled + WEBHOOK_DISPATCHER_ENABLED=true         -> FULLY_OPERATIONAL
  *                     entitled + worker off                              -> CONFIGURATION_ONLY
@@ -35,7 +38,10 @@ import type {
   LifecycleDashboardCapabilities,
 } from "@proovra/shared";
 
+import { destructionExecutionEnabled } from "@proovra/shared-runtime";
+
 import { assertFeatureEntitlement } from "../packaging/entitlement.service.js";
+import { assertTeamAllowsEnterpriseFeature } from "../billing-enforcement.service.js";
 
 type EnvLike = Record<string, string | undefined>;
 
@@ -80,8 +86,6 @@ export async function computeLifecycleCapabilityStatus(
   // Worker enable flags — defaults mirror the worker fleet's defaults
   // (see services/worker/src/index.ts envBoolean calls).
   const retentionWorker = envBoolean(env, "RETENTION_RECONCILIATION_ENABLED", false);
-  const archiveWorker = envBoolean(env, "ARCHIVE_AUTO_TRANSITION_ENABLED", false);
-  const destructionWorker = envBoolean(env, "DESTRUCTION_ORCHESTRATOR_ENABLED", false);
   const webhookWorker = envBoolean(env, "WEBHOOK_DISPATCHER_ENABLED", true);
 
   // Per-team feature entitlements — parallel for latency.
@@ -93,7 +97,10 @@ export async function computeLifecycleCapabilityStatus(
     webhooksEntitled,
     chainTransferEntitled,
   ] = await Promise.all([
-    isFeatureEntitled({ prisma, teamId, key: "FEATURE_LEGAL_HOLD" }),
+    assertTeamAllowsEnterpriseFeature(teamId, "retentionPolicy").then(
+      () => true,
+      () => false,
+    ),
     isFeatureEntitled({ prisma, teamId, key: "FEATURE_LEGAL_HOLD" }),
     isFeatureEntitled({ prisma, teamId, key: "FEATURE_ARCHIVE_TIERS" }),
     isFeatureEntitled({ prisma, teamId, key: "FEATURE_DESTRUCTION_GOVERNANCE" }),
@@ -116,20 +123,18 @@ export async function computeLifecycleCapabilityStatus(
 
   const archive: LifecycleCapabilityState = !archiveEntitled
     ? { status: "DISABLED", reason: "Archive tiers not entitled for this workspace" }
-    : archiveWorker
-      ? { status: "FULLY_OPERATIONAL" }
-      : {
-          status: "CONFIGURATION_ONLY",
-          reason: "Auto-tier worker not enabled",
-        };
+    : {
+        status: "CONFIGURATION_ONLY",
+        reason: "Tier changes are recorded per record; object storage lifecycle rules move the bytes",
+      };
 
   const destruction: LifecycleCapabilityState = !destructionEntitled
     ? { status: "DISABLED", reason: "Destruction governance not entitled for this workspace" }
-    : destructionWorker
+    : destructionExecutionEnabled(env)
       ? { status: "FULLY_OPERATIONAL" }
       : {
           status: "WRITES_BUT_NOT_ENFORCED",
-          reason: "Destruction orchestrator worker not enabled",
+          reason: "Destruction execution is switched off: reviews can be decided, nothing is destroyed",
         };
 
   const webhooks: LifecycleCapabilityState = !webhooksEntitled

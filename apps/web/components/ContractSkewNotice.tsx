@@ -2,20 +2,23 @@
 
 import { useEffect, useState } from "react";
 
-import { CONTRACT_SKEW_EVENT } from "../lib/contract-skew";
+import { CONTRACT_SKEW_EVENT, type ContractSkewDetail } from "../lib/contract-skew";
 
 /**
  * AUD-32 (2026-10-20) — shown once when the API answers with a newer
- * presentation contract than this page was built for (lib/contract-skew.ts).
+ * presentation contract than this page was built for, and when the page is the
+ * newer side, which a reload does not fix (lib/contract-skew.ts).
  */
 export default function ContractSkewNotice() {
-  const [stale, setStale] = useState(false);
+  const [direction, setDirection] = useState<ContractSkewDetail["direction"] | null>(null);
   useEffect(() => {
-    const on = () => setStale(true);
+    const on = (e: Event) =>
+      setDirection((e as CustomEvent<ContractSkewDetail>).detail?.direction ?? "CLIENT_OLDER");
     window.addEventListener(CONTRACT_SKEW_EVENT, on);
     return () => window.removeEventListener(CONTRACT_SKEW_EVENT, on);
   }, []);
-  if (!stale) return null;
+  if (!direction) return null;
+  const pageIsNewer = direction === "CLIENT_NEWER";
   return (
     <div
       role="status"
@@ -36,14 +39,20 @@ export default function ContractSkewNotice() {
         boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
       }}
     >
-      <span>PROOVRA has been updated. Reload this page to see current results.</span>
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        style={{ background: "#f8fafc", color: "#0f172a", border: 0, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}
-      >
-        Reload
-      </button>
+      <span>
+        {pageIsNewer
+          ? "An update to PROOVRA is finishing. Some actions may not work for a few minutes."
+          : "PROOVRA has been updated. Reload this page to see current results."}
+      </span>
+      {pageIsNewer ? null : (
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          style={{ background: "#f8fafc", color: "#0f172a", border: 0, borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}
+        >
+          Reload
+        </button>
+      )}
     </div>
   );
 }

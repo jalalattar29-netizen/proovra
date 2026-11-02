@@ -40,6 +40,10 @@ import { OperationalBreadcrumb } from "../../../../components/navigation/Operati
 import { DestructionImpactPreview } from "../../../../components/governance/DestructionImpactPreview";
 import { DestructionCertificate } from "../../../../components/governance/DestructionCertificate";
 import { DestructionReviewForm } from "../../../../components/governance/DestructionReviewForm";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
@@ -90,6 +94,21 @@ type LifecycleEvent = {
   actorUserId: string | null;
   requestId: string | null;
   createdAt: string;
+};
+
+/**
+ * RT-012 — what a button DOES. These read like the statuses they lead to, so a row
+ * of "Approved", "Denied", "Cancelled" looked like a record of what had happened.
+ */
+const ACTION_LABEL: Record<ReviewStatus, string> = {
+  PENDING: "Return to queue",
+  UNDER_REVIEW: "Start review",
+  APPROVED: "Approve",
+  DENIED: "Deny",
+  DEFERRED: "Defer",
+  RESTORED: "Restore",
+  EXECUTED: "Execute",
+  CANCELLED: "Cancel review",
 };
 
 const STATUS_LABEL: Record<ReviewStatus, string> = {
@@ -207,6 +226,7 @@ export default function DestructionQueuePage() {
 
 function DestructionQueuePageInner() {
   const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId });
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"ACTIVE" | "ALL" | ReviewStatus>(
@@ -311,7 +331,7 @@ function DestructionQueuePageInner() {
           ? {
               title: "Execute destruction?",
               description:
-                "This is irreversible. A destruction certificate will be emitted and the evidence will move to DESTROYED. Step-up authentication is required on the next request.",
+                "This is irreversible and happens now. Every stored object is deleted and verified gone, then a destruction certificate is issued. Step-up authentication is required.",
               confirmLabel: "Execute destruction",
               tone: "danger",
               requireConfirmText: "EXECUTE",
@@ -320,7 +340,7 @@ function DestructionQueuePageInner() {
           : {
               title: "Approve destruction?",
               description:
-                "Approval queues the evidence for destruction execution. Step-up authentication is required on the next request.",
+                "Nothing is destroyed by approving. The record stops being downloadable and waits for someone to execute this review, which can still be cancelled until then. The person who opened the review cannot approve it. Step-up authentication is required.",
               confirmLabel: "Approve",
               tone: "warning",
               testId: "destruction-approve",
@@ -329,21 +349,21 @@ function DestructionQueuePageInner() {
       if (!confirmed) return;
     }
     try {
-      await apiFetch(
-        `/v1/governance/destruction-reviews/${review.id}/transition`,
-        {
+      await stepUp.runStepUpAction((headers?: Record<string, string>) =>
+        apiFetch(`/v1/governance/destruction-reviews/${review.id}/transition`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
           body: JSON.stringify({
             teamId,
             nextStatus,
             decisionNote,
             deferredUntilUtc,
           }),
-        },
+        }),
       );
       await refresh();
     } catch (err) {
+      if ((err as { code?: string })?.code === "STEP_UP_CANCEL") return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: `Could not transition review to ${nextStatus}.` }).message);
     }
@@ -668,7 +688,7 @@ function DestructionQueuePageInner() {
         <PageHeader
           eyebrow="Governance"
           title="Destruction queue"
-          subtitle="Every proposed destruction lands here for reviewer approval. Holds and immutable retention block approval. Approval and execution require step-up authentication."
+          subtitle="Every proposed destruction lands here for a second person to decide. Holds, retention and immutable policies block approval. Nothing is destroyed until someone executes an approved review, and both steps require step-up authentication."
           contextStrip={
             <OperationalBreadcrumb
               routeId="governance.destruction"
@@ -786,11 +806,7 @@ function DestructionQueuePageInner() {
                 {ALLOWED_NEXT[r.status].map((next) => (
                   <Button
                     key={next}
-                    variant={
-                      next === "EXECUTED" || next === "APPROVED"
-                        ? "destructive"
-                        : "secondary"
-                    }
+                    variant={next === "EXECUTED" ? "destructive" : "secondary"}
                     size="sm"
                     onClick={() => transition(r, next)}
                     title={
@@ -799,7 +815,7 @@ function DestructionQueuePageInner() {
                         : undefined
                     }
                   >
-                    {STATUS_LABEL[next]}
+                    {ACTION_LABEL[next]}
                   </Button>
                 ))}
               </div>
@@ -1030,6 +1046,7 @@ function DestructionQueuePageInner() {
           </div>
         </div>
       ) : null}
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

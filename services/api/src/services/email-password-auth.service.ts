@@ -1,3 +1,4 @@
+import { evaluateExistingAccountLink } from "./security/enterprise-account-linking.service.js";
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
 import { prisma } from "../db.js";
 import { AuthProvider } from "@prisma/client";
@@ -311,16 +312,45 @@ export async function changePasswordForUser(params: {
   return { ok: true };
 }
 
+/**
+ * IDENT-013 — an IdP or directory can create a row for any address its
+ * organization names. A reset on such a row would hand the mailbox owner a
+ * working account the organization's IdP can also sign in to, so it is refused
+ * until that organization has proved the domain. A row with a password, or one
+ * from an organization holding the domain, is an ordinary account.
+ */
+async function isUnprovenDirectoryAccount(user: {
+  id: string;
+  email: string | null;
+  passwordHash: string | null;
+  providerUserId: string;
+}): Promise<boolean> {
+  if (user.passwordHash || !/^(sso|saml|scim)-/.test(user.providerUserId)) return false;
+  const mapping = await prisma.externalIdentityMapping.findFirst({
+    where: { userId: user.id, unlinkedAtUtc: null },
+    select: { teamId: true },
+  });
+  if (!mapping || !user.email) return true;
+  const proven = await evaluateExistingAccountLink({ teamId: mapping.teamId, email: user.email });
+  return !proven.ok;
+}
+
 export async function createPasswordResetTokenForEmail(emailRaw: string) {
   const email = normalizeEmail(emailRaw);
 
+  // `email` is not unique: one address can sit on an EMAIL row and a GOOGLE row,
+  // and an IdP can create a second EMAIL row. Reset belongs to the EMAIL row, so
+  // the owner of a mailbox can take back a password somebody else set on their
+  // address, and among EMAIL rows the one with a password is the person's own, so
+  // a row an IdP created cannot divert their reset.
   const user = await prisma.user.findFirst({
-    where: { email }
+    where: { provider: AuthProvider.EMAIL, email },
+    orderBy: [{ passwordHash: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
   });
 
   if (!user) return null;
 
-  if (user.provider !== AuthProvider.EMAIL) return null;
+  if (await isUnprovenDirectoryAccount(user)) return null;
 
   const rawToken = randomBytes(32).toString("hex");
 
@@ -388,6 +418,16 @@ export async function resetPasswordWithToken(params: {
 
   const newHash = hashPassword(params.newPassword);
 
+  const owner = await prisma.user.findUnique({
+    where: { id: rec.userId },
+    select: { email: true, emailVerifiedAt: true },
+  });
+
+  // PROV-001 — the link came out of the mailbox and the password is new, so
+  // this one act proves both together. It also retires any password a stranger
+  // set on this address, which is why a reset is the way back for someone who
+  // finds an account they never opened: it verifies the address and ends the
+  // verification links still waiting on the old password.
   await prisma.$transaction([
     prisma.user.update({
       where: {
@@ -396,12 +436,15 @@ export async function resetPasswordWithToken(params: {
       data: {
         passwordHash: newHash,
         provider: AuthProvider.EMAIL,
-        providerUserId: (
-          await prisma.user.findUnique({
-            where: { id: rec.userId }
-          })
-        )?.email ?? undefined
+        providerUserId: owner?.email ?? undefined,
+        emailVerifiedAt: owner?.emailVerifiedAt ?? now,
+        credentialProvenAtUtc: now,
       }
+    }),
+
+    prisma.emailVerificationToken.updateMany({
+      where: { userId: rec.userId, usedAt: null },
+      data: { usedAt: now },
     }),
 
     prisma.passwordResetToken.update({
@@ -465,10 +508,14 @@ export async function createEmailVerificationToken(userId: string) {
 // them to neutral, non-enumerating client messages.
 export type ConsumeEmailVerificationTokenResult =
   | { ok: true; user: { id: string; email: string | null; provider: string; emailVerifiedAt: Date } }
-  | { ok: false; reason: "invalid" | "expired" | "already_used" };
+  | {
+      ok: false;
+      reason: "invalid" | "expired" | "already_used" | "password_required" | "password_incorrect";
+    };
 
 export async function consumeEmailVerificationToken(
   rawTokenInput: string,
+  options: { password?: string | null } = {},
 ): Promise<ConsumeEmailVerificationTokenResult> {
   const raw = rawTokenInput.trim();
   if (!raw) return { ok: false, reason: "invalid" };
@@ -484,6 +531,37 @@ export async function consumeEmailVerificationToken(
   if (rec.usedAt) return { ok: false, reason: "already_used" };
   if (rec.expiresAt <= now) return { ok: false, reason: "expired" };
 
+  /*
+   * PROV-001 — VERIFYING AN ADDRESS MUST NOT ACTIVATE A STRANGER'S PASSWORD.
+   *
+   * Registration stores a password for an address nobody has proven. The link
+   * goes to the real mailbox, so if the mailbox owner clicks a message they
+   * never asked for, the account goes live with a password chosen by whoever
+   * registered it, and that person signs in from then on. An ownership grant
+   * made to this account later lands on both of them, and it is exactly how an
+   * organization ended up with an attacker for an owner.
+   *
+   * So the first verification of an account with a password needs both halves
+   * at once: the emailed token and the password. The registrant has both. The
+   * attacker has only the password; the mailbox owner has only the token, and
+   * uses "forgot password" instead, which replaces the password and ends every
+   * session. A refused attempt leaves the token live, so a mistyped password is
+   * not a dead link.
+   */
+  const account = await prisma.user.findUnique({
+    where: { id: rec.userId },
+    select: { emailVerifiedAt: true, passwordHash: true },
+  });
+  const firstVerificationOfPassword = Boolean(
+    account && !account.emailVerifiedAt && account.passwordHash,
+  );
+  if (firstVerificationOfPassword) {
+    if (!options.password) return { ok: false, reason: "password_required" };
+    if (!verifyPassword(options.password, account?.passwordHash as string)) {
+      return { ok: false, reason: "password_incorrect" };
+    }
+  }
+
   // Atomic: mark token used + stamp user emailVerifiedAt in one txn.
   // If the user was already verified out-of-band (e.g. via a separate
   // email-link click that landed first), keep the older timestamp so
@@ -497,7 +575,10 @@ export async function consumeEmailVerificationToken(
     }),
     prisma.user.updateMany({
       where: { id: rec.userId, emailVerifiedAt: null },
-      data: { emailVerifiedAt: now },
+      data: {
+        emailVerifiedAt: now,
+        ...(firstVerificationOfPassword ? { credentialProvenAtUtc: now } : {}),
+      },
     }),
     prisma.user.findUniqueOrThrow({
       where: { id: rec.userId },
@@ -529,14 +610,17 @@ export async function consumeEmailVerificationToken(
 // probe existence.
 export async function findUnverifiedEmailUserByEmail(emailRaw: string) {
   const email = normalizeEmail(emailRaw);
+  // By address, not providerUserId: a directory-created row is an EMAIL account
+  // with a synthetic provider id, and it needs a verified address to accept an
+  // invitation like anyone else.
   const user = await prisma.user.findFirst({
     where: {
       provider: AuthProvider.EMAIL,
-      providerUserId: email,
+      email,
+      emailVerifiedAt: null,
     },
+    orderBy: { createdAt: "asc" },
     select: { id: true, email: true, emailVerifiedAt: true },
   });
-  if (!user) return null;
-  if (user.emailVerifiedAt) return null;
   return user;
 }

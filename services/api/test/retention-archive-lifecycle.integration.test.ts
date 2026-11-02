@@ -31,6 +31,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { tamperSealedEvidence } from "./helpers/sealed-identity-tamper.js";
+import { seedExecutableReview } from "./support/executable-destruction-review.js";
 
 // The Object-Lock bucket (created with ObjectLockEnabledForBucket). Set before
 // anything reads the environment: the storage modules read it per call.
@@ -390,6 +391,7 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     expect((await row(id)).lifecycleState).toBe("TRASHED");
 
     sentCommands.length = 0;
+    await seedExecutableReview(prisma as never, id);
     const done = await runtime.executeEvidenceDestruction(prisma as never, { evidenceId: id, trigger: "trash_grace_reconciler", legalHold: false, objectLockExpected: true, now: afterTrash() }, port);
     expect(done).toMatchObject({ ok: true, outcome: "DESTROYED" });
     expect(sentCommands.some((c) => "BypassGovernanceRetention" in c.input)).toBe(false);

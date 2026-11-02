@@ -31,7 +31,7 @@ import {
 
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { authorizeOrFail } from "../middleware/authorize.js";
+import { authorizeOrFail, authorizeWorkspaceOrFail } from "../middleware/authorize.js";
 import {
   workspaceIncludesReviewCapability,
   type ReviewCapability,
@@ -57,9 +57,12 @@ import {
   recordReviewDecision,
 } from "../services/reviewer-ops/review-decision.service.js";
 // Phase C0 — Sensitive review decision step-up enforcement.
-import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
-import type { StepUpPurpose } from "@proovra/shared";
-import { loadWorkspaceReviewerOpsFlags } from "../services/reviewer-ops/sla-policy.service.js";
+import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
+import {
+  enforceReviewActionGate,
+  gateForVerdict,
+  holdsReviewBulkAuthority,
+} from "../services/reviewer-ops/review-action-gate.js";
 
 const ParamsEvidenceId = z.object({ evidenceId: z.string().uuid() });
 
@@ -125,6 +128,11 @@ async function refuseUnlessReviewIncluded(
   return true;
 }
 
+/** The record authority's answer, for the routes that name a record. */
+async function recordOpen(userId: string, evidenceId: string): Promise<boolean> {
+  return (await resolveEvidenceRecordAccess({ userId, evidenceId, permission: "evidence.read" })).allowed;
+}
+
 /** The current round's decision of one workflow, for a single-row response. */
 function currentDecisionOf(row: { id: string; teamId: string | null; evidenceId: string; status: unknown; decisionRound: number }) {
   return loadCurrentReviewDecision({ id: row.id, teamId: row.teamId ?? null, evidenceId: row.evidenceId, status: String(row.status), decisionRound: row.decisionRound });
@@ -142,9 +150,11 @@ function reviewErrorToReply(err: unknown, reply: FastifyReply): void {
     const status =
       err.code === "workflow_not_found"
         ? 404
-        : err.code === "rationale_required"
-          ? 422
-          : 409;
+        : err.code === "reviewer_required"
+          ? 403
+          : err.code === "rationale_required"
+            ? 422
+            : 409;
     reply.code(status).send({
       error: { code: err.code, details: err.details ?? null },
     });
@@ -250,6 +260,9 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       if (!workflow || workflow.teamId !== body.teamId) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      if (!(await recordOpen(ok.userId, evidenceId))) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       if (await refuseUnlessReviewIncluded(body.teamId, reply, "BASIC_RECORD_REVIEW")) return;
       try {
         const updated = await claimReviewerWorkflow({
@@ -311,48 +324,30 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       )
         return;
 
-      // Phase C0 — Sensitive reviewer decision step-up gate. When
-      // the workspace governance flag for the chosen decision is
-      // set (`requireStepUpForApprove` / `requireStepUpForReject`),
-      // the request must carry a fresh step-up token for the
-      // matching purpose. Mirrors the existing gate on the
-      // `/v1/reviewer-ops/*` workflow surface. When the flag is
-      // off, this is a no-op and the request proceeds.
-      //
-      // Decision-to-gate mapping uses the canonical Phase 13
-      // decision vocabulary (`APPROVE_INTERNAL`, `REJECT_INSUFFICIENT`,
-      // etc.). The two terminal-trust decisions are the ones
-      // protected: any "internal approval" or "insufficient
-      // rejection" carries enough operational weight to warrant
-      // the step-up gate when the workspace opts in.
-      const stepUpGateKey: "approve" | "reject" | null =
-        body.decision === "APPROVE_INTERNAL"
-          ? "approve"
-          : body.decision === "REJECT_INSUFFICIENT"
-            ? "reject"
-            : null;
-      if (stepUpGateKey) {
-        const flags = await loadWorkspaceReviewerOpsFlags(teamId);
-        const flagKey =
-          stepUpGateKey === "approve"
-            ? "requireStepUpForApprove"
-            : "requireStepUpForReject";
-        if (flags[flagKey]) {
-          const purpose: StepUpPurpose =
-            stepUpGateKey === "approve"
-              ? "REVIEW_APPROVAL_HIGH_RISK"
-              : "REVIEWER_OPS_REJECT";
-          const result = await requireStepUpForSensitiveAction({
-            req,
-            reply,
-            teamId: teamId,
-            userId: ok.userId,
-            purpose,
-            resourceKind: "evidence_review_decision",
-            resourceId: evidenceId,
-          });
-          if (result.sent) return;
-        }
+      // The record is closed to this reviewer by a restricted case: the same
+      // answer as a record with no review (WORKFLOW-003).
+      if (!(await recordOpen(ok.userId, evidenceId))) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
+
+      // WF-R04: the same gate as the console, adaptive check included. This
+      // door had the step-up flag and not the quarantine check, so a session
+      // refused on the console could approve here. CLOSE and REOPEN finish or
+      // reverse a review, so they answer to the reject gate's adaptive check
+      // and the workspace flag rather than to no check at all.
+      const verdictGate =
+        gateForVerdict(body.decision) ??
+        (body.decision === "CLOSE" || body.decision === "REOPEN" ? "reject" : null);
+      if (
+        verdictGate &&
+        !(await enforceReviewActionGate(req, reply, {
+          teamId,
+          userId: ok.userId,
+          action: verdictGate,
+          resource: { kind: "evidence_review_decision", id: evidenceId },
+        }))
+      ) {
+        return;
       }
 
       try {
@@ -399,10 +394,10 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
             escalationReason: body.escalationReason ?? null,
           });
         }
-        // ET-CUS-12 — every status this decision set is already on the
-        // custody chain, written in the decision's own transaction by the
-        // authority (recordReviewDecision / recordLifecycleTransition): once,
-        // never for a replay, and never lost after a commit (2026-10-23).
+        // Review activity is audited, not forensic custody (reviewer-audit
+        // owner decision 2026-10-24): the authority writes that audit in the
+        // decision's own transaction, once, never for a replay, and never lost
+        // after a commit.
         return reply
           .code(200)
           .send({ workflow: projectReviewWorkflow(updated, await currentDecisionOf(updated)) });
@@ -440,6 +435,29 @@ export async function reviewOperationsRoutes(app: FastifyInstance) {
       // The same commercial authority as claim and decisions (audit F6) —
       // at the BULK tier, which PRO does not have.
       if (await refuseUnlessReviewIncluded(body.teamId, reply, "BULK_REVIEW_OPERATIONS")) return;
+      // WF-R04: the console's bulk authority, on this door too. A plain
+      // reviewer could close 200 reviews here while the console refused them.
+      const bulkCtx = await authorizeWorkspaceOrFail(req, reply, {
+        workspaceId: body.teamId,
+        permission: "review.escalate",
+      });
+      if (!bulkCtx) return;
+      if (!holdsReviewBulkAuthority(bulkCtx.workspaceRole, true)) {
+        return reviewErrorToReply(
+          new ReviewOperationError("permission_denied", { reason: "review_bulk_required" }),
+          reply,
+        );
+      }
+      if (
+        !(await enforceReviewActionGate(req, reply, {
+          teamId: body.teamId,
+          userId: ok.userId,
+          action: "bulk",
+          resource: { kind: "review_workflow_bulk", id: body.evidenceIds.slice(0, 8).join(",") },
+        }))
+      ) {
+        return;
+      }
 
       try {
         const result = await bulkReviewAction({

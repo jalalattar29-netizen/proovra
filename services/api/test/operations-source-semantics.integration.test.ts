@@ -915,7 +915,7 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
     const evidenceId = await evidenceRecord();
     await openDrift(evidenceId);
 
-    const page = await incidents.listIncidents({
+    const page = await incidents.listIncidents({ incidentReach: {},
       teamId: team.teamId,
       now: new Date(),
       sla: null,
@@ -926,7 +926,7 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
     expect(sources).not.toContain("database.condition");
     expect(sources).toContain(DRIFT_SOURCE);
 
-    const counts = await summary.buildOperationsSummary({
+    const counts = await summary.buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } },
       teamId: team.teamId,
     } as never);
     // The platform row is excluded from every counter, so a tenant's CRITICAL

@@ -153,8 +153,9 @@ const AUTHORITY_WRITERS: Array<{
     surface: "EnterpriseContract (customer-org commercial state)",
     write: /\.enterpriseContract\.(create|update|upsert|updateMany|delete|deleteMany)\b/,
     allowed: {
-      "services/organization/enterprise-contract.service.ts": "canonical: upsertEnterpriseContract",
-      "services/enterprise-provisioning.service.ts": "provisioning activation/seat-change contract update",
+      // Provisioning no longer writes the row itself: the region and reference
+      // are stated with the contract, in the provisioning transaction.
+      "services/organization/enterprise-contract.service.ts": "canonical: upsertEnterpriseContract, the operator terms writer, and the termination transitions",
     },
   },
   {

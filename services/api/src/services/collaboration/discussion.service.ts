@@ -13,7 +13,6 @@
  */
 
 import type {
-  DiscussionMention as DbMention,
   DiscussionMessage as DbMessage,
   DiscussionMessageAuthorKind as DbAuthorKind,
   DiscussionParticipant as DbParticipant,
@@ -187,6 +186,8 @@ export type ListThreadsInput = {
   visibility?: DiscussionThreadVisibility;
   assignedToUserId?: string;
   limit?: number;
+  /** Records closed to the caller (`hiddenRecordIdsInWorkspace`). Required, so a list cannot forget reach. */
+  hiddenEvidenceIds: readonly string[];
 };
 
 export async function listDiscussionThreads(
@@ -196,7 +197,12 @@ export async function listDiscussionThreads(
   return client.discussionThread.findMany({
     where: {
       teamId: input.teamId,
-      ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}),
+      AND: [
+        ...(input.evidenceId ? [{ evidenceId: input.evidenceId }] : []),
+        ...(input.hiddenEvidenceIds.length > 0
+          ? [{ evidenceId: { notIn: [...input.hiddenEvidenceIds] } }]
+          : []),
+      ],
       ...(input.status ? { status: input.status as DbThreadStatus } : {}),
       ...(input.visibility
         ? { visibility: input.visibility as DbVisibility }
@@ -423,6 +429,21 @@ export async function postMessage(
   input: PostMessageInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<DbMessage> {
+  return (await postMessageWithMentionOutcome(input, client)).message;
+}
+
+/**
+ * A mention the author typed that no one was told about, so the author can act
+ * instead of assuming the person heard (EVID-020). `ambiguous` means more than
+ * one member answers to the token; `no_access` means the person cannot open
+ * this record. Only an author who can open the record receives this.
+ */
+export type UnresolvedMention = { token: string; reason: "ambiguous" | "no_access" };
+
+export async function postMessageWithMentionOutcome(
+  input: PostMessageInput,
+  client: PrismaClient = defaultPrisma,
+): Promise<{ message: DbMessage; unresolvedMentions: UnresolvedMention[] }> {
   if (input.authorKind === "USER" && !input.authorUserId) {
     throw new DiscussionError("user_not_found");
   }
@@ -503,28 +524,39 @@ export async function postMessage(
   );
 
   // Mention resolution (INTERNAL threads only — contributors can't @-mention).
+  let unresolvedMentions: UnresolvedMention[] = [];
   if (
     input.authorKind === "USER" &&
     thread.visibility === "INTERNAL" &&
     input.authorUserId
   ) {
-    await resolveMentionsForMessage(
+    unresolvedMentions = await resolveMentionsForMessage(
       message,
       body,
       input.authorUserId,
+      thread.evidenceId,
       client,
     );
   }
 
-  return message;
+  return { message, unresolvedMentions };
 }
 
+/**
+ * WHO A MENTION REACHES (EVID-020). A token names one member or none: display
+ * name and email local part share one namespace, and two members answering to
+ * the same token used to resolve to whichever row came last, so a person could
+ * be told about a thread that was not meant for them. A target must be able to
+ * open the record: otherwise the row is written, the inbox hides it, and nobody
+ * learns the mention went nowhere. Both outcomes go back to the author.
+ */
 async function resolveMentionsForMessage(
   message: DbMessage,
   body: string,
   actorUserId: string,
+  evidenceId: string,
   client: PrismaClient,
-): Promise<DbMention[]> {
+): Promise<UnresolvedMention[]> {
   const tokens = parseMentionTokens(body);
   if (tokens.length === 0) return [];
   // Look up workspace members whose displayName / email local-part
@@ -545,24 +577,41 @@ async function resolveMentionsForMessage(
       user: { select: { id: true, email: true, displayName: true } },
     },
   });
-  const userByToken = new Map<string, string>();
+  const usersByToken = new Map<string, Set<string>>();
+  const addToken = (token: string, userId: string) => {
+    if (!token) return;
+    const set = usersByToken.get(token) ?? new Set<string>();
+    set.add(userId);
+    usersByToken.set(token, set);
+  };
   for (const m of members) {
     if (!m.user) continue;
     if (m.user.displayName) {
-      const token = m.user.displayName.toLowerCase().replace(/[^a-z0-9._-]/g, "");
-      if (token) userByToken.set(token, m.user.id);
+      addToken(m.user.displayName.toLowerCase().replace(/[^a-z0-9._-]/g, ""), m.user.id);
     }
     if (m.user.email) {
-      const local = m.user.email.split("@")[0]?.toLowerCase() ?? "";
-      if (local) userByToken.set(local, m.user.id);
+      addToken(m.user.email.split("@")[0]?.toLowerCase() ?? "", m.user.id);
     }
   }
-  const out: DbMention[] = [];
+  const unresolved: UnresolvedMention[] = [];
   for (const tok of tokens) {
-    const userId = userByToken.get(tok);
-    if (!userId) continue;
+    const candidates = usersByToken.get(tok);
+    if (!candidates) continue;
+    if (candidates.size > 1) {
+      unresolved.push({ token: tok, reason: "ambiguous" });
+      continue;
+    }
+    const userId = [...candidates][0]!;
+    const reach = await resolveEvidenceRecordAccess(
+      { userId, evidenceId, permission: "evidence.read" },
+      client,
+    );
+    if (!reach.allowed) {
+      unresolved.push({ token: tok, reason: "no_access" });
+      continue;
+    }
     try {
-      const row = await client.discussionMention.create({
+      await client.discussionMention.create({
         data: {
           messageId: message.id,
           threadId: message.threadId,
@@ -570,15 +619,9 @@ async function resolveMentionsForMessage(
           mentionedUserId: userId,
         },
       });
-      out.push(row);
       emitAudit(
         client,
-        // We need evidence id for audit; cheaper to re-fetch than to
-        // thread-query a sentinel.
-        (await client.discussionThread.findUniqueOrThrow({
-          where: { id: message.threadId },
-          select: { evidenceId: true },
-        })).evidenceId,
+        evidenceId,
         actorUserId,
         "MENTION_CREATED",
         {
@@ -592,7 +635,7 @@ async function resolveMentionsForMessage(
       /* unique constraint — already mentioned in this message */
     }
   }
-  return out;
+  return unresolved;
 }
 
 export async function listMessagesForThread(

@@ -209,7 +209,8 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     // record must be open to the caller).
     // + the AI categorization run (ET-SEC-15: a paid run that rewrites the
     // record's categorization checked read access only) = 8.
-    expect(count("evidence.update_metadata")).toBe(8);
+    // + the one gate on comments, legal notes and annotations (EVID-010) = 9.
+    expect(count("evidence.update_metadata")).toBe(9);
     // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the bulk (un)archive and
     // bulk trash/restore callers are GONE from this file. Their authorization
     // moved into `applyEvidenceLifecycleAction`, alongside the single routes',

@@ -47,6 +47,7 @@ describe("legacy evidence lifecycle — one population, Home counts 2 not 6, bou
         select: { id: true },
       });
       await tx.teamMember.create({ data: { teamId: team.id, userId: owner, role: "OWNER", status: "ACTIVE" } as never });
+      await tx.organizationSecurityPolicy.create({ data: { organizationId: org.id, teamId: team.id } as never });
       return team.id;
     });
   }, 600_000);

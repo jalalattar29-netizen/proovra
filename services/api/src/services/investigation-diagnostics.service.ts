@@ -418,7 +418,7 @@ async function buildWorkspaceCounts(
   // bumps `timeline_query_failed_total`; we only need to inspect the
   // discriminator.
   try {
-    const { buildInvestigationTimeline } = await import(
+    const { buildInvestigationTimeline, GRAPH_REACH_INTERNAL_PROBE } = await import(
       "@proovra/shared-runtime/graph"
     );
     const probe = await buildInvestigationTimeline(
@@ -429,6 +429,7 @@ async function buildWorkspaceCounts(
         fromUtc: null,
         toUtc: null,
         limit: 1,
+        reach: GRAPH_REACH_INTERNAL_PROBE,
       },
       prisma,
     );

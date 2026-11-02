@@ -255,7 +255,7 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
   });
 
   it("one queue page is bounded whatever the total, and the cursor is total-ordered", async () => {
-    const first = await incidents.listIncidents({ teamId: ws.teamId, limit: 50 });
+    const first = await incidents.listIncidents({ incidentReach: {}, teamId: ws.teamId, limit: 50 });
     const page = first.incidents;
     expect(page.length).toBeLessThanOrEqual(50);
 
@@ -269,7 +269,7 @@ describe("Operations at Enterprise scale (live PostgreSQL 16)", () => {
     const summary = await import(
       "../src/services/operations/operations-summary.service.js"
     );
-    const built = await summary.buildOperationsSummary({
+    const built = await summary.buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } },
       workspaceId: ws.teamId,
       viewerUserId: ws.ownerUserId,
     });

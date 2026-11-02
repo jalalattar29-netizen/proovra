@@ -42,6 +42,7 @@
  * "authentic / legally admissible / proven".
  */
 
+import { advanceSweepCursor, readSweepCursor } from "./sweep-cursor.js";
 import type {
   EvidenceReviewWorkflow as DbWorkflow,
   EvidenceReviewWorkflowStatus,
@@ -63,6 +64,10 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { bump } from "../ops/metrics.service.js";
+import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
 import { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
@@ -78,6 +83,7 @@ export class ReviewDecisionAuthorityError extends Error {
   constructor(
     public readonly code:
       | "workflow_not_found"
+      | "reviewer_required"
       | "stale_decision"
       | "review_already_resolved"
       | "duplicate_stage_decision"
@@ -188,11 +194,32 @@ export async function recordReviewDecision(
   input: RecordReviewDecisionInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RecordReviewDecisionResult> {
+  // THE AUTHORITY ASKS, NOT ITS CALLERS (WORKFLOW-001). A verdict satisfies the
+  // report, package and public-verify gates and cannot be erased from the log,
+  // and one door skipped the check, so a read-only member could approve. The
+  // canonical engine answers here for every door, live and bulk.
+  const decision = await evaluateMemberAccess(
+    {
+      teamId: input.teamId,
+      userId: input.actorUserId,
+      permission: "evidence_request.review",
+      resourceKind: "review_workflow",
+      resourceId: input.workflowId,
+    },
+    client,
+  );
+  if (!decision.allowed) throw new ReviewDecisionAuthorityError("reviewer_required");
+
   const result = await client.$transaction(async (tx) => {
     // (i) Workspace isolation — cross-workspace probes are
-    // indistinguishable from missing workflows.
+    // indistinguishable from missing workflows. So is a record closed to the
+    // actor by a restricted case (WORKFLOW-003).
     const wf = await tx.evidenceReviewWorkflow.findFirst({
-      where: { id: input.workflowId, teamId: input.teamId },
+      where: {
+        id: input.workflowId,
+        teamId: input.teamId,
+        evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
+      },
     });
     if (!wf) throw new ReviewDecisionAuthorityError("workflow_not_found");
 
@@ -550,6 +577,7 @@ export type ReconcileProjectionResult = {
     | "continued_after_request_info"
     | "closed_after_decisions"
     | "no_projectable_outcome"
+    | "moved_during_repair"
     | "consistent"
     | "repaired";
   fromStage?: ReviewStage;
@@ -633,9 +661,9 @@ export async function reconcileWorkflowProjection(
     return { workflowId, repaired: false, reason: "consistent" };
   }
   const toStage = projection.projectedStage;
-  await client.$transaction(async (tx) => {
+  const repaired = await client.$transaction(async (tx) => {
     const now = new Date();
-    const data: Prisma.EvidenceReviewWorkflowUncheckedUpdateInput = {
+    const data: Prisma.EvidenceReviewWorkflowUncheckedUpdateManyInput = {
       status: stageToDbStatus(toStage),
     };
     if (
@@ -644,7 +672,25 @@ export async function reconcileWorkflowProjection(
     ) {
       data.completedAtUtc = now;
     }
-    await tx.evidenceReviewWorkflow.update({ where: { id: wf.id }, data });
+    // WORKFLOW-019: conditional on the status this repair was computed from,
+    // like every other writer. A move committed since the read wins, and this
+    // repair stands down; the next sweep decides afresh.
+    const moved = await tx.evidenceReviewWorkflow.updateMany({
+      where: { id: wf.id, status: wf.status },
+      data,
+    });
+    if (moved.count !== 1) return false;
+    // A status change is a review event like any other: PROOVRA's own act, so
+    // a null actor, on the same record as a person's move.
+    await recordReviewActivityTx(tx, {
+      evidenceId: wf.evidenceId,
+      workflowId: wf.id,
+      teamId: wf.teamId,
+      actorUserId: null,
+      code: "REVIEW_WORKFLOW_STATE_CHANGED",
+      previousState: String(wf.status),
+      resultingState: stageToDbStatus(toStage),
+    });
     await tx.evidenceReviewWorkflowEvent.create({
       data: {
         workflowId: wf.id,
@@ -659,7 +705,11 @@ export async function reconcileWorkflowProjection(
         note: null,
       },
     });
+    return true;
   });
+  if (!repaired) {
+    return { workflowId, repaired: false, reason: "moved_during_repair" };
+  }
   return {
     workflowId,
     repaired: true,
@@ -685,12 +735,24 @@ export async function scanReviewDecisionProjections(
   results: ReconcileProjectionResult[];
 }> {
   const batchSize = Math.min(Math.max(input.batchSize ?? 100, 1), 1000);
+  // Resumes where the last pass stopped: the first N workflows repeated forever,
+  // so workflow N+1 was never checked (WORKFLOW-012).
+  const cursorKey = `reviewer_projection:${input.teamId ?? "all"}`;
+  const cursor = await readSweepCursor(client, cursorKey);
   const rows = await client.workflowReviewDecision.findMany({
-    where: input.teamId ? { teamId: input.teamId } : {},
+    where: {
+      ...(input.teamId ? { teamId: input.teamId } : {}),
+      ...(cursor ? { workflowId: { gt: cursor } } : {}),
+    },
     select: { workflowId: true },
     distinct: ["workflowId"],
     orderBy: { workflowId: "asc" },
     take: batchSize,
+  });
+  await advanceSweepCursor(client, cursorKey, cursor, {
+    lastId: rows.at(-1)?.workflowId ?? null,
+    pageSize: rows.length,
+    limit: batchSize,
   });
   const results: ReconcileProjectionResult[] = [];
   let repaired = 0;
@@ -703,6 +765,17 @@ export async function scanReviewDecisionProjections(
     } catch {
       failures += 1;
     }
+  }
+  // A repair means a projection diverged from the immutable log, which should
+  // not happen, so a non-zero count reaches an operator (WORKFLOW-019).
+  if (repaired > 0) {
+    bump("reviewer_decision_projection_repaired_total", repaired);
+    safeEmitSecurityEvent({
+      teamId: input.teamId ?? null,
+      eventType: "reviewer_decision_projection_repaired",
+      severity: "HIGH",
+      details: { repaired, scanned: rows.length },
+    });
   }
   return { scanned: rows.length, repaired, failures, results };
 }

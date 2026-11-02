@@ -117,10 +117,10 @@ describe("runPipelineDetail — every groupBy excludes soft-deleted evidence", (
     );
     // versionsTotal rows also exclude deleted
     expect(body).toMatch(
-      /prisma\.report\.count\(\{\s*\n?\s*where:\s*\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}/,
+      /prisma\.report\.count\(\{\s*\n?\s*where:\s*\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null,\s*AND:\s*\[reach\.evidence\]\s*\}\s*\}/,
     );
     expect(body).toMatch(
-      /prisma\.verificationPackage\.count\(\{\s*\n?\s*where:\s*primaryPublishedPackageWhere\(\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}\)/,
+      /prisma\.verificationPackage\.count\(\{\s*\n?\s*where:\s*primaryPublishedPackageWhere\(\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null,\s*AND:\s*\[reach\.evidence\]\s*\}\s*\}\)/,
     );
   });
 

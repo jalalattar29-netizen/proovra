@@ -663,7 +663,7 @@ async function seedFixtures(
           role: "ORG_OWNER",
         },
       });
-      return tx.team.create({
+      const workspace = await tx.team.create({
         data: {
           name,
           ownerUserId: ownerId,
@@ -685,6 +685,12 @@ async function seedFixtures(
         },
         select: { id: true },
       });
+      // Provisioning always writes this row. A customer Organization without one
+      // has no rule a session could satisfy, and is refused (AUTHZ-001).
+      await tx.organizationSecurityPolicy.create({
+        data: { organizationId: org.id, teamId: workspace.id },
+      });
+      return workspace;
     });
   }
   const orgA = await createOrg(`OrgA-${tag}`, userAOwner.id);

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { cronSecretMatches, readCronSecretFromEnvs } from "../middleware/cron-secret.js";
 import { z } from "zod";
 import {
   COMMERCIAL_TRANSITION_REFUSALS,
@@ -90,12 +91,6 @@ function readIp(req: { ip?: string }): string | undefined {
   return req.ip;
 }
 
-function envString(name: string): string | undefined {
-  const value = process.env[name];
-  const trimmed = typeof value === "string" ? value.trim() : "";
-  return trimmed || undefined;
-}
-
 function readHeaderValue(
   headers: Record<string, string | string[] | undefined>,
   name: string
@@ -106,15 +101,12 @@ function readHeaderValue(
 }
 
 function isValidInternalKey(req: FastifyRequest): boolean {
-  const configured = envString("INTERNAL_API_KEY");
-  if (!configured) return false;
-
+  // AUTHZ-009 — the one compare and the one length floor for a shared secret.
   const provided = readHeaderValue(
     req.headers as Record<string, string | string[] | undefined>,
     "x-internal-key"
-  )?.trim();
-
-  return !!provided && provided === configured;
+  );
+  return cronSecretMatches(readCronSecretFromEnvs(["INTERNAL_API_KEY"]), provided);
 }
 
 async function requirePlatformAdminOrInternalKey(

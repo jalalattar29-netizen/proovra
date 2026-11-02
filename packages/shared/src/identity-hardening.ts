@@ -248,7 +248,19 @@ export function isSafeRedirectAfter(
 ): boolean {
   if (!value || value.length === 0) return true;
   if (value.startsWith("//")) return false;
-  if (value.startsWith("/")) return true;
+  // A browser reads a backslash as a slash and drops tabs and newlines, so
+  // "/\\evil.com" and "/<tab>/evil.com" look relative here and leave the site
+  // there. Nothing this product links to carries either.
+  if (/[\\\u0000-\u001f\u007f]/.test(value)) return false;
+  if (value.startsWith("/")) {
+    // The final authority is the same parser a browser uses: resolved against a
+    // fixed origin, a relative path stays on that origin.
+    try {
+      return new URL(value, "https://relative.invalid").origin === "https://relative.invalid";
+    } catch {
+      return false;
+    }
+  }
   try {
     const u = new URL(value);
     if (u.protocol !== "https:" && u.protocol !== "http:") return false;

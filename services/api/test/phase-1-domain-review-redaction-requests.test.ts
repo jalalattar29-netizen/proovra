@@ -56,7 +56,7 @@ describe("evidence-requests — source composes the canonical primitive", () => 
     const cap = (permission: string) =>
       requestsSrc.match(
         new RegExp(
-          `requireMember\\(req, reply, [^,]+,\\s*"${permission.replace(/\./g, "\\.")}"\\)`,
+          `require(?:Request)?Member\\(req, reply, [^,]+,\\s*"${permission.replace(/\./g, "\\.")}"\\)`,
           "g",
         ),
       ) ?? [];

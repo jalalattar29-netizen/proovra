@@ -9,7 +9,16 @@
  * token instead of a session. These wrappers surface those shapes as typed
  * results so the screens can branch without guessing.
  */
-import { apiFetch } from "../api";
+import { apiFetch, publicFetch } from "../api";
+import {
+  MFA_ENROLL_START_PATH,
+  MFA_ENROLL_VERIFY_PATH,
+  buildEnrollStartBody,
+  buildEnrollVerifyBody,
+  parseRecoveryCodes,
+  parseTotpEnrollment,
+  type TotpEnrollment,
+} from "../product/account-security";
 
 export interface AuthUser {
   id: string;
@@ -28,16 +37,22 @@ export type LoginResult =
   | { kind: "mfaRequired"; mfaPendingToken: string }
   /**
    * The organization requires MFA and the account has no factor: the server
-   * refuses with 403 { mfaRequired: true, mfaEnrollmentRequired: true,
-   * reason: "org_policy_requires_mfa" } (auth.routes.ts:586-597). The web
-   * sends that person to /auth/mfa-challenge?enroll=1, a guided surface —
-   * not a raw refusal.
+   * refuses with 403 { mfaEnrollmentRequired: true, code: "MFA_ENROLLMENT_REQUIRED",
+   * mfaEnrollmentToken, mfaEnrollmentExpiresInSeconds } and no session. That
+   * token reaches only the enrolment routes below.
    */
-  | { kind: "mfaEnrollmentRequired" };
+  | { kind: "mfaEnrollmentRequired"; mfaEnrollmentToken: string | null; expiresInSeconds: number | null };
 
-function isMfaEnrollmentRequired(err: unknown): boolean {
+function enrollmentRefusal(err: unknown): Extract<LoginResult, { kind: "mfaEnrollmentRequired" }> | null {
   const e = err as { statusCode?: number; body?: Record<string, unknown> } | null;
-  return e?.statusCode === 403 && e.body?.["mfaEnrollmentRequired"] === true;
+  if (e?.statusCode !== 403 || e.body?.["mfaEnrollmentRequired"] !== true) return null;
+  const token = e.body["mfaEnrollmentToken"];
+  const expires = e.body["mfaEnrollmentExpiresInSeconds"];
+  return {
+    kind: "mfaEnrollmentRequired",
+    mfaEnrollmentToken: typeof token === "string" && token.length > 0 ? token : null,
+    expiresInSeconds: typeof expires === "number" ? expires : null,
+  };
 }
 
 /** A sign-in exchange: the enrolment refusal is an ANSWER, every other failure still throws. */
@@ -45,7 +60,8 @@ async function signInExchange(path: string, init: RequestInit): Promise<LoginRes
   try {
     return toLoginResult(await apiFetch(path, init));
   } catch (err) {
-    if (isMfaEnrollmentRequired(err)) return { kind: "mfaEnrollmentRequired" };
+    const refusal = enrollmentRefusal(err);
+    if (refusal) return refusal;
     throw err;
   }
 }
@@ -87,10 +103,10 @@ export async function registerAccount(input: {
   return { verificationSent: data["verificationSent"] === true, email: String(data["email"] ?? input.email) };
 }
 
-export async function verifyEmail(token: string): Promise<AuthSession> {
+export async function verifyEmail(token: string, password?: string): Promise<AuthSession> {
   const data = await apiFetch("/v1/auth/email/verify", {
     method: "POST",
-    body: JSON.stringify({ token }),
+    body: JSON.stringify(password ? { token, password } : { token }),
   });
   return { token: String(data["token"] ?? ""), user: (data["user"] as AuthUser | null) ?? null };
 }
@@ -126,6 +142,55 @@ export async function verifyMfa(
     method: "POST",
     body: JSON.stringify({ mfaPendingToken, ...challenge }),
   });
+  return { token: String(data["token"] ?? ""), user: (data["user"] as AuthUser | null) ?? null };
+}
+
+/*
+ * Enrolment during a refused sign-in. These go through publicFetch with the
+ * enrolment token as the bearer: there is no session yet, and an answer here
+ * says nothing about one.
+ */
+
+export const MFA_ENROLLMENT_COMPLETE_PATH = "/v1/auth/mfa/enrollment/complete";
+
+export async function startSignInEnrollment(enrollmentToken: string): Promise<TotpEnrollment | null> {
+  const data = await publicFetch(
+    MFA_ENROLL_START_PATH,
+    { method: "POST", body: JSON.stringify(buildEnrollStartBody()) },
+    { bearer: enrollmentToken },
+  );
+  return parseTotpEnrollment(data);
+}
+
+export interface VerifiedEnrollment {
+  recoveryCodes: string[];
+  /** The new token proving the factor. Only this one can call complete. */
+  provingToken: string | null;
+}
+
+export async function verifySignInEnrollment(
+  enrollmentToken: string,
+  factorId: string,
+  code: string,
+): Promise<VerifiedEnrollment> {
+  const data = (await publicFetch(
+    MFA_ENROLL_VERIFY_PATH,
+    { method: "POST", body: JSON.stringify(buildEnrollVerifyBody(factorId, code)) },
+    { bearer: enrollmentToken },
+  )) as Record<string, unknown> | null;
+  const proving = data?.["mfaEnrollmentToken"];
+  return {
+    recoveryCodes: parseRecoveryCodes(data),
+    provingToken: typeof proving === "string" && proving.length > 0 ? proving : null,
+  };
+}
+
+export async function completeSignInEnrollment(provingToken: string): Promise<AuthSession> {
+  const data = (await publicFetch(
+    MFA_ENROLLMENT_COMPLETE_PATH,
+    { method: "POST", body: JSON.stringify({}) },
+    { bearer: provingToken },
+  )) as Record<string, unknown>;
   return { token: String(data["token"] ?? ""), user: (data["user"] as AuthUser | null) ?? null };
 }
 

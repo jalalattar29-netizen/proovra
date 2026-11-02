@@ -643,6 +643,8 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
       "An admin changed reviewer governance settings deliberately.",
     reviewer_sla_policy_updated:
       "An admin changed the SLA promise deliberately.",
+    reviewer_decision_projection_repaired:
+      "A review status diverged from the decision log and was repaired by the sweep.",
     reviewer_bulk_triage_executed:
       "A reviewer ran a bulk triage; per-item failures are reported to that reviewer inline.",
 

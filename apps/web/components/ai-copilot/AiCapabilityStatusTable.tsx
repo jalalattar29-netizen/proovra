@@ -27,7 +27,7 @@ type Capability = {
   transferMechanism: string;
   trainingMode: string;
   retentionMode: string;
-  lastVerifiedAtUtc: string;
+  lastVerifiedAtUtc: string | null;
   note: string;
 };
 
@@ -159,7 +159,10 @@ export function AiCapabilityStatusTable() {
       ) : null}
       {caps && caps.length > 0 ? (
         <p style={{ fontSize: 11, opacity: 0.6, marginTop: 8 }}>
-          Last verified {formatUserDateTime(caps[0]!.lastVerifiedAtUtc)} · statuses refresh on load.
+          {caps[0]!.lastVerifiedAtUtc
+            ? `Provider terms last confirmed ${formatUserDateTime(caps[0]!.lastVerifiedAtUtc)}`
+            : "Provider terms not yet confirmed"}{" "}
+          · statuses refresh on load.
         </p>
       ) : null}
     </section>

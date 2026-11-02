@@ -334,14 +334,19 @@ function getByNsLocalName(
 }
 
 /**
- * Concatenates all text node content under an element.
+ * The text of an element, as the signature covers it. Exclusive C14N treats a
+ * CDATA section as text, so a CDATA section is signed content: reading text
+ * nodes alone let a holder of a valid assertion move a suffix into CDATA and be
+ * read as a different, truncated subject under an intact signature (IDENT-009).
+ * Comments and processing instructions contribute nothing, and the text around
+ * them joins up, so they cannot truncate a value.
  */
 function textOf(el: Element): string {
   let text = "";
   const children = el.childNodes;
   for (let i = 0; i < children.length; i++) {
     const n = children.item(i);
-    if (n?.nodeType === 3) text += (n as Text).nodeValue ?? "";
+    if (n?.nodeType === 3 || n?.nodeType === 4) text += (n as Text).nodeValue ?? "";
   }
   return text.trim();
 }

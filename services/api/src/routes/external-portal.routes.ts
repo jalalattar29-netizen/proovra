@@ -30,6 +30,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma } from "../db.js";
+import { isLiveOperatingWorkspace } from "../services/workspace/operating-workspace.js";
 import { requireAuth } from "../middleware/auth.js";
 // PHASE 12 REMEDIATION — SEC-001 (2026-08-06). The ONE authorization
 // authority for every internal (operator-side) route in this file. See the
@@ -39,10 +40,6 @@ import {
   authorizeCurrentWorkspaceOrFail,
   type AuthorizedWorkspaceContext,
 } from "../middleware/authorize.js";
-import {
-  organizationLifecycleApplies,
-  resolveWorkspaceKind,
-} from "../services/identity/workspace-kind.js";
 // Phase 3 blocker closure — issuing/rotating/revealing an external-
 // reviewer grant can expose sensitive evidence to an OUTSIDE reviewer,
 // so these mutations must require a fresh step-up on top of the RBAC
@@ -314,44 +311,6 @@ function isOwnerTier(
       workspaceId: expectedWorkspaceId,
     }).workspaceRole === "OWNER"
   );
-}
-
-/**
- * PHASE 12 REMEDIATION — lifecycle gate for the TOKEN_SCOPED portal routes,
- * which have no member context to authorize against but must still refuse to
- * operate inside a dead workspace.
- *
- * Reuses the canonical classifier (`resolveWorkspaceKind` +
- * `organizationLifecycleApplies`) — it does NOT re-derive what an
- * ORGANIZATION workspace is, and it does NOT invent a second lifecycle rule.
- * Fails CLOSED on an unloadable row, an unprovable kind, or any read error.
- */
-async function isLiveOperatingWorkspace(teamId: string): Promise<boolean> {
-  try {
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      select: {
-        isPersonal: true,
-        workspaceKind: true,
-        billingPlan: true,
-        organization: { select: { status: true } },
-      },
-    });
-    if (!team) return false;
-    const kind = resolveWorkspaceKind({
-      workspaceKind: team.workspaceKind,
-      isPersonal: team.isPersonal,
-      billingPlan: team.billingPlan,
-      teamLoaded: true,
-    });
-    if (kind === "UNKNOWN") return false;
-    if (organizationLifecycleApplies(kind)) {
-      return team.organization?.status === "ACTIVE";
-    }
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

@@ -176,12 +176,11 @@ describe("Phase P1.1 — Routes registration", () => {
     const routes = readSource(
       "../src/routes/identity-operations-completion.routes.ts",
     );
-    // The shared requireIdentityAdmin helper returns 404 for
-    // non-members (anti-enumeration) and 403 for inactive /
-    // wrong-role members.
-    expect(routes).toMatch(/reply\.code\(404\)[\s\S]*not_found/);
-    expect(routes).toMatch(/member_inactive/);
-    expect(routes).toMatch(/identity_ops_require_admin_role/);
+    // AUTHZ-003 — the shared requireIdentityAdmin helper is the canonical
+    // engine, concealed for anyone who is not a member.
+    expect(routes).toMatch(/authorizeOrFail\(req, reply, \{[\s\S]*identity\.external_mapping\.manage/);
+    expect(routes).toMatch(/antiEnumeration: true/);
+    expect(routes).not.toMatch(/prisma.teamMember.find/);
   });
 });
 

@@ -47,7 +47,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../../../lib/api";
+import { apiFetch, ApiError, isApiResponseError } from "../../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../../lib/feedback/toSafeUserError";
 import { formatUtcAuditDateTime } from "../../../../../../../lib/date";
 import { useTeamId } from "../../../../../../../lib/platform-context";
@@ -145,7 +145,7 @@ function ExternalReviewerGovernanceView() {
       )) as GrantsResponse;
       setState({ kind: "ready", data });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setState({
           kind: "error",
           message: err.message,

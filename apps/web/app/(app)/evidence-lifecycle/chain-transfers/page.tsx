@@ -18,6 +18,7 @@ import { permissionDenialCopy } from "../../../../lib/labels/governanceReviewLab
 type PermissionDenialState = { denial: string; permission: string | null } | null;
 
 interface ChainTransfer {
+  direction?: "OUTGOING" | "INCOMING";
   id: string;
   toOrganizationSlug: string;
   evidenceIds: string[];
@@ -82,7 +83,8 @@ function Shell() {
   const [denial, setDenial] = useState<PermissionDenialState>(null);
 
   // Create form state
-  const [toOrganizationSlug, setToOrganizationSlug] = useState("");
+  const [toOrganizationId, setToOrganizationId] = useState("");
+  const [ownOrganizationId, setOwnOrganizationId] = useState<string | null>(null);
   const [evidenceIds, setEvidenceIds] = useState("");
   const [reasonNote, setReasonNote] = useState("");
   const [creating, setCreating] = useState(false);
@@ -93,8 +95,9 @@ function Shell() {
     try {
       const res = (await apiFetch("/v1/exchange/chain-transfers", {
         method: "GET",
-      })) as { transfers?: ChainTransfer[] } | null;
+      })) as { transfers?: ChainTransfer[]; organizationId?: string | null } | null;
       setTransfers((res?.transfers ?? []) as ChainTransfer[]);
+      setOwnOrganizationId(res?.organizationId ?? null);
     } catch (err) {
       setTransfers([]);
       applyDenial(err, setDenial);
@@ -113,9 +116,9 @@ function Shell() {
         .filter(Boolean);
       await apiFetch("/v1/exchange/chain-transfers", {
         method: "POST",
-        body: JSON.stringify({ toOrganizationSlug, evidenceIds: ids, reasonNote: reasonNote || null }),
+        body: JSON.stringify({ toOrganizationId: toOrganizationId.trim(), evidenceIds: ids, reasonNote: reasonNote || null }),
       });
-      setToOrganizationSlug("");
+      setToOrganizationId("");
       setEvidenceIds("");
       setReasonNote("");
       await refresh();
@@ -124,7 +127,7 @@ function Shell() {
     } finally {
       setCreating(false);
     }
-  }, [toOrganizationSlug, evidenceIds, reasonNote, refresh]);
+  }, [toOrganizationId, evidenceIds, reasonNote, refresh]);
 
   const doAction = useCallback(
     async (id: string, action: "accept" | "reject" | "revoke" | "complete") => {
@@ -208,12 +211,12 @@ function Shell() {
       <Card variant="admin" title="Create Transfer">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
-            To Organization Slug
+            Receiving organization ID
             <input
               style={inputStyle}
-              value={toOrganizationSlug}
-              onChange={(e) => setToOrganizationSlug(e.target.value)}
-              placeholder="org-slug"
+              value={toOrganizationId}
+              onChange={(e) => setToOrganizationId(e.target.value)}
+              placeholder="Ask the receiving organization for its ID"
             />
           </label>
           <label style={labelStyle}>
@@ -238,9 +241,9 @@ function Shell() {
             type="button"
             variant="primary"
             loading={creating}
-            disabled={creating || !toOrganizationSlug || !evidenceIds}
+            disabled={creating || !toOrganizationId || !evidenceIds}
             disabledReason={
-              !toOrganizationSlug
+              !toOrganizationId
                 ? "Enter the organization to transfer the evidence to."
                 : !evidenceIds
                   ? "Enter at least one evidence ID."
@@ -251,6 +254,11 @@ function Shell() {
             {creating ? "Creating…" : "Create Transfer"}
           </Button>
         </div>
+        {ownOrganizationId ? (
+          <p style={{ fontSize: 12, marginTop: 8 }}>
+            To receive a transfer, give the sender your organization ID: <code>{ownOrganizationId}</code>
+          </p>
+        ) : null}
       </Card>
 
       <PageSection title="Chain-of-custody transfers">
@@ -261,7 +269,7 @@ function Shell() {
           getRowId={(t) => t.id}
           rowActions={(t) => (
             <span style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              {t.state === "PENDING" && (
+              {t.state === "INITIATED" && t.direction === "INCOMING" && (
                 <>
                   <Button
                     type="button"
@@ -279,17 +287,19 @@ function Shell() {
                   >
                     Reject
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => void doAction(t.id, "revoke")}
-                  >
-                    Revoke
-                  </Button>
                 </>
               )}
-              {t.state === "ACCEPTED" && (
+              {t.state === "INITIATED" && t.direction !== "INCOMING" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void doAction(t.id, "revoke")}
+                >
+                  Revoke
+                </Button>
+              )}
+              {t.state === "ACCEPTED" && t.direction !== "INCOMING" && (
                 <Button
                   type="button"
                   variant="primary"

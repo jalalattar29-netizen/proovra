@@ -26,6 +26,7 @@ import type {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 // PHASE 12 POINT 4 PASS C1 — the ONE assignment authority (transition rule +
 // lifecycle event + SLA stamps + assignee notification).
 import { assignReviewer } from "../review-operations/review-operations.service.js";
@@ -63,7 +64,12 @@ export async function bulkAssign(input: {
   const outcomes: BulkItemOutcome[] = [];
   for (const id of input.workflowIds) {
     const row = await prisma.evidenceReviewWorkflow.findFirst({
-      where: { id, teamId: input.teamId },
+      where: {
+        id,
+        teamId: input.teamId,
+        // A record closed to the actor answers as a missing workflow (WORKFLOW-003).
+        evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
+      },
       select: { id: true, evidenceId: true },
     });
     if (!row) {
@@ -133,7 +139,12 @@ export async function bulkDecide(input: {
   const outcomes: BulkItemOutcome[] = [];
   for (const id of input.workflowIds) {
     const workflow = await prisma.evidenceReviewWorkflow.findFirst({
-      where: { id, teamId: input.teamId },
+      where: {
+        id,
+        teamId: input.teamId,
+        // A record closed to the actor answers as a missing workflow (WORKFLOW-003).
+        evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
+      },
       select: { id: true, codingSchemaId: true },
     });
     if (!workflow) {
@@ -202,7 +213,12 @@ export async function bulkCode(input: {
   const outcomes: BulkItemOutcome[] = [];
   for (const id of input.workflowIds) {
     const workflow = await prisma.evidenceReviewWorkflow.findFirst({
-      where: { id, teamId: input.teamId },
+      where: {
+        id,
+        teamId: input.teamId,
+        // A record closed to the actor answers as a missing workflow (WORKFLOW-003).
+        evidence: evidenceVisibleThroughCasesWhere(input.actorUserId),
+      },
       select: { id: true, codingSchemaId: true },
     });
     if (!workflow?.codingSchemaId) {

@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "ed6ff8e6dad650ef91ebcc651b27b7f451220be827b3a51cb024a7b85dafc508",
+  "capabilityRouteInventoryHash": "9a8f02cf02237ab44a968983d258bd98949a0f468dc56d9884327d90a66cfd6d",
   "totals": {
-    "routes": 1219,
+    "routes": 1229,
     "routesWithAnyTestCaller": 47,
     "testOnlyRoutes": 5,
-    "testCallSites": 104,
+    "testCallSites": 108,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -576,6 +576,12 @@
     },
     {
       "routeId": "GET /v1/admin/platform/readiness",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/platform/release",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -1212,9 +1218,10 @@
     },
     {
       "routeId": "GET /v1/evidence",
-      "testCallerCount": 3,
+      "testCallerCount": 4,
       "testOnly": false,
       "testCallerFiles": [
+        "apps/web/__tests__/render/api-response-error-shapes.render.test.tsx",
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
         "services/api/test/web-apifetch-single-flight.test.ts"
       ]
@@ -2256,6 +2263,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/lifecycle/destruction/eligible-approvers",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/lifecycle/destruction/requests",
       "testCallerCount": 0,
       "testOnly": false,
@@ -2983,6 +2996,12 @@
       ]
     },
     {
+      "routeId": "GET /v1/reviewer-ops/reminders",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/reviewer-ops/runtime-probe",
       "testCallerCount": 1,
       "testOnly": true,
@@ -3554,6 +3573,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "PATCH /v1/admin/orgs/:id/contract",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "PATCH /v1/admin/orgs/:id/plan",
       "testCallerCount": 0,
       "testOnly": false,
@@ -3999,6 +4024,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/admin/orgs/:id/owner-invite/reissue",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/admin/orgs/:id/resume",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4121,6 +4152,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/auth/mfa/enrollment/complete",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/auth/mfa/verify",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4152,6 +4189,12 @@
     },
     {
       "routeId": "POST /v1/auth/saml/acs",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/auth/sso/discover",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6063,6 +6106,18 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/lifecycle/legal-holds/:id/release-approval",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/lifecycle/legal-holds/:id/release-request",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/lifecycle/retention/policies",
       "testCallerCount": 0,
       "testOnly": false,
@@ -6851,6 +6906,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/resume",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/reviewer-ops/reviews/:workflowId/start",
       "testCallerCount": 1,
       "testOnly": false,
@@ -7433,5 +7494,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "dd90a49f59ecccc90ce46d9255f9b9a959a8fa31ceeadb3a4ed1568a2795daf9"
+  "contentHash": "50526b825f6414db85e96bd86b84eecf79e27cdf8dede47a247dd539f7775bf1"
 }

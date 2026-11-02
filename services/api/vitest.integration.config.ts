@@ -115,6 +115,9 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       RUN_LIVE_INTEGRATION: "1",
+      // Off by default in every deployment (GOV-002). The suites exercise the
+      // executor, and the switch has its own proof in gov-002.
+      DESTRUCTION_EXECUTION_ENABLED: "true",
       POINT5_RUN_ID,
       // Point-5 proof records, RUN-SCOPED outside the tracked tree. Only
       // `scripts/point5-record-proof.mjs` names the canonical artifact.

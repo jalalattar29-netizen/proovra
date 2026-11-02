@@ -116,6 +116,20 @@ tier grants behind `require-delegated-tier`. The permission engine is kept.
   tiers. The department-scope bypass is the same delegated-only
   `governance.department.define`. Proof: `members-delegated-admin` "N-1 …",
   "N-2 …"; `phase-4a-enterprise-closure` department scope.
+* **Two people for destruction (2026-11-01).** The product says "two-person"
+  on the governance pages and the audit's closure rule is that one person cannot
+  initiate and approve, and those are the rule. On a destruction review the proposer
+  (who opened it, or on a sweep-opened review who took it up) cannot approve; on a
+  destruction request the requester is never an approver, every approver is checked
+  to hold `governance.destruction.approve`, and two or more named means all sign.
+  Deciding takes `governance.destruction.approve`, executing takes
+  `governance.destruction.execute`, both with step-up on both paths. Nothing makes
+  the executor a third person, and approver and executor may be the same person.
+  A workspace whose OWNER is the only holder cannot destroy until a second person
+  holds approve: that is the rule working, and the page says so. Personal records
+  have no second party and are outside this. Hold release under
+  `requireLegalHoldReleaseApproval` is the same shape: one asks, a second approves,
+  and the approver does not release. Proof: `gov-001`, `gov-002`, `gov-011`.
 * **The OWNER (recorded consequence).** Before retirement the OWNER was not
   implied for the COMPLIANCE / SECURITY tiers, but could grant itself any tier
   as implied ORG_ADMIN, so the practical floor is unchanged; excluding the

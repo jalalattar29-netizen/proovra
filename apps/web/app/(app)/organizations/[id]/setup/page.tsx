@@ -30,7 +30,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { apiFetch } from "../../../../../lib/api";
+import { WORKSPACE_HEADER, apiFetch } from "../../../../../lib/api";
+import { useActiveWorkspaceId, usePlatformContext } from "../../../../../lib/platform-context";
+import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../../../components/ui/PageShell";
@@ -229,8 +231,9 @@ type RetentionPoliciesResponse = {
 const HOLD_KINDS = ["EVIDENCE", "CASE", "WORKSPACE", "ORGANIZATION"] as const;
 type HoldKind = (typeof HOLD_KINDS)[number];
 
-type EvidenceListResponse = {
-  totalCount?: number;
+/** GET /v1/evidence/library-summary, the one count of a workspace's records. */
+type EvidenceSummaryResponse = {
+  totalActiveRecords?: number;
 };
 
 type Loadable<T> =
@@ -275,11 +278,11 @@ function OrganizationSetupInner() {
   const [mfa, setMfa] = useState<Loadable<MfaPolicyResponse>>({ kind: "loading" });
   const [billing, setBilling] = useState<Loadable<OrgBillingProjection>>({ kind: "loading" });
   const [retention, setRetention] = useState<Loadable<RetentionPoliciesResponse>>({ kind: "loading" });
-  const [evidence, setEvidence] = useState<Loadable<EvidenceListResponse>>({ kind: "loading" });
+  const [evidence, setEvidence] = useState<Loadable<EvidenceSummaryResponse>>({ kind: "loading" });
 
-  const safeFetch = useCallback(async <T,>(path: string): Promise<Loadable<T>> => {
+  const safeFetch = useCallback(async <T,>(path: string, init?: RequestInit): Promise<Loadable<T>> => {
     try {
-      const data = (await apiFetch(path)) as T;
+      const data = (await apiFetch(path, init)) as T;
       return { kind: "ready", data };
     } catch (err: unknown) {
       const message = toSafeUserError(err, { message: "Failed to load." }).message;
@@ -298,6 +301,17 @@ function OrganizationSetupInner() {
     const nonPersonal = workspaces.data.workspaces.find((w) => !w.isPersonal);
     return (nonPersonal ?? workspaces.data.workspaces[0])?.workspaceId ?? null;
   }, [workspaces]);
+  const stepUp = useStepUpAction({ teamId: primaryWorkspaceId });
+
+  // PROV-004 — half the wizard's writes follow the active workspace, so a second
+  // Enterprise workspace would have taken this organization's retention policy.
+  const { switchWorkspace } = usePlatformContext();
+  const activeWorkspaceId = useActiveWorkspaceId();
+  useEffect(() => {
+    if (primaryWorkspaceId && activeWorkspaceId && activeWorkspaceId !== primaryWorkspaceId) {
+      void switchWorkspace(primaryWorkspaceId).catch(() => undefined);
+    }
+  }, [primaryWorkspaceId, activeWorkspaceId, switchWorkspace]);
 
   // Load org-scoped reads immediately.
   const loadOrgScoped = useCallback(async () => {
@@ -325,14 +339,13 @@ function OrganizationSetupInner() {
     void loadOrgScoped();
   }, [loadOrgScoped]);
 
-  // Billing (account-tier) + evidence count load once.
+  // Billing (account-tier) load once.
   const loadAccountScoped = useCallback(async () => {
     setBilling(
       await safeFetch<OrgBillingProjection>(
         `/v1/billing/accounts/ORGANIZATION/${encodeURIComponent(orgId)}`,
       ),
     );
-    setEvidence(await safeFetch<EvidenceListResponse>("/v1/evidence?scope=active&limit=1"));
   }, [safeFetch, orgId]);
 
   useEffect(() => {
@@ -342,14 +355,21 @@ function OrganizationSetupInner() {
   // Workspace-scoped reads depend on the resolved primary workspace.
   const loadWorkspaceScoped = useCallback(async () => {
     if (!primaryWorkspaceId) return;
-    const [mfaRes, retRes] = await Promise.all([
+    // This Organization's workspace by name, which need not be the one the
+    // header carries: setup can be open for any Organization the person runs.
+    const inThisWorkspace = { headers: { [WORKSPACE_HEADER]: primaryWorkspaceId } };
+    const [mfaRes, retRes, evidenceRes] = await Promise.all([
       safeFetch<MfaPolicyResponse>(
         `/v1/identity-security/mfa-policy?teamId=${encodeURIComponent(primaryWorkspaceId)}`,
       ),
-      safeFetch<RetentionPoliciesResponse>("/v1/lifecycle/retention/policies"),
+      safeFetch<RetentionPoliciesResponse>("/v1/lifecycle/retention/policies", inThisWorkspace),
+      safeFetch<EvidenceSummaryResponse>(
+        `/v1/evidence/library-summary?scope=active&teamId=${encodeURIComponent(primaryWorkspaceId)}`,
+      ),
     ]);
     setMfa(mfaRes);
     setRetention(retRes);
+    setEvidence(evidenceRes);
     if (mfaRes.kind === "ready") setMfaLevel(mfaRes.data.policy.level);
     if (workspaces.kind === "ready") {
       const ws = workspaces.data.workspaces.find((w) => w.workspaceId === primaryWorkspaceId);
@@ -501,15 +521,15 @@ function OrganizationSetupInner() {
     setBusy(true);
     setStepError(null);
     try {
-      const res = (await apiFetch("/v1/identity-security/mfa-policy", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ teamId: primaryWorkspaceId, level: mfaLevel }),
-      })) as { error?: { code?: string } } | null;
-      if (res && res.error && res.error.code === "STEP_UP_REQUIRED") {
-        setStepError("This change needs step-up verification. Set it from Security Center.");
-        return;
-      }
+      // PROV-016 — `apiFetch` delivers a refusal by throwing, so the old check of
+      // the response never saw a step-up and the owner read a generic failure.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/identity-security/mfa-policy", {
+          method: "PUT",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({ teamId: primaryWorkspaceId, level: mfaLevel }),
+        }),
+      );
       markSaved("security");
       await loadWorkspaceScoped();
     } catch (err) {
@@ -517,7 +537,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [primaryWorkspaceId, mfaLevel, loadWorkspaceScoped, markSaved]);
+  }, [primaryWorkspaceId, mfaLevel, loadWorkspaceScoped, markSaved, stepUp]);
 
   const saveRetention = useCallback(async () => {
     if (retentionTemplate === "CUSTOM" && !retentionYears) {
@@ -558,16 +578,20 @@ function OrganizationSetupInner() {
     setBusy(true);
     setStepError(null);
     try {
-      await apiFetch("/v1/lifecycle/legal-holds", {
-        method: "POST",
-        body: JSON.stringify({
-          kind: holdKind,
-          name,
-          reason,
-          expiresAtUtc: null,
-          scopeTargetId: holdKind === "ORGANIZATION" ? orgId : primaryWorkspaceId ?? null,
+      // PROV-002 — placing a hold takes a step-up, and this sent none.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch("/v1/lifecycle/legal-holds", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify({
+            kind: holdKind,
+            name,
+            reason,
+            expiresAtUtc: null,
+            scopeTargetId: holdKind === "ORGANIZATION" ? orgId : primaryWorkspaceId ?? null,
+          }),
         }),
-      });
+      );
       markSaved("legalHolds");
       setHoldName("");
       setHoldReason("");
@@ -576,7 +600,7 @@ function OrganizationSetupInner() {
     } finally {
       setBusy(false);
     }
-  }, [holdKind, holdName, holdReason, orgId, primaryWorkspaceId, markSaved]);
+  }, [holdKind, holdName, holdReason, orgId, primaryWorkspaceId, markSaved, stepUp]);
 
   // -------- checklist derivation (shared source of truth) --------
   const criteria = useMemo(
@@ -597,7 +621,7 @@ function OrganizationSetupInner() {
         retentionPolicyCount:
           retention.kind === "ready" ? retention.data.policies.length : null,
         evidenceCount:
-          evidence.kind === "ready" ? evidence.data.totalCount ?? 0 : null,
+          evidence.kind === "ready" ? evidence.data.totalActiveRecords ?? 0 : null,
       }),
     [org, members, pending, mfa, retention, evidence],
   );
@@ -1346,6 +1370,7 @@ function OrganizationSetupInner() {
       <div>
         <SetupChecklist criteria={criteria} />
       </div>
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }
@@ -1448,6 +1473,7 @@ function SuccessScreen({
   criteria: ReadonlyArray<ReturnType<typeof deriveChecklist>[number]>;
   setupHref: string;
 }) {
+  const done = criteria.filter((c) => c.done === true).length;
   return (
     <div data-success-screen style={{ textAlign: "center", padding: "0.5rem 0" }}>
       <div
@@ -1469,11 +1495,14 @@ function SuccessScreen({
         ✓
       </div>
       <h2 style={{ margin: "0 0 0.35rem", fontSize: 20, fontWeight: 650, color: "var(--ink-primary, #0f172a)" }}>
-        {orgName} is enterprise ready
+        {done === criteria.length
+          ? `${orgName}: setup checklist complete`
+          : `${orgName}: ${done} of ${criteria.length} setup steps done`}
       </h2>
       <p style={{ margin: "0 auto 1rem", fontSize: 13.5, color: "var(--ink-secondary, #475569)", maxWidth: 520 }}>
-        Your organization is set up. You can revisit any optional step from the
-        checklist below at any time.
+        This checklist covers the basics. Single sign-on, verified domains and
+        directory sync are set up separately in Security Center. You can come
+        back to any step below at any time.
       </p>
       <div style={{ maxWidth: 480, margin: "0 auto 1rem", textAlign: "left" }}>
         <SetupChecklist criteria={criteria} setupHref={setupHref} compact />

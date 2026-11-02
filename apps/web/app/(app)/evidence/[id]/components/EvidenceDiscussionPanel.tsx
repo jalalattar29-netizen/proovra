@@ -347,7 +347,7 @@ export default function EvidenceDiscussionPanel({
       if (body.length === 0) return;
       setPosting(true);
       try {
-        await apiFetch(
+        const posted = (await apiFetch(
           `/v1/collaboration/threads/${encodeURIComponent(
             selectedThreadId,
           )}/messages?teamId=${encodeURIComponent(teamId)}`,
@@ -356,9 +356,23 @@ export default function EvidenceDiscussionPanel({
             body: JSON.stringify({ teamId, body }),
             headers: { "Content-Type": "application/json" },
           },
-        );
+        )) as { unresolvedMentions?: Array<{ token: string; reason: string }> };
         setDraft("");
         await loadMessages(selectedThreadId);
+        // The message posted; these people were not told, and the author
+        // should know that rather than assume they were.
+        const missed = posted?.unresolvedMentions ?? [];
+        if (missed.length > 0) {
+          setError(
+            missed
+              .map((m) =>
+                m.reason === "ambiguous"
+                  ? `@${m.token} matches more than one person, so nobody was notified.`
+                  : `@${m.token} cannot open this record, so they were not notified.`,
+              )
+              .join(" "),
+          );
+        }
       } catch (err) {
         const e2 = err as { message?: string };
         setError(toSafeUserError(e2, { message: "Could not post message." }).message);

@@ -95,10 +95,10 @@ describe("Phase 32.8C — `/v1/dashboard/command-center` aggregator endpoint", (
     expect(ROUTE).toMatch(/preHandler:\s*requireAuth/);
   });
 
-  it("enforces ACTIVE workspace membership (404 on non-member, 403 on inactive)", () => {
+  it("the membership gate is the canonical engine, never a local reading of the row (AUTHZ-003)", () => {
     expect(ROUTE).toMatch(/requireMember\(/);
-    expect(ROUTE).toMatch(/code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"/);
-    expect(ROUTE).toMatch(/membership\.status\s*!==\s*"ACTIVE"/);
+    expect(ROUTE).toMatch(/authorizeWorkspaceOrFail\(req, reply, \{\s*workspaceId: teamId,\s*permission: "evidence\.read"/);
+    expect(ROUTE).not.toMatch(/teamMember\.find/);
   });
 
   it("only handles GET — no POST/PUT/DELETE mutators", () => {
@@ -269,7 +269,7 @@ describe("Phase 32.8C — service layer composition", () => {
     // and is now stronger: the display density and the read populations are
     // derived from ONE answer to "is this workspace personal", so they cannot
     // disagree about it. Member count still must not decide it.
-    expect(SERVICE).toMatch(/resolvePersonalScope\(teamId\)/);
+    expect(SERVICE).toMatch(/resolvePersonalScope\(teamId, prisma\)/);
     expect(SERVICE).toMatch(
       /scope:\s*personal\.isPersonal\s*\?\s*"SINGLE_OCCUPANT"\s*:\s*"SHARED"/,
     );
@@ -1430,7 +1430,7 @@ describe("Phase 32.8C++ — Permission-aware action routing", () => {
 
   it("buildCommandCenter passes the viewer role into the operational pressure engine", () => {
     expect(SERVICE).toMatch(
-      /runOperationalPressure\(\s*input\.teamId,\s*scope,\s*input\.role\s*\)/,
+      /runOperationalPressure\(\s*input\.teamId,\s*scope,\s*input\.role,\s*reach\s*\)/,
     );
   });
 

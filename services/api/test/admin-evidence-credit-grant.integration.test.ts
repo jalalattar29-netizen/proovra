@@ -246,6 +246,7 @@ describe("ADMIN — evidence credit grant (live PostgreSQL 16)", () => {
       select: { id: true },
     });
     await prisma.teamMember.create({ data: { teamId: team.id, userId: staff.userId, role: "OWNER", status: "ACTIVE" } });
+    await prisma.organizationSecurityPolicy.create({ data: { organizationId: org.id, teamId: team.id } });
     const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
     adminSecret = totp.generateTotpSecretBytes();
     const sealed = sealSecret(adminSecret);

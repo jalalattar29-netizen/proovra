@@ -20,6 +20,8 @@
  *   3. Operates only on the workspace from req.apiCredential.teamId.
  */
 
+import { evidenceClosedTo } from "../services/access/record-reach.js";
+import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -179,7 +181,9 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
 
         const rows = await prisma.evidence.findMany({
           where: {
-            AND: [await workspaceEvidenceWhere(cred.teamId, prisma)],
+            // AZ-R04: an API key is no person, so it is on no access list and
+            // sees only unrestricted records.
+            AND: [await workspaceEvidenceWhere(cred.teamId, prisma), evidenceVisibleThroughCasesWhere(null)],
             ...(query.status ? { status: query.status as never } : {}),
             ...(Object.keys(dateFilter).length > 0
               ? { createdAt: dateFilter }
@@ -215,7 +219,7 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
           where: { id },
           select: EvidenceSelect,
         });
-        if (!row || row.teamId !== cred.teamId) {
+        if (!row || row.teamId !== cred.teamId || (await evidenceClosedTo(id, null))) {
           return reply.code(404).send({ error: { code: "not_found" } });
         }
         return reply.code(200).send({ evidence: projectEvidenceForApi(row) });

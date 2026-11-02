@@ -599,6 +599,8 @@ export async function editDraftEvidenceRequest(
 
 export type ListEvidenceRequestsInput = {
   teamId: string;
+  /** What a restricted case closes to the reader (`hiddenRecordIdsInWorkspace`). */
+  hidden: { evidenceIds: string[]; caseIds: string[] };
   evidenceId?: string;
   caseId?: string;
   status?: EvidenceRequestStatus;
@@ -613,6 +615,16 @@ export async function listEvidenceRequests(
 ): Promise<RequestRow[]> {
   const where: Prisma.EvidenceRequestWhereInput = {
     teamId: input.teamId,
+    // A request naming a closed record or case is not listed. NOT IN drops
+    // NULL rows, so a request naming neither is kept explicitly.
+    AND: [
+      ...(input.hidden.evidenceIds.length > 0
+        ? [{ OR: [{ evidenceId: null }, { evidenceId: { notIn: input.hidden.evidenceIds } }] }]
+        : []),
+      ...(input.hidden.caseIds.length > 0
+        ? [{ OR: [{ caseId: null }, { caseId: { notIn: input.hidden.caseIds } }] }]
+        : []),
+    ],
     ...(input.evidenceId ? { evidenceId: input.evidenceId } : {}),
     ...(input.caseId ? { caseId: input.caseId } : {}),
     ...(input.status ? { status: input.status } : {}),

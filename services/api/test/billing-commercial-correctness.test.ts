@@ -379,13 +379,25 @@ describe("workspace, collaboration-team and member limits are independent", () =
     expect(getPlanCapabilities("PRO").maxAcceptedMembersPerCollaborationTeam).toBe(5);
     expect(getPlanCapabilities("TEAM").maxCollaborationTeamsPerWorkspace).toBe(5);
     expect(getPlanCapabilities("TEAM").maxAcceptedMembersPerCollaborationTeam).toBe(10);
-    for (const plan of ["PRO", "TEAM", "ENTERPRISE"] as const) {
+    for (const plan of ["PRO", "TEAM"] as const) {
       expect(getPlanCapabilities(plan).maxAdditionalWorkspaceMembers, plan).toBeNull();
       expect(resolveWorkspaceMemberCeiling({ plan, contractSeats: null }), plan).toEqual({
         included: true,
         limit: null,
         source: "PLAN_CATALOG",
       });
+    }
+  });
+
+  it("BILLING-011 — Enterprise is never unlimited by omission: no seat count, or zero, admits nobody", () => {
+    expect(getPlanCapabilities("ENTERPRISE").maxAdditionalWorkspaceMembers).toBeNull();
+    for (const contractSeats of [null, 0]) {
+      for (const contractGoverns of [true, false, undefined]) {
+        expect(
+          resolveWorkspaceMemberCeiling({ plan: "ENTERPRISE", contractSeats, contractGoverns }),
+          `seats ${contractSeats}, governs ${contractGoverns}`,
+        ).toEqual({ included: false, limit: 0, source: "ENTERPRISE_CONTRACT" });
+      }
     }
   });
 

@@ -17,6 +17,8 @@
  * so the adapter registry has entries when the routes resolve.
  */
 
+import { evidenceClosedTo } from "../services/access/record-reach.js";
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import { createHash } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -37,11 +39,11 @@ import {
 
 import type { Permission } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 import {
   extractPrismaDiagnostic,
   isPrismaTableOrColumnMissing,
@@ -168,19 +170,15 @@ async function authorizeWorkspace(
   reply: FastifyReply,
   permission: Permission,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  if (!user?.currentWorkspaceId) {
+  const teamId = await requestWorkspaceCandidate(req);
+  if (!teamId) {
     // Operator has no current workspace context; 404 (anti-enumeration)
     // is consistent with authorizeOrFail's not-a-member path.
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
   const decision = await authorizeOrFail(req, reply, {
-    teamId: user.currentWorkspaceId,
+    teamId,
     permission,
     antiEnumeration: true,
   });
@@ -375,7 +373,23 @@ function decodeBase64(payload: string): Uint8Array {
 // Route registration
 // ---------------------------------------------------------------------------
 
+/**
+ * An intelligence record is OCR, transcript or entity data from one evidence
+ * record, so a record closed by a restricted case closes it too (AUTHZ-002).
+ */
+async function intelligenceRecordClosed(
+  ctx: { teamId: string; userId: string },
+  recordId: string,
+): Promise<boolean> {
+  const row = await prisma.mediaIntelligenceRecord.findFirst({
+    where: { id: recordId, teamId: ctx.teamId },
+    select: { evidenceId: true },
+  });
+  return row ? evidenceClosedTo(row.evidenceId, ctx.userId) : false;
+}
+
 export async function intelligencePlatformRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // ---- Records ----
   app.get(
     "/v1/intelligence/evidence/:evidenceId/records",
@@ -409,6 +423,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await intelligenceRecordClosed(ctx, id)) {
+        return reply.code(404).send({ denial: "RECORD_NOT_FOUND" });
+      }
       const row = await getRecordWithCorrections({
         teamId: ctx.teamId,
         recordId: id,
@@ -544,6 +561,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       );
       if (!ctx) return reply;
       const body = CorrectionCreateBody.parse(req.body);
+      if (await intelligenceRecordClosed(ctx, body.recordId)) {
+        return reply.code(409).send({ denial: "RECORD_NOT_FOUND" });
+      }
       const res = await createCorrection({
         teamId: ctx.teamId,
         recordId: body.recordId,
@@ -612,6 +632,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await intelligenceRecordClosed(ctx, id)) {
+        return reply.code(200).send({ corrections: [] });
+      }
       const rows = await listCorrectionsForRecord({
         teamId: ctx.teamId,
         recordId: id,
@@ -849,6 +872,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
       const ctx = await authorizeWorkspace(req, reply, "intelligence.read");
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await intelligenceRecordClosed(ctx, id)) {
+        return reply.code(404).send({ denial: "RECORD_NOT_FOUND" });
+      }
       const chain = await getCorrectionVersionChain({
         teamId: ctx.teamId,
         recordId: id,

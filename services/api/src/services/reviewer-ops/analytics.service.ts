@@ -29,6 +29,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import { bump } from "../ops/metrics.service.js";
 
 // -----------------------------------------------------------------------------
@@ -57,21 +58,24 @@ function dayBucket(d: Date): string {
 // -----------------------------------------------------------------------------
 
 export async function getEscalationAnalytics(
-  input: { teamId: string; rangeDays?: number },
+  input: { teamId: string; rangeDays?: number; viewerUserId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<EscalationAnalyticsProjection> {
   const { startUtc, endUtc } = boundRange(input.rangeDays);
+  const workflow = { evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId) };
 
   const [openTotal, inRangeRows, resolvedRows] = await Promise.all([
     client.reviewEscalation.count({
       where: {
         teamId: input.teamId,
+        workflow,
         status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
       },
     }),
     client.reviewEscalation.findMany({
       where: {
         teamId: input.teamId,
+        workflow,
         createdAt: { gte: startUtc, lte: endUtc },
       },
       select: {
@@ -86,6 +90,7 @@ export async function getEscalationAnalytics(
     client.reviewEscalation.findMany({
       where: {
         teamId: input.teamId,
+        workflow,
         resolvedAtUtc: { gte: startUtc, lte: endUtc, not: null },
       },
       select: {
@@ -203,7 +208,7 @@ export async function getEscalationAnalytics(
 // -----------------------------------------------------------------------------
 
 export async function getReviewerPerformance(
-  input: { teamId: string; rangeDays?: number; limit?: number },
+  input: { teamId: string; rangeDays?: number; limit?: number; viewerUserId: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<ReviewerPerformanceProjection> {
   const { startUtc, endUtc } = boundRange(input.rangeDays);
@@ -216,6 +221,7 @@ export async function getReviewerPerformance(
     where: {
       teamId: input.teamId,
       assignedToUserId: { not: null },
+      evidence: evidenceVisibleThroughCasesWhere(input.viewerUserId),
     },
     select: {
       assignedToUserId: true,

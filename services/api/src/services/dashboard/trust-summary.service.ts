@@ -23,6 +23,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
   OTS_ANCHORING_RECORD_SELECT,
   presentedTsaStatus,
@@ -197,13 +198,15 @@ async function countOtsStates(baseWhere: Prisma.EvidenceWhereInput): Promise<Tru
 
 export async function buildTrustSummary(input: {
   teamId: string;
+  /** The viewer: the totals match the Evidence list they get (EVID-019). */
+  userId: string;
 }): Promise<TrustSummary> {
   // Phase HOME-DATA-OWNERSHIP — for personal workspaces the filter
   // also matches the owner's legacy `team_id NULL` rows (pre-backfill
   // databases). Strict teamId filter for real team workspaces.
   const scopeWhere = await workspaceEvidenceWhere(input.teamId, prisma);
   const baseWhere: Prisma.EvidenceWhereInput = {
-    AND: [scopeWhere, { deletedAt: null }],
+    AND: [scopeWhere, { deletedAt: null }, evidenceVisibleThroughCasesWhere(input.userId)],
   };
 
   /*

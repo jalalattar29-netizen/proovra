@@ -30,6 +30,7 @@ import {
   liveDeltaMaterialsText,
   maskPublicEmailsInText,
   otsBoundaryFor,
+  otsCalendarList,
   readOtsAnchoringView,
   type VerificationMatrix,
   type OtsAnchoringView,
@@ -1141,6 +1142,7 @@ export default function VerifyPage() {
   const tsaDetails = useMemo(() => (data ? buildTsaDetails(data) : null), [data]);
   const otsDetails = useMemo(() => (data ? buildOtsDetails(data) : null), [data]);
   const otsView = otsDetails?.view ?? readOtsAnchoringView(null);
+  const otsCalendars = otsCalendarList(otsDetails?.calendar);
   const forensicTimeline = useMemo(() => (data ? readForensicChain(data) : []), [data]);
   const forensicGroups = useMemo(() => groupForensicEvents(forensicTimeline), [forensicTimeline]);
   const evidenceItems = useMemo(
@@ -1229,7 +1231,10 @@ export default function VerifyPage() {
     { label: "Timestamp hash algorithm", value: tsaDetails?.hashAlgorithm ?? null },
     { label: "Signing key", value: signingKeyId },
     { label: "Signing key version", value: signingKeyVersion != null ? String(signingKeyVersion) : null },
-    { label: "OTS calendar", value: otsDetails?.calendar ?? null },
+    {
+      label: otsCalendars.length > 1 ? "OTS calendars submitted to" : "OTS calendar",
+      value: otsCalendars.join(", ") || null,
+    },
   ].filter((fact): fact is { label: string; value: string } => Boolean(fact.value));
 
   const heroTitleSize = "clamp(1.8rem, 6vw, 3.1rem)";

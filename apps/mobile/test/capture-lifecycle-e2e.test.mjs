@@ -555,9 +555,10 @@ test("D13 (2026-09-29): a session opened in a Team workspace names it; without o
   assert.deepEqual(personal.body, { mode: "PROOVRA_MOBILE_APP" });
 });
 
-test("D13: the capture screen opens its session in the ACTIVE workspace", () => {
+test("D13: the capture screen opens its session in the confirmed workspace", () => {
+  // The behaviour itself: capture-workspace-unknown.render.test.mjs.
   const src = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
-  assert.match(src, /openDirectCaptureSession\("PROOVRA_MOBILE_APP", \{ teamId \}\)/);
+  assert.match(src, /openDirectCaptureSession\("PROOVRA_MOBILE_APP", \{ teamId: target\?\.teamId \?\? null \}\)/);
 });
 
 test("location (2026-10-16): a denied or unavailable device location is sent as the request outcome, never with coordinates", async () => {

@@ -41,7 +41,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../../../../components/ui/ConfirmActionModal";
 import { OrgMemberLifecycleControls } from "../../../../../../components/organizations/OrgMemberLifecycleControls";
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { usePlatformContext } from "../../../../../../lib/platform-context";
 import { formatUserDate, formatUserDateTime } from "../../../../../../lib/date";
 import { SeatsCard } from "../_lib/SeatsCard";
@@ -232,7 +232,7 @@ function MembersTab() {
       const data = (await apiFetch(path)) as T;
       return { kind: "ready", data };
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         // Sanitize the rendered message (no raw backend passthrough); keep
         // status for the 403 branch and requestId for support reference.
         return {

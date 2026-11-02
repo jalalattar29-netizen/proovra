@@ -1,4 +1,4 @@
-import { ApiError } from "../../../../lib/api";
+import { ApiError, isApiResponseError } from "../../../../lib/api";
 import type { ToastOptions } from "../../../../components/ui-legacy";
 import {
   hasExplanationFor,
@@ -61,7 +61,7 @@ export function buildTeamPlanRequiredDetails(
 }
 
 export function buildStorageLimitMessage(error: unknown): string | null {
-  if (error instanceof ApiError) {
+  if (isApiResponseError(error)) {
     if (
       error.code === "STORAGE_LIMIT_REACHED" ||
       (typeof error.message === "string" &&

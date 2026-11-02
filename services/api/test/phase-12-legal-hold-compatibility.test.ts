@@ -249,7 +249,7 @@ describe("Phase 12 Point 3 — restored adapters hold no legacy dependence", () 
       expect(BLOCK.indexOf(marker), marker).toBeGreaterThan(-1);
       // …and the ordering is read from its own registration only.
       const body = routeSource(ROUTES, "POST", path);
-      const approvalAt = body.indexOf("assertReleaseApproval(");
+      const approvalAt = body.indexOf("legalHoldReleaseRefusal(");
       const stepUpAt = body.indexOf("requireStepUpForSensitiveAction(");
       expect(approvalAt, marker).toBeGreaterThan(-1);
       expect(stepUpAt, marker).toBeGreaterThan(-1);

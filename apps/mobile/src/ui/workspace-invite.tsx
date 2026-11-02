@@ -18,6 +18,7 @@ import { isWellFormedWorkspaceInviteToken } from "@proovra/shared";
 import { apiFetch } from "../api";
 import { logout } from "../auth/auth-api";
 import { useAuth } from "../auth-context";
+import { teardownCaptureOnSignOut } from "../capture/capture-teardown";
 import { setPendingRoute } from "../deep-link/pending-intent";
 import { formatUserDateTime } from "../lib/date";
 import { theme } from "../theme/theme";
@@ -116,9 +117,12 @@ export function WorkspaceInvite({ token }: { token: string }) {
         router.push("/(stack)/register");
         return;
       case "switch-account":
-        setPendingRoute(`/invite/${token}`);
+        // Capture ends with the account session here too, while the token is
+        // still valid. The invitation is set after sign-out, which clears intents.
+        await teardownCaptureOnSignOut().catch(() => undefined);
         await logout();
         setToken(null);
+        setPendingRoute(`/invite/${token}`);
         router.replace("/(stack)/auth");
         return;
       case "open-workspace":

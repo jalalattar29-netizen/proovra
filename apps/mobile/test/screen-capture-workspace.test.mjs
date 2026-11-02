@@ -105,14 +105,5 @@ test("UC-3 / UC-5: a continuous capture opens its session in the active workspac
   assert.deepEqual(globalThis.__opened, [["DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS", { teamId: "team-1" }]]);
 });
 
-test("both screens pass the platform context's active workspace", () => {
-  for (const [screenFile, call] of [
-    // AUD-005 — a resumed staging keeps the workspace it was started in.
-    ["../app/(stack)/screen-capture.tsx", "teamId: resume ? resume.teamId : teamId,"],
-    ["../app/(stack)/continuous-capture.tsx", "beginContinuousSession({\n        teamId,"],
-  ]) {
-    const src = readFileSync(resolve(HERE, screenFile), "utf8");
-    assert.match(src, /const teamId = usePlatformContext\(\)\.context\?\.activeTeamId \?\? null;/, screenFile);
-    assert.ok(src.includes(call), `${screenFile} passes the active workspace`);
-  }
-});
+// The screens pass that workspace, and refuse an unknown one:
+// capture-workspace-unknown.render.test.mjs drives them for real.

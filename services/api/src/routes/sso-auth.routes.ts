@@ -24,11 +24,15 @@
  *     `isSafeRedirectAfter` helper. No open redirects.
  *   - The cookie shape MUST match the existing auth route's cookie so
  *     the auth middleware accepts the session.
- *   - On any failure, the user is bounced to `/auth?sso_error=...`
+ *   - On any failure, the user is bounced to the web `/login?sso_error=...`
  *     with a sanitised reason code (no raw IdP error).
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
+import {
+  setMfaEnrollmentCookie,
+  signMfaEnrollmentToken,
+} from "../services/auth/mfa-enrollment-session.js";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
@@ -44,6 +48,7 @@ import {
 import {
   handleOidcCallback,
   buildOidcAuthorizationUrl,
+  oidcClientSecretAvailable,
   SsoServiceError,
 } from "../services/access-control/sso.service.js";
 import {
@@ -61,12 +66,9 @@ import {
   persistCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
 import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
-import { hashSessionId } from "../services/identity-security/session-revocation.service.js";
 import { organizationIdForPolicy } from "../services/identity/org-security-policy.service.js";
-import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
+import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
 import { resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
-import { provisionManagedMembership } from "../services/identity/membership-provisioning.service.js";
-import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 // PHASE 11 — canonical safe-destination helper + internal URL builder.
 // Used ONLY to validate/compose the post-login destination string; the
 // state/nonce/replay-protection logic above is untouched.
@@ -74,14 +76,28 @@ import {
   safeIntendedDestination,
   absoluteInternalUrl,
   internalNavPath,
+  ssoProviderProtocol,
+  type SsoProvider,
 } from "@proovra/shared";
+import { domainFromEmail } from "../services/organization/organization-domain.service.js";
 // PHASE 12B — the federation READINESS projection (operator session, not the
 // IdP) composes the canonical authorization primitive.
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 // 2026-10-28 — the redirect URI shared with the IDP_REAUTH step-up round trip
 // (the IdP compares it byte for byte at the code exchange).
-import { oidcRedirectUri as getRedirectUri } from "../services/access-control/sso-endpoints.js";
+import {
+  oidcRedirectUri as getRedirectUri,
+  signInErrorUrl,
+  webPageUrl,
+} from "../services/access-control/sso-endpoints.js";
+import {
+  clearSsoBrowserBinding,
+  setSsoBrowserBinding,
+  ssoBrowserBindingMatches,
+} from "../services/access-control/sso-browser-binding.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { mintedSessionClaims } from "../services/jwt.js";
 import {
   completeOidcIdpStepUp,
@@ -91,6 +107,8 @@ import {
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+const SSO_LOGIN_RATE_LIMIT_PER_MIN = 30;
 
 function ipPreview(req: FastifyRequest): string | null {
   const ip = req.ip ?? "";
@@ -145,13 +163,8 @@ function bounceToAuthError(
   reason: string,
   redirectAfter?: string | null,
 ): void {
-  const params = new URLSearchParams();
-  params.set("sso_error", reason.slice(0, 64));
-  if (redirectAfter) {
-    const safe = safeIntendedDestination(redirectAfter);
-    if (safe !== "/") params.set("redirect_after", safe);
-  }
-  reply.code(302).redirect(`/auth?${params.toString()}`);
+  const destination = redirectAfter ? safeIntendedDestination(redirectAfter) : "/";
+  reply.code(302).redirect(signInErrorUrl("sso_error", reason, destination));
 }
 
 /**
@@ -287,6 +300,8 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           allowedEmailDomains: true,
           restrictToVerifiedDomains: true,
           samlSignRequests: true,
+          // Read only to answer "can the code exchange run". Never projected.
+          clientSecretSealed: true,
           // Status-only reads. `samlSpCertificate` / `samlCertificate` hold
           // PUBLIC certificate material; the SP PRIVATE key
           // (`samlSpPrivateKey`) is deliberately NOT selected, and neither is
@@ -331,6 +346,8 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             } else {
               if (!c.issuerUrl) blockers.push("ISSUER_URL_MISSING");
               if (!c.clientId) blockers.push("CLIENT_ID_MISSING");
+              // IDENT-002 — a stored hash cannot sign in to an IdP.
+              if (!oidcClientSecretAvailable(c)) blockers.push("CLIENT_SECRET_UNAVAILABLE");
             }
             if (
               c.restrictToVerifiedDomains &&
@@ -363,6 +380,47 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
   );
 
   // -------------------------------------------------------------------------
+  // POST /v1/auth/sso/discover (IDENT-020)
+  //
+  // How a person reaches their organization's sign-in from the sign-in page: a
+  // connection id is not something they know. Only a DNS-verified domain claimed
+  // by exactly one Organization answers, so a typed address cannot steer anyone
+  // to another tenant's IdP, and every other address gets the same "no".
+  // -------------------------------------------------------------------------
+  app.post("/v1/auth/sso/discover", async (req: FastifyRequest, reply: FastifyReply) => {
+    const rl = await enforceRateLimit({
+      key: `sso:discover:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+      max: SSO_LOGIN_RATE_LIMIT_PER_MIN,
+      windowSec: 60,
+    });
+    if (!rl.allowed) return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+    const body = z.object({ email: z.string().max(320) }).safeParse(req.body ?? {});
+    const domain = body.success ? domainFromEmail(body.data.email) : null;
+    const none = { sso: false as const };
+    if (!domain) return reply.code(200).send(none);
+    const claims = await prisma.organizationDomain.findMany({
+      where: { domain, verifiedAt: { not: null } },
+      select: { organizationId: true },
+      take: 2,
+    });
+    if (claims.length !== 1) return reply.code(200).send(none);
+    const conn = await prisma.ssoConnection.findFirst({
+      where: { organizationId: claims[0]!.organizationId, status: "ACTIVE" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, provider: true },
+    });
+    if (!conn) return reply.code(200).send(none);
+    const id = encodeURIComponent(conn.id);
+    return reply.code(200).send({
+      sso: true as const,
+      loginPath:
+        ssoProviderProtocol(conn.provider as SsoProvider) === "SAML"
+          ? `/v1/auth/saml/${id}/login`
+          : `/v1/auth/sso/${id}/initiate`,
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // GET /v1/auth/sso/:connectionId/initiate
   // -------------------------------------------------------------------------
   app.get(
@@ -380,6 +438,16 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         })
         .parse(req.query ?? {});
 
+      // IDENT-014 — public, and each call writes a row and may reach the IdP.
+      const rl = await enforceRateLimit({
+        key: `sso:initiate:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+        max: SSO_LOGIN_RATE_LIMIT_PER_MIN,
+        windowSec: 60,
+      });
+      if (!rl.allowed) {
+        return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+      }
+
       // Look up the connection to discover its teamId.
       const conn = await prisma.ssoConnection.findUnique({
         where: { id: connectionId },
@@ -390,7 +458,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       }
 
       try {
-        const { authorizationUrl, state } = await buildOidcAuthorizationUrl(
+        const { authorizationUrl, state, nonce } = await buildOidcAuthorizationUrl(
           {
             teamId: conn.teamId,
             connectionId: conn.id,
@@ -400,14 +468,14 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
 
-        // Persist the state for replay protection.
-        const nonceRaw = randomBytes(16).toString("base64url");
+        // The ledger is the only memory of this sign-in, so any instance can
+        // finish it.
         const persist = await persistCallbackAttempt(
           {
             teamId: conn.teamId,
             ssoConnectionId: conn.id,
             stateRaw: state,
-            nonceRaw,
+            nonceRaw: nonce,
             redirectAfter: sanitiseRedirectAfter(q.redirectAfter),
             ipPreview: ipPreview(req),
             uaPreview: uaPreview(req),
@@ -418,6 +486,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           return bounceToAuthError(reply, "sso_state_persist_failed");
         }
 
+        setSsoBrowserBinding(req, reply, state);
         return reply.code(302).redirect(authorizationUrl);
       } catch (err) {
         if (err instanceof SsoServiceError) {
@@ -472,6 +541,12 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         return bounceToAuthError(reply, `idp_${q.error ?? "no_code"}`);
       }
 
+      // IDENT-014 — a callback in a browser that did not start this sign-in is
+      // login CSRF. Refused before the state is spent.
+      if (!ssoBrowserBindingMatches(req, q.state)) {
+        return bounceToAuthError(reply, "sso_browser_mismatch");
+      }
+
       // Consume the persistent state row first — this is replay-safe.
       const consume = await consumeCallbackAttempt(
         { stateRaw: q.state },
@@ -502,6 +577,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       try {
         const result = await handleOidcCallback(
           {
+            attempt,
             state: q.state,
             code: q.code,
             redirectUri: getRedirectUri(req),
@@ -566,6 +642,21 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
               userAgent: uaPreview(req),
             },
           }).catch(() => null);
+          setMfaEnrollmentCookie(
+            req,
+            reply,
+            signMfaEnrollmentToken(
+              {
+                sub: result.user.id,
+                provider: "EMAIL",
+                email: result.user.email,
+                authMethod: "OIDC",
+                authAt: Math.floor(Date.now() / 1000),
+                ssoConnId: conn.id,
+              },
+              getSecret("AUTH_JWT_SECRET") as string,
+            ),
+          );
           // PHASE 11 — canonical destination validation + absolute-internal-URL
           // builder (the MFA enrollment/session logic above is untouched).
           const url = new URL(
@@ -718,80 +809,31 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
 
-        // Score the new session for adaptive auth on the first request.
-        await detectAndScoreSession(
-          { teamId: result.teamId, sessionId: session.id },
+        // IDENT-011 — the same completion the MFA routes run: scored, managed
+        // provisioning, and the Organization context under its session limit,
+        // before any cookie. A refusal leaves no session.
+        const completion = await completeSsoSession(
+          {
+            userId: result.user.id,
+            teamId: result.teamId,
+            ssoConnectionId: conn.id,
+            source: "OIDC",
+            sessionId: session.id,
+            sid,
+          },
           prisma,
-        ).catch(() => null);
-
-        // PHASE 10 §2.2 — OIDC establishes the session's ORGANIZATION context
-        // under the advisory-locked concurrent-session limit BEFORE returning
-        // the active Workspace context. Same ordering as SAML; mandatory SSO is
-        // satisfied by the validated OIDC login through the org's exact ACTIVE
-        // connection. A denial performs zero context mutation and bounces.
-        const oidcOrgId = await organizationIdForPolicy(result.teamId, prisma);
-        if (oidcOrgId) {
-          // PATH 7/9 (+ PATH 8 existing-user linking) — OIDC FIRST LOGIN managed
-          // provisioning. Identical contract to SAML: when the org REQUIRES
-          // managed identity, bind it (evidence = the exact verified OIDC
-          // connection) + fail-closed seat + membership BEFORE establishing Org
-          // context and before any cookie. A cross-Organization conflict throws →
-          // rollback → session deleted → bounce; no silent re-claim.
-          const oidcPolicy = await resolveOrganizationPolicy(result.teamId, prisma);
-          if (
-            oidcPolicy.applicability === "ORGANIZATION" &&
-            oidcPolicy.policy.managedIdentityRequired
-          ) {
-            try {
-              await prisma.$transaction((tx) =>
-                provisionManagedMembership(tx, {
-                  userId: result.user.id,
-                  managingTeamId: result.teamId,
-                  evidence: { source: "OIDC", ssoConnectionId: conn.id },
-                  membershipIntent: "SSO_JIT",
-                  source: "SSO_JIT",
-                  workspace: { teamId: result.teamId, role: "MEMBER" },
-                  actorUserId: null,
-                  externalRef: `oidc:${conn.id}`,
-                  accessReason: "OIDC managed provisioning",
-                  preserveExistingStatus: true,
-                  seatPolicy: "ENFORCE",
-                  seatTeamId: result.teamId,
-                }),
-              );
-            } catch (e) {
-              await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-              const code = (e as { code?: string })?.code;
-              return bounceToAuthError(
-                reply,
-                code === "MANAGED_SEAT_LIMIT_REACHED" ? "seat_limit_reached" : "managed_identity_conflict",
-              );
-            }
-          }
-          // §2.1 — delete the just-created inventory row on failure/denial so no
-          // orphan session remains (sid is random per login; no cookie set yet).
-          let seat;
-          try {
-            seat = await establishOrganizationSessionContext(
-              { userId: result.user.id, organizationId: oidcOrgId, sessionIdHash: hashSessionId(sid) },
-              prisma,
-            );
-          } catch (e) {
-            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-            throw e;
-          }
-          if (!seat.allowed) {
-            await prisma.authenticatedSession.delete({ where: { id: session.id } }).catch(() => null);
-            return bounceToAuthError(reply, seat.reason);
-          }
+        );
+        if (!completion.allowed) {
+          return bounceToAuthError(reply, completion.reason, attempt.redirectAfter);
         }
 
         setSessionCookie(req, reply, token);
+        clearSsoBrowserBinding(reply);
 
         // PHASE 11 — canonical safe-destination validation before redirect
-        // (or workspace home).
+        // (or workspace home). IDENT-003 — on the web host: this route is not.
         const redirectTarget = resolvePostLoginDestination(attempt.redirectAfter);
-        return reply.code(302).redirect(redirectTarget);
+        return reply.code(302).redirect(webPageUrl(redirectTarget));
       } catch (err) {
         await markCallbackFailed(
           {
@@ -812,7 +854,11 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         if (err instanceof SsoServiceError) {
           return bounceToAuthError(
             reply,
-            err.code.toLowerCase(),
+            err.code === "SSO_SEAT_LIMIT_REACHED"
+              ? "seat_limit_reached"
+              : err.code === "SSO_SEAT_CONTENTION"
+                ? "seat_contention"
+                : err.code.toLowerCase(),
             attempt.redirectAfter,
           );
         }

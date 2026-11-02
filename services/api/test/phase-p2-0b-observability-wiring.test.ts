@@ -28,7 +28,7 @@ import {
   getSecretsHealth,
   initSecretsManager,
 } from "../src/config/secrets-manager.js";
-import { MIGRATED_SECRETS } from "../src/config/runtime-secrets.js";
+import { ENV_ONLY_SECRETS, MIGRATED_SECRETS } from "../src/config/runtime-secrets.js";
 import {
   getOtelStatus,
   initOpenTelemetry,
@@ -279,7 +279,7 @@ describe("Phase P2.0B — docker-compose.prod.yml service-name + region wiring",
 });
 
 describe("Phase P2.0B — Expanded migrated secrets allowlist", () => {
-  it("includes the second-wave names without dropping the first wave", () => {
+  it("lists only names a reader resolves through the secret manager (OPS-018)", () => {
     expect(new Set(MIGRATED_SECRETS)).toEqual(
       new Set([
         // First wave (P2.0)
@@ -297,15 +297,19 @@ describe("Phase P2.0B — Expanded migrated secrets allowlist", () => {
         "STRIPE_WEBHOOK_SECRET",
         "PAYPAL_CLIENT_ID",
         "PAYPAL_WEBHOOK_ID",
-        "TWILIO_API_KEY",
-        "TWILIO_API_SECRET",
-        "TWILIO_AUTH_TOKEN",
-        "API_KEY_SECRET",
-        "NOTIFICATION_CRON_SECRET",
-        "INTEGRATION_CRON_SECRET",
-        "REVIEWER_OPS_CRON_SECRET",
       ]),
     );
+    // Rotating these in the bundle changes nothing: their readers use process.env.
+    const envOnly = new Set<string>(ENV_ONLY_SECRETS);
+    expect(MIGRATED_SECRETS.filter((n) => envOnly.has(n))).toEqual([]);
+    for (const [file, name] of [
+      ["../src/services/communications/twilio-provider.ts", "TWILIO_API_SECRET"],
+      ["../src/services/integrations/api-keys.service.ts", "API_KEY_SECRET"],
+      ["../src/middleware/cron-secret.ts", "NOTIFICATION_CRON_SECRET"],
+    ] as const) {
+      expect(envOnly.has(name)).toBe(true);
+      expect(readSource(file)).not.toContain("getSecret(");
+    }
   });
 });
 

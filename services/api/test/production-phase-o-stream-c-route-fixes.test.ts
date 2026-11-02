@@ -138,18 +138,15 @@ describe("Phase O Stream C — Sentry NODE-1K /v1/packaging/entitlements/apply-p
   });
 
   it("the route's authorization gate is preserved (auth not weakened)", () => {
-    // The route MUST still be gated in its pre-handler. The retired
-    // ORG_ADMIN tier is now the canonical `billing.manage` permission —
-    // OWNER-only by role (not even ADMIN holds it), so the gate is at least
-    // as narrow as it was.
+    // The route MUST still be gated in its pre-handler. BILLING-001:
+    // `billing.manage` is a customer OWNER's permission, so this writer belongs
+    // to the platform operator.
     const slice = routeSource(
       PRODUCT_LIFECYCLE_ROUTES,
       "POST",
       "/v1/packaging/entitlements/apply-product-line",
     );
-    expect(slice).toMatch(
-      /preHandler:\s*\[requireAuth,\s*requireWorkspacePermission\("billing\.manage"\)\]/,
-    );
+    expect(slice).toMatch(/preHandler:\s*requirePlatformAdmin/);
     expect(slice).not.toMatch(/requireDelegatedTier/);
   });
 });

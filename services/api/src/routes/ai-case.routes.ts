@@ -2,6 +2,7 @@
  * Phase D1/D2 — Live Case Copilot route.
  *   POST /v1/ai/case/:caseId/copilot
  */
+import { resolveCaseRecordAccess } from "../services/cases/case-permission.service.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -110,6 +111,11 @@ export async function aiCaseRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
+    // A restricted case the caller cannot open answers as a missing one: the
+    // prompt carries its name and status (AUTHZ-002).
+    if (!(await resolveCaseRecordAccess({ userId, caseId: caseRow.id })).allowed) {
+      return reply.code(404).send({ error: { code: "case_not_found" } });
+    }
     // Role read for AI-policy + context only; authorization enforced above.
     const membership = await prisma.teamMember.findUnique({
       where: { teamId_userId: { teamId: caseRow.teamId, userId } },
@@ -127,7 +133,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // "the snapshot whose revision was accepted" and "the snapshot the model
     // was shown" are the same thing by construction rather than by discipline.
     const scope = { scope: "case" as const, scopeId: caseRow.id };
-    const snapshots = await loadEvidenceAnalysisSnapshots({ ids, teamId, scope });
+    const snapshots = await loadEvidenceAnalysisSnapshots({ ids, teamId, scope, viewerUserId: userId });
     if (snapshots.length !== ids.length) {
       return reply.code(403).send({ error: { code: "unauthorized_or_missing_evidence" } });
     }
@@ -299,7 +305,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // of ids already known asks whether anything moved; if it did, the
     // reservation is released and nothing is spent on a prompt built from state
     // that is no longer true.
-    const drifted = await findDriftedSnapshot({ snapshots, teamId, scope });
+    const drifted = await findDriftedSnapshot({ snapshots, teamId, scope, viewerUserId: userId });
     if (drifted) {
       if (ledger.reservationId) {
         await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(

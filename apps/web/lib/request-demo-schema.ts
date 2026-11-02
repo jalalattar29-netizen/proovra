@@ -80,6 +80,16 @@ export const requestDemoSchema = z.object({
     .max(5000),
   message: optionalString(5000),
   website: optionalString(300),
+  // PROV-017 — the page sends these, and a schema that omits a key strips it, so
+  // they stopped here and scoring and routing never saw where a lead came from.
+  source: optionalString(120),
+  sourcePath: optionalString(512),
+  referrer: optionalString(2048),
+  utmSource: optionalString(160),
+  utmMedium: optionalString(160),
+  utmCampaign: optionalString(160),
+  utmTerm: optionalString(160),
+  utmContent: optionalString(160),
 });
 
 export type RequestDemoFormValues = z.infer<typeof requestDemoSchema>;

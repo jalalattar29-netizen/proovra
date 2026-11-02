@@ -40,6 +40,7 @@
  * GET /public/verify/:id (`redaction` key). See the note where it lived.
  */
 
+import { installRecordReachGuard } from "../middleware/record-reach-guard.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -53,7 +54,6 @@ import {
   type RedactionDenialReason,
 } from "@proovra/shared";
 
-import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 // Macro-Wave A1 — the derivative download-url endpoint reuses the CANONICAL
 // short-lived presign primitive (same one evidence.routes.ts uses). Raw
@@ -61,6 +61,7 @@ import { prisma } from "../db.js";
 import { presignGetObject } from "../storage.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
+import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
 // Phase 3A redaction closure — publishing a redacted derivative is the
 // irreversible, disclosure-shaping step of the redaction lifecycle, so it
 // must require a fresh step-up (purpose REDACTION_PUBLISH) AFTER the
@@ -364,12 +365,8 @@ async function resolveWorkspace(
   req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<{ teamId: string; userId: string } | null> {
-  const userId = getAuthUserId(req);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentWorkspaceId: true },
-  });
-  if (!user?.currentWorkspaceId) {
+  const teamId = await requestWorkspaceCandidate(req);
+  if (!teamId) {
     // No active workspace context — anti-enumeration 404 (consistent with the
     // canonical primitive's not-a-member path below).
     reply.code(404).send({ error: { code: "not_found" } });
@@ -386,7 +383,7 @@ async function resolveWorkspace(
   // subsequent `gate()` call. All redaction data queries are scoped to this
   // returned teamId, so the resource is bound to the authorized workspace.
   const authz = await authorizeOrFail(req, reply, {
-    teamId: user.currentWorkspaceId,
+    teamId,
     permission: "evidence.read",
     antiEnumeration: true,
   });
@@ -425,6 +422,7 @@ async function gate(
 // ---------------------------------------------------------------------------
 
 export async function redactionRoutes(app: FastifyInstance) {
+  installRecordReachGuard(app);
   // -------------------------------------------------------------------------
   // Reviewer-workspace integration — bounded summary endpoint that the
   // Reviewer landing page consumes for the redaction tile. NEVER per-

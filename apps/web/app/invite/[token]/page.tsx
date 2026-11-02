@@ -74,7 +74,7 @@ import type {
   SystemStateKind,
   SystemStateTone,
 } from "../../../components/feedback/ProovraSystemState";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch, ApiError, isApiResponseError } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
 import { useAuth } from "../../providers";
 import {
@@ -276,7 +276,7 @@ export default function InviteAcceptPage() {
         // `ApiError` normalises both: `statusCode` and the envelope's
         // `code`. Either identifies the one verdict this endpoint returns.
         const notAvailable =
-          err instanceof ApiError &&
+          isApiResponseError(err) &&
           (err.statusCode === 404 || err.code === "INVITE_NOT_FOUND");
         if (notAvailable) {
           setLookup({ kind: "not-available" });
@@ -322,7 +322,7 @@ export default function InviteAcceptPage() {
         // `ApiError.code` is the normalised envelope code — the same value
         // the service put on `WorkspaceInvitationError`. No digging through
         // `body`, and no reading the human-readable message.
-        const code = err instanceof ApiError ? err.code : null;
+        const code = isApiResponseError(err) ? err.code : null;
 
         if (isWorkspaceInvitationRefusalCode(code)) {
           // A SETTLED answer from the authority. Rendered as itself.

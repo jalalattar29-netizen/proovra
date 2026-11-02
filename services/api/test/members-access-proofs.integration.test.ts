@@ -475,6 +475,8 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
       return {
         list: (list.json() as { items: Array<{ id: string }> }).items.some((i) => i.id === mine),
         summary: (summary.json() as { totalActiveRecords: number }).totalActiveRecords,
+        // EVID-009 — duplicates stay inside the anchor's own workspace, so a
+        // record in another one is never listed, current member or not.
         duplicates: dups.body.includes(mine),
       };
     };
@@ -495,7 +497,7 @@ describe("members re-audit — access, hold and step-up proofs (live PostgreSQL)
     for (const [label, end, restore] of arms) {
       it(`${label}: the record they created is gone from list, summary and duplicates (and present while current)`, async () => {
         const { p, mine, anchor } = await formerMemberFixture();
-        expect(await seen(p, mine, anchor)).toEqual({ list: true, summary: 1, duplicates: true });
+        expect(await seen(p, mine, anchor)).toEqual({ list: true, summary: 1, duplicates: false });
         await end(p);
         try {
           expect(await seen(p, mine, anchor)).toEqual({ list: false, summary: 0, duplicates: false });

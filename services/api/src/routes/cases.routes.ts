@@ -1834,7 +1834,12 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      if (caseItem.ownerUserId !== ownerUserId) {
+      // EVID-009 — the picker answers to the authority of the attach it feeds:
+      // a case this caller may not open is the same 404 as a missing one (a 403
+      // confirmed the id exists), and a person who may attach is not refused the
+      // list for not having created the Case.
+      const linkAuth = await authorizeCaseEvidenceLink({ userId: ownerUserId, caseId: id });
+      if (!linkAuth.allowed) {
         await auditCaseAction(req, {
           userId: ownerUserId,
           action: "cases.available_evidence_list",
@@ -1842,9 +1847,10 @@ export async function casesRoutes(app: FastifyInstance) {
           severity: "warning",
           resourceId: id,
           teamId: caseItem.teamId,
-          metadata: { reason: "forbidden" },
+          metadata: { reason: linkAuth.status === 403 ? "forbidden" : "not_found_concealed" },
         });
-        return reply.code(403).send({ message: "Forbidden" });
+        if (linkAuth.status === 403) return reply.code(403).send({ message: "Forbidden" });
+        return reply.code(404).send({ message: "Case not found" });
       }
 
       // Phase CASES-ATTACH-PICKER — the picker needs filename fields
@@ -1853,9 +1859,12 @@ export async function casesRoutes(app: FastifyInstance) {
       // Filters tightened to exclude archived evidence too (was
       // already excluding deleted + attached; archive is the third
       // lifecycle state the personal user expects to hide).
+      // EVID-009 — only what this Case can take: the attach below refuses any
+      // record outside the Case's own workspace, so offering one is a dead end.
+      const memberTeamIds = await accessibleWorkspaceIdsFor(ownerUserId);
       const evidence = await prisma.evidence.findMany({
         where: {
-          ownerUserId,
+          AND: [evidenceReachWhere(ownerUserId, memberTeamIds), { teamId: caseItem.teamId }],
           deletedAt: null,
           archivedAt: null,
           caseLinks: { none: {} },

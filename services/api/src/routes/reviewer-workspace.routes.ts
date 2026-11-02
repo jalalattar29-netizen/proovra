@@ -52,6 +52,7 @@ import {
   evaluateCurrentWorkspace,
 } from "../middleware/authorize.js";
 import { workspaceIncludesReviewCapability } from "../services/billing-enforcement.service.js";
+import { enforceReviewActionGate, workflowIdsInReach } from "../services/reviewer-ops/review-action-gate.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 
 import {
@@ -203,6 +204,46 @@ async function resolveTeam(
     // this expression has a history of being wrong in the permissive direction.
     isPlatformAdmin: user?.platformRole === "admin",
   };
+}
+
+/** The record rule for the record under this workflow (WORKFLOW-003). */
+async function workflowOpenToCaller(
+  ctx: { teamId: string; userId: string },
+  workflowId: string,
+): Promise<boolean> {
+  return (await workflowIdsInReach({ teamId: ctx.teamId, userId: ctx.userId, workflowIds: [workflowId] })).has(
+    workflowId,
+  );
+}
+
+/**
+ * A disagreement or QC sample names a workflow. The record rule decides through
+ * it, so a closed record's item answers like an absent one.
+ */
+async function itemWorkflowOpen(
+  ctx: { teamId: string; userId: string },
+  row: { workflowId: string } | null,
+): Promise<boolean> {
+  return row === null || (await workflowOpenToCaller(ctx, row.workflowId));
+}
+
+/**
+ * The console's adaptive check and step-up flag on the bulk doors here. These
+ * routes have their own capability vocabulary; WF-R04 is that the controls on
+ * the action are the same whichever door it comes through.
+ */
+function bulkGate(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  ctx: { teamId: string; userId: string },
+  workflowIds: readonly string[],
+): Promise<boolean> {
+  return enforceReviewActionGate(req, reply, {
+    teamId: ctx.teamId,
+    userId: ctx.userId,
+    action: "bulk",
+    resource: { kind: "review_workflow_bulk", id: workflowIds.slice(0, 8).join(",") },
+  });
 }
 
 function denyWith(
@@ -555,6 +596,9 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await workflowOpenToCaller(ctx, workflowId))) {
+        return denyWith(reply, 409, "WORKFLOW_NOT_FOUND");
+      }
       const { schemaId } = z
         .object({ schemaId: z.string().uuid() })
         .parse(req.body);
@@ -581,6 +625,15 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      // This read answers an unknown workflow with an empty coding sheet, so a
+      // closed record gets exactly that (WORKFLOW-003).
+      if (!(await workflowOpenToCaller(ctx, workflowId))) {
+        return reply.code(200).send({
+          values: [],
+          coverage: { totalRequired: 0, fulfilled: 0, unfulfilledFieldIds: [] },
+          schemaBinding: null,
+        });
+      }
       const [values, coverage, binding] = await Promise.all([
         readCodingValuesForWorkflow({ teamId: ctx.teamId, workflowId }),
         evaluateRequiredFieldsCoverage({ teamId: ctx.teamId, workflowId }),
@@ -607,6 +660,9 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await workflowOpenToCaller(ctx, workflowId))) {
+        return denyWith(reply, 409, "WORKFLOW_NOT_FOUND");
+      }
       const body = WriteCodingValueBody.parse(req.body);
       const res = await writeCodingValue({
         teamId: ctx.teamId,
@@ -651,6 +707,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         state: q.state,
         forUserId: q.mine === "true" ? ctx.userId : undefined,
         limit: q.limit,
+        viewerUserId: ctx.userId,
       });
       return reply.code(200).send({ disagreements: rows });
     },
@@ -666,6 +723,9 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const { workflowId } = z
         .object({ workflowId: z.string().uuid() })
         .parse(req.params);
+      if (!(await workflowOpenToCaller(ctx, workflowId))) {
+        return denyWith(reply, 409, "DISAGREEMENT_NOT_FOUND");
+      }
       const body = FileDisagreementBody.parse(req.body);
       const res = await fileDisagreement({
         teamId: ctx.teamId,
@@ -688,6 +748,13 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       if (!requireCap(ctx, "review.adjudicate")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = TransitionDisagreementBody.parse(req.body);
+      const disagreement = await prisma.reviewerDisagreement.findFirst({
+        where: { id, teamId: ctx.teamId },
+        select: { workflowId: true },
+      });
+      if (!(await itemWorkflowOpen(ctx, disagreement))) {
+        return denyWith(reply, 409, "DISAGREEMENT_NOT_FOUND");
+      }
       const res = await transitionDisagreement({
         teamId: ctx.teamId,
         disagreementId: id,
@@ -722,6 +789,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
         qcReviewerUserId: q.mine === "true" ? ctx.userId : undefined,
         state: q.state,
         limit: q.limit,
+        viewerUserId: ctx.userId,
       });
       return reply.code(200).send({ samples: rows });
     },
@@ -736,6 +804,11 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       if (!requireCap(ctx, "review.assign")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = AssignQcBody.parse(req.body);
+      const sample = await prisma.qcSample.findFirst({
+        where: { id, teamId: ctx.teamId },
+        select: { workflowId: true },
+      });
+      if (!(await itemWorkflowOpen(ctx, sample))) return denyWith(reply, 409, "QC_SAMPLE_NOT_FOUND");
       const res = await assignSample({
         teamId: ctx.teamId,
         sampleId: id,
@@ -756,6 +829,11 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       if (!requireCap(ctx, "review.qc.verdict")) return denyNoPermission(reply);
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = QcVerdictBody.parse(req.body);
+      const sample = await prisma.qcSample.findFirst({
+        where: { id, teamId: ctx.teamId },
+        select: { workflowId: true },
+      });
+      if (!(await itemWorkflowOpen(ctx, sample))) return denyWith(reply, 409, "QC_SAMPLE_NOT_FOUND");
       const res = await renderQcVerdict({
         teamId: ctx.teamId,
         sampleId: id,
@@ -784,6 +862,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
       const res = await listAnnotationsForEvidence({
         teamId: ctx.teamId,
         evidenceId,
+        viewerUserId: ctx.userId,
       });
       if (!res.ok) return denyWith(reply, 404, "EVIDENCE_NOT_FOUND" as never);
       return reply.code(200).send({ annotations: res.annotations });
@@ -868,6 +947,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body);
+      if (!(await bulkGate(req, reply, ctx, body.workflowIds))) return reply;
       const res = await bulkAssign({
         teamId: ctx.teamId,
         actorUserId: ctx.userId,
@@ -895,6 +975,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body);
+      if (!(await bulkGate(req, reply, ctx, body.workflowIds))) return reply;
       const res = await bulkDecide({
         teamId: ctx.teamId,
         actorUserId: ctx.userId,
@@ -931,6 +1012,7 @@ export async function reviewerWorkspaceRoutes(app: FastifyInstance) {
           workflowIds: z.array(z.string().uuid()).min(1).max(100),
         })
         .parse(req.body);
+      if (!(await bulkGate(req, reply, ctx, body.workflowIds))) return reply;
       const res = await bulkCode({
         teamId: ctx.teamId,
         actorUserId: ctx.userId,

@@ -33,6 +33,7 @@ import {
   // maximum a consumer purchase may not amend?"
   NO_CONTRACT_LIMITS,
   contractEvidenceCapIsHardMaximum,
+  enterpriseContractWithheld,
   resolveEffectiveContractAiCap,
   resolveEffectiveContractEvidenceCap,
   resolveEffectiveExternalReviewIncluded,
@@ -389,6 +390,17 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     plan: scope.plan,
     contract: scope.contractLimits,
   });
+
+  // BILLING-007 — "the contract grants nothing" is not "no ceiling". Reading and
+  // exporting what exists carries on; this asks only about new evidence.
+  if (enterpriseContractWithheld({ plan: scope.plan, contract: scope.contractLimits })) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "This organization's contract is not active, so new evidence cannot be recorded",
+    );
+    err.statusCode = 409;
+    err.code = "ENTERPRISE_CONTRACT_REQUIRED";
+    throw err;
+  }
 
   if (contractedMonthlyCap !== null && contractedMonthlyCap > 0) {
     // A ROLLING-WINDOW plan (TEAM, or an ENTERPRISE contract that states a

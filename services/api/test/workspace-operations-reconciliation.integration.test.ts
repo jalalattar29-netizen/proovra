@@ -306,7 +306,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     const { buildOperationsSummary } = await import(
       "../src/services/operations/operations-summary.service.js"
     );
-    const summary = await buildOperationsSummary({ workspaceId: fresh.id });
+    const summary = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: fresh.id });
 
     // Zero conditions AND a complete read — the exact combination that used
     // to license the all-clear over a workspace nothing had examined.
@@ -331,7 +331,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
       trigger: "cli",
     });
 
-    const summary = await buildOperationsSummary({ workspaceId: teamB.teamId });
+    const summary = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: teamB.teamId });
     if (summary.readiness === "READY" && summary.open === 0) {
       expect(summary.mayAssertAllClear).toBe(true);
       expect(summary.clearRefusalReason).toBeNull();
@@ -386,7 +386,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     });
 
     for (const workspaceId of [personal.teamId, teamA.teamId, teamB.teamId]) {
-      const page = await incidents.listIncidents({ teamId: workspaceId });
+      const page = await incidents.listIncidents({ incidentReach: {}, teamId: workspaceId });
       expect(page.incidents.map((i) => i.id)).not.toContain(platform.id);
     }
     // It IS reachable through the platform predicate — hidden from tenants is
@@ -414,7 +414,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     });
 
     for (const workspaceId of [personal.teamId, teamA.teamId, teamB.teamId]) {
-      const page = await incidents.listIncidents({ teamId: workspaceId });
+      const page = await incidents.listIncidents({ incidentReach: {}, teamId: workspaceId });
       expect(page.incidents.map((i) => i.id)).not.toContain(orphan.id);
     }
     const viaPlatform = await prisma.operationalIncident.findMany({
@@ -459,8 +459,8 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
   });
 
   it("no tenant read returns another workspace's conditions", async () => {
-    const a = await incidents.listIncidents({ teamId: teamA.teamId });
-    const b = await incidents.listIncidents({ teamId: teamB.teamId });
+    const a = await incidents.listIncidents({ incidentReach: {}, teamId: teamA.teamId });
+    const b = await incidents.listIncidents({ incidentReach: {}, teamId: teamB.teamId });
     const aIds = new Set(a.incidents.map((i) => i.id));
     for (const row of b.incidents) expect(aIds.has(row.id)).toBe(false);
   });
@@ -501,7 +501,7 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
     const { buildOperationsSummary } = await import(
       "../src/services/operations/operations-summary.service.js"
     );
-    const summary = await buildOperationsSummary({ workspaceId: teamA.teamId });
+    const summary = await buildOperationsSummary({ reach: { evidence: {}, cases: {}, hidden: { caseIds: [], evidenceIds: [] } }, workspaceId: teamA.teamId });
     // SUPPRESSED counts as unresolved work, so it still blocks the all-clear.
     expect(summary.open).toBeGreaterThan(0);
     expect(summary.mayAssertAllClear).toBe(false);

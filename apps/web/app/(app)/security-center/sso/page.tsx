@@ -31,7 +31,8 @@
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
-import { apiFetch } from "../../../../lib/api";
+import { apiBaseUrl, apiFetch } from "../../../../lib/api";
+import { samlAcsUrl, samlLoginUrl, samlSpMetadataUrl } from "../../../../lib/identity/ssoSignIn";
 import { formatUserDate, formatUtcAuditDateTime } from "../../../../lib/date";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 // Phase P1.4 — step-up gating on certificate rotation. Cert
@@ -176,27 +177,13 @@ function SsoAdminContent() {
     };
   }, [teamId, version]);
 
-  function spMetadataUrl(connectionId: string): string {
-    const base =
-      typeof window !== "undefined" ? window.location.origin : "https://api.proovra.com";
-    return `${base}/v1/auth/saml/metadata/${encodeURIComponent(connectionId)}`;
-  }
-
+  // IDENT-004 — these go into an IdP, and the API host is what answers them.
+  const apiBase = apiBaseUrl();
+  const spMetadataUrl = (connectionId: string) => samlSpMetadataUrl(apiBase, connectionId);
   // R8.2.2 — ACS URL is the HTTP-POST binding endpoint the IdP POSTs assertions to.
   // Shown explicitly so operators can copy it into their IdP's SP configuration.
-  function acsUrl(req?: { origin?: string }): string {
-    const base =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : (req?.origin ?? "https://api.proovra.com");
-    return `${base}/v1/auth/saml/acs`;
-  }
-
-  function loginTestUrl(connectionId: string): string {
-    const base =
-      typeof window !== "undefined" ? window.location.origin : "https://api.proovra.com";
-    return `${base}/v1/auth/saml/${encodeURIComponent(connectionId)}/login`;
-  }
+  const acsUrl = () => samlAcsUrl(apiBase);
+  const loginTestUrl = (connectionId: string) => samlLoginUrl(apiBase, connectionId);
 
   // R8.2.2 — Human-readable cert expiry status label for the admin UI.
   function certExpiryLabel(certNotAfter: string | null | undefined): {

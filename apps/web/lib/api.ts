@@ -142,6 +142,29 @@ function readToken(): string | null {
  */
 export const WORKSPACE_HEADER = "x-proovra-workspace-id";
 
+/**
+ * DID THE SERVER ANSWER, WHATEVER SHAPE IT ANSWERED IN.
+ *
+ * `ApiError` is raised only for a nested `error.code`. A flat body (`{ message }`,
+ * `{ code, billingWall }`) raises a plain Error carrying the same fields, so a
+ * branch on `instanceof ApiError` is dead on every flat route: a 403 read as a
+ * transport failure, with status 0. Network failures carry status 0 and are not
+ * server answers.
+ */
+export type ApiResponseError = Error & {
+  code?: string;
+  statusCode?: number;
+  requestId?: string;
+  details?: Record<string, unknown>;
+};
+
+export function isApiResponseError(err: unknown): err is ApiResponseError {
+  if (err instanceof ApiError) return true;
+  if (!(err instanceof Error)) return false;
+  const status = (err as ApiResponseError).statusCode;
+  return typeof status === "number" && status > 0;
+}
+
 let activeWorkspaceId: string | null = null;
 
 export function setActiveWorkspaceId(workspaceId: string | null): void {
@@ -495,8 +518,11 @@ async function runApiFetch(
       ? (obj as Record<string, unknown>)
       : undefined;
 
+    // A JSON body with no message is data, not a sentence for a person.
     const message =
-      messageFromBody || (raw && raw.trim()) || `HTTP ${res.status}: API error`;
+      messageFromBody ||
+      (!obj && raw && raw.trim()) ||
+      `HTTP ${res.status}: API error`;
 
     const requestIdFromBody =
       obj && typeof obj["requestId"] === "string"

@@ -569,9 +569,16 @@ describe("Phase 4A Closure — access review REVOKED propagates", () => {
             id: "item-1",
             decision: "PENDING",
             grantRef: `${kind}:${scopeUuid}`,
+            subjectUserId: "subject-1",
+            campaign: { state: "OPEN" },
           }),
-          update: async () => ({ id: "item-1" }),
+          updateMany: async () => ({ count: 1 }),
         },
+        $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          accessReviewItem: { updateMany: async () => ({ count: 1 }) },
+          intelligenceActivityEvent: { create: async () => ({ id: "evt-tx" }) },
+        }),
         intelligenceActivityEvent: {
           create: async () => ({ id: "evt-1" }),
         },
@@ -615,9 +622,16 @@ describe("Phase 4A Closure — access review REVOKED propagates", () => {
           id: "item-1",
           decision: "PENDING",
           grantRef: "delegated_scope:11111111-1111-1111-1111-111111111111",
+          subjectUserId: "subject-1",
+          campaign: { state: "OPEN" },
         }),
-        update: async () => ({ id: "item-1" }),
+        updateMany: async () => ({ count: 1 }),
       },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          accessReviewItem: { updateMany: async () => ({ count: 1 }) },
+          intelligenceActivityEvent: { create: async () => ({ id: "evt-tx" }) },
+        }),
       intelligenceActivityEvent: {
         create: async () => ({ id: "evt-1" }),
       },
@@ -657,9 +671,16 @@ describe("Phase 4A Closure — access review REVOKED propagates", () => {
           id: "item-2",
           decision: "PENDING",
           grantRef: `external_review:${grantUuid}`,
+          subjectUserId: "subject-1",
+          campaign: { state: "OPEN" },
         }),
-        update: async () => ({ id: "item-2" }),
+        updateMany: async () => ({ count: 1 }),
       },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          accessReviewItem: { updateMany: async () => ({ count: 1 }) },
+          intelligenceActivityEvent: { create: async () => ({ id: "evt-tx" }) },
+        }),
       intelligenceActivityEvent: {
         create: async () => ({ id: "evt-2" }),
       },

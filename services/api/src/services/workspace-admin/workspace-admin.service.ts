@@ -40,6 +40,7 @@ import {
  * through `resolveCommercialContext`), not a column. The raw column survives
  * on the envelope under a name that says what it is.
  */
+import { evidenceIdInReach, holdInReach, viewerReachInWorkspace } from "../access/record-reach.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
@@ -181,16 +182,22 @@ export async function buildWorkspaceAdmin(input: {
   teamId: string;
   userId: string;
   role: string;
+  /** AZ-R07: member and invitee addresses are for OWNER and ADMIN. */
+  canSeeContact: boolean;
 }): Promise<WorkspaceAdminEnvelope | { notFound: true }> {
   // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace populations.
   // Named `evidenceScope`/`caseScope` rather than `scope`: this module
   // already has a `scope` and it means something else entirely (the
   // SINGLE_OCCUPANT/SHARED display density). Two different facts must not
   // share one name in one function.
-  const [evidenceScope, caseScope] = await Promise.all([
-    workspaceEvidenceWhere(input.teamId),
-    workspaceCaseWhere(input.teamId),
+  const [physicalEvidenceScope, physicalCaseScope, reach] = await Promise.all([
+    workspaceEvidenceWhere(input.teamId, prisma),
+    workspaceCaseWhere(input.teamId, prisma),
+    viewerReachInWorkspace(input.teamId, input.userId),
   ]);
+  // Counts agree with the lists this reader gets (AUTHZ-002, EVID-019).
+  const evidenceScope = { AND: [physicalEvidenceScope, reach.evidence] };
+  const caseScope = { AND: [physicalCaseScope, reach.cases] };
   const team = await prisma.team.findUnique({
     where: { id: input.teamId },
     select: {
@@ -270,7 +277,7 @@ export async function buildWorkspaceAdmin(input: {
       status: "ok",
       data: {
         ownerUserId: team.ownerUserId,
-        ownerEmail: owner?.email ?? null,
+        ownerEmail: input.canSeeContact ? (owner?.email ?? null) : null,
         caseCount,
         evidenceCount,
       },
@@ -304,7 +311,7 @@ export async function buildWorkspaceAdmin(input: {
     });
     members = rows.map((m) => ({
       userId: m.userId,
-      email: m.user?.email ?? null,
+      email: input.canSeeContact ? (m.user?.email ?? null) : null,
       displayName: m.user?.displayName ?? null,
       role: String(m.role),
       status: String(m.status),
@@ -317,7 +324,9 @@ export async function buildWorkspaceAdmin(input: {
   try {
     const rows = await prisma.teamInvite.findMany({
       where: {
-        teamId: input.teamId,
+        // AZ-R07: whom the workspace has invited is contact data, OWNER and
+        // ADMIN only. Everyone else reads an empty list.
+        teamId: input.canSeeContact ? input.teamId : { in: [] },
         acceptedAt: null,
         expiresAt: { gt: new Date() },
       },
@@ -374,12 +383,12 @@ export async function buildWorkspaceAdmin(input: {
         },
       }),
       prisma.evidenceLegalHold.count({
-        where: { teamId: input.teamId, status: "ACTIVE" },
+        where: { teamId: input.teamId, status: "ACTIVE", AND: holdInReach(reach) },
       }),
       // P12.3 canonical-only (scope=CASE).
       prisma.evidenceLegalHold
         .count({
-          where: { teamId: input.teamId, scope: "CASE", status: "ACTIVE" },
+          where: { teamId: input.teamId, scope: "CASE", status: "ACTIVE", AND: holdInReach(reach) },
         })
         .catch(() => 0),
       prisma.evidenceRetentionPolicy
@@ -395,6 +404,7 @@ export async function buildWorkspaceAdmin(input: {
         .count({
           where: {
             teamId: input.teamId,
+            ...evidenceIdInReach(reach),
             status: { in: [...DESTRUCTION_REVIEW_AWAITING_DECISION] },
           },
         })
@@ -517,14 +527,15 @@ export async function buildWorkspaceAdmin(input: {
       const [queuedCount, assignedCount, overdueCount, openEscalationsCount] =
         await Promise.all([
           prisma.evidenceReviewWorkflow.count({
-            where: { teamId: input.teamId, status: "QUEUED" },
+            where: { teamId: input.teamId, ...evidenceIdInReach(reach), status: "QUEUED" },
           }),
           prisma.evidenceReviewWorkflow.count({
-            where: { teamId: input.teamId, status: "ASSIGNED" },
+            where: { teamId: input.teamId, ...evidenceIdInReach(reach), status: "ASSIGNED" },
           }),
           prisma.evidenceReviewWorkflow.count({
             where: {
               teamId: input.teamId,
+              ...evidenceIdInReach(reach),
               status: {
                 in: ["QUEUED", "ASSIGNED", "IN_REVIEW", "NEEDS_INFO"],
               },
@@ -532,7 +543,7 @@ export async function buildWorkspaceAdmin(input: {
             },
           }),
           prisma.reviewEscalation.count({
-            where: { teamId: input.teamId, status: "OPEN" },
+            where: { teamId: input.teamId, status: "OPEN", workflow: { evidence: reach.evidence } },
           }),
         ]);
       reviewerWorkload = {

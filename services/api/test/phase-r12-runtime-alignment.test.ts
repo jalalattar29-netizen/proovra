@@ -545,7 +545,7 @@ describe("Phase R12 — Stage 7: the canonical workspace binding", () => {
     const body = read(path);
     expect(body).toMatch(/export async function authorizeCollaborationWorkspace/);
     // The workspace is NAMED by the request or by the caller's own pointer …
-    expect(body).toMatch(/x-proovra-workspace-id/);
+    expect(read("services/api/src/services/access/request-workspace.ts")).toMatch(/x-proovra-workspace-id/);
     expect(body).toMatch(/currentWorkspaceId/);
     // … and either way it is revalidated by the canonical primitive.
     expect(body).toMatch(/authorizeWorkspaceOrFail/);

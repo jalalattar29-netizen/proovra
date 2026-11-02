@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 
 export interface CanonicalWorkspaceSeats {
@@ -128,7 +128,7 @@ export function SeatsCard({ orgId }: { orgId: string }) {
       }
       setState({ kind: "ready", posture: postureFrom(ws) });
     } catch (err) {
-      if (err instanceof ApiError && err.statusCode === 403) {
+      if (isApiResponseError(err) && err.statusCode === 403) {
         setState({ kind: "no-billing-visibility" });
         return;
       }

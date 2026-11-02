@@ -240,7 +240,7 @@ describe("record conditions with no workspace row (live PostgreSQL 16)", () => {
     // No tenant listing returns it — not the owner's personal workspace, not another workspace.
     const { listIncidents } = await import("../src/services/observability/incident.service.js");
     for (const teamId of [personalTeamId, workspaceId]) {
-      const page = await listIncidents({ teamId, limit: 500 });
+      const page = await listIncidents({ incidentReach: {}, teamId, limit: 500 });
       const ids = page.incidents.map((i) => i.id);
       expect(ids).not.toContain(row.id);
     }

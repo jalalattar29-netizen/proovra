@@ -383,7 +383,8 @@ describe("Phase 37.95 — onboarding readiness static signals", () => {
   });
 
   it("billing/seat counting query is bounded and uses Team membership only", () => {
-    const ENT = readApi("src/routes/enterprise.routes.ts");
-    expect(ENT).toMatch(/teamMember\.count|teamMember\.findMany/);
+    // The quota view asks the one seat authority (BILLING-010), which does the count.
+    expect(readApi("src/routes/enterprise.routes.ts")).toMatch(/resolveWorkspaceSeatState\(/);
+    expect(readApi("src/services/billing/workspace-seats.service.ts")).toMatch(/teamMember\.count/);
   });
 });

@@ -905,9 +905,22 @@ export function otsCustodyEventLines(payload: Record<string, unknown> | null | u
   if (verification === "ATTESTATION_RECORDED") lines.push(EN.notCheckedStatus);
   const txid = s(p.bitcoinTxid);
   if (state === "ANCHORED" && txid) lines.push(`Bitcoin Tx: ${txid}`);
-  const calendar = s(p.calendar);
-  if (calendar) lines.push(`Calendar: ${calendar}`);
+  const calendars = otsCalendarList(s(p.calendar));
+  if (calendars.length === 1) lines.push(`Calendar: ${calendars[0]}`);
+  if (calendars.length > 1) lines.push(`Submitted to calendars: ${calendars.join(", ")}`);
   return lines.filter((l): l is string => Boolean(l));
+}
+
+/**
+ * The stored calendar field: one URL on older records, a comma-joined list since
+ * proofs go to several. It names where the proof was submitted, not which calendar
+ * answered, so a surface states a list as submitted.
+ */
+export function otsCalendarList(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
