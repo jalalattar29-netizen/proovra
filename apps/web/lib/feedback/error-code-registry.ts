@@ -138,6 +138,17 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "generic",
     why: "Anti-enumeration, as CASE_NOT_FOUND.",
   },
+  REVIEW_WORKFLOW_NOT_FOUND: {
+    disposition: "generic",
+    why:
+      "Also the answer for a workflow outside the viewer's reach, so naming it " +
+      "would confirm the review exists. It must read as an ordinary 404.",
+  },
+  MFA_ENROLLMENT_REQUIRED: { disposition: "customer", where: "apps/web/app/login/page.tsx" },
+  METRICS_SCRAPE_TOKEN_NOT_CONFIGURED: {
+    disposition: "internal",
+    why: "Answers the metrics scraper on an operator endpoint; no product surface calls it.",
+  },
   CROSS_TENANT: {
     disposition: "generic",
     why:

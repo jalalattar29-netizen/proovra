@@ -118,7 +118,7 @@ top level of it.
 | OK | `parseSummary` | `GET /v1/ops/summary` | summary, workspace | summary, workspace |
 | OK | `parseOrgDetail` | `GET /v1/orgs/:id` | address, adminSurfaces, billingOwnerUserId, callerRole, createdAt, legalEmail, legalName… | address, callerRole, createdAt, id, legalEmail, legalName, logoUrl, memberCount, name, o… |
 | OK | `parseOrgAuditPage` | `GET /v1/orgs/:id/audit-events` | events, organizationId, summary | events, nextCursor, summary |
-| OK | `parseClosureState` | `GET /v1/orgs/:id/closure` | blockers, confirmationPhrase, coolingOffDays, request | blockers, confirmationPhrase, coolingOffDays, request |
+| OK | `parseClosureState` | `GET /v1/orgs/:id/closure` | blockers, confirmationPhrase, contractManaged, coolingOffDays, request | blockers, confirmationPhrase, coolingOffDays, request |
 | OK | `parseOrgPendingInviteTotal` | `GET /v1/orgs/:id/invites` | invites, organizationId, summary | summary |
 | OK | `parseOrgMembers` | `GET /v1/orgs/:id/members` | members, organizationId, summary | members |
 | OK | `parseOrgWorkspaces` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | teams, workspaces |
@@ -141,8 +141,8 @@ top level of it.
 | OK | `parseSearchResponse` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | filteredByGovernance, filteredByVisibility, nextCursor, rows, totalReturned |
 | OK | `parseSearchModeUsed` | `GET /v1/search` | fallbackReason, filteredByGovernance, filteredByVisibility, modeUsed, nextCursor, rows, … | modeUsed |
 | OK | `parseSearchAudit` | `GET /v1/search/audit` | nextBeforeUtc, rows | nextBeforeUtc, rows |
-| OK | `parseSearchReadiness` | `GET /v1/search/diagnostics` | evidence, health, index, queryProbe, readiness, runtime, workspace | readiness |
-| OK | `parseSearchDiagnosticsContext` | `GET /v1/search/diagnostics` | evidence, health, index, queryProbe, readiness, runtime, workspace | queryProbe, workspace |
+| OK | `parseSearchReadiness` | `GET /v1/search/diagnostics` | <SPREAD>, evidence, health, index, queryProbe, readiness, workspace | readiness |
+| OK | `parseSearchDiagnosticsContext` | `GET /v1/search/diagnostics` | <SPREAD>, evidence, health, index, queryProbe, readiness, workspace | queryProbe, workspace |
 | OK | `parseSearchRelationships` | `GET /v1/search/relationships/:evidenceId` | relationships | relationships |
 | OK | `parseSavedViews` | `GET /v1/search/saved-views` | views | views |
 | OK | `parseSuggestionRows` | `GET /v1/search/suggest` | suggestions | suggestions |
