@@ -1449,9 +1449,6 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      // Totals and rows are the caller's: what a restricted case closes to them
-      // is excluded in each query, so it reaches neither a list nor a count.
-      const closed = await hiddenRecordIdsInWorkspace(teamId, actor.actorUserId);
       // Anti-enumeration: a record outside this workspace surfaces 404 even
       // when the row exists in another workspace.
       if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;
