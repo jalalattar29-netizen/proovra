@@ -2070,7 +2070,9 @@
   color: var(--app-ink-secondary);
 }
 
-.cc-section {
+/* A case detail tab panel carries this class too, but it already sits on the
+   case surface and was accepted without a card of its own. */
+.cc-section:not([role="tabpanel"]) {
   margin-block: 16px;
   padding: 16px;
   min-width: 0;
