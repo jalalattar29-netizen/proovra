@@ -148,6 +148,14 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
  * store is modelled at the port instead: one unretained data version per key,
  * gone once deleted.
  */
+// Fixture: tagging answers without an object store; versions and tags on a real
+// bucket are proven by gov-016-archive-tier.
+const workerS3Send = vi.hoisted(() => vi.fn(async () => ({ TagSet: [] })));
+vi.mock("../../../worker/src/storage.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../worker/src/storage.js")>()),
+  s3: { send: workerS3Send },
+}));
+
 vi.mock("../../../worker/src/governance/destruction-storage-port.js", () => {
   const idOf = (i: { bucket: string; key: string }) => `${i.bucket} ${i.key}`;
   return {
@@ -1235,6 +1243,8 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     const id = await freshEvidence(fixture, {
       storageBucket: "point5-test-bucket",
       storageKey: `point5/${randomUUID()}`,
+      // GOV-016 — tiering records a tier on the sealed version.
+      storageVersionId: "v1",
     });
     // `createdAt` has a default, so it is set after the fact.
     await prisma.evidence.update({
@@ -1256,7 +1266,14 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     const evidenceId = await tierableEvidence(own);
     expect(await transitionsFor(evidenceId)).toHaveLength(0);
 
+    // The object store answers only after the row exists.
+    const rowsAtTag: number[] = [];
+    workerS3Send.mockImplementationOnce(async () => {
+      rowsAtTag.push((await transitionsFor(evidenceId)).length);
+      return { TagSet: [] };
+    });
     await archive.runArchiveTierAutoTransitions({ trigger: "point5-proof" });
+    expect(rowsAtTag).toEqual([1]);
 
     const rows = await transitionsFor(evidenceId);
     expect(rows).toHaveLength(1);
@@ -1299,6 +1316,12 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     // transition, so the same object was copied to the archive storage class
     // three times and billed three times.
     const evidenceId = await tierableEvidence(own);
+    // Old enough for one step only. A finished step is no longer a block, so a
+    // much older record may legitimately move on to the next tier within the race.
+    await prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) },
+    });
 
     await Promise.all([
       archive.runArchiveTierAutoTransitions({ trigger: "race-a" }),

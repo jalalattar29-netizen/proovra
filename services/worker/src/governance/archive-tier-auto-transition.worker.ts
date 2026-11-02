@@ -25,6 +25,8 @@ import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
+/** A PENDING claim this old was abandoned by a crash. */
+const AUTO_CLAIM_LEASE_MS = 60 * 60 * 1000;
 const MAX_TEAMS_PER_SWEEP = 500;
 
 // Archive tier ordering for age-based promotion.
@@ -116,47 +118,35 @@ async function sweepTeam(teamId: string): Promise<number> {
       });
       if (!sealed?.storageBucket || !sealed.storageKey || !sealed.storageVersionId) continue;
 
-      // A label left by an older build holds the one active slot for this record.
-      const stranded = await prisma.archiveTierTransition.findFirst({
-        where: { evidenceId: ev.id, state: "PENDING", reason: "AUTO_TRANSITION_PENDING" },
-        select: { id: true },
-      });
-
-      const existing = await s3.send(
-        new GetObjectTaggingCommand({
-          Bucket: sealed.storageBucket,
-          Key: sealed.storageKey,
-          VersionId: sealed.storageVersionId,
-        }),
-      );
-      await s3.send(
-        new PutObjectTaggingCommand({
-          Bucket: sealed.storageBucket,
-          Key: sealed.storageKey,
-          VersionId: sealed.storageVersionId,
-          Tagging: {
-            TagSet: [
-              ...(existing.TagSet ?? []).filter((t) => t.Key !== ARCHIVE_TIER_OBJECT_TAG),
-              { Key: ARCHIVE_TIER_OBJECT_TAG, Value: targetTier },
-            ],
-          },
-        }),
-      );
-
-      const executedAtUtc = new Date();
-      if (stranded) {
-        await prisma.archiveTierTransition.update({
-          where: { id: stranded.id },
-          data: {
-            fromTier: currentTier,
-            toTier: targetTier,
-            reason: "AUTO_TRANSITION",
-            state: "COMPLETED",
-            executedAtUtc,
-          },
+      // THE CLAIM, durable before storage is touched: the row exists first, under
+      // the evidence lock, so overlapping sweeps tag once and a crash leaves
+      // something to reconcile. A row this sweep or an older build left PENDING is
+      // taken over; anything else in flight is left alone.
+      const claimId = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ev.id}))`;
+        const done = await tx.archiveTierTransition.findFirst({
+          where: { evidenceId: ev.id, state: "COMPLETED", toTier: targetTier },
+          select: { id: true },
         });
-      } else {
-        await prisma.archiveTierTransition.create({
+        if (done) return null;
+        const active = await tx.archiveTierTransition.findFirst({
+          where: { evidenceId: ev.id, state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
+          select: { id: true, state: true, reason: true, transitionedAtUtc: true },
+        });
+        if (active) {
+          const abandoned =
+            active.state === "PENDING" &&
+            (active.reason === "AUTO_TRANSITION_PENDING" ||
+              (active.reason === "AUTO_TRANSITION" &&
+                Date.now() - active.transitionedAtUtc.getTime() > AUTO_CLAIM_LEASE_MS));
+          if (!abandoned) return null;
+          await tx.archiveTierTransition.update({
+            where: { id: active.id },
+            data: { fromTier: currentTier, toTier: targetTier, reason: "AUTO_TRANSITION" },
+          });
+          return active.id;
+        }
+        const created = await tx.archiveTierTransition.create({
           data: {
             teamId,
             evidenceId: ev.id,
@@ -165,13 +155,51 @@ async function sweepTeam(teamId: string): Promise<number> {
             reason: "AUTO_TRANSITION",
             costEstimateUsdMicros: 0n,
             initiatedByUserId: null,
-            state: "COMPLETED",
-            executedAtUtc,
+            state: "PENDING",
             storageClassBefore: null,
             storageClassAfter: null,
           },
+          select: { id: true },
         });
+        return created.id;
+      });
+      if (!claimId) continue;
+
+      try {
+        const existing = await s3.send(
+          new GetObjectTaggingCommand({
+            Bucket: sealed.storageBucket,
+            Key: sealed.storageKey,
+            VersionId: sealed.storageVersionId,
+          }),
+        );
+        await s3.send(
+          new PutObjectTaggingCommand({
+            Bucket: sealed.storageBucket,
+            Key: sealed.storageKey,
+            VersionId: sealed.storageVersionId,
+            Tagging: {
+              TagSet: [
+                ...(existing.TagSet ?? []).filter((t) => t.Key !== ARCHIVE_TIER_OBJECT_TAG),
+                { Key: ARCHIVE_TIER_OBJECT_TAG, Value: targetTier },
+              ],
+            },
+          }),
+        );
+      } catch (err) {
+        await prisma.archiveTierTransition.update({
+          where: { id: claimId },
+          data: {
+            state: "FAILED",
+            failureReason: (err instanceof Error ? err.name : "TAGGING_FAILED").slice(0, 200),
+          },
+        });
+        continue;
       }
+      await prisma.archiveTierTransition.update({
+        where: { id: claimId },
+        data: { state: "COMPLETED", executedAtUtc: new Date() },
+      });
       scheduled += 1;
     } catch {
       // One evidence failure must not abort the remaining batch.

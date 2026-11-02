@@ -221,7 +221,9 @@ export async function runRetentionReconciliation(
             evidenceType: ev.type,
             caseIds: linkedCaseIds,
           });
-          if (binding) {
+          // Already under this version: the policy has had its say, and what happens
+          // at expiry is its own rules below (immutable, auto-extension, review).
+          if (binding && binding.retentionPolicyVersionId !== ev.retentionPolicyVersionId) {
             const until =
               binding.retentionDays === null
                 ? null

@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281101000000_stripe_customer_per_currency";
+export const EXPECTED_MIGRATION_HEAD = "20281102000000_destruction_governance_truth";
 
 export type MigrationRow = {
   migration_name: string;

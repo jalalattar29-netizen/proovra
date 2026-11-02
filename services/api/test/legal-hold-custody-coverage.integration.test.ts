@@ -54,7 +54,7 @@ describe("legal hold coverage on the custody chain (live PostgreSQL 16)", () => 
     const id = await record(A.teamId, A.ownerUserId);
     const hold = await holds.placeCanonicalLegalHold({ teamId: A.teamId, scope: "EVIDENCE", evidenceId: id, actorUserId: A.ownerUserId, title: "Evidence hold" });
     expect(await events(id, hold.id)).toEqual(["LEGAL_HOLD_PLACED"]);
-    await holds.releaseCanonicalLegalHold({ teamId: A.teamId, holdId: hold.id, actorUserId: A.ownerUserId, releaseNote: "done", approvalAcknowledged: true });
+    await holds.releaseCanonicalLegalHold({ teamId: A.teamId, holdId: hold.id, actorUserId: A.ownerUserId, releaseNote: "done" });
     expect(await events(id, hold.id)).toEqual(["LEGAL_HOLD_PLACED", "LEGAL_HOLD_RELEASED"]);
   });
 
@@ -78,7 +78,7 @@ describe("legal hold coverage on the custody chain (live PostgreSQL 16)", () => 
     expect(await events(late, hold.id)).toEqual(["CASE_LEGAL_HOLD_APPLIED"]);
     for (const id of linked) expect(await events(id, hold.id)).toEqual(["CASE_LEGAL_HOLD_APPLIED"]);
 
-    await holds.releaseCanonicalLegalHold({ teamId: A.teamId, holdId: hold.id, actorUserId: A.ownerUserId, releaseNote: "done", approvalAcknowledged: true });
+    await holds.releaseCanonicalLegalHold({ teamId: A.teamId, holdId: hold.id, actorUserId: A.ownerUserId, releaseNote: "done" });
     for (const id of [...linked, late]) {
       expect(await events(id, hold.id)).toEqual(["CASE_LEGAL_HOLD_APPLIED", "CASE_LEGAL_HOLD_RELEASED"]);
     }
@@ -95,7 +95,7 @@ describe("legal hold coverage on the custody chain (live PostgreSQL 16)", () => 
     // Nothing outside the workspace.
     const other = await record(h.fixtures.teamA.teamId, h.fixtures.teamA.ownerUserId);
     expect(await events(other, hold.id)).toEqual([]);
-    await holds.releaseCanonicalLegalHold({ teamId: B.teamId, holdId: hold.id, actorUserId: B.ownerUserId, releaseNote: "done", approvalAcknowledged: true });
+    await holds.releaseCanonicalLegalHold({ teamId: B.teamId, holdId: hold.id, actorUserId: B.ownerUserId, releaseNote: "done" });
     expect(await events(after, hold.id)).toEqual(["LEGAL_HOLD_PLACED", "LEGAL_HOLD_RELEASED"]);
   });
 });
