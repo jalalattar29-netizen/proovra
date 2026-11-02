@@ -72,6 +72,10 @@ const SESSION_LOSS_DENIALS = new Set([
   "SESSION_ENDED",
   "SESSION_UNAVAILABLE",
   "INACTIVITY_TIMEOUT",
+  // The grant itself ended: revocation and expiry reach an open page this way.
+  "TOKEN_REVOKED",
+  "TOKEN_EXPIRED",
+  "TOKEN_INVALID",
 ]);
 
 function portalStatus(err: unknown): number {
@@ -659,7 +663,7 @@ function CommentsPanel({
             }}
           >
             <small style={{ color: "#64748b", fontSize: 11 }}>
-              {r.authorDisplay ?? r.authorEmail} ·{" "}
+              {r.authorDisplay ?? r.authorEmail ?? "Another reviewer"} ·{" "}
               {formatUserDateTime(r.createdAt)}
             </small>
             <div style={{ fontSize: 13, marginTop: 2 }}>{r.body}</div>
@@ -675,7 +679,7 @@ function CommentsPanel({
                 }}
               >
                 <small style={{ color: "#64748b", fontSize: 11 }}>
-                  {rep.authorDisplay ?? rep.authorEmail}
+                  {rep.authorDisplay ?? rep.authorEmail ?? "Another reviewer"}
                 </small>{" "}
                 {rep.body}
               </div>

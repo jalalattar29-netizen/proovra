@@ -20,6 +20,18 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 
 import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
+import { RESTRICTED_CASE_WHERE } from "../cases/case-visibility.js";
+
+/**
+ * The records a CASE grant reaches: its case's, except one also linked to ANOTHER
+ * restricted case. The grant reaches its own case, and nothing the grantor did
+ * reaches that one (EVID-018). The dashboard and the workflow routes both read
+ * this, so what the dashboard hides no workflow route opens.
+ */
+export function caseGrantEvidenceWhere(caseId: string) {
+  return { caseLinks: { none: { caseId: { not: caseId }, case: RESTRICTED_CASE_WHERE } } };
+}
+
 export type PortalGrantScope = {
   teamId: string;
   scopeKind: "EVIDENCE" | "CASE" | "PACKAGE";
@@ -65,6 +77,7 @@ export async function resolveWorkflowInGrantScope(input: {
           teamId: scope.teamId,
           caseId: scope.caseId,
           evidenceId: workflow.evidenceId,
+          evidence: caseGrantEvidenceWhere(scope.caseId),
         },
         select: { id: true },
       });

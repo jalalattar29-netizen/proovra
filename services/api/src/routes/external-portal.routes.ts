@@ -44,6 +44,7 @@ import {
 // reviewer grant can expose sensitive evidence to an OUTSIDE reviewer,
 // so these mutations must require a fresh step-up on top of the RBAC
 // capability gate.
+import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { externalPortalCapabilitiesForRole } from "@proovra/shared";
 import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
@@ -926,7 +927,14 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         teamId: s.teamId,
         workflowId,
       });
-      return reply.code(200).send({ comments: rows });
+      // A thread is shared, an address is not: as with decisions, a reviewer
+      // never reads another reviewer's email address.
+      return reply.code(200).send({
+        comments: rows.map(({ grantId, authorEmail, ...row }) => ({
+          ...row,
+          authorEmail: grantId === s.grantId ? authorEmail : null,
+        })),
+      });
     },
   );
 
@@ -1231,6 +1239,18 @@ export async function externalPortalRoutes(app: FastifyInstance) {
         reason: body.reason ?? "OPERATOR_REVOKE",
         ip: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+      });
+      // The activity row has no actor: the tenant audit says who ended them.
+      await emitTenantAudit({
+        action: "external_review.sessions.revoked",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        resourceType: "external_review_grant",
+        resourceId: id,
+        correlationId: req.id ?? null,
+        metadata: { sessionsEnded, scope: body.sessionId ? "ONE" : "ALL" },
       });
       return reply.code(200).send({ ok: true, sessionsEnded });
     },

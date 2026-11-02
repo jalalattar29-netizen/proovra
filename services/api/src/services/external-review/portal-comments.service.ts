@@ -34,7 +34,7 @@ export async function postCommentInWorkflow(
   const prisma = input.prisma ?? defaultPrisma;
   if (input.parentCommentId) {
     const parent = await prisma.externalReviewComment.findFirst({
-      where: { id: input.parentCommentId, teamId: input.teamId },
+      where: { id: input.parentCommentId, teamId: input.teamId, workflowId: input.workflowId },
       select: { id: true, parentCommentId: true },
     });
     if (!parent) return { ok: false, denial: "OUT_OF_SCOPE" };
@@ -79,6 +79,7 @@ export async function listCommentsForWorkflow(input: {
       id: true,
       parentCommentId: true,
       body: true,
+      grantId: true,
       authorEmail: true,
       authorDisplay: true,
       createdAt: true,
