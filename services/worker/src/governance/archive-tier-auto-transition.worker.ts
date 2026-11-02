@@ -125,15 +125,21 @@ async function sweepTeam(teamId: string): Promise<number> {
       // taken over; anything else in flight is left alone.
       const claimId = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ev.id}))`;
-        const done = await tx.archiveTierTransition.findFirst({
-          where: { evidenceId: ev.id, state: "COMPLETED", toTier: targetTier },
-          select: { id: true },
-        });
-        if (done) return null;
-        const active = await tx.archiveTierTransition.findFirst({
-          where: { evidenceId: ev.id, state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
+        // One statement on purpose. The claim holder finishes outside this lock,
+        // so reading "done" and then "active" separately could miss its row in
+        // both, between PENDING and COMPLETED, and tag the object a second time.
+        const blocking = await tx.archiveTierTransition.findMany({
+          where: {
+            evidenceId: ev.id,
+            OR: [
+              { state: "COMPLETED", toTier: targetTier },
+              { state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
+            ],
+          },
           select: { id: true, state: true, reason: true, transitionedAtUtc: true },
         });
+        if (blocking.some((row) => row.state === "COMPLETED")) return null;
+        const active = blocking[0];
         if (active) {
           const abandoned =
             active.state === "PENDING" &&
