@@ -148,7 +148,7 @@ export async function newProfile(browser: Browser, p?: Person): Promise<{ contex
   });
   const page = await context.newPage();
   page.on("response", (r) => {
-    if (r.status() >= 400 && r.url().startsWith(API_BASE) && r.status() !== 401) {
+    if (r.status() >= 400 && r.url().startsWith(API_BASE) && (r.status() !== 401 || /decision/.test(r.url()))) {
       void r.text().then((b) => console.log(`[api ${r.status()}] ${r.request().method()} ${r.url().slice(API_BASE.length).split("?")[0]} ${b.slice(0, 240)}`)).catch(() => undefined);
     }
   });

@@ -10,6 +10,8 @@
  * Labelled fixture shortcuts, which count as no proof of onboarding:
  *   FIXTURE-1  The operator account is seeded. A platform operator is staff, not a
  *              customer step. Its authenticator is enrolled through the product.
+ *   FIXTURE-2  The worker lifecycle tick is called directly so closure does not wait
+ *              for its schedule. Same route, same secret-gated caller, no customer step.
  *
  * Unverified, and said so where the journey reaches them:
  *   SSO and SCIM against a real identity provider.
@@ -17,10 +19,13 @@
  * Each step leaves its state in .p7tmp/acceptance-state.json, so a repaired step
  * can be rerun alone: ACCEPT_RESUME=1 ... -g "S07".
  */
+import { readFileSync } from "node:fs";
+
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
 import { assertIsolatedStack } from "../helpers/stack-isolation";
 import {
+  API_BASE,
   answerStepUp,
   registerAccount,
   keepProfile,
@@ -47,6 +52,7 @@ test.describe.configure({ mode: "serial" });
 
 // Seats bound the people beside the owner (owner decision 2026-10-25): the owner takes none.
 const SEATS_SOLD = 3;
+const LIFECYCLE_HEADERS = { "x-proovra-integration-cron-secret": "fixture-local-only-acceptance-cron-secret-00000000" };
 
 async function confirmDialog(page: Page, name: RegExp): Promise<void> {
   await page.getByRole("dialog").getByRole("button", { name }).click();
@@ -301,7 +307,7 @@ test("S09 seats: the sold count is reached and the next acceptance is refused", 
   await page.locator('[data-action="accept-invite"]').click();
   await settle(page);
   await shot(page, "s09-seat-refused");
-  await expect(page.locator("body")).toContainText(/seat/i);
+  await expect(page.locator('[data-state="workspace-refused"]')).toContainText("no seat free");
   await context.close();
   const owner = s.people.owner!;
   const o = await newProfile(browser, owner);
@@ -310,7 +316,7 @@ test("S09 seats: the sold count is reached and the next acceptance is refused", 
   await o.context.close();
 });
 
-test("S10 workspace switch; analyst uploads real evidence and it seals", async ({ browser }) => {
+test("S10 workspace switch; analyst uploads real evidence, it seals and reports", async ({ browser }) => {
   const analyst = s.people.analyst!;
   const { context, page } = await newProfile(browser, analyst);
   await page.goto("/home");
@@ -323,12 +329,406 @@ test("S10 workspace switch; analyst uploads real evidence and it seals", async (
     mimeType: "image/png",
     buffer: samplePng(s.runId),
   });
-  await shot(page, "s10-staged");
-  await page.getByRole("button", { name: /Finish & Sign/ }).first().click();
-  await page.waitForTimeout(6000);
-  await shot(page, "s10-finished");
-  console.log("at", page.url());
+  await expect(page.getByText("1 material added").first()).toBeVisible();
+  await page.getByRole("button", { name: "Review & Sign", exact: true }).last().click();
+  await page.waitForURL(/\/evidence\/[0-9a-f-]{36}/, { timeout: 60_000 });
+  s.facts.evidenceId = page.url().match(/evidence\/([0-9a-f-]{36})/)![1]!;
+  // The worker seals and reports in the background: the page settles on its own record.
+  await expect(async () => {
+    await page.reload();
+    await expect(page.locator('[data-evidence-action="download-report"]')).toBeEnabled({ timeout: 3000 });
+    await expect(page.getByText("Reported").first()).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 120_000, intervals: [3000] });
+  const pdf = page.waitForEvent("download");
+  await page.locator('[data-evidence-action="download-report"]').click();
+  const file = await (await pdf).path();
+  expect(readFileSync(file).subarray(0, 4).toString()).toBe("%PDF");
+  const zip = page.waitForEvent("download");
+  await page.locator('[data-evidence-action="download-package"]').click();
+  expect(readFileSync(await (await zip).path()).subarray(0, 2).toString()).toBe("PK");
+  await shot(page, "s10-sealed");
   await keepProfile(context, analyst, s, "analyst");
+  await context.close();
+});
+
+test("S11 admin opens a case, adds the record, restricts it to one member", async ({ browser }) => {
+  const admin = s.people.admin!;
+  const { context, page } = await newProfile(browser, admin);
+  await page.goto("/home");
+  await settle(page);
+  await switchWorkspace(page, "Claims Investigations");
+  await page.goto("/cases");
+  await settle(page);
+  await page.locator("[data-create-case-trigger]").first().click();
+  await page.getByPlaceholder("e.g. Insurance claim #4823").fill((s.facts.caseTitle = `MV Aurora hull claim ${s.runId}-${Date.now() % 100000}`));
+  await page.getByRole("dialog").getByRole("button", { name: /create/i }).click();
+  await page.waitForURL(/\/cases\/[0-9a-f-]{36}/, { timeout: 30_000 });
+  s.facts.caseId = page.url().match(/cases\/([0-9a-f-]{36})/)![1]!;
+  await settle(page);
+
+  await page.locator('[data-tab-id="evidence"]').click();
+  await page.locator("[data-matter-evidence-link-open]").click();
+  const picker = page.locator('[role="dialog"]').filter({ has: page.locator("[data-matter-evidence-link-search-input]") });
+  await expect(picker.getByText(`hull-damage-${s.runId}.png`).first()).toBeVisible();
+  await picker.getByText(`hull-damage-${s.runId}.png`).first().click();
+  await page.locator("[data-matter-evidence-link-submit]").click();
+  await expect(page.locator("[data-matter-evidence-link-submit]")).toHaveCount(0);
+  await expect(page.locator("main")).toContainText(`hull-damage-${s.runId}.png`);
+
+  await page.locator('[data-tab-id="access"]').click();
+  await page.locator("[data-workspace-member-select] button[data-placeholder]").click();
+  await page.getByRole("option", { name: /analyst\./ }).click();
+  await page.locator("button[data-matter-access-grant]").click();
+  await confirmDialog(page, /Give access and restrict/);
+  await expect(page.locator("[data-matter-access-grant]").first()).toBeVisible();
+  await expect(page.getByText(/now has access to this case/)).toBeVisible();
+  await shot(page, "s11-restricted");
+  await keepProfile(context, admin, s, "admin");
+  await context.close();
+});
+
+test("S12 restricted access: the named member opens the case, a colleague cannot", async ({ browser }) => {
+  const analyst = s.people.analyst!;
+  const a = await newProfile(browser, analyst);
+  await a.page.goto("/home");
+  await settle(a.page);
+  await switchWorkspace(a.page, "Claims Investigations");
+  await a.page.goto(`/cases/${s.facts.caseId}`);
+  await settle(a.page);
+  await expect(a.page.locator("main")).toContainText(s.facts.caseTitle!);
+  await a.context.close();
+
+  const auditor = s.people.auditor!;
+  const b = await newProfile(browser, auditor);
+  await b.page.goto("/home");
+  await settle(b.page);
+  await switchWorkspace(b.page, "Claims Investigations");
+  await b.page.goto("/cases");
+  await settle(b.page);
+  await expect(b.page.locator("main")).not.toContainText(s.facts.caseTitle!);
+  await b.page.goto(`/cases/${s.facts.caseId}`);
+  await settle(b.page);
+  await expect(b.page.locator("main")).not.toContainText(s.facts.caseTitle!);
+  await shot(b.page, "s12-auditor-refused");
+  await b.page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(b.page);
+  await shot(b.page, "s12-auditor-evidence");
+  await keepProfile(b.context, auditor, s, "auditor");
+  await b.context.close();
+});
+
+test("S13 review: a reviewer claims, begins and decides; the decision survives a refresh", async ({ browser }) => {
+  const admin = s.people.admin!;
+  const { context, page } = await newProfile(browser, admin);
+  await page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(page);
+  await page.locator('[data-evidence-tab="review"]').click();
+  await expect(page.locator("[data-evidence-review-action]").first()).toBeVisible();
+  // A resumed run may find the review already claimed and begun by this reviewer.
+  if (await page.locator('[data-evidence-review-action="CLAIM"]').isVisible()) {
+    await page.locator('[data-evidence-review-action="CLAIM"]').click();
+    await expect(page.locator('[data-evidence-review-outcome="success"]')).toBeVisible();
+    await page.locator('[data-evidence-review-action="BEGIN_REVIEW"]').click();
+    await expect(page.locator('[data-evidence-review-action="BEGIN_REVIEW"]')).toHaveCount(0);
+  }
+  await page.locator('[data-evidence-review-action="APPROVE_INTERNAL"]').click();
+  await page.waitForTimeout(700);
+  await shot(page, "s13-approve");
+  const reason = page.locator("[data-evidence-review-reason-submit]");
+  if (await reason.isVisible().catch(() => false)) {
+    await page.locator("[data-evidence-review-reason] textarea").fill("Hull photographs match the survey report.");
+    await reason.click();
+  } else {
+    await page.getByRole("dialog").getByRole("button").last().click();
+  }
+  // A decision takes a fresh step-up, answered in the panel's own dialog.
+  await answerStepUp(page, admin);
+  await shot(page, "s13-after-approve");
+  await expect(page.locator('[data-evidence-review-outcome="success"]')).toBeVisible();
+  await page.reload();
+  await settle(page);
+  await page.locator('[data-evidence-tab="review"]').click();
+  await expect(page.locator("[data-evidence-review-decision]").first()).toContainText(/approv/i);
+  await context.close();
+});
+
+test("S14 external sharing: a scoped outside reviewer is invited and decides through the portal", async ({ browser }) => {
+  const admin = s.people.admin!;
+  const ext = person(s, "external", "Lena Moe");
+  if (mailbox(ext.email).length === 0) {
+    const { context, page } = await newProfile(browser, admin);
+    await page.goto("/review/external");
+    await settle(page);
+    await page.locator('[data-tab="bulk"]').click();
+    await page.locator('[data-bulk-scope-kind="CASE"]').click();
+    await page.locator("[data-bulk-scope-option]").first().click();
+    await page.locator("[data-bulk-paste]").fill(`${ext.email},${ext.name},Nordic Surveyors`);
+    await page.locator("[data-bulk-default-hours]").fill("48");
+    await page.locator("[data-bulk-issue-submit]").click();
+    await answerStepUp(page, admin);
+    await expect(page.getByText("Issued 1 of 1 invitation")).toBeVisible();
+    await page.locator('[data-tab="pending"]').click();
+    await expect(page.locator("main")).toContainText(ext.email);
+    await context.close();
+  }
+  const link = await linkFromMail(ext.email, /review|invit/i);
+  const e = await newProfile(browser);
+  await e.page.goto(link);
+  await e.page.locator("[data-portal-accept-open-with-token]").click();
+  await expect(e.page.getByText("Assigned reviews")).toBeVisible();
+  await expect(e.page.locator("body")).not.toContainText("undefined");
+  await expect(e.page.locator("body")).not.toContainText("PORTAL_NOT_A_LEGAL_OPINION");
+  await e.page.locator("[data-portal-open-review]").first().click();
+  await settle(e.page);
+  await shot(e.page, "s14-work");
+  await e.page.getByPlaceholder("Add a comment to the workflow…").fill("Damage pattern consistent with the survey.");
+  await e.page.locator("[data-portal-root-comment-submit]").click();
+  await expect(e.page.locator("[data-portal-comment-thread]").first()).toContainText("Damage pattern");
+  await e.page.locator("[data-portal-decision-rationale]").fill("Reviewed the linked record.");
+  await e.page.locator('[data-portal-decision-btn="APPROVE"]').click();
+  await expect(e.page.locator("[data-portal-decision-status]")).toBeVisible();
+  await e.page.reload();
+  await settle(e.page);
+  await shot(e.page, "s14-decided");
+  await expect(e.page.getByText("You have not recorded a decision")).toHaveCount(0);
+  await e.context.close();
+});
+
+test("S15 Legal Hold from the contract, against the record; retention stays in force", async ({ browser }) => {
+  // The case owner places it: the record sits in a restricted case, closed even to the workspace owner.
+  const admin = s.people.admin!;
+  const { context, page } = await newProfile(browser, admin);
+  await page.goto("/home");
+  await settle(page);
+  await switchWorkspace(page, "Claims Investigations");
+  await page.goto("/evidence-lifecycle/retention");
+  await settle(page);
+  await expect(page.locator("[data-retention-release]").first()).toBeVisible();
+  await page.goto("/evidence-lifecycle/legal-holds");
+  await settle(page);
+  await page.locator("main select").first().selectOption("EVIDENCE");
+  await page.getByPlaceholder("Hold name").fill(`Aurora litigation ${s.runId}`);
+  await page.getByPlaceholder("Legal basis").fill("Anticipated hull claim dispute");
+  await page.locator('[data-record-picker="evidence"] button').first().click();
+  await page.waitForTimeout(400);
+  await shot(page, "s15-form");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await answerStepUp(page, admin);
+  const row = page.locator("[data-legal-hold-row]", { hasText: `Aurora litigation ${s.runId}` });
+  await expect(row).toBeVisible();
+  await shot(page, "s15-held");
+
+  // The hold bites on the record: it cannot be sent to trash, and that is explained.
+  await page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(page);
+  const trash = page.locator('[data-evidence-action="header-trash"]');
+  console.log("trash disabled?", await trash.getAttribute("data-evidence-trash-disabled"), await trash.getAttribute("title"));
+  await shot(page, "s15-evidence-held");
+  await expect(trash).toHaveAttribute("data-evidence-trash-disabled", "true");
+  await keepProfile(context, admin, s, "admin");
+  await context.close();
+});
+
+test("S16 state survives refresh, sign-out, sign-in and a workspace switch; background work persists", async ({ browser }) => {
+  const analyst = s.people.analyst!;
+  const { context, page } = await newProfile(browser, analyst);
+  await page.goto("/home");
+  await settle(page);
+  await switchWorkspace(page, "Claims Investigations");
+  await page.goto(`/cases/${s.facts.caseId}`);
+  await settle(page);
+  await expect(page.locator("main")).toContainText(s.facts.caseTitle!);
+  await page.reload();
+  await expect(page.locator("main")).toContainText(s.facts.caseTitle!);
+  await expect(page.locator("[data-context-chip-name]")).toContainText("Claims Investigations");
+  // Out and back: the record, its report and the decision are all still there.
+  await signOut(page);
+  expect(await signIn(page, analyst)).toBe("challenge");
+  await settle(page);
+  await switchWorkspace(page, "Claims Investigations");
+  await page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(page);
+  await expect(page.getByText("Reported").first()).toBeVisible();
+  // The hold from S15 is still in force, and it blocks exports (GOV-012, a founder decision).
+  await expect(page.getByText("Export blocked").first()).toBeVisible();
+  await expect(page.locator('[data-evidence-action="download-report"]')).toBeDisabled();
+  await page.locator('[data-evidence-tab="review"]').click();
+  await expect(page.locator("[data-evidence-review-decision]").first()).toContainText(/approv/i);
+  // Personal Space shows none of the organization's records.
+  await page.locator("[data-app-context-chip] button").first().click();
+  await page.locator('[data-context-group="PERSONAL"] [data-context-option]').first().click();
+  await expect(page.locator("[data-context-chip-name]")).toContainText(/Personal/);
+  await page.goto("/evidence");
+  await settle(page);
+  await expect(page.locator("main")).not.toContainText(`hull-damage-${s.runId}`);
+  await switchWorkspace(page, "Claims Investigations");
+  await page.goto("/evidence");
+  await settle(page);
+  await expect(page.locator("main")).toContainText(`hull-damage-${s.runId}`);
+  await keepProfile(context, analyst, s, "analyst");
+  await context.close();
+});
+
+test("S17 role change and member suspension take effect, and restoring brings access back", async ({ browser }) => {
+  const owner = s.people.owner!;
+  const auditor = s.people.auditor!;
+  const { context, page } = await newProfile(browser, owner);
+  await page.goto(`/organizations/${s.orgId}/admin/members`);
+  await settle(page);
+  const row = page.locator("[data-membership-id]", { hasText: auditor.email });
+  const id = (await row.getAttribute("data-membership-id"))!;
+  await page.getByTestId(`member-role-select-${id}`).click();
+  await page.getByRole("option", { name: /^Auditor/ }).click();
+  await expect(row).toHaveAttribute("data-member-role", "ORG_AUDITOR");
+  await page.getByTestId(`member-suspend-${id}`).click();
+  await page.getByTestId(`member-suspend-reason-${id}`).fill("Leave of absence");
+  await page.getByTestId(`member-suspend-confirm-${id}`).click();
+  await page.waitForTimeout(700);
+  await shot(page, "s17-suspend");
+  if (await page.locator('[data-step-up-form="code"]').isVisible().catch(() => false)) await answerStepUp(page, owner);
+  await expect(page.getByTestId(`member-status-${id}`)).toHaveAttribute("data-member-status", "SUSPENDED");
+
+  const a = await newProfile(browser, auditor);
+  await a.page.goto("/home");
+  await settle(a.page);
+  await shot(a.page, "s17-suspended-member");
+  await expect(a.page.locator("[data-context-chip-name]")).not.toContainText("Claims Investigations");
+  await a.context.close();
+
+  await page.getByTestId(`member-restore-${id}`).click();
+  await page.waitForTimeout(700);
+  const confirm = page.getByRole("dialog").getByRole("button", { name: /restore/i });
+  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  await page.waitForTimeout(700);
+  if (await page.locator('[data-step-up-form="code"]').isVisible().catch(() => false)) await answerStepUp(page, owner);
+  await expect(page.getByTestId(`member-status-${id}`)).toHaveAttribute("data-member-status", "ACTIVE");
+  await keepProfile(context, owner, s, "owner");
+  await context.close();
+});
+
+test("S18 operator suspends the customer, members are refused, operator reactivates", async ({ browser }) => {
+  const op = s.people.operator!;
+  const analyst = s.people.analyst!;
+  const { context, page } = await newProfile(browser, op);
+  await page.goto(`/admin/customers/${s.orgId}`);
+  await settle(page);
+  await page.getByTestId("customer-suspend-reason").fill("Unpaid invoice, acceptance");
+  await page.getByTestId("customer-suspend").click();
+  await page.waitForTimeout(700);
+  await page.getByRole("dialog").getByRole("textbox").fill("SUSPEND");
+  await page.getByRole("dialog").getByRole("button", { name: "Suspend customer" }).click();
+  await answerStepUp(page, op);
+  await expect(page.getByTestId("customer-resume")).toBeVisible();
+  await shot(page, "s18-suspended");
+
+  const a = await newProfile(browser, analyst);
+  await a.page.goto("/home");
+  await settle(a.page);
+  await a.page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(a.page);
+  await shot(a.page, "s18-member-refused");
+  await expect(a.page.locator("main")).not.toContainText(`hull-damage-${s.runId}`);
+
+  await page.getByTestId("customer-resume").click();
+  await page.waitForTimeout(700);
+  const back = page.getByRole("dialog").getByRole("button", { name: /resume/i });
+  if (await back.isVisible().catch(() => false)) await back.click();
+  await answerStepUp(page, op);
+  await expect(page.getByTestId("customer-suspend")).toBeVisible();
+
+  // Suspension revoked every session, so the member signs in again.
+  expect(await signIn(a.page, analyst)).toBe("challenge");
+  await settle(a.page);
+  await switchWorkspace(a.page, "Claims Investigations");
+  await a.page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(a.page);
+  await expect(a.page.locator("main")).toContainText(`hull-damage-${s.runId}`);
+  await keepProfile(a.context, analyst, s, "analyst");
+  await a.context.close();
+  await context.close();
+});
+
+test("S19 offboarding: a member leaves, with their seat freed and their access gone", async ({ browser }) => {
+  const owner = s.people.owner!;
+  const auditor = s.people.auditor!;
+  // The suspension in S18 revoked every session of the organization.
+  const { context, page } = await newProfile(browser);
+  await signIn(page, owner);
+  await settle(page);
+  await page.goto(`/organizations/${s.orgId}/admin/members`);
+  await settle(page);
+  const row = page.locator("[data-membership-id]", { hasText: auditor.email });
+  const id = (await row.getAttribute("data-membership-id"))!;
+  await page.getByTestId(`member-remove-${id}`).click();
+  await page.waitForTimeout(600);
+  await shot(page, "s19-remove");
+  await page.getByRole("dialog").getByRole("button", { name: /remove/i }).last().click();
+  await page.waitForTimeout(800);
+  if (await page.locator('[data-step-up-form="code"]').isVisible().catch(() => false)) await answerStepUp(page, owner);
+  await expect(page.getByTestId(`member-status-${id}`)).toHaveAttribute("data-member-status", "REVOKED");
+  await page.goto(`/organizations/${s.orgId}/setup#billing`);
+  await expect(page.locator('[data-readonly-row="billing-seats-used"]')).toContainText(String(SEATS_SOLD - 1));
+  await keepProfile(context, owner, s, "owner");
+  await context.close();
+});
+
+test("S20 Legal Hold release takes a note and a step-up, and exports return", async ({ browser }) => {
+  const admin = s.people.admin!;
+  const { context, page } = await newProfile(browser);
+  await signIn(page, admin);
+  await settle(page);
+  await switchWorkspace(page, "Claims Investigations");
+  await page.goto("/evidence-lifecycle/legal-holds");
+  await settle(page);
+  const row = page.locator("tr", { hasText: `Aurora litigation ${s.runId}` });
+  await expect(row.getByText("Active")).toBeVisible();
+  // The release note is a browser prompt.
+  page.once("dialog", (d) => void d.accept("Claim settled, acceptance"));
+  await row.getByRole("button", { name: "Release" }).click();
+  await answerStepUp(page, admin);
+  await expect(page.getByText("Legal hold released.")).toBeVisible();
+  await expect(row.getByText("Active")).toHaveCount(0);
+  await page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(page);
+  await expect(page.locator('[data-evidence-action="download-report"]')).toBeEnabled();
+  await expect(page.locator('[data-evidence-action="header-trash"]')).toHaveAttribute("data-evidence-trash-disabled", "false");
+  await context.close();
+});
+
+test("S21 contract termination: the customer is told, the sweep closes it, the end is final, evidence stays", async ({ browser, request }) => {
+  const op = s.people.operator!;
+  const { context, page } = await newProfile(browser, op);
+  await page.goto(`/admin/customers/${s.orgId}`);
+  await settle(page);
+  await page.getByTestId("customer-terminate-reason").fill("Contract ended, acceptance");
+  await page.getByTestId("customer-terminate").click();
+  await page.getByRole("dialog").getByRole("textbox").fill("TERMINATE");
+  await page.getByRole("dialog").getByRole("button", { name: "Schedule termination" }).click();
+  await answerStepUp(page, op);
+  await expect(page.getByText("Termination scheduled.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("customer-terminate-cancel")).toBeVisible();
+
+  const owner = s.people.owner!;
+  const o = await newProfile(browser);
+  await signIn(o.page, owner);
+  await settle(o.page);
+  await o.page.goto(`/organizations/${s.orgId}`);
+  await settle(o.page);
+  await expect(o.page.locator("[data-org-closure-status]").first()).toContainText("Your contract is ending");
+  await shot(o.page, "s21-owner-told");
+  await o.context.close();
+
+  // FIXTURE-2: the worker's own lifecycle tick, called now instead of waiting for its schedule.
+  const tick = await request.post(`${API_BASE}/v1/internal/lifecycle/run`, { headers: LIFECYCLE_HEADERS, data: {} });
+  console.log("lifecycle tick", tick.status(), (await tick.text()).slice(0, 300));
+  expect(tick.ok()).toBe(true);
+  await page.reload();
+  await settle(page);
+  await shot(page, "s21-after-sweep");
+  await expect(page.getByTestId("customer-contract-final")).toBeVisible();
+  await expect(page.getByTestId("customer-terminate-cancel")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("0 evidence");
   await context.close();
 });
 
