@@ -51,6 +51,7 @@ import {
   evaluateEffectiveLegalHold,
   isUnderEffectiveLegalHold,
   resolveLinkedCaseIds,
+  workspaceEvidenceWhere,
   type EffectiveLegalHoldResult,
 } from "@proovra/shared-runtime";
 
@@ -477,9 +478,12 @@ export async function listRecordsCommittedToDestruction(
           })
         ).map((l) => l.evidenceId)
       : null;
+  // The hold reaches what the workspace holds, so a Personal workspace's legacy
+  // NULL-team record is named here as well.
+  const workspaceScope = await workspaceEvidenceWhere(hold.teamId, client);
   const rows = await client.evidence.findMany({
     where: {
-      teamId: hold.teamId,
+      AND: [workspaceScope],
       OR: [
         { lifecycleState: "PENDING_DESTRUCTION", destructionClaimedAtUtc: { not: null } },
         { destructionPartialAtUtc: { not: null }, destroyedAtUtc: null },

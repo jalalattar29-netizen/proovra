@@ -23,6 +23,7 @@ import type { PrismaClient } from "@prisma/client";
 import { canonicalJsonValue } from "@proovra/shared/custody-hash";
 import {
   resolveWorkspaceLegalHoldCoverage,
+  workspaceEvidenceWhere,
   type EvidenceDestructionStoragePort,
 } from "@proovra/shared-runtime";
 
@@ -78,6 +79,7 @@ export async function buildOrganizationExportManifest(
 
   for (const team of teams) {
     const coverage = await resolveWorkspaceLegalHoldCoverage(client, team.id);
+    const evidenceScope = await workspaceEvidenceWhere(team.id, client);
     let cursor: string | null = null;
     for (;;) {
       const page: Array<{
@@ -91,7 +93,7 @@ export async function buildOrganizationExportManifest(
         storageVersionId: string | null;
         destroyedAtUtc: Date | null;
       }> = await client.evidence.findMany({
-        where: { teamId: team.id },
+        where: evidenceScope,
         orderBy: { id: "asc" },
         take: PAGE_SIZE,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
