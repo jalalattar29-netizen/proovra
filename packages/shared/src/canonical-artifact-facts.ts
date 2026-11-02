@@ -248,8 +248,9 @@ export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, l
  * gone. ANCHORED reads "Bitcoin anchoring — Anchored", nothing stronger.
  */
 const OTS_RETIRED_PHRASES = [
-  /OpenTimestamps Bitcoin anchoring verified/i,
-  /Bitcoin anchoring verified/i,
+  /OpenTimestamps Bitcoin anchoring verified(?! by PROOVRA)/i,
+  // The label under this title names who checked: "Verified by PROOVRA ...".
+  /Bitcoin anchoring verified(?! by PROOVRA)/i,
   /Bitcoin attestation independently verified/i,
   /independently verified against the Bitcoin blockchain/i,
   // The pre-chain-verification claim: a proof that only NAMES a block was
