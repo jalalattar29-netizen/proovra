@@ -42,6 +42,7 @@ type State =
       // PHASE 5 §8.2 (2026-07-22) — explicit workspace grants consumed
       // from the accept response (empty = governance-only invite).
       assignedWorkspaceIds: string[];
+      refusedWorkspaceCount: number;
     }
   | { kind: "error"; status: number; message: string; code?: string };
 
@@ -97,6 +98,8 @@ function OrgInviteAcceptPageInner() {
         // PHASE 5 §8.2 — explicit workspace grants (empty/absent =
         // governance-only invite).
         assignedWorkspaceIds?: string[];
+        // A workspace the invitation named and could not grant (no free seat).
+        refusedWorkspaceCount?: number;
         // Phase 2 Blocker 1 — present only when a brand-new-owner
         // enterprise provisioning completed on this accept.
         enterpriseWorkspaceId?: string;
@@ -110,6 +113,7 @@ function OrgInviteAcceptPageInner() {
         assignedWorkspaceIds: Array.isArray(data.assignedWorkspaceIds)
           ? data.assignedWorkspaceIds
           : [],
+        refusedWorkspaceCount: data.refusedWorkspaceCount ?? 0,
       });
       // Phase 5 (account-menu refactor, 2026-07-21) — re-fetch the canonical
       // platform-context envelope so the newly-joined organization appears in
@@ -146,7 +150,7 @@ function OrgInviteAcceptPageInner() {
     // assigned: the member chooses which workspace to open (or the org
     // landing). Auto-redirect stays only for governance-only accepts
     // (the previous behavior) and the enterprise setup wizard.
-    if (state.kind === "ok" && state.assignedWorkspaceIds.length === 0) {
+    if (state.kind === "ok" && state.assignedWorkspaceIds.length === 0 && state.refusedWorkspaceCount === 0) {
       // Phase 2 Blocker 1 — an enterprise setup redirect (when the
       // brand-new-owner provisioning completed) takes precedence over
       // the default org landing.
@@ -239,7 +243,15 @@ function OrgInviteAcceptPageInner() {
           }}
         >
           {state.assignedWorkspaceIds.length === 0 ? (
-            <>You are now a {orgRoleLabel(state.role)} of the organization. Redirecting…</>
+            state.refusedWorkspaceCount > 0 ? (
+              <span data-state="workspace-refused">
+                You are now a {orgRoleLabel(state.role)} of the organization, but the
+                workspace you were invited to has no seat free, so you can&apos;t open it
+                yet. Ask an organization administrator to free a seat.
+              </span>
+            ) : (
+              <>You are now a {orgRoleLabel(state.role)} of the organization. Redirecting…</>
+            )
           ) : (
             <>
               You are now a {orgRoleLabel(state.role)} of the organization

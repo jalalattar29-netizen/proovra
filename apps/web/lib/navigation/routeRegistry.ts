@@ -189,7 +189,12 @@ export const ENTERPRISE_ONLY_ROUTE_IDS: ReadonlySet<string> = new Set([
   // "membership is the ONLY input — never plan"). Administration below the
   // detail stays capability-gated and the org ADMIN surfaces below remain
   // enterprise-workspace-gated.
-  "account.organization-setup",
+  //
+  // Setup is not on this list (PROV-004). Its gate is the organization, not the
+  // active workspace: an owner signing in lands in Personal Space, and asking
+  // about that workspace sold them an upgrade on their own Enterprise
+  // organization. The page moves itself to the organization's workspace and
+  // every read and write is decided by the organization role on the server.
   "account.organization_admin",
   "account.organization_admin_overview",
   "account.organization_admin_members",

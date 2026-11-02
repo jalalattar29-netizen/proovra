@@ -1226,6 +1226,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         role: result.role,
         // P2 — explicit workspace grants (empty = governance-only invite).
         assignedWorkspaceIds: result.assignedWorkspaceIds,
+        ...(result.refusedWorkspaceCount > 0 ? { refusedWorkspaceCount: result.refusedWorkspaceCount } : {}),
         // PHASE 5 §8 — true when this accept was a same-user retry of an
         // already-consumed invite (no new grants were written).
         ...(result.idempotentReplay ? { idempotentReplay: true } : {}),

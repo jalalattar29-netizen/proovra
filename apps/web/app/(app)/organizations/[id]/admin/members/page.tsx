@@ -366,9 +366,9 @@ function MembersTab() {
         description: (
           <span>
             <strong>{m.displayName ?? m.email ?? "this member"}</strong>{" "}
-            will be removed from the organization. Their workspace-level
-            access remains workspace-scoped and is not affected by this
-            change.
+            will be removed from the organization. Their access to its
+            workspaces ends now, their seat is freed, and the record stays on
+            this list as revoked.
           </span>
         ),
         confirmLabel: "Remove member",

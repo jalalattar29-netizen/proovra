@@ -121,6 +121,12 @@ const WORKFLOW_REFUSAL_COPY: Readonly<Record<string, string>> = {
   lifecycle_decision_required: "Escalate and Reopen are review decisions with a reason. Use the Review tab.",
 };
 
+/** The eligibility reason is a code; the page states it in a sentence. */
+function downloadBlockedLabel(reason: string | null | undefined): string | null {
+  if (reason === "active_legal_hold") return "A legal hold on this record blocks downloads until it is released.";
+  return reason ? "Governance policy currently blocks this download." : null;
+}
+
 export default function EvidenceDetailPage() {
   return (
     <PageRouteGate routeId="workspace.evidence">
@@ -1248,7 +1254,7 @@ function EvidenceDetailPageInner() {
                 kind="export"
                 onEligibilityChange={(s) => {
                   setExportDisabled(!s.loading && !s.unknown && !s.eligible);
-                  setExportBlockedReason(s.eligible ? null : s.reason);
+                  setExportBlockedReason(s.eligible ? null : downloadBlockedLabel(s.reason));
                 }}
               />
               <ExportPackageEligibilityBadge
@@ -1257,7 +1263,7 @@ function EvidenceDetailPageInner() {
                 kind="package"
                 onEligibilityChange={(s) => {
                   setPackageDisabled(!s.loading && !s.unknown && !s.eligible);
-                  setPackageBlockedReason(s.eligible ? null : s.reason);
+                  setPackageBlockedReason(s.eligible ? null : downloadBlockedLabel(s.reason));
                 }}
               />
             </div>

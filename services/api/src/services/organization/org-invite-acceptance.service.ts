@@ -78,6 +78,8 @@ export type OrgInviteAcceptOutcome =
       organizationId: string;
       role: string;
       assignedWorkspaceIds: string[];
+      /** Workspaces the invitation named and could not grant, so the person can be told. */
+      refusedWorkspaceCount: number;
       idempotentReplay: boolean;
       enterpriseWorkspaceId: string | null;
       setupRedirect: string | null;
@@ -203,6 +205,7 @@ async function runAcceptance(
         organizationId: invite!.organizationId,
         role: invite!.role,
         assignedWorkspaceIds,
+        refusedWorkspaceCount: 0,
         idempotentReplay: true,
         enterpriseWorkspaceId: null,
         setupRedirect: null,
@@ -478,6 +481,7 @@ async function runAcceptance(
       organizationId: invite.organizationId,
       role: invite.role,
       assignedWorkspaceIds,
+      refusedWorkspaceCount: refusedAssignments.length,
       idempotentReplay: false,
       enterpriseWorkspaceId: enterpriseCompletion?.enterpriseWorkspaceId ?? null,
       setupRedirect: enterpriseCompletion?.setupRedirect ?? null,
