@@ -98,6 +98,11 @@ const H = vi.hoisted(() => ({
 
 // Nothing in this matrix is closed by a restricted case; the rule itself runs
 // against PostgreSQL in case-reach-matrix.integration.test.ts.
+// The case rule behind a redaction id runs against PostgreSQL in cov-page-apis.
+vi.mock("../src/services/redaction/redaction-record-reach.service.js", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  closedRedactionAnswer: async () => null,
+}));
 vi.mock("../src/services/access/record-reach.js", async (importOriginal) => {
   const hidden = { caseIds: [], evidenceIds: [] };
   return {

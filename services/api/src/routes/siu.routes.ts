@@ -103,7 +103,7 @@ async function requireSiuWorkspaceActor(
   const decision = await evaluateMemberAccess({
     teamId,
     userId,
-    permission,
+    permission: "identity.member.read",
   });
   if (!decision.allowed) {
     reply.code(403).send({

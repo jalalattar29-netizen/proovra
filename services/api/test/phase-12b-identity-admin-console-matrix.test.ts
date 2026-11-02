@@ -395,8 +395,9 @@ vi.mock("../src/db.js", () => ({
       // The actor is a member of TEAM only — never of any other workspace.
       findUnique: async (a: { where: { teamId_userId: { teamId: string; userId: string } } }) => {
         const { teamId, userId } = a.where.teamId_userId;
-        if (userId !== H.actorUserId) return null;
         if (teamId !== "22222222-2222-4222-8222-222222222222") return null;
+        // The person a revocation is aimed at belongs to the workspace.
+        if (userId !== H.actorUserId) return { id: "tm-target", status: "ACTIVE" };
         if (H.memberStatus === null) return null;
         return { id: "tm-1", status: H.memberStatus };
       },
