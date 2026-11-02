@@ -74,6 +74,15 @@ test("registry declares account.organization-setup at /organizations/:id/setup",
   assert.match(REGISTRY, /href:\s*"\/organizations\/:id\/setup"/);
 });
 
+test("setup is gated by the organization, not the active workspace (PROV-004)", () => {
+  const list = REGISTRY.slice(REGISTRY.indexOf("ENTERPRISE_ONLY_ROUTE_IDS"), REGISTRY.indexOf("]);", REGISTRY.indexOf("ENTERPRISE_ONLY_ROUTE_IDS")));
+  assert.ok(!list.includes('"account.organization-setup",'), "an owner in Personal Space must reach their own setup");
+});
+
+test("wizard invitations name the workspace, so an accepted employee can open it", () => {
+  assert.match(PAGE, /inviteWorkspaceAssignments(primaryWorkspaceId, inviteAccess)/);
+});
+
 test("wizard surfaces caller role and disables mutating UI for non owner/admin", () => {
   // Mirrors the org detail page: canManage is derived from callerRole and
   // gates the mutating controls (server still enforces).

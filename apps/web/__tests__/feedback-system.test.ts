@@ -218,3 +218,14 @@ test("RGA-01: the updated-report decline codes never collapse to the generic 4xx
     assert.ok(safe.title.length > 0, `${code}: has a title`);
   }
 });
+
+test("a session refused by an organization's sign-in rules is told to sign in again", () => {
+  const refused = { statusCode: 403, code: "permission_denied", body: { error: { code: "permission_denied", reason: "organization_session_policy", detail: "mfa_required" } } };
+  const safe = toSafeUserError(refused, { message: "Failed to load." });
+  assert.match(safe.message, /Sign out and sign in again with your authenticator app/);
+  const other = toSafeUserError({ ...refused, body: { error: { code: "permission_denied", reason: "organization_session_policy", detail: "sso_required" } } });
+  assert.match(other.message, /Sign out and sign in again/);
+  // A real permission refusal is unchanged.
+  const denied = toSafeUserError({ statusCode: 403, code: "permission_denied", body: { error: { code: "permission_denied", reason: "permission_not_granted" } } });
+  assert.doesNotMatch(denied.message, /sign in again/i);
+});
