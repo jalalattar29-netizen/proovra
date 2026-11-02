@@ -5,13 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../providers";
 import { apiFetch } from "../../../../lib/api";
 import { formatUserDateTime } from "../../../../lib/date";
-import {
-  useToast,
-  Skeleton,
-  EmptyState,
-  Card,
-  Button,
-} from "../../../../components/ui";
+import { useToast, Skeleton } from "../../../../components/ui";
+import { Button } from "../../../../components/ui/Button";
+import { Card } from "../../../../components/ui/Card";
+import { EmptyState } from "../../../../components/ui/EmptyState";
 import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import {
   dashboardStyles,
@@ -209,9 +206,9 @@ function BatchAnalysisPageInner() {
       }
       action={
         <Button
+          variant="primary"
           onClick={() => setShowNewJobForm((prev) => !prev)}
-          className="dashboard-batch-responsive-btn rounded-[999px] border px-6 py-3 text-[0.95rem] font-semibold"
-          style={dashboardStyles.primaryButton}
+          className="dashboard-batch-responsive-btn"
         >
           + New Batch Job
         </Button>
@@ -256,7 +253,7 @@ function BatchAnalysisPageInner() {
         .dashboard-batch-page .dashboard-batch-job-title {
           font-size: 18px;
           font-weight: 700;
-          color: #d8e0dd;
+          color: var(--app-ink-heading);
           margin: 0;
           line-height: 1.35;
           overflow-wrap: anywhere;
@@ -265,7 +262,7 @@ function BatchAnalysisPageInner() {
 
         .dashboard-batch-page .dashboard-batch-job-date {
           font-size: 12px;
-          color: rgba(194, 204, 201, 0.56);
+          color: var(--app-ink-secondary);
           margin-top: 6px;
           margin-bottom: 0;
           overflow-wrap: anywhere;
@@ -305,7 +302,7 @@ function BatchAnalysisPageInner() {
           display: flex;
           gap: 10px;
           padding-top: 12px;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          border-top: 1px solid var(--border-default);
           flex-wrap: wrap;
         }
 
@@ -325,52 +322,6 @@ function BatchAnalysisPageInner() {
           flex: 1 1 220px;
         }
 
-        .dashboard-batch-page .dashboard-batch-field {
-          width: 100%;
-          min-width: 0;
-          min-height: 52px;
-          padding: 0 16px;
-          border-radius: 18px;
-          font-size: 15px;
-          line-height: 1.2;
-          background: linear-gradient(
-            180deg,
-            rgba(20, 39, 42, 0.94) 0%,
-            rgba(13, 27, 30, 0.98) 100%
-          );
-          border: 1px solid rgba(232, 236, 233, 0.16);
-          color: #d8e0dd;
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.06),
-            inset 0 0 0 1px rgba(244, 245, 242, 0.02),
-            0 10px 22px rgba(0, 0, 0, 0.14),
-            0 0 0 1px rgba(236, 238, 234, 0.03);
-          outline: none;
-          transition:
-            border-color 220ms ease,
-            box-shadow 220ms ease,
-            background-color 220ms ease;
-        }
-
-        .dashboard-batch-page .dashboard-batch-field::placeholder {
-          color: rgba(194, 204, 201, 0.52);
-        }
-
-        .dashboard-batch-page .dashboard-batch-field:focus {
-          border-color: rgba(236, 238, 234, 0.24);
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            inset 0 0 20px rgba(236, 238, 234, 0.05),
-            0 0 0 3px rgba(236, 238, 234, 0.08),
-            0 12px 24px rgba(0, 0, 0, 0.14);
-        }
-
-        .dashboard-batch-page textarea.dashboard-batch-field {
-          min-height: 120px;
-          padding: 14px 16px;
-          resize: vertical;
-        }
-
         .dashboard-batch-page .dashboard-batch-mono {
           font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
           font-size: 13px;
@@ -388,7 +339,7 @@ function BatchAnalysisPageInner() {
 
         .dashboard-batch-page .dashboard-batch-card-metric-sub {
           font-size: 12px;
-          color: rgba(194, 204, 201, 0.56);
+          color: var(--app-ink-secondary);
           margin-top: 8px;
           overflow-wrap: anywhere;
           word-break: break-word;
@@ -432,18 +383,9 @@ function BatchAnalysisPageInner() {
       <div className="dashboard-batch-page">
         {showNewJobForm && (
           <Card
-            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-            style={dashboardStyles.outerCard}
+            padding="none"
           >
-            <div className="absolute inset-0">
-              <img
-                src="/images/site-velvet-bg.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
-              />
-            </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="relative z-10 p-6 md:p-7">
+            <div className="p-6 md:p-7">
               <form onSubmit={handleCreateJob} className="dashboard-batch-form-grid">
                 <div>
                   <label
@@ -451,7 +393,7 @@ function BatchAnalysisPageInner() {
                       display: "block",
                       fontSize: 13,
                       marginBottom: 6,
-                      color: "rgba(194,204,201,0.72)",
+                      color: "var(--app-ink-secondary)",
                     }}
                   >
                     Batch Name
@@ -461,7 +403,7 @@ function BatchAnalysisPageInner() {
                     value={jobName}
                     onChange={(e) => setJobName(e.target.value)}
                     placeholder="e.g., Q1 2026 Review"
-                    className="dashboard-batch-field"
+                    className="app-form-input"
                   />
                 </div>
 
@@ -471,7 +413,7 @@ function BatchAnalysisPageInner() {
                       display: "block",
                       fontSize: 13,
                       marginBottom: 6,
-                      color: "rgba(194,204,201,0.72)",
+                      color: "var(--app-ink-secondary)",
                     }}
                   >
                     Description (optional)
@@ -481,7 +423,7 @@ function BatchAnalysisPageInner() {
                     onChange={(e) => setJobDescription(e.target.value)}
                     placeholder="Add notes about this batch"
                     rows={2}
-                    className="dashboard-batch-field"
+                    className="app-form-input"
                   />
                 </div>
 
@@ -491,7 +433,7 @@ function BatchAnalysisPageInner() {
                       display: "block",
                       fontSize: 13,
                       marginBottom: 6,
-                      color: "rgba(194,204,201,0.72)",
+                      color: "var(--app-ink-secondary)",
                     }}
                   >
                     Evidence IDs (one per line)
@@ -501,15 +443,12 @@ function BatchAnalysisPageInner() {
                     onChange={(e) => setEvidenceIds(e.target.value)}
                     placeholder={"e.g.\nabc-123\ndef-456\nghi-789"}
                     rows={6}
-                    className="dashboard-batch-field dashboard-batch-mono"
+                    className="app-form-input dashboard-batch-mono"
                   />
                 </div>
 
                 <div className="dashboard-batch-form-actions">
-                  <Button
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={dashboardStyles.primaryButton}
-                  >
+                  <Button type="submit" variant="primary">
                     Create & Start Batch
                   </Button>
 
@@ -517,8 +456,6 @@ function BatchAnalysisPageInner() {
                     type="button"
                     onClick={() => setShowNewJobForm(false)}
                     variant="secondary"
-                    className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                    style={dashboardStyles.secondaryButton}
                   >
                     Cancel
                   </Button>
@@ -534,30 +471,21 @@ function BatchAnalysisPageInner() {
               label: "Total Jobs",
               value: jobs.length,
               sub: "All batch jobs",
-              color: "#d8e0dd",
+              color: "var(--app-ink-heading)",
             },
             {
               label: "Active Jobs",
               value: pendingJobs,
               sub: "Pending or processing",
-              color: "#bfe8df",
+              color: "var(--app-ink-heading)",
             },
           ].map((item) => (
             <Card
               key={item.label}
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={dashboardStyles.outerCard}
+              padding="none"
             >
-              <div className="absolute inset-0">
-                <img
-                  src="/images/site-velvet-bg.webp.png"
-                  alt=""
-                  className="h-full w-full object-cover object-center scale-[1.12]"
-                />
-              </div>
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-              <div className="relative z-10 p-6">
-                <div style={{ fontSize: 13, color: "rgba(194,204,201,0.64)" }}>
+              <div className="p-6">
+                <div style={{ fontSize: 13, color: "var(--app-ink-secondary)" }}>
                   {item.label}
                 </div>
                 <div
@@ -575,33 +503,26 @@ function BatchAnalysisPageInner() {
         {loading && jobs.length === 0 ? (
           <div style={{ display: "grid", gap: 16 }}>
             <Card
-              className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-              style={dashboardStyles.outerCard}
+              padding="none"
             >
-              <div className="relative z-10 p-6">
+              <div className="p-6">
                 <Skeleton width="100%" height="200px" />
               </div>
             </Card>
           </div>
         ) : jobs.length === 0 ? (
           <Card
-            className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-            style={dashboardStyles.outerCard}
+            padding="none"
           >
-            <div className="absolute inset-0">
-              <img
-                src="/images/site-velvet-bg.webp.png"
-                alt=""
-                className="h-full w-full object-cover object-center scale-[1.12]"
-              />
-            </div>
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-            <div className="relative z-10 p-6">
+            <div className="p-6">
               <EmptyState
                 title="No Batch Jobs"
-                subtitle="Create your first batch job to analyze multiple evidence items"
-                action={() => setShowNewJobForm(true)}
-                actionLabel="Create Batch Job"
+                purpose="Create your first batch job to analyze multiple evidence items."
+                action={
+                  <Button variant="primary" onClick={() => setShowNewJobForm(true)}>
+                    Create Batch Job
+                  </Button>
+                }
               />
             </div>
           </Card>
@@ -610,19 +531,9 @@ function BatchAnalysisPageInner() {
             {jobs.map((job) => (
               <Card
                 key={job.id}
-                className="relative overflow-hidden rounded-[30px] border bg-transparent p-0 shadow-none"
-                style={dashboardStyles.outerCard}
+                padding="none"
               >
-                <div className="absolute inset-0">
-                  <img
-                    src="/images/site-velvet-bg.webp.png"
-                    alt=""
-                    className="h-full w-full object-cover object-center scale-[1.12]"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,20,24,0.82)_0%,rgba(7,18,22,0.88)_100%)]" />
-
-                <div className="relative z-10 p-6 md:p-7">
+                <div className="p-6 md:p-7">
                   <div className="dashboard-batch-job-card-inner">
                     <div className="dashboard-batch-job-header">
                       <div className="dashboard-batch-job-header-main">
@@ -649,8 +560,8 @@ function BatchAnalysisPageInner() {
 
                     <div>
                       <div className="dashboard-batch-progress-row">
-                        <span style={{ color: "rgba(194,204,201,0.72)" }}>Progress</span>
-                        <span style={{ color: "#d8e0dd", fontWeight: 600 }}>
+                        <span style={{ color: "var(--app-ink-secondary)" }}>Progress</span>
+                        <span style={{ color: "var(--app-ink-heading)", fontWeight: 600 }}>
                           {job.processedItems + job.failedItems} / {job.totalItems}
                         </span>
                       </div>
@@ -660,7 +571,7 @@ function BatchAnalysisPageInner() {
                           style={{
                             width: `${job.progress}%`,
                             height: "100%",
-                            background: "linear-gradient(90deg,#3f6664,#8dc7bc)",
+                            background: "var(--accent-500)",
                             borderRadius: 999,
                           }}
                         />
@@ -675,14 +586,14 @@ function BatchAnalysisPageInner() {
                           borderRadius: 16,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}>
+                        <div style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}>
                           Processed
                         </div>
                         <div
                           style={{
                             fontSize: 24,
                             fontWeight: 800,
-                            color: "#9fdfb2",
+                            color: "var(--success-ink)",
                             marginTop: 4,
                           }}
                         >
@@ -697,14 +608,14 @@ function BatchAnalysisPageInner() {
                           borderRadius: 16,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}>
+                        <div style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}>
                           Failed
                         </div>
                         <div
                           style={{
                             fontSize: 24,
                             fontWeight: 800,
-                            color: "#e4a3a3",
+                            color: "var(--error)",
                             marginTop: 4,
                           }}
                         >
@@ -719,14 +630,14 @@ function BatchAnalysisPageInner() {
                           borderRadius: 16,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "rgba(194,204,201,0.56)" }}>
+                        <div style={{ fontSize: 12, color: "var(--app-ink-secondary)" }}>
                           Pending
                         </div>
                         <div
                           style={{
                             fontSize: 24,
                             fontWeight: 800,
-                            color: "#d8e0dd",
+                            color: "var(--app-ink-heading)",
                             marginTop: 4,
                           }}
                         >
@@ -743,8 +654,6 @@ function BatchAnalysisPageInner() {
                         <Button
                           onClick={() => handleExportResults(job.id)}
                           variant="secondary"
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={dashboardStyles.secondaryButton}
                         >
                           Export CSV
                         </Button>
@@ -753,8 +662,7 @@ function BatchAnalysisPageInner() {
                       {["pending", "processing"].includes(job.status) && (
                         <Button
                           onClick={() => handleCancelJob(job.id)}
-                          className="rounded-[999px] border px-5 py-3 text-[0.92rem] font-semibold"
-                          style={dashboardStyles.dangerButton}
+                          variant="destructive"
                         >
                           Cancel
                         </Button>

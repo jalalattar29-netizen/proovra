@@ -1019,6 +1019,7 @@ function CaseBulkActionBar({
       <label className="cases-bulk-selectall">
         <input
           type="checkbox"
+          className="app-checkbox"
           data-case-bulk-select-all
           checked={count > 0 && count === visibleIds.length}
           onChange={onToggleAll}
@@ -1156,6 +1157,7 @@ function MatterQueueRow({
         >
           <input
             type="checkbox"
+            className="app-checkbox"
             data-case-bulk-select={row.id}
             checked={selected}
             onChange={() => onToggleSelect?.(row.id)}
