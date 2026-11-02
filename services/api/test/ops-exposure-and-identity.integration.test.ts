@@ -113,6 +113,17 @@ describe("Operational exposure and identity (live PostgreSQL)", () => {
     expect((await readReleaseIdentity(prisma as never)).aligned).toBe(false);
   });
 
+  it("OPS-020: an eviction policy that loses jobs is named, against the real Redis and from a server's report", async () => {
+    const { evictionPolicyFromInfo } = await import("../src/runtime/runtime-readiness.js");
+    expect(evictionPolicyFromInfo("# Memory\r\nused_memory:1\r\nmaxmemory_policy:allkeys-lru\r\n")).toBe("allkeys-lru");
+    expect(evictionPolicyFromInfo("# Memory\r\nused_memory:1\r\n")).toBeNull();
+    const { default: IORedis } = await import("ioredis");
+    const redis = new IORedis(process.env.REDIS_URL!, { lazyConnect: true });
+    await redis.connect();
+    expect(evictionPolicyFromInfo(await redis.info("memory"))).toBe("noeviction");
+    redis.disconnect();
+  });
+
   it("OPS-015: the release route is closed to a workspace owner", async () => {
     const res = await h.app.inject({
       method: "GET",

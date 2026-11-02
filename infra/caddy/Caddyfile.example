@@ -1,0 +1,31 @@
+# PROOVRA — the production edge, as a template (OPS-007).
+#
+# THIS IS NOT THE PRODUCTION FILE. The live Caddyfile exists only on the server at
+# infra/caddy/Caddyfile and has never been read from here, so this states what the
+# edge needs, not what it does. Compare it with the server's file before relying on
+# it, and record the differences in docs/operations/deployed-topology.md.
+#
+# It is deliberately not committed as infra/caddy/Caddyfile: scripts/deploy-prod-pull.sh
+# checks out each release on the server, and a tracked file at that path would
+# collide with the untracked one there.
+#
+# Rebuilding after host loss:
+#   cp infra/caddy/Caddyfile.example infra/caddy/Caddyfile   # then set the hosts
+#   docker compose --env-file /opt/proovra/app/.env \
+#     -f infra/docker/docker-compose.prod.yml up -d caddy
+#
+# API_TRUSTED_PROXY_HOPS=1 assumes this is the only proxy in front of the API. Change
+# the two together: a wrong hop count lets a client choose its own apparent address.
+
+api.proovra.com {
+	# Not for the internet. /metrics also refuses without its token, and the internal
+	# routes hold their own authorization: this is a second layer, not the only one.
+	@internal {
+		path /metrics /metrics/* /readyz /v1/internal/*
+	}
+	respond @internal 404
+
+	# The published ports are bound to loopback on the host, so Caddy reaches them
+	# through the gateway. docker-compose.prod.yml adds host.docker.internal.
+	reverse_proxy host.docker.internal:8080
+}

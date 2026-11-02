@@ -96,6 +96,7 @@ import { runReviewerReconciliation } from "./reviewer-ops/reviewer-reconciliatio
 import { runOrgInviteDeliverySweep } from "./org-invite-delivery.worker.js";
 import { runAutomationDispatchSweepTick } from "./automation-dispatch.js";
 import { runLifecycleSweepTick } from "./lifecycle-sweep.js";
+import { describeOtsBitcoinVerifierConfig, resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
 import {
   API_DELIVERY_SWEEPS,
   runApiDeliverySweep,
@@ -2697,6 +2698,16 @@ initSecretsAuthority(logger)
     // outbox rows → API-side rotation retry).
     startOrgInviteDeliverySweepScheduler();
     startApiDeliverySweepSchedulers();
+    // OPS-016 — an absent verifier file silently means verification off. Say which
+    // state this worker started in. Names and flags only; never the password.
+    try {
+      logger.info(
+        describeOtsBitcoinVerifierConfig(resolveOtsBitcoinVerifierConfig()),
+        "ots.bitcoin_verifier.state",
+      );
+    } catch (err) {
+      logger.warn({ err }, "ots.bitcoin_verifier.state_unreadable");
+    }
     startAutomationDispatchScheduler();
     startLifecycleScheduler();
     // Phase Y — Observability heartbeat + queue-health sampler.

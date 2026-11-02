@@ -52,7 +52,7 @@ nothing.
 | File | Field | Where it comes from |
 |---|---|---|
 | `apple-app-site-association` | `<APPLE_TEAM_ID>` | the Apple Developer account that owns the App ID `com.jalalattar29.proovra`; visible in the Membership tab, and in any provisioning profile |
-| `assetlinks.json` | `<ANDROID_SIGNING_SHA256_FINGERPRINT>` | the SHA-256 of the certificate the app is SIGNED with. For Play App Signing this is the **upload key's** fingerprint from the Play Console, not the local debug keystore — using the debug one is the usual reason App Links silently fail in production |
+| `assetlinks.json` | `<ANDROID_SIGNING_SHA256_FINGERPRINT>` | the SHA-256 of the certificate the app is SIGNED with. With Play App Signing devices receive the build signed with **Google's app-signing key**, so that key's SHA-256 must be listed (Play Console, App integrity), and the upload key's as well if test builds are installed directly. |
 
 ## What remains external
 

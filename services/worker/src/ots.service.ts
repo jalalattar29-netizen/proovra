@@ -72,6 +72,12 @@ export function otsCalendarArgs(env: NodeJS.ProcessEnv = process.env): string[] 
   return [...urls.flatMap((u) => ["-c", u]), "-m", String(Math.min(urls.length, 2))];
 }
 
+/** The calendars a proof went to, as the row records them. */
+export function otsCalendarLabel(env: NodeJS.ProcessEnv = process.env): string | null {
+  const urls = otsCalendarArgs(env).filter((a) => a.startsWith("http"));
+  return urls.length > 0 ? urls.join(",") : null;
+}
+
 async function mkWorkDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "ots-"));
 }
@@ -274,7 +280,7 @@ const stampArgs = [
       status: "PENDING",
       proofBase64: proofForRecord,
       hash: contentHash,
-      calendar,
+      calendar: otsCalendarLabel(),
       bitcoinTxid: null,
       anchoredAtUtc: null,
       upgradedAtUtc,

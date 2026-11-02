@@ -1275,7 +1275,38 @@ function checkMetrics(): SubsystemReadiness {
  * WhatsApp failure reads SENT for good, unless Twilio is configured to call back
  * by another route, which cannot be seen from here.
  */
-function checkDependentConfiguration(): SubsystemReadiness {
+export function evictionPolicyFromInfo(info: string): string | null {
+  return /^maxmemory_policy:(\S+)/m.exec(info)?.[1] ?? null;
+}
+
+/**
+ * OPS-020 — BullMQ loses jobs under any eviction policy but noeviction. Read from
+ * the server in use, because REDIS_URL decides which that is. A server that does not
+ * report it says nothing here: unknown is not a finding, and the readiness detail
+ * for Redis stays what checkRedis says.
+ */
+async function readRedisEvictionPolicy(): Promise<string | null> {
+  if (!envPresent("REDIS_URL")) return null;
+  let client: import("ioredis").default | null = null;
+  try {
+    const { default: IORedis } = await import("ioredis");
+    client = new IORedis(process.env.REDIS_URL!, {
+      lazyConnect: true,
+      connectTimeout: 500,
+      maxRetriesPerRequest: 0,
+      enableOfflineQueue: false,
+    });
+    client.on("error", () => undefined);
+    await client.connect();
+    return evictionPolicyFromInfo(await client.info("memory"));
+  } catch {
+    return null;
+  } finally {
+    client?.disconnect();
+  }
+}
+
+async function checkDependentConfiguration(): Promise<SubsystemReadiness> {
   const vendorCloud = ["OCR_PRODUCER_MODE", "TRANSCRIPT_PRODUCER_MODE"].filter(
     (k) => (process.env[k] ?? "").trim().toUpperCase() === "VENDOR_CLOUD",
   );
@@ -1289,6 +1320,10 @@ function checkDependentConfiguration(): SubsystemReadiness {
   ) {
     issues.push("twilio_status_callback_not_configured");
   }
+  const evictionPolicy = await readRedisEvictionPolicy();
+  if (evictionPolicy && evictionPolicy !== "noeviction") {
+    issues.push("redis_eviction_policy_unsafe");
+  }
   return {
     id: "dependent_configuration",
     status: issues.length > 0 ? "DEGRADED" : "HEALTHY",
@@ -1299,7 +1334,7 @@ function checkDependentConfiguration(): SubsystemReadiness {
         : "Configured features have what they depend on.",
     remediationHint:
       issues.length > 0
-        ? "Set INTERNAL_SERVICE_TOKEN on the API and worker, or leave VENDOR_CLOUD. Set TWILIO_STATUS_CALLBACK_URL to the public status webhook."
+        ? "Set INTERNAL_SERVICE_TOKEN on the API and worker, or leave VENDOR_CLOUD. Set TWILIO_STATUS_CALLBACK_URL to the public status webhook. Set the Redis maxmemory-policy to noeviction."
         : null,
     metadata: { issues: issues.join(",") },
   };
@@ -1887,7 +1922,7 @@ export async function runReadinessCheck(
     checkWorkers(prisma),
     checkJobWorker(),
     Promise.resolve(checkMetrics()),
-    Promise.resolve(checkDependentConfiguration()),
+    checkDependentConfiguration(),
     Promise.resolve(checkSentry()),
     Promise.resolve(checkCronSecrets()),
     checkSearchIndexing(prisma),
