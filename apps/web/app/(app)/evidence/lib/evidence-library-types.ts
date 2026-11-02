@@ -43,6 +43,8 @@ export type EvidenceListQuery = {
   verificationStatus?: string;
   /** UC-0 — acquisition categories (UPLOAD, SECURE_INTAKE, MOBILE_APP, NOT_RECORDED). */
   acquisition?: string;
+  review?: string;
+  retention?: string;
   sort?: "newest" | "oldest" | "priority";
 };
 

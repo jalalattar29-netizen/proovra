@@ -833,10 +833,21 @@ export async function sweepIneligibleDocuments(
             d."source_id"     AS source_id
        FROM "evidence_search_documents" d
        LEFT JOIN "evidence" e
-              ON e."id" = d."source_id"
-      WHERE d."document_type" = 'EVIDENCE'
-        AND ($1::uuid IS NULL OR d."team_id" = $1::uuid)
-        AND (e."id" IS NULL OR NOT (${ELIGIBLE_SQL}))
+              ON e."id" = CASE WHEN d."document_type" = 'EVIDENCE'
+                               THEN d."source_id" ELSE d."evidence_id" END
+       LEFT JOIN "cases" c
+              ON c."id" = CASE WHEN d."document_type" = 'CASE'
+                               THEN d."source_id" ELSE d."case_id" END
+      WHERE ($1::uuid IS NULL OR d."team_id" = $1::uuid)
+        AND (
+          (d."document_type" = 'EVIDENCE' AND (e."id" IS NULL OR NOT (${ELIGIBLE_SQL})))
+          -- EVID-005: an artifact answers with its record's title, so it leaves
+          -- with the record, and in the trash as its own indexer would decide.
+          OR (d."document_type" IN ('REPORT', 'PACKAGE') AND d."evidence_id" IS NOT NULL
+              AND (e."id" IS NULL OR e."deleted_at" IS NOT NULL OR NOT (${ELIGIBLE_SQL})))
+          -- A case's documents leave with it. Reach cannot hide them any more.
+          OR (d."document_type" IN ('CASE', 'NOTE') AND c."id" IS NULL)
+        )
       LIMIT $2`,
     teamId ?? null,
     batchSize,

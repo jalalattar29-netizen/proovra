@@ -485,6 +485,7 @@ async function runWorkspaceReindexUnlocked(
     const orphanNotes = await client.$queryRaw<Array<{ id: string }>>`
       SELECT cc.id::text AS id
         FROM case_comments cc
+        JOIN cases c ON c.id = cc.case_id
         LEFT JOIN evidence_search_documents esd
           ON esd.team_id      = cc.team_id
          AND esd.document_type = 'NOTE'

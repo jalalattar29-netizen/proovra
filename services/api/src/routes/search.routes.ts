@@ -78,7 +78,7 @@ import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 // path with every other rate-limited route, so a workspace rebuild cannot be
 // throttled by a second, differently-behaved implementation.
 import { enforceRateLimit } from "../services/rate-limit.js";
-import { evidenceClosedTo } from "../services/access/record-reach.js";
+import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import { searchDocumentReachWhere } from "../services/search/search-reach.js";
 
 function readUserAgent(req: FastifyRequest): string | null {
@@ -1110,9 +1110,8 @@ export async function searchRoutes(app: FastifyInstance) {
   //   - DB pointed at a different server than expected
   //   - Active workspace ≠ workspace that owns the records
   //
-  // Auth: requireSearchActor (same gate as /v1/search). Does NOT expose
-  // any field that wasn't already derivable from the search endpoint, so
-  // safe to ship to all tiers — including prod.
+  // Auth: requireSearchActor (same gate as /v1/search). The `runtime` block is
+  // for platform operators only; every member gets the rest.
   //
   // Optional `?q=` runs the same Prisma OR over title/subtitle/summary/
   // searchableText as executeSearch and returns the matched count only
@@ -1173,7 +1172,10 @@ export async function searchRoutes(app: FastifyInstance) {
           where: { id: teamId },
           select: { id: true, name: true, isPersonal: true },
         }),
-        collectWorkspaceSearchHealthFacts({ teamId }, prisma),
+        collectWorkspaceSearchHealthFacts(
+          { teamId, closed: await hiddenRecordIdsInWorkspace(teamId, actor.userId) },
+          prisma,
+        ),
         prisma.$queryRaw<Array<{ server_ip: string | null; server_port: number | null; db: string }>>`
           SELECT inet_server_addr()::text AS server_ip,
                  inet_server_port() AS server_port,
@@ -1222,18 +1224,20 @@ export async function searchRoutes(app: FastifyInstance) {
             { searchableText: { contains: q, mode: "insensitive" } },
           ],
         };
-        const matchRows = await prisma.evidenceSearchDocument.findMany({
+        // Grouped in the database: this runs on any member's request, and the
+        // row list had no bound (EVID-012).
+        const matchGroups = await prisma.evidenceSearchDocument.groupBy({
+          by: ["documentType"],
           where: probeWhere,
-          select: { documentType: true },
+          _count: { _all: true },
         });
         const matchedByType: Record<string, number> = {};
-        for (const r of matchRows) {
-          matchedByType[r.documentType] =
-            (matchedByType[r.documentType] ?? 0) + 1;
+        for (const r of matchGroups) {
+          matchedByType[r.documentType] = r._count._all;
         }
         queryProbe = {
           q,
-          matchedTotal: matchRows.length,
+          matchedTotal: Object.values(matchedByType).reduce((sum, n) => sum + n, 0),
           matchedByType,
         };
       }
@@ -1312,6 +1316,11 @@ export async function searchRoutes(app: FastifyInstance) {
       );
 
       const server = dbServer[0] ?? null;
+      const caller = await prisma.user.findUnique({
+        where: { id: actor.userId },
+        select: { platformRole: true },
+      });
+      const isPlatformOperator = caller?.platformRole === "admin";
 
       return reply.code(200).send({
         workspace: {
@@ -1383,12 +1392,19 @@ export async function searchRoutes(app: FastifyInstance) {
         },
         health,
         queryProbe,
-        runtime: {
-          dbServerIp: server?.server_ip ?? null,
-          dbServerPort: server?.server_port ?? null,
-          dbName: server?.db ?? null,
-          nodeEnv: process.env.NODE_ENV ?? null,
-        },
+        // EVID-012: database address and name are for platform operators. Any
+        // member could read them here, which the old comment wrongly said was
+        // harmless.
+        ...(isPlatformOperator
+          ? {
+              runtime: {
+                dbServerIp: server?.server_ip ?? null,
+                dbServerPort: server?.server_port ?? null,
+                dbName: server?.db ?? null,
+                nodeEnv: process.env.NODE_ENV ?? null,
+              },
+            }
+          : {}),
       });
     },
   );

@@ -31,6 +31,7 @@ import {
   type TeamMemberStatus,
   PERMISSIONS,
   isAllowedTeamMemberStatusTransition,
+  listPermissionsForDelegatedAdminScope,
   mapTeamRoleToCanonical,
   roleHasPermission,
 } from "@proovra/shared";
@@ -214,6 +215,25 @@ async function settleLifecycleNotice(
     typeof (client as unknown as { $transaction?: unknown }).$transaction === "function";
   if (ownsTransaction) await dispatchEnqueuedEmailNotifications([noticeId], client);
   else sink?.push(noticeId);
+}
+
+/**
+ * Whom a grant may go to: an ACTIVE member other than the grantor (AUTHZ-005).
+ * A self-grant adds nothing for someone who already holds the permission, and
+ * a suspended member cannot use what they are given.
+ */
+async function loadGrantTarget(
+  client: PrismaClient,
+  teamId: string,
+  teamMemberId: string,
+  actorUserId: string,
+) {
+  const target = await loadTargetMember(client, teamId, teamMemberId);
+  if (target.userId === actorUserId) throw new RbacError("self_action_forbidden");
+  if (target.status !== prismaPkg.TeamMemberStatus.ACTIVE) {
+    throw new RbacError("invalid_status_transition");
+  }
+  return target;
 }
 
 async function loadTargetMember(
@@ -925,7 +945,7 @@ export async function grantCapability(
     throw new RbacError("grantor_lacks_permission");
   }
   return runAtomically(client, async (tx) => {
-  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+  const target = await loadGrantTarget(tx, input.teamId, input.teamMemberId, input.actorUserId);
   // Re-issue path: if a grant already exists, refuse so callers must
   // explicitly revoke first. This keeps the audit trail honest about
   // when a grant was last issued.
@@ -1145,8 +1165,22 @@ export async function grantDelegatedAdminScope(
   input: GrantDelegatedAdminInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<prismaPkg.MemberDelegatedAdminScope> {
+  /*
+   * AZ-R06, the rule D54 set for capabilities, for the other writer (AUTHZ-005).
+   * A scope is a bundle of permissions, so the grantor must hold every one of
+   * them. `identity.delegated_admin.grant` says who may grant, not what.
+   * Without this, a member holding IDENTITY_ADMIN could hand themself
+   * GOVERNANCE_ADMIN and INTEGRATION_ADMIN.
+   */
+  for (const permission of listPermissionsForDelegatedAdminScope(input.scopeKind)) {
+    const decision = await evaluateMemberAccess(
+      { teamId: input.teamId, userId: input.actorUserId, permission: permission as Permission },
+      client,
+    );
+    if (!decision.allowed) throw new RbacError("grantor_lacks_permission");
+  }
   return runAtomically(client, async (tx) => {
-  const target = await loadTargetMember(tx, input.teamId, input.teamMemberId);
+  const target = await loadGrantTarget(tx, input.teamId, input.teamMemberId, input.actorUserId);
   const existing = await tx.memberDelegatedAdminScope.findUnique({
     where: {
       teamMemberId_scopeKind: {

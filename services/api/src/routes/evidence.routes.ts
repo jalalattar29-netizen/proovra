@@ -516,6 +516,7 @@ import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
   appendReviewerAuditEvent,
+  appendReviewerAuditEventTx,
   listReviewerAuditEvents,
 } from "../services/evidence-review/reviewer-audit.service.js";
 import { AssigneeEligibilityError } from "../services/assignment/assignee-eligibility.js";
@@ -3232,6 +3233,57 @@ async function resolveRecipientContactSearchScope(
     .map((d) => d.teamId);
 }
 
+/**
+ * EVID-017: these two ran in the browser over the loaded page, so a filter could
+ * show an empty page while later pages held matches, and the summary ignored
+ * them. They read the same columns the list item is projected from.
+ */
+function buildEvidenceListReviewFilter(
+  review: EvidenceListQuery["review"],
+): Prisma.EvidenceWhereInput | null {
+  if (review === "review-ready") return { reviewReadyAtUtc: { not: null } };
+  if (review === "review-required") return { verificationStatus: "REVIEW_REQUIRED" };
+  if (review === "verification-failed") return { verificationStatus: "FAILED" };
+  return null;
+}
+
+/** `classifyStorageProtection` as a query: retention in force, or a legal hold. */
+function buildEvidenceListRetentionFilter(
+  retention: EvidenceListQuery["retention"],
+): Prisma.EvidenceWhereInput | null {
+  if (retention === "all") return null;
+  const protectedWhere: Prisma.EvidenceWhereInput = {
+    OR: [
+      { storageObjectLockLegalHoldStatus: { equals: "ON", mode: "insensitive" } },
+      {
+        storageObjectLockMode: { in: ["COMPLIANCE", "GOVERNANCE", "compliance", "governance"] },
+        storageObjectLockRetainUntilUtc: { gt: new Date() },
+      },
+    ],
+  };
+  if (retention === "protected") return protectedWhere;
+  // Spelled out, not NOT(protected): every column here is nullable, and NOT over
+  // a NULL comparison drops exactly the records with no lock at all.
+  return {
+    AND: [
+      {
+        OR: [
+          { storageObjectLockLegalHoldStatus: null },
+          { NOT: { storageObjectLockLegalHoldStatus: { equals: "ON", mode: "insensitive" } } },
+        ],
+      },
+      {
+        OR: [
+          { storageObjectLockMode: null },
+          { storageObjectLockRetainUntilUtc: null },
+          { storageObjectLockMode: { notIn: ["COMPLIANCE", "GOVERNANCE", "compliance", "governance"] } },
+          { storageObjectLockRetainUntilUtc: { lte: new Date() } },
+        ],
+      },
+    ],
+  };
+}
+
 function buildEvidenceListBaseWhere(params: {
   query: EvidenceListQuery;
   userId: string;
@@ -3317,6 +3369,8 @@ function buildEvidenceListBaseWhere(params: {
   const disclosureFilter = inOrEq(query.verificationDisclosure);
   const verificationStatusFilter = inOrEq(query.verificationStatus);
   const acquisitionFilter = buildEvidenceListAcquisitionFilter(query.acquisition);
+  const reviewFilter = buildEvidenceListReviewFilter(query.review);
+  const retentionFilter = buildEvidenceListRetentionFilter(query.retention);
 
   /**
    * NEVER-COMMITTED RECORDS ARE NOT LIBRARY CONTENT.
@@ -3367,6 +3421,8 @@ function buildEvidenceListBaseWhere(params: {
         ? [{ verificationStatus: verificationStatusFilter } satisfies Prisma.EvidenceWhereInput]
         : []),
       ...(acquisitionFilter ? [acquisitionFilter] : []),
+      ...(reviewFilter ? [reviewFilter] : []),
+      ...(retentionFilter ? [retentionFilter] : []),
     ],
   };
 }
@@ -3795,6 +3851,49 @@ async function assertArtifactDownloadAllowed(
   };
 }
 
+/**
+ * A reader may look and may not write (EVID-010, EVID-R05). Comments, legal
+ * notes and annotations asked only for read access, on any lifecycle state, so
+ * a VIEWER could write and a DESTROYED tombstone accepted content. Same rule for
+ * a demoted author editing their own note: authorship is not a permission.
+ *
+ * A reader of the record gets 403 (D5); anyone else the usual concealed 404.
+ */
+async function getEvidenceForCollaborativeWrite(
+  userId: string,
+  evidenceId: string,
+): Promise<SelectedEvidence> {
+  const access = await resolveEvidenceOperationAccess({
+    userId,
+    evidenceId,
+    permission: "evidence.update_metadata",
+  });
+  if (!access.allowed) {
+    const err: Error & { statusCode?: number } = new Error(
+      access.visibility === "FORBIDDEN" ? "Forbidden" : "Evidence not found",
+    );
+    err.statusCode = access.visibility === "FORBIDDEN" ? 403 : 404;
+    throw err;
+  }
+  const evidence = await getEvidenceWithRecordAccess(userId, evidenceId, "evidence.update_metadata");
+  const state = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { lifecycleState: true, deletedAt: true },
+  });
+  if (
+    state?.deletedAt ||
+    (state?.lifecycleState && ["TRASHED", "DESTROYED", "PENDING_DESTRUCTION"].includes(state.lifecycleState))
+  ) {
+    const err: Error & { statusCode?: number; code?: string } = new Error(
+      "This record is no longer open for notes.",
+    );
+    err.statusCode = 409;
+    err.code = "EVIDENCE_NOT_WRITABLE";
+    throw err;
+  }
+  return evidence;
+}
+
 async function getEvidenceWithReadAccess(
   userId: string,
   evidenceId: string
@@ -3911,9 +4010,19 @@ function mapCollaborativeAuthor(user: { id: string; displayName: string | null; 
   };
 }
 
+/**
+ * EVID-013: titles are user-controlled, and a spreadsheet runs a cell starting
+ * with = + - @, tab or carriage return as a formula. The apostrophe makes it
+ * text; the value is otherwise unchanged. A leading space is a separate trick
+ * spreadsheets also accept, so it is stripped from the test, not the cell.
+ */
+function neutraliseCsvFormula(text: string): string {
+  return /^[\s]*[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+}
+
 function escapeCsvCell(value: string | null | undefined) {
-  const text = String(value ?? "");
-  if (/[",\n]/.test(text)) {
+  const text = neutraliseCsvFormula(String(value ?? ""));
+  if (/[",\r\n]/.test(text)) {
     return `"${text.replace(/"/g, "\"\"")}"`;
   }
   return text;
@@ -4044,6 +4153,8 @@ type EvidenceListQuery = {
    * NOT_RECORDED matches records whose acquisition was never recorded.
    */
   acquisition: Array<(typeof EVIDENCE_ACQUISITION_CATEGORIES)[number]> | null;
+  review: "all" | "review-ready" | "review-required" | "verification-failed";
+  retention: "all" | "protected" | "unprotected";
   sort: EvidenceListSort;
 };
 
@@ -4286,6 +4397,11 @@ function parseEvidenceListQuery(query: Record<string, unknown>): EvidenceListQue
       EVIDENCE_ACQUISITION_CATEGORIES,
       "acquisition",
     ),
+    review: z
+      .enum(["all", "review-ready", "review-required", "verification-failed"])
+      .catch("all")
+      .parse(query.review ?? "all"),
+    retention: z.enum(["all", "protected", "unprotected"]).catch("all").parse(query.retention ?? "all"),
     sort,
   };
 }
@@ -8297,6 +8413,15 @@ return {
         .filter((item): item is ReturnType<typeof mapEvidenceListItem> => Boolean(item));
 
       const csv = buildMetadataCsv(csvItems);
+      // The other export routes audit; this one wrote no record that metadata
+      // for these evidence ids left the system (EVID-013).
+      await auditEvidenceAction(req, {
+        userId,
+        action: "evidence.metadata_csv_export",
+        outcome: "success",
+        resourceId: csvItems[0]?.id ?? "bulk",
+        metadata: { exportedCount: csvItems.length, failedCount: results.filter((item) => !item.ok).length },
+      });
       return reply.code(200).send({
         successCount: results.filter((item) => item.ok).length,
         failedCount: results.filter((item) => !item.ok).length,
@@ -8343,27 +8468,31 @@ return {
     const userId = getAuthUserId(req);
     const id = z.string().uuid().parse((req.params as ParamsId).id);
     const body = ReviewerCommentBody.parse(req.body);
-    await getEvidenceWithReadAccess(userId, id);
+    await getEvidenceForCollaborativeWrite(userId, id);
 
-    const created = await prisma.evidenceReviewerComment.create({
-      data: {
+    // The content and its audit event commit together: a comment that exists
+    // always says who wrote it (EVID-010).
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.evidenceReviewerComment.create({
+        data: {
+          evidenceId: id,
+          authorUserId: userId,
+          body: body.body,
+          visibility: body.visibility,
+        },
+        include: { author: { select: { id: true, displayName: true, email: true } } },
+      });
+      await appendReviewerAuditEventTx(tx, {
         evidenceId: id,
-        authorUserId: userId,
-        body: body.body,
-        visibility: body.visibility,
-      },
-      include: { author: { select: { id: true, displayName: true, email: true } } },
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_CREATED,
+        metadata: {
+          commentId: row.id,
+          visibility: row.visibility,
+        } as Prisma.InputJsonValue,
+      });
+      return row;
     });
-
-    await appendReviewerAuditEvent({
-      evidenceId: id,
-      actorUserId: userId,
-      eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_CREATED,
-      metadata: {
-        commentId: created.id,
-        visibility: created.visibility,
-      } as Prisma.InputJsonValue,
-    }).catch(noteCustodyFailure);
 
     return reply.code(201).send({
       comment: {
@@ -8387,7 +8516,7 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const commentId = z.string().uuid().parse((req.params as { commentId: string }).commentId);
       const body = ReviewerCommentUpdateBody.parse(req.body);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
       const comment = await prisma.evidenceReviewerComment.findUnique({ where: { id: commentId } });
 
       if (!comment || comment.evidenceId !== id || comment.deletedAt) {
@@ -8442,7 +8571,7 @@ return {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const commentId = z.string().uuid().parse((req.params as { commentId: string }).commentId);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
       const comment = await prisma.evidenceReviewerComment.findUnique({ where: { id: commentId } });
 
       if (!comment || comment.evidenceId !== id || comment.deletedAt) {
@@ -8501,27 +8630,29 @@ return {
     const userId = getAuthUserId(req);
     const id = z.string().uuid().parse((req.params as ParamsId).id);
     const body = LegalNoteBody.parse(req.body);
-    await getEvidenceWithReadAccess(userId, id);
+    await getEvidenceForCollaborativeWrite(userId, id);
 
-    const created = await prisma.evidenceLegalNote.create({
-      data: {
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.evidenceLegalNote.create({
+        data: {
+          evidenceId: id,
+          authorUserId: userId,
+          noteType: body.noteType,
+          body: body.body,
+        },
+        include: { author: { select: { id: true, displayName: true, email: true } } },
+      });
+      await appendReviewerAuditEventTx(tx, {
         evidenceId: id,
-        authorUserId: userId,
-        noteType: body.noteType,
-        body: body.body,
-      },
-      include: { author: { select: { id: true, displayName: true, email: true } } },
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_CREATED,
+        metadata: {
+          legalNoteId: row.id,
+          noteType: row.noteType,
+        } as Prisma.InputJsonValue,
+      });
+      return row;
     });
-
-    await appendReviewerAuditEvent({
-      evidenceId: id,
-      actorUserId: userId,
-      eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_CREATED,
-      metadata: {
-        legalNoteId: created.id,
-        noteType: created.noteType,
-      } as Prisma.InputJsonValue,
-    }).catch(noteCustodyFailure);
 
     return reply.code(201).send({
       legalNote: {
@@ -8545,7 +8676,7 @@ return {
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const noteId = z.string().uuid().parse((req.params as { noteId: string }).noteId);
       const body = LegalNoteUpdateBody.parse(req.body);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
       const note = await prisma.evidenceLegalNote.findUnique({ where: { id: noteId } });
 
       if (!note || note.evidenceId !== id || note.deletedAt) {
@@ -8600,7 +8731,7 @@ return {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
       const noteId = z.string().uuid().parse((req.params as { noteId: string }).noteId);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
       const note = await prisma.evidenceLegalNote.findUnique({ where: { id: noteId } });
 
       if (!note || note.evidenceId !== id || note.deletedAt) {
@@ -8667,7 +8798,7 @@ return {
     const userId = getAuthUserId(req);
     const id = z.string().uuid().parse((req.params as ParamsId).id);
     const body = AnnotationBody.parse(req.body);
-    await getEvidenceWithReadAccess(userId, id);
+    await getEvidenceForCollaborativeWrite(userId, id);
 
     if (body.evidencePartId && !(await annotationPartBelongsToEvidence(body.evidencePartId, id))) {
       return reply.code(400).send(ANNOTATION_PART_MISMATCH);
@@ -8735,7 +8866,7 @@ return {
         .uuid()
         .parse((req.params as { annotationId: string }).annotationId);
       const body = AnnotationUpdateBody.parse(req.body);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
       const annotation = await prisma.evidenceAnnotation.findUnique({ where: { id: annotationId } });
 
       if (!annotation || annotation.evidenceId !== id || annotation.deletedAt) {
@@ -8817,7 +8948,7 @@ return {
         .string()
         .uuid()
         .parse((req.params as { annotationId: string }).annotationId);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      const evidence = await getEvidenceForCollaborativeWrite(userId, id);
       const annotation = await prisma.evidenceAnnotation.findUnique({ where: { id: annotationId } });
 
       if (!annotation || annotation.evidenceId !== id || annotation.deletedAt) {
@@ -8952,6 +9083,8 @@ return {
         verificationDisclosure: null,
         verificationStatus: null,
         acquisition: null,
+        review: "all",
+        retention: "all",
         sort: "newest",
       },
       userId,

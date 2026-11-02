@@ -44,12 +44,15 @@ import { getAuthUserId } from "../auth.js";
 // Schemas (verbatim port from evidence.routes.ts pre-G4.5).
 // ---------------------------------------------------------------------------
 
+/**
+ * The scopes a view can hold. `trash` is what the library sends; `deleted` is
+ * the older spelling and stays readable (EVID-014).
+ */
+const SavedViewScopeSchema = z.enum(["active", "archived", "deleted", "trash", "locked", "all"]);
+
 const SavedViewFiltersSchema = z.object({
   search: z.string().max(160).optional().default(""),
-  scope: z
-    .enum(["active", "archived", "deleted", "locked"])
-    .optional()
-    .default("active"),
+  scope: SavedViewScopeSchema.optional().default("active"),
   status: z.string().max(64).optional().default("all"),
   type: z.string().max(64).optional().default("all"),
   review: z.string().max(64).optional().default("all"),
@@ -69,6 +72,9 @@ const SavedViewFiltersSchema = z.object({
   // publication-state filter (a stored view with the old key drops it).
   verificationDisclosure: z.string().max(160).optional().default("all"),
   verificationStatus: z.string().max(160).optional().default("all"),
+  // EVID-014: stripped on save like the fields above, so a view returned a
+  // different set of records from the filters the user applied.
+  acquisition: z.string().max(160).optional().default("all"),
   sort: z.string().max(64).optional().default("newest"),
 });
 
@@ -76,7 +82,7 @@ const CreateSavedViewBody = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(400).optional().nullable(),
   teamId: z.string().uuid().optional().nullable(),
-  scope: z.enum(["active", "archived", "deleted", "locked"]),
+  scope: SavedViewScopeSchema,
   filters: SavedViewFiltersSchema,
   sortKey: z.string().trim().max(64).optional().nullable(),
   isDefault: z.boolean().optional().default(false),
@@ -85,7 +91,7 @@ const CreateSavedViewBody = z.object({
 const UpdateSavedViewBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   description: z.string().trim().max(400).optional().nullable(),
-  scope: z.enum(["active", "archived", "deleted", "locked"]).optional(),
+  scope: SavedViewScopeSchema.optional(),
   filters: SavedViewFiltersSchema.optional(),
   sortKey: z.string().trim().max(64).optional().nullable(),
   isDefault: z.boolean().optional(),
@@ -238,7 +244,13 @@ export async function evidenceSavedViewsRoutes(app: FastifyInstance) {
       });
 
       return reply.code(200).send({
-        items: items.map(mapEvidenceSavedView),
+        // `isDefault` is a preference of the view's owner. It was returned to
+        // everyone who could list the view, so one colleague's default silently
+        // filtered another's library on load (EVID-014).
+        items: items.map(mapEvidenceSavedView).map((view, i) => ({
+          ...view,
+          isDefault: view.isDefault && items[i]!.ownerUserId === userId,
+        })),
       });
     },
   );

@@ -16,6 +16,8 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
+import { RESTRICTED_CASE_WHERE } from "../cases/case-visibility.js";
 import { buildSignedWatermark } from "./portal-watermark.service.js";
 import type { PortalSessionContext } from "./portal-session.service.js";
 
@@ -41,8 +43,14 @@ export async function projectPortalDashboard(input: {
     });
   } else if (s.scopeKind === "CASE" && s.caseId) {
     // The workflow is per-evidence; join via case assignments.
+    // A record also linked to ANOTHER restricted case is closed to this grant:
+    // the grant reaches its own case, and nothing the grantor did reaches that
+    // one (EVID-018).
     const caseAssignments = await prisma.caseEvidenceLink.findMany({
-      where: { caseId: s.caseId },
+      where: {
+        caseId: s.caseId,
+        evidence: { caseLinks: { none: { caseId: { not: s.caseId }, case: RESTRICTED_CASE_WHERE } } },
+      },
       select: { evidenceId: true },
       take: 500,
     }).catch(() => []);
@@ -50,6 +58,20 @@ export async function projectPortalDashboard(input: {
     if (ids.length > 0) {
       assignedWorkflows = await prisma.evidenceReviewWorkflow.findMany({
         where: { teamId: s.teamId, evidenceId: { in: ids } },
+        orderBy: { dueAt: "asc" },
+        take: 200,
+        select: { id: true, evidenceId: true, dueAt: true },
+      });
+    }
+  } else if (s.scopeKind === "PACKAGE" && s.packageId) {
+    // The same arm `resolveWorkflowInGrantScope` allows: the package's record.
+    const pkg = await prisma.verificationPackage.findFirst({
+      where: publishedPackageWhere({ id: s.packageId }),
+      select: { evidenceId: true },
+    });
+    if (pkg) {
+      assignedWorkflows = await prisma.evidenceReviewWorkflow.findMany({
+        where: { teamId: s.teamId, evidenceId: pkg.evidenceId },
         orderBy: { dueAt: "asc" },
         take: 200,
         select: { id: true, evidenceId: true, dueAt: true },

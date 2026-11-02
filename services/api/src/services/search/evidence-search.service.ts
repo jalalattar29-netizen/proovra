@@ -408,6 +408,10 @@ export async function executeSearch(
 
   const hasMore = rows.length > limit;
   if (hasMore) rows.pop();
+  // EVID-015: the next page continues from the last row the DATABASE returned,
+  // never the last row shown. Post-filtering can empty a page and a re-rank can
+  // move any row last, and either ended results early or repeated rows.
+  const lastDatabaseRow = rows[rows.length - 1] ?? null;
 
   // Per-row governance + visibility gate. The query already filters
   // most of the table; this pass catches the per-row decisions that
@@ -559,10 +563,10 @@ export async function executeSearch(
   }
 
   const nextCursor =
-    hasMore && finalRows.length > 0
+    hasMore && lastDatabaseRow
       ? encodeSearchCursor({
-          updatedAtUtc: finalRows[finalRows.length - 1].updatedAtUtc,
-          id: finalRows[finalRows.length - 1].documentId,
+          updatedAtUtc: lastDatabaseRow.sourceUpdatedAtUtc?.toISOString() ?? lastDatabaseRow.updatedAt.toISOString(),
+          id: lastDatabaseRow.id,
         })
       : null;
 
