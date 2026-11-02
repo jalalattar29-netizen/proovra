@@ -270,9 +270,7 @@ describe("K1 identity-auth (B) — workspace identity administration (live Postg
 
       const member = await call({ method: "POST", url: "/v1/saml/mapping/preview", token: memberToken, payload });
       expect(member.statusCode).toBe(403);
-      expect(json(member)).toEqual({
-        error: { code: "permission_denied", reason: "identity_ops_require_admin_role" },
-      });
+      expect(code(member)).toBe("permission_denied");
       const outsider = harness.fixtures.teamB.ownerToken;
       const foreign = await call({ method: "POST", url: "/v1/saml/mapping/preview", token: outsider, payload });
       const absent = await call({

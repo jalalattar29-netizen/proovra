@@ -660,6 +660,7 @@ describe("K3 runtime proof — evidence capture (part B)", () => {
       // (2026-10-18) publicVerifyState was renamed with the disclosure model.
       verificationDisclosure: "all",
       verificationStatus: "all",
+      acquisition: "all",
     };
     /** The payload the evidence library's "Save view" action builds. */
     const webPayload = (name: string, teamId: string | null, isDefault = false) => ({

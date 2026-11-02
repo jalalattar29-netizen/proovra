@@ -140,6 +140,7 @@ describe("retention custody event carries the template trio (live PostgreSQL 16)
         mimeType: "text/plain",
         originalFileName: `r-${randomUUID()}.txt`,
         checksumSha256Base64: createHash("sha256").update("r").digest("base64"),
+        sizeBytes: 1,
         webkitRelativePath: null,
       },
     });

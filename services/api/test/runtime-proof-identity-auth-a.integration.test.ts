@@ -274,6 +274,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
             aud: GOOGLE_AUD,
             sub,
             email,
+            email_verified: true,
             name: "K1 Google",
           }),
         },
@@ -329,6 +330,8 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
             aud: APPLE_AUD,
             sub,
             email,
+            // Apple sends this claim as a string.
+            email_verified: "true",
           }),
         },
       });
@@ -388,7 +391,17 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       const token = mailedToken(email);
       expect(token).toEqual(expect.any(String));
 
-      const res = await call({ method: "POST", url: "/v1/auth/email/verify", payload: { token } });
+      // PROV-001 — a first verification needs the mailed token and the password.
+      const withoutPassword = await call({ method: "POST", url: "/v1/auth/email/verify", payload: { token } });
+      expect(withoutPassword.statusCode).toBe(403);
+      expect((json(withoutPassword).error as Json).code).toBe("EMAIL_VERIFICATION_PASSWORD_REQUIRED");
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).emailVerifiedAt).toBeNull();
+
+      const res = await call({
+        method: "POST",
+        url: "/v1/auth/email/verify",
+        payload: { token, password: "Register-Pass-1234" },
+      });
       expect(res.statusCode, res.body).toBe(200);
       const after = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
       expect(after.emailVerifiedAt).not.toBeNull();
@@ -400,7 +413,11 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
       const audit = await auditRow("auth.email_verification_confirm", { userId: user.id });
       expect(audit.outcome).toBe("success");
 
-      const replay = await call({ method: "POST", url: "/v1/auth/email/verify", payload: { token } });
+      const replay = await call({
+        method: "POST",
+        url: "/v1/auth/email/verify",
+        payload: { token, password: "Register-Pass-1234" },
+      });
       expect(replay.statusCode).toBe(400);
       expect((json(replay).error as Json).code).toBe("INVALID_OR_EXPIRED");
       expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(1);
