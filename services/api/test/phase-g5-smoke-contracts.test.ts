@@ -88,7 +88,11 @@ describe("Phase G5.7 smoke 2 — Reviewer queue → decision path", () => {
   it("approve + reject endpoints exist and pass through step-up gate", () => {
     expect(REVIEWER_OPS_ROUTES).toContain('"/v1/reviewer-ops/reviews/:workflowId/approve"');
     expect(REVIEWER_OPS_ROUTES).toContain('"/v1/reviewer-ops/reviews/:workflowId/reject"');
-    expect(REVIEWER_OPS_ROUTES).toContain("enforceStepUpIfFlagged");
+    // Both verdict doors, and every other review door, share one gate now.
+    expect(REVIEWER_OPS_ROUTES).toContain("enforceReviewActionGate");
+    expect(readSource("../src/services/reviewer-ops/review-action-gate.ts")).toContain(
+      "requireStepUpForSensitiveAction",
+    );
   });
 
   it("Reviewer Console UI wires inline actions through useStepUpAction", () => {

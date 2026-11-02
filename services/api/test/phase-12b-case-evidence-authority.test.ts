@@ -109,6 +109,7 @@ vi.mock("../src/db.js", () => {
     },
     caseAccess: { deleteMany: async () => ({ count: 0 }) },
     caseCollaborationTeamAccess: { deleteMany: async () => ({ count: 0 }) },
+    evidenceSearchDocument: { deleteMany: async () => ({ count: 0 }) },
     evidence: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         H.evidence.get(where.id) ?? null,

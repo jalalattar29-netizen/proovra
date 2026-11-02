@@ -92,6 +92,19 @@ const H = vi.hoisted(() => ({
 // Process boundaries
 // ---------------------------------------------------------------------------
 
+// Nothing in this matrix is closed by a restricted case; the rule itself runs
+// against PostgreSQL in case-reach-matrix.integration.test.ts.
+vi.mock("../src/services/access/record-reach.js", async (importOriginal) => {
+  const hidden = { caseIds: [], evidenceIds: [] };
+  return {
+    ...(await importOriginal<object>()),
+    hiddenRecordIdsInWorkspace: async () => hidden,
+    viewerReachInWorkspace: async () => ({ evidence: {}, cases: {}, hidden }),
+    hiddenWorkflowIdsInWorkspace: async () => [],
+    evidenceClosedTo: async () => false,
+    caseClosedTo: async () => false,
+  };
+});
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
 vi.mock("../src/middleware/auth.js", () => ({
   requireAuth: async () => {},
@@ -168,6 +181,8 @@ vi.mock("../src/db.js", () => ({
     team: { findUnique: async () => ({ id: TEAM, organizationId: "org-1" }) },
     evidence: { findUnique: async () => ({ id: EVIDENCE, teamId: TEAM }) },
     case: { findUnique: async () => ({ id: CASE, teamId: TEAM }) },
+    evidenceLegalHold: { findFirst: async () => null },
+    evidenceExchangePackageDelivery: { findFirst: async () => null },
   },
 }));
 
@@ -339,6 +354,7 @@ vi.mock("../src/services/packaging/entitlement.service.js", () => ({
 }));
 
 vi.mock("../src/services/exchange/evidence-exchange.service.js", () => ({
+  exchangePackageOpenTo: async () => true,
   createExchangePackage: async () => ({ ok: true }),
   generateSignedUrl: async () => {
     // Every side effect of minting is recorded so a denial can be proven to
