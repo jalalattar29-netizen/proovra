@@ -22,6 +22,8 @@ export {
   publicKeySpkiSha256,
   registerSigningKey,
   revokeSigningKeyMaterial,
+  parseSignerProvider,
+  evidenceSigningIdentityIssue,
   assertNotCommittedFixtureKey,
   findRegisteredSigningKey,
   describePublicSigningKey,

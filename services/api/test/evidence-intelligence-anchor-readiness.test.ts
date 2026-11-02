@@ -12,7 +12,7 @@
  *   * a FAILED proof, or an unreadable one (UNAVAILABLE), IS one, with honest
  *     wording;
  *   * an attestation that was not independently checked is never called
- *     verified; only a chain VERIFIED record says "Independently verified
+ *     verified; only a chain VERIFIED record says "Verified by PROOVRA against Bitcoin
  *     against the Bitcoin main chain" (2026-10-15);
  *   * "Public verification not configured" is never emitted.
  */
@@ -197,7 +197,7 @@ describe.each([
     for (const otsKey of Object.keys(OTS) as Array<keyof typeof OTS>) {
       if (otsKey === "CHAIN_VERIFIED") continue;
       const i = await build(otsKey, outputs);
-      expect(allText(i), otsKey).not.toMatch(/Independently verified|anchoring verified|chain-verified|anchored in Bitcoin|Bitcoin anchored/i);
+      expect(allText(i), otsKey).not.toMatch(/Verified by PROOVRA against Bitcoin|anchoring verified|chain-verified|anchored in Bitcoin|Bitcoin anchored/i);
     }
   });
 
@@ -213,7 +213,7 @@ describe.each([
     const i = await build("CHAIN_VERIFIED", outputs);
     expect(i.reviewerDecision.status).toBe("READY_FOR_EXTERNAL_REVIEW");
     expect(i.reviewerDecision.reasons).toContain(
-      "Bitcoin anchoring: Independently verified against the Bitcoin main chain. Merkle root matches Bitcoin block 860000; 12 confirmations at 2026-09-02 00:00:00 UTC.",
+      "Bitcoin anchoring: Verified against the Bitcoin main chain by PROOVRA. Merkle root matches Bitcoin block 860000; 12 confirmations at 2026-09-02 00:00:00 UTC.",
     );
   });
 
@@ -221,7 +221,7 @@ describe.each([
     const i = await build("CHAIN_FAILED", outputs);
     expect(i.reviewerDecision.status).not.toBe("READY_FOR_EXTERNAL_REVIEW");
     expect(allText(i)).toMatch(/Bitcoin verification failed/);
-    expect(allText(i)).not.toMatch(/Independently verified/);
+    expect(allText(i)).not.toMatch(/Verified by PROOVRA against Bitcoin/);
   });
 
   it("a row that says ANCHORED with a pending proof is never anchored", async () => {

@@ -1,4 +1,4 @@
-import { assertNotCommittedFixture } from "@proovra/shared-runtime";
+import { assertNotCommittedFixture, parseSignerProvider } from "@proovra/shared-runtime";
 
 import { ed25519SignHexWithKeyPath, loadPemFromPathEnv } from "../crypto.js";
 import { prisma } from "../db.js";
@@ -30,13 +30,7 @@ function mustInt(name: string): number {
 }
 
 function getSignerProvider(): "local-pem" | "aws-kms" {
-  const raw = (process.env.SIGNER_PROVIDER ?? "local-pem").trim().toLowerCase();
-
-  if (raw === "aws-kms") {
-    return "aws-kms";
-  }
-
-  return "local-pem";
+  return parseSignerProvider(process.env.SIGNER_PROVIDER);
 }
 
 /**
@@ -50,8 +44,7 @@ function getSignerProvider(): "local-pem" | "aws-kms" {
  * validatePackageSignerAtStartup.)
  */
 export function assertEvidenceSignerConfigurationAtStartup(env: NodeJS.ProcessEnv = process.env): void {
-  const raw = (env.SIGNER_PROVIDER ?? "local-pem").trim().toLowerCase();
-  if (raw === "aws-kms") return;
+  if (parseSignerProvider(env.SIGNER_PROVIDER) === "aws-kms") return;
   assertNotCommittedFixture({
     privateKeyPath: env.SIGNING_PRIVATE_KEY_PATH,
     privateKeyPem: env.SIGNING_PRIVATE_KEY_PEM,

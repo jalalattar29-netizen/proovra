@@ -491,7 +491,9 @@ const EN: OtsAnchoringCopy = {
     // The verifier could not run: the attestation stays recorded, not checked.
     CHAIN_UNAVAILABLE: "Attestation recorded",
     CHAIN_FAILED: "Verification failed",
-    CHAIN_VERIFIED: "Independently verified",
+    // CRYPTO-006 — independent of the calendars and the ots client, not of
+    // PROOVRA: this check runs on PROOVRA's worker against PROOVRA's node.
+    CHAIN_VERIFIED: "Verified by PROOVRA against Bitcoin",
     FAILED: "Failed",
     UNAVAILABLE: "Unavailable",
   },
@@ -502,7 +504,7 @@ const EN: OtsAnchoringCopy = {
     CHAIN_CONFIRMATIONS_PENDING: "Bitcoin verification pending",
     CHAIN_UNAVAILABLE: "Bitcoin verification temporarily unavailable",
     CHAIN_FAILED: "Bitcoin verification failed",
-    CHAIN_VERIFIED: "Independently verified against the Bitcoin main chain",
+    CHAIN_VERIFIED: "Verified against the Bitcoin main chain by PROOVRA",
     FAILED: "Bitcoin anchoring failed",
     UNAVAILABLE: "Bitcoin anchoring unavailable",
   },
@@ -532,7 +534,8 @@ const EN: OtsAnchoringCopy = {
   boundary: OTS_ANCHORED_BOUNDARY,
   chainVerifiedBoundary: OTS_CHAIN_VERIFIED_BOUNDARY,
   facts: {
-    digest: "Evidence digest (SHA-256)",
+    // CRYPTO-007 — the SHA-256 of fingerprint.json, not of a file.
+    digest: "Record fingerprint (SHA-256)",
     proofSha256: "Proof SHA-256",
     attestationType: "Attestation type",
     blockHeight: "Bitcoin block height",
@@ -582,7 +585,7 @@ const DE: OtsAnchoringCopy = {
     CHAIN_CONFIRMATIONS_PENDING: "Prüfung ausstehend",
     CHAIN_UNAVAILABLE: "Attestierung erfasst",
     CHAIN_FAILED: "Prüfung fehlgeschlagen",
-    CHAIN_VERIFIED: "Unabhängig geprüft",
+    CHAIN_VERIFIED: "Von PROOVRA gegen Bitcoin geprüft",
     FAILED: "Fehlgeschlagen",
     UNAVAILABLE: "Nicht verfügbar",
   },
@@ -593,7 +596,7 @@ const DE: OtsAnchoringCopy = {
     CHAIN_CONFIRMATIONS_PENDING: "Bitcoin-Prüfung ausstehend",
     CHAIN_UNAVAILABLE: "Bitcoin-Prüfung vorübergehend nicht verfügbar",
     CHAIN_FAILED: "Bitcoin-Prüfung fehlgeschlagen",
-    CHAIN_VERIFIED: "Unabhängig gegen die Bitcoin-Hauptkette geprüft",
+    CHAIN_VERIFIED: "Von PROOVRA gegen die Bitcoin-Hauptkette geprüft",
     FAILED: "Bitcoin-Verankerung fehlgeschlagen",
     UNAVAILABLE: "Bitcoin-Verankerung nicht verfügbar",
   },
@@ -625,7 +628,7 @@ const DE: OtsAnchoringCopy = {
   chainVerifiedBoundary:
     "PROOVRA hat die nachgerechnete Bindung des Nachweises mit der Merkle-Wurzel des genannten Blocks in der aktiven Bitcoin-Hauptkette eines Bitcoin-Core-Knotens verglichen. Prüfende können dies mit einem eigenen Knoten wiederholen.",
   facts: {
-    digest: "Beweis-Digest (SHA-256)",
+    digest: "Datensatz-Fingerabdruck (SHA-256)",
     proofSha256: "Nachweis-SHA-256",
     attestationType: "Attestierungstyp",
     blockHeight: "Bitcoin-Blockhöhe",
@@ -684,7 +687,7 @@ const AR: OtsAnchoringCopy = {
     CHAIN_CONFIRMATIONS_PENDING: "التحقق قيد الانتظار",
     CHAIN_UNAVAILABLE: "الشهادة مسجَّلة",
     CHAIN_FAILED: "فشل التحقق",
-    CHAIN_VERIFIED: "تم التحقق بشكل مستقل",
+    CHAIN_VERIFIED: "تحققت PROOVRA منها مقابل بيتكوين",
     FAILED: "فشل",
     UNAVAILABLE: "غير متاح",
   },
@@ -695,7 +698,7 @@ const AR: OtsAnchoringCopy = {
     CHAIN_CONFIRMATIONS_PENDING: "التحقق من بيتكوين قيد الانتظار",
     CHAIN_UNAVAILABLE: "التحقق من بيتكوين غير متاح مؤقتًا",
     CHAIN_FAILED: "فشل التحقق من بيتكوين",
-    CHAIN_VERIFIED: "تم التحقق بشكل مستقل مقابل سلسلة بيتكوين الرئيسية",
+    CHAIN_VERIFIED: "تحققت PROOVRA منها مقابل سلسلة بيتكوين الرئيسية",
     FAILED: "فشل الترسيخ في بيتكوين",
     UNAVAILABLE: "الترسيخ في بيتكوين غير متاح",
   },
@@ -727,7 +730,7 @@ const AR: OtsAnchoringCopy = {
   chainVerifiedBoundary:
     "قارنت PROOVRA الالتزام المعاد حسابه من الإثبات بجذر ميركل للكتلة المسمّاة في سلسلة بيتكوين الرئيسية النشطة لعقدة Bitcoin Core. يمكن للمراجع تكرار التحقق باستخدام عقدته الخاصة.",
   facts: {
-    digest: "بصمة الدليل (SHA-256)",
+    digest: "بصمة السجل (SHA-256)",
     proofSha256: "SHA-256 للإثبات",
     attestationType: "نوع الشهادة",
     blockHeight: "ارتفاع كتلة بيتكوين",

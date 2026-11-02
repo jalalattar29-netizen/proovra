@@ -99,7 +99,7 @@ describe("Public Verify — matrix panels (the API's matrix is the only source)"
     // The summary sentence never repeats the limitation: one legal boundary.
     expect(text.match(/does not by itself establish authorship/g)).toHaveLength(1);
     // The server's statusLabel, with its icon.
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓Independently verified");
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓Verified by PROOVRA against Bitcoin");
     expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("○Not checked");
     expect(getByTestId("verify-matrix-status-file_integrity").getAttribute("data-status")).toBe("NOT_CHECKED");
     expect(getByTestId("verify-matrix-status-record_signature").textContent).toBe("✓Verified");
@@ -159,11 +159,11 @@ describe("Public Verify — BASIC tier renders the matrix", () => {
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/custody checks passed/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
     // The anchoring row is stated as the shared matrix built it — a legacy
-    // anchoring "passed" is never "Verified" / "Independently verified".
+    // anchoring "passed" is never "Verified" / "Verified by PROOVRA against Bitcoin".
     const ots = matrix.rows.find((r) => r.key === "ots_anchoring")!;
     expect(ots.status).not.toBe("VERIFIED");
     expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toContain(ots.statement);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/Independently verified/);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/Verified by PROOVRA against Bitcoin/);
   });
 
   it("renders no matrix section when an older API sent none", () => {
@@ -184,7 +184,7 @@ describe("Technical Appendix — TrustDecisionSummary reads any snapshot score-f
     // recorded: NOT_CHECKED — never VERIFIED, never "unavailable".
     expect(anchoring.getAttribute("data-trust-signal-status")).toBe("NOT_CHECKED");
     // The machine status stays in the data attribute; the reader sees words.
-    expect(anchoring.textContent).not.toMatch(/NOT_CHECKED|Independently verified/);
+    expect(anchoring.textContent).not.toMatch(/NOT_CHECKED|Verified by PROOVRA against Bitcoin/);
     const core = container.querySelector('[data-trust-signal-key="core_integrity"]') as HTMLElement;
     expect(core.getAttribute("data-trust-signal-status")).toBe("VERIFIED");
   });

@@ -58,7 +58,7 @@ test("verify page states the anchoring now, at issue and its advance in ONE card
   assert.match(sections, /data-verify-ots-now/);
   assert.match(sections, /data-verify-ots-at-issue/);
   assert.match(sections, /liveAnchoring\?\.advance && liveAnchoring\.advance !== "NONE"/);
-  assert.match(sections, /CHAIN_VERIFIED_SINCE_ISSUE: "Independently verified since the report was issued"/);
+  assert.match(sections, /CHAIN_VERIFIED_SINCE_ISSUE: "Verified by PROOVRA against Bitcoin since the report was issued"/);
   assert.match(sections, /ATTESTATION_RECORDED_SINCE_ISSUE: "Bitcoin attestation recorded since the report was issued"/);
   // The old two-section wording is gone.
   assert.doesNotMatch(VERIFY_PAGE_SOURCE, /Live anchoring status|Anchoring has advanced since this package was generated/);

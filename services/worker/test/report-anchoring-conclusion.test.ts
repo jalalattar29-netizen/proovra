@@ -1,7 +1,7 @@
 /**
  * ET-RPT-09, re-stated 2026-10-13 — the executive conclusion and Bitcoin
  * anchoring. Anchoring is stated in its own words ("Bitcoin anchoring:
- * Attestation recorded." / "Independently verified." / "Pending." …) from the canonical verification (2026-10-15), never as "verified" and
+ * Attestation recorded." / "Verified by PROOVRA against Bitcoin." / "Pending." …) from the canonical verification (2026-10-15), never as "verified" and
  * never as a reason the other layers fail. Driven through the real builder on
  * real OpenTimestamps bytes.
  */
@@ -64,10 +64,10 @@ describe("executive conclusion and Bitcoin anchoring", () => {
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
   });
 
-  it("a proof independently verified against the Bitcoin main chain: 'Bitcoin anchoring: Independently verified.'", () => {
+  it("a proof independently verified against the Bitcoin main chain: 'Bitcoin anchoring: Verified by PROOVRA against Bitcoin.'", () => {
     const up = upgradedProof();
     const c = conclude(up.base64, "ANCHORED", chainColumnsFor(up));
-    expect(c.body).toContain("Bitcoin anchoring: Independently verified.");
+    expect(c.body).toContain("Bitcoin anchoring: Verified by PROOVRA against Bitcoin.");
     expect(c.body).not.toMatch(/Not verified: [^.]*Bitcoin anchoring/);
     expect(c.tone).toBe("success");
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
@@ -77,7 +77,7 @@ describe("executive conclusion and Bitcoin anchoring", () => {
     const up = upgradedProof();
     const c = conclude(up.base64, "ANCHORED", chainColumnsFor(up, { status: "INSUFFICIENT_CONFIRMATIONS" }));
     expect(c.body).toContain("Bitcoin anchoring: Verification pending.");
-    expect(c.body).not.toContain("Independently verified");
+    expect(c.body).not.toContain("Verified by PROOVRA against Bitcoin");
   });
 
   it("a stored ANCHORED label over a pending proof: 'Bitcoin anchoring: Pending.' — the proof decides", () => {
@@ -96,7 +96,7 @@ describe("executive conclusion and Bitcoin anchoring", () => {
     const c = conclude(upgradedProof().base64);
     // 2026-10-15: "Attestation recorded" is now THE word for an unchecked
     // attestation; a verified claim is still never made for it.
-    expect(c.body).not.toMatch(/PROOVRA|admissib|authorship|Not checked|independently verified|Independently verified/);
+    expect(c.body).not.toMatch(/PROOVRA|admissib|authorship|Not checked|independently verified|Verified by PROOVRA against Bitcoin/);
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
   });
 });

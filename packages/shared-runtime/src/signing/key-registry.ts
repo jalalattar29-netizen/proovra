@@ -365,3 +365,32 @@ export async function revokeSigningKeyMaterial(
   }
   return revoked;
 }
+
+/**
+ * THE ONE READING OF SIGNER_PROVIDER (CRYPTO-004). The API and the seed read
+ * only "aws-kms" while the registry and the worker also read "aws_kms", so one
+ * value meant KMS on the console and a local PEM in the API.
+ */
+export function parseSignerProvider(raw: string | null | undefined): "aws-kms" | "local-pem" {
+  const v = (raw ?? "local-pem").trim().toLowerCase();
+  return v === "aws-kms" || v === "aws_kms" ? "aws-kms" : "local-pem";
+}
+
+/**
+ * Can this deployment's evidence identity seal right now (CRYPTO-004)? Every
+ * completion fails on an unregistered or revoked key, so a deployment in that
+ * state is not ready, however healthy the rest looks.
+ */
+export async function evidenceSigningIdentityIssue(
+  client: RegistryClient,
+  input: { keyId: string | null | undefined; version: number },
+): Promise<"signing_key_id_missing" | "signing_key_not_registered" | "signing_key_revoked" | null> {
+  const keyId = input.keyId?.trim();
+  if (!keyId) return "signing_key_id_missing";
+  const row = await client.signingKey.findUnique({
+    where: identityWhere(keyId, input.version, "EVIDENCE_SIGNATURE"),
+    select: { revokedAt: true },
+  });
+  if (!row) return "signing_key_not_registered";
+  return row.revokedAt ? "signing_key_revoked" : null;
+}

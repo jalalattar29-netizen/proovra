@@ -232,7 +232,7 @@ describe.skipIf(!BROWSER)("every layout variant renders onto usable pages", () =
         // The boundary is stated once, for an anchored proof only.
         expect(all.split("The stored OpenTimestamps proof names a Bitcoin block for the recorded evidence digest.").length - 1, ots).toBe(ots === "anchored" ? 1 : 0);
         // No internal state, raw code, verified claim or retired wording anywhere in the report.
-        expect(all, ots).not.toMatch(/NOT_CHECKED|PROOF_STRUCTURE|BITCOIN_VERIFIED|PROOF_HASH_MISMATCH|CHAIN_VERIFI|ATTESTATION_PRESENT|ATTESTATION_RECORDED|Independently verified|independently verified against|anchored in Bitcoin|Anchored at|Bitcoin time|RPC/);
+        expect(all, ots).not.toMatch(/NOT_CHECKED|PROOF_STRUCTURE|BITCOIN_VERIFIED|PROOF_HASH_MISMATCH|CHAIN_VERIFI|ATTESTATION_PRESENT|ATTESTATION_RECORDED|Verified by PROOVRA against Bitcoin|independently verified against|anchored in Bitcoin|Anchored at|Bitcoin time|RPC/);
         // The technical material lives in the appendix only.
         const appendix = pageText.findIndex((t) => t.includes("Technical Appendix — Timestamp & Anchoring"));
         expect(appendix, ots).toBeGreaterThan(0);
@@ -432,7 +432,7 @@ describe.skipIf(!BROWSER)("the restored evidence report, rendered", () => {
         // proof that was never checked against the chain are all refused.
         [html.replace("The proof names Bitcoin block 860000; PROOVRA has not checked it against the Bitcoin main chain.", "Submitted to OpenTimestamps calendars; no Bitcoin attestation yet."), "OTS_CONTRADICTION"],
         [html.replace("Bitcoin attestation recorded", "OpenTimestamps proof anchored in Bitcoin"), "OTS_RETIRED_WORDING"],
-        [html.replace("Bitcoin attestation recorded", "Independently verified against the Bitcoin main chain"), "OTS_OVERCLAIM"],
+        [html.replace("Bitcoin attestation recorded", "Verified against the Bitcoin main chain by PROOVRA"), "OTS_OVERCLAIM"],
         [html.replace("Account authentication", "Pre-PROOVRA provenance"), "RETIRED_SIGNAL"],
       ] as const) {
         const pdf = await renderPdf(mutated);

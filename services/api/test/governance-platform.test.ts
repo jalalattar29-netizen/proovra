@@ -281,7 +281,7 @@ describe("verification disclosure authority", () => {
     expect(src).not.toMatch(/publicVerifyState/);
     expect(src).not.toMatch(/publication_not_available/);
     const accessIdx = route.indexOf('if (canonical.status !== "AVAILABLE")');
-    const decisionIdx = route.indexOf("const disclosure = resolvePublicVerifyDisclosure(");
+    const decisionIdx = route.indexOf("disclosure: resolvePublicVerifyDisclosure(");
     const finalizedIdx = route.indexOf("const isFinalized");
     expect(accessIdx).toBeGreaterThan(-1);
     expect(decisionIdx).toBeGreaterThan(accessIdx);

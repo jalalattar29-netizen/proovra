@@ -68,7 +68,7 @@ describe("sealed-version addressing (ET-SM-03)", () => {
     const complete = read("../src/services/evidence-complete.service.ts");
     expect(complete).toMatch(/applyDefaultObjectRetention\(\{\s*bucket: target\.bucket,\s*key: target\.key,\s*versionId: target\.versionId \?\? null,/);
     expect(complete).toMatch(/key: primaryTarget\.key,\s*versionId: primaryTarget\.versionId \?\? null,/);
-    expect((complete.match(/retentionTargets\.push\(\{[^}]*versionId:/g) ?? []).length).toBe(3);
+    expect((complete.match(/retentionTargets\.push\(\{[^}]*versionId:/g) ?? []).length).toBe(4);
     const archive = read("../src/services/lifecycle/archive-tier.service.ts");
     expect(archive).toContain("sourceVersionId: evidence.storageVersionId ?? null,");
   });

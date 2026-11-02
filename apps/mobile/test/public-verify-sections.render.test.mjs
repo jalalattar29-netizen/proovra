@@ -445,7 +445,7 @@ test("verificationMatrix, when the reply carries it, is the matrix and the headl
   // PRESENT_NOT_INDEPENDENTLY_VERIFIED is an attestation recorded, never verified.
   assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Attestation recorded"]);
   assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("Not independently checked against Bitcoin")));
-  lacks(r, "Independently verified against the Bitcoin main chain");
+  lacks(r, "Verified against the Bitcoin main chain by PROOVRA");
   lacks(r, "Legacy anchoring words (never printed)");
   has(r, "Verification page disclosure");
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
@@ -768,7 +768,7 @@ test("Integrity tab: material fields, status cards, and failure notes only when 
   for (const s of ["Integrity scope", "Original File SHA-256", "SHA-256 digest of the original preserved evidence file.", "Canonical Fingerprint Hash", "Digital Signature",
     "Public Key", "Signature Status", "Fingerprint Status", "Custody Chain", "Bitcoin anchoring", "Bitcoin attestation recorded — Not independently checked against Bitcoin", "Immutable Storage Locked", "Timestamp Status",
     "Timestamp Provider", "DigiCert", "Hash Algorithm", "Signing Key", "Signing Key Version", "OTS Calendar", "OTS Proof", "Proof Present",
-    "Evidence digest (SHA-256)", "Proof SHA-256", "Bitcoin block header", "Bitcoin block height", "860123", "Bitcoin transaction",
+    "Record fingerprint (SHA-256)", "Proof SHA-256", "Bitcoin block header", "Bitcoin block height", "860123", "Bitcoin transaction",
     "Attestation recorded by PROOVRA (UTC)", "Proof validator", "It is not independently checked against the Bitcoin main chain"]) has(r, s);
   for (const s of ["OTS Hash Check", "Hash Matches", "Bitcoin Anchor Time", "(independently verified)", "Anchored ✓"]) lacks(r, s);
   lacks(r, "Timestamped Digest / Original File SHA-256"); // inputDigestHex === fileSha256: web hides it

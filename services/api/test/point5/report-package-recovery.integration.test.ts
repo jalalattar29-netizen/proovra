@@ -1103,7 +1103,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       for (const [name, bytes] of entries) {
         if (/\.(json|txt|md)$/i.test(name)) {
           const text = bytes.toString("utf8");
-          expect(text, name).not.toMatch(/Bitcoin anchoring verified|Independently verified|publicAnchoringVerified/);
+          expect(text, name).not.toMatch(/Bitcoin anchoring verified|Verified by PROOVRA against Bitcoin|publicAnchoringVerified/);
         }
       }
     });
@@ -1784,7 +1784,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       expect(otsDoc).toMatchObject({
         state: "ANCHORED",
         verification: "CHAIN_VERIFIED",
-        label: "Independently verified against the Bitcoin main chain",
+        label: "Verified against the Bitcoin main chain by PROOVRA",
         chainVerification: { status: "VERIFIED", blockHeight: 860_000, blockHash: chain.otsChainBlockHash, confirmations: 12 },
       });
       expect(entries.has("opentimestamps-proof.ots")).toBe(true);
@@ -1804,7 +1804,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(toOtsAnchoringView(resolveRecordOtsAnchoring(row))).toMatchObject({
       state: "ANCHORED",
       verification: "CHAIN_VERIFIED",
-      label: "Independently verified against the Bitcoin main chain",
+      label: "Verified against the Bitcoin main chain by PROOVRA",
       tone: "success",
     });
     const conditions = await import("../../src/services/operations/evidence-integrity-conditions.service.js");

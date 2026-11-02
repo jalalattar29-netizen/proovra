@@ -203,15 +203,15 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       expect(page.text).not.toMatch(/"(gpsPresent|hasLocation|locationRecorded|coordinatesPresent)"\s*:\s*true/);
     });
 
-    it("C5 the live decision reads the persisted independent chain check: OTS VERIFIED / Independently verified", async () => {
+    it("C5 the live decision reads the persisted independent chain check: OTS VERIFIED / Verified by PROOVRA against Bitcoin", async () => {
       const page = await anonymousPage();
       const matrix = page.body.verificationMatrix as { rows: Array<{ key: string; status: string; statusLabel?: string }> };
       const ots = matrix.rows.find((r) => r.key === "ots_anchoring")!;
       expect(ots.status).toBe("VERIFIED");
-      expect(ots.statusLabel).toBe("Independently verified");
+      expect(ots.statusLabel).toBe("Verified by PROOVRA against Bitcoin");
       // One statement of anchoring on the whole page: Basic Verify and the summary agree.
       expect((page.body.basicVerification as { anchoring?: { state: string } }).anchoring?.state).toBe("verified");
-      expect((page.body.humanSummary as { otsStatus: string }).otsStatus).toBe("Independently verified");
+      expect((page.body.humanSummary as { otsStatus: string }).otsStatus).toBe("Verified by PROOVRA against Bitcoin");
     });
 
     it("C6 record facts: the reference is a Verification reference, a multipart record says so, issued vs rechecked are separate", async () => {

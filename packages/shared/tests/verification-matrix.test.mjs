@@ -325,11 +325,11 @@ test("OTS projection per state: pending, anchored, failed, unavailable and not r
   assert.equal(anchored.statement, `The proof names Bitcoin block ${ANCHORED_PROOF.blockHeight}; PROOVRA has not checked it against the Bitcoin main chain.`);
   assert.doesNotMatch(anchored.statement, /independently verified/i);
 
-  // Independently verified against the Bitcoin main chain: the ONLY VERIFIED OTS row.
+  // Verified against the Bitcoin main chain by PROOVRA: the ONLY VERIFIED OTS row.
   const verified = ots(chainColumnsFor(ANCHORED_PROOF));
   assert.equal(verified.status, "VERIFIED");
   assert.equal(verified.otsVerification, "CHAIN_VERIFIED");
-  assert.equal(verified.statusLabel, "Independently verified");
+  assert.equal(verified.statusLabel, "Verified by PROOVRA against Bitcoin");
   assert.match(verified.statement, new RegExp(`^Merkle root matches Bitcoin block ${ANCHORED_PROOF.blockHeight}; 120 confirmations at `));
 
   const confirming = ots(chainColumnsFor(ANCHORED_PROOF, { status: "INSUFFICIENT_CONFIRMATIONS" }));

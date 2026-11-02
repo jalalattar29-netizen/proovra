@@ -1296,7 +1296,8 @@ export async function evaluateUploadSessionFinalizeGate(
   try {
     rows = (await client.$queryRawUnsafe(
       `SELECT "id", "state", "completed_at_utc", "aborted_at_utc",
-              "expires_at_utc", "created_at_utc"
+              "expires_at_utc", "created_at_utc",
+              "target_part_index", "original_file_name", "bridged_evidence_part_id"
          FROM "evidence_upload_sessions"
          WHERE "team_id" = $1 AND "evidence_id" = $2
          ORDER BY "created_at_utc" ASC`,
@@ -1309,6 +1310,9 @@ export async function evaluateUploadSessionFinalizeGate(
       aborted_at_utc: Date | null;
       expires_at_utc: Date;
       created_at_utc: Date;
+      target_part_index?: number | null;
+      original_file_name?: string | null;
+      bridged_evidence_part_id?: string | null;
     }>;
   } catch {
     bump("upload_session_finalize_gate_failed_total");
@@ -1370,18 +1374,12 @@ export async function evaluateUploadSessionFinalizeGate(
   // INGEST-005 — a completed session that was to produce a part and has none
   // means a file the user saw as uploaded is missing. Refused, never sealed.
   {
-    const unbridged = (await client.$queryRawUnsafe(
-      `SELECT "id" FROM "evidence_upload_sessions"
-        WHERE "team_id" = $1 AND "evidence_id" = $2 AND "state" = 'COMPLETED'
-          AND "target_part_index" IS NOT NULL AND "original_file_name" IS NOT NULL
-          AND "bridged_evidence_part_id" IS NULL
-        LIMIT 1`,
-      input.teamId,
-      input.evidenceId,
-    )) as Array<{ id: string }>;
-    if (unbridged.length > 0) {
+    const unbridged = rows.find(
+      (r) => r.state === "COMPLETED" && r.target_part_index != null && r.original_file_name != null && r.bridged_evidence_part_id == null,
+    );
+    if (unbridged) {
       bump("upload_session_finalize_gate_denied_total");
-      return { ok: false, reason: "session_part_missing", sessionId: unbridged[0]!.id, sessionState: "COMPLETED" };
+      return { ok: false, reason: "session_part_missing", sessionId: unbridged.id, sessionState: "COMPLETED" };
     }
   }
   for (const row of rows) {

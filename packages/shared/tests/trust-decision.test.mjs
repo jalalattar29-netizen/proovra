@@ -211,7 +211,7 @@ test("a stored ANCHORED status with an anchor time over a pending proof is PENDI
   const verified = anchoringOf({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z", otsProofBase64: ANCHORED_PROOF.base64, ...chainColumnsFor(ANCHORED_PROOF) });
   assert.equal(verified.state, "PASSED");
   assert.equal(verified.status, "passed");
-  assert.equal(verified.summary, "Independently verified");
+  assert.equal(verified.summary, "Verified by PROOVRA against Bitcoin");
   assert.equal(toVerificationStatus(verified.state), "VERIFIED");
 });
 
@@ -295,7 +295,7 @@ test("finalized presentation requires a validated timestamp and a proof independ
   const finalized = decide(ANCHORED_PROOF.base64, chainColumnsFor(ANCHORED_PROOF));
   assert.equal(finalized.presentationState, "VERIFIED_FINALIZED");
   assert.equal(finalized.anchoringState, "verified");
-  assert.equal(finalized.anchoringStatusLabel, "Independently verified");
+  assert.equal(finalized.anchoringStatusLabel, "Verified by PROOVRA against Bitcoin");
   assert.equal(getTrustDecisionPresentationTone(finalized), "success");
   // No overall verdict, no score, no reliance level — the bounded summary only.
   for (const field of ["verdict", "verdictLabel", "score", "scoreLabel", "relianceLevel", "confidenceLabel", "primaryReason"]) {

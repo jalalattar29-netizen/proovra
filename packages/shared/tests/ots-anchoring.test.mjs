@@ -267,7 +267,7 @@ test("(12) wire contract: view round trip, conservative reads, client-owned word
     state: "PENDING",
     status: "Anchored",
     label: "Bitcoin anchored",
-    sentence: "Independently verified.",
+    sentence: "Verified by PROOVRA against Bitcoin.",
     tone: "success",
     bitcoinTxid: up.txid,
     bitcoinBlockHeight: 842_105,
@@ -418,7 +418,7 @@ test("deriveAnchorSemantics projects the canonical state and never decides it", 
   });
   const verified = deriveAnchorSemantics({ otsState: "ANCHORED", otsVerification: "CHAIN_VERIFIED" });
   assert.equal(verified.anchorMode, "chain_verified");
-  assert.equal(verified.anchoringLabel, "Independently verified against the Bitcoin main chain");
+  assert.equal(verified.anchoringLabel, "Verified against the Bitcoin main chain by PROOVRA");
   // A chain claim over a non-ANCHORED state is never believed.
   assert.equal(deriveAnchorSemantics({ otsState: "PENDING", otsVerification: "CHAIN_VERIFIED" }).anchorMode, "bitcoin_anchoring_pending");
   // A txid on a PENDING record does not make it anchored.

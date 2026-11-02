@@ -215,3 +215,15 @@ function clampedBackoff(
     Math.min(MAX_RETRY_BACKOFF_MS, Math.round(jitter)),
   );
 }
+
+/**
+ * INGEST-006 — the size and digest of what was selected, so the server proves the
+ * stored object is that file. Without them a part ends HASHED, never VERIFIED,
+ * and corruption in transit would seal as the original.
+ */
+export function declaredObject(sizeBytes: number, sha256Base64?: string | null) {
+  const expectedSha256 = sha256Base64
+    ? Array.from(atob(sha256Base64), (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+    : null;
+  return { expectedTotalBytes: sizeBytes, ...(expectedSha256 ? { expectedSha256 } : {}) };
+}

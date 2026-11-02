@@ -1520,6 +1520,8 @@ type ReviewWorkspacePublicVerificationSummary = {
 };
 
 type SafeEvidence = {
+  /** AVAILABLE, WITHDRAWN or SUSPENDED: what the verification page does now. */
+  verificationAccessState: string | null;
   id: string;
   title: string;
   ownerUserId?: string;
@@ -2842,6 +2844,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
   const safeOtsAnchoring = resolveRecordOtsAnchoring(e);
   return {
     id: e.id,
+    verificationAccessState: (e as { verificationAccessState?: string | null }).verificationAccessState ?? null,
     title: resolveEvidenceTitle(e.title),
     ownerUserId: e.ownerUserId,
     originalFileName: e.originalFileName ?? null,
@@ -5305,9 +5308,12 @@ eventHash: ev.eventHash,
 async function getAnchorStatus(
   evidenceId: string
 ): Promise<AnchorStatusSummary> {
-  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
-  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
-
+  /*
+   * OPS-001 — ONLY A RECORDED ANCHOR IS STATED. No writer of evidence_anchors
+   * exists, so with no row there is no external anchor, whatever an environment
+   * string says. PROOVRA's real anchoring is RFC 3161 and OpenTimestamps, which
+   * are stated from their own records. A row, if one exists, still reads.
+   */
   const anchor = await prisma.evidenceAnchor.findUnique({
     where: { evidenceId },
     select: {
@@ -5321,9 +5327,9 @@ async function getAnchorStatus(
 
   if (!anchor) {
     return {
-      mode,
-      provider,
-      configured: Boolean(provider),
+      mode: "off",
+      provider: null,
+      configured: false,
       anchorHash: null,
       transactionId: null,
       anchoredAtUtc: null,
@@ -5332,8 +5338,8 @@ async function getAnchorStatus(
 
   return {
     mode: normalizeAnchorMode(anchor.mode),
-    provider: anchor.provider ?? provider,
-    configured: Boolean(anchor.provider ?? provider),
+    provider: anchor.provider ?? null,
+    configured: Boolean(anchor.provider),
     anchorHash: anchor.anchorHash ?? null,
     transactionId: anchor.transactionId ?? null,
     anchoredAtUtc: anchor.anchoredAtUtc
@@ -15748,7 +15754,7 @@ timestampedDigestLabel:
   }),
 timestampedDigestNote:
   evidence.tsaInputKind && evidence.tsaInputKind !== "FILE_SHA256"
-    ? "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+    ? "This value may differ from the original file SHA-256 when the timestamp is applied to the composite digest of a multipart record."
     : null,
     },
     // (2026-10-13) THE WIRE CONTRACT: exactly the shared view (clients read

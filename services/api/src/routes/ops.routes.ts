@@ -726,6 +726,22 @@ export async function opsRoutes(app: FastifyInstance) {
         }
       }
     }
+    // CRYPTO-004 — an unregistered or revoked evidence key reads ready here and
+    // then fails every completion. Production only, as with the TSA check above.
+    {
+      const { isTsaProductionEnv } = await import("../services/timestamp/validate-tsa-token.js");
+      if (isTsaProductionEnv(process.env)) {
+        const { evidenceSigningIdentityIssue } = await import("@proovra/shared-runtime");
+        const issue = await evidenceSigningIdentityIssue(prisma, {
+          keyId: process.env.SIGNING_KEY_ID,
+          version: Number.parseInt(process.env.SIGNING_KEY_VERSION ?? "1", 10) || 1,
+        }).catch(() => "signing_key_registry_unavailable");
+        if (issue) {
+          req.log?.error({ signerIssue: issue }, "readyz.signer_not_ready");
+          return reply.code(503).send({ status: "degraded", reason: issue });
+        }
+      }
+    }
     return reply.code(200).send({ status: "ok" });
   });
 

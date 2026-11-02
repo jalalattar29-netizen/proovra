@@ -25,6 +25,7 @@ import {
   buildReportAvailability,
   buildVerificationPackageAvailability,
   hasPublicVerification,
+  publicVerificationPageState,
 } from "../lib/evidence-library-helpers";
 import {
   formatUtcDateTime,
@@ -226,41 +227,10 @@ function buildPackageRow(detail: DetailWorkspaceState): ArtifactRow {
 }
 
 function buildPublicVerificationRow(detail: DetailWorkspaceState): ArtifactRow {
-  const anchor = detail.evidence?.anchor ?? null;
-
-  if (!detail.capabilities?.publicVerifyIncluded) {
-    return {
-      key: "public-verification",
-      title: "Public verification",
-      state: "disabled",
-      detail: "Public verification is not included in this workspace plan.",
-    };
-  }
-
-  if (!anchor?.configured || anchor.mode === "off") {
-    return {
-      key: "public-verification",
-      title: "Public verification",
-      state: "not-configured",
-      detail: "Not configured for this record.",
-    };
-  }
-
-  if (anchor.mode === "active" && anchor.anchoredAtUtc) {
-    return {
-      key: "public-verification",
-      title: "Public verification",
-      state: "available",
-      detail: `Anchored ${formatUtcDateTime(anchor.anchoredAtUtc)}`,
-    };
-  }
-
-  return {
-    key: "public-verification",
-    title: "Public verification",
-    state: "pending",
-    detail: "The anchor is configured. No anchored timestamp is recorded yet.",
-  };
+  // OPS-001 — what the page does now, from the record's own access state. This
+  // row read a removed external anchor and misreported every record.
+  const page = publicVerificationPageState(detail.evidence ?? null);
+  return { key: "public-verification", title: "Public verification", state: page.state, detail: page.detail };
 }
 
 function ArtifactStatusRow({ row }: { row: ArtifactRow }) {

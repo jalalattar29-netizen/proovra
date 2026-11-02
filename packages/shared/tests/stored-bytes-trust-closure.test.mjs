@@ -208,7 +208,7 @@ test("TRUST-002: a PENDING OTS proof is never anchored; unvalidated STAMPED is n
   const verified = basic(null, { ots: { status: "ANCHORED", proofBase64: up.base64, fingerprintHash: FP, anchoredAtUtc: now, chain: chainRecordFor(up) } }).anchoring;
   assert.equal(verified.state, "verified");
   assert.equal(verified.otsVerification, "CHAIN_VERIFIED");
-  assert.equal(verified.label, "Independently verified against the Bitcoin main chain");
+  assert.equal(verified.label, "Verified against the Bitcoin main chain by PROOVRA");
   assert.equal(verified.chain.blockHeight, up.blockHeight);
   assert.equal(anchored.bitcoinTxid, up.txid);
   assert.equal(anchored.bitcoinBlockHeight, up.blockHeight);

@@ -834,14 +834,14 @@ function EvidenceLibraryPageInner() {
     // retainUntil / legalHold). Page fallback uses the same field.
     const storageProtectedCard = usingWorkspaceTotal
       ? {
-          label: "Storage protection",
+          label: "Retention-locked records",
           value: String(workspaceSummary.storageProtectedCount),
-          detail: "Encrypted states",
+          detail: "Object Lock or legal hold",
         }
       : {
-          label: "Storage protection",
+          label: "Retention-locked records",
           value: String(pageProtectedCount),
-          detail: "Encrypted states",
+          detail: "Object Lock or legal hold",
         };
 
     // Card 6 — Multipart packages. Workspace via real

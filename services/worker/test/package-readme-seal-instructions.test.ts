@@ -54,7 +54,7 @@ describe("verification package README (ET-PKG-02/03)", () => {
     expect(SRC).toContain("Not independently checked against Bitcoin: PROOVRA has not compared the proof with the Bitcoin main chain.");
     // The verified wording appears only on the CHAIN_VERIFIED branch.
     expect(SRC).toMatch(/ots\.verification === "CHAIN_VERIFIED" && chain\s*\?\s*`\s*PROOVRA's own check matched block/);
-    expect(SRC).toMatch(/if \(ots\.verification === "CHAIN_VERIFIED" && chain\) \{\s*established\.push\(\s*`Independently verified against the Bitcoin main chain/);
+    expect(SRC).toMatch(/if \(ots\.verification === "CHAIN_VERIFIED" && chain\) \{\s*established\.push\(\s*`Verified against the Bitcoin main chain by PROOVRA/);
     expect(SRC).not.toContain("without reliance on the PROOVRA platform");
     expect(SRC).not.toContain("Verify with: ots verify opentimestamps-proof.ots\"");
   });

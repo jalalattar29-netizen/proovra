@@ -502,6 +502,9 @@ async function commitOtsTransition(input: {
   const applied = await prisma.$transaction(async (tx) => {
     const won = await applyOtsTransition(tx, evidenceId, snapshot, transition);
     if (!won || !transition.material) return won;
+    // CRYPTO-008 — a node outage is not an event in this record's custody. The
+    // state is written so the page can say so; the chain records verdicts.
+    if (transition.phase === "chain_verification_unavailable") return won;
     await appendCustodyEventTx(tx, {
       evidenceId,
       eventType:

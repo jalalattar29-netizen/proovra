@@ -8,7 +8,7 @@
  *
  *   (a) ANCHORED without a chain check: "Bitcoin attestation recorded" +
  *       "Not independently checked against Bitcoin", neutral, no "Verified".
- *   (b) CHAIN_VERIFIED: the green "Independently verified against the Bitcoin
+ *   (b) CHAIN_VERIFIED: the green "Verified by PROOVRA against Bitcoin against the Bitcoin
  *       main chain" with block height and confirmations.
  *   (c) CHAIN_FAILED and FAILED: danger.
  *   (d) PENDING: never danger.
@@ -96,9 +96,9 @@ describe("Artifact truth header — Bitcoin anchoring", () => {
     expect(fact).not.toMatch(/✓|Verified\b/);
   });
 
-  it("(b) CHAIN_VERIFIED: the only green ✓ 'Independently verified against the Bitcoin main chain', VERIFIED, dated by the check", () => {
+  it("(b) CHAIN_VERIFIED: the only green ✓ 'Verified against the Bitcoin main chain by PROOVRA', VERIFIED, dated by the check", () => {
     const { getByTestId } = header(OTS.verified);
-    expect(getByTestId("truth-ots").textContent).toBe("✓ Independently verified against the Bitcoin main chain");
+    expect(getByTestId("truth-ots").textContent).toBe("✓ Verified against the Bitcoin main chain by PROOVRA");
     expect(factTone(getByTestId("truth-ots"))).toBe("ok");
     expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("VERIFIED");
     expect(getByTestId("truth-ots-measured").textContent).toBe("Checked against the Bitcoin main chain 2026-10-02T08:00:00Z");
@@ -160,9 +160,9 @@ describe("Public Verify — the Bitcoin anchoring matrix row", () => {
 
   it("(b) CHAIN_VERIFIED on a VERIFIED row is the only ✓; on a row that is not VERIFIED it is not believed", () => {
     const { getByTestId } = render(
-      <VerificationMatrixGrid rows={[otsRow({ status: "VERIFIED", otsVerification: "CHAIN_VERIFIED", statusLabel: "Independently verified" })]} />,
+      <VerificationMatrixGrid rows={[otsRow({ status: "VERIFIED", otsVerification: "CHAIN_VERIFIED", statusLabel: "Verified by PROOVRA against Bitcoin" })]} />,
     );
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓Independently verified");
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("✓Verified by PROOVRA against Bitcoin");
     expect(otsMatrixRowPresentation(otsRow({ status: "VERIFIED", otsVerification: "CHAIN_VERIFIED" }))?.tone).toBe("success");
     expect(otsMatrixRowPresentation(otsRow({ status: "NOT_CHECKED", otsVerification: "CHAIN_VERIFIED" }))).toMatchObject({
       word: "Attestation recorded",
@@ -235,7 +235,7 @@ describe("(e) filter chips and admin badges", () => {
     expect(otsFilterValueLabel("ANCHORED")).toBe("Attestation recorded");
     expect(otsFilterValueLabel("FAILED,ERRORED,ERROR")).toBe("Failed");
     expect(otsFilterValueLabel("ATTESTATION_RECORDED")).toBe("Attestation recorded");
-    expect(otsFilterValueLabel("CHAIN_VERIFIED")).toBe("Independently verified");
+    expect(otsFilterValueLabel("CHAIN_VERIFIED")).toBe("Verified by PROOVRA against Bitcoin");
     // A legacy stored "VERIFIED"/"OK" never reads as verified.
     expect(otsFilterValueLabel("VERIFIED,OK")).toBe("Attestation recorded");
     expect(trustFilterChips({ otsStatus: "all" })).toEqual([]);
@@ -247,7 +247,7 @@ describe("(e) filter chips and admin badges", () => {
       tone: "neutral",
     });
     expect(otsRawStatusPresentation("CHAIN_VERIFIED")).toMatchObject({
-      label: "Independently verified against the Bitcoin main chain",
+      label: "Verified against the Bitcoin main chain by PROOVRA",
       tone: "success",
     });
     expect(otsRawStatusPresentation("CHAIN_FAILED").tone).toBe("danger");

@@ -105,8 +105,8 @@ describe("CHAIN_VERIFIED: the same proof, independently verified against the Bit
     expect(result.companion).toMatchObject({
       state: "ANCHORED",
       verification: "CHAIN_VERIFIED",
-      status: "Independently verified",
-      label: "Independently verified against the Bitcoin main chain",
+      status: "Verified by PROOVRA against Bitcoin",
+      label: "Verified against the Bitcoin main chain by PROOVRA",
       sentence: "Merkle root matches Bitcoin block 860000; 120 confirmations at 2026-10-15 08:00:00 UTC.",
       boundary: OTS_CHAIN_VERIFIED_BOUNDARY,
       chainVerification: {

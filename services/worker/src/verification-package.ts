@@ -1781,14 +1781,14 @@ Status: ${OTS_STATE_WORDS.NOT_REQUESTED}. ${OTS_STATE_SENTENCES.NOT_REQUESTED}`;
   const chain = ots.chainVerification;
   if (ots.state === "ANCHORED") {
     established.push(
-      ots.committedDigest ? `The proof commits to the evidence digest ${ots.committedDigest.hex} (the SHA-256 of fingerprint.json).` : "",
+      ots.committedDigest ? `The proof commits to the record fingerprint ${ots.committedDigest.hex} (the SHA-256 of fingerprint.json). It binds the files through that signed fingerprint, so it is not the file digest.` : "",
       ots.attestation?.bitcoinBlockHeight != null ? `Bitcoin block height named by the proof: ${ots.attestation.bitcoinBlockHeight}.` : "",
       ots.attestation?.bitcoinTxid ? `Bitcoin transaction derived from the proof: ${ots.attestation.bitcoinTxid}.` : "",
       ots.anchoredRecordedAtUtc ? `PROOVRA recorded the attestation at ${ots.anchoredRecordedAtUtc} (a PROOVRA time, not a Bitcoin block time).` : "",
     );
     if (ots.verification === "CHAIN_VERIFIED" && chain) {
       established.push(
-        `Independently verified against the Bitcoin main chain: the proof's commitment equals the merkle root of block ${chain.blockHeight} (${chain.blockHash}), ${chain.confirmations} confirmations at ${chain.checkedAtUtc}.`,
+        `Verified against the Bitcoin main chain by PROOVRA: the proof's commitment equals the merkle root of block ${chain.blockHeight} (${chain.blockHash}), ${chain.confirmations} confirmations at ${chain.checkedAtUtc}.`,
         chain.blockTimeUtc ? `Bitcoin block time: ${chain.blockTimeUtc}.` : "",
         chain.verifier ? `Chain verifier: ${chain.verifier}.` : "",
       );
@@ -1802,8 +1802,8 @@ Status: ${OTS_STATE_WORDS.NOT_REQUESTED}. ${OTS_STATE_SENTENCES.NOT_REQUESTED}`;
     if (ots.boundary) established.push(ots.boundary);
   } else if (ots.state === "PENDING") {
     established.push(
-      "The evidence digest was submitted to OpenTimestamps calendars. The included proof does not yet carry a Bitcoin block attestation.",
-      ots.committedDigest ? `The proof commits to the evidence digest ${ots.committedDigest.hex} (the SHA-256 of fingerprint.json).` : "",
+      "The record fingerprint was submitted to OpenTimestamps calendars. The included proof does not yet carry a Bitcoin block attestation.",
+      ots.committedDigest ? `The proof commits to the record fingerprint ${ots.committedDigest.hex} (the SHA-256 of fingerprint.json). It binds the files through that signed fingerprint, so it is not the file digest.` : "",
     );
   } else if (ots.state === "FAILED") {
     established.push(ots.failureLabel ?? "Bitcoin anchoring did not complete for this record.");
@@ -2394,7 +2394,7 @@ The OpenTimestamps and RFC 3161 materials in this package (anchor.json, opentime
 
   const verifyUrl = params.packageVerificationUrl ?? null;
   const identitySection = `Package ID: ${safeText(params.packageId, "Not recorded (issued before package identities)")}
-Certified evidence digest (package-manifest.json → evidenceFileSha256): ${digest ?? "Not recorded"}
+Certified file digest (package-manifest.json → evidenceFileSha256): ${digest ?? "Not recorded"}
 Disclosure Profile: ${DISCLOSURE_PROFILE_LABELS[profile]}
 ${DISCLOSURE_PROFILE_DESCRIPTIONS[profile]}
 ${

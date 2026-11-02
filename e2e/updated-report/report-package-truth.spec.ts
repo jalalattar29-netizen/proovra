@@ -629,7 +629,7 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
   // attestation, neutral, never a ✓ (2026-10-15).
   await expect(page.getByTestId("truth-ots")).toHaveText("Bitcoin attestation recorded");
   await expect(page.getByTestId("truth-ots-status")).toHaveText("Not independently checked against Bitcoin");
-  await expect(page.getByTestId("truth-ots")).not.toHaveText(/✓|chain-verified|Independently verified|Anchored/);
+  await expect(page.getByTestId("truth-ots")).not.toHaveText(/✓|chain-verified|Verified by PROOVRA against Bitcoin|Anchored/);
   // Its dated note is when PROOVRA recorded the attestation — never a block time.
   const otsNote = page.getByTestId("truth-ots-measured");
   if (await otsNote.count()) await expect(otsNote).toHaveText(/^Attestation recorded by PROOVRA /);
@@ -704,7 +704,7 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
   // Report v1: Bitcoin anchoring Pending — submitted, no attestation yet (2026-10-15 wording).
   const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
   expect(text).toMatch(/Bitcoin anchoring\s+Pending[\s\S]{0,80}?Submitted\s+to\s+OpenTimestamps\s+calendars;\s+no\s+Bitcoin\s+attestation\s+yet\./);
-  expect(text).not.toMatch(/proof is still being prepared|Attestation recorded|Independently verified/);
+  expect(text).not.toMatch(/proof is still being prepared|Attestation recorded|Verified by PROOVRA against Bitcoin/);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(findForbiddenCustomerClaims(text)).toEqual([]);
 

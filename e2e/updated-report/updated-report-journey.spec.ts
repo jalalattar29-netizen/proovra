@@ -94,7 +94,7 @@ const STATUS_WORDS: Record<string, string> = {
   Pending: "NOT_CHECKED",
   // (2026-10-15) Bitcoin anchoring's own words: only an independent check
   // against the Bitcoin main chain is a success; a recorded attestation is not.
-  "Independently verified": "VERIFIED",
+  "Verified by PROOVRA against Bitcoin": "VERIFIED",
   "Attestation recorded": "NOT_CHECKED",
   "Verification pending": "NOT_CHECKED",
   "Verification unavailable": "UNAVAILABLE",
@@ -103,7 +103,7 @@ const STATUS_WORDS: Record<string, string> = {
   Unavailable: "UNAVAILABLE",
   "Not applicable": "NOT_APPLICABLE",
 };
-const CARD_STATUS = "(Independently verified|Attestation recorded|Verification pending|Verification unavailable|Verification failed|Verified|Failed|Recorded|Pending|Unavailable|Not requested|Not applicable)";
+const CARD_STATUS = "(Verified by PROOVRA against Bitcoin|Attestation recorded|Verification pending|Verification unavailable|Verification failed|Verified|Failed|Recorded|Pending|Unavailable|Not requested|Not applicable)";
 function trustStatements(text: string) {
   const row = (label: string) => {
     // A card runs to the next card's mark, or to the page footer.
@@ -421,7 +421,7 @@ test.describe("updated report — the real stack, end to end", () => {
     expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp verified /);
     expect(claims2.otsStatus).toBe("NOT_CHECKED");
     expect(claims2.otsStatement ?? "").toMatch(/The proof names Bitcoin block \d+; PROOVRA has not checked it against the Bitcoin main chain\./);
-    expect(claims2.otsStatement ?? "").not.toMatch(/Independently verified|anchored in Bitcoin|chain-verified/i);
+    expect(claims2.otsStatement ?? "").not.toMatch(/Verified by PROOVRA against Bitcoin|anchored in Bitcoin|chain-verified/i);
     expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.

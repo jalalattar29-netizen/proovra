@@ -321,8 +321,7 @@ describe("an ANCHORED proof checked against the Bitcoin chain (verifier enabled)
     await processOtsUpgrade(job() as never);
     expect(chainWrites()).toHaveLength(1);
     expect(h.row).toMatchObject({ otsChainVerificationStatus: "UNAVAILABLE", otsChainFailureCode: "BTC_RPC_TIMEOUT", otsStatus: "ANCHORED" });
-    expect(h.custody).toHaveLength(1);
-    expect(h.custody[0]!.payload).toMatchObject({ otsVerification: "CHAIN_UNAVAILABLE", otsPhase: "chain_verification_unavailable" });
+    expect(h.custody, "CRYPTO-008: an outage is not a custody event").toHaveLength(0);
     expect(h.versionDecisions).toEqual([]);
     expect(h.enqueued.map((e) => e.options.delayMs)).toEqual([HOUR]);
   });

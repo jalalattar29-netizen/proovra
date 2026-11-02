@@ -251,7 +251,7 @@ describe("OpenTimestamps: one canonical state on every card", () => {
     const findings = checkRenderedReportText(`${t} Submitted to OpenTimestamps calendars; no Bitcoin attestation yet.`, facts, { reportVersion: input.version });
     expect(findings.map((f) => f.check)).toContain("OTS_CONTRADICTION");
     // …and a verified label for an attestation never checked against the chain.
-    const overclaim = checkRenderedReportText(`${t} Independently verified against the Bitcoin main chain`, facts, { reportVersion: input.version });
+    const overclaim = checkRenderedReportText(`${t} Verified against the Bitcoin main chain by PROOVRA`, facts, { reportVersion: input.version });
     expect(overclaim.map((f) => f.check)).toContain("OTS_OVERCLAIM");
   });
 
@@ -261,8 +261,8 @@ describe("OpenTimestamps: one canonical state on every card", () => {
     const { cards, text: t } = await render(input);
     const card = cards.find((c) => c.key === "bitcoin_anchoring")!;
     expect(card).toMatchObject({
-      status: "Independently verified",
-      title: "Independently verified against the Bitcoin main chain",
+      status: "Verified by PROOVRA against Bitcoin",
+      title: "Verified against the Bitcoin main chain by PROOVRA",
       mark: "✓",
       tone: "success",
     });

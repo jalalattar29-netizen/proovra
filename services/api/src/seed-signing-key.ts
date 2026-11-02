@@ -5,6 +5,7 @@
 // the root cause of the production-isolation incident, so it is gone and every
 // entrypoint now asks for its configuration by name.
 import "./env.js";
+import { parseSignerProvider } from "@proovra/shared-runtime";
 
 /**
  * Seed the `signing_keys` table with the public half of the evidence
@@ -104,8 +105,7 @@ const TEST_ONLY_FALLBACK_PUBLIC_KEY_PEM = [
 ].join("\n");
 
 function readProvider(): Provider {
-  const raw = (process.env.SIGNER_PROVIDER ?? "local-pem").trim().toLowerCase();
-  return raw === "aws-kms" ? "aws-kms" : "local-pem";
+  return parseSignerProvider(process.env.SIGNER_PROVIDER);
 }
 
 /**

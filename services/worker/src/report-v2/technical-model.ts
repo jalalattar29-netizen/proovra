@@ -418,10 +418,10 @@ timestampReferenceNote:
     ((evidence as ReportEvidence).tsaTokenBase64 ? true : false)) &&
   !externalMode
     ? usesCanonicalTimestampDigest
-      ? `The RFC 3161 token is included in the verification package as timestamp.tsr when PROOVRA validated it. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material.`
+      ? `The RFC 3161 token is included in the verification package as timestamp.tsr when PROOVRA validated it. This value may differ from the original file SHA-256 when the timestamp is applied to the composite digest of a multipart record.`
       : "The RFC 3161 token is included in the verification package as timestamp.tsr when PROOVRA validated it."
     : usesCanonicalTimestampDigest
-      ? "RFC 3161 token bytes are intentionally excluded from the PDF body. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+      ? "RFC 3161 token bytes are intentionally excluded from the PDF body. This value may differ from the original file SHA-256 when the timestamp is applied to the composite digest of a multipart record."
       : "RFC 3161 token bytes are intentionally excluded from the PDF body.",
         signatureReferenceNote:
       evidence.signatureBase64 && !externalMode

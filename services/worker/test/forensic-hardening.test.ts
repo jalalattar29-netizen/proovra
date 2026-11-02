@@ -46,7 +46,7 @@ function readRepoFile(...segments: string[]): string {
 
 describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
   // 2026-10-15: ANCHORED only means the proof NAMES a block. Its word is
-  // "Attestation recorded"; "Independently verified" is said ONLY for a proof
+  // "Attestation recorded"; "Verified by PROOVRA against Bitcoin" is said ONLY for a proof
   // independently verified against the Bitcoin main chain (CHAIN_VERIFIED).
   it("the report says Attestation recorded (not Anchored) for a proof that executes to an unchecked Bitcoin attestation", () => {
     const anchored = reportOtsAnchoring({ otsStatus: "PENDING", otsProofBase64: UP.base64, otsHash: REAL.boundFingerprintHash, fingerprintHash: REAL.boundFingerprintHash });
@@ -58,7 +58,7 @@ describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
     expect(otsVerificationLabelFor(anchored.verification)).toBe("Bitcoin attestation recorded");
   });
 
-  it("the report says Independently verified only for a proof verified against the Bitcoin main chain", () => {
+  it("the report says Verified by PROOVRA against Bitcoin only for a proof verified against the Bitcoin main chain", () => {
     const verified = reportOtsAnchoring({
       otsStatus: "ANCHORED",
       otsProofBase64: UP.base64,
@@ -67,8 +67,8 @@ describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
       ...chainColumnsFor(UP),
     } as never);
     expect(verified.verification).toBe("CHAIN_VERIFIED");
-    expect(otsVerificationWordFor(verified.verification)).toBe("Independently verified");
-    expect(otsVerificationLabelFor(verified.verification)).toBe("Independently verified against the Bitcoin main chain");
+    expect(otsVerificationWordFor(verified.verification)).toBe("Verified by PROOVRA against Bitcoin");
+    expect(otsVerificationLabelFor(verified.verification)).toBe("Verified against the Bitcoin main chain by PROOVRA");
   });
 
   it("a status, a valid txid and a time never make a pending proof anchored", () => {
@@ -94,7 +94,7 @@ describe("OTS labels (2026-10-13: the canonical state, from the proof)", () => {
   it("only the CHAIN_VERIFIED verification says verified", () => {
     for (const key of OTS_VERIFICATION_KEYS) {
       const text = `${otsVerificationWordFor(key)} ${otsVerificationLabelFor(key)}`;
-      if (key === "CHAIN_VERIFIED") expect(text).toMatch(/Independently verified/);
+      if (key === "CHAIN_VERIFIED") expect(text).toMatch(/Verified by PROOVRA against Bitcoin/);
       else expect(text).not.toMatch(/\bverified\b/i);
     }
   });

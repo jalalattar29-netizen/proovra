@@ -452,6 +452,9 @@ describe("source pins — one authority, no way back", () => {
     // The writes happen after the projection.
     expect(handler.indexOf("recordOriginalRelease(")).toBeGreaterThan(handler.indexOf("projectPublicVerification("));
     expect(handler.indexOf("verificationView.create")).toBeGreaterThan(handler.indexOf("projectPublicVerification("));
-    expect(handler.indexOf("recordVerificationShareUse(")).toBeLessThan(handler.indexOf("const allCustodyEvents"));
+    // REPORT-013 — a link's use is spent once the answer is built, before any
+    // write that follows from it.
+    expect(handler.indexOf("recordVerificationShareUse(")).toBeGreaterThan(handler.indexOf("projectPublicVerification("));
+    expect(handler.indexOf("recordVerificationShareUse(")).toBeLessThan(handler.indexOf("recordOriginalRelease("));
   });
 });

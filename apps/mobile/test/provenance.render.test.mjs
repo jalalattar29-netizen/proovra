@@ -117,7 +117,7 @@ test("an ANCHORED provenance proof without a chain verification is an attestatio
   });
   const r = await openIntegrity();
   assert.ok(r.hasText("Bitcoin attestation recorded — Not independently checked against Bitcoin"));
-  assert.ok(!r.hasText("Independently verified against the Bitcoin main chain ✓"));
+  assert.ok(!r.hasText("Verified against the Bitcoin main chain by PROOVRA ✓"));
   assert.ok(!r.texts().some((t) => t.includes("✓") && t.includes("Bitcoin")), "a check mark beside an unchecked attestation");
   assert.ok(r.hasText("860123"));
 });
@@ -132,7 +132,7 @@ test("only a CHAIN_VERIFIED provenance proof reads independently verified, with 
     }),
   });
   const r = await openIntegrity();
-  assert.ok(r.hasText("Independently verified against the Bitcoin main chain ✓"));
+  assert.ok(r.hasText("Verified against the Bitcoin main chain by PROOVRA ✓"));
   assert.ok(!r.hasText("Not independently checked against Bitcoin"));
 });
 

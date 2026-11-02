@@ -2047,9 +2047,12 @@ structure: items.length > 1 ? "multipart" : "single",
 async function resolveAnchorStatusForReport(
   evidenceId: string
 ): Promise<ReportAnchorSummary> {
-  const mode = normalizeAnchorMode(process.env.ANCHOR_MODE);
-  const provider = process.env.ANCHOR_PROVIDER?.trim() || null;
-
+  /*
+   * OPS-001 — ONLY A RECORDED ANCHOR IS STATED. No writer of evidence_anchors
+   * exists, so with no row there is no external anchor, whatever an environment
+   * string says. PROOVRA's real anchoring is RFC 3161 and OpenTimestamps, which
+   * are stated from their own records. A row, if one exists, still reads.
+   */
   const anchor = await prisma.evidenceAnchor.findUnique({
     where: { evidenceId },
     select: {
@@ -2063,9 +2066,9 @@ async function resolveAnchorStatusForReport(
 
   if (!anchor) {
     return {
-      mode,
-      provider,
-      configured: Boolean(provider),
+      mode: "off",
+      provider: null,
+      configured: false,
       anchorHash: null,
       transactionId: null,
       anchoredAtUtc: null,
@@ -2074,8 +2077,8 @@ async function resolveAnchorStatusForReport(
 
   return {
     mode: normalizeAnchorMode(anchor.mode),
-    provider: anchor.provider ?? provider,
-    configured: Boolean(anchor.provider ?? provider),
+    provider: anchor.provider ?? null,
+    configured: Boolean(anchor.provider),
     anchorHash: anchor.anchorHash ?? null,
     transactionId: anchor.transactionId ?? null,
     anchoredAtUtc: anchor.anchoredAtUtc
@@ -5562,7 +5565,8 @@ signingKeyId: evidence.signingKeyId ?? undefined,
 signingKeyVersion: evidence.signingKeyVersion ?? undefined,
           anchor: finalizedAnchorPayload,
           anchorMode: normalizeAnchorMode(process.env.ANCHOR_MODE),
-          anchorProvider: process.env.ANCHOR_PROVIDER?.trim() || null,
+          // OPS-001 — no external anchor provider is stated from configuration.
+          anchorProvider: null,
           certifications: prepared.certifications,
           // Hotfix — pass OTS state + proof through so the package
           // honestly includes `opentimestamps-proof.ots` whenever the

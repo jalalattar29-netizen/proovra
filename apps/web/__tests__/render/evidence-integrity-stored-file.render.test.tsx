@@ -142,10 +142,10 @@ describe("Integrity tab — Bitcoin anchoring is the server's verification (2026
         ctx={ctx(undefined, { state: "ANCHORED", verification: "CHAIN_VERIFIED", bitcoinBlockHeight: 812345, chain: chain({}) })}
       />,
     );
-    expect(otsWord()?.textContent).toBe("✓ Independently verified");
+    expect(otsWord()?.textContent).toBe("✓ Verified by PROOVRA against Bitcoin");
     expect(otsWord()?.getAttribute("data-tone")).toBe("green");
     expect(otsRow().getAttribute("data-evidence-matrix-state")).toBe("verified");
-    expect(otsRow().textContent).toContain("Independently verified against the Bitcoin main chain");
+    expect(otsRow().textContent).toContain("Verified against the Bitcoin main chain by PROOVRA");
     expect(otsRow().textContent).not.toContain("Not independently checked");
     expect(detail()).toMatch(/Merkle root matches Bitcoin block 812345; 12 confirmations at 2026-09-02/);
   });

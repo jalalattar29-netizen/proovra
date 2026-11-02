@@ -201,7 +201,7 @@ describe("Comparison mode — structured snapshot rendering", () => {
     // (2026-10-18) A legacy anchoring "passed" was awarded for a recorded
     // Bitcoin attestation: the snapshot states that attestation as RECORDED and
     // NOT CHECKED — never anchored-and-verified, and never "unavailable".
-    expect(text).not.toMatch(/Bitcoin anchored|Independently verified/);
+    expect(text).not.toMatch(/Bitcoin anchored|Verified by PROOVRA against Bitcoin/);
   });
 
   it("gives nested objects bounded sections and arrays structured lists", async () => {

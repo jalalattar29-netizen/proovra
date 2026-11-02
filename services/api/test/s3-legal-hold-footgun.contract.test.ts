@@ -106,7 +106,9 @@ describe("Object Lock RETENTION is untouched", () => {
     // THE EIGHT-YEAR CONTRACT (2026-10-15): every storage module asks the one
     // resolver, which reads S3_OBJECT_LOCK_MODE / S3_OBJECT_LOCK_RETAIN_DAYS
     // under the eight-year floor; none computes a duration of its own.
-    for (const rel of STORAGE_MODULES) {
+    // INGEST-001 — an upload in flight carries no lock (the seal locks the sealed
+    // version), so the multipart module no longer stamps one.
+    for (const rel of STORAGE_MODULES.filter((m) => !m.endsWith("storage-multipart.ts"))) {
       const body = code(src(rel));
       expect(body, `${rel} must take its lock from the resolver`).toContain("newObjectLock(");
       expect(body, `${rel} must not compute a duration of its own`).not.toMatch(/retainDays\s*\*\s*24/);
@@ -117,8 +119,8 @@ describe("Object Lock RETENTION is untouched", () => {
     expect(resolver).toContain("resolvePlatformRetentionDays");
   });
 
-  it("every upload path still stamps ObjectLockMode and ObjectLockRetainUntilDate", () => {
-    for (const rel of STORAGE_MODULES) {
+  it("every sealed write still stamps ObjectLockMode and ObjectLockRetainUntilDate", () => {
+    for (const rel of STORAGE_MODULES.filter((m) => !m.endsWith("storage-multipart.ts"))) {
       const body = code(src(rel));
       expect(body, `${rel} must still stamp the mode`).toContain(
         "ObjectLockMode",

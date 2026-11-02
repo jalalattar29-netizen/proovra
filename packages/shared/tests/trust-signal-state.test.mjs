@@ -264,7 +264,7 @@ test("TSA valid + OTS independently verified against the Bitcoin main chain → 
   assert.equal(anchoring(d).measuredAtUtc, "2026-10-15T08:00:00.000Z");
   assert.equal(toVerificationStatus(anchoring(d).state), "VERIFIED");
   assert.equal(d.anchoringState, "verified");
-  assert.equal(d.anchoringStatusLabel, "Independently verified");
+  assert.equal(d.anchoringStatusLabel, "Verified by PROOVRA against Bitcoin");
   assert.equal(d.presentationState, "VERIFIED_FINALIZED");
   assertNoOverclaim(d);
 });

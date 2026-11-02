@@ -288,7 +288,7 @@ ${signatureOnPage1 ? signatureBlock : ""}
           ${renderAppendixSection(
             "Trusted Timestamp",
 timestampDigestLabel.includes("Canonical Package Digest")
-  ? "RFC 3161 timestamp metadata and timestamped digest reference. This digest may represent canonical package/fingerprint material rather than the original file SHA-256."
+  ? "RFC 3161 timestamp metadata and timestamped digest reference. This digest is the composite of a multipart record's file digests, not one file's SHA-256."
   : "RFC 3161 timestamp metadata and timestamped digest reference for the original preserved file SHA-256.",
             `
               ${renderKeyValueGrid(vm.technicalAppendix.timestampRows)}

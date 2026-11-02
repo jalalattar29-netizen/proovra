@@ -170,9 +170,9 @@ export type BasicVerification = {
     otsState: OtsState;
     /** The canonical verification key (CHAIN_VERIFIED is the only "verified"). */
     otsVerification: OtsVerificationKey;
-    /** "Attestation recorded" | "Independently verified" | "Pending" | … */
+    /** "Attestation recorded" | "Verified by PROOVRA against Bitcoin" | "Pending" | … */
     status: string;
-    /** "Bitcoin attestation recorded" | "Independently verified against the Bitcoin main chain" | … */
+    /** "Bitcoin attestation recorded" | "Verified against the Bitcoin main chain by PROOVRA" | … */
     label: string;
     sentence: string;
     /** "Not independently checked against Bitcoin" for an unchecked attestation, else null. */

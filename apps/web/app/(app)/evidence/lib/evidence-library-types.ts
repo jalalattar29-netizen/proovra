@@ -314,6 +314,7 @@ export type EvidenceRecord = {
   verificationPackageVersion: number | null;
   /** What the record's permanent verification page discloses (null on an older API). */
   verificationDisclosureMode?: "VERIFICATION_ONLY" | "CONTENT_PREVIEW" | null;
+  verificationAccessState?: string | null;
   latestReportVersion: number | null;
   reviewReadyAtUtc: string | null;
   reviewerSummaryVersion: number | null;

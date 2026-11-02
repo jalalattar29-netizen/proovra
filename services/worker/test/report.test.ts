@@ -320,10 +320,10 @@ describe("report v2 pipeline", () => {
     expect(html).toContain(up.txid!);
     expect(html.split("The stored OpenTimestamps proof names a Bitcoin block for the recorded evidence digest.").length - 1).toBe(1);
     expect(html).not.toContain("OpenTimestamps proof anchored in Bitcoin");
-    expect(html).not.toContain("Independently verified");
+    expect(html).not.toContain("Verified by PROOVRA against Bitcoin");
   });
 
-  it("an upgraded proof independently verified against the Bitcoin main chain renders Independently verified, consistently, with the verified boundary once", async () => {
+  it("an upgraded proof independently verified against the Bitcoin main chain renders Verified by PROOVRA against Bitcoin, consistently, with the verified boundary once", async () => {
     const up = upgradedProof();
     const vm = await buildReportViewModel(
       buildInput({
@@ -341,7 +341,7 @@ describe("report v2 pipeline", () => {
     expect(vm.canonicalMaterials.otsState.state).toBe("ANCHORED");
     expect(vm.canonicalMaterials.otsState.verification).toBe("CHAIN_VERIFIED");
     const html = renderReportHtml(vm);
-    expect(html).toContain("Independently verified against the Bitcoin main chain");
+    expect(html).toContain("Verified against the Bitcoin main chain by PROOVRA");
     expect(html).toContain(`Merkle root matches Bitcoin block ${up.blockHeight}`);
     // The report's own, shorter boundary (2026-10-30), once; the live surfaces' longer sentence not at all.
     expect(html.split(escapeHtml(OTS_REPORT_CHAIN_VERIFIED_BOUNDARY)).length - 1).toBe(1);

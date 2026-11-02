@@ -14,7 +14,7 @@ import { useActiveSpaceId, useTenantGuard } from "../../../../lib/platform-conte
 // imported as a type-only reference so the bundle isn't pulled in
 // when the env flag is off.
 import { routeFile } from "../../../../lib/uploads/feature-flag";
-import { planChunks } from "../../../../lib/uploads/retry";
+import { declaredObject, planChunks } from "../../../../lib/uploads/retry";
 import type { UseResumableUploadsApi } from "./useResumableUploads";
 import type { CapturePlanMode } from "../_lib/session-readiness";
 import type {
@@ -132,10 +132,6 @@ async function runResumableItemUpload(input: {
   const { evidenceId, evidenceTeamId, item, index, resumable, setSessionItems } =
     input;
   const expectedPartCount = planChunks(item.file.size).length;
-  const clientDigest = item.clientSignals?.clientHintSha256Base64 ?? null;
-  const expectedSha256 = clientDigest
-    ? Array.from(atob(clientDigest), (c) => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
-    : null;
   // 1. Create the upload session.
   const sessionRes = (await apiFetch("/v1/uploads/sessions", {
     method: "POST",
@@ -143,11 +139,7 @@ async function runResumableItemUpload(input: {
       teamId: evidenceTeamId,
       evidenceId,
       expectedPartCount,
-      // INGEST-006 — the size and digest of what was selected, so the server
-      // proves the stored object is that file. Without them a part ends HASHED,
-      // never VERIFIED, and corruption in transit would seal as the original.
-      expectedTotalBytes: item.file.size,
-      ...(expectedSha256 ? { expectedSha256 } : {}),
+      ...declaredObject(item.file.size, item.clientSignals?.clientHintSha256Base64),
       idempotencyKey: `capture:${evidenceId}:${index}`,
       targetPartIndex: index,
       originalFileName: item.relativePath || item.file.name,

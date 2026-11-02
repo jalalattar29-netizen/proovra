@@ -858,7 +858,7 @@ function buildStorageRows(
 
   rows.push(...otsRows);
 
-  if (anchorSummary) {
+  if (anchorSummary?.provider) {
     rows.push(
       {
         label: "External Anchor Provider",

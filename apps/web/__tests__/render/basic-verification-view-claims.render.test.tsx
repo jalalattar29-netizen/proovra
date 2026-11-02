@@ -90,7 +90,7 @@ describe("Basic Verify — Bitcoin anchoring is the server's verification (2026-
     // The recorded time is PROOVRA's recording, never a block time.
     expect(text).toContain("Attestation recorded by PROOVRA (UTC): 2026-09-01 00:00:00 UTC");
     expect(otsBadge(container).textContent).not.toMatch(/✓|Verified/);
-    expect(text).not.toMatch(/Independently verified against the Bitcoin main chain/);
+    expect(text).not.toMatch(/Verified against the Bitcoin main chain by PROOVRA/);
   });
 
   it("a CHAIN_VERIFIED claim without its chain fact is read as an attestation recorded", () => {
@@ -100,7 +100,7 @@ describe("Basic Verify — Bitcoin anchoring is the server's verification (2026-
       />,
     );
     expect(otsBadge(container).textContent).toBe("Attestation recorded");
-    expect(container.textContent).not.toMatch(/Independently verified/);
+    expect(container.textContent).not.toMatch(/Verified by PROOVRA against Bitcoin/);
   });
 
   it("CHAIN_VERIFIED renders the only green ✓ — independently verified, with height, confirmations and check time", () => {
@@ -119,7 +119,7 @@ describe("Basic Verify — Bitcoin anchoring is the server's verification (2026-
       />,
     );
     const text = container.textContent ?? "";
-    expect(otsBadge(container).textContent).toBe("✓ Independently verified");
+    expect(otsBadge(container).textContent).toBe("✓ Verified by PROOVRA against Bitcoin");
     expect(otsBadge(container).style.color).toBe("rgb(11, 93, 59)");
     expect(text).toMatch(/Merkle root matches Bitcoin block 812345; 11 confirmations at 2026-09-02/);
     expect(text).toContain(`Bitcoin block hash: ${"f".repeat(64)}`);

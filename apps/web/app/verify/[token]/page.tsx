@@ -1717,7 +1717,7 @@ export default function VerifyPage() {
                         }
                         subtitle={
                           tsaDetails.timestampedDigestNote ??
-                          "This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
+                          "This value may differ from the original file SHA-256 when the timestamp is applied to the composite digest of a multipart record."
                         }
                         value={tsaDetails.inputDigestHex}
                         forensicMode={forensicMode}

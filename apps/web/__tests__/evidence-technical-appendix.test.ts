@@ -319,7 +319,7 @@ test("anchoring label is the server's Bitcoin anchoring verification (2026-10-15
   // No chain check is recorded: no chain facts, and nothing says verified.
   assert.equal(byLabel["Bitcoin main-chain check"], undefined);
   assert.equal(byLabel["Confirmations"], undefined);
-  assert.doesNotMatch(JSON.stringify(rows), /Independently verified|✓/);
+  assert.doesNotMatch(JSON.stringify(rows), /Verified by PROOVRA against Bitcoin|✓/);
 
   assert.equal(timestampStatusLabel("STAMPED"), "Trusted timestamp recorded");
   assert.equal(timestampStatusLabel("PENDING"), "Trusted timestamp pending");
@@ -364,9 +364,9 @@ test("integrity rows: CHAIN_VERIFIED states the chain facts and the chain-verifi
       evidence,
     }).map((r) => [r.label, r.value]),
   );
-  assert.equal(verified["Bitcoin anchoring"], "Independently verified against the Bitcoin main chain");
+  assert.equal(verified["Bitcoin anchoring"], "Verified against the Bitcoin main chain by PROOVRA");
   assert.match(verified["Bitcoin anchoring detail"] ?? "", /^Merkle root matches Bitcoin block 812345; 12 confirmations at 2026-06-03/);
-  assert.equal(verified["Bitcoin main-chain check"], "Independently verified");
+  assert.equal(verified["Bitcoin main-chain check"], "Verified by PROOVRA against Bitcoin");
   assert.equal(verified["Bitcoin block hash"], "f".repeat(64));
   assert.equal(verified["Confirmations"], "12 (minimum 6)");
   assert.equal(verified["Checked (UTC)"], "2026-06-03T08:00:00Z");

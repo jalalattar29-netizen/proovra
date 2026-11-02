@@ -66,7 +66,7 @@ describe("provenance time layers (UC-TRUST-002)", () => {
       }),
       fmt,
     );
-    expect(verified).toMatch(/^✓ Independently verified against the Bitcoin main chain · Merkle root matches Bitcoin block 812345; 9 confirmations at 2026-09-02/);
+    expect(verified).toMatch(/^✓ Verified against the Bitcoin main chain by PROOVRA · Merkle root matches Bitcoin block 812345; 9 confirmations at 2026-09-02/);
   });
 
   it("the removed vocabulary and unknown states read as Unavailable; not requested / failed say so", () => {

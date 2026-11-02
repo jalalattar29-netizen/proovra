@@ -206,7 +206,7 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
   });
 
   // 2026-10-15: ANCHORED only NAMES a block. Unchecked, it is "Attestation
-  // recorded" — never Anchored/verified; "Independently verified" is said only
+  // recorded" — never Anchored/verified; "Verified by PROOVRA against Bitcoin" is said only
   // for a proof verified against the Bitcoin main chain (next test).
   it("a proof that executes to an unchecked Bitcoin attestation is Bitcoin anchoring — Attestation recorded, stated without any score", async () => {
     const up = upgradedProof();
@@ -229,7 +229,7 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     expect(html).not.toContain('data-signal-status="Anchored"');
   });
 
-  it("a proof independently verified against the Bitcoin main chain is Bitcoin anchoring — Independently verified, stated without any score", async () => {
+  it("a proof independently verified against the Bitcoin main chain is Bitcoin anchoring — Verified by PROOVRA against Bitcoin, stated without any score", async () => {
     const up = upgradedProof();
     const { vm, html, text } = await render({
       otsStatus: "ANCHORED",
@@ -243,8 +243,8 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     const row = vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!;
     expect(row.otsState).toBe("ANCHORED");
     expect(row.otsVerification).toBe("CHAIN_VERIFIED");
-    expect(row.statusLabel).toBe("Independently verified");
-    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Independently verified"');
+    expect(row.statusLabel).toBe("Verified by PROOVRA against Bitcoin");
+    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Verified by PROOVRA against Bitcoin"');
     expect(text).toContain(`Merkle root matches Bitcoin block ${up.blockHeight}`);
     expect(findForbiddenCustomerClaims(text)).toEqual([]);
   });

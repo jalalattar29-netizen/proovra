@@ -209,8 +209,8 @@ test("TRUTH: one status per fact — matrix, signals and original-evidence check
       expect(rows.package_completeness!.status).toBe("VERIFIED");
     }
     if (!basic.package.issued) expect(rows.package_signature!.status).toBe("NOT_APPLICABLE");
-    // OpenTimestamps: "Attestation recorded" is never "Independently verified".
-    expect(rows.ots_anchoring!.status === "VERIFIED").toBe(/Independently verified/.test(rows.ots_anchoring!.statusLabel ?? ""));
+    // OpenTimestamps: "Attestation recorded" is never "Verified by PROOVRA against Bitcoin".
+    expect(rows.ots_anchoring!.status === "VERIFIED").toBe(/Verified by PROOVRA against Bitcoin/.test(rows.ots_anchoring!.statusLabel ?? ""));
     // A canonical page has no publication step.
     expect(rows.public_verify_publication).toMatchObject({ status: "NOT_APPLICABLE" });
     expect(rows.public_verify_publication!.statement).toMatch(/Disclosure: (Verification only|Content preview)/);

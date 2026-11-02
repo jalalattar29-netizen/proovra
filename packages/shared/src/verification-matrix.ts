@@ -100,7 +100,7 @@ export type VerificationMatrixRow = {
    * The word a reader sees when it differs from the generic status word:
    * OpenTimestamps says the verification word (ots-anchoring
    * OTS_VERIFICATION_WORDS): "Attestation recorded" for a proof that only
-   * names a block, "Independently verified" only for a chain-verified one.
+   * names a block, "Verified by PROOVRA against Bitcoin" only for a chain-verified one.
    * Absent for every other row.
    */
   statusLabel?: string;

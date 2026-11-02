@@ -77,7 +77,7 @@ describe("MAX_FILES_REACHED — only triggers when there's a real evidence row t
     const writer = read(resolve(REPO_ROOT, "services/api/src/services/evidence/evidence-part-writer.service.ts"));
     assert.match(
       writer,
-      /if \(typeof input\.maxPartCount === "number" && input\.maxPartCount > 0\) \{\s*const held = await tx\.evidencePart\.count\(\{ where: \{ evidenceId: input\.evidenceId \} \}\);/,
+      /const held = await tx\.evidencePart\.count\(\{ where: \{ evidenceId: input\.evidenceId \} \}\);\s*if \(held >= cap\)/,
     );
     const orch = read(resolve(REPO_ROOT, "services/api/src/services/external-intake-orchestration.service.ts"));
     assert.match(orch, /maxPartCount: input\.link\.maxFileCountPerSession \?\? null,/);

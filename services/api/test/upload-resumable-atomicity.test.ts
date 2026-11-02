@@ -112,10 +112,19 @@ describe("the resumable sequence", () => {
 
   it("a completed session with no bridged part refuses the seal", async () => {
     const c = {
-      $queryRawUnsafe: vi
-        .fn()
-        .mockResolvedValueOnce([{ id: "s-1", state: "COMPLETED", completed_at_utc: new Date(), aborted_at_utc: null, expires_at_utc: new Date(), created_at_utc: new Date() }])
-        .mockResolvedValueOnce([{ id: "s-1" }]),
+      $queryRawUnsafe: vi.fn().mockResolvedValueOnce([
+        {
+          id: "s-1",
+          state: "COMPLETED",
+          completed_at_utc: new Date(),
+          aborted_at_utc: null,
+          expires_at_utc: new Date(),
+          created_at_utc: new Date(),
+          target_part_index: 0,
+          original_file_name: "large.mov",
+          bridged_evidence_part_id: null,
+        },
+      ]),
     };
     const gate = await evaluateUploadSessionFinalizeGate({ teamId: "t-1", evidenceId: "ev-1" }, c as never);
     expect(gate).toMatchObject({ ok: false, reason: "session_part_missing", sessionId: "s-1" });

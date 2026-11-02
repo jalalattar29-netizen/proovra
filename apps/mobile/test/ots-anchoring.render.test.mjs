@@ -198,18 +198,18 @@ test("a CHAIN_VERIFIED claim without a VERIFIED chain fact behind it reads as an
   }
 });
 
-test("CHAIN_VERIFIED is the only green ✓: 'Independently verified against the Bitcoin main chain' with its facts", () => {
+test("CHAIN_VERIFIED is the only green ✓: 'Verified against the Bitcoin main chain by PROOVRA' with its facts", () => {
   const card = M.otsCard(ANCHORED("CHAIN_VERIFIED", chain("VERIFIED")), "en", (iso) => iso.replace("T", " ").replace(".000Z", " UTC"));
   assert.equal(card.verification, "CHAIN_VERIFIED");
-  assert.equal(card.status, "Independently verified");
-  assert.equal(card.label, "Independently verified against the Bitcoin main chain");
+  assert.equal(card.status, "Verified by PROOVRA against Bitcoin");
+  assert.equal(card.label, "Verified against the Bitcoin main chain by PROOVRA");
   assert.equal(card.sentence, "Merkle root matches Bitcoin block 860123; 12 confirmations at 2026-09-03 12:00:00 UTC.");
   assert.equal(card.secondaryStatus, null);
   assert.equal(card.tone, "success");
   assert.equal(card.badgeTone, "verified");
   assert.equal(card.check, true);
-  assert.equal(M.otsBadgeLabel(card), "Independently verified ✓");
-  assert.equal(M.otsStatusLine(card), "Independently verified against the Bitcoin main chain ✓");
+  assert.equal(M.otsBadgeLabel(card), "Verified by PROOVRA against Bitcoin ✓");
+  assert.equal(M.otsStatusLine(card), "Verified against the Bitcoin main chain by PROOVRA ✓");
   assert.equal(card.facts.find((f) => f.key === "confirmations").value, "12");
   assert.equal(card.facts.find((f) => f.key === "blockHash").value, HASH);
   assert.ok(card.boundary.includes("merkle root"));
@@ -305,7 +305,7 @@ test("the preservation matrix never states 'Verified' for an unchecked attestati
   assert.equal(ER.INTEGRITY_STATE_PRESENTATION[recorded.state].label, "Recorded");
   const verified = row(ANCHORED("CHAIN_VERIFIED", chain("VERIFIED")));
   assert.equal(verified.state, "verified");
-  assert.equal(verified.value, "Independently verified against the Bitcoin main chain ✓");
+  assert.equal(verified.value, "Verified against the Bitcoin main chain by PROOVRA ✓");
   assert.equal(row(ANCHORED("CHAIN_FAILED", chain("FAILED"))).state, "failed");
   assert.equal(row({ state: "FAILED", failureCode: "MALFORMED_PROOF" }).state, "failed");
   assert.equal(row({ state: "PENDING" }).state, "pending");
@@ -322,7 +322,7 @@ test("Public Verify: an unchecked attestation is neutral, CHAIN_VERIFIED success
   assert.equal(recorded.label, "Bitcoin attestation recorded — Not independently checked against Bitcoin");
   const verified = PV.verifyOtsTone(ANCHORED("CHAIN_VERIFIED", chain("VERIFIED")), "en");
   assert.equal(verified.tone, "success");
-  assert.equal(verified.label, "Independently verified against the Bitcoin main chain ✓");
+  assert.equal(verified.label, "Verified against the Bitcoin main chain by PROOVRA ✓");
   assert.equal(PV.verifyOtsTone(ANCHORED("CHAIN_FAILED", chain("FAILED")), "en").tone, "danger");
   assert.equal(PV.verifyOtsTone({ state: "FAILED" }, "en").tone, "danger");
   assert.equal(PV.verifyOtsTone({ state: "PENDING" }, "en").tone, "neutral");
@@ -344,7 +344,7 @@ test("Public Verify: an unchecked attestation is neutral, CHAIN_VERIFIED success
   assert.equal(rec.tone, "neutral");
   assert.ok(rec.statement.startsWith("Not independently checked against Bitcoin."));
   const ver = matrixRow("PASSED", "CHAIN_VERIFIED");
-  assert.equal(ver.statusLabel, "Independently verified ✓");
+  assert.equal(ver.statusLabel, "Verified by PROOVRA against Bitcoin ✓");
   assert.equal(ver.tone, "success");
   // A CHAIN_FAILED row is danger, and the review note is the SERVER row itself (2026-10-18:
   // no mismatch sentence is derived locally from the OTS view).
@@ -366,7 +366,7 @@ test("rendered: an anchoring block without otsState (an older API) is Unavailabl
   assert.equal(b.tone, "neutral");
   assert.ok(!r.hasText(TXID), "a txid shown for an unknown state");
   assert.ok(!r.hasText("Anchored"));
-  assert.ok(!r.hasText("Independently verified"));
+  assert.ok(!r.hasText("Verified by PROOVRA against Bitcoin"));
 });
 
 test("rendered: ANCHORED without chain verification shows 'Bitcoin attestation recorded' + 'Not independently checked against Bitcoin', neutral, no ✓", async () => {
@@ -384,12 +384,12 @@ test("rendered: ANCHORED without chain verification shows 'Bitcoin attestation r
   assert.ok(!r.hasText("server words are never printed"));
 });
 
-test("rendered: CHAIN_VERIFIED shows the green 'Independently verified against the Bitcoin main chain ✓'", async () => {
+test("rendered: CHAIN_VERIFIED shows the green 'Verified against the Bitcoin main chain by PROOVRA ✓'", async () => {
   const r = await view(data(anchoring("ANCHORED", "CHAIN_VERIFIED", { chain: chain("VERIFIED") })));
   const b = otsBadge(r, "CHAIN_VERIFIED");
-  assert.equal(b.label, "Independently verified ✓");
+  assert.equal(b.label, "Verified by PROOVRA against Bitcoin ✓");
   assert.equal(b.tone, "verified");
-  assert.ok(b.texts.includes("Independently verified against the Bitcoin main chain ✓"));
+  assert.ok(b.texts.includes("Verified against the Bitcoin main chain by PROOVRA ✓"));
   assert.ok(r.hasText("Merkle root matches Bitcoin block 860123; 12 confirmations at 2026-09-03 12:00:00 UTC."));
   assert.ok(!r.hasText("Not independently checked against Bitcoin"));
 });

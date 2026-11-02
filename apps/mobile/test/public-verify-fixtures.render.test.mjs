@@ -124,7 +124,7 @@ test("VERIFICATION_ONLY: Item 1–6 only, no names, the reference, the record ki
 test("VERIFICATION_ONLY report v1: OpenTimestamps independently verified now, attestation recorded at issue, VERIFICATION_ADVANCED informational, no danger", async () => {
   const r = await render(VO1);
   // The matrix row is the current state.
-  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Independently verified ✓"]);
+  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Verified by PROOVRA against Bitcoin ✓"]);
   // The at-issue state is the snapshot's; "advanced" is the server's liveAnchoring.advance.
   has(r, "Bitcoin anchoring (when issued)");
   assert.ok(textsIn(r, "verify-snapshot").includes("Attestation recorded"));

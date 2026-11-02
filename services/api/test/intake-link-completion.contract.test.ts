@@ -88,7 +88,7 @@ describe("ONE_TIME link consumption remains intact (transitionIntakeSession to S
     const reserveAt = orch.indexOf("await reserveIntakeLinkUse(input.link.id, client)");
     const completeAt = orch.indexOf("await completeEvidence({", reserveAt);
     assert.ok(reserveAt > 0 && completeAt > reserveAt, "the reservation precedes finalization");
-    assert.match(orch, /\} catch \(err\) \{\s*await releaseIntakeLinkUse\(input\.link\.id, client\);/);
+    assert.match(orch, /\} catch \(err\) \{[\s\S]{0,500}if \(!sealed\) await releaseIntakeLinkUse\(input\.link\.id, client\);/);
     const sess = read("services/api/src/services/workflow-intake-session.service.ts");
     assert.match(sess, /WHERE id = \$\{linkId\}::uuid AND used_count < max_uses/);
     assert.doesNotMatch(sess, /usedCount: \{ increment: 1 \}/);

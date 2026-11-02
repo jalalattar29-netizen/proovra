@@ -27,8 +27,8 @@
  *   4. `tsaDigest`        — the message imprint the platform sent to the
  *                            RFC 3161 TSA AND the imprint the response
  *                            certifies. Source-of-truth columns:
- *                              * sent — `evidence.tsaMessageImprint`
- *                              * accepted — `evidence.tsaInputDigestHex`
+ *                              * sent — `evidence.tsaInputDigestHex`
+ *                              * accepted — `evidence.tsaMessageImprint`
  *                            On a STAMPED row, both columns MUST be
  *                            equal AND MUST equal what was sent to the
  *                            provider. `evidence.tsaInputKind` carries

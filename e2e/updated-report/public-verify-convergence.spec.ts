@@ -315,7 +315,7 @@ test("B OpenTimestamps: chain verified → VERIFIED; verifier unavailable → st
     );
   chain("VERIFIED");
   let b = (await publicVerify(rec.ref)).body;
-  expect(row(b, "ots_anchoring")).toMatchObject({ status: "VERIFIED", statusLabel: "Independently verified" });
+  expect(row(b, "ots_anchoring")).toMatchObject({ status: "VERIFIED", statusLabel: "Verified by PROOVRA against Bitcoin" });
   await openPage(page, rec.ref, 1366, "ots-independently-verified");
   chain("UNAVAILABLE");
   b = (await publicVerify(rec.ref)).body;

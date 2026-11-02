@@ -62,7 +62,7 @@ test("Verify: an ANCHORED state without a chain check is a neutral 'Bitcoin atte
 test("Verify: only CHAIN_VERIFIED with a coherent chain fact is the success badge; CHAIN_FAILED is danger", () => {
   const chain = { status: "VERIFIED", blockHeight: 812345, blockHash: "f".repeat(64), confirmations: 7, minConfirmations: 6, checkedAtUtc: "2026-09-02T00:00:00Z" };
   assert.deepEqual(otsTone({ state: "ANCHORED", verification: "CHAIN_VERIFIED", chain }), {
-    label: "Independently verified against the Bitcoin main chain",
+    label: "Verified against the Bitcoin main chain by PROOVRA",
     tone: "success",
   });
   assert.deepEqual(otsTone({ state: "ANCHORED", verification: "CHAIN_FAILED", chain: { ...chain, status: "FAILED", failureCode: "ROOT_MISMATCH" } }), {

@@ -36,12 +36,12 @@ describe("nextOtsChainCheckDelayMs", () => {
     expect(missing(OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS + HOUR)).toBeNull();
   });
 
-  it("an unavailable verifier keeps the hourly recheck (an operational condition, not a proof outcome)", () => {
+  it("an unavailable verifier backs off to a daily recheck and never gives up (an operational condition, not a proof outcome)", () => {
     expect(
       nextOtsChainCheckDelayMs(
         { state: "ANCHORED", anchoredAtUtc: anchored(90 * 24 * HOUR), chain: chain("UNAVAILABLE", { failureCode: "BTC_RPC_UNAVAILABLE" }) },
         now,
       ),
-    ).toBe(HOUR);
+    ).toBe(24 * HOUR);
   });
 });

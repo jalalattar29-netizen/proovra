@@ -175,8 +175,8 @@ test("the Technical tab's Bitcoin anchoring signal: an unchecked attestation is 
   r = await render();
   await r.press("Technical");
   await settle();
-  assert.deepEqual(badge(r), ["Independently verified ✓"]);
-  assert.ok(r.hasText("Independently verified against the Bitcoin main chain ✓"));
+  assert.deepEqual(badge(r), ["Verified by PROOVRA against Bitcoin ✓"]);
+  assert.ok(r.hasText("Verified against the Bitcoin main chain by PROOVRA ✓"));
   r.unmount();
 
   routes["/v1/evidence/ev-1/review-workspace"] = () => RW(decision("FAILED", "CHAIN_FAILED", "failed"));

@@ -648,5 +648,17 @@ export function nextOtsChainCheckDelayMs(
     if (age >= 24 * HOUR) return 6 * HOUR;
     return HOUR;
   }
+  /*
+   * CRYPTO-008 — the verifier could not answer. It backs off with the same
+   * ladder, so a dead node costs each record one check a day rather than one an
+   * hour for ever. It never gives up: the answer is still owed when the node returns.
+   */
+  if (c.status === "UNAVAILABLE") {
+    const anchoredAt = anchoring.anchoredAtUtc ? new Date(anchoring.anchoredAtUtc).getTime() : Number.NaN;
+    const age = Number.isFinite(anchoredAt) ? now - anchoredAt : 0;
+    if (age >= 7 * 24 * HOUR) return 24 * HOUR;
+    if (age >= 24 * HOUR) return 6 * HOUR;
+    return HOUR;
+  }
   return HOUR;
 }

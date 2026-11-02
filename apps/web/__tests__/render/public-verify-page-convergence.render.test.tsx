@@ -330,12 +330,12 @@ describe("Public Verify page — report v1 issued on a legacy snapshot", () => {
   it("states the OTS advance once, the at-issue statement, and no danger reason", async () => {
     await mountPage();
     const ots = screen.getByTestId("verify-ots-card");
-    expect(ots.querySelector("[data-verify-ots-now]")?.textContent).toContain("Independently verified");
+    expect(ots.querySelector("[data-verify-ots-now]")?.textContent).toContain("Verified by PROOVRA against Bitcoin");
     expect(ots.querySelector("[data-verify-ots-at-issue]")?.textContent).toContain("Attestation recorded");
     expect(ots.querySelector("[data-verify-ots-advance='CHAIN_VERIFIED_SINCE_ISSUE']")?.textContent).toContain(
-      "Independently verified since the report was issued",
+      "Verified by PROOVRA against Bitcoin since the report was issued",
     );
-    expect(text().match(/Independently verified since the report was issued/g)).toHaveLength(1);
+    expect(text().match(/Verified by PROOVRA against Bitcoin since the report was issued/g)).toHaveLength(1);
     // VERIFICATION_ADVANCED is informational — never a danger reason.
     const reason = document.querySelector("[data-reason-code='VERIFICATION_ADVANCED']") as HTMLElement;
     expect(reason.getAttribute("data-tone")).toBe("info");
