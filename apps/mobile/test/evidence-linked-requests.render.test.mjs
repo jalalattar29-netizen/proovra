@@ -128,13 +128,17 @@ test("an email typed for an external contributor is NOT sent after switching to 
 });
 
 test("no intakeIncluded → no panel; a disabled feature (503) hides it; other failures are said", async () => {
+  // A session of its own per plan: within one, the shared context answers from
+  // what it knows and revalidates (MOBILE-013).
   routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { intakeIncluded: false } });
+  await signIn(M, "no-intake-session");
   let r = await render();
   assert.equal(r.byTestId("evidence-linked-requests").length, 0);
   assert.ok(!requests.some((q) => q.path === LIST), "read requests for a plan without intake");
   r.unmount();
 
   routes["/v1/platform/context"] = () => platformContextEnvelope({ planFeatures: { intakeIncluded: true } });
+  await signIn(M, "intake-session");
   routes[LIST] = () => ({ __status: 503, error: { code: "FEATURE_DISABLED" } });
   r = await render();
   assert.equal(r.byTestId("evidence-linked-requests").length, 0);
