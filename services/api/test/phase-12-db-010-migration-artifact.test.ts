@@ -171,6 +171,20 @@ describe("§7 — DB-010: the migration artifact gate", () => {
     );
   });
 
+  it("4b — a catalog existence condition guards a drop only when it comes first, and only in code", () => {
+    const check = `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_index WHERE indisunique) THEN RAISE NOTICE 'x'; END IF; END $$;`;
+    const drop = `ALTER TABLE "t" DROP CONSTRAINT IF EXISTS "t_key";`;
+    const refusal = (body: string) => {
+      const a = freshArtifact(`i4b-${body.length}`);
+      write(a, "20271108000000_catalog_guard_probe", body);
+      return codes(verifyArtifact({ artifactDir: a, wave: "D" }));
+    };
+    expect(refusal(`${check}\n${drop}\n`)).not.toContain("DESTRUCTIVE_WITHOUT_GUARD");
+    expect(refusal(`${check}\n${drop}\n`)).not.toContain("GUARD_AFTER_DESTRUCTIVE");
+    expect(refusal(`${drop}\n${check}\n`)).toContain("GUARD_AFTER_DESTRUCTIVE");
+    expect(refusal(`-- pg_index was checked by hand\n${drop}\n`)).toContain("DESTRUCTIVE_WITHOUT_GUARD");
+  });
+
   it("5 — a Point-4 contract migration in Release A/B/C is refused", () => {
     // No injection needed: the SAME artifact, declared for an earlier wave.
     // That is the point — the file is fine, its PLACEMENT is not.

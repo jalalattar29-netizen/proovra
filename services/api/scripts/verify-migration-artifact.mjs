@@ -187,9 +187,11 @@ export function classifyMigration(sql) {
  * Where the first destructive statement appears, in COMMENT-STRIPPED offsets,
  * and where the last guard that could authorise it appears.
  *
- * A "guard" is an executable refusal — `RAISE EXCEPTION` — or an
- * `information_schema` existence condition. Prose is not a guard, which is why
- * comments are stripped before either is located.
+ * A "guard" is an executable refusal — `RAISE EXCEPTION` — or an existence
+ * condition read from `information_schema`, or from `pg_index` or
+ * `pg_constraint` for what `information_schema` cannot show (a unique index is
+ * not a table constraint there). Prose is not a guard, which is why comments are
+ * stripped before either is located.
  */
 export function guardPosition(sql) {
   const bare = stripComments(sql);
@@ -215,7 +217,7 @@ export function guardPosition(sql) {
     }
   }
   const raise = bare.search(/\bRAISE\s+EXCEPTION\b/i);
-  const infoSchema = bare.search(/\binformation_schema\b/i);
+  const infoSchema = bare.search(/\b(?:information_schema|pg_index|pg_constraint)\b/i);
   const firstGuard = Math.min(
     raise < 0 ? Infinity : raise,
     infoSchema < 0 ? Infinity : infoSchema,
