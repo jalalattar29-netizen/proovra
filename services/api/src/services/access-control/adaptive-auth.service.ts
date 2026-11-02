@@ -62,6 +62,7 @@ export async function decideAdaptiveAuth(
     select: {
       id: true,
       userId: true,
+      sessionIdHash: true,
       issuedAtUtc: true,
       riskScore: true,
       deviceIdHash: true,
@@ -111,6 +112,29 @@ export async function decideAdaptiveAuth(
   };
   const decision = evaluateAdaptiveAuth(sharedInput);
 
+  // Force the session out — JWT middleware rejects on next request. Revoked by
+  // the hash tokens are checked against (IDENT-019): the session's row id is a
+  // value no token carries, so this used to revoke nothing. The caller answers
+  // this request either way, so a failed write here is not a new refusal.
+  const forceSessionOut = async () => {
+    try {
+      await revokeSession(
+        {
+          teamId: input.teamId,
+          userId: input.userId,
+          sessionIdHash: session.sessionIdHash,
+          reason: "SUSPICIOUS_ACTIVITY",
+          actorUserId: null,
+          ipAddress: null,
+          userAgent: null,
+        },
+        client,
+      );
+    } catch {
+      /* best-effort */
+    }
+  };
+
   // Side-effects per decision.
   switch (decision.decision) {
     case "REQUIRE_STEP_UP": {
@@ -131,23 +155,7 @@ export async function decideAdaptiveAuth(
     }
     case "REQUIRE_REAUTH": {
       bump("forced_reauth_total");
-      // Force the session out — JWT middleware rejects on next request.
-      try {
-        await revokeSession(
-          {
-            teamId: input.teamId,
-            userId: input.userId,
-            sessionIdHash: hashFromSession(session.id),
-            reason: "SUSPICIOUS_ACTIVITY",
-            actorUserId: null,
-            ipAddress: null,
-            userAgent: null,
-          },
-          client,
-        );
-      } catch {
-        /* best-effort */
-      }
+      await forceSessionOut();
       safeEmitSecurityEvent({
         teamId: input.teamId,
         eventType: "forced_reauthentication",
@@ -163,6 +171,7 @@ export async function decideAdaptiveAuth(
     }
     case "BLOCK": {
       bump("adaptive_block_total");
+      await forceSessionOut();
       safeEmitSecurityEvent({
         teamId: input.teamId,
         eventType: "adaptive_block_triggered",
@@ -187,23 +196,6 @@ export async function decideAdaptiveAuth(
     trustedDevice,
     sessionId: input.sessionId,
   };
-}
-
-// The session id itself is a UUID; the canonical hash store key is the
-// `sessionIdHash` we wrote on insert. We don't have the raw `sid`
-// anymore here, so we use a deterministic helper that pulls the hash
-// from the AuthenticatedSession row directly when the route layer
-// resolved the session.
-function hashFromSession(_sessionId: string): string {
-  // Phase 26.5: the adaptive-auth path runs AFTER the auth middleware,
-  // which already loaded the session row. Routes invoking this engine
-  // pass the AuthenticatedSession.id; the engine fetches the matching
-  // sessionIdHash for revocation. For now, return a deterministic
-  // placeholder so the build compiles; the real revocation goes through
-  // the session-inventory `revokeActiveSession` API in the route layer.
-  // Routes are expected to call `revokeActiveSession` when decision =
-  // REQUIRE_REAUTH; this in-engine revoke is a safety net only.
-  return _sessionId;
 }
 
 export { evaluateAdaptiveAuth };

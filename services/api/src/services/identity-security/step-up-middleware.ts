@@ -77,17 +77,24 @@ export type RequireStepUpSuccess = {
  * mutation. Returns { sent: true } when the response has already
  * been sent (401/403); caller must early-return.
  */
+const CHALLENGE_ID_SHAPE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function requireStepUpForSensitiveAction(
   input: RequireStepUpInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RequireStepUpFailure | RequireStepUpSuccess> {
   const headerValue = input.req.headers[STEP_UP_HEADER];
-  const challengeId =
+  const presented =
     typeof headerValue === "string"
       ? headerValue.trim()
       : Array.isArray(headerValue) && headerValue[0]
         ? String(headerValue[0]).trim()
         : "";
+  // RT-001 — an id that cannot exist is no challenge at all. Handed to the
+  // database it raised an invalid-uuid error, a 500 and a critical alert, which
+  // any signed-in member could fire at will.
+  const challengeId = CHALLENGE_ID_SHAPE.test(presented) ? presented : "";
 
   if (!challengeId) {
     safeEmitSecurityEvent(

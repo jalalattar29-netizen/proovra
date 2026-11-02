@@ -54,6 +54,7 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 import { resolveLoginMfaEnforcement } from "../services/security/login-mfa-enforcement.service.js";
 // PHASE 13 §1.4 — the canonical trusted-client-IP binding; see `readClientIp`.
 import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { detectAndScoreSession } from "../services/access-control/suspicious-session.service.js";
 import {
   completeSsoSession,
   type SsoSessionCompletion,
@@ -248,6 +249,13 @@ async function recordSessionFromSignedToken(
           }
         : {}),
     });
+    // IDENT-019 — scored like an SSO session, which scores in its completion, so
+    // a password or social session does not read as LOW only because nobody
+    // looked. A session with no workspace yet has nothing to compare against.
+    const scoreTeamId = teamId ?? user.currentWorkspaceId ?? null;
+    if (!isSso && scoreTeamId) {
+      await detectAndScoreSession({ teamId: scoreTeamId, sessionId: session.id }).catch(() => null);
+    }
     return { sessionId: session.id, sid: payload.sid };
   } catch {
     // Best-effort. A failed inventory write must not break login.
