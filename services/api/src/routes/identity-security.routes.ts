@@ -210,8 +210,8 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
   const StartBody = z.object({
     teamId: z.string().uuid(),
     purpose: z.enum(STEP_UP_PURPOSES as unknown as [string, ...string[]]),
-    resourceKind: z.string().min(1).max(64).optional(),
-    resourceId: z.string().min(1).max(128).optional(),
+    resourceKind: z.string().min(1).max(64).nullable().optional(),
+    resourceId: z.string().min(1).max(128).nullable().optional(),
     /**
      * PHASE 13 (NEW-058) — `phone` IS GONE, AND ITS ABSENCE IS THE FIX.
      *
