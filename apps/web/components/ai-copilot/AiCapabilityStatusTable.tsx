@@ -112,7 +112,7 @@ export function AiCapabilityStatusTable() {
         // (app-panel app-panel__body + chips). Shares only the canonical polished
         // scrollbar (.legal-scroll); keeps its own compact chrome.
         <div className="legal-scroll" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", minWidth: 860, fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ textAlign: "left", opacity: 0.7 }}>
                 <th style={{ padding: "6px 8px" }}>Capability</th>

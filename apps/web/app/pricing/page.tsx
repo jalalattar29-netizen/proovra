@@ -920,7 +920,7 @@ export default function MarketingPricingPage() {
         <div className="relative z-10">
           <MarketingHeader />
 
-          <section className="mx-auto max-w-7xl px-6 pb-14 pt-16 text-center md:px-8 md:pb-20 md:pt-20 lg:pt-24">
+          <section className="w-full mx-auto max-w-7xl px-6 pb-14 pt-16 text-center md:px-8 md:pb-20 md:pt-20 lg:pt-24">
             <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/95 px-4 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#5B21B6]" />
               Pricing &amp; Plans
@@ -963,7 +963,7 @@ export default function MarketingPricingPage() {
       </div>
 
       <RevealSection direction="up">
-      <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
+      <section className="w-full relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
         <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-5">
           {plans.map((plan) => {
             if (plan.enterprise) {
@@ -1134,7 +1134,7 @@ export default function MarketingPricingPage() {
       </RevealSection>
 
       <RevealSection direction="right">
-      <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
+      <section className="w-full relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
 <div className="text-center">
   <SectionKicker>Every plan includes</SectionKicker>
 </div>
@@ -1167,7 +1167,7 @@ export default function MarketingPricingPage() {
       </RevealSection>
 
       <RevealSection direction="left">
-      <section className="relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
+      <section className="w-full relative mx-auto max-w-[1500px] px-6 pt-8 md:px-8 2xl:px-10">
         {/* Enterprise card surface — icon-card.png. The asset is a dark
             navy/purple artwork with the brand mark embedded on the right;
             text + features below switch to white to read against it. A
@@ -1341,7 +1341,7 @@ export default function MarketingPricingPage() {
 
         return (
           <>
-            <section className="relative mx-auto mt-8 max-w-7xl px-6 pb-8 md:mt-10 md:px-8 md:pb-10">
+            <section className="w-full relative mx-auto mt-8 max-w-7xl px-6 pb-8 md:mt-10 md:px-8 md:pb-10">
               <SectionKicker>Plans &amp; Capacity</SectionKicker>
               <TableBlock rows={capacityRows} />
               <div className="mt-3 text-[0.78rem] text-[#64748B]">
@@ -1354,7 +1354,7 @@ export default function MarketingPricingPage() {
               </div>
             </section>
 
-            <section className="relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
+            <section className="w-full relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
               <SectionKicker>Operations &amp; Governance</SectionKicker>
               <TableBlock rows={operationsRows} />
             </section>
@@ -1363,7 +1363,7 @@ export default function MarketingPricingPage() {
       })()}
 
       <RevealSection direction="up">
-      <section className="relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
+      <section className="w-full relative mx-auto max-w-7xl px-6 pb-12 md:px-8 md:pb-16">
 <SectionKicker>Why organizations choose PROOVRA</SectionKicker>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1399,7 +1399,7 @@ export default function MarketingPricingPage() {
       </RevealSection>
 
       <RevealSection direction="right">
-      <section className="relative mx-auto max-w-7xl px-6 pb-16 md:px-8 md:pb-20">
+      <section className="w-full relative mx-auto max-w-7xl px-6 pb-16 md:px-8 md:pb-20">
         <div
           className="overflow-hidden rounded-[28px] p-8 text-white shadow-[0_24px_60px_rgba(91,33,182,0.26)] md:p-10"
           style={{

@@ -238,7 +238,7 @@ export default function AboutPage() {
         <div className="relative z-10">
           <MarketingHeader />
 
-          <section className="mx-auto max-w-[1320px] px-6 pb-24 pt-20 md:px-8 lg:pb-28 lg:pt-28">
+          <section className="w-full mx-auto max-w-[1320px] px-6 pb-24 pt-20 md:px-8 lg:pb-28 lg:pt-28">
             <div className="max-w-[640px]">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#E0E7FF] bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#7A3CFF]" />

@@ -888,7 +888,7 @@ export function MatterWorkspace({
           `data-tab-id`, `data-section-status` and the keyboard shortcuts are
           unchanged. */}
       <nav
-        className="app-tabs"
+        className="app-tabs app-tabs--wrap"
         role="tablist"
         aria-label="Case sections"
         data-matter-case-tabs

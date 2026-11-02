@@ -200,7 +200,7 @@ function FinalCTA() {
   // FAQ section above so the CTA reads as a fresh major section, not a
   // continuation of the FAQ list.
   return (
-    <section className="relative mx-auto max-w-[1320px] px-6 pt-16 pb-12 md:px-8 md:pt-20 md:pb-16">
+    <section className="w-full relative mx-auto max-w-[1320px] px-6 pt-16 pb-12 md:px-8 md:pt-20 md:pb-16">
       <div
         className="relative overflow-hidden rounded-[28px] p-8 text-white shadow-[0_32px_80px_rgba(6,20,46,0.40)] md:p-12"
         style={{

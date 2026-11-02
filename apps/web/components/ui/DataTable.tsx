@@ -190,8 +190,6 @@ export function DataTable<T>({
                   padding: pad,
                   textAlign: "right",
                   width: 1,
-                  position: "sticky",
-                  insetInlineEnd: 0,
                   background: "var(--surface-muted, #f8fafc)",
                   zIndex: 2,
                 }}
@@ -341,8 +339,6 @@ export function DataTable<T>({
                         borderBottom:
                           "1px solid var(--border-subtle, rgba(15,23,42,0.06))",
                         verticalAlign: "middle",
-                        position: "sticky",
-                        insetInlineEnd: 0,
                         background: "var(--surface-card, #ffffff)",
                         zIndex: 1,
                       }}

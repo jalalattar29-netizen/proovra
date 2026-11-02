@@ -71,6 +71,14 @@
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
+/* The launcher's own box. The hint anchors to it, and on a phone it is what
+   carries the launcher to the end of the row. */
+.assistant-launcher-slot {
+  position: relative;
+  align-self: flex-end;
+  block-size: 3rem;
+}
+
 .assistant-launcher:hover {
   transform: translateY(-1px);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.26);
@@ -418,10 +426,16 @@
    PHONE — the panel becomes a sheet.
 --------------------------------------------------------------------------- */
 @media (max-width: 640px) {
+  /* The dock spans the width only while the panel is open. Closed, it used to
+     stretch across the screen anyway: the launcher landed at the wrong end, and
+     an invisible 48px strip took every tap along the bottom of the page. */
   .assistant-dock {
     right: 0.75rem;
-    left: 0.75rem;
     bottom: 0.75rem;
+  }
+
+  .assistant-dock:has(.assistant-panel) {
+    left: 0.75rem;
     align-items: stretch;
   }
 
@@ -429,10 +443,6 @@
     inline-size: 100%;
     max-block-size: calc(100dvh - 6rem);
     border-radius: 16px 16px 12px 12px;
-  }
-
-  .assistant-launcher {
-    align-self: flex-end;
   }
 
   /* A phone has no spare corner: the launcher's aria-label names it instead. */

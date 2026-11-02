@@ -62,7 +62,7 @@ export default async function LegalPage({
           article, stretches text, or breaks the reading flow. The
           wide-table breakout is intentionally NOT enabled here (no
           `data-legal-doc`); it applies only to the authenticated shell. */}
-      <section className="mx-auto max-w-5xl px-6 py-12 md:px-8 md:py-16">
+      <section className="w-full mx-auto max-w-5xl px-6 py-12 md:px-8 md:py-16">
         <article className={LEGAL_ARTICLE_CLASSES} data-legal-content>
           {renderLegalMarkdown(content)}
         </article>
