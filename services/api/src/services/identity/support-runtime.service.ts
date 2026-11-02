@@ -35,6 +35,7 @@ import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import {
   evaluateSupportAccess,
   evaluateSupportActionAllowed,
+  recordSupportAccessForCustomer,
   type SupportAccessGrant,
   type SupportAccessLevel,
 } from "./support-access.service.js";
@@ -357,6 +358,15 @@ export async function recordSupportContextEntry(
       userAgent: input.userAgent ?? null,
     },
   }, client).catch(() => null);
+  if (input.outcome === "success" && grant) {
+    await recordSupportAccessForCustomer(client, {
+      eventType: "ORG_SUPPORT_ACCESS_ENTERED",
+      organizationId: grant.organizationId,
+      actorUserId: input.actorUserId,
+      grantId: input.grantId,
+      metadata: { accessLevel: grant.accessLevel },
+    });
+  }
 }
 
 export type AuthorizeSupportActionInput = {
@@ -610,6 +620,7 @@ export async function applySupportAccessGuard(
     client,
   );
   if (!resolved.context) {
+    await auditGuardRefusal(input, organizationId, resolved.reason, client);
     return { allowed: false, reason: resolved.reason };
   }
   const context = resolved.context;
@@ -618,9 +629,11 @@ export async function applySupportAccessGuard(
   // (the default) skips straight to the authority check below.
   if (context.mode === "ELEVATED") {
     if (!context.approvedByUserId) {
+      await auditGuardRefusal(input, organizationId, "elevated_approval_missing", client);
       return { allowed: false, reason: "elevated_approval_missing" };
     }
     if (!input.hasStepUpProof) {
+      await auditGuardRefusal(input, organizationId, "elevated_step_up_required", client);
       return { allowed: false, reason: "elevated_step_up_required" };
     }
   }
@@ -642,6 +655,94 @@ export async function applySupportAccessGuard(
     return { allowed: false, reason: decision.reason ?? "support_read_only" };
   }
   return { allowed: true, context };
+}
+
+/**
+ * A refusal decided before `authorizeSupportAction` runs has to reach the trail
+ * too. Scope, expiry and revocation are all decided in the context resolution, so
+ * the denial branch inside `authorizeSupportAction` is unreachable for them: an
+ * actor reaching outside a grant, or still using a revoked one, left no row.
+ */
+async function auditGuardRefusal(
+  input: SupportAccessGuardInput,
+  organizationId: string,
+  reason: SupportRuntimeDenyReason,
+  client: PrismaClient,
+): Promise<void> {
+  const grant = await fetchGrantById(client, input.grantId).catch(() => null);
+  const context: SupportRuntimeContext = grant
+    ? { ...toContext(grant), supportActorUserId: input.actorUserId }
+    : {
+        grantId: input.grantId,
+        supportActorUserId: input.actorUserId,
+        organizationId,
+        teamId: null,
+        mode: "READ_ONLY",
+        reason: "",
+        expiresAtUtc: new Date(0).toISOString(),
+        approvedByUserId: null,
+      };
+  await auditSupportAction(
+    {
+      context,
+      action: deriveSupportActionFromPermission(input.permission),
+      customerOrganizationId: organizationId,
+      requestedTeamId: input.teamId,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+    },
+    "denied",
+    reason,
+    client,
+  );
+}
+
+/**
+ * May this context write at all? The boundary `requireAuth` applies on every
+ * authenticated route, whether or not that route reaches the canonical chain
+ * (middleware/support-context-boundary.ts). Re-reads the grant, so an expiry or a
+ * revocation ends the context here as it does on the chain. Only an ELEVATED
+ * grant passes, and it still meets the forbidden actions wherever the route runs
+ * the guard. Fails closed, and a refusal is audited with both identities.
+ */
+export async function evaluateSupportContextWrite(
+  input: {
+    actorUserId: string;
+    grantId: string;
+    /** "POST /v1/cases": the route, since no permission has been resolved yet. */
+    action: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  },
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const grant = await fetchGrantById(client, input.grantId);
+  if (!grant || grant.supportUserId !== input.actorUserId) return false;
+  const evaluation = evaluateSupportAccess(grant, {
+    organizationId: grant.organizationId,
+    teamId: grant.teamId,
+    nowMs: Date.now(),
+  });
+  const reason: SupportRuntimeDenyReason | null = !evaluation.active
+    ? ((evaluation.reason as SupportRuntimeDenyReason) ?? "inactive")
+    : grant.accessLevel === "ELEVATED"
+      ? null
+      : "support_read_only";
+  if (reason === null) return true;
+  await auditSupportAction(
+    {
+      context: toContext(grant),
+      action: input.action,
+      customerOrganizationId: grant.organizationId,
+      requestedTeamId: grant.teamId,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+    },
+    "denied",
+    reason,
+    client,
+  );
+  return false;
 }
 
 // ===========================================================================

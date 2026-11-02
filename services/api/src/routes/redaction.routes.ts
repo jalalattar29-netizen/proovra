@@ -54,6 +54,8 @@ import {
   type RedactionDenialReason,
 } from "@proovra/shared";
 
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
 import { prisma } from "../db.js";
 // Macro-Wave A1 — the derivative download-url endpoint reuses the CANONICAL
 // short-lived presign primitive (same one evidence.routes.ts uses). Raw
@@ -112,6 +114,8 @@ import {
 } from "../services/redaction/redaction-decision-bulk.service.js";
 import { buildRedactionProviderHealth } from "../services/redaction/redaction-provider-health.service.js";
 import { buildRedactionDetectionManifest } from "../services/redaction/redaction-detection-manifest.service.js";
+import { closedRedactionAnswer } from "../services/redaction/redaction-record-reach.service.js";
+import { evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   getRedactionDetectionPolicy,
   setRedactionDetectionPolicy,
@@ -414,12 +418,34 @@ async function gate(
     reply.code(403).send({ denial: res.denial });
     return false;
   }
+  // The record behind a project, version, region, detection, derivative or
+  // track id answers to the case rule, after the capability, so a caller without
+  // the capability learns nothing either way.
+  const closed = await closedRedactionAnswer(reply.request, ctx.userId);
+  if (closed) {
+    reply.code(closed.status).send(closed.body);
+    return false;
+  }
   return true;
 }
 
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
+
+/** A video route names a record by id, and that record must be this workspace's. */
+async function videoEvidenceInWorkspace(
+  reply: FastifyReply,
+  teamId: string,
+  evidenceId: string,
+): Promise<boolean> {
+  const held = await prisma.evidence.count({
+    where: { AND: [{ id: evidenceId }, await workspaceEvidenceWhere(teamId, prisma)] },
+  });
+  if (held > 0) return true;
+  reply.code(404).send({ denial: "NOT_FOUND" });
+  return false;
+}
 
 export async function redactionRoutes(app: FastifyInstance) {
   installRecordReachGuard(app);
@@ -436,8 +462,10 @@ export async function redactionRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.view"))) return reply;
+      const { evidenceIds } = await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId);
       const summary = await summariseRedactionQueueForTeam({
         teamId: ctx.teamId,
+        hiddenEvidenceIds: evidenceIds,
       });
       return reply.code(200).send({ summary });
     },
@@ -484,7 +512,11 @@ export async function redactionRoutes(app: FastifyInstance) {
       // errors propagate to the central handler so real bugs are NOT
       // swallowed.
       try {
-        const rows = await listRedactionProjectsForTeam({ teamId: ctx.teamId });
+        const { evidenceIds } = await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId);
+        const rows = await listRedactionProjectsForTeam({
+          teamId: ctx.teamId,
+          hiddenEvidenceIds: evidenceIds,
+        });
         return reply.code(200).send({
           projects: rows.map((p) => ({
             id: p.id,
@@ -537,6 +569,10 @@ export async function redactionRoutes(app: FastifyInstance) {
       } catch { /* engine failure must not break route */ }
       if (!(await gate(reply, ctx, "redaction.region.author"))) return reply;
       const body = OpenProjectBody.parse(req.body);
+      // A record closed to the caller answers as one that is not there.
+      if (await evidenceClosedTo(body.evidenceId, ctx.userId)) {
+        return reply.code(409).send({ denial: "PROJECT_NOT_FOUND" as RedactionDenialReason });
+      }
       const res = await openRedactionProject({
         teamId: ctx.teamId,
         evidenceId: body.evidenceId,
@@ -821,16 +857,13 @@ export async function redactionRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.detection.review"))) return reply;
-      // Bind to version for activity context — every row's detection
-      // still validates its own (team, version) tuple inside
-      // recordDetectionDecision.
-      const { id: _versionId } = z
+      const { id: versionId } = z
         .object({ id: z.string().uuid() })
         .parse(req.params);
-      void _versionId;
       const body = BulkDecisionsBody.parse(req.body);
       const res = await bulkRecordDetectionDecisions({
         teamId: ctx.teamId,
+        versionId,
         decidedByUserId: ctx.userId,
         rows: body.rows,
       });
@@ -1235,6 +1268,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const rows = await listVideoFrames({
         teamId: ctx.teamId,
         evidenceId,
@@ -1253,6 +1287,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const body = FrameBatchBody.parse(req.body);
       const res = await registerVideoFrameBatch({
         teamId: ctx.teamId,
@@ -1280,6 +1315,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const rows = await listVideoTracksForEvidence({
         teamId: ctx.teamId,
         evidenceId,
@@ -1298,6 +1334,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const body = TrackGroupingBody.parse(req.body);
       const res = await groupDetectionsIntoTracks({
         teamId: ctx.teamId,
@@ -1345,6 +1382,15 @@ export async function redactionRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       if (!(await gate(reply, ctx, "redaction.detection.review"))) return reply;
       const body = TrackMergeBody.parse(req.body);
+      const tracks = await prisma.videoTrack.findMany({
+        where: { id: { in: body.trackIds }, teamId: ctx.teamId },
+        select: { evidenceId: true },
+      });
+      for (const evidenceId of new Set(tracks.map((t) => t.evidenceId))) {
+        if (await evidenceClosedTo(evidenceId, ctx.userId)) {
+          return reply.code(409).send({ denial: "VERSION_NOT_FOUND" as RedactionDenialReason });
+        }
+      }
       const res = await mergeTracks({
         teamId: ctx.teamId,
         trackIds: body.trackIds,
@@ -1391,6 +1437,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const body = RangeDecisionBody.parse(req.body);
       const res = await propagateRangeDecision({
         teamId: ctx.teamId,
@@ -1418,6 +1465,7 @@ export async function redactionRoutes(app: FastifyInstance) {
       const { evidenceId } = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
+      if (!(await videoEvidenceInWorkspace(reply, ctx.teamId, evidenceId))) return reply;
       const timeline = await projectVideoTimeline({
         teamId: ctx.teamId,
         evidenceId,

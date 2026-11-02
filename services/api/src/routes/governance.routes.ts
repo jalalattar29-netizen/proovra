@@ -55,6 +55,7 @@ import {
   listCaseScopedLegalHoldsLegacyShape,
   listEvidenceScopedLegalHoldsLegacyShape,
   placeCanonicalLegalHold,
+  legalHoldClosedTo,
   legalHoldReleaseRefusal,
   releaseLegalHoldAnyStore,
 } from "../services/governance/legal-hold.service.js";
@@ -137,19 +138,6 @@ async function resolveGovernancePolicyWorkspace(
 function toIso(v: Date | string | null | undefined): string | null {
   if (!v) return null;
   return v instanceof Date ? v.toISOString() : String(v);
-}
-
-/** A hold names a record or a case; that rule decides who may act on it (GOV-017). */
-async function legalHoldClosedTo(id: string, teamId: string, userId: string): Promise<boolean> {
-  const hold = await prisma.evidenceLegalHold.findFirst({
-    where: { id, teamId },
-    select: { evidenceId: true, caseId: true },
-  });
-  if (!hold) return false;
-  return (
-    (hold.evidenceId !== null && (await evidenceClosedTo(hold.evidenceId, userId))) ||
-    (hold.caseId !== null && (await caseClosedTo(hold.caseId, userId)))
-  );
 }
 
 export async function governanceRoutes(app: FastifyInstance) {

@@ -83,11 +83,13 @@ import {
   placeCanonicalLegalHold,
   releaseLegalHoldAnyStore,
   approveLegalHoldRelease,
+  legalHoldClosedTo,
   legalHoldReleaseRefusal,
   listRecordsCommittedToDestruction,
   projectCanonicalLegalHold,
   requestLegalHoldRelease,
 } from "../services/governance/legal-hold.service.js";
+import { caseClosedTo, evidenceClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
 import {
   listArchiveTransitions,
   projectArchiveCostsByTier,
@@ -99,6 +101,7 @@ import {
   listEligibleDestructionApprovers,
   getDestructionCertificate,
   getDestructionCertificateArtifact,
+  destructionRequestClosedTo,
   listDestructionRequests,
   recordApproval,
   rejectDestructionRequest,
@@ -1442,6 +1445,7 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
        */
       const holds = await listLifecycleLegalHoldsLegacyShape({
         teamId: ctx.teamId,
+        hidden: await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId),
       });
       return reply.code(200).send({ holds });
     },
@@ -1508,6 +1512,17 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           expiresAtUtc: z.string().datetime().nullable().optional(),
         })
         .parse(req.body);
+
+      // GOV-017 — a record or case closed to the caller is, to them, not a
+      // target in this workspace. Before the step-up: nobody re-authenticates
+      // for a hold that is going to be refused.
+      if (
+        body.scopeTargetId &&
+        ((body.kind === "EVIDENCE" && (await evidenceClosedTo(body.scopeTargetId, ctx.userId))) ||
+          (body.kind === "CASE" && (await caseClosedTo(body.scopeTargetId, ctx.userId))))
+      ) {
+        return reply.code(409).send({ denial: "TARGET_NOT_IN_WORKSPACE" });
+      }
 
       // Phase 3 blocker closure — this lifecycle route is the canonical
       // Legal Hold CREATE path used by the enterprise UI. Placing a hold
@@ -1602,6 +1617,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           expectedVersion: z.number().int().min(1).optional(),
         })
         .parse(req.body ?? {});
+      if (await legalHoldClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
 
       // GOV-011 — refused before step-up is offered, by the second person's
       // recorded approval and nothing the caller can say about itself.
@@ -1667,6 +1685,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const body = z.object({ note: z.string().min(1).max(4000) }).parse(req.body ?? {});
+      if (await legalHoldClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       try {
         const hold = await requestLegalHoldRelease({
           teamId: ctx.teamId,
@@ -1702,6 +1723,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await legalHoldClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ denial: "NOT_FOUND" });
+      }
       const stepUpGate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -1839,7 +1863,10 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       if (!featureOk.ok) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_DESTRUCTION_GOVERNANCE" });
       }
-      const requests = await listDestructionRequests({ teamId: ctx.teamId });
+      const requests = await listDestructionRequests({
+        teamId: ctx.teamId,
+        closedEvidenceIds: (await hiddenRecordIdsInWorkspace(ctx.teamId, ctx.userId)).evidenceIds,
+      });
       return reply.code(200).send({ requests });
     },
   );
@@ -1884,6 +1911,14 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         })
         .parse(req.body);
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
+      // GOV-017 — the same answer as a record this workspace does not hold.
+      for (const evidenceId of body.evidenceIds) {
+        if (await evidenceClosedTo(evidenceId, ctx.userId)) {
+          return reply.code(404).send({
+            error: { code: "DESTRUCTION_EVIDENCE_NOT_FOUND", message: "At least one record in this request does not exist in this workspace." },
+          });
+        }
+      }
       try {
         const res = await createDestructionRequest({
           teamId: ctx.teamId,
@@ -1913,6 +1948,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
         await assertDestructionRequestActionable({
@@ -1958,6 +1996,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       const body = z
         .object({ reason: z.string().min(1).max(600) })
         .parse(req.body ?? { reason: "rejected" });
@@ -1982,6 +2023,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       if (await denyWithoutDestructionGovernance(reply, ctx.teamId)) return reply;
       try {
         await assertDestructionRequestActionable({
@@ -2033,6 +2077,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       const cert = await getDestructionCertificate({
         teamId: ctx.teamId,
         requestId: id,
@@ -2059,6 +2106,9 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply;
       }
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      if (await destructionRequestClosedTo(id, ctx.teamId, ctx.userId)) {
+        return reply.code(404).send({ error: { code: "DESTRUCTION_REQUEST_NOT_FOUND", message: "Destruction request not found." } });
+      }
       const res = await getDestructionCertificateArtifact({
         teamId: ctx.teamId,
         requestId: id,

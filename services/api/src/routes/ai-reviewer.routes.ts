@@ -2,7 +2,12 @@
  * Phase D3/D4/D6 — Live Reviewer Copilot route.
  *   POST /v1/ai/reviewer/:reviewId/copilot
  */
-import { evidenceClosedTo } from "../services/access/record-reach.js";
+import {
+  caseClosedTo,
+  evidenceClosedTo,
+  hiddenRecordIdsInWorkspace,
+  hiddenWorkflowIdsInWorkspace,
+} from "../services/access/record-reach.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -64,6 +69,20 @@ const Body = z.object({
   criteriaVersion: z.string().max(40).default("v1"),
   idempotencyKey: z.string().max(80).optional(),
 });
+
+/** A Copilot run is work on its case and its review, and closes with them. */
+async function copilotRunClosedTo(
+  run: { caseId: string | null; reviewId: string | null },
+  userId: string,
+): Promise<boolean> {
+  if (run.caseId && (await caseClosedTo(run.caseId, userId))) return true;
+  if (!run.reviewId) return false;
+  const workflow = await prisma.evidenceReviewWorkflow.findUnique({
+    where: { id: run.reviewId },
+    select: { evidenceId: true },
+  });
+  return workflow ? evidenceClosedTo(workflow.evidenceId, userId) : false;
+}
 
 export async function aiReviewerRoutes(app: FastifyInstance) {
   app.post("/v1/ai/reviewer/:reviewId/copilot", { preHandler: requireAuth }, async (req, reply) => {
@@ -320,8 +339,18 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     });
     if (!authz) return reply;
     try {
+      const [closed, closedReviews] = await Promise.all([
+        hiddenRecordIdsInWorkspace(q.teamId, userId),
+        hiddenWorkflowIdsInWorkspace(q.teamId, userId),
+      ]);
       const runs = await prisma.aiCopilotRun.findMany({
-        where: { workspaceId: q.teamId },
+        where: {
+          workspaceId: q.teamId,
+          AND: [
+            { OR: [{ caseId: null }, { caseId: { notIn: closed.caseIds } }] },
+            { OR: [{ reviewId: null }, { reviewId: { notIn: closedReviews } }] },
+          ],
+        },
         orderBy: { generatedAt: "desc" },
         take: 200,
         include: { observationReviews: { select: { state: true, observationId: true, actorId: true, updatedAt: true } } },
@@ -386,7 +415,10 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     const userId = getAuthUserId(req);
     const runId = z.string().uuid().parse((req.params as { runId: string }).runId);
     const body = z.object({ decision: z.enum(["QC_ACCEPTED", "QC_SKIPPED", "QC_REVIEWED"]) }).parse(req.body ?? {});
-    const run = await prisma.aiCopilotRun.findUnique({ where: { id: runId }, select: { workspaceId: true } });
+    const run = await prisma.aiCopilotRun.findUnique({
+      where: { id: runId },
+      select: { workspaceId: true, caseId: true, reviewId: true },
+    });
     if (!run) return reply.code(404).send({ error: { code: "run_not_found" } });
     // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical authorization
     // against the run's workspace (ACTIVE membership + org lifecycle +
@@ -397,6 +429,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
+    if (await copilotRunClosedTo(run, userId)) return reply.code(404).send({ error: { code: "run_not_found" } });
     const row = await recordObservationInteraction({
       copilotRunId: runId, observationId: "qc",
       state: body.decision === "QC_ACCEPTED" ? "ACCEPTED" : body.decision === "QC_SKIPPED" ? "REJECTED" : "EDITED",
@@ -434,6 +467,8 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       where: { id: runId },
       select: {
         workspaceId: true,
+        caseId: true,
+        reviewId: true,
         feature: true,
         workspacePolicyVersion: true,
         status: true,
@@ -449,6 +484,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
       antiEnumeration: true,
     });
     if (!authz) return reply;
+    if (await copilotRunClosedTo(run, userId)) return reply.code(404).send({ error: { code: "run_not_found" } });
 
     // PHASE 12 — VERTICAL B. Observation review runs through the ONE
     // canonical AI policy + disclosure authority. There is deliberately

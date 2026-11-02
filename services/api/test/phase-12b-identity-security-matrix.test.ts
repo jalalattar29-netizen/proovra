@@ -913,6 +913,7 @@ function installSupportTransport(opts: { seedApprovedChallenge: boolean }) {
           : null,
     },
     team: { findUnique: async () => ({ id: WS, organizationId: ORG }) },
+    organization: { findUnique: async () => ({ id: ORG }) },
     riskSignal: { findMany: async () => [] },
     securityEvent: { create: async () => ({ id: "sec" }) },
   };

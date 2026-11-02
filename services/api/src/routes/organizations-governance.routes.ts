@@ -51,6 +51,7 @@ import {
   checkOrgAccess,
   orgAccessDenial,
   ORG_BILLING_ROLES,
+  ORG_OVERSIGHT_ROLES,
 } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
@@ -437,7 +438,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
    * review grants, recent org governance audit, and derived coverage /
    * custody-health indicators.
    *
-   * Gate: ORG_AUDITOR+ (read posture — same tier as /audit-events).
+   * Gate: ORG_OVERSIGHT_ROLES (read posture — same set as /audit-events).
    * Anti-enumeration: 404 for any non-OK access outcome (mirrors the
    * sibling org endpoints in this file).
    *
@@ -455,7 +456,7 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
       const access = await requireOrgAdmin({
         orgId,
         userId,
-        minRole: "ORG_AUDITOR",
+        roles: ORG_OVERSIGHT_ROLES,
       });
       if (!access.ok) {
         return reply.code(access.denial.status).send(access.denial.body);

@@ -260,6 +260,11 @@ function makeDb(seed: {
         return args.data;
       },
     },
+    // The bounded scan resumes from a stored cursor (WORKFLOW-012).
+    workerSweepCursor: {
+      findUnique: async () => null,
+      upsert: async () => ({}),
+    },
   };
 
   const prisma = {

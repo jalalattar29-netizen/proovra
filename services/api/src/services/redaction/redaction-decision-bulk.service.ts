@@ -53,6 +53,7 @@ export type BulkDecisionInput = {
   prisma?: PrismaClient;
   teamId: string;
   decidedByUserId: string;
+  versionId: string;
   rows: ReadonlyArray<BulkDecisionRow>;
 };
 
@@ -70,8 +71,35 @@ export async function bulkRecordDetectionDecisions(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // The route names one version: a row from any other version, which may be
+  // another record, is not found here.
+  const version = await prisma.redactionVersion.findFirst({
+    where: { id: input.versionId, teamId: input.teamId },
+    select: { id: true },
+  });
+  if (!version) return { ok: false, denial: "VERSION_NOT_FOUND" };
+  const inVersion = new Set(
+    (
+      await prisma.redactionDetection.findMany({
+        where: {
+          versionId: version.id,
+          id: { in: input.rows.map((r) => r.detectionId) },
+        },
+        select: { id: true },
+      })
+    ).map((d) => d.id),
+  );
   const outcomes: BulkDecisionOutcome[] = [];
   for (const row of input.rows) {
+    if (!inVersion.has(row.detectionId)) {
+      outcomes.push({
+        detectionId: row.detectionId,
+        outcome: "NOT_FOUND",
+        denial: "DETECTION_NOT_FOUND",
+        promotedRegionId: null,
+      });
+      continue;
+    }
     if (
       !(REDACTION_DECISION_STATES as ReadonlyArray<string>).includes(
         row.decisionState,

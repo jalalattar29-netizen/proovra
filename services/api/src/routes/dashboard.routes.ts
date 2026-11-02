@@ -32,7 +32,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { hiddenWorkflowIdsInWorkspace, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import {
+  assertMintedAuthorizedWorkspaceContext,
   authorizeWorkspaceOrFail,
   contextHasCapability,
   type AuthorizedWorkspaceContext,
@@ -66,8 +68,12 @@ async function requireMember(
 }
 
 /** The envelope keeps the stored role label its clients render. */
-const roleLabel = (ctx: AuthorizedWorkspaceContext): string =>
-  ctx.workspaceRole === "REVIEWER" ? "MEMBER" : ctx.workspaceRole;
+const roleLabel = (candidate: AuthorizedWorkspaceContext, teamId: string): string => {
+  const { workspaceRole } = assertMintedAuthorizedWorkspaceContext(candidate, {
+    workspaceId: teamId,
+  });
+  return workspaceRole === "REVIEWER" ? "MEMBER" : workspaceRole;
+};
 
 export async function dashboardRoutes(app: FastifyInstance) {
   app.get(
@@ -80,7 +86,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       const envelope = await buildCommandCenter({
         teamId: query.teamId,
-        role: roleLabel(member),
+        role: roleLabel(member, query.teamId),
         userId: member.userId,
         canReadSecurity: contextHasCapability(member, "audit.read"),
       });
@@ -150,6 +156,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       if (!member) return;
       const snapshot = await getLatestOrgHealthSnapshot({
         teamId: query.teamId,
+        reach: await viewerReachInWorkspace(query.teamId, member.userId),
       });
       return reply.code(200).send({ snapshot });
     },
@@ -169,6 +176,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
       const recommendations = await listReviewerRoutingRecommendations({
         teamId: query.teamId,
         limit: query.limit,
+        closedWorkflowIds: await hiddenWorkflowIdsInWorkspace(query.teamId, member.userId),
       });
       return reply.code(200).send({ recommendations });
     },

@@ -305,6 +305,7 @@ describe("Phase 3A Closure — bulk decisions", () => {
     }));
     const res = await bulkRecordDetectionDecisions({
       teamId: "00000000-0000-0000-0000-000000000010",
+      versionId: "00000000-0000-0000-0000-000000000012",
       decidedByUserId: "00000000-0000-0000-0000-000000000011",
       rows,
     });

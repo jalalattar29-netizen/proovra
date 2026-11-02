@@ -40,6 +40,7 @@ import {
   claimIntegrityRecheck,
   integrityRecheckDueWhere,
   integrityRecheckEligibleWhere,
+  workspaceEvidenceWhere,
   recordIntegrityCheckTx,
   runGovernanceReconciliation,
   type IntegrityCheckedObject,
@@ -432,7 +433,7 @@ export async function runIntegrityRecheckSweep(
       const now = options.now ?? new Date();
       const due = await prisma.evidence.findMany({
         where: options.teamId
-          ? { AND: [integrityRecheckDueWhere(now), { teamId: options.teamId }] }
+          ? { AND: [integrityRecheckDueWhere(now), await workspaceEvidenceWhere(options.teamId, prisma)] }
           : integrityRecheckDueWhere(now),
         // Requested first (NULLS LAST on a desc-less asc would put them last,
         // so requests are ordered explicitly), then never-checked, then oldest.

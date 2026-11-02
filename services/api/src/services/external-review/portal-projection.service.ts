@@ -17,7 +17,7 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
-import { RESTRICTED_CASE_WHERE } from "../cases/case-visibility.js";
+import { caseGrantEvidenceWhere } from "./portal-scope.service.js";
 import { buildSignedWatermark } from "./portal-watermark.service.js";
 import type { PortalSessionContext } from "./portal-session.service.js";
 
@@ -49,7 +49,7 @@ export async function projectPortalDashboard(input: {
     const caseAssignments = await prisma.caseEvidenceLink.findMany({
       where: {
         caseId: s.caseId,
-        evidence: { caseLinks: { none: { caseId: { not: s.caseId }, case: RESTRICTED_CASE_WHERE } } },
+        evidence: caseGrantEvidenceWhere(s.caseId),
       },
       select: { evidenceId: true },
       take: 500,

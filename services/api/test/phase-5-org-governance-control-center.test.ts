@@ -48,10 +48,10 @@ describe("Phase 5 — org governance control-center endpoint registration", () =
 });
 
 describe("Phase 5 — access gate (org-admin, ORG_AUDITOR+, anti-enumeration)", () => {
-  it("gates the control-center at ORG_AUDITOR minimum", () => {
+  it("gates the control-center on the security oversight set, which excludes the billing admin", () => {
     const handler = routeSource(ROUTES_SRC, "GET", "/v1/orgs/:id/governance/control-center");
     expect(handler).toContain("requireOrgAdmin");
-    expect(handler).toContain('minRole: "ORG_AUDITOR"');
+    expect(handler).toContain("roles: ORG_OVERSIGHT_ROLES");
   });
 
   it("renders every non-OK access outcome through the one org-denial convention", () => {

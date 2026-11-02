@@ -230,6 +230,8 @@ function projectVersion(v: VersionWithChildren): RedactionVersionProjection {
 export async function summariseRedactionQueueForTeam(input: {
   prisma?: PrismaClient;
   teamId: string;
+  /** Records closed to the caller (hiddenRecordIdsInWorkspace). */
+  hiddenEvidenceIds?: readonly string[];
 }): Promise<{
   pendingDecisionCount: number;
   awaitingApprovalCount: number;
@@ -238,26 +240,30 @@ export async function summariseRedactionQueueForTeam(input: {
   rejectedCount: number;
 }> {
   const prisma = input.prisma ?? defaultPrisma;
+  const reach = input.hiddenEvidenceIds?.length
+    ? { project: { evidenceId: { notIn: [...input.hiddenEvidenceIds] } } }
+    : {};
   const [pendingDecisions, inReview, approvedReady, published, rejected] =
     await Promise.all([
       prisma.redactionDetection.count({
-        where: { teamId: input.teamId, decisionState: "SUGGESTED" },
+        where: { teamId: input.teamId, decisionState: "SUGGESTED", version: reach },
       }),
       prisma.redactionVersion.count({
-        where: { teamId: input.teamId, state: "IN_REVIEW" },
+        where: { teamId: input.teamId, state: "IN_REVIEW", ...reach },
       }),
       prisma.redactionVersion.count({
         where: {
           teamId: input.teamId,
           state: "APPROVED",
           derivative: { is: { state: { not: "READY" } } },
+          ...reach,
         },
       }),
       prisma.redactionVersion.count({
-        where: { teamId: input.teamId, state: "PUBLISHED" },
+        where: { teamId: input.teamId, state: "PUBLISHED", ...reach },
       }),
       prisma.redactionVersion.count({
-        where: { teamId: input.teamId, state: "REJECTED" },
+        where: { teamId: input.teamId, state: "REJECTED", ...reach },
       }),
     ]);
   return {

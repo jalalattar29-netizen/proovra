@@ -217,7 +217,8 @@ export type PortalComment = {
   id: string;
   parentCommentId: string | null;
   body: string;
-  authorEmail: string;
+  /** Null on another reviewer's comment: an address is not shared. */
+  authorEmail: string | null;
   authorDisplay: string | null;
   createdAt: string;
   resolvedAtUtc: string | null;

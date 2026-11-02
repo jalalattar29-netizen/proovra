@@ -249,6 +249,7 @@ vi.mock("../src/services/governance/legal-hold.service.js", () => {
     }
   }
   return {
+    legalHoldClosedTo: async () => false,
   LegalHoldError: FakeLegalHoldError,
   placeCanonicalLegalHold: async (i: { scope: string; evidenceId?: string | null; caseId?: string | null }) => {
     if (H.holdPlaceError) throw new FakeLegalHoldError(H.holdPlaceError, 404);

@@ -25,6 +25,9 @@ vi.mock("../src/services/custody-events.service.js", () => ({
   appendCustodyEvent: vi.fn(async () => null),
   appendCustodyEventTx: vi.fn(async () => null),
 }));
+vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
+  emitTenantAudit: vi.fn(async () => undefined),
+}));
 vi.mock("../src/services/integrations/webhook-dispatcher.js", () => ({
   emitWebhookEvent: vi.fn(async () => null),
 }));

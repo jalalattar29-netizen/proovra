@@ -57,6 +57,7 @@ import {
 } from "@proovra/shared-runtime";
 import {
   evidenceIdInReach,
+  hiddenWorkflowIdsInWorkspace,
   holdInReach,
   incidentInReach,
   viewerReachInWorkspace,
@@ -3208,9 +3209,13 @@ export async function buildCommandCenter(input: {
     operationalGraphResult,
     orgHealthResult,
   ] = await Promise.all([
-    runReviewerCapacityBoard(input.teamId, scope),
+    runReviewerCapacityBoard(
+      input.teamId,
+      scope,
+      await hiddenWorkflowIdsInWorkspace(input.teamId, input.userId),
+    ),
     runOperationalGraphSection(input.teamId),
-    runOrganizationalHealthSection(input.teamId),
+    runOrganizationalHealthSection(input.teamId, reach),
   ]);
 
   // Phase 32.8C FINAL-3 — capability matrix (deterministic; never
@@ -3449,6 +3454,7 @@ export async function buildCommandCenter(input: {
 async function runReviewerCapacityBoard(
   teamId: string,
   scope: WorkspaceScope,
+  closedWorkflowIds: readonly string[],
 ): Promise<CommandCenterEnvelope["sections"]["reviewerCapacity"]> {
   const meta: SectionMeta = {
     status: "ok",
@@ -3478,7 +3484,7 @@ async function runReviewerCapacityBoard(
   let recommendations: CommandCenterEnvelope["sections"]["reviewerCapacity"]["recommendations"] =
     [];
   try {
-    reviewers = await listReviewerCapacity({ teamId, limit: 20 });
+    reviewers = await listReviewerCapacity({ teamId, limit: 20, closedWorkflowIds });
   } catch {
     /* degrade */
   }
@@ -3486,6 +3492,7 @@ async function runReviewerCapacityBoard(
     recommendations = await listReviewerRoutingRecommendations({
       teamId,
       limit: 12,
+      closedWorkflowIds,
     });
   } catch {
     /* degrade */
@@ -3590,6 +3597,7 @@ async function runOperationalGraphSection(
 
 async function runOrganizationalHealthSection(
   teamId: string,
+  reach: ViewerReach,
 ): Promise<CommandCenterEnvelope["sections"]["organizationalHealth"]> {
   const meta: SectionMeta = {
     status: "ok",
@@ -3629,7 +3637,7 @@ async function runOrganizationalHealthSection(
     sampledAtUtc: null,
   };
   try {
-    data = await getLatestOrgHealthSnapshot({ teamId });
+    data = await getLatestOrgHealthSnapshot({ teamId, reach });
   } catch {
     /* degrade */
   }

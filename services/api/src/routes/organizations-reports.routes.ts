@@ -51,6 +51,7 @@ import { getAuthUserId } from "../auth.js";
 import {
   checkOrgAccess,
   orgAccessDenial,
+  ORG_OVERSIGHT_ROLES,
 } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
@@ -78,7 +79,7 @@ const AUDIT_ROW_CAP = 5000;
 /** Seat and plan figures: the billing side only. */
 const SEATS_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_BILLING_ADMIN"];
 /** Audit, governance, external access and download audit: security oversight. */
-const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = ["ORG_OWNER", "ORG_ADMIN", "ORG_SECURITY_ADMIN", "ORG_AUDITOR"];
+const OVERSIGHT_EXPORT_ROLES = ORG_OVERSIGHT_ROLES;
 /** The member directory: every role that reads the members surface. */
 const MEMBERS_EXPORT_ROLES: ReadonlyArray<OrgRole> = [
   "ORG_OWNER",

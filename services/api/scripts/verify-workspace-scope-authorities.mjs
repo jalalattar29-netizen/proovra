@@ -216,6 +216,53 @@ const ALLOWLIST = [
       "an ACTIVE membership.",
   },
   {
+    file: "src/routes/evidence-retention-verification.routes.ts",
+    symbol: "evidenceRetentionVerificationRoutes",
+    reason:
+      "A caller-wide archive list across several workspaces. Its workspaces are " +
+      "the ones where the caller's own membership holds `evidence.archive.view`, " +
+      "and the NULL arm beside them is bound to the caller, so it already holds " +
+      "the canonical shape over a set. Each row is then re-confirmed through the " +
+      "record-access engine before it is returned.",
+  },
+  {
+    file: "src/services/admin/workspaces.service.ts",
+    symbol: "listAdminWorkspaces",
+    reason:
+      "`groupBy({ by: ['teamId'] })` over the page's workspace rows, for the " +
+      "platform console. As in `computeTeamWorkspaceHealth`, the grouping key is " +
+      "the column a NULL-team row lacks, so a widened read could not attribute " +
+      "the row to a workspace. The operational fix is the personal-team backfill.",
+  },
+  {
+    file: "src/services/billing/billing-account-projection.service.ts",
+    symbol: "buildBillingAccountProjection",
+    reason:
+      "Commercial meter in the SHARED billing branch. It reports the number " +
+      "`assertWorkspaceAllowsEvidenceCreation` admits against, which counts a " +
+      "shared workspace by its team id. A shared workspace has no NULL arm, and " +
+      "a meter that differs from the gate shows a limit the gate does not apply.",
+  },
+  {
+    file: "src/services/billing/billing-account-projection.service.ts",
+    symbol: "buildOrganizationProjection",
+    reason:
+      "Commercial meter over an organization's workspaces, which are shared " +
+      "workspaces with no NULL arm. Counting them by team id matches the gate " +
+      "and the quota reservation beside them.",
+  },
+  {
+    file: "services/worker/src/governance/destruction-orchestrator.worker.ts",
+    symbol: "runDestructionOrchestration",
+    systemSweepOfNullTeamRows: true,
+    reason:
+      "GOV-018 retry of Personal records whose deletion stopped part way. It is " +
+      "a worker sweep over every owner by design, with no requesting actor and " +
+      "nothing returned to anyone: each row is re-checked against legal holds " +
+      "and handed to the destruction executor, which keeps the record's own " +
+      "owner. Binding it to one owner would strand every other owner's record.",
+  },
+  {
     file: "src/services/identity/org-security-policy.service.ts",
     symbol: "*",
     reason:
@@ -644,6 +691,11 @@ function scan() {
 
           const allowEntry = allowlistEntryFor(file, symbol);
           if (classification === "VIOLATION" && allowEntry) {
+            classification = "ALLOWLISTED";
+          }
+          // An unbound NULL arm is excused only by an entry that names itself a
+          // whole-table system sweep. Every other entry leaves the arm reported.
+          if (allowEntry?.systemSweepOfNullTeamRows && facts.unboundNullArms.length > 0) {
             classification = "ALLOWLISTED";
           }
 

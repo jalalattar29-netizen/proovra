@@ -106,6 +106,9 @@ export const EVIDENCE_TABLE_TOMBSTONE_CLASS: Readonly<Record<string, TombstoneCl
   MediaIntelligenceRun: "OPERATIONAL",
   ReportGenerationRequest: "OPERATIONAL",
   EvidenceArchiveRestoreRequest: "OPERATIONAL",
+  // A reservation of a storage key while an artifact publishes: bucket, key and
+  // family only. The objects it points at are covered by Report and VerificationPackage.
+  ArtifactPublicationIntent: "OPERATIONAL",
 });
 
 /**

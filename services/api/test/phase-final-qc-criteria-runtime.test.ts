@@ -196,6 +196,15 @@ vi.mock("../src/db.js", () => ({
     $transaction: async (ops: Array<Promise<unknown>>) => Promise.all(ops),
   },
 }));
+// Nothing here is closed by a restricted case; the rule itself runs against
+// PostgreSQL in coverage-residual-reach.integration.test.ts.
+vi.mock("../src/services/access/record-reach.js", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  hiddenRecordIdsInWorkspace: async () => ({ caseIds: [], evidenceIds: [] }),
+  hiddenWorkflowIdsInWorkspace: async () => [],
+  evidenceClosedTo: async () => false,
+  caseClosedTo: async () => false,
+}));
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => undefined }));
 vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.userId }));
 vi.mock("../src/services/platform-audit-log.service.js", () => ({

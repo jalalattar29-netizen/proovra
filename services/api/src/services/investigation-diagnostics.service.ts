@@ -34,6 +34,7 @@
  *     enum once the empty-state vocabulary is finalised.
  */
 
+import type { ViewerReach } from "./access/record-reach.js";
 import type { PrismaClient } from "@prisma/client";
 
 import {
@@ -191,6 +192,8 @@ export const INVESTIGATION_DIAGNOSTICS_RESPONSE_KEYS = Object.freeze([
 // ---------------------------------------------------------------------------
 
 export type BuildInvestigationDiagnosticsInput = {
+  /** The caller's reach; absent for an operator-wide read. */
+  reach?: ViewerReach;
   teamId: string;
   prisma: PrismaClient;
   /**
@@ -233,18 +236,44 @@ const EMPTY_QUEUE_ROW: InvestigationDiagnosticsQueueRow = {
 // Public entrypoint
 // ---------------------------------------------------------------------------
 
+const COUNTS_WITHOUT_RECORD_RELATION = [
+  "graphNodeCount",
+  "graphEdgeCount",
+  "staleGraphNodeCount",
+  "staleGraphEdgeCount",
+  "timelineEventCount",
+  "duplicateExactCount",
+  "duplicateSimilarityCount",
+  "duplicateDerivativeCount",
+  "mediaSignalCount",
+  "ocrRecordCount",
+  "transcriptRecordCount",
+  "reviewWorkflowCount",
+  "escalationCount",
+] as const;
+
 export async function buildInvestigationDiagnostics(
   opts: BuildInvestigationDiagnosticsInput,
 ): Promise<InvestigationDiagnostics> {
   const { teamId, prisma } = opts;
   const warnings: string[] = [];
 
-  const workspace = await buildWorkspaceCounts(teamId, prisma, warnings);
+  const workspace = await buildWorkspaceCounts(teamId, prisma, warnings, opts.reach);
+  const narrowed = Boolean(
+    opts.reach && (opts.reach.hidden.evidenceIds.length > 0 || opts.reach.hidden.caseIds.length > 0),
+  );
+  if (narrowed) {
+    // These totals have no relation to Evidence to narrow through, and a change in
+    // one would disclose activity on a closed record. The drawer says so.
+    for (const key of COUNTS_WITHOUT_RECORD_RELATION) workspace[key] = 0;
+    workspace.mediaRecordCountsByKind = {};
+    warnings.push("counts_limited_to_viewer_reach");
+  }
   const queues = opts.includePlatformQueues
     ? await buildQueueDiagnostics(warnings)
     : withheldQueueDiagnostics(warnings);
   const producerModes = await buildProducerModes(teamId, prisma, warnings);
-  const lastErrors = await buildLastErrors(teamId, prisma, warnings);
+  const lastErrors = narrowed ? [] : await buildLastErrors(teamId, prisma, warnings);
 
   return {
     workspace,
@@ -263,15 +292,18 @@ async function buildWorkspaceCounts(
   teamId: string,
   prisma: PrismaClient,
   warnings: string[],
+  reach?: ViewerReach,
 ): Promise<InvestigationDiagnosticsWorkspace> {
   // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
   // resolved once for every query below. A strict `teamId` equality here
   // omitted a personal workspace's legacy NULL-team rows, and reported the
   // smaller number as if it were the whole population.
-  const [scope, caseScope] = await Promise.all([
-    workspaceEvidenceWhere(teamId),
-    workspaceCaseWhere(teamId),
+  const [workspaceScope, workspaceCaseScope] = await Promise.all([
+    workspaceEvidenceWhere(teamId, prisma),
+    workspaceCaseWhere(teamId, prisma),
   ]);
+  const scope = reach ? { AND: [workspaceScope, reach.evidence] } : workspaceScope;
+  const caseScope = reach ? { AND: [workspaceCaseScope, reach.cases] } : workspaceCaseScope;
   const out: InvestigationDiagnosticsWorkspace = {
     evidenceCount: 0,
     finalizedEvidenceCount: 0,

@@ -20,7 +20,7 @@
  *   3. Operates only on the workspace from req.apiCredential.teamId.
  */
 
-import { evidenceClosedTo } from "../services/access/record-reach.js";
+import { caseClosedTo, evidenceClosedTo } from "../services/access/record-reach.js";
 import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import type {
   FastifyInstance,
@@ -415,7 +415,14 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
             createdAt: true,
           },
         });
-        if (!row || row.teamId !== cred.teamId) {
+        // AZ-R04: an API key is no person, so a request on a restricted record or
+        // case is closed to it, as the record itself is.
+        if (
+          !row ||
+          row.teamId !== cred.teamId ||
+          (row.evidenceId !== null && (await evidenceClosedTo(row.evidenceId, null))) ||
+          (row.caseId !== null && (await caseClosedTo(row.caseId, null)))
+        ) {
           return reply.code(404).send({ error: { code: "not_found" } });
         }
         return reply.code(200).send({

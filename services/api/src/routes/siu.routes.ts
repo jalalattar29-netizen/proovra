@@ -122,6 +122,7 @@ async function requireCaseActor(
   req: FastifyRequest,
   reply: FastifyReply,
   caseId: string,
+  permission: "identity.member.read" | "evidence.update_metadata" = "identity.member.read",
 ): Promise<{ userId: string; teamId: string; exposePii: boolean; role: string | null } | null> {
   const userId = getAuthUserId(req);
   /*
@@ -166,7 +167,7 @@ async function requireCaseActor(
   const decision = await evaluateMemberAccess({
     teamId: c.teamId,
     userId,
-    permission: "identity.member.read",
+    permission,
   });
   if (!decision.allowed) {
     reply.code(403).send({
@@ -354,7 +355,7 @@ export async function siuRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = z.object({ id: z.string().uuid() }).parse(req.params);
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
       if (!ctx) return;
       const patch = SiuProfileUpsertInputSchema.parse(req.body);
       const profile = await upsertSiuProfile({
@@ -398,7 +399,7 @@ export async function siuRoutes(app: FastifyInstance) {
       const body = z
         .object({ evidenceId: z.string().uuid() })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
       if (!ctx) return;
       const profile = await mapEvidenceToChecklistItem({
         caseId: params.id,
@@ -429,7 +430,7 @@ export async function siuRoutes(app: FastifyInstance) {
           note: z.string().max(240).optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
       if (!ctx) return;
       const profile = await setChecklistItemStatus({
         caseId: params.id,
@@ -462,7 +463,7 @@ export async function siuRoutes(app: FastifyInstance) {
           evidenceId: z.string().uuid().optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
       if (!ctx) return;
       const profile = await addReviewIndicator({
         caseId: params.id,
@@ -508,7 +509,7 @@ export async function siuRoutes(app: FastifyInstance) {
           intakeLinkId: z.string().uuid().optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
       if (!ctx) return;
       const followUp = await createFollowUpRequest({
         caseId: params.id,
@@ -560,7 +561,7 @@ export async function siuRoutes(app: FastifyInstance) {
           receivedEvidenceId: z.string().uuid().optional().nullable(),
         })
         .parse(req.body ?? {});
-      const ctx = await requireCaseActor(req, reply, params.id);
+      const ctx = await requireCaseActor(req, reply, params.id, "evidence.update_metadata");
       if (!ctx) return;
       const followUp = await updateFollowUpStatus({
         caseId: params.id,

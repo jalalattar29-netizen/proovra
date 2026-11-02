@@ -47,4 +47,18 @@ describe("record routes", () => {
     }
     expect(missing).toEqual([]);
   });
+
+  it("every redaction route keyed by a record row is listed with the row it names", () => {
+    const src = readFileSync(resolve(routesDir, "redaction.routes.ts"), "utf8");
+    const registry = readFileSync(
+      resolve(routesDir, "../services/redaction/redaction-record-reach.service.ts"),
+      "utf8",
+    );
+    const keyed = [...src.matchAll(/app\.(get|post|put|patch|delete)(?:<[^>]*>)?\(\s*"(\/v1\/redaction\/(?:projects|versions|regions|detections|derivatives|video-tracks)\/:id[^"]*)"/g)];
+    expect(keyed.length).toBeGreaterThan(15);
+    const unlisted = keyed
+      .map((m) => `${m[1]!.toUpperCase()} ${m[2]}`)
+      .filter((route) => !registry.includes(`"${route}"`));
+    expect(unlisted).toEqual([]);
+  });
 });

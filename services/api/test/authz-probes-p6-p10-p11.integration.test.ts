@@ -83,6 +83,11 @@ describe("Authorization probes P6, P10, P11 (live PostgreSQL)", () => {
 
   it("P10: the initiating workspace cannot record its counterparty's acceptance", async () => {
     const org = await seedOrganizationTenant(deps, {});
+    const counterparty = await seedOrganizationTenant(deps, {});
+    await prisma.user.update({
+      where: { id: counterparty.owner.userId },
+      data: { currentWorkspaceId: counterparty.workspaceId },
+    });
     const stepUp = createStepUpCeremony({
       prisma: prisma as never,
       inject: (o) =>
@@ -121,13 +126,12 @@ describe("Authorization probes P6, P10, P11 (live PostgreSQL)", () => {
       url: "/v1/exchange/chain-transfers",
       headers: { authorization: `Bearer ${org.owner.token}`, ...headers },
       payload: {
-        toOrganizationSlug: "other-organization",
+        toOrganizationId: counterparty.organizationId,
         evidenceIds: [evidence.id],
-        kind: "PROFESSIONAL_CUSTODY",
+        reasonNote: "P10 probe",
       },
     });
-    expect(started.statusCode, started.body).toBeLessThan(500);
-    if (started.statusCode >= 300) return;
+    expect(started.statusCode, started.body).toBe(201);
     const transferId = (started.json() as { transferId: string }).transferId;
     const accepted = await harness.app.inject({
       method: "POST",
@@ -135,7 +139,20 @@ describe("Authorization probes P6, P10, P11 (live PostgreSQL)", () => {
       headers: { authorization: `Bearer ${org.owner.token}` },
       payload: {},
     });
-    expect(accepted.statusCode, accepted.body).not.toBe(200);
+    expect([403, 404], accepted.body).toContain(accepted.statusCode);
+    const stillOpen = await prisma.chainTransfer.findUniqueOrThrow({ where: { id: transferId }, select: { state: true } });
+    expect(stillOpen.state).toBe("INITIATED");
+
+    // The counterparty, on the same transfer, may.
+    const byRecipient = await harness.app.inject({
+      method: "POST",
+      url: `/v1/exchange/chain-transfers/${transferId}/accept`,
+      headers: { authorization: `Bearer ${counterparty.owner.token}` },
+      payload: {},
+    });
+    expect(byRecipient.statusCode, byRecipient.body).toBe(200);
+    const accepted2 = await prisma.chainTransfer.findUniqueOrThrow({ where: { id: transferId }, select: { state: true } });
+    expect(accepted2.state).toBe("ACCEPTED");
   });
 
   it("P11: two owners demoting each other at once leave one owner", async () => {

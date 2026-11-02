@@ -31,6 +31,11 @@ const H = vi.hoisted(() => ({
   releaseAllowed: true,
 }));
 
+// The case rule behind a redaction id runs against PostgreSQL in cov-page-apis.
+vi.mock("../src/services/redaction/redaction-record-reach.service.js", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  closedRedactionAnswer: async () => null,
+}));
 vi.mock("../src/db.js", () => ({
   prisma: {
     user: {

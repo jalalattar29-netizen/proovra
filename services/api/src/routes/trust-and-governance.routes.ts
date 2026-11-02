@@ -1274,6 +1274,9 @@ export async function trustAndGovernanceRoutes(app: FastifyInstance) {
       if (!ctx) return reply;
       const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
       const items = await listItems({ teamId: ctx.teamId, campaignId: id });
+      // A campaign of another workspace answers as one that does not exist, not
+      // as an empty campaign.
+      if (!items) return reply.code(404).send({ denial: "CAMPAIGN_NOT_FOUND" });
       return reply.code(200).send({ items });
     },
   );

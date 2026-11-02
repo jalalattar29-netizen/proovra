@@ -484,6 +484,18 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     if (!(await requirePlatformStaff(req, reply))) return;
     const auth = await authorizeOrFail(req, reply, { teamId: body.teamId, permission: "identity.org_policy.manage" });
     if (!auth) return;
+    // The grant states a real scope: a workspace of the named Organization, not
+    // one elsewhere that could never match and reads as if it were granted.
+    const scopeOrganization = await prisma.organization.findUnique({
+      where: { id: body.organizationId },
+      select: { id: true },
+    });
+    const scopeWorkspace = body.scopeTeamId
+      ? await prisma.team.findUnique({ where: { id: body.scopeTeamId }, select: { organizationId: true } })
+      : null;
+    if (!scopeOrganization || (body.scopeTeamId && scopeWorkspace?.organizationId !== body.organizationId)) {
+      return reply.code(400).send({ error: { code: "SUPPORT_ACCESS_SCOPE_INVALID" } });
+    }
     /*
      * OWN-2 — STEP-UP, BECAUSE ENTERING A CUSTOMER TENANT IS AT LEAST AS
      * CONSEQUENTIAL AS ACTIVATING BREAK-GLASS.
@@ -573,7 +585,8 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     const body = z.object({ teamId: z.string().uuid().optional(), grantId: z.string().uuid() }).parse(req.body ?? {});
     const staff = await requirePlatformStaff(req, reply);
     if (!staff) return;
-    await revokeSupportAccess({ grantId: body.grantId, revokedByUserId: staff.actorUserId });
+    const found = await revokeSupportAccess({ grantId: body.grantId, revokedByUserId: staff.actorUserId });
+    if (found === false) return reply.code(404).send({ error: { code: "NOT_FOUND" } });
     return reply.send({ ok: true });
   });
 
@@ -648,6 +661,13 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
   app.post("/v1/break-glass/emergency/sessions/revoke", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const body = EmergencyRevokeBody.parse(req.body ?? {});
     if (!(await requirePlatformStaff(req, reply))) return;
+    // The overlay binds the grant to `organizationId`, and the action below runs
+    // on `teamId`. Both come from the request, so nothing tied them together: a
+    // grant on one Organization could end the sessions of a workspace in another.
+    const revokeTeam = await prisma.team.findUnique({ where: { id: body.teamId }, select: { organizationId: true } });
+    if (revokeTeam?.organizationId !== body.organizationId) {
+      return reply.code(403).send({ error: { code: "break_glass_denied", reason: "org_scope_mismatch" } });
+    }
     const authz = await authorizeWithEmergencyOverlay(req, reply, {
       teamId: body.teamId,
       organizationId: body.organizationId,

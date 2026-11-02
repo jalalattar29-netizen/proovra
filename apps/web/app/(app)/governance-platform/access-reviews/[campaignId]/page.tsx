@@ -11,8 +11,10 @@
  * Hard rules:
  *   * Bounded decision vocabulary (PENDING / APPROVED / REVOKED /
  *     ESCALATED) — matches `AccessReviewItemDecision`.
- *   * 403 + denial=PERMISSION_REQUIRED is surfaced inline so the
- *     operator knows the route is gated, not broken.
+ *   * Every refusal is surfaced inline: a 403 PERMISSION_REQUIRED says what
+ *     is missing, the rest say why the decision or the read was refused, so
+ *     a refused click never looks like nothing happened and a refused read
+ *     never looks like an empty campaign.
  *   * Subject user id truncated to 8 chars for screen density;
  *     the full id is on the row's data-* anchor for tests + dev tools.
  */
@@ -32,7 +34,8 @@ import { Button } from "../../../../../components/ui/Button";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
 import { DataTable, type DataTableColumn } from "../../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../../components/ui/EmptyState";
-import { apiFetch, ApiError } from "../../../../../lib/api";
+import { apiFetch } from "../../../../../lib/api";
+import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { permissionRequiredDetail } from "../../../../../lib/labels/governanceReviewLabels";
 
@@ -58,6 +61,7 @@ function Shell() {
   );
   const [busy, setBusy] = useState(false);
   const [denial, setDenial] = useState<DenialState>(null);
+  const denied = denial !== null;
 
   const refresh = useCallback(async () => {
     if (!campaignId) return;
@@ -208,11 +212,12 @@ function Shell() {
           padding="compact"
           data-access-review-items-denial={denial.denial}
         >
-          <strong>Permission required:</strong> {denial.message}
+          {denial.denial === "PERMISSION_REQUIRED" ? <strong>Permission required: </strong> : null}
+          {denial.message}
         </Card>
       ) : null}
 
-      <div data-access-review-items-table>
+      <div data-access-review-items-table hidden={denied && rows.length === 0}>
         <DataTable<AccessReviewItemProjection>
           ariaLabel="Access review items"
           columns={columns}
@@ -245,32 +250,31 @@ function DecisionBadge({ decision }: { decision: AccessReviewItemDecision }) {
   );
 }
 
+/** Why the API refused, in the reader's terms. */
+const REFUSALS: Readonly<Record<string, string>> = {
+  CAMPAIGN_NOT_FOUND: "This campaign does not exist in the current workspace.",
+  CAMPAIGN_NOT_OPEN: "This campaign is not open, so it takes no decisions.",
+  SELF_REVIEW_REFUSED: "You cannot decide your own access. Another reviewer has to decide this item.",
+  GRANT_NOT_REVOCABLE: "This grant cannot be revoked from a review. Nothing was recorded.",
+  GRANT_REVOKE_FAILED: "The grant could not be revoked, so the item stays pending.",
+};
+
 function handleError(err: unknown, setDenial: (v: DenialState) => void): void {
-  if (err instanceof ApiError) {
-    const detailsDenial =
-      err.details && typeof err.details["denial"] === "string"
-        ? (err.details["denial"] as string)
-        : null;
-    if (err.statusCode === 403 && detailsDenial === "PERMISSION_REQUIRED") {
-      setDenial({
-        denial: detailsDenial,
-        message: permissionRequiredDetail(readPermission(err.details)),
-      });
-      return;
-    }
+  const failure = err as { details?: Record<string, unknown> };
+  const denial =
+    failure?.details && typeof failure.details["denial"] === "string"
+      ? (failure.details["denial"] as string)
+      : "REFUSED";
+  if (denial === "PERMISSION_REQUIRED") {
+    setDenial({ denial, message: permissionRequiredDetail(readPermission(failure.details)) });
+    return;
   }
-  // Generic shape used by apiFetch fallback.
-  const generic = err as { code?: string; statusCode?: number; details?: Record<string, unknown> };
-  const detailsDenial =
-    generic && generic.details && typeof generic.details["denial"] === "string"
-      ? (generic.details["denial"] as string)
-      : null;
-  if (generic && generic.statusCode === 403 && detailsDenial === "PERMISSION_REQUIRED") {
-    setDenial({
-      denial: detailsDenial,
-      message: permissionRequiredDetail(readPermission(generic.details)),
-    });
-  }
+  setDenial({
+    denial,
+    message:
+      REFUSALS[denial] ??
+      toSafeUserError(err, { message: "That could not be completed. Nothing was changed." }).message,
+  });
 }
 
 function readPermission(details: Record<string, unknown> | undefined): string | null {

@@ -202,6 +202,18 @@ function handleStepUpError(reply: FastifyReply, err: unknown): boolean {
   return false;
 }
 
+/**
+ * A revocation ends the person's sessions everywhere, not in one workspace, so an
+ * administrator may aim it only at someone of their own workspace.
+ */
+async function isWorkspaceMember(teamId: string, userId: string): Promise<boolean> {
+  const row = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 export async function identitySecurityRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // Step-up
@@ -462,6 +474,9 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const actor = await requireSecurityActor(req, reply, body.teamId, "identity.access_review.action");
       if (!actor) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
+      if (!(await isWorkspaceMember(body.teamId, body.userId))) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const result = await revokeSession({
         teamId: body.teamId,
         userId: body.userId,
@@ -491,6 +506,9 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       const actor = await requireSecurityActor(req, reply, body.teamId, "identity.access_review.action");
       if (!actor) return;
       if (await denyIfTeamNotEnterprise(reply, body.teamId, "sessionGovernance")) return;
+      if (!(await isWorkspaceMember(body.teamId, body.userId))) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const row = await revokeAllSessionsForUser({
         teamId: body.teamId,
         userId: body.userId,

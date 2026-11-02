@@ -170,6 +170,10 @@ describe("PROV-001 — first owner binding (live PostgreSQL)", () => {
     expect(accepted.statusCode, accepted.body).toBe(200);
     const row = await prisma.organizationMembership.findFirstOrThrow({ where: { organizationId } });
     expect(row).toMatchObject({ userId: google.id, role: "ORG_OWNER", status: "ACTIVE" });
+    // PROV-004 — an existing account lands in the organization as a new one does.
+    const workspace = await prisma.team.findFirstOrThrow({ where: { organizationId } });
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: google.id } });
+    expect(after.currentWorkspaceId).toBe(workspace.id);
   });
 
   it("the mailbox owner's click cannot activate the stranger's password; the link survives a refused attempt", async () => {

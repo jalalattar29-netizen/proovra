@@ -49,6 +49,11 @@ const ORG_AUDIT_EVENT_LABEL: Readonly<Record<string, string>> = {
   DOMAIN_VERIFIED: "Domain verified",
   DOMAIN_REMOVED: "Domain removed",
   ORG_REPORT_EXPORTED: "Report exported",
+  ORG_SUPPORT_ACCESS_STARTED: "Support access granted",
+  ORG_SUPPORT_ACCESS_ENTERED: "Support staff entered",
+  ORG_SUPPORT_ACCESS_REVOKED: "Support access revoked",
+  ORG_BREAK_GLASS_ACTIVATED: "Emergency access activated",
+  ORG_BREAK_GLASS_REVOKED: "Emergency access revoked",
   ORG_BULK_INVITATION_STARTED: "Bulk invitation started",
   ORG_BULK_INVITATION_COMPLETED: "Bulk invitation completed",
 };

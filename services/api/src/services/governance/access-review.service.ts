@@ -397,8 +397,13 @@ export async function listItems(input: {
   prisma?: PrismaClient;
   teamId: string;
   campaignId: string;
-}): Promise<ReadonlyArray<AccessReviewItemProjection>> {
+}): Promise<ReadonlyArray<AccessReviewItemProjection> | null> {
   const prisma = input.prisma ?? defaultPrisma;
+  const campaign = await prisma.accessReviewCampaign.findFirst({
+    where: { id: input.campaignId, teamId: input.teamId },
+    select: { id: true },
+  });
+  if (!campaign) return null;
   const rows = await prisma.accessReviewItem.findMany({
     where: { teamId: input.teamId, campaignId: input.campaignId },
     orderBy: { createdAt: "asc" },

@@ -48,6 +48,7 @@ import { getAuthUserId } from "../auth.js";
 import {
   checkOrgAccess,
   listOrgAdminSurfaces,
+  ORG_OVERSIGHT_ROLES,
   orgAccessDenial,
 } from "../services/organization/org-access.js";
 // P0 remediation (2026-07-21) — admin org-member removal revokes sessions.
@@ -568,6 +569,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
         },
         orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       });
+      const readsLifecycleReasons = listOrgAdminSurfaces(access.role).includes("members");
 
       return reply.code(200).send({
         organizationId: orgId,
@@ -585,6 +587,10 @@ export async function organizationsRoutes(app: FastifyInstance) {
         // projected: the state, when it changed, and the operator-supplied
         // reason. No internal audit object is exposed, and dates use the same
         // ISO-8601 convention as `memberSince` directly above.
+        //
+        // The reasons are an administrator's words about a colleague. A role
+        // that holds no members surface sees who is in the organization and in
+        // what state, not why someone was suspended.
         members: memberships.map((m) => ({
           membershipId: m.id,
           userId: m.userId,
@@ -595,9 +601,9 @@ export async function organizationsRoutes(app: FastifyInstance) {
           status: m.status,
           statusChangedAtUtc: m.statusChangedAtUtc?.toISOString() ?? null,
           suspendedAtUtc: m.suspendedAtUtc?.toISOString() ?? null,
-          suspensionReason: m.suspensionReason ?? null,
+          suspensionReason: readsLifecycleReasons ? (m.suspensionReason ?? null) : null,
           revokedAtUtc: m.revokedAtUtc?.toISOString() ?? null,
-          revocationReason: m.revocationReason ?? null,
+          revocationReason: readsLifecycleReasons ? (m.revocationReason ?? null) : null,
         })),
       });
     },
@@ -2819,8 +2825,13 @@ export async function organizationsRoutes(app: FastifyInstance) {
             id: params.requestId,
             organizationId: params.id,
             status: { in: [...CANCELLABLE_ORG_CLOSURE_STATUSES] },
-            // Re-read in the write, so a termination cannot slip in by id.
-            NOT: { reason: { startsWith: CONTRACT_TERMINATION_REASON_PREFIX } },
+            // Re-read in the write, so a termination cannot slip in by id. The
+            // reason is optional, and SQL's NOT over a NULL excludes the row: a
+            // bare NOT here made every closure requested without one uncancellable.
+            OR: [
+              { reason: null },
+              { NOT: { reason: { startsWith: CONTRACT_TERMINATION_REASON_PREFIX } } },
+            ],
           },
           data: { status: "CANCELLED", cancelledAtUtc: new Date() },
         });
@@ -2874,7 +2885,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // GET /v1/orgs/:id/audit-events
   //
-  // List org audit events. Requires ORG_AUDITOR+ (rank ≥ 2).
+  // List org audit events. Security oversight only: ORG_OVERSIGHT_ROLES (AUD-31).
   //
   // Stage 5 — pagination + filtering hardening:
   //   - `?take=<1..200>`   page size, default 50
@@ -2910,7 +2921,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       const access = await checkOrgAccess(prisma, {
         orgId,
         userId,
-        minRole: "ORG_AUDITOR",
+        roles: ORG_OVERSIGHT_ROLES,
       });
       if (access.kind !== "ok") {
         const denial = orgAccessDenial(access);

@@ -41,7 +41,7 @@ import {
   getFeatureSnapshot,
 } from "../config/index.js";
 import { prisma } from "../db.js";
-import { incidentInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
+import { evidenceClosedTo, incidentInReach, viewerReachInWorkspace } from "../services/access/record-reach.js";
 import { buildOperationsSummary } from "../services/operations/operations-summary.service.js";
 import { ensureWorkspaceOperationsFresh } from "../services/operations/operations-reconciliation.service.js";
 import { checkWriterSchemaContract } from "../services/operations/operations-writer-readiness.js";
@@ -365,6 +365,15 @@ async function requireDomainActionOnOpsSurface(
 }
 
 /** READ the workspace's shared operational state. */
+/** An incident naming a record closed to the caller is, to them, not there. */
+async function incidentClosedTo(incidentId: string, teamId: string, userId: string): Promise<boolean> {
+  const row = await prisma.operationalIncident.findFirst({
+    where: { id: incidentId, teamId },
+    select: { relatedEvidenceId: true },
+  });
+  return row?.relatedEvidenceId ? evidenceClosedTo(row.relatedEvidenceId, userId) : false;
+}
+
 async function requireOpsActor(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -1888,6 +1897,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
       const actor = await requireOpsActor(req, reply, q.teamId);
       if (!actor) return;
+      if (await incidentClosedTo(id, q.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
       const detail = await getIncidentDetail({
         incidentId: id,
         teamId: q.teamId,
@@ -2154,6 +2166,9 @@ export async function opsRoutes(app: FastifyInstance) {
         "operations.view",
       );
       if (!actor) return;
+      if (await incidentClosedTo(id, body.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
 
       /*
        * 3. An override (superseding an exhausted failure) additionally needs
@@ -2248,6 +2263,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const body = TeamIdOnly.parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
       if (!actor) return;
+      if (await incidentClosedTo(id, body.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
       try {
         const updated = await acknowledgeIncident({
           incidentId: id,
@@ -2272,6 +2290,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const body = ResolveBody.parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
       if (!actor) return;
+      if (await incidentClosedTo(id, body.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
       try {
         const updated = await resolveIncident({
           incidentId: id,
@@ -2301,6 +2322,9 @@ export async function opsRoutes(app: FastifyInstance) {
       }).parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
       if (!actor) return;
+      if (await incidentClosedTo(id, body.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
       try {
         const updated = await suppressIncident({
           incidentId: id,
@@ -2332,6 +2356,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const body = TeamIdOnly.parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
       if (!actor) return;
+      if (await incidentClosedTo(id, body.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
       try {
         const updated = await unsuppressIncident({
           incidentId: id,
@@ -2409,6 +2436,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const body = AssignBody.parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
       if (!actor) return;
+      if (await incidentClosedTo(id, body.teamId, actor.userId)) {
+        return reply.code(404).send({ error: { code: "incident_not_found" } });
+      }
       // CLOSURE PASS (2026-08-22) — ELIGIBILITY, not mere membership.
       //
       // This was `teamMember.findFirst({ teamId, userId })` with NO status

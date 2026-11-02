@@ -198,6 +198,22 @@ export const ORG_BILLING_ROLES: ReadonlyArray<OrgRole> = [
 ];
 
 /**
+ * AUD-31 — SECURITY OVERSIGHT, BY EXPLICIT ROLE.
+ *
+ * The audit trail and the governance posture belong to the security specialist,
+ * the auditor and the full administrators. The billing specialist shares the
+ * security specialist's rank, so a `minRole` gate admits them: AUD-31 took the
+ * audit, governance and access exports from that role, and these rows must not
+ * stay readable through the JSON routes beside them.
+ */
+export const ORG_OVERSIGHT_ROLES: ReadonlyArray<OrgRole> = [
+  "ORG_OWNER",
+  "ORG_ADMIN",
+  "ORG_SECURITY_ADMIN",
+  "ORG_AUDITOR",
+];
+
+/**
  * Convenience matrix shape consumed by future capability surfaces.
  * Phase 2.7X Stage 3 emits the same role precedence the access
  * gate uses, so any UI / docs / tests checking the precedence
@@ -255,13 +271,6 @@ const SECURITY_TIER: ReadonlyArray<OrgRole> = [
   "ORG_SECURITY_ADMIN",
   "ORG_AUDITOR",
 ];
-/** Full admins + the billing specialist + read-only auditor. */
-const BILLING_TIER: ReadonlyArray<OrgRole> = [
-  "ORG_OWNER",
-  "ORG_ADMIN",
-  "ORG_BILLING_ADMIN",
-  "ORG_AUDITOR",
-];
 
 /**
  * Bounded org-admin surface vocabulary. Ids are the wire contract shared with
@@ -289,8 +298,9 @@ export const ORG_ADMIN_SURFACE_ACCESS: ReadonlyArray<{
   { id: "roles", roles: EVERY_ORG_ROLE },
   { id: "departments", roles: FULL_ORG_ADMINS },
   { id: "integrations", roles: FULL_ORG_ADMINS },
-  // The seat/plan rollup endpoint permits ORG_AUDITOR read. NOT security-admin.
-  { id: "billing", roles: BILLING_TIER },
+  // The same set the rollup endpoint admits (WCC-NEW-006): showing the auditor a
+  // tab whose only read answers 403 told them nothing true.
+  { id: "billing", roles: ORG_BILLING_ROLES },
   // Security posture. NOT billing-admin.
   { id: "security", roles: SECURITY_TIER },
   { id: "domains", roles: SECURITY_TIER },

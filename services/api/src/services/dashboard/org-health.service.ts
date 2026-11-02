@@ -18,22 +18,48 @@ import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { incidentInReach, type ViewerReach } from "../access/record-reach.js";
 
 function clamp100(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-export async function recordOrgHealthSnapshotForWorkspace(input: {
-  teamId: string;
-}): Promise<{ persisted: boolean; failed: boolean }> {
-  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
-  // resolved once for every query below. A strict `teamId` equality here
-  // omitted a personal workspace's legacy NULL-team rows, and reported the
-  // smaller number as if it were the whole population.
-  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
-  try {
-    // Real counters
+type OrgHealthScores = {
+  healthScore: number;
+  operationalMaturityScore: number;
+  governanceMaturityScore: number;
+  auditReadinessScore: number;
+  reviewerMaturityScore: number;
+  incidentFrequency7d: number;
+  workflowCompletion7d: number;
+  queueReliabilityScore: number;
+  artifactReliabilityScore: number;
+};
+
+/**
+ * The scores, from real counters. With a viewer's reach, the rows that name a
+ * record closed to them are left out, so a score cannot disclose activity on a
+ * hidden case (EVID-019). The sweep measures with no reach and persists the result.
+ */
+async function measureOrgHealth(teamId: string, reach?: ViewerReach): Promise<OrgHealthScores> {
+  const workspaceScope = await workspaceEvidenceWhere(teamId, prisma);
+  const scope = reach ? { AND: [workspaceScope, reach.evidence] } : workspaceScope;
+  const incidentReach = reach ? incidentInReach(reach) : {};
+  const closedEvidence = reach?.hidden.evidenceIds ?? [];
+  const closedCases = reach?.hidden.caseIds ?? [];
+  const workflowReach =
+    closedEvidence.length + closedCases.length > 0
+      ? {
+          AND: [
+            { OR: [{ evidenceId: null }, { evidenceId: { notIn: closedEvidence } }] },
+            { OR: [{ caseId: null }, { caseId: { notIn: closedCases } }] },
+          ],
+        }
+      : {};
+
+  // Real counters over the canonical workspace population (see the comment in
+  // `recordOrgHealthSnapshotForWorkspace`).
     const [
       openIncidents,
       criticalIncidents,
@@ -50,24 +76,26 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.operationalIncident.count({
         where: {
           // WORKSPACE-SCOPE CONVERGENCE (§12) — was
-        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // `OR: [{ teamId: teamId }, { teamId: null }]`. The NULL arm was
         // written to pick up platform-wide incidents; because deleting a
         // workspace rewrites ITS incidents' team_id to NULL via
         // `ON DELETE SET NULL`, the same arm returned every other tenant's
         // orphans into this workspace's read.
-        ...workspaceIncidentWhere(input.teamId),
+        ...workspaceIncidentWhere(teamId),
+        ...incidentReach,
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
         },
       }),
       prisma.operationalIncident.count({
         where: {
           // WORKSPACE-SCOPE CONVERGENCE (§12) — was
-        // `OR: [{ teamId: input.teamId }, { teamId: null }]`. The NULL arm was
+        // `OR: [{ teamId: teamId }, { teamId: null }]`. The NULL arm was
         // written to pick up platform-wide incidents; because deleting a
         // workspace rewrites ITS incidents' team_id to NULL via
         // `ON DELETE SET NULL`, the same arm returned every other tenant's
         // orphans into this workspace's read.
-        ...workspaceIncidentWhere(input.teamId),
+        ...workspaceIncidentWhere(teamId),
+        ...incidentReach,
           status: { in: ["OPEN", "ACKNOWLEDGED"] },
           severity: "CRITICAL",
         },
@@ -75,7 +103,8 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.operationalWorkflow
         .count({
           where: {
-            teamId: input.teamId,
+            ...workflowReach,
+            teamId: teamId,
             status: {
               in: [
                 "OPEN",
@@ -94,7 +123,8 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       prisma.operationalWorkflow
         .count({
           where: {
-            teamId: input.teamId,
+            ...workflowReach,
+            teamId: teamId,
             status: "RESOLVED",
             updatedAt: {
               gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
@@ -104,13 +134,13 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
         .catch(() => 0),
       prisma.operationalWorkflow
         .count({
-          where: { teamId: input.teamId, status: "FAILED" },
+          where: { teamId: teamId, status: "FAILED" },
         })
         .catch(() => 0),
       prisma.queueTelemetrySnapshot
         .count({
           where: {
-            teamId: input.teamId,
+            teamId: teamId,
             sampledAtUtc: {
               gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
             },
@@ -119,16 +149,17 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
         .catch(() => 0),
       prisma.reviewerCapacitySnapshot
         .count({
-          where: { teamId: input.teamId, saturationLevel: "CRITICAL" },
+          where: { teamId: teamId, saturationLevel: "CRITICAL" },
         })
         .catch(() => 0),
       prisma.reviewerCapacitySnapshot
-        .count({ where: { teamId: input.teamId } })
+        .count({ where: { teamId: teamId } })
         .catch(() => 0),
       prisma.operationalWorkflow
         .count({
           where: {
-            teamId: input.teamId,
+            ...workflowReach,
+            teamId: teamId,
             workflowType: { in: ["AUDIT_READINESS", "EXPORT_BLOCKER_RESOLUTION"] },
             status: {
               in: [
@@ -147,7 +178,7 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       // ET-SEC-20 — the one owed-output narrowing: a FREE record is owed no
       // report, and a lapsed paid workspace's plan-funded records are not
       // issued, so neither is a backlog.
-      outputEntitledEvidenceWhere({ teamId: input.teamId })
+      outputEntitledEvidenceWhere({ teamId: teamId })
         .then((owed) =>
           prisma.evidence.count({
             where: {
@@ -158,7 +189,7 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
           }),
         )
         .catch(() => 0),
-      outputEntitledEvidenceWhere({ teamId: input.teamId })
+      outputEntitledEvidenceWhere({ teamId: teamId })
         .then((owed) =>
           prisma.evidence.count({
             where: {
@@ -205,19 +236,32 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
       100 - Math.min(60, reportBacklog) - Math.min(40, packageBacklog),
     );
 
+  return {
+    healthScore,
+    operationalMaturityScore,
+    governanceMaturityScore,
+    auditReadinessScore,
+    reviewerMaturityScore,
+    incidentFrequency7d: openIncidents,
+    workflowCompletion7d: resolvedWorkflows7d,
+    queueReliabilityScore,
+    artifactReliabilityScore,
+  };
+}
+
+export async function recordOrgHealthSnapshotForWorkspace(input: {
+  teamId: string;
+}): Promise<{ persisted: boolean; failed: boolean }> {
+  try {
+    // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population, resolved
+    // once inside the measure. A strict `teamId` equality omitted a personal
+    // workspace's legacy NULL-team rows and reported the smaller number as whole.
+    const scores = await measureOrgHealth(input.teamId);
     await prisma.organizationalHealthSnapshot.create({
       data: {
         teamId: input.teamId,
         workspaceId: input.teamId,
-        healthScore,
-        operationalMaturityScore,
-        governanceMaturityScore,
-        auditReadinessScore,
-        reviewerMaturityScore,
-        incidentFrequency7d: openIncidents,
-        workflowCompletion7d: resolvedWorkflows7d,
-        queueReliabilityScore,
-        artifactReliabilityScore,
+        ...scores,
         source: "DB_DERIVED",
       },
     });
@@ -229,6 +273,8 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
 
 export async function getLatestOrgHealthSnapshot(input: {
   teamId: string;
+  /** The viewer's reach. With closed records the scores are measured live for them. */
+  reach?: ViewerReach;
 }): Promise<{
   healthScore: number | null;
   operationalMaturityScore: number | null;
@@ -258,6 +304,11 @@ export async function getLatestOrgHealthSnapshot(input: {
         sampledAtUtc: true,
       },
     });
+    const narrowed =
+      input.reach && (input.reach.hidden.evidenceIds.length > 0 || input.reach.hidden.caseIds.length > 0);
+    if (row && narrowed) {
+      return { ...(await measureOrgHealth(input.teamId, input.reach)), sampledAtUtc: new Date().toISOString() };
+    }
     if (!row) {
       return {
         healthScore: null,

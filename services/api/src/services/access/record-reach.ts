@@ -21,6 +21,8 @@
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
 
+import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
 import { listAccessibleWorkspaces } from "./accessible-workspaces.js";
 import {
@@ -44,22 +46,30 @@ export type HiddenRecordIds = {
   evidenceIds: string[];
 };
 
-type HiddenRecordClient = Pick<PrismaClient, "case" | "evidence">;
+type HiddenRecordClient = Pick<PrismaClient, "case" | "evidence" | "team">;
 
 export async function hiddenRecordIdsInWorkspace(
   workspaceId: string,
   callerUserId: string | null,
   client: HiddenRecordClient = defaultPrisma,
 ): Promise<HiddenRecordIds> {
+  // The workspace population the reads use, so a Personal workspace's legacy
+  // NULL-team record is hidden by the same rule as one carrying its team id. The
+  // scope helpers read `team` only, which the narrowed client type guarantees.
+  const scopeClient = client as PrismaClient;
+  const [caseScope, evidenceScope] = await Promise.all([
+    workspaceCaseWhere(workspaceId, scopeClient),
+    workspaceEvidenceWhere(workspaceId, scopeClient),
+  ]);
   const [cases, evidence] = await Promise.all([
     client.case.findMany({
       // NOT visible already implies restricted (caseVisibleToWhere admits
       // every unrestricted Case), by the canonical rule rather than the flag.
-      where: { teamId: workspaceId, NOT: caseVisibleToWhere(callerUserId) },
+      where: { AND: [caseScope], NOT: caseVisibleToWhere(callerUserId) },
       select: { id: true },
     }),
     client.evidence.findMany({
-      where: { teamId: workspaceId, NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
+      where: { AND: [evidenceScope], NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
       select: { id: true },
     }),
   ]);

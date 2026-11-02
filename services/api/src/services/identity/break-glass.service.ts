@@ -20,6 +20,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { checkOrgAccess } from "../organization/org-access.js";
+import { emitOrgAuditEvent } from "../organization/org-audit.service.js";
 
 export type EmergencyRole = "EMERGENCY_READ_ONLY" | "EMERGENCY_OPERATOR";
 
@@ -462,6 +463,22 @@ export async function activateBreakGlass(
     );
   }
 
+  // Emergency access into the customer is on the customer's own trail, as a
+  // support grant is (support-access.service.ts says why the platform log is not).
+  await emitOrgAuditEvent(client as never, {
+    organizationId: input.organizationId,
+    actorUserId: input.requestedByUserId,
+    eventType: "ORG_BREAK_GLASS_ACTIVATED",
+    targetType: "emergency_access_grant",
+    targetId: row.id,
+    metadata: {
+      emergencyUserId: input.emergencyUserId,
+      grantedRole: row.grantedRole,
+      reason: row.reason,
+      expiresAtUtc: expiresAtUtc.toISOString(),
+    },
+  }).catch(() => null);
+
   await emitTenantAudit({
     action: "identity.break_glass.activated",
     outcome: "success",
@@ -520,10 +537,21 @@ export async function revokeBreakGlass(
     where: { id: input.grantId },
     select: { organizationId: true },
   });
-  await client.emergencyAccessGrant.updateMany({
+  const ended = await client.emergencyAccessGrant.updateMany({
     where: { id: input.grantId, status: "ACTIVE" },
     data: { status: "REVOKED", revokedAtUtc: new Date(), revokedByUserId: input.revokedByUserId },
   });
+  // Containment must never fail on the record of it.
+  if (grant && ended.count > 0) {
+    await emitOrgAuditEvent(client as never, {
+      organizationId: grant.organizationId,
+      actorUserId: input.revokedByUserId,
+      eventType: "ORG_BREAK_GLASS_REVOKED",
+      targetType: "emergency_access_grant",
+      targetId: input.grantId,
+      metadata: {},
+    }).catch(() => null);
+  }
   await emitTenantAudit({
     action: "identity.break_glass.revoked",
     outcome: "success",

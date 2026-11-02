@@ -59,7 +59,7 @@ import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 import { apiEvidenceDestructionStorage } from "../evidence/destruction-storage-port.js";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, evidenceVisibleThroughCasesWhere } from "@proovra/shared-runtime";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { readDestructionBarriers } from "../governance-lifecycle/destruction-barriers.service.js";
 
@@ -212,7 +212,10 @@ async function checkLegalHoldBlocks(
   evidenceIds: ReadonlyArray<string>,
   teamId: string,
 ): Promise<{ ok: true } | { ok: false; holdIds: string[] }> {
-  const blocked: string[] = [];
+  // holdIds named the blocked RECORDS, so the refusal could not say which hold to
+  // release. A hold state that cannot be read has no id and still blocks.
+  let held = false;
+  const holdIds = new Set<string>();
   for (const evidenceId of evidenceIds) {
     // An unreadable hold state blocks (GOV-013): this gate used to read a failed
     // lookup as "not held", the opposite of every other hold check.
@@ -221,10 +224,13 @@ async function checkLegalHoldBlocks(
       teamId,
       evidenceId,
     }).catch(() => ({ underHold: true, holdIds: [], sources: [] as Array<"4A" | "4B"> }));
-    if (result.underHold) blocked.push(evidenceId);
+    if (result.underHold) {
+      held = true;
+      for (const id of result.holdIds) holdIds.add(id);
+    }
   }
-  if (blocked.length === 0) return { ok: true };
-  return { ok: false, holdIds: blocked };
+  if (!held) return { ok: true };
+  return { ok: false, holdIds: [...holdIds] };
 }
 
 // -----------------------------------------------------------------------------
@@ -1366,9 +1372,33 @@ function projectCertificate(row: {
 export type ListDestructionRequestsInput = {
   prisma?: PrismaClient;
   teamId: string;
+  /** Records closed to the viewer: a request naming one is left out (GOV-017). */
+  closedEvidenceIds?: readonly string[];
   state?: DestructionState;
   limit?: number;
 };
+
+/**
+ * GOV-017 — a destruction request names records. One that names a record closed to
+ * the caller is, to them, not there: they neither read it nor decide it.
+ */
+export async function destructionRequestClosedTo(
+  requestId: string,
+  teamId: string,
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const row = await client.destructionRequest.findFirst({
+    where: { id: requestId, teamId },
+    select: { evidenceIds: true },
+  });
+  const ids = Array.isArray(row?.evidenceIds) ? (row.evidenceIds as string[]) : [];
+  if (ids.length === 0) return false;
+  const closed = await client.evidence.count({
+    where: { id: { in: ids }, NOT: evidenceVisibleThroughCasesWhere(userId) },
+  });
+  return closed > 0;
+}
 
 export async function listDestructionRequests(
   input: ListDestructionRequestsInput,
@@ -1384,7 +1414,10 @@ export async function listDestructionRequests(
     take,
     include: { certificate: true },
   });
-  return rows.map((r) => projectRequest(r));
+  const closed = new Set(input.closedEvidenceIds ?? []);
+  return rows
+    .filter((r) => !(Array.isArray(r.evidenceIds) && (r.evidenceIds as string[]).some((id) => closed.has(id))))
+    .map((r) => projectRequest(r));
 }
 
 export type GetDestructionCertificateInput = {
