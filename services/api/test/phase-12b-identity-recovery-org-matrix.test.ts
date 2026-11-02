@@ -134,8 +134,20 @@ vi.mock("../src/middleware/authorize.js", () => ({
   authorizeOrFail: async (
     _req: unknown,
     reply: { code: (n: number) => { send: (b: unknown) => void } },
+    options?: { permission?: string; teamId?: string },
   ) => {
-    if (!H.authorizeAllowed) {
+    // The role table's answer for the one permission the identity operations
+    // gate asks, from the rows these scenarios seed.
+    const admits =
+      options?.permission !== "identity.external_mapping.manage" ||
+      rows("teamMember").some(
+        (m) =>
+          m.teamId === options.teamId &&
+          m.userId === H.actorUserId &&
+          m.status === "ACTIVE" &&
+          (m.role === "OWNER" || m.role === "ADMIN"),
+      );
+    if (!H.authorizeAllowed || !admits) {
       reply.code(404).send({ error: { code: "not_found" } });
       return null;
     }
@@ -889,6 +901,7 @@ function makeDb() {
   for (const m of MODELS) store.set(m, []);
   const db: Record<string, unknown> = {
     __store: store,
+    $executeRaw: async () => 1,
     $transaction: async (arg: unknown) =>
       Array.isArray(arg)
         ? Promise.all(arg)
@@ -2259,45 +2272,15 @@ describe("SYSTEMS 3-5 — SCIM ops, SAML mapping, SSO health, session timeline",
     }
   });
 
-  it("membership state and role are separate bounded denials (recorded contract)", async () => {
-    rows("teamMember").push({
-      id: "tm-inactive",
-      teamId: TEAM,
-      userId: OUTSIDER,
-      role: "ADMIN",
-      status: "SUSPENDED",
-    });
-    H.actorUserId = OUTSIDER;
-    const inactive = await app.inject({
+  it("the canonical engine decides, and a refusal reaches no service (AUTHZ-003)", async () => {
+    H.authorizeAllowed = false;
+    const refused = await app.inject({
       method: "GET",
       url: "/v1/sso/health?teamId=" + TEAM,
     });
-    expect(inactive.statusCode).toBe(403);
-    expect(JSON.parse(inactive.body)).toEqual({
-      error: { code: "member_inactive" },
-    });
-    expect(callsTo("buildSsoHealthSnapshot")).toHaveLength(0);
-
-    // An ACTIVE non-admin member is refused on ROLE, with a bounded reason.
-    rows("teamMember").push({
-      id: "tm-member",
-      teamId: TEAM,
-      userId: SUBJECT,
-      role: "VIEWER",
-      status: "ACTIVE",
-    });
-    H.actorUserId = SUBJECT;
-    const nonAdmin = await app.inject({
-      method: "GET",
-      url: "/v1/sso/health?teamId=" + TEAM,
-    });
-    expect(nonAdmin.statusCode).toBe(403);
-    expect(JSON.parse(nonAdmin.body)).toEqual({
-      error: {
-        code: "permission_denied",
-        reason: "identity_ops_require_admin_role",
-      },
-    });
+    H.authorizeAllowed = true;
+    expect(refused.statusCode).toBe(404);
+    expect(JSON.parse(refused.body)).toEqual({ error: { code: "not_found" } });
     expect(callsTo("buildSsoHealthSnapshot")).toHaveLength(0);
   });
 

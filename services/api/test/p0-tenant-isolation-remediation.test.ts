@@ -563,7 +563,7 @@ describe("P0 — source contracts for fail-closed tenant guards", () => {
     expect(src).toMatch(/issuer: discovery\.issuer/);
     expect(src).toMatch(/audience: conn\.clientId/);
     // 2026-10-28 — the exchange + id_token verification is shared with the
-    // IDP_REAUTH step-up callback; sign-in binds it to the in-process nonce
+    // IDP_REAUTH step-up callback; sign-in binds it to the nonce in the ledger
     // (behaviour: phase-8-oidc-callback.test.ts nonce-mismatch case).
     expect(src).toMatch(/!input\.nonceMatches\(payload\.nonce\)/);
     expect(src).toMatch(/nonceMatches: \(nonce\) => nonce === stateRecord\.nonce/);

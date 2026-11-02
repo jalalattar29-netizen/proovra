@@ -230,6 +230,16 @@ async function requireAuthAndLegal(
   await requireLegalAcceptance(req, reply);
 }
 
+/**
+ * AUTHZ-008 (probe P11) — every "is this the last owner" decision and the write
+ * that follows it run one at a time for an Organization. A count alone let two
+ * owners demote each other at the same moment, each seeing the other still there,
+ * and left the Organization with none.
+ */
+function lockOrganizationOwners(tx: { $executeRaw: typeof prisma.$executeRaw }, organizationId: string) {
+  return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`organization-owners:${organizationId}`}))`;
+}
+
 export async function organizationsRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // GET /v1/me/orgs
@@ -1533,6 +1543,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
+        await lockOrganizationOwners(tx, orgId);
         const target = await tx.organizationMembership.findFirst({
           where: { id: memberId, organizationId: orgId },
           select: { id: true, userId: true, role: true },
@@ -1655,6 +1666,7 @@ export async function organizationsRoutes(app: FastifyInstance) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
+        await lockOrganizationOwners(tx, orgId);
         const target = await tx.organizationMembership.findFirst({
           where: { id: memberId, organizationId: orgId },
           select: { id: true, userId: true, role: true },
@@ -1865,30 +1877,30 @@ export async function organizationsRoutes(app: FastifyInstance) {
             .code(403)
             .send({ message: "Only ORG_OWNER can act on an ORG_OWNER." });
         }
-        // Suspending the last live owner would leave the Organization with
-        // nobody able to administer it — the same protection removal has.
-        if (action === "suspend" && target.role === "ORG_OWNER") {
-          const liveOwners = await prisma.organizationMembership.count({
-            where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
-          });
-          if (liveOwners <= 1) {
-            return reply
-              .code(409)
-              .send({ message: "Cannot suspend the last ORG_OWNER." });
-          }
-        }
-
         const outcome =
           action === "suspend"
-            ? await suspendOrganizationMembership({
-                organizationId: orgId,
-                membershipId: target.id,
-                actorUserId: userId,
-                source: "MANUAL",
-                reason: body.reason ?? null,
-                ...(body.expectedGeneration !== undefined
-                  ? { expectedGeneration: body.expectedGeneration }
-                  : {}),
+            ? // Suspending the last live owner would leave the Organization with
+              // nobody able to administer it — the same protection removal has,
+              // under the same lock, so two suspensions cannot both pass.
+              await prisma.$transaction(async (tx) => {
+                await lockOrganizationOwners(tx, orgId);
+                if (target.role === "ORG_OWNER") {
+                  const liveOwners = await tx.organizationMembership.count({
+                    where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
+                  });
+                  if (liveOwners <= 1) return { ok: false as const, reason: "last_owner" as const };
+                }
+                return suspendOrganizationMembership({
+                  organizationId: orgId,
+                  membershipId: target.id,
+                  actorUserId: userId,
+                  source: "MANUAL",
+                  reason: body.reason ?? null,
+                  prisma: tx as never,
+                  ...(body.expectedGeneration !== undefined
+                    ? { expectedGeneration: body.expectedGeneration }
+                    : {}),
+                });
               })
             : await restoreOrganizationMembership({
                 organizationId: orgId,
@@ -1903,6 +1915,8 @@ export async function organizationsRoutes(app: FastifyInstance) {
 
         if (!outcome.ok) {
           switch (outcome.reason) {
+            case "last_owner":
+              return reply.code(409).send({ message: "Cannot suspend the last ORG_OWNER." });
             case "not_found":
               return reply.code(404).send({ message: "Membership not found." });
             case "stale_generation":
