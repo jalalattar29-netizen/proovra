@@ -80,7 +80,7 @@ test("setup is gated by the organization, not the active workspace (PROV-004)", 
 });
 
 test("wizard invitations name the workspace, so an accepted employee can open it", () => {
-  assert.match(PAGE, /inviteWorkspaceAssignments(primaryWorkspaceId, inviteAccess)/);
+  assert.ok(PAGE.includes("inviteWorkspaceAssignments(primaryWorkspaceId, inviteAccess)"));
 });
 
 test("wizard surfaces caller role and disables mutating UI for non owner/admin", () => {
