@@ -4,7 +4,7 @@
  * PROV-014, BILLING-007 — on real routes and a real PostgreSQL, from a customer
  * that went through provisioning and owner acceptance.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -540,7 +540,10 @@ describe("the Enterprise contract and its lifecycle (live PostgreSQL)", () => {
       const part = await h.app.inject({
         method: "POST",
         url: `/v1/external-intake/${encodeURIComponent(token)}/sessions/${sessionId}/parts`,
-        payload: { partIndex: 0, mimeType: "image/png" },
+        // A well-formed part, as both clients send it: the door requires the
+        // declared checksum and size (INGEST-001), so a bare body would be refused
+        // as malformed and prove nothing about suspension.
+        payload: { partIndex: 0, mimeType: "image/png", checksumSha256Base64: createHash("sha256").update("PROV-007").digest("base64"), sizeBytes: 8 },
       });
       expect(part.statusCode, part.body).toBe(410);
       const submit = await h.app.inject({

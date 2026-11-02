@@ -67,7 +67,7 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
       const ev = await signedTeamRecord(A.ownerUserId);
       const res = await h.app.inject({
         method: "POST", url: "/v1/uploads/sessions", headers: auth(A.memberToken),
-        payload: { teamId: A.teamId, evidenceId: ev.id, expectedPartCount: 1, targetPartIndex: 9999, originalFileName: "x.png", expectedMimeType: "image/png" },
+        payload: { teamId: A.teamId, evidenceId: ev.id, expectedPartCount: 1, targetPartIndex: 1, originalFileName: "x.png", expectedMimeType: "image/png" },
       });
       expect([404, 409]).toContain(res.statusCode);
       expect(await prisma.evidencePart.count({ where: { evidenceId: ev.id } })).toBe(1);
@@ -78,7 +78,7 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
       const ev = await signedTeamRecord(A.ownerUserId);
       const res = await h.app.inject({
         method: "POST", url: "/v1/uploads/sessions", headers: auth(A.ownerToken),
-        payload: { teamId: A.teamId, evidenceId: ev.id, expectedPartCount: 1, targetPartIndex: 9999, originalFileName: "x.png", expectedMimeType: "image/png" },
+        payload: { teamId: A.teamId, evidenceId: ev.id, expectedPartCount: 1, targetPartIndex: 1, originalFileName: "x.png", expectedMimeType: "image/png" },
       });
       expect(res.statusCode).toBe(409);
     });
