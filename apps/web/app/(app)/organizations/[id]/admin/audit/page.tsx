@@ -28,7 +28,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../../lib/api";
 import { formatUtcAuditDateTime } from "../../../../../../lib/date";
 import { Card } from "../../../../../../components/ui/Card";
 import { Button } from "../../../../../../components/ui/Button";
@@ -115,7 +115,7 @@ function AuditTab() {
       const data = (await apiFetch(path)) as AuditResponse;
       setAudit({ kind: "ready", data });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setAudit({
           kind: "error",
           message: err.message,

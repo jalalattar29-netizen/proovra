@@ -31,7 +31,7 @@ import { useParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
-import { apiFetch, ApiError } from "../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { ORG_ROLE_LABEL, type OrgRole } from "./_lib/orgRoles";
 
 // ---------------------------------------------------------------------------
@@ -273,7 +273,7 @@ export default function OrganizationAdminLayout({
       const data = (await apiFetch(`/v1/orgs/${orgId}`)) as OrgHeader;
       setState({ kind: "ready", data });
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setState({
           kind: "error",
           message: err.message,

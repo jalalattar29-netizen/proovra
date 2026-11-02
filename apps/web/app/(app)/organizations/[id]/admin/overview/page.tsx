@@ -56,7 +56,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../../lib/api";
+import { apiFetch, ApiError, isApiResponseError } from "../../../../../../lib/api";
 import { formatUserDate, formatUtcAuditDateTime } from "../../../../../../lib/date";
 import { organizationStatusLabel } from "@proovra/shared";
 import { Card } from "../../../../../../components/ui/Card";
@@ -182,7 +182,7 @@ function Overview() {
       const data = (await apiFetch(path)) as T;
       return { kind: "ready", data };
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         return {
           kind: "error",
           message: err.message,

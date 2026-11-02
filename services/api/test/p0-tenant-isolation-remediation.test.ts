@@ -566,7 +566,7 @@ describe("P0 — source contracts for fail-closed tenant guards", () => {
     // IDP_REAUTH step-up callback; sign-in binds it to the nonce in the ledger
     // (behaviour: phase-8-oidc-callback.test.ts nonce-mismatch case).
     expect(src).toMatch(/!input\.nonceMatches\(payload\.nonce\)/);
-    expect(src).toMatch(/nonceMatches: \(nonce\) => nonce === stateRecord\.nonce/);
+    expect(src).toMatch(/hashStateToken\(nonce\) === attempt\.nonceHash/);
     expect(src).toMatch(/userinfo\.sub !== idTokenSub/);
     expect(src).toMatch(/SSO_ACCOUNT_LINK_DENIED/);
   });
