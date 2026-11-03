@@ -14,7 +14,7 @@
  *
  * FIXTURE: records and transition rows are seeded directly around a real object.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import {
   GetObjectTaggingCommand,
@@ -280,9 +280,13 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
       where: { id: A().teamId },
       select: { organizationId: true },
     });
+    // Ids that sort before any random one, so they fill an id-ordered read. The
+    // second group is this run's own: the integration suite shares one
+    // database, and other suites already insert fixed ids under
+    // 00000000-0000-4000-8000-… (canonical-verification-fleet's …0001 collided).
+    const run = (randomBytes(2).readUInt16BE(0) | 1).toString(16).padStart(4, "0");
     const young = Array.from({ length: 401 }, (_, i) => ({
-      // Ids that sort before any random one, so they fill an id-ordered read.
-      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      id: `00000000-${run}-4000-8000-${String(i).padStart(12, "0")}`,
       type: "DOCUMENT",
       status: "SIGNED",
       teamId: A().teamId,
