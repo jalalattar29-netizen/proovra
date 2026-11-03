@@ -82,7 +82,6 @@ import {
   hashSessionId,
   listRevocationsForTeam,
   projectRevokedSession,
-  isSessionRevocationTarget,
   revokeAllSessionsForUser,
   revokeSession,
 } from "../services/identity-security/session-revocation.service.js";
@@ -201,6 +200,19 @@ function handleStepUpError(reply: FastifyReply, err: unknown): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * A revocation ends the person's sessions everywhere, not in one workspace, so an
+ * administrator may aim it only at someone who belongs to their workspace now. A
+ * former member keeps their account and their sessions in every other tenant.
+ */
+async function isSessionRevocationTarget(teamId: string, userId: string): Promise<boolean> {
+  const row = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { status: true },
+  });
+  return row !== null && row.status !== "REVOKED";
 }
 
 export async function identitySecurityRoutes(app: FastifyInstance) {

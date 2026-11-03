@@ -237,23 +237,6 @@ export async function revokeOtherSessionsForUserTx(
 // path.
 // -----------------------------------------------------------------------------
 
-/**
- * A revocation ends the person's sessions everywhere, not in one workspace, so an
- * administrator may aim it only at someone who belongs to their workspace now. A
- * former member keeps their account and their sessions in every other tenant.
- */
-export async function isSessionRevocationTarget(
-  teamId: string,
-  userId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<boolean> {
-  const row = await client.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { status: true },
-  });
-  return row !== null && row.status !== "REVOKED";
-}
-
 export type SessionRevocationCheckInput = {
   userId: string;
   sessionIdHash: string | null;

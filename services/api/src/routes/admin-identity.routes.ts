@@ -73,7 +73,6 @@ import { evaluateMemberAccess } from "../services/identity/access-policy.service
 // session surfaces owned by other tracks) performs inline.
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requestWorkspaceCandidate } from "../services/access/request-workspace.js";
-import { isSessionRevocationTarget } from "../services/identity-security/session-revocation.service.js";
 import {
   cronSecretMatches,
   readCronSecretFromEnvs,
@@ -981,7 +980,13 @@ export async function adminIdentityRoutes(app: FastifyInstance) {
       if (gate.sent) return;
       // A revocation ends the person's sessions everywhere, so it is aimed only at
       // someone of the administrator's own workspace.
-      if (!(await isSessionRevocationTarget(body.teamId, userId))) {
+      // A revocation ends the person's sessions everywhere, so it is aimed only at
+      // someone who belongs to the administrator's workspace now.
+      const target = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId: body.teamId, userId } },
+        select: { status: true },
+      });
+      if (!target || target.status === "REVOKED") {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
       const result = await revokeAllSessionsForUserAdmin({
