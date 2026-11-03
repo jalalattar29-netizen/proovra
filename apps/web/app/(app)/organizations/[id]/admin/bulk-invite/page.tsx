@@ -467,11 +467,12 @@ function BulkInviteTab() {
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
               Workspace
               <div style={{ width: 240, maxWidth: "100%", marginTop: 4 }}>
-                <AppListbox<string>
+                <AppListbox
                   ariaLabel="Workspace"
                   value={workspaceId}
                   onChange={setWorkspaceId}
                   disabled={busy !== null || workspaces === null}
+                  disabledReason={workspaces === null ? "Loading the workspaces of this organization." : undefined}
                   options={[
                     { value: NO_WORKSPACE, label: "No workspace" },
                     ...(workspaces ?? []).map((w) => ({ value: w.workspaceId, label: w.name })),

@@ -128,9 +128,9 @@ export default function AppLayout({
       {!authReady ? (
         <div className="min-h-screen bg-[#f3f5f7]" />
       ) : !hasSession && isInvitationAcceptPath(pathname) ? (
-        <main data-signed-out-invitation className="min-h-screen" style={{ display: "flex", justifyContent: "center" }}>
+        <div data-signed-out-invitation className="min-h-screen" style={{ display: "flex", justifyContent: "center" }}>
           {children}
-        </main>
+        </div>
       ) : (
       <AppShellV2 onLogout={handleLogout}>
         {/* Both slots carry STABLE DOMAIN KEYS, and the route child rides a

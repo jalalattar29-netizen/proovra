@@ -273,6 +273,18 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "PROOVRA support break-glass; never rendered to a customer.",
   },
+  SUPPORT_ACCESS_SCOPE_INVALID: {
+    disposition: "internal",
+    why: "PROOVRA support break-glass; never rendered to a customer.",
+  },
+  DESTRUCTION_EVIDENCE_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 from the lifecycle console: the record is gone or out of reach, and saying which would disclose it.",
+  },
+  DESTRUCTION_REQUEST_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 from the lifecycle console: the request list refreshes, and the status bucket says enough.",
+  },
 
   // -- Rate limiting --------------------------------------------------------
   RATE_LIMITED: { disposition: "customer", where: "global" },

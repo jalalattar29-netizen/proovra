@@ -31,7 +31,7 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
-import { apiFetch, ApiError, isApiResponseError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { LifecycleSectionBoundary, permissionRequiredDetail } from "./_shared";
 // PHASE 12B (Evidence Operations) — the lifecycle console is the home for
 // the dedicated policy-violation observability reads and the bounded

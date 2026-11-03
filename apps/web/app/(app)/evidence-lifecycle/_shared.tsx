@@ -33,7 +33,7 @@ import {
   useState,
 } from "react";
 
-import { ApiError, isApiResponseError } from "../../../lib/api";
+import { isApiResponseError } from "../../../lib/api";
 // PHASE 7 §10.7/§10.G — tenant-aware lifecycle fetch (re-scope on switch).
 import { usePlatformContext } from "../../../lib/platform-context";
 import {

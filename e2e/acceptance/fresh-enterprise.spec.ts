@@ -10,16 +10,20 @@
  * Labelled fixture shortcuts, which count as no proof of onboarding:
  *   FIXTURE-1  The operator account is seeded. A platform operator is staff, not a
  *              customer step. Its authenticator is enrolled through the product.
- *   FIXTURE-2  The worker lifecycle tick is called directly so closure does not wait
- *              for its schedule. Same route, same secret-gated caller, no customer step.
+ *
+ * Closure runs on the real worker's own timer. The stack shortens its period
+ * (LIFECYCLE_SWEEP_INTERVAL_MS, stack.mjs); nothing here calls the tick.
  *
  * Unverified, and said so where the journey reaches them:
- *   SSO and SCIM against a real identity provider.
+ *   SSO and SCIM against a real identity provider. Google and Apple sign-in.
  *
  * Each step leaves its state in .p7tmp/acceptance-state.json, so a repaired step
  * can be rerun alone: ACCEPT_RESUME=1 ... -g "S07".
  */
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
@@ -52,7 +56,41 @@ test.describe.configure({ mode: "serial" });
 
 // Seats bound the people beside the owner (owner decision 2026-10-25): the owner takes none.
 const SEATS_SOLD = 3;
-const LIFECYCLE_HEADERS = { "x-proovra-integration-cron-secret": "fixture-local-only-acceptance-cron-secret-00000000" };
+const ROOT = resolve(__dirname, "..", "..");
+
+type ManifestSummary = {
+  recordCount: number;
+  objectCount: number;
+  heldRecordCount: number;
+  missingObjects: number;
+};
+type ManifestFile = {
+  records: Array<{
+    evidenceId: string;
+    legalHold: boolean;
+    objects: Array<{ kind: string; sha256: string | null }>;
+  }>;
+};
+
+/**
+ * The organization export manifest, by the operator script the data-return runbook
+ * names, in the stack's own allowlisted environment. Nothing is read from a page.
+ */
+function organizationManifest(orgId: string, name: string): { summary: ManifestSummary; file: ManifestFile } {
+  const out = resolve(ROOT, ".p7tmp", `${name}.json`);
+  const stdout = execFileSync(process.execPath, ["e2e/acceptance/stack.mjs", "manifest", orgId, out], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      SystemRoot: process.env.SystemRoot ?? "",
+      ACCEPT_STACK_INSTANCE: process.env.ACCEPT_STACK_INSTANCE ?? "",
+    },
+  });
+  const line = stdout.split("\n").reverse().find((l) => l.startsWith('{"organizationId"'));
+  expect(line, stdout.slice(-400)).toBeTruthy();
+  return { summary: JSON.parse(line!) as ManifestSummary, file: JSON.parse(readFileSync(out, "utf8")) as ManifestFile };
+}
 
 async function confirmDialog(page: Page, name: RegExp): Promise<void> {
   await page.getByRole("dialog").getByRole("button", { name }).click();
@@ -136,6 +174,12 @@ test("S04 owner accepts the invitation from a new account", async ({ browser }) 
   const { context, page } = await newProfile(browser);
   // A person with no account opens the link in the email, and is sent to sign in.
   await page.goto(s.facts.ownerInviteLink!);
+  // Signed out, the invitation shows alone: no sidebar, no workspace chip.
+  await expect(page.locator('[data-action="accept-invite"]')).toBeVisible();
+  await expect(page.locator("[data-signed-out-invitation]")).toBeVisible();
+  await expect(page.locator("[data-app-context-chip]")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("Workspace unavailable");
+  await shot(page, "s04-invitation-signed-out");
   await page.locator('[data-action="accept-invite"]').click();
   await page.waitForURL(/\/login/, { timeout: 30_000 });
   expect(page.url()).toContain("next=");
@@ -234,6 +278,28 @@ test("S06 owner sets MFA for everyone: a factor first, then the policy behind st
   await context.close();
 });
 
+test("S06B the posture pages report what the wizard set: retention in force, MFA for all", async ({ browser }) => {
+  const owner = s.people.owner!;
+  const { context, page } = await newProfile(browser, owner);
+  await page.goto(`/organizations/${s.orgId}/admin/governance`);
+  await settle(page);
+  await expect(page.getByTestId("kpi-retention-policies")).toContainText("1");
+  await expect(page.getByTestId("retention-policy-row").first()).toContainText("(default)");
+  await expect(page.getByTestId("coverage-retention")).not.toContainText("0%");
+  await shot(page, "s06b-governance");
+  await page.goto(`/organizations/${s.orgId}/admin/retention`);
+  await settle(page);
+  await expect(page.getByTestId("retention-workspace-policies")).toContainText("1 policy in force across 1 of 1 workspace");
+  await shot(page, "s06b-retention-tab");
+  await page.goto(`/organizations/${s.orgId}/admin/security`);
+  await settle(page);
+  await expect(page.getByTestId("sec-mfa-level")).toHaveText("All members");
+  await expect(page.getByTestId("sec-mfaRequiredFlag-off")).toHaveCount(0);
+  await shot(page, "s06b-security-tab");
+  await keepProfile(context, owner, s, "owner");
+  await context.close();
+});
+
 test("S07 owner invites members from the wizard, naming their workspace access", async ({ browser }) => {
   const owner = s.people.owner!;
   const { context, page } = await newProfile(browser, owner);
@@ -314,6 +380,44 @@ test("S09 seats: the sold count is reached and the next acceptance is refused", 
   await o.page.goto(`/organizations/${s.orgId}/setup#billing`);
   await expect(o.page.locator('[data-readonly-row="billing-seats-used"]')).toContainText(String(SEATS_SOLD));
   await o.context.close();
+});
+
+test("S09B RT-015: acceptance is one step after sign-in, for whoever owes it, and is not asked again", async ({ browser, request }) => {
+  // An account made outside the web form (the app's API path) has accepted nothing yet.
+  const late = person(s, "late", "Mia Strand");
+  const made = await request.post(`${API_BASE}/v1/auth/email/register`, { data: { email: late.email, password: late.password } });
+  expect(made.status(), await made.text()).toBeLessThan(300);
+  const token = new URL(await linkFromMail(late.email, /verify/i)).searchParams.get("token");
+  const verified = await request.post(`${API_BASE}/v1/auth/email/verify`, { data: { token, password: late.password } });
+  expect(verified.status(), await verified.text()).toBeLessThan(300);
+
+  const { context, page } = await newProfile(browser);
+  expect(await signIn(page, late)).toBe("password");
+  await settle(page);
+  const step = page.locator("[data-legal-step]");
+  await expect(step).toBeVisible();
+  await shot(page, "s09b-legal-step");
+  await expect(page.locator("[data-legal-step-accept]")).toBeDisabled();
+  await page.locator("[data-legal-step-agree]").check();
+  await page.locator("[data-legal-step-accept]").click();
+  await expect(step).toHaveCount(0);
+  await page.reload();
+  await settle(page);
+  await expect(step).toHaveCount(0);
+  await signOut(page);
+  expect(await signIn(page, late)).toBe("password");
+  await settle(page);
+  await expect(step).toHaveCount(0);
+  await context.close();
+
+  // A person who already accepted passes the MFA challenge and is asked nothing.
+  const analyst = s.people.analyst!;
+  const a = await newProfile(browser);
+  expect(await signIn(a.page, analyst)).toBe("challenge");
+  await settle(a.page);
+  await expect(a.page.locator("[data-legal-step]")).toHaveCount(0);
+  await keepProfile(a.context, analyst, s, "analyst");
+  await a.context.close();
 });
 
 test("S10 workspace switch; analyst uploads real evidence, it seals and reports", async ({ browser }) => {
@@ -529,7 +633,38 @@ test("S15 Legal Hold from the contract, against the record; retention stays in f
   await context.close();
 });
 
-test("S16 state survives refresh, sign-out, sign-in and a workspace switch; background work persists", async ({ browser }) => {
+test("S15B the organization's export: the manifest reconciles to the sealed bytes, and its reports download", async ({ browser }) => {
+  const { summary, file } = organizationManifest(s.orgId!, "manifest-under-hold");
+  console.log("manifest", JSON.stringify(summary));
+  expect(summary.recordCount).toBeGreaterThanOrEqual(1);
+  expect(summary.missingObjects).toBe(0);
+  expect(summary.heldRecordCount).toBeGreaterThanOrEqual(1);
+  const record = file.records.find((r) => r.evidenceId === s.facts.evidenceId);
+  expect(record, "the sealed record is in the manifest").toBeTruthy();
+  expect(record!.legalHold, "and flagged, because the hold from S15 stands").toBe(true);
+  const original = record!.objects.find((o) => o.kind === "ORIGINAL" || o.kind === "PART");
+  expect(original?.sha256).toBe(createHash("sha256").update(samplePng(s.runId)).digest("hex"));
+  expect(record!.objects.map((o) => o.kind)).toEqual(expect.arrayContaining(["REPORT"]));
+  s.facts.manifestRecordCount = String(summary.recordCount);
+  s.facts.manifestObjectCount = String(summary.objectCount);
+
+  // The reports the owner takes away, through the page's own buttons.
+  const owner = s.people.owner!;
+  const { context, page } = await newProfile(browser, owner);
+  await page.goto(`/organizations/${s.orgId}/admin/reports`);
+  await settle(page);
+  for (const [id, expected] of [["members", s.people.analyst!.email], ["audit", "ORG_MEMBER_INVITED"]] as const) {
+    const download = page.waitForEvent("download");
+    await page.getByTestId(`report-download-${id}`).click();
+    const csv = readFileSync(await (await download).path(), "utf8");
+    expect(csv, id).toContain(expected);
+  }
+  await shot(page, "s15b-reports");
+  await keepProfile(context, owner, s, "owner");
+  await context.close();
+});
+
+test("S16A a hard refresh mid-journey keeps the record and the workspace", async ({ browser }) => {
   const analyst = s.people.analyst!;
   const { context, page } = await newProfile(browser, analyst);
   await page.goto("/home");
@@ -539,10 +674,23 @@ test("S16 state survives refresh, sign-out, sign-in and a workspace switch; back
   await settle(page);
   await expect(page.locator("main")).toContainText(s.facts.caseTitle!);
   await page.reload();
+  await settle(page);
   await expect(page.locator("main")).toContainText(s.facts.caseTitle!);
   await expect(page.locator("[data-context-chip-name]")).toContainText("Claims Investigations");
-  // Out and back: the record, its report and the decision are all still there.
+  await keepProfile(context, analyst, s, "analyst");
+  await context.close();
+});
+
+test("S16B sign-out and sign-in mid-journey: the record, its report and the decision are still there", async ({ browser }) => {
+  const analyst = s.people.analyst!;
+  const { context, page } = await newProfile(browser, analyst);
+  await page.goto("/home");
+  await settle(page);
   await signOut(page);
+  // A session that ended stays ended: the app sends a signed-out person to sign in.
+  await page.goto(`/evidence/${s.facts.evidenceId}`);
+  await settle(page);
+  await expect(page.locator("main")).not.toContainText(`hull-damage-${s.runId}`);
   expect(await signIn(page, analyst)).toBe("challenge");
   await settle(page);
   await switchWorkspace(page, "Claims Investigations");
@@ -554,6 +702,16 @@ test("S16 state survives refresh, sign-out, sign-in and a workspace switch; back
   await expect(page.locator('[data-evidence-action="download-report"]')).toBeDisabled();
   await page.locator('[data-evidence-tab="review"]').click();
   await expect(page.locator("[data-evidence-review-decision]").first()).toContainText(/approv/i);
+  await keepProfile(context, analyst, s, "analyst");
+  await context.close();
+});
+
+test("S16C switching workspace mid-journey changes what is read, and back again", async ({ browser }) => {
+  const analyst = s.people.analyst!;
+  const { context, page } = await newProfile(browser, analyst);
+  await page.goto("/home");
+  await settle(page);
+  await switchWorkspace(page, "Claims Investigations");
   // Personal Space shows none of the organization's records.
   await page.locator("[data-app-context-chip] button").first().click();
   await page.locator('[data-context-group="PERSONAL"] [data-context-option]').first().click();
@@ -672,6 +830,33 @@ test("S19 offboarding: a member leaves, with their seat freed and their access g
   await context.close();
 });
 
+test("S19B bulk invite names the workspace, and the invitee lands in it", async ({ browser }) => {
+  const owner = s.people.owner!;
+  const invitee = person(s, "bulk", "Eva Nilsen");
+  const { context, page } = await newProfile(browser, owner);
+  await page.goto(`/organizations/${s.orgId}/admin/bulk-invite`);
+  await settle(page);
+  await page.getByTestId("bulk-invite-paste").fill(invitee.email);
+  await expect(page.getByTestId("bulk-invite-workspace")).toContainText("Claims Investigations");
+  await page.getByTestId("bulk-invite-workspace-role").click();
+  await page.getByRole("option", { name: /^Viewer$/ }).click();
+  await page.getByTestId("bulk-invite-preview").click();
+  await expect(page.getByTestId("bulk-invite-preview-table")).toContainText("WOULD_INVITE");
+  await page.getByTestId("bulk-invite-send").click();
+  await expect(page.getByTestId("bulk-invite-result-table")).toContainText("INVITED");
+  await shot(page, "s19b-bulk-sent");
+  await keepProfile(context, owner, s, "owner");
+  await context.close();
+
+  await joinAndEnrol(browser, "bulk");
+  const joined = await newProfile(browser, invitee);
+  await joined.page.goto("/home");
+  await settle(joined.page);
+  await switchWorkspace(joined.page, "Claims Investigations");
+  await expect(joined.page.locator("[data-context-chip-name]")).toContainText("Claims Investigations");
+  await joined.context.close();
+});
+
 test("S20 Legal Hold release takes a note and a step-up, and exports return", async ({ browser }) => {
   const admin = s.people.admin!;
   const { context, page } = await newProfile(browser);
@@ -682,9 +867,16 @@ test("S20 Legal Hold release takes a note and a step-up, and exports return", as
   await settle(page);
   const row = page.locator("tr", { hasText: `Aurora litigation ${s.runId}` });
   await expect(row.getByText("Active")).toBeVisible();
-  // The release note is a browser prompt.
-  page.once("dialog", (d) => void d.accept("Claim settled, acceptance"));
+  // The note is the product's dialog, never a browser prompt.
+  page.on("dialog", (d) => {
+    throw new Error(`a browser dialog opened: ${d.message()}`);
+  });
   await row.getByRole("button", { name: "Release" }).click();
+  const submit = page.locator("[data-confirm-action-submit]");
+  await expect(submit).toBeDisabled();
+  await page.locator("[data-confirm-action-reason-input]").fill("Claim settled, acceptance");
+  await shot(page, "s20-release-dialog");
+  await submit.click();
   await answerStepUp(page, admin);
   await expect(page.getByText("Legal hold released.")).toBeVisible();
   await expect(row.getByText("Active")).toHaveCount(0);
@@ -695,12 +887,14 @@ test("S20 Legal Hold release takes a note and a step-up, and exports return", as
   await context.close();
 });
 
-test("S21 contract termination: the customer is told, the sweep closes it, the end is final, evidence stays", async ({ browser, request }) => {
+test("S21 contract termination with a date: the customer is told, and the operator can withdraw it", async ({ browser }) => {
   const op = s.people.operator!;
   const { context, page } = await newProfile(browser, op);
   await page.goto(`/admin/customers/${s.orgId}`);
   await settle(page);
-  await page.getByTestId("customer-terminate-reason").fill("Contract ended, acceptance");
+  await page.getByTestId("customer-terminate-reason").fill("Contract ending, acceptance");
+  const inAWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await page.getByTestId("customer-terminate-date").fill(inAWeek);
   await page.getByTestId("customer-terminate").click();
   await page.getByRole("dialog").getByRole("textbox").fill("TERMINATE");
   await page.getByRole("dialog").getByRole("button", { name: "Schedule termination" }).click();
@@ -717,19 +911,56 @@ test("S21 contract termination: the customer is told, the sweep closes it, the e
   await settle(o.page);
   await expect(o.page.locator("[data-org-closure-status]").first()).toContainText("Your contract is ending");
   await shot(o.page, "s21-owner-told");
+  await keepProfile(o.context, owner, s, "owner");
   await o.context.close();
 
-  // FIXTURE-2: the worker's own lifecycle tick, called now instead of waiting for its schedule.
-  const tick = await request.post(`${API_BASE}/v1/internal/lifecycle/run`, { headers: LIFECYCLE_HEADERS, data: {} });
-  console.log("lifecycle tick", tick.status(), (await tick.text()).slice(0, 300));
-  expect(tick.ok()).toBe(true);
+  await page.getByTestId("customer-terminate-cancel").click();
+  await page.waitForTimeout(700);
+  if (await page.locator('[data-step-up-form="code"]').isVisible().catch(() => false)) await answerStepUp(page, op);
+  await expect(page.getByText(/Termination withdrawn/)).toBeVisible();
   await page.reload();
   await settle(page);
-  await shot(page, "s21-after-sweep");
-  await expect(page.getByTestId("customer-contract-final")).toBeVisible();
+  await page.getByTestId("customer-resume").click();
+  await page.waitForTimeout(700);
+  const back = page.getByRole("dialog").getByRole("button", { name: /resume/i });
+  if (await back.isVisible().catch(() => false)) await back.click();
+  await page.waitForTimeout(700);
+  if (await page.locator('[data-step-up-form="code"]').isVisible().catch(() => false)) await answerStepUp(page, op);
+  await expect(page.getByTestId("customer-suspend")).toBeVisible();
+  await keepProfile(context, op, s, "operator");
+  await context.close();
+});
+
+test("S22 contract termination, no date: the real worker's sweep closes it, the end is final, evidence stays", async ({ browser }) => {
+  const op = s.people.operator!;
+  const { context, page } = await newProfile(browser, op);
+  await page.goto(`/admin/customers/${s.orgId}`);
+  await settle(page);
+  await page.getByTestId("customer-terminate-reason").fill("Contract ended, acceptance");
+  await page.getByTestId("customer-terminate").click();
+  await page.getByRole("dialog").getByRole("textbox").fill("TERMINATE");
+  await page.getByRole("dialog").getByRole("button", { name: "Schedule termination" }).click();
+  await answerStepUp(page, op);
+  await expect(page.getByText("Termination scheduled.")).toBeVisible();
+
+  // Nothing here calls the tick: the worker's own timer does this.
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId("customer-contract-final")).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 120_000, intervals: [4000] });
+  await settle(page);
+  await shot(page, "s22-after-sweep");
   await expect(page.getByTestId("customer-terminate-cancel")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText("0 evidence");
   await context.close();
+
+  // Evidence stays: the manifest after closure holds what it held before.
+  const { summary } = organizationManifest(s.orgId!, "manifest-after-closure");
+  console.log("manifest after closure", JSON.stringify(summary));
+  expect(summary.missingObjects).toBe(0);
+  expect(summary.recordCount).toBe(Number(s.facts.manifestRecordCount));
+  expect(summary.objectCount).toBeGreaterThanOrEqual(Number(s.facts.manifestObjectCount));
+  expect(summary.heldRecordCount).toBe(0);
 });
 
 // <next-step>

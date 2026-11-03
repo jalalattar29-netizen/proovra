@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../providers";
-import { apiFetch, ApiError, isApiResponseError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 

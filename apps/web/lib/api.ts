@@ -552,16 +552,19 @@ async function runApiFetch(
     error.requestId = requestId;
     error.details = detailsFromBody ?? promotedDetails ?? billingWall;
     if (typeof obj?.["error"] === "string") error.flatReason = obj["error"] as string;
-    error.body = {
-      error: {
-        ...(obj ?? {}),
-        code: error.code ?? "API_ERROR",
-        message,
-        requestId,
-        timestamp: new Date().toISOString(),
-        details: error.details,
-      },
-    };
+    // Only a code the server sent: a body that named none stays code-less.
+    if (codeFromBody || typeof obj?.["denial"] === "string") {
+      error.body = {
+        error: {
+          ...(obj ?? {}),
+          code: error.code ?? "API_ERROR",
+          message,
+          requestId,
+          timestamp: new Date().toISOString(),
+          details: error.details,
+        },
+      };
+    }
 
     throw error;
   }
