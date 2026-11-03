@@ -23,7 +23,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
-import { evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
+import { viewerReachInWorkspace } from "../access/record-reach.js";
 import {
   OTS_ANCHORING_RECORD_SELECT,
   presentedTsaStatus,
@@ -206,7 +206,9 @@ export async function buildTrustSummary(input: {
   // databases). Strict teamId filter for real team workspaces.
   const scopeWhere = await workspaceEvidenceWhere(input.teamId, prisma);
   const baseWhere: Prisma.EvidenceWhereInput = {
-    AND: [scopeWhere, { deletedAt: null }, evidenceVisibleThroughCasesWhere(input.userId)],
+    // The restricted-case narrowing resolved once for this workspace (capacity,
+    // 2026-11-03): same records, without a per-row probe in each of the counts.
+    AND: [scopeWhere, { deletedAt: null }, (await viewerReachInWorkspace(input.teamId, input.userId)).evidence],
   };
 
   /*
