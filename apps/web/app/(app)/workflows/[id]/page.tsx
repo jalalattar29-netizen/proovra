@@ -362,7 +362,7 @@ function WorkflowInstancePageInner() {
       {!teamId ? (
         <p style={mutedStyle}>Switch to a workspace to view workflows.</p>
       ) : !instance ? (
-        <p style={mutedStyle}>Loading…</p>
+        error ? null : <p style={mutedStyle}>Loading…</p>
       ) : (
         <>
           {/* Header card — status + identity */}

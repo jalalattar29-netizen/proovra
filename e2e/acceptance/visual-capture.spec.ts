@@ -194,11 +194,10 @@ test("recapture the routes that need a record", async ({ browser }) => {
   const workspaceId = teamId ?? orgs.json.workspaces.find((w) => !w.isPersonal)!.workspaceId;
   console.log("context", context.status, workspaceId);
 
-  // A review already exists: S13 decided it.
-  const queue = await asPage<{ items?: Array<{ workflowId?: string; id?: string }>; rows?: Array<{ workflowId?: string; id?: string }> }>(a.page, "GET", `/v1/reviewer-ops/queue?teamId=${workspaceId}&limit=20`);
+  // A review already exists: S13 decided it, so it sits in the completed queue.
+  const queue = await asPage<{ rows?: Array<{ workflowId?: string; id?: string }> }>(a.page, "GET", `/v1/reviewer-ops/queue?teamId=${workspaceId}&queue=COMPLETED_RECENTLY`);
   console.log("queue", queue.status, JSON.stringify(queue.json).slice(0, 300));
-  const review = (queue.json.items ?? queue.json.rows ?? [])[0];
-  const reviewId = review?.workflowId ?? review?.id;
+  const reviewId = queue.json?.rows?.[0]?.workflowId ?? queue.json?.rows?.[0]?.id;
   if (reviewId) await shoot(a.page, "/reviewer-ops/[reviewId]", `/reviewer-ops/${reviewId}`);
 
   const request = await asPage<{ request?: { id: string } }>(a.page, "POST", "/v1/evidence-requests", {
@@ -214,12 +213,12 @@ test("recapture the routes that need a record", async ({ browser }) => {
   console.log("evidence request", request.status, JSON.stringify(request.json).slice(0, 200));
   if (request.json?.request?.id) await shoot(a.page, "/evidence-requests/[id]", `/evidence-requests/${request.json.request.id}`);
 
-  const team = await asPage<{ team?: { id: string }; collaborationTeam?: { id: string } }>(a.page, "POST", "/v1/collaboration-teams", { name: `Hull claim team ${s.runId}` });
+  const team = await asPage<{ team?: { id: string }; collaborationTeam?: { id: string } }>(a.page, "POST", "/v1/collaboration-teams", { name: `Hull claim team ${Date.now() % 100000}` });
   console.log("collaboration team", team.status, JSON.stringify(team.json).slice(0, 200));
   const collaborationId = team.json?.team?.id ?? team.json?.collaborationTeam?.id;
   if (collaborationId) {
     await shoot(a.page, "/collaboration-teams/[teamId]", `/collaboration-teams/${collaborationId}`);
-    await shoot(a.page, "/collaboration-teams/[teamId]-collaboration", `/collaboration-teams/${collaborationId}?tab=collaboration`);
+    await shoot(a.page, "/collaboration-teams/[teamId]-discussion", `/collaboration-teams/${collaborationId}?tab=discussion`);
   }
   await a.context.close();
 
