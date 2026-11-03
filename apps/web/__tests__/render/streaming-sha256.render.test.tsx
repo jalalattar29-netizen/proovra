@@ -2,8 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { declaredObject } from "../lib/uploads/retry";
-import { sha256Base64OfBlob } from "../lib/uploads/streaming-sha256";
+import { declaredObject } from "../../lib/uploads/retry";
+import { sha256Base64OfBlob } from "../../lib/uploads/streaming-sha256";
 
 const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest();
 

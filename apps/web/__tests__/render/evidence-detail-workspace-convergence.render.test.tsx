@@ -666,6 +666,9 @@ function respond(path: string): unknown {
   }
   if (path.startsWith("/v1/cases?")) return { items: [] };
   if (path.includes("/reviewer-workflow/events")) return { items: [] };
+  // The note routes say whether this caller may write (canWriteCollaborativeContent):
+  // the panels offer their controls only then.
+  if (/\/(comments|legal-notes|annotations)$/.test(path)) return { items: [], canWrite: true };
   // ADM-P1-003 / OWN-1 — the shell reads the tenant-safe status enum.
   if (path.includes("/v1/runtime/status")) {
     if (runtimeBody instanceof Error) throw runtimeBody;
@@ -1345,6 +1348,15 @@ describe("convergence — capability controls modules only", () => {
   it("reviewer-ops panels use the SAME primitives as the ungated surface", async () => {
     await openReviewTab("enterprise");
     const panels = document.querySelector("[data-evidence-review-enterprise-panels]")!;
+    // The note panels load, and show their controls, when opened, and only for
+    // a caller the API says may write (the fixture answers canWrite: true).
+    for (const details of [...panels.querySelectorAll("details")]) {
+      await act(async () => {
+        details.open = true;
+        fireEvent(details, new Event("toggle"));
+      });
+    }
+    await waitFor(() => expect(panels.querySelectorAll("button").length).toBeGreaterThan(0));
     // Every button inside the capability-gated region must be a canonical
     // action primitive. A legacy `Button` renders `.btn`/`.button` classes.
     const buttons = [...panels.querySelectorAll("button")];

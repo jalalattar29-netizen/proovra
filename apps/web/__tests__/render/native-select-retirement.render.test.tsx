@@ -5,12 +5,11 @@
  * A deliberate exception goes in EXCEPTIONS with its reason.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const WEB = fileURLToPath(new URL("..", import.meta.url));
+const WEB = resolve(__dirname, "../..");
 const ROOTS = ["app", "components"];
 /** path (relative to apps/web) -> why a native select is right there. */
 const EXCEPTIONS: Record<string, string> = {};
