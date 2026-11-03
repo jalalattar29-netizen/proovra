@@ -295,8 +295,8 @@ export function AccessReviewCampaignForm({
               value={grantRefDraft}
               onChange={(v) => setGrantRefDraft(v)}
               error={errors[`${uid}-grantref`]}
-              hint="Bounded reference to the grant under review, e.g. delegated_admin:<id>."
-              placeholder="delegated_admin:…"
+              hint="The reference of the grant under review, copied from that grant."
+              placeholder="Grant reference"
               maxLength={200}
               testAttr="data-access-review-item-grantref"
             />

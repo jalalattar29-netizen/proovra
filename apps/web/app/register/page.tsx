@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
@@ -550,8 +550,8 @@ function RegisterPageContent() {
 
       router.push(currentReturnUrl);
     } catch (err) {
-      const requestId = err instanceof ApiError ? err.requestId : undefined;
-      const errCode = err instanceof ApiError ? err.code : undefined;
+      const requestId = isApiResponseError(err) ? err.requestId : undefined;
+      const errCode = isApiResponseError(err) ? err.code : undefined;
       // D24 — the server holds the same password policy the rules panel
       // shows (weak_new_password, as on reset); name it instead of a
       // generic "Registration failed".

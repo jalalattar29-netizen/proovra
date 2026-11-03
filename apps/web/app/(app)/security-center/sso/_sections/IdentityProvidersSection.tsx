@@ -24,6 +24,7 @@
  * this one never show two different lists.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -221,7 +222,7 @@ export function IdentityProvidersSection({
   /** The control that opened the form — focus returns here on cancel. */
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   /** The form's first field — focus moves here when the form opens. */
-  const firstFieldRef = useRef<HTMLSelectElement | null>(null);
+  const firstFieldRef = useRef<HTMLButtonElement | null>(null);
 
   // PHASE 12B — every await is bracketed by the tenant guard: a workspace
   // switch mid-flight drops the result instead of painting another
@@ -487,20 +488,14 @@ export function IdentityProvidersSection({
                 }}
               >
                 <Field label="Provider">
-                  <select
-                    ref={firstFieldRef}
-                    className="adm-select"
+                  <AppListbox
                     value={createForm.provider}
-                    onChange={(e) =>
-                      setCreateForm((p) => ({ ...p, provider: e.target.value as SsoProvider }))
-                    }
-                  >
-                    {(Object.keys(PROVIDER_LABELS) as SsoProvider[]).map((k) => (
-                      <option key={k} value={k}>
-                        {PROVIDER_LABELS[k]}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      ...(Object.keys(PROVIDER_LABELS) as SsoProvider[]).map((k) => ({ value: k, label: PROVIDER_LABELS[k] })),
+                    ]}
+                    onChange={(next) => setCreateForm((p) => ({ ...p, provider: next as SsoProvider }))}
+                    triggerRef={firstFieldRef}
+                  />
                 </Field>
                 <Field label="Display name">
                   <input
@@ -549,20 +544,18 @@ export function IdentityProvidersSection({
                   />
                 </Field>
                 <Field label="JIT default role">
-                  <select
-                    className="adm-select"
+                  <AppListbox
                     value={createForm.jitDefaultRole}
-                    onChange={(e) =>
-                      setCreateForm((p) => ({
-                        ...p,
-                        jitDefaultRole: e.target.value as "MEMBER" | "VIEWER" | "",
-                      }))
-                    }
-                  >
-                    <option value="">JIT disabled</option>
-                    <option value="MEMBER">Member</option>
-                    <option value="VIEWER">Viewer</option>
-                  </select>
+                    options={[
+                      { value: "", label: "JIT disabled" },
+                      { value: "MEMBER", label: "Member" },
+                      { value: "VIEWER", label: "Viewer" },
+                    ]}
+                    onChange={(next) => setCreateForm((p) => ({
+                                            ...p,
+                                            jitDefaultRole: next as "MEMBER" | "VIEWER" | "",
+                                          }))}
+                  />
                 </Field>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
@@ -776,7 +769,7 @@ function PolicyPanel({
     connection.samlSpSigningKeySource === "stored"
       ? "Stored (per-connection key)"
       : connection.samlSpSigningKeySource === "env"
-        ? "Configured via environment (SAML_SP_PRIVATE_KEY)"
+        ? "Configured on the server"
         : "Not configured";
   const nothingToInstall = keyDraft.trim() === "" && certDraft.trim() === "";
 
@@ -818,8 +811,7 @@ function PolicyPanel({
           {connection.samlSignRequests && connection.samlSpSigningKeySource === "none" ? (
             <div className="adm-help" style={{ fontSize: 12, color: "var(--warning-strong)" }}>
               Signing is enabled but no signing key is available. Add a
-              per-connection key below or set the SAML_SP_PRIVATE_KEY
-              environment variable — until then requests are sent unsigned.
+              per-connection key below — until then requests are sent unsigned.
             </div>
           ) : null}
 

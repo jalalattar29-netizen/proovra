@@ -32,6 +32,7 @@
  * no-op.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import {
   useCallback,
   useEffect,
@@ -44,8 +45,7 @@ import {
 
 import {
   VIDEO_FRAME_EXTRACTORS,
-  VIDEO_TRACK_KINDS,
-} from "@proovra/shared";
+  VIDEO_TRACK_KINDS, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
@@ -247,37 +247,29 @@ export function VideoFrameBatchPanel({
           label="Extractor"
           error={errors["extractor"]}
         >
-          <select
-            id={`${baseId}-extractor`}
-            data-redaction-video-frame-extractor
+          <AppListbox
             value={extractor}
+            options={[
+              ...(VIDEO_FRAME_EXTRACTORS as ReadonlyArray<string>).map((x) => ({ value: x, label: identifierLabel(x) })),
+            ]}
+            onChange={(next) => setExtractor(next)}
+            id={`${baseId}-extractor`}
             disabled={busy || versionLocked}
-            onChange={(e) => setExtractor(e.target.value)}
-            style={controlStyle}
-          >
-            {(VIDEO_FRAME_EXTRACTORS as ReadonlyArray<string>).map((x) => (
-              <option key={x} value={x}>
-                {x}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-redaction-video-frame-extractor": "" }}
+          />
         </Field>
 
         <Field id={`${baseId}-preset`} label="Sample preset">
-          <select
-            id={`${baseId}-preset`}
-            data-redaction-video-frame-preset
+          <AppListbox
             value={preset}
+            options={[
+              ...SAMPLE_PRESETS.map((p) => ({ value: p.value, label: p.value })),
+            ]}
+            onChange={(next) => onPresetChange(next)}
+            id={`${baseId}-preset`}
             disabled={busy || versionLocked}
-            onChange={(e) => onPresetChange(e.target.value)}
-            style={controlStyle}
-          >
-            {SAMPLE_PRESETS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.value}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-redaction-video-frame-preset": "" }}
+          />
         </Field>
 
         <Field
@@ -589,20 +581,16 @@ export function VideoTrackGroupingPanel({
 
       <div style={gridStyle}>
         <Field id={`${baseId}-kind`} label="Covers" error={errors["kind"]}>
-          <select
-            id={`${baseId}-kind`}
-            data-redaction-video-track-kind
+          <AppListbox
             value={kind}
+            options={[
+              ...(VIDEO_TRACK_KINDS as ReadonlyArray<string>).map((k) => ({ value: k, label: identifierLabel(k) })),
+            ]}
+            onChange={(next) => setKind(next)}
+            id={`${baseId}-kind`}
             disabled={busy || !permitted}
-            onChange={(e) => setKind(e.target.value)}
-            style={controlStyle}
-          >
-            {(VIDEO_TRACK_KINDS as ReadonlyArray<string>).map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-redaction-video-track-kind": "" }}
+          />
         </Field>
 
         <Field id={`${baseId}-label`} label="Label (optional)" error={errors["label"]}>

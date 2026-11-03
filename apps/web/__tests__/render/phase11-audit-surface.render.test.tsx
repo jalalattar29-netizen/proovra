@@ -5,6 +5,7 @@
  * applies NO client-side tenant filtering, exports through the SAME endpoint,
  * and shows one generic denial (no existence/scope leak).
  */
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -42,7 +43,7 @@ describe("§6 — workspace-admin audit surface consumes the ONE server authorit
   it("queries the ONE canonical audit endpoint with the proven teamId and renders the server projection verbatim", async () => {
     apiImpl = async () => ({ items: [row("e1"), row("e2", { action: "deep_link.resolve", outcome: "denied" })], nextCursorId: null });
     render(<WorkspaceAuditTab teamId="team-1" />);
-    await waitFor(() => expect(screen.getByText("deep_link.resolve")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Deep link resolve")).toBeTruthy());
     expect(apiCalls[0]).toContain(`/v1/audit/tenant?`);
     expect(apiCalls[0]).toContain("teamId=team-1");
     // Both server rows rendered untouched — no client-side tenant filtering.
@@ -53,7 +54,7 @@ describe("§6 — workspace-admin audit surface consumes the ONE server authorit
     apiImpl = async () => ({ items: [row("e1")], nextCursorId: null });
     render(<WorkspaceAuditTab teamId="team-1" />);
     await waitFor(() => expect(apiCalls.length).toBeGreaterThan(0));
-    fireEvent.change(screen.getByLabelText("Filter by outcome"), { target: { value: "denied" } });
+    chooseListbox(screen.getByLabelText("Filter by outcome"), "denied");
     await waitFor(() =>
       expect(apiCalls.some((c) => c.includes("outcome=denied"))).toBe(true),
     );

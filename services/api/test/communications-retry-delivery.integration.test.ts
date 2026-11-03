@@ -225,4 +225,24 @@ describe("Communications retry truth (live PostgreSQL)", () => {
     expect(await apply("SENT")).toBe("DELIVERED");
     expect(await apply("FAILED")).toBe("DELIVERED");
   });
+
+  it("WORKFLOW-016: a delivery report that arrives after a retry was scheduled cancels the resend", async () => {
+    const linkId = await intakeLink();
+    const sid = `SM${randomUUID().replace(/-/g, "")}`;
+    const row = await dueMessage({
+      status: "RETRY_SCHEDULED",
+      providerMessageId: sid,
+      bodyPreview: "Late but delivered.",
+      bodyResendable: true,
+      relatedIntakeLinkId: linkId,
+    });
+    expect(comm.communicationStatusesBefore("DELIVERED")).toContain("RETRY_SCHEDULED");
+    await prisma.communicationMessage.updateMany({
+      where: { id: row.id, status: { in: [...comm.communicationStatusesBefore("DELIVERED")] } },
+      data: { status: "DELIVERED", deliveredAtUtc: new Date(), nextAttemptAtUtc: null },
+    });
+    await comm.dispatchPendingMessage(row.id);
+    expect(recording.recordedMessages().filter((m) => JSON.stringify(m).includes("Late but delivered."))).toHaveLength(0);
+    expect((await prisma.communicationMessage.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("DELIVERED");
+  });
 });

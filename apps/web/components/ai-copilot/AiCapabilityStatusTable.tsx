@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
 /**
@@ -128,11 +129,11 @@ export function AiCapabilityStatusTable() {
               {caps.map((c) => (
                 <tr key={c.capability} style={{ borderTop: "1px solid var(--app-border,#eee)" }}>
                   <td style={{ padding: "6px 8px" }}>
-                    <div>{c.capability}</div>
+                    <div>{identifierLabel(c.capability)}</div>
                     <div style={{ fontSize: 11, opacity: 0.6 }}>{c.purpose}</div>
                   </td>
                   <td style={{ padding: "6px 8px" }}>
-                    <div>{c.provider}</div>
+                    <div>{identifierLabel(c.provider)}</div>
                     <div style={{ fontSize: 11, opacity: 0.6 }}>{c.region} · {c.transferMechanism}</div>
                   </td>
                   <td style={{ padding: "6px 8px" }}>

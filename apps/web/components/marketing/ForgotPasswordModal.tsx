@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 
 /**
  * FP2 — Forgot Password modal.
@@ -124,7 +124,7 @@ export function ForgotPasswordModal({
       // Treat that as the only "non-neutral" failure we surface
       // (without leaking enumeration). Everything else collapses to
       // a generic retry hint.
-      const code = err instanceof ApiError ? err.code : undefined;
+      const code = isApiResponseError(err) ? err.code : undefined;
       if (code === "RATE_LIMITED" || (err as Error)?.message === "too_many_requests") {
         setError("Too many requests. Please try again in a minute.");
       } else {

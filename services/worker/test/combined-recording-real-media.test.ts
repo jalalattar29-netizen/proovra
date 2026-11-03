@@ -33,6 +33,26 @@ import { probeMediaFile, readVideoPackets, runFfmpeg } from "../src/combined-rec
 let ff = "";
 let dir = "";
 
+/**
+ * The budget each setup hook runs under, derived rather than chosen. Vitest's
+ * 10 s hook default is not a measure of this work: the deadlines below are what
+ * the hooks hand `combineSegmentFiles`, so a hook that dies at 10 s contradicts
+ * its own deadline.
+ *
+ * Measured 2026-11-03 on Windows (ffmpeg-static 6.1, an 82 MB binary): a bare
+ * `ffmpeg -version` costs 420 ms, and encoding a one-second clip costs the same
+ * as reading a header, so the time goes on starting processes, not on media. A
+ * transcode of three segments starts 21 ffmpeg processes in sequence (probe,
+ * packets and parameter sets per input, then again per normalized output, then
+ * concat and the output checks), plus three for the fixtures: 10.5 s with nothing
+ * else running. Smaller fixtures cannot help, and the suite passed or failed on
+ * how busy the machine was.
+ */
+const REMUX_DEADLINE_MS = 60_000;
+const TRANSCODE_DEADLINE_MS = 120_000;
+/** `gen` allows 30 s per fixture, and each of these hooks generates three. */
+const FIXTURE_BUDGET_MS = 3 * 30_000;
+
 async function gen(args: string[]): Promise<void> {
   const r = await runFfmpeg(ff, ["-hide_banner", "-nostdin", "-loglevel", "error", "-y", ...args], { timeoutMs: 30_000 });
   if (!r.ok) throw new Error(`fixture: ${r.reason} ${r.stderrTail.join(" | ")}`);
@@ -152,13 +172,13 @@ describe("REMUX — one encoding, a real 3 s gap, audio", () => {
       ffmpegPath: ff,
       ffmpegVersion: "test",
       workDir: work(),
-      deadlineAt: Date.now() + 60_000,
+      deadlineAt: Date.now() + REMUX_DEADLINE_MS,
       manifest: { ...MANIFEST, recordedSegmentCount: 3, totalDurationMs: 9000, sessionCompleteness: "INTERRUPTED_SESSION", limitations: ["BROADCAST_PAUSED"] },
       segments: segs,
       missingInRecord: [],
       generation: 1,
     });
-  });
+  }, REMUX_DEADLINE_MS + FIXTURE_BUDGET_MS);
 
   it("remuxes into ONE video stream on the original canvas, labelled DERIVED", async () => {
     expect(outcome.status).toBe("ok");
@@ -274,7 +294,7 @@ describe("TRANSCODE — orientation change 360x640 → 640x360 and a missing seg
       ffmpegPath: ff,
       ffmpegVersion: "test",
       workDir: work(),
-      deadlineAt: Date.now() + 120_000,
+      deadlineAt: Date.now() + TRANSCODE_DEADLINE_MS,
       manifest: {
         ...MANIFEST,
         recordedSegmentCount: 4,
@@ -290,7 +310,7 @@ describe("TRANSCODE — orientation change 360x640 → 640x360 and a missing seg
       missingInRecord: [],
       generation: 2,
     });
-  });
+  }, TRANSCODE_DEADLINE_MS + FIXTURE_BUDGET_MS);
 
   it("re-encodes onto ONE letterboxed 640x640 canvas — no crop, no stretch", async () => {
     expect(outcome.status).toBe("ok");

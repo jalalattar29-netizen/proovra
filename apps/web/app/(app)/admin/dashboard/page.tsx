@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import {
   ADMIN_FAILURE_COPY,
@@ -894,7 +895,7 @@ export default function AdminDashboardPage() {
                     header: "Event",
                     render: (e: RecentEvent) => (
                       <span style={{ fontWeight: 600, color: "var(--ink-primary)" }}>
-                        {e.label ?? e.eventType}
+                        {e.label ?? identifierLabel(e.eventType)}
                       </span>
                     ),
                   },
@@ -904,7 +905,7 @@ export default function AdminDashboardPage() {
                     nowrap: true,
                     render: (e: RecentEvent) => (
                       <Badge tone={eventSeverityTone(e.severity)} subtle>
-                        {e.severity ?? "info"}
+                        {identifierLabel(e.severity ?? "info")}
                       </Badge>
                     ),
                   },

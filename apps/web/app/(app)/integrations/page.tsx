@@ -26,6 +26,11 @@ import {
 } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../components/identity-security/StepUpModal";
 import { Button } from "../../../components/ui/Button";
 import { identifierLabel } from "@proovra/shared";
 // PHASE 12 VERTICAL C — durable evidence delivery history, read from the
@@ -184,6 +189,9 @@ type IntegrationsDiagnostics = {
 
 function IntegrationsPageInner() {
   const teamId = useTeamId();
+  // Creating, rotating, revoking and re-pointing a credential or webhook each ask
+  // for a fresh step-up. Without this every one of them refused the owner.
+  const stepUp = useStepUpAction({ teamId });
   // Admin == OWNER or ADMIN on the active workspace, derived from the
   // canonical ENTERPRISE TENANT MODEL `activeSpace` (phase-37.95
   // non-regression test enforces no new consumers of the deprecated
@@ -355,11 +363,12 @@ useEffect(() => {
   }) {
     if (!teamId) return;
     try {
-      const res: { apiKey: ApiKey; rawKey: string } = await apiFetch(
+      const res: { apiKey: ApiKey; rawKey: string } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         "/v1/integrations/api-keys",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({
             teamId,
             name: form.name,
@@ -367,6 +376,7 @@ useEffect(() => {
             scopes: form.scopes,
           }),
         },
+      ),
       );
       setApiKeys((prev) => (prev ? [res.apiKey, ...prev] : [res.apiKey]));
       setDisclosed({
@@ -376,6 +386,7 @@ useEffect(() => {
       });
       setShowCreateKey(false);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not create API key." }).message);
     }
@@ -388,22 +399,25 @@ useEffect(() => {
   async function submitRevokeApiKey(id: string, reason: string) {
     if (!teamId) return;
     try {
-      const res: { apiKey: ApiKey } = await apiFetch(
+      const res: { apiKey: ApiKey } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         `/v1/integrations/api-keys/${id}/revoke`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({
             teamId,
             reason: reason.trim().length === 0 ? null : reason.trim(),
           }),
         },
+      ),
       );
       setApiKeys((prev) =>
         prev ? prev.map((k) => (k.id === id ? res.apiKey : k)) : prev,
       );
       setRevokeReasonForId(null);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not revoke key." }).message);
     }
@@ -421,11 +435,13 @@ useEffect(() => {
         rawKey: string;
         previousKeyPrefix: string;
         previousValidUntilUtc: string;
-      } = await apiFetch(`/v1/integrations/api-keys/${id}/rotate`, {
+      } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(`/v1/integrations/api-keys/${id}/rotate`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
         body: JSON.stringify({ teamId, graceMinutes }),
-      });
+      }),
+      );
       setApiKeys((prev) =>
         prev ? prev.map((k) => (k.id === id ? res.apiKey : k)) : prev,
       );
@@ -438,6 +454,7 @@ useEffect(() => {
       });
       setRotateForId(null);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not rotate key." }).message);
     }
@@ -452,19 +469,22 @@ useEffect(() => {
   ) {
     if (!teamId) return;
     try {
-      const res: { apiKey: ApiKey } = await apiFetch(
+      const res: { apiKey: ApiKey } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         `/v1/integrations/api-keys/${id}`,
         {
           method: "PATCH",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({ teamId, expiresAtUtc }),
         },
+      ),
       );
       setApiKeys((prev) =>
         prev ? prev.map((k) => (k.id === id ? res.apiKey : k)) : prev,
       );
       setExpiryForId(null);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not update expiry." }).message);
     }
@@ -497,11 +517,12 @@ useEffect(() => {
   }) {
     if (!teamId) return;
     try {
-      const res: { webhook: Webhook; rawSecret: string } = await apiFetch(
+      const res: { webhook: Webhook; rawSecret: string } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         "/v1/integrations/webhooks",
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({
             teamId,
             url: form.url,
@@ -509,6 +530,7 @@ useEffect(() => {
             eventTypes: form.eventTypes,
           }),
         },
+      ),
       );
       setWebhooks((prev) => (prev ? [res.webhook, ...prev] : [res.webhook]));
       setDisclosed({
@@ -518,6 +540,7 @@ useEffect(() => {
       });
       setShowCreateWebhook(false);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not create webhook." }).message);
     }
@@ -540,11 +563,13 @@ useEffect(() => {
         rawSecret: string;
         previousSecretPrefix: string;
         previousSecretValidUntilUtc: string;
-      } = await apiFetch(`/v1/integrations/webhooks/${id}/rotate-secret`, {
+      } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(`/v1/integrations/webhooks/${id}/rotate-secret`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
         body: JSON.stringify({ teamId, graceMinutes }),
-      });
+      }),
+      );
       setWebhooks((prev) =>
         prev ? prev.map((w) => (w.id === id ? res.webhook : w)) : prev,
       );
@@ -557,6 +582,7 @@ useEffect(() => {
       });
       setRotateWebhookForId(null);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not rotate secret." }).message);
     }
@@ -574,18 +600,21 @@ useEffect(() => {
     });
     if (!ok) return;
     try {
-      const res: { webhook: Webhook } = await apiFetch(
+      const res: { webhook: Webhook } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         `/v1/integrations/webhooks/${id}/disable`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({ teamId }),
         },
+      ),
       );
       setWebhooks((prev) =>
         prev ? prev.map((w) => (w.id === id ? res.webhook : w)) : prev,
       );
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not disable webhook." }).message);
     }
@@ -607,18 +636,21 @@ useEffect(() => {
     });
     if (!ok) return;
     try {
-      const res: { webhook: Webhook } = await apiFetch(
+      const res: { webhook: Webhook } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         `/v1/integrations/webhooks/${id}`,
         {
           method: "PUT",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({ teamId, status: "ACTIVE" }),
         },
+      ),
       );
       setWebhooks((prev) =>
         prev ? prev.map((w) => (w.id === id ? res.webhook : w)) : prev,
       );
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not enable webhook." }).message);
     }
@@ -669,13 +701,15 @@ useEffect(() => {
     if (!teamId) return;
     setRetryingDeliveryId(deliveryId);
     try {
-      const res: { delivery: WebhookDelivery } = await apiFetch(
+      const res: { delivery: WebhookDelivery } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         `/v1/integrations/webhook-deliveries/${encodeURIComponent(deliveryId)}/retry`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({ teamId }),
         },
+      ),
       );
       setDeliveriesByEndpoint((prev) => {
         const list = prev[endpointId];
@@ -688,6 +722,7 @@ useEffect(() => {
         };
       });
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not retry delivery." }).message);
     } finally {
@@ -773,13 +808,15 @@ useEffect(() => {
     if (!teamId) return;
     setSendingTestForId(id);
     try {
-      const res: { deliveryId: string; eventId: string } = await apiFetch(
+      const res: { deliveryId: string; eventId: string } = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(
         `/v1/integrations/webhooks/${encodeURIComponent(id)}/test`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
           body: JSON.stringify({ teamId }),
         },
+      ),
       );
       // Ensure the deliveries panel is open for this endpoint so the
       // operator can see the result of their test event immediately.
@@ -790,6 +827,7 @@ useEffect(() => {
       void res.deliveryId;
       void res.eventId;
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       const e = err as { message?: string };
       alert(toSafeUserError(e, { message: "Could not send test event." }).message);
     } finally {
@@ -799,6 +837,7 @@ useEffect(() => {
 
   return (
     <div style={pageStyle}>
+      <StepUpModal control={stepUp} />
       <header>
         <h1 style={titleStyle}>Integrations</h1>
         <p style={mutedStyle}>
@@ -2605,7 +2644,7 @@ function ApiKeyUsageDialog({
                   </div>
                 </div>
                 <div style={mutedStyle}>
-                  {u.action}
+                  {identifierLabel(u.action)}
                   {u.failureReason ? <> · reason: {u.failureReason}</> : null}{" "}
                   · {formatUserDateTime(u.createdAt)}
                 </div>

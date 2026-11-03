@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 
 /**
@@ -1142,9 +1143,9 @@ function EvidenceTab({
                   <div className="cc-muted case-detail-row-meta">
                     <span className="case-detail-row-meta-id">{item.id.slice(0, 8)}</span>
                     <span aria-hidden>•</span>
-                    <span>{item.type}</span>
+                    <span>{identifierLabel(item.type)}</span>
                     <span aria-hidden>•</span>
-                    <span>{item.status}</span>
+                    <span>{identifierLabel(item.status)}</span>
                     {item.verificationStatus ? (
                       <>
                         <span aria-hidden>•</span>

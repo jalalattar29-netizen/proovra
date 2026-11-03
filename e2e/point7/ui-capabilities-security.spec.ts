@@ -38,6 +38,7 @@
  * another organization is refused, and that is what is proven.
  */
 
+import { chooseListbox } from "../helpers/listbox";
 import { test, expect, type Page } from "@playwright/test";
 
 import { API_BASE, countRows, login, provenBrowserScenario } from "./_harness";
@@ -288,9 +289,8 @@ test.describe("JOURNEY S — Security Center write surfaces", () => {
     // The reason is a required enum, validated before the confirm dialog is
     // allowed to open — so choosing it is what ARMS the control.
     const arm = async () => {
-      await activeDeviceRow(page)
-        .locator("[data-cc-capture-device-reason]")
-        .selectOption("COMPROMISED");
+      await chooseListbox(activeDeviceRow(page)
+        .locator("[data-cc-capture-device-reason]"), "COMPROMISED");
     };
 
     const submit = () =>

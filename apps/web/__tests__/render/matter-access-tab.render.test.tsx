@@ -1,3 +1,4 @@
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -391,10 +392,10 @@ describe("matter workspace Assignments tab (D37)", () => {
     expect(await within(panel()).findByText("Open to the whole workspace")).toBeTruthy();
     const form = (await waitFor(() => {
       const el = panel().querySelector("[data-matter-access-team-form]") as HTMLElement | null;
-      expect(el?.querySelector("select")).toBeTruthy();
+      expect(el?.querySelector('[role="combobox"]')).toBeTruthy();
       return el;
     }))!;
-    fireEvent.change(within(form).getByLabelText("Collaboration Team"), { target: { value: teamOps.id } });
+    chooseListbox(within(form).getByLabelText("Collaboration Team"), teamOps.id);
     fireEvent.click(within(form).getByRole("button", { name: "Give team access" }));
     await waitFor(() => expect(within(panel()).getByText(`${teamOps.name} now has access to this case. The list was reloaded.`)).toBeTruthy());
     expect(mocks.confirm).toHaveBeenCalledTimes(1);

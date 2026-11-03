@@ -22,6 +22,7 @@
  *     the browser).
  */
 
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, cleanup, fireEvent } from "@testing-library/react";
@@ -279,9 +280,7 @@ describe("active sessions — server cursor pagination", () => {
     expect(lastSessionQuery().get("cursor")).toBe("fixture-cursor-25");
 
     const revokedFilter = screen.getByLabelText("Revoked sessions");
-    await act(async () => {
-      fireEvent.change(revokedFilter, { target: { value: "include" } });
-    });
+    chooseListbox(revokedFilter, "include");
     await settle();
 
     const q = lastSessionQuery();

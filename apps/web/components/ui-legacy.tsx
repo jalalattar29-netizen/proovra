@@ -1,5 +1,6 @@
 "use client";
 
+import { AppListbox } from "./app-primitives/AppListbox";
 import type {
   ReactNode,
   ButtonHTMLAttributes,
@@ -357,20 +358,19 @@ export function Select({
           {label}
         </label>
       )}
-      <select
+      <AppListbox
         id={selectId}
         className={`select ${className ?? ""}`.trim()}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        {...props}
-      >
-        {hasOwnPlaceholder ? null : <option value="">Select...</option>}
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+        options={[
+          ...(hasOwnPlaceholder ? [] : [{ value: "", label: "Select..." }]),
+          ...options.map((opt) => ({ value: opt.value, label: opt.label })),
+        ]}
+        onChange={onChange}
+        disabled={props.disabled}
+        ariaLabel={props["aria-label"]}
+        triggerProps={{ title: props.title }}
+      />
     </div>
   );
 }

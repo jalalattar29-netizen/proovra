@@ -186,7 +186,7 @@ function Overview() {
       if (isApiResponseError(err)) {
         return {
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         };
@@ -304,7 +304,7 @@ function Overview() {
             billing.kind === "ready"
               ? `${billing.data.totalIncludedSeats} included seat${billing.data.totalIncludedSeats === 1 ? "" : "s"} across ${billing.data.workspaceCount} workspace${billing.data.workspaceCount === 1 ? "" : "s"}`
               : billing.kind === "error" && billing.status === 403
-                ? "Requires ORG_BILLING_ADMIN or higher."
+                ? "Only billing admins, admins and owners can see billing."
                 : null
           }
           footer={
@@ -463,7 +463,7 @@ function Overview() {
                 {audit.kind === "ready"
                   ? `${audit.data.summary.totalEvents} governance event${audit.data.summary.totalEvents === 1 ? "" : "s"} recorded.`
                   : audit.kind === "error" && audit.status === 403
-                    ? "Requires ORG_AUDITOR or higher."
+                    ? "Only auditors, admins and owners can see the audit timeline."
                     : "Loading audit timeline…"}
               </div>
             </div>
@@ -641,7 +641,7 @@ function domainSummary(domains: Loadable<DomainsResponse>): {
     if (domains.status === 403) {
       return {
         state: { tone: "warn", text: "Admin only" },
-        description: "Requires ORG_ADMIN and the enterprise SSO/SCIM feature.",
+        description: "Only organization admins can manage domains, and only with enterprise SSO and SCIM.",
       };
     }
     return { state: { tone: "warn", text: "Unavailable" }, description: domains.message };

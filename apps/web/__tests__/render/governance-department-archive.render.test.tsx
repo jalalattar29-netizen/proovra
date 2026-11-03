@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => {
   const stepUp = { runStepUpAction: (fn: (headers?: Record<string, string>) => unknown) => fn(undefined) };
   return { fetch: vi.fn(), confirm: vi.fn(), guard, stepUp };
 });
-vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()), apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({ PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("../../components/identity-security/StepUpModal", () => ({

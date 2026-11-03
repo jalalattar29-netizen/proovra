@@ -1,3 +1,4 @@
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -51,7 +52,7 @@ describe("export snapshot operator workflow", () => {
     fireEvent.change(screen.getByLabelText("Evidence ID (optional)"), { target: { value: "wrong" } });
     expect(screen.getByRole("button", { name: "Record snapshot" }).hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("Evidence ID (optional)"), { target: { value: id } });
-    fireEvent.change(screen.getByLabelText("Snapshot purpose"), { target: { value: "EVIDENCE_PACKAGE" } });
+    chooseListbox(screen.getByLabelText("Snapshot purpose"), "EVIDENCE_PACKAGE");
     fireEvent.click(screen.getByRole("button", { name: "Record snapshot" }));
     await screen.findByText("Snapshot recorded and reread from the saved record.");
     const write = mocks.fetch.mock.calls.find(([, init]) => init?.method === "POST");
@@ -76,7 +77,7 @@ describe("export snapshot operator workflow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Page 2"); await ready();
     expect(mocks.fetch.mock.calls.at(-1)![0]).toContain("cursor=server-cursor");
-    fireEvent.change(screen.getByLabelText("Filter by purpose"), { target: { value: "COMPLIANCE_BUNDLE" } });
+    chooseListbox(screen.getByLabelText("Filter by purpose"), "COMPLIANCE_BUNDLE");
     await screen.findByText("Page 1"); await ready();
     const query = new URL(mocks.fetch.mock.calls.at(-1)![0], "http://localhost").searchParams;
     expect(query.get("snapshotKind")).toBe("COMPLIANCE_BUNDLE");
@@ -86,7 +87,7 @@ describe("export snapshot operator workflow", () => {
     let resolveOld!: (value: unknown) => void;
     mocks.fetch.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; })).mockResolvedValue(page([]));
     render(<ExportSnapshotsPanel teamId={teamId} />);
-    fireEvent.change(screen.getByLabelText("Filter by purpose"), { target: { value: "COMPLIANCE_BUNDLE" } });
+    chooseListbox(screen.getByLabelText("Filter by purpose"), "COMPLIANCE_BUNDLE");
     await screen.findByText("No snapshots match these filters.");
     await act(async () => { resolveOld(page()); });
     expect(screen.queryByRole("button", { name: "View snapshot " + id })).toBeNull();

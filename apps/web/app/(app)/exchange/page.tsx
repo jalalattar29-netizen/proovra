@@ -36,12 +36,13 @@
  * said in words.
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { Button } from "../../../components/ui/Button";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import {
   StepUpModal,
   useStepUpAction,
@@ -131,7 +132,7 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
     setDenial({ denial: denial as string, permission });
     return;
   }
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const d =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
@@ -702,21 +703,21 @@ function Shell() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             Kind
-            <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
-              {PACKAGE_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={kind}
+              options={[
+                ...PACKAGE_KINDS.map((k) => ({ value: k, label: identifierLabel(k) })),
+              ]}
+              onChange={(next) => setKind(next)}
+            />
           </label>
           <label style={labelStyle}>
-            Evidence IDs (comma-sep)
+            Evidence IDs, separated by commas
             <input
               style={{ ...inputStyle, minWidth: 280 }}
               value={evidenceIds}
               onChange={(e) => setEvidenceIds(e.target.value)}
-              placeholder="uuid1, uuid2"
+              placeholder="Paste evidence IDs"
             />
           </label>
           <button

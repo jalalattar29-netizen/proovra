@@ -25,6 +25,7 @@
  *     only.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import type { LifecycleState } from "./LifecycleStateBadge";
 import { LifecycleStateBadge } from "./LifecycleStateBadge";
 
@@ -235,7 +236,7 @@ export function GovernanceSummary({
                   key={`${c.code}:${idx}`}
                   data-governance-conflict={c.code}
                 >
-                  <strong>{CONFLICT_LABEL[c.code] ?? c.code}.</strong>{" "}
+                  <strong>{CONFLICT_LABEL[c.code] ?? identifierLabel(c.code)}.</strong>{" "}
                   {c.detail}
                 </li>
               ))}

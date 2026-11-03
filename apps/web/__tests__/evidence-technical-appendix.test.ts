@@ -187,7 +187,7 @@ test("capture device rows expose device/OS/browser/timezone; no empty rows", () 
   const rows = buildCaptureDeviceRows(captureTm());
   const byLabel = Object.fromEntries(rows.map((r) => [r.label, r.value]));
   assert.equal(byLabel["Operating system"], "Android 10");
-  assert.equal(byLabel["Device type"], "MOBILE");
+  assert.equal(byLabel["Device type"], "Mobile");
   assert.equal(byLabel["Browser"], "Chrome 149.0.0.0");
   assert.equal(byLabel["Timezone"], "Europe/Berlin");
   // Every row carries a meaningful value.

@@ -6,8 +6,9 @@
  * exception. Each is one API route, platform admin plus a fresh step-up, and this
  * panel decides nothing: it asks, then reloads what the server says.
  */
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useState } from "react";
-import { ENTITLEMENT_KEYS } from "@proovra/shared";
+import { ENTITLEMENT_KEYS, identifierLabel } from "@proovra/shared";
 
 import { Card } from "../../../../../components/ui/Card";
 import { Button } from "../../../../../components/ui/Button";
@@ -325,16 +326,24 @@ export function CustomerContractPanel({
                 What the contract sold is active with no action here. This records an exception to it for one workspace.
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <select className="input" value={grantWorkspace} onChange={(e) => setGrantWorkspace(e.target.value)} aria-label="Workspace" data-testid="customer-grant-workspace">
-                  {workspaces.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
-                <select className="input" value={grantKey} onChange={(e) => setGrantKey(e.target.value)} aria-label="Entitlement" data-testid="customer-grant-key">
-                  {ENTITLEMENT_KEYS.map((k) => (
-                    <option key={k} value={k}>{k}</option>
-                  ))}
-                </select>
+                <AppListbox
+                  value={grantWorkspace}
+                  options={[
+                    ...workspaces.map((w) => ({ value: w.id, label: w.name })),
+                  ]}
+                  onChange={(next) => setGrantWorkspace(next)}
+                  ariaLabel={"Workspace"}
+                  triggerProps={{ "data-testid": "customer-grant-workspace" }}
+                />
+                <AppListbox
+                  value={grantKey}
+                  options={[
+                    ...ENTITLEMENT_KEYS.map((k) => ({ value: k, label: identifierLabel(k) })),
+                  ]}
+                  onChange={(next) => setGrantKey(next)}
+                  ariaLabel={"Entitlement"}
+                  triggerProps={{ "data-testid": "customer-grant-key" }}
+                />
                 <input className="input" value={grantValue} onChange={(e) => setGrantValue(e.target.value)} aria-label="Value" data-testid="customer-grant-value" />
                 <Button size="sm" variant="secondary" onClick={() => void grantException()} disabled={busy || !teamId} data-testid="customer-grant-submit">
                   Record exception

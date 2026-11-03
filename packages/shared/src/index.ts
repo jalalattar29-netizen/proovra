@@ -1451,6 +1451,7 @@ export {
   securityEventLabel,
   // PV-LANG-003 — the generic reading of any stored identifier.
   identifierLabel,
+  identifierTextLabel,
   classifyFileValidation,
   hasDoubleExtension,
   isDangerousExtension,

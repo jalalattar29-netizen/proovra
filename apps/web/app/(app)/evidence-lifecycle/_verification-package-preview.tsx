@@ -24,6 +24,7 @@
  *     `useLifecycleFetch`.
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { useCallback, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -174,18 +175,14 @@ export function VerificationPackagePreviewPanel() {
         </div>
         <label style={labelStyle}>
           Manifest section
-          <select
-            data-lifecycle-package-preview-select
+          <AppListbox
             value={kind}
-            onChange={(e) => setKind(e.target.value as PreviewKind)}
-            style={selectStyle}
-          >
-            {PREVIEW_KINDS.map((k) => (
-              <option key={k.kind} value={k.kind}>
-                {k.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...PREVIEW_KINDS.map((k) => ({ value: k.kind, label: k.label })),
+            ]}
+            onChange={(next) => setKind(next as PreviewKind)}
+            triggerProps={{ "data-lifecycle-package-preview-select": "" }}
+          />
         </label>
       </div>
 
@@ -267,11 +264,3 @@ const labelStyle = {
   fontWeight: 600,
   color: "var(--ink-secondary, #475569)",
 };
-const selectStyle = {
-  fontSize: 12,
-  padding: "4px 6px",
-  border: "1px solid var(--border-strong, #cbd5e1)",
-  borderRadius: 6,
-  background: "var(--surface-card, #ffffff)",
-  minWidth: 180,
-} as const;

@@ -20,6 +20,7 @@
  * Errors surface via toSafeUserError. No API keys / secrets are surfaced.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageShell, PageHeader, PageSection, DataTable } from "../../../../components/ui";
@@ -296,7 +297,7 @@ function AdminCostsInner() {
     {
       key: "provider",
       header: "Provider",
-      render: (r) => <span style={{ fontWeight: 650 }}>{r.provider}</span>,
+      render: (r) => <span style={{ fontWeight: 650 }}>{identifierLabel(r.provider)}</span>,
     },
     {
       key: "costUsd",
@@ -327,9 +328,9 @@ function AdminCostsInner() {
       header: "Operation",
       render: (r) => (
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600 }}>{r.operation}</div>
+          <div style={{ fontWeight: 600 }}>{identifierLabel(r.operation)}</div>
           <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
-            {r.provider}
+            {identifierLabel(r.provider)}
           </div>
         </div>
       ),
@@ -522,16 +523,16 @@ function AdminCostsInner() {
                   <Card
                     key={b.id}
                     padding="comfortable"
-                    title={b.provider ?? "All providers"}
+                    title={identifierLabel(b.provider ?? "All providers")}
                     headerAction={
                       <Badge tone={budgetStateTone(b.state, b.atRisk)} dot>
-                        {b.atRisk ? "At risk" : b.state}
+                        {b.atRisk ? "At risk" : identifierLabel(b.state)}
                       </Badge>
                     }
                   >
                     <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
                       <div style={{ color: "var(--ink-secondary)" }}>
-                        Scope: {b.scope} · {b.period}
+                        Scope: {identifierLabel(b.scope)} · {b.period}
                       </div>
                       <div style={{ color: "var(--ink-primary)" }}>
                         Soft limit: {formatMoney(b.softLimitUsd, "USD")}
@@ -641,7 +642,7 @@ function AdminCostsInner() {
                 <Card
                   key={c.category}
                   padding="comfortable"
-                  title={c.category}
+                  title={identifierLabel(c.category)}
                   headerAction={<Badge tone="neutral">Not connected</Badge>}
                 >
                   <div style={{ fontSize: 13, color: "var(--ink-secondary)" }}>

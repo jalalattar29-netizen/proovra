@@ -284,6 +284,16 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
+  {
+    id: "platform.unreferenced_published_artifacts",
+    owner: "Publication intents (artifact_publication_intents) against reports and verification_packages",
+    scopeAuthority: "PLATFORM_TELEMETRY",
+    discovery: "a publication intent older than a day, from the last week, that no report or package row references, once per sweep tick",
+    fingerprint: "ONE platform condition (platform:unreferenced_published_artifacts), never one per workspace",
+    resolution: "a week passes with no new unreferenced publication (the locked objects themselves remain until their horizon)",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: false, operations: true },
+  },
   // -------------------------------------------------------------------------
   // Sources that are REAL and are deliberately NOT discovered by this sweep.
   //

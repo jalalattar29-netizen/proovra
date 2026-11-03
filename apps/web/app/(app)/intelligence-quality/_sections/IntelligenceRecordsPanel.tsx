@@ -29,6 +29,7 @@
  * not an audit chain, it is an opinion.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import { identifierLabel } from "@proovra/shared";
@@ -588,18 +589,14 @@ export function IntelligenceRecordsPanel() {
               Propose a correction
             </h3>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <select
-                style={input}
+              <AppListbox
                 value={draftKind}
-                onChange={(e) => setDraftKind(e.target.value)}
-                aria-label="Correction kind"
-              >
-                {correctionKinds.map((k) => (
-                  <option key={k} value={k}>
-                    {correctionKindLabel(k)}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...correctionKinds.map((k) => ({ value: k, label: correctionKindLabel(k) })),
+                ]}
+                onChange={(next) => setDraftKind(next)}
+                ariaLabel={"Correction kind"}
+              />
               <input
                 style={input}
                 placeholder="Field name"

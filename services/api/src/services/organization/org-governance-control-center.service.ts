@@ -31,6 +31,11 @@
  */
 
 import { prisma } from "../../db.js";
+import {
+  readRetentionPosture,
+  readRetentionPostureSample,
+  type RetentionPostureRow,
+} from "../governance-lifecycle/retention-posture.service.js";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable";
 
@@ -65,18 +70,11 @@ export type OrgGovernanceControlCenterEnvelope = {
       status: SectionStatus;
       data: {
         activePolicyCount: number;
-        /** Workspaces that have at least one ACTIVE retention policy. */
+        /** Workspaces with at least one policy in force, in either table. */
         workspacesWithPolicyCount: number;
         /** Org-level retention template published (Phase B0). */
         orgTemplatePublished: boolean;
-        sample: Array<{
-          id: string;
-          teamId: string;
-          displayName: string;
-          scope: string;
-          retentionDays: number | null;
-          immutable: boolean;
-        }>;
+        sample: RetentionPostureRow[];
       } | null;
     };
     /** Destruction reviews pending an approval decision. */
@@ -302,44 +300,19 @@ export async function buildOrgGovernanceControlCenter(input: {
         },
       };
     } else {
-      const [count, policies, coveredGroups] = await Promise.all([
-        prisma.evidenceRetentionPolicy.count({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
-        }),
-        prisma.evidenceRetentionPolicy.findMany({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
-          orderBy: { updatedAt: "desc" },
-          take: RETENTION_SAMPLE_LIMIT,
-          select: {
-            id: true,
-            teamId: true,
-            displayName: true,
-            scope: true,
-            retentionDays: true,
-            immutable: true,
-          },
-        }),
-        prisma.evidenceRetentionPolicy.findMany({
-          where: { teamId: { in: teamIds }, status: "ACTIVE" },
-          select: { teamId: true },
-          distinct: ["teamId"],
-        }),
+      // Both policy tables bind a record, so a posture counts both.
+      const [posture, sample] = await Promise.all([
+        readRetentionPosture(teamIds, prisma),
+        readRetentionPostureSample(teamIds, RETENTION_SAMPLE_LIMIT, prisma),
       ]);
-      retentionCoveredWorkspaceCount = coveredGroups.length;
+      retentionCoveredWorkspaceCount = posture.coveredTeamIds.length;
       retention = {
         status: "ok",
         data: {
-          activePolicyCount: count,
+          activePolicyCount: posture.activePolicyCount,
           workspacesWithPolicyCount: retentionCoveredWorkspaceCount,
           orgTemplatePublished,
-          sample: policies.map((p) => ({
-            id: p.id,
-            teamId: p.teamId,
-            displayName: p.displayName,
-            scope: p.scope,
-            retentionDays: p.retentionDays,
-            immutable: p.immutable,
-          })),
+          sample,
         },
       };
     }

@@ -18,6 +18,7 @@
  *     drift (P2021/P2022).
  */
 
+import { readRetentionPosture } from "../governance-lifecycle/retention-posture.service.js";
 import * as prismaPkg from "@prisma/client";
 import {
   DESTRUCTION_REVIEW_AWAITING_DECISION,
@@ -229,8 +230,8 @@ export async function buildGovernanceControlPlane(input: {
           },
         })
         .catch(() => 0),
-      prisma.evidenceRetentionPolicy
-        .count({ where: { teamId: input.teamId, status: "ACTIVE" } })
+      readRetentionPosture([input.teamId], prisma)
+        .then((p) => p.activePolicyCount)
         .catch(() => 0),
     ]);
 

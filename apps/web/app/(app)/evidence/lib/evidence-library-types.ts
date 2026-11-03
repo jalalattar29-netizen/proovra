@@ -570,6 +570,8 @@ export type ReviewerComment = {
 };
 
 export type ReviewerCommentsResponse = {
+  /** Whether the API would accept a write from this reader. */
+  canWrite?: boolean;
   items?: ReviewerComment[];
   comment?: ReviewerComment;
 };
@@ -586,6 +588,8 @@ export type LegalNote = {
 };
 
 export type LegalNotesResponse = {
+  /** Whether the API would accept a write from this reader. */
+  canWrite?: boolean;
   items?: LegalNote[];
   legalNote?: LegalNote;
 };
@@ -610,6 +614,8 @@ export type EvidenceAnnotation = {
 };
 
 export type EvidenceAnnotationsResponse = {
+  /** Whether the API would accept a write from this reader. */
+  canWrite?: boolean;
   items?: EvidenceAnnotation[];
   annotation?: EvidenceAnnotation;
 };

@@ -15,6 +15,7 @@
  *   * Honest empty state when no rows match or the call fails.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import type {
   ExtractedTextSummaryRow,
   ExtractedTextsResult,
@@ -139,8 +140,8 @@ function Row({ row }: { row: ExtractedTextSummaryRow }) {
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <strong style={{ color: "#0f172a" }}>{row.status}</strong>
-        <span style={{ color: "#475569", fontSize: 11 }}>{row.provider}</span>
+        <strong style={{ color: "#0f172a" }}>{identifierLabel(row.status)}</strong>
+        <span style={{ color: "#475569", fontSize: 11 }}>{identifierLabel(row.provider)}</span>
       </div>
       <div style={{ display: "flex", gap: 8, color: "#475569", fontSize: 11 }}>
         {row.language ? <span>{row.language}</span> : null}

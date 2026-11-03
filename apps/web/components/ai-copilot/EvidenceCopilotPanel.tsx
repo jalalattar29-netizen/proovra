@@ -5,10 +5,10 @@
  * Structured Evidence-Operations assistant for ONE authorized record.
  * Advisory only; deterministic integrity facts are explained, never decided.
  */
-import { buildCopilotIdempotencyKey } from "@proovra/shared";
+import { buildCopilotIdempotencyKey, identifierLabel } from "@proovra/shared";
 import { useState } from "react";
 
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 // RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
 // outcome, shared with Evidence Detail and the Reports page.
@@ -273,8 +273,8 @@ export function EvidenceCopilotPanel({
       })) as { data?: RunResult; status?: string; serverActions?: ServerAction[] };
       setState({ kind: "result", result: res.data ?? (res as RunResult), serverActions: res.serverActions ?? [] });
     } catch (err) {
-      if (err instanceof ApiError) {
-        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode) });
+      if (isApiResponseError(err)) {
+        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode ?? 0) });
       } else {
         setState({ kind: "error", code: "NETWORK", message: "Could not reach the AI service. Evidence workflows are unaffected." });
       }
@@ -309,7 +309,7 @@ export function EvidenceCopilotPanel({
 
       {state.kind === "error" ? (
         <div className="app-alert app-alert--warn evd-block" role="alert">
-          {state.message} <span className="evd-muted">({state.code})</span>
+          {state.message} <span className="evd-muted">({identifierLabel(state.code)})</span>
         </div>
       ) : null}
       {state.kind === "result" ? (
@@ -336,7 +336,7 @@ function ResultView({
   onOutputsRequested?: () => void;
 }) {
   if (result.status === "provider_unavailable") return <div className="app-alert evd-block">AI is currently unavailable. Evidence workflows are unaffected.</div>;
-  if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace ({result.decision}).</div>;
+  if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace {result.decision ? ` (${identifierLabel(result.decision)})` : ""}.</div>;
   if (result.status === "schema_error") {
     // The response is DISCARDED and never rendered. The user gets an actionable
     // control rather than a dead end; the internal category is logged

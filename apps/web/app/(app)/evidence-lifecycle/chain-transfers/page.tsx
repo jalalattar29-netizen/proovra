@@ -9,7 +9,7 @@ import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { statusBadgeStyle } from "../../../../components/ui/StatusBadge";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { LifecycleSectionBoundary } from "../_shared";
 import { identifierLabel } from "@proovra/shared";
@@ -43,7 +43,7 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
     setDenial({ denial: denial as string, permission });
     return;
   }
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const d =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
@@ -220,12 +220,12 @@ function Shell() {
             />
           </label>
           <label style={labelStyle}>
-            Evidence IDs (comma-sep)
+            Evidence IDs, separated by commas
             <input
               style={{ ...inputStyle, minWidth: 240 }}
               value={evidenceIds}
               onChange={(e) => setEvidenceIds(e.target.value)}
-              placeholder="uuid1, uuid2"
+              placeholder="Paste evidence IDs"
             />
           </label>
           <label style={labelStyle}>

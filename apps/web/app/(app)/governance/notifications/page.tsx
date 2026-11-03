@@ -12,6 +12,7 @@
  * this page simply renders the bounded-catalog payload.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -136,14 +137,14 @@ function GovernanceNotificationsPageInner() {
       header: "Severity",
       render: (n) => (
         <Badge tone={severityTone(n.severity)} subtle>
-          {n.severity}
+          {identifierLabel(n.severity)}
         </Badge>
       ),
     },
     {
       key: "kind",
       header: "Kind",
-      render: (n) => <code style={codeStyle}>{n.kind}</code>,
+      render: (n) => <span style={codeStyle}>{identifierLabel(n.kind)}</span>,
     },
     {
       key: "summary",

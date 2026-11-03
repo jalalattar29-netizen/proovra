@@ -181,7 +181,7 @@ export async function resolveAiCapabilityDisclosure(
     transferMechanism: "SCC / DPA (see Subprocessors)",
     trainingMode: "No training (provider contract)",
     retentionMode: "Derived text stored as evidence metadata; subject to retention policy",
-    lastVerifiedAtUtc: verifiedAt,
+    lastVerifiedAtUtc: null, // OPENAI_PRIVACY_VERIFIED_AT is about OpenAI only (OPS-013)
     note: "Raw bytes sent to a purpose-specific extractor only when configured AND the workspace opts into content intelligence.",
   });
 
@@ -283,7 +283,7 @@ export async function resolveAiCapabilityDisclosure(
       transferMechanism: "n/a",
       trainingMode: "n/a",
       retentionMode: "Metadata stored with evidence",
-      lastVerifiedAtUtc: verifiedAt,
+      lastVerifiedAtUtc: null, // OPENAI_PRIVACY_VERIFIED_AT is about OpenAI only (OPS-013)
       note: "Computed locally; nothing leaves the platform; precise GPS not stored.",
     },
     {
@@ -301,7 +301,7 @@ export async function resolveAiCapabilityDisclosure(
       transferMechanism: "n/a",
       trainingMode: "n/a (no LLM)",
       retentionMode: "Advisory metadata",
-      lastVerifiedAtUtc: verifiedAt,
+      lastVerifiedAtUtc: null, // OPENAI_PRIVACY_VERIFIED_AT is about OpenAI only (OPS-013)
       note: "Pure arithmetic; no LLM. Measures preparation completeness only, not truth/authenticity/admissibility.",
     },
   ];

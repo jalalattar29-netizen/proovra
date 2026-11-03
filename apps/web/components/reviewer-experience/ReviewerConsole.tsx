@@ -56,6 +56,9 @@
  *     are explicitly absent.
  */
 
+import { recordReference } from "../../lib/short-id";
+import { AppListbox } from "../app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import {
   useCallback,
@@ -187,7 +190,7 @@ const TABS: ReadonlyArray<{ id: TabId; label: string; description: string }> = [
     label: "Escalations",
     description: "Open + acknowledged",
   },
-  { id: "sla", label: "SLA", description: "Breach + due-soon rollup" },
+  { id: "sla", label: "Sla", description: "Breach + due-soon rollup" },
   { id: "workload", label: "Workload", description: "Reviewer capacity" },
 ];
 
@@ -1373,15 +1376,15 @@ function QueueTable({
                   />
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.reviewerSummary ?? row.evidenceId ?? row.id ?? "—"}
+                  {row.reviewerSummary ?? (row.evidenceId ? recordReference("Evidence", row.evidenceId) : row.id ? recordReference("Review", row.id) : "—")}
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.stage ?? "—"}
+                  {identifierLabel(row.stage ?? "—")}
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {row.status ? (
                     <Badge tone={statusTone(row.status)} subtle>
-                      {row.status}
+                      {identifierLabel(row.status)}
                     </Badge>
                   ) : (
                     "—"
@@ -1390,7 +1393,7 @@ function QueueTable({
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {row.priority ? (
                     <Badge tone={priorityTone(row.priority)} subtle>
-                      {row.priority}
+                      {identifierLabel(row.priority)}
                     </Badge>
                   ) : (
                     "—"
@@ -1540,7 +1543,7 @@ function EscalationsTable({
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {row.severity ? (
                     <Badge tone={severityTone(row.severity)} subtle>
-                      {row.severity}
+                      {identifierLabel(row.severity)}
                     </Badge>
                   ) : (
                     "—"
@@ -1549,7 +1552,7 @@ function EscalationsTable({
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {row.status ? (
                     <Badge tone={statusTone(row.status)} subtle>
-                      {row.status}
+                      {identifierLabel(row.status)}
                     </Badge>
                   ) : (
                     "—"
@@ -1982,17 +1985,15 @@ function SavedViewsPanel({
               style={{ fontSize: 12, color: "var(--ink-secondary, #475569)" }}
             >
               Visibility
-              <select
+              <AppListbox
                 value={visibility}
-                onChange={(e) =>
-                  setVisibility(e.target.value as "PRIVATE" | "TEAM")
-                }
-                data-reviewer-saved-view-visibility
-                style={savedViewControlStyle}
-              >
-                <option value="PRIVATE">Private — only you</option>
-                <option value="TEAM">Workspace — everyone in this team</option>
-              </select>
+                options={[
+                  { value: "PRIVATE", label: "Private — only you" },
+                  { value: "TEAM", label: "Workspace — everyone in this team" },
+                ]}
+                onChange={(next) => setVisibility(next as "PRIVATE" | "TEAM")}
+                triggerProps={{ "data-reviewer-saved-view-visibility": "" }}
+              />
             </label>
             <div
               style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}
@@ -2143,7 +2144,7 @@ function AssignModal({
         }}
       >
         <label style={modalLabelStyle}>
-          Assignee user id (UUID)
+          Assignee user ID
           <input
             autoFocus
             type="text"
@@ -2206,33 +2207,25 @@ function EscalateModal({
       >
         <label style={modalLabelStyle}>
           Reason
-          <select
+          <AppListbox
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            data-reviewer-escalate-reason
-            style={modalInputStyle}
-          >
-            {ESCALATION_REASONS.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...ESCALATION_REASONS.map((r) => ({ value: r.id, label: r.label })),
+            ]}
+            onChange={(next) => setReason(next)}
+            triggerProps={{ "data-reviewer-escalate-reason": "" }}
+          />
         </label>
         <label style={modalLabelStyle}>
           Severity
-          <select
+          <AppListbox
             value={severity}
-            onChange={(e) => setSeverity(e.target.value)}
-            data-reviewer-escalate-severity
-            style={modalInputStyle}
-          >
-            {ESCALATION_SEVERITIES.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...ESCALATION_SEVERITIES.map((s) => ({ value: s.id, label: s.label })),
+            ]}
+            onChange={(next) => setSeverity(next)}
+            triggerProps={{ "data-reviewer-escalate-severity": "" }}
+          />
         </label>
         <label style={modalLabelStyle}>
           Safe summary (operational only — no allegations, ≤400 chars)

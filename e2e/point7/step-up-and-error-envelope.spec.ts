@@ -50,6 +50,7 @@
  * only that the boundary can be manufactured.
  */
 
+import { chooseListbox } from "../helpers/listbox";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 
 import {
@@ -605,7 +606,7 @@ test("p7.apierror.org_transfer.target_not_member_specific_copy", async ({
   const danger = page.locator('[data-section="org-danger-zone"]');
   const target = danger.locator('[data-control="transfer-ownership-target"]');
   await expect(target).toBeVisible();
-  await target.selectOption(member.userId);
+  await chooseListbox(target, member.userId);
 
   // The precondition: the chosen member leaves the organization after the page
   // read the roster. This is the exact race the copy is written for — "is no
@@ -675,7 +676,7 @@ test("p7.apierror.org_transfer.owner_required_specific_copy", async ({ page }) =
   const danger = page.locator('[data-section="org-danger-zone"]');
   const target = danger.locator('[data-control="transfer-ownership-target"]');
   await expect(target).toBeVisible();
-  await target.selectOption(member.userId);
+  await chooseListbox(target, member.userId);
 
   // The precondition: the caller is demoted after the page rendered the
   // owner-only controls. Frontend visibility is not authorization, and this is

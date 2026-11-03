@@ -16,6 +16,8 @@
  * AI-touched section.
  */
 
+import { intelligenceProviderLabel } from "../../../lib/labels/workspaceOpsLabels";
+import { identifierLabel } from "@proovra/shared";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -152,14 +154,13 @@ useEffect(() => {
                 <p style={mutedStyle}>Loading…</p>
               ) : (
                 <div style={mutedStyle}>
-                  OCR: <strong>{providers.ocr}</strong> · Transcript:{" "}
-                  <strong>{providers.transcript}</strong> · Semantic search:{" "}
+                  OCR: <strong>{providers.ocr === "noop" ? "Not set up" : intelligenceProviderLabel(providers.ocr)}</strong> · Transcript:{" "}
+                  <strong>{providers.transcript === "noop" ? "Not set up" : intelligenceProviderLabel(providers.transcript)}</strong> · Semantic search:{" "}
                   <strong>
                     {providers.semanticEnabled ? "enabled" : "disabled"}
                   </strong>
-                  . When a provider shows <code>noop</code>, no real engine
-                  is wired and extraction jobs will be recorded as SKIPPED
-                  with <code>no_provider_configured</code>.
+                  . A provider that is not set up records its extraction jobs as
+                  skipped, with no text extracted.
                 </div>
               )}
             </Card>
@@ -167,7 +168,7 @@ useEffect(() => {
 
           <PageSection
             title="Search"
-            description="Workspace search is consolidated on the canonical Search surface. Enter a query and continue to /search — the global engine runs keyword matching across titles, filenames, OCR text, transcript text, and extracted entity values, with saved views, governance filters, and the relationship inspector."
+            description="Workspace search is consolidated on the canonical Search surface. Enter a query and continue to Search, which runs keyword matching across titles, filenames, OCR text, transcript text, and extracted entity values, with saved views, governance filters, and the relationship inspector."
           >
             <Card>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -237,8 +238,8 @@ useEffect(() => {
                         Evidence {j.evidenceId.slice(0, 8)}…
                       </Link>
                       <div style={mutedStyle}>
-                        kind {j.kind} · attempts {j.attemptCount}
-                        {j.provider ? ` · provider ${j.provider}` : ""}
+                        kind {identifierLabel(j.kind)} · attempts {j.attemptCount}
+                        {j.provider ? ` · provider ${identifierLabel(j.provider)}` : ""}
                         {j.lastError ? ` · ${j.lastError}` : ""}
                       </div>
                     </div>
@@ -250,7 +251,7 @@ useEffect(() => {
                   align: "right",
                   nowrap: true,
                   render: (j) => (
-                    <span style={statusBadgeStyle(j.status)}>{j.status}</span>
+                    <span style={statusBadgeStyle(j.status)}>{identifierLabel(j.status)}</span>
                   ),
                 },
               ]}

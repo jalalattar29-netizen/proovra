@@ -11,7 +11,7 @@ import { resolve } from "node:path";
 
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-import { loadState, newProfile, switchWorkspace, type JourneyState } from "./lib/journey";
+import { API_BASE, loadState, newProfile, switchWorkspace, type JourneyState } from "./lib/journey";
 
 const s: JourneyState = loadState();
 const OUT = process.env.CAPTURE_DIR ?? resolve(__dirname, "..", "..", ".p7tmp", "visual");
@@ -157,4 +157,77 @@ test("recapture the pages whose baseline images were invalid", async ({ browser 
   const a = await asPerson(browser, "admin", 1440, 900);
   await shoot(a.page, "/evidence/[id]", `/evidence/${s.facts.evidenceId}`, 1440);
   await a.context.close();
+});
+
+/** A request as the signed-in person, from the page, so it carries their session and origin. */
+async function asPage<T>(page: Page, method: string, path: string, body?: unknown): Promise<{ status: number; json: T }> {
+  return page.evaluate(
+    async ({ base, method, path, body }) => {
+      const res = await fetch(`${base}${path}`, {
+        method,
+        credentials: "include",
+        headers: { "content-type": "application/json", "x-web-client": "1" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      return { status: res.status, json: await res.json().catch(() => null) };
+    },
+    { base: API_BASE, method, path, body },
+  );
+}
+
+test("recapture the routes that need a record", async ({ browser }) => {
+  const RE = resolve(OUT, "recapture");
+  mkdirSync(RE, { recursive: true });
+  const shoot = async (page: Page, label: string, url: string) => {
+    await page.goto("about:blank");
+    await page.goto(url);
+    await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    await page.waitForTimeout(700);
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    console.log(`recapture ${label} final=${new URL(page.url()).pathname} h=${height} text=${(await page.locator("main").innerText().catch(() => "")).slice(0, 160).replace(/\s+/g, " ")}`);
+    await page.screenshot({ path: resolve(RE, name(label, 1440)), fullPage: true, clip: { x: 0, y: 0, width: 1440, height }, type: "jpeg", quality: 70 });
+  };
+  const a = await asPerson(browser, "admin", 1440, 900);
+  const context = await asPage<{ workspace?: { workspaceId?: string }; activeWorkspace?: { id?: string } }>(a.page, "GET", "/v1/platform/context");
+  const teamId = await a.page.evaluate(async (orgId) => orgId, s.workspaceId);
+  const orgs = await asPage<{ workspaces: Array<{ workspaceId: string; isPersonal: boolean }> }>(a.page, "GET", `/v1/orgs/${s.orgId}/workspaces`);
+  const workspaceId = teamId ?? orgs.json.workspaces.find((w) => !w.isPersonal)!.workspaceId;
+  console.log("context", context.status, workspaceId);
+
+  // A review already exists: S13 decided it, so it sits in the completed queue.
+  const queue = await asPage<{ rows?: Array<{ workflowId?: string; id?: string }> }>(a.page, "GET", `/v1/reviewer-ops/queue?teamId=${workspaceId}&queue=COMPLETED_RECENTLY`);
+  console.log("queue", queue.status, JSON.stringify(queue.json).slice(0, 300));
+  const reviewId = queue.json?.rows?.[0]?.workflowId ?? queue.json?.rows?.[0]?.id;
+  if (reviewId) await shoot(a.page, "/reviewer-ops/[reviewId]", `/reviewer-ops/${reviewId}`);
+
+  const request = await asPage<{ request?: { id: string } }>(a.page, "POST", "/v1/evidence-requests", {
+    teamId: workspaceId,
+    caseId: s.facts.caseId,
+    requestType: "ADDITIONAL_EVIDENCE",
+    title: "Hull survey photographs",
+    instructions: "Photographs of the port side, from the surveyor.",
+    recipientMode: "EXTERNAL_CONTRIBUTOR",
+    recipientLabel: "Nordic Surveyors",
+    recipientEmail: `surveyor.${s.runId}@halden-marine.example.test`,
+  });
+  console.log("evidence request", request.status, JSON.stringify(request.json).slice(0, 200));
+  if (request.json?.request?.id) await shoot(a.page, "/evidence-requests/[id]", `/evidence-requests/${request.json.request.id}`);
+
+  const team = await asPage<{ team?: { id: string }; collaborationTeam?: { id: string } }>(a.page, "POST", "/v1/collaboration-teams", { name: `Hull claim team ${Date.now() % 100000}` });
+  console.log("collaboration team", team.status, JSON.stringify(team.json).slice(0, 200));
+  const collaborationId = team.json?.team?.id ?? team.json?.collaborationTeam?.id;
+  if (collaborationId) {
+    await shoot(a.page, "/collaboration-teams/[teamId]", `/collaboration-teams/${collaborationId}`);
+    await shoot(a.page, "/collaboration-teams/[teamId]-discussion", `/collaboration-teams/${collaborationId}?tab=discussion`);
+  }
+  await a.context.close();
+
+  const o = await asPerson(browser, "owner", 1440, 900);
+  await shoot(o.page, "/teams/[id]/lifecycle", `/teams/${workspaceId}/lifecycle`);
+  // No product path creates a workflow instance: POST /v1/workflows/instances is retired.
+  const instances = await asPage<{ instances?: Array<{ id: string }> }>(o.page, "GET", `/v1/workflows/instances?teamId=${workspaceId}`);
+  console.log("workflow instances", instances.status, JSON.stringify(instances.json).slice(0, 200));
+  const instance = instances.json?.instances?.[0]?.id ?? "00000000-0000-4000-8000-000000000000";
+  await shoot(o.page, "/workflows/[id]", `/workflows/${instance}`);
+  await o.context.close();
 });

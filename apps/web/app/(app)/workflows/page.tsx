@@ -64,6 +64,8 @@
  * out of scope for this phase.
  */
 
+import { identifierLabel } from "@proovra/shared";
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
@@ -193,18 +195,14 @@ function WorkflowsTemplatesPageInner() {
           <div style={cardHeaderStyle}>
             <h2 style={sectionTitleStyle}>Templates</h2>
             <div style={{ display: "flex", gap: 8 }}>
-              <select
+              <AppListbox
                 value={sector}
-                onChange={(e) => setSector(e.target.value)}
-                style={selectStyle}
-              >
-                <option value="">All sectors</option>
-                {sectorOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "All sectors" },
+                  ...sectorOptions.map((s) => ({ value: s, label: identifierLabel(s) })),
+                ]}
+                onChange={(next) => setSector(next)}
+              />
             </div>
           </div>
           {templates === null ? (
@@ -472,14 +470,6 @@ const errorBoxStyle: React.CSSProperties = {
   border: "1px solid #fecaca",
   borderRadius: 8,
   fontSize: 14,
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
 };
 const stepListStyle: React.CSSProperties = {
   marginTop: 8,

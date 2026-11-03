@@ -27,6 +27,7 @@
  * ladder, so the tier system is exercised rather than assumed.
  */
 
+import { chooseListbox } from "../helpers/listbox";
 import { test, expect, type Page } from "@playwright/test";
 
 import {
@@ -526,12 +527,11 @@ test.describe("JOURNEY G — governance platform write surfaces", () => {
     };
 
     const arm = async () => {
-      await page
-        .locator("[data-delegated-admin-grantee]")
-        .selectOption(fixture.member.userId);
+      await chooseListbox(page
+        .locator("[data-delegated-admin-grantee]"), fixture.member.userId);
       // REVIEWER_LEAD is cross-cutting and needs no department or workspace
       // scope, so this is the tier that isolates the grant path itself.
-      await page.locator("[data-delegated-admin-tier]").selectOption("REVIEWER_LEAD");
+      await chooseListbox(page.locator("[data-delegated-admin-tier]"), "REVIEWER_LEAD");
     };
 
     await proveMutationCapability({

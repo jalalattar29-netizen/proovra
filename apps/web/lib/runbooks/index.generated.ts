@@ -74,7 +74,7 @@ export const RUNBOOK_INDEX: readonly RunbookIndexEntry[] = [
     title: "Failed report generation",
     category: "Workers & queues",
     subsystems: ["reports","queue"],
-    summary: "BullMQ reportQueue job moved to failed state; row visible in reportDlqQueue.",
+    summary: "Every report PDF and package ZIP is published under Object Lock before its row",
   },
   {
     slug: "failed-verification-package",

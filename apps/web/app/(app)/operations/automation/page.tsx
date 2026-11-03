@@ -764,9 +764,9 @@ function AutomationPageInner(): JSX.Element {
                       <CatalogValue value={r.triggerType} labels={triggerLabels} />
                     </td>
                     <td>
-                      <code style={{ fontSize: 12 }}>
-                        {r.targetType}:{r.targetId.slice(0, 8)}…
-                      </code>
+                      <span style={{ fontSize: 12 }}>
+                        {identifierLabel(r.targetType)}:{r.targetId.slice(0, 8)}…
+                      </span>
                     </td>
                     <td data-automation-run-status={r.status}>{runStatusLabel(r.status)}</td>
                     <td style={{ color: "var(--ink-muted)", fontSize: 12 }}>

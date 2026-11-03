@@ -17,6 +17,8 @@
  *   - Backend remains authoritative; this modal is UI only.
  */
 
+import { identifierLabel } from "@proovra/shared";
+import { AppListbox } from "../../app-primitives/AppListbox";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -405,19 +407,15 @@ export function AssignmentPickerModal({
           >
             <label style={{ display: "grid", gap: 4 }}>
               <span style={{ fontSize: 12, opacity: 0.85 }}>Role</span>
-              <select
+              <AppListbox
                 value={role}
-                onChange={(e) => setRole(e.target.value as AssignmentRole)}
+                options={[
+                  ...ASSIGNMENT_ROLES.map((r) => ({ value: r, label: identifierLabel(r) })),
+                ]}
+                onChange={(next) => setRole(next as AssignmentRole)}
                 disabled={submitting}
-                data-matter-assignment-picker-role
-                className="cases-filter-chip"
-              >
-                {ASSIGNMENT_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+                triggerProps={{ "data-matter-assignment-picker-role": "" }}
+              />
             </label>
             {alreadyHasThisRole ? (
               <div

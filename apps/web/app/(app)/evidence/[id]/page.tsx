@@ -1641,7 +1641,7 @@ function EvidenceDetailPageInner() {
             className="evidence-detail-input"
             value={relationshipTargetId}
             onChange={(event) => setRelationshipTargetId(event.target.value)}
-            placeholder="Linked evidence UUID"
+            placeholder="Linked evidence ID"
             aria-label="Linked evidence record ID"
             aria-invalid={relationshipTargetIsSelf || undefined}
           />

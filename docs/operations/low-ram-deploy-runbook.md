@@ -38,10 +38,8 @@ docker image prune --force
 docker builder prune --force --filter "until=72h"
 ```
 
-Only env or config changed? Use `--force-recreate` on the one service, with the same
-`IMAGE_TAG` the service runs now. Rollback is
-`GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback`, which restores code
-only; migrations are forward-only.
+Only env or config changed? Recreate the one service with the same `IMAGE_TAG` it
+runs now (the command is under §6). Rollback is in §5.
 
 ## 4. Post-deploy validation (Phase O1.3)
 
@@ -96,34 +94,47 @@ In Sentry, confirm:
 
 ## 5. Rollback
 
-Both image tags are kept locally for at least 7 days.
+Roll back through the deploy script. It runs the same revision and schema checks as
+a deploy, so a rollback cannot start an image that fails them. Add `--plan` first to
+see what it would do.
 
 ```bash
-docker image ls | grep proovra
-# Note the previous tag (e.g. proovra-api:sha-abc123).
-
-docker compose up -d --force-recreate --image ghcr.io/proovra/proovra-api:sha-abc123 proovra-api
-docker compose up -d --force-recreate --image ghcr.io/proovra/proovra-worker:sha-abc123 proovra-worker
+GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback --plan
+GHCR_OWNER=<owner> ./scripts/deploy-prod-pull.sh --rollback
 ```
 
-If the rollback target is more than 7 days old, pull explicitly first:
+This redeploys the release recorded in `.deploy-state/previous-release` by the last
+deploy, and pulls its images from GHCR if the host no longer has them. If that file
+is missing, or you need an older release, name it the same way as a deploy:
 
 ```bash
-docker pull ghcr.io/proovra/proovra-api:sha-abc123
-docker pull ghcr.io/proovra/proovra-worker:sha-abc123
+GHCR_OWNER=<owner> RELEASE_SHA=<40-hex commit> IMAGE_TAG=sha-<first 7> \
+  ./scripts/deploy-prod-pull.sh
 ```
 
-After rollback, repeat §4 against the rolled-back tag — the OTEL health endpoint should report the version the rollback tag was built with.
+A rollback restores code only. Migrations are forward-only, and the script refuses
+an image the database schema no longer satisfies. The web rolls back separately, in
+Vercel.
+
+After rollback, repeat §4 against the rolled-back release.
 
 ## 6. Common failure modes
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| OOM during `docker compose build` | Sidecars still running, builder cache too large | §3.1 housekeeping, then build ONE service at a time |
-| `Attempted duplicate registration` after deploy | Override didn't apply to the resolved image | Rebuild with cleared cache (`--no-cache`); confirm `pnpm-lock.yaml` was committed |
-| `401 Unauthorized` from OTLP | Grafana token rotated; `OTEL_EXPORTER_OTLP_HEADERS` stale | Update env, `docker compose up -d --force-recreate proovra-api proovra-worker` |
-| No worker spans in Tempo, no version-mismatch warning | OTEL_ENABLED not set on worker container | Check compose override for `proovra-worker` service env |
+| Host short of memory during a pull | Old images and builder cache | §3 housekeeping. Nothing builds on the server, so any build step here is the wrong path (§2) |
+| `Attempted duplicate registration` after deploy | The image was built with a dependency override that did not apply | Fix it in the repository: confirm `pnpm-lock.yaml` was committed, let `deploy-images.yml` publish a new image, and deploy that commit (§2). Roll back meanwhile (§5) |
+| `401 Unauthorized` from OTLP | Grafana token rotated; `OTEL_EXPORTER_OTLP_HEADERS` stale | Update the server's env file, then recreate each service with the command below this table |
+| No worker spans in Tempo, no version-mismatch warning | `OTEL_ENABLED` is false on the worker container | `infra/docker/docker-compose.prod.yml` defaults it to true, so check the server's env file, then recreate the worker with the command below |
 | Worker spans visible but not parented to API | Job enqueued before the O1.3 deploy reached the API | One-shot — clears after the next enqueue from the new API code |
+
+To recreate a service after an env change, keep the image it runs now. From the
+checkout of the running release on the server:
+
+```bash
+GHCR_OWNER=<owner> IMAGE_TAG=<tag it runs now> docker compose --env-file .env \
+  -f infra/docker/docker-compose.prod.yml up -d --no-deps --force-recreate proovra-worker
+```
 
 ## 7. Related docs
 

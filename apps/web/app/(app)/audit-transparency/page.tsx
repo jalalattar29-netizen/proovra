@@ -85,7 +85,7 @@ function AuditTransparencyShell() {
         <PageHeader
           eyebrow="Compliance"
           title="Audit & Transparency Center"
-          subtitle="Federated audit timeline across PROOVRA's bounded activity tables. Bounded counts + bounded ids only — NEVER PII."
+          subtitle="One audit timeline across PROOVRA's activity records. It shows counts and references, never personal data."
         />
       }
     >
@@ -183,9 +183,7 @@ function AuditTransparencyShell() {
                         </td>
                         <td style={td}>{identifierLabel(e.category)}</td>
                         <td style={td}>
-                          <code data-identifier style={codeStyle}>
-                            {e.code}
-                          </code>
+                          {identifierLabel(e.code)}
                         </td>
                         <td style={td}>{e.label}</td>
                         <td
@@ -195,20 +193,15 @@ function AuditTransparencyShell() {
                           )}
                         >
                           {failureReason ? (
-                            <code
-                              style={{
-                                ...codeStyle,
-                                color: "var(--status-risk-fg, #b91c1c)",
-                              }}
-                            >
-                              {String(failureReason).slice(0, 60)}
-                            </code>
+                            <span style={{ color: "var(--status-risk-fg, #b91c1c)" }}>
+                              {identifierLabel(String(failureReason).replace(/:/g, " ")).slice(0, 60)}
+                            </span>
                           ) : (
                             "—"
                           )}
                         </td>
                         <td style={td}>
-                          <code style={codeStyle}>{e.sourceService}</code>
+                          {identifierLabel(e.sourceService)}
                         </td>
                         <td style={td}>
                           {e.actorUserId ? (

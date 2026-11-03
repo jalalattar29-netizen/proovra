@@ -36,14 +36,15 @@
  *   inline.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   DISAGREEMENT_STATES,
   REVIEWER_VERDICTS,
   type DisagreementState,
-  type ReviewerVerdict,
-} from "@proovra/shared";
+  type ReviewerVerdict, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { OperationalEmptyState } from "../../../../components/operational";
@@ -197,7 +198,7 @@ function DisagreementsShell() {
           setPickerArmed(null);
           await refresh();
         } else {
-          setBanner(`Refused: ${res.denial}`);
+          setBanner(reviewerDenialMessage(res.denial));
         }
       } finally {
         setBusyDisagreementId(null);
@@ -374,9 +375,9 @@ function DisagreementRowGroup({
               padding: "1px 6px",
               borderRadius: 4,
             }}
-            title={row.state}
+            title={identifierLabel(row.state)}
           >
-            {STATE_LABELS[row.state] ?? row.state}
+            {STATE_LABELS[row.state] ?? identifierLabel(row.state)}
           </code>
         </td>
         <td style={td}>
@@ -562,20 +563,16 @@ function ResolveVerdictPicker({
         }}
       >
         <span>Verdict</span>
-        <select
-          data-disagreement-resolve-verdict-select
+        <AppListbox
           value={verdict}
-          onChange={(e) => setVerdict(e.target.value as ReviewerVerdict | "")}
+          options={[
+            { value: "", label: "Choose a verdict…" },
+            ...RESOLUTION_VERDICTS.map((v) => ({ value: v, label: VERDICT_LABELS[v] ?? v })),
+          ]}
+          onChange={(next) => setVerdict(next as ReviewerVerdict | "")}
           disabled={busy}
-          style={selectStyle}
-        >
-          <option value="">Choose a verdict…</option>
-          {RESOLUTION_VERDICTS.map((v) => (
-            <option key={v} value={v}>
-              {VERDICT_LABELS[v] ?? v}
-            </option>
-          ))}
-        </select>
+          triggerProps={{ "data-disagreement-resolve-verdict-select": "" }}
+        />
       </label>
       <label
         style={{
@@ -787,14 +784,6 @@ function resolveSubmitStyle(enabled: boolean) {
     cursor: enabled ? "pointer" : "not-allowed",
   } as const;
 }
-const selectStyle = {
-  padding: "6px 8px",
-  borderRadius: 8,
-  border: "1px solid #cbd5e1",
-  background: "#fff",
-  fontSize: 13,
-  color: "#0f172a",
-} as const;
 const textareaStyle = {
   padding: "6px 8px",
   borderRadius: 8,

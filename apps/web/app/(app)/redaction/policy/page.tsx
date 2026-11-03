@@ -19,6 +19,7 @@
  *     code list — never as free-form text.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -780,31 +781,15 @@ function PolicyVersionsPanel({
                 </td>
                 <td style={td}>
                   {v.state === "PUBLISHED" ? (
-                    <select
-                      data-redaction-policy-assign-scope={v.id}
-                      defaultValue=""
-                      onChange={(e) => {
-                        const scope = e.target.value as
-                          | PolicyAssignmentScope
-                          | "";
-                        if (!scope) return;
-                        onAssign(v.id, scope, scope === "GLOBAL" ? null : null);
-                        e.currentTarget.value = "";
-                      }}
-                      style={{
-                        padding: "3px 6px",
-                        borderRadius: 6,
-                        border: "1px solid #cbd5e1",
-                        fontSize: 11,
-                      }}
-                    >
-                      <option value="">Assign to…</option>
-                      {POLICY_ASSIGNMENT_SCOPES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <AppListbox
+                      value={null}
+                      placeholder="Assign to…"
+                      ariaLabel="Assign this policy version"
+                      options={POLICY_ASSIGNMENT_SCOPES.map((s) => ({ value: s, label: identifierLabel(s) }))}
+                      onChange={(scope) => onAssign(v.id, scope, scope === "GLOBAL" ? null : null)}
+                      style={{ minWidth: 130 }}
+                      triggerProps={{ "data-redaction-policy-assign-scope": v.id }}
+                    />
                   ) : (
                     "—"
                   )}

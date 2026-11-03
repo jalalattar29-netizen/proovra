@@ -16,8 +16,8 @@
  *   GET  /v1/orgs/:id/invites/csv-template    — CSV template download.
  *   POST /v1/orgs/:id/invites/csv             — CSV parse → dry-run/execute.
  *
- * Bulk invite creates ONLY org membership/role state (never evidence
- * access). Gating: backend enforces ORG_ADMIN+; the web surface is
+ * Bulk invite creates org membership/role state plus, when one is chosen, the
+ * same explicit workspace assignment a single invite carries. Gating: backend enforces ORG_ADMIN+; the web surface is
  * ENTERPRISE-tier (/organizations path prefix) and org-membership gated by
  * the admin shell + PageRouteGate.
  *
@@ -28,7 +28,8 @@
  *   - Strong TypeScript types throughout.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { identifierLabel } from "@proovra/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
@@ -157,6 +158,15 @@ const inputStyle = {
 
 const subtleText = { fontSize: 12.5, color: "var(--ink-muted, #94a3b8)" } as const;
 
+type OrgWorkspace = { workspaceId: string; name: string; isPersonal: boolean };
+type WorkspaceRole = "ADMIN" | "MEMBER" | "VIEWER";
+const NO_WORKSPACE = "none";
+const WORKSPACE_ROLES: Array<{ value: WorkspaceRole; label: string }> = [
+  { value: "ADMIN", label: "Admin" },
+  { value: "MEMBER", label: "Member" },
+  { value: "VIEWER", label: "Viewer" },
+];
+
 export default function OrganizationAdminBulkInvitePage() {
   return (
     <PageRouteGate routeId="account.organization_admin_bulk_invite">
@@ -175,6 +185,30 @@ function BulkInviteTab() {
   const [csvText, setCsvText] = useState<string | null>(null);
   const [csvName, setCsvName] = useState<string | null>(null);
   const [defaultRole, setDefaultRole] = useState<OrgRole>("ORG_MEMBER");
+  // The workspace every row of the batch is given, as on the single invite.
+  const [workspaces, setWorkspaces] = useState<OrgWorkspace[] | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string>(NO_WORKSPACE);
+  const [workspaceRole, setWorkspaceRole] = useState<WorkspaceRole>("MEMBER");
+
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = (await apiFetch(`/v1/orgs/${orgId}/workspaces`)) as { workspaces: OrgWorkspace[] };
+        if (cancelled) return;
+        const usable = res.workspaces.filter((w) => !w.isPersonal);
+        setWorkspaces(usable);
+        if (usable.length === 1) setWorkspaceId(usable[0]!.workspaceId);
+      } catch {
+        // No list means no choice here: the batch stays governance-only, and says so.
+        if (!cancelled) setWorkspaces([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId]);
 
   const [busy, setBusy] = useState<"preview" | "send" | "resend" | null>(null);
   const [preview, setPreview] = useState<ValidateResponse | null>(null);
@@ -184,6 +218,11 @@ function BulkInviteTab() {
   // Rows currently entered (paste OR csv-derived count for the CTA state).
   const pastedRows = useMemo(() => parsePasted(pasted), [pasted]);
   const hasInput = csvText !== null ? true : pastedRows.length > 0;
+
+  const workspaceAssignments = useMemo(
+    () => (workspaceId === NO_WORKSPACE ? [] : [{ teamId: workspaceId, role: workspaceRole }]),
+    [workspaceId, workspaceRole],
+  );
 
   const buildBody = useCallback(() => {
     if (csvText !== null) {
@@ -203,12 +242,12 @@ function BulkInviteTab() {
           ? ((await apiFetch(`/v1/orgs/${orgId}/invites/csv?dryRun=1`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ csv: body.csv, defaultRole: body.defaultRole }),
+              body: JSON.stringify({ csv: body.csv, defaultRole: body.defaultRole, workspaceAssignments }),
             })) as ValidateResponse)
           : ((await apiFetch(`/v1/orgs/${orgId}/invites/bulk/validate`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ rows: body.rows, defaultRole: body.defaultRole }),
+              body: JSON.stringify({ rows: body.rows, defaultRole: body.defaultRole, workspaceAssignments }),
             })) as ValidateResponse);
       setPreview(data);
     } catch (err) {
@@ -218,7 +257,7 @@ function BulkInviteTab() {
     } finally {
       setBusy(null);
     }
-  }, [orgId, buildBody, addToast]);
+  }, [orgId, buildBody, workspaceAssignments, addToast]);
 
   const runSend = useCallback(async () => {
     setBusy("send");
@@ -230,12 +269,12 @@ function BulkInviteTab() {
           ? ((await apiFetch(`/v1/orgs/${orgId}/invites/csv`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ csv: body.csv, defaultRole: body.defaultRole }),
+              body: JSON.stringify({ csv: body.csv, defaultRole: body.defaultRole, workspaceAssignments }),
             })) as ExecuteResponse)
           : ((await apiFetch(`/v1/orgs/${orgId}/invites/bulk`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ rows: body.rows, defaultRole: body.defaultRole }),
+              body: JSON.stringify({ rows: body.rows, defaultRole: body.defaultRole, workspaceAssignments }),
             })) as ExecuteResponse);
       setResult(data);
       setPreview(null);
@@ -251,7 +290,7 @@ function BulkInviteTab() {
     } finally {
       setBusy(null);
     }
-  }, [orgId, buildBody, addToast]);
+  }, [orgId, buildBody, workspaceAssignments, addToast]);
 
   const runResend = useCallback(async () => {
     if (!result?.batchId) return;
@@ -313,7 +352,7 @@ function BulkInviteTab() {
         header: "Outcome",
         render: (r) => (
           <Badge tone={outcomeTone(r.outcome)} subtle>
-            {r.outcome}
+            {identifierLabel(r.outcome)}
           </Badge>
         ),
       },
@@ -332,7 +371,7 @@ function BulkInviteTab() {
         header: "Outcome",
         render: (r) => (
           <Badge tone={outcomeTone(r.outcome)} subtle>
-            {r.outcome}
+            {identifierLabel(r.outcome)}
           </Badge>
         ),
       },
@@ -353,7 +392,7 @@ function BulkInviteTab() {
       <Card
         variant="summary"
         title="Bulk invite members"
-        subtitle="Paste emails or upload a CSV, choose a default role, preview the per-row outcome, then send. Bulk invite grants organization membership only — never evidence access."
+        subtitle="Paste emails or upload a CSV, choose a default role and a workspace, preview the per-row outcome, then send. With no workspace, invitees join the organization and see no records until someone gives them access."
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
@@ -426,6 +465,38 @@ function BulkInviteTab() {
                 />
               </div>
             </label>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
+              Workspace
+              <div style={{ width: 240, maxWidth: "100%", marginTop: 4 }}>
+                <AppListbox
+                  ariaLabel="Workspace"
+                  value={workspaceId}
+                  onChange={setWorkspaceId}
+                  disabled={busy !== null || workspaces === null}
+                  disabledReason={workspaces === null ? "Loading the workspaces of this organization." : undefined}
+                  options={[
+                    { value: NO_WORKSPACE, label: "No workspace" },
+                    ...(workspaces ?? []).map((w) => ({ value: w.workspaceId, label: w.name })),
+                  ]}
+                  triggerProps={{ "data-testid": "bulk-invite-workspace" }}
+                />
+              </div>
+            </label>
+            {workspaceId !== NO_WORKSPACE ? (
+              <label style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-secondary, #475569)" }}>
+                Workspace access
+                <div style={{ width: 160, maxWidth: "100%", marginTop: 4 }}>
+                  <AppListbox<WorkspaceRole>
+                    ariaLabel="Workspace access"
+                    value={workspaceRole}
+                    onChange={setWorkspaceRole}
+                    disabled={busy !== null}
+                    options={WORKSPACE_ROLES}
+                    triggerProps={{ "data-testid": "bulk-invite-workspace-role" }}
+                  />
+                </div>
+              </label>
+            ) : null}
             <Button
               type="button"
               variant="secondary"

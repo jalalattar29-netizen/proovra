@@ -77,7 +77,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "members.csv",
     filename: "org-members.csv",
     minRole: "ORG_AUDITOR",
-    source: "GET /v1/orgs/:id/members",
+    source: "Organization members",
     available: true,
   },
   {
@@ -88,7 +88,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "seats.csv",
     filename: "org-seats.csv",
     minRole: "ORG_BILLING_ADMIN",
-    source: "GET /v1/orgs/:id/billing/rollup",
+    source: "Organization billing summary",
     available: true,
   },
   {
@@ -99,7 +99,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "audit.csv",
     filename: "org-audit.csv",
     minRole: "ORG_AUDITOR",
-    source: "GET /v1/orgs/:id/audit-events",
+    source: "Organization audit events",
     available: true,
   },
   {
@@ -110,7 +110,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "governance.csv",
     filename: "org-governance.csv",
     minRole: "ORG_AUDITOR",
-    source: "GET /v1/orgs/:id/policies/retention",
+    source: "Retention policies",
     available: true,
   },
   {
@@ -121,7 +121,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "external-access.csv",
     filename: "org-external-access.csv",
     minRole: "ORG_AUDITOR",
-    source: "ExternalReviewerRoleAssignment (org workspaces)",
+    source: "External reviewer assignments in this organization’s workspaces",
     available: true,
   },
   {
@@ -132,7 +132,7 @@ const REPORTS: ReadonlyArray<ReportDef> = [
     file: "download-audit.csv",
     filename: "org-download-audit.csv",
     minRole: "ORG_AUDITOR",
-    source: "Platform audit log (category=evidence)",
+    source: "Evidence events in the audit log",
     available: false,
   },
 ];
@@ -179,7 +179,7 @@ function ReportsTab() {
       if (isApiResponseError(err)) {
         setState({
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         });
@@ -227,7 +227,7 @@ function ReportsTab() {
               ? `You don't have access to this report (requires ${ORG_ROLE_LABEL[report.minRole]} or higher).`
               : res.status === 429
                 ? "Too many report exports. Try again shortly."
-                : `Failed to download report (HTTP ${res.status}).`;
+                : "Could not download the report. Try again.";
           const err: Error & { statusCode?: number; requestId?: string } =
             new Error(message);
           err.statusCode = res.status;
@@ -271,7 +271,7 @@ function ReportsTab() {
         variant="summary"
         data-section="reports-intro"
         title="Operational reports"
-        subtitle="Export existing organization data as CSV. Each report reads real records — nothing is fabricated. Role-appropriate; the backend gates every download."
+        subtitle="Export existing organization data as CSV. Each report reads your real records. What you can download depends on your role."
       >
         {state.kind === "loading" ? (
           <div data-state="loading" style={mutedText}>

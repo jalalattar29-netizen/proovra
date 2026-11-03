@@ -56,6 +56,7 @@ import {
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
 import { buildOrgGovernanceControlCenter } from "../services/organization/org-governance-control-center.service.js";
+import { readRetentionPosture } from "../services/governance-lifecycle/retention-posture.service.js";
 
 const UuidParam = z.string().uuid();
 
@@ -295,6 +296,13 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         where: { organizationId: orgId, isPersonal: false },
       });
 
+      // What is in force in the workspaces, beside the published default.
+      const allWorkspaces = await prisma.team.findMany({
+        where: { organizationId: orgId, isPersonal: false },
+        select: { id: true },
+      });
+      const posture = await readRetentionPosture(allWorkspaces.map((w) => w.id), prisma);
+
       return reply.code(200).send({
         organizationId: orgId,
         key: RETENTION_POLICY_KEY,
@@ -304,6 +312,10 @@ export async function organizationsGovernanceRoutes(app: FastifyInstance) {
         inheritance: {
           workspaceCount,
           sample: workspaces,
+        },
+        workspacePolicies: {
+          activePolicyCount: posture.activePolicyCount,
+          workspacesWithPolicyCount: posture.coveredTeamIds.length,
         },
       });
     },

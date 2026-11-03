@@ -100,7 +100,7 @@ test("QC FAIL picker maps every QC_FAILURE_REASONS value to an <option>", () => 
     assert.match(
       PAGE_SOURCE,
       new RegExp(
-        `QC_FAILURE_REASONS\\.map\\(\\(?[a-z]+\\)?\\s*=>[\\s\\S]{0,400}?value=\\{[a-z]+\\}`,
+        `QC_FAILURE_REASONS\\.map\\(\\(?[a-z]+\\)?\\s*=>[\\s\\S]{0,400}?value:\\s*[a-z]+`,
       ),
       "QC picker must map QC_FAILURE_REASONS to <option value={r}>… so " +
         "every enum value is selectable.",

@@ -203,6 +203,23 @@ test("MOBILE-002: a sign-in whose session the organization refuses is not stored
   assert.ok(r.hasText("requires its single sign-on"));
 });
 
+test("MOBILE-002: a workspace SSO rule refusing a stored session leaves no shell behind, and says why", async () => {
+  await M.deleteItemAsync("proovra-token");
+  // What requireAuth sends for a governance requireSaml rule on the session's workspace.
+  routes["/v1/auth/email/login"] = () => ({ token: "workspace-rule", user: { id: "u1", email: "a@b.co" } });
+  routes["/v1/users/legal-status"] = () =>
+    reply(401, { error: { code: "UNAUTHORIZED", details: { reason: "reauthentication_required", policy: "saml_required" } } });
+  const r = await render();
+  await r.type("Email", "a@b.co");
+  await r.type("Password", "Secret-password-1");
+  await r.press("I agree to the Terms of Service, Privacy Policy and Cookie Policy");
+  await r.press("Sign in with Email");
+  await settle();
+  assert.equal(await M.getItemAsync("proovra-token"), null);
+  assert.equal(M.calls.replace.includes("/(tabs)"), false, "the shell must not open on a dead session");
+  assert.ok(r.hasText("requires its single sign-on"));
+});
+
 test("signing in again clears the notice", async () => {
   const r = await render();
   routes["/v1/probe"] = () => reply(401, { error: { code: "UNAUTHORIZED" } });

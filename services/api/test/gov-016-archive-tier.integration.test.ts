@@ -202,6 +202,77 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
     }
   });
 
+  /** Rows the walk reads and has nothing to do for: past 30 days, at their tier. */
+  async function alreadyTiered(count: number) {
+    const team = await prisma.team.findUniqueOrThrow({
+      where: { id: A().teamId },
+      select: { organizationId: true },
+    });
+    const ids = Array.from({ length: count }, () => randomUUID());
+    const createdAt = new Date(Date.now() - 100 * 86_400_000);
+    await prisma.evidence.createMany({
+      data: ids.map((id) => ({
+        id,
+        type: "DOCUMENT",
+        status: "SIGNED",
+        teamId: A().teamId,
+        organizationId: team.organizationId,
+        ownerUserId: A().ownerUserId,
+        storageBucket: LOCK_BUCKET,
+        storageKey: `evidence/${id}/never-touched.bin`,
+        storageVersionId: "already-tiered",
+        createdAt,
+      })) as never,
+    });
+    await prisma.archiveTierTransition.createMany({
+      data: ids.map((evidenceId) => ({
+        teamId: A().teamId,
+        evidenceId,
+        fromTier: "HOT",
+        toTier: "WARM",
+        state: "COMPLETED",
+      })),
+    });
+    return ids;
+  }
+
+  it("a large workspace reaches a due record behind more than a page of finished ones", async () => {
+    // Finished rows on both sides of the due one: an unordered read of any page
+    // starts at one end or the other, and misses it from either.
+    const before = await alreadyTiered(450);
+    const rec = await sealedRecord(31);
+    const finished = [...before, ...(await alreadyTiered(450))];
+    await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+    expect(await prisma.archiveTierTransition.count({ where: { evidenceId: rec.id, state: "COMPLETED" } })).toBe(1);
+    expect(
+      await prisma.archiveTierTransition.count({ where: { evidenceId: { in: finished }, state: { not: "COMPLETED" } } }),
+    ).toBe(0);
+  });
+
+  it("a tag that failed waits a day, then is tried again", async () => {
+    const rec = await sealedRecord(31);
+    const failed = await prisma.archiveTierTransition.create({
+      data: {
+        teamId: A().teamId,
+        evidenceId: rec.id,
+        fromTier: "HOT",
+        toTier: "WARM",
+        state: "FAILED",
+        failureReason: "AccessDenied",
+      },
+      select: { id: true },
+    });
+    await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+    expect(await prisma.archiveTierTransition.count({ where: { evidenceId: rec.id } })).toBe(1);
+
+    await prisma.archiveTierTransition.update({
+      where: { id: failed.id },
+      data: { transitionedAtUtc: new Date(Date.now() - 25 * 3_600_000) },
+    });
+    await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+    expect(await prisma.archiveTierTransition.count({ where: { evidenceId: rec.id, state: "COMPLETED" } })).toBe(1);
+  });
+
   it("a due record behind four hundred records that are not due is still tiered", async () => {
     // CAPACITY (2026-11-03): the sweep read 400 rows of the workspace in index
     // order and judged only those, so a due record outside them waited forever.

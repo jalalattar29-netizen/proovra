@@ -18,6 +18,7 @@
  * The page never asks an operator to type a target id.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import {
@@ -188,7 +189,7 @@ export function PolicyDetailsPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
-  const firstFieldRef = useRef<HTMLSelectElement | null>(null);
+  const firstFieldRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (formOpen) firstFieldRef.current?.focus();
@@ -375,27 +376,28 @@ export function PolicyDetailsPanel({
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
               <label style={{ display: "grid", gap: 4, flex: "1 1 180px", minWidth: 0 }}>
                 Apply to
-                <select
-                  ref={firstFieldRef}
+                <AppListbox
                   value={assignScope}
-                  onChange={(e) => setAssignScope(e.target.value as GovernancePolicyScope)}
-                >
-                  <option value="ORGANIZATION">{SCOPE_LABEL.ORGANIZATION}</option>
-                  <option value="DEPARTMENT">{SCOPE_LABEL.DEPARTMENT}</option>
-                  <option value="WORKSPACE">{SCOPE_LABEL.WORKSPACE}</option>
-                </select>
+                  options={[
+                    { value: "ORGANIZATION", label: SCOPE_LABEL.ORGANIZATION },
+                    { value: "DEPARTMENT", label: SCOPE_LABEL.DEPARTMENT },
+                    { value: "WORKSPACE", label: SCOPE_LABEL.WORKSPACE },
+                  ]}
+                  onChange={(next) => setAssignScope(next as GovernancePolicyScope)}
+                  triggerRef={firstFieldRef}
+                />
               </label>
               {assignScope === "DEPARTMENT" ? (
                 <label style={{ display: "grid", gap: 4, flex: "1 1 180px", minWidth: 0 }}>
                   Target department
-                  <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-                    <option value="">Choose a department</option>
-                    {activeDepartments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+                  <AppListbox
+                    value={departmentId}
+                    options={[
+                      { value: "", label: "Choose a department" },
+                      ...activeDepartments.map((d) => ({ value: d.id, label: d.name })),
+                    ]}
+                    onChange={(next) => setDepartmentId(next)}
+                  />
                 </label>
               ) : null}
             </div>

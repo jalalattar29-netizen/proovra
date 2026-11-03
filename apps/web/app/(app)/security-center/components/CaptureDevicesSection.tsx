@@ -35,6 +35,7 @@
  * Privacy: `publicKeyFingerprint` is deliberately NOT rendered.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -316,30 +317,25 @@ export function CaptureDevicesSection({ teamId }: { teamId: string | null }) {
                       >
                         Revocation reason for {d.label}
                       </label>
-                      <select
-                        id={`capture-revoke-reason-${d.id}`}
-                        data-cc-capture-device-reason
+                      <AppListbox
                         value={reasons[d.id] ?? ""}
+                        options={[
+                          { value: "", label: "Reason…" },
+                          ...REVOCATION_REASONS.map((r) => ({ value: r.value, label: r.label })),
+                        ]}
+                        onChange={(selected) => {
+                                                  const value = selected;
+                                                  setReasons((prev) => ({ ...prev, [d.id]: value }));
+                                                  setFieldError((prev) => {
+                                                    const next = { ...prev };
+                                                    delete next[d.id];
+                                                    return next;
+                                                  });
+                                                }}
+                        id={`capture-revoke-reason-${d.id}`}
                         disabled={busy}
-                        aria-invalid={fieldError[d.id] ? true : undefined}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setReasons((prev) => ({ ...prev, [d.id]: value }));
-                          setFieldError((prev) => {
-                            const next = { ...prev };
-                            delete next[d.id];
-                            return next;
-                          });
-                        }}
-                        style={selectStyle}
-                      >
-                        <option value="">Reason…</option>
-                        {REVOCATION_REASONS.map((r) => (
-                          <option key={r.value} value={r.value}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </select>
+                        triggerProps={{ "data-cc-capture-device-reason": "", "aria-invalid": fieldError[d.id] ? true : undefined }}
+                      />
                       {/*
                         PHASE 13 (NEW-069) — A BUSY CONTROL KEEPS ITS NAME.
 
@@ -408,12 +404,6 @@ const actionCellStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
   flexWrap: "wrap",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 8px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 8,
-  fontSize: 12,
 };
 const errorTextStyle: React.CSSProperties = {
   margin: 0,

@@ -29,6 +29,8 @@
  *     permission denial never renders as "0 claims".
  */
 
+import { identifierLabel } from "@proovra/shared";
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -638,27 +640,20 @@ export function SiuWorklistPanel({ teamId }: { teamId: string | null }) {
               onChange={(e) => setDraftName(e.target.value)}
               aria-label="Saved view name"
             />
-            <select
-              style={inputStyle}
+            <AppListbox
               value={draftStatus}
-              onChange={(e) => setDraftStatus(e.target.value)}
-              aria-label="Investigation status filter"
-            >
-              <option value="">Any investigation status</option>
-              {[
-                "intake",
-                "collecting",
-                "review",
-                "follow_up",
-                "export_ready",
-                "exported",
-                "closed",
-              ].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              options={[{ value: "", label: "Any investigation status" }, ...[
+                              "intake",
+                              "collecting",
+                              "review",
+                              "follow_up",
+                              "export_ready",
+                              "exported",
+                              "closed",
+                            ].map((s) => ({ value: s, label: identifierLabel(s) }))]}
+              onChange={(next) => setDraftStatus(next)}
+              ariaLabel={"Investigation status filter"}
+            />
             <label style={mutedText}>
               <input
                 type="checkbox"

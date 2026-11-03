@@ -13,7 +13,8 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 
 let reply: (path: string, method: string) => unknown = () => ({});
 
-vi.mock("../../lib/api", () => ({
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()),
   apiFetch: async (path: string, init?: { method?: string }) => {
     const r = await reply(path, init?.method ?? "GET");
     if (r instanceof Error) throw r;
@@ -24,6 +25,10 @@ vi.mock("../../lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+vi.mock("../../lib/platform-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/platform-context")>()),
+  useActiveWorkspaceId: () => "11111111-1111-4111-8111-111111111111",
+}));
 
 import ExternalIntakeSourceCard from "../../app/(app)/evidence/[id]/components/ExternalIntakeSourceCard";
 

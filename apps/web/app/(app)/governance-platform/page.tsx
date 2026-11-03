@@ -8,6 +8,7 @@
  * delegated admin / policies / access reviews / cross-org).
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import type { GovernanceDashboardProjection } from "@proovra/shared";
@@ -141,7 +142,7 @@ function Shell() {
             <strong style={{ color: "var(--ink-primary, #0f172a)", fontSize: 12 }}>Standing limitations</strong>
             <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 11, color: "var(--ink-secondary, #475569)" }}>
               {dashboard.limitations.map((l) => (
-                <li key={l}><code>{l}</code></li>
+                <li key={l}>{identifierLabel(l)}</li>
               ))}
             </ul>
           </Card>

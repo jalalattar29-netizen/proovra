@@ -22,6 +22,7 @@ vi.mock("../../lib/platform-context", async (importOriginal) => ({
 }));
 
 import { ToastProvider } from "../../components/ui-legacy";
+import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import LegalHoldsPage from "../../app/(app)/evidence-lifecycle/legal-holds/page";
 
 const HOLD = "22222222-2222-4222-8222-222222222222";
@@ -58,7 +59,9 @@ const posted = () =>
 const page = () =>
   render(
     <ToastProvider>
-      <LegalHoldsPage />
+      <ConfirmActionProvider>
+        <LegalHoldsPage />
+      </ConfirmActionProvider>
     </ToastProvider>,
   );
 
@@ -73,19 +76,35 @@ beforeEach(() => {
     return json({});
   });
   vi.stubGlobal("fetch", fetchMock);
-  vi.stubGlobal("prompt", () => "matter closed");
+  // The note comes from the product's dialog: a browser prompt must not be used.
+  vi.stubGlobal("prompt", () => {
+    throw new Error("window.prompt was called");
+  });
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
+/** Type the note in the dialog and confirm it, as a person does. */
+async function giveReason(note = "matter closed") {
+  const input = await waitFor(() => {
+    const el = document.querySelector("[data-confirm-action-reason-input]");
+    expect(el).not.toBeNull();
+    return el as HTMLTextAreaElement;
+  });
+  fireEvent.change(input, { target: { value: note } });
+  fireEvent.click(document.querySelector("[data-confirm-action-submit]") as HTMLButtonElement);
+}
+
 describe("legal hold release under approval", () => {
   it("offers Request release first, and posts only the request", async () => {
     page();
     fireEvent.click(await screen.findByRole("button", { name: "Request release" }));
+    await giveReason();
     await waitFor(() => expect(posted()).toHaveLength(1));
     expect(posted()[0]?.url).toContain(`/v1/lifecycle/legal-holds/${HOLD}/release-request`);
+    expect(posted()[0]?.body).toContain("matter closed");
     expect(screen.queryByRole("button", { name: "Release" })).toBeNull();
   });
 
@@ -99,8 +118,19 @@ describe("legal hold release under approval", () => {
     row = hold({ releaseApprovalState: "APPROVED", releaseRequestedByUserId: "a", releaseApprovedByUserId: "b" });
     page();
     fireEvent.click(await screen.findByRole("button", { name: "Release" }));
+    await giveReason();
     await waitFor(() => expect(posted()).toHaveLength(1));
     expect(posted()[0]?.body).not.toContain("approvalAcknowledged");
+    expect(posted()[0]?.body).toContain("matter closed");
+  });
+
+  it("cancelling the dialog sends nothing", async () => {
+    page();
+    fireEvent.click(await screen.findByRole("button", { name: "Request release" }));
+    await waitFor(() => expect(document.querySelector("[data-confirm-action-cancel]")).not.toBeNull());
+    fireEvent.click(document.querySelector("[data-confirm-action-cancel]") as HTMLButtonElement);
+    await waitFor(() => expect(document.querySelector("[data-confirm-action-cancel]")).toBeNull());
+    expect(posted()).toHaveLength(0);
   });
 
   it("the placement form picks the record by name", async () => {

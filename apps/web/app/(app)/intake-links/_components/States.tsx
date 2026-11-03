@@ -19,6 +19,7 @@
  * the product is broken rather than that they need access.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import * as React from "react";
 
 import type { SafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -253,7 +254,7 @@ export function InlineMutationError({
       <div className="app-panel__head-row">
         <span>
           <strong data-intake-links-mutation-error-title>
-            {error.action}
+            {identifierLabel(error.action)}
           </strong>{" "}
           {error.safe.message}
         </span>

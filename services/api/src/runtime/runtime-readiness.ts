@@ -1268,13 +1268,7 @@ function checkMetrics(): SubsystemReadiness {
   };
 }
 
-/**
- * OPS-012 — a producer in VENDOR_CLOUD runs through the internal extract route,
- * authorized by INTERNAL_SERVICE_TOKEN. With no token every run failed one at a
- * time and nothing said why. WORKFLOW-016 — with no callback URL an SMS or
- * WhatsApp failure reads SENT for good, unless Twilio is configured to call back
- * by another route, which cannot be seen from here.
- */
+/** The Redis eviction policy from an INFO reply (OPS-020). */
 export function evictionPolicyFromInfo(info: string): string | null {
   return /^maxmemory_policy:(\S+)/m.exec(info)?.[1] ?? null;
 }

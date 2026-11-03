@@ -32,6 +32,7 @@
 
 "use client";
 
+import { identifierLabel } from "@proovra/shared";
 import {
   CaptureTemplateCard,
   PreviewWorkspace,
@@ -186,11 +187,11 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
                         {text.kind.replace(/_/g, " ")}
                       </span>
                       <span className="evidence-detail-extract-card__line">
-                        Provider: {text.provider}
+                        Provider: {identifierLabel(text.provider)}
                         {text.providerVersion ? ` (${text.providerVersion})` : ""}
                       </span>
                       <span className="evidence-detail-extract-card__line">
-                        Status: {text.status}
+                        Status: {identifierLabel(text.status)}
                         {text.wordCount != null
                           ? ` · ${text.wordCount} words`
                           : ""}

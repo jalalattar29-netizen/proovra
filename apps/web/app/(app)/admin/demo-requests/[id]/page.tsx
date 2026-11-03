@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 // Admin detail route for a single demo request.
@@ -26,7 +27,7 @@ import { Badge } from "../../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
 import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { describeClient } from "../../../../../lib/ui/describeClient";
 import { useAdminEntityCrumb } from "../../../../../components/admin/AdminEntityCrumb";
@@ -199,7 +200,7 @@ export default function AdminDemoRequestDetailPage({
         setState({ kind: "notFound" });
       }
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         if (err.statusCode === 404) {
           setState({ kind: "notFound" });
           return;
@@ -386,10 +387,10 @@ export default function AdminDemoRequestDetailPage({
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge tone={statusTone(state.details.status)}>
-                  {state.details.status}
+                  {identifierLabel(state.details.status)}
                 </Badge>
                 <Badge tone={priorityTone(state.details.priority)}>
-                  {state.details.priority}
+                  {identifierLabel(state.details.priority)}
                 </Badge>
                 <Badge tone={state.details.isSpam ? "risk" : "verified"} dot>
                   {state.details.isSpam

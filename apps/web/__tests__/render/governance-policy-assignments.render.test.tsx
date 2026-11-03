@@ -1,3 +1,4 @@
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -8,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   guard: { stamp: () => 1, isStale: () => false, generation: 1 },
   platform: { envelope: null, contextGeneration: 1 },
 }));
-vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()), apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({ PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("../../lib/platform-context", () => ({ useTenantGuard: () => mocks.guard, usePlatformContext: () => mocks.platform }));
@@ -77,10 +79,10 @@ describe("governance policy assignments + audit trail", () => {
     expect(opener.getAttribute("aria-expanded")).toBe("true");
     const scope = screen.getByLabelText("Apply to");
     expect(document.activeElement).toBe(scope);
-    fireEvent.change(scope, { target: { value: "DEPARTMENT" } });
+    chooseListbox(scope, "DEPARTMENT");
     const save = screen.getByRole("button", { name: "Save assignment" });
     expect(save.getAttribute("data-disabled-reason")).toBe("Choose the department to assign this policy to.");
-    fireEvent.change(screen.getByLabelText("Target department"), { target: { value: DEPT } });
+    chooseListbox(screen.getByLabelText("Target department"), DEPT);
     fireEvent.click(screen.getByLabelText("Narrower scopes inherit this assignment"));
     fireEvent.click(screen.getByLabelText("Override a broader policy of the same kind"));
     const effectiveBefore = mocks.fetch.mock.calls.filter(([p]) => String(p).startsWith("/v1/governance/policies/effective")).length;

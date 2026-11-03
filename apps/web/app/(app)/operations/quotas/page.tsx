@@ -11,10 +11,11 @@ import DashboardShell from "../../../../components/dashboard/DashboardShell";
 import { dashboardStyles } from "../../../../components/dashboard/styles";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
+/** A null limit is no enforced limit: the page shows the count alone. */
 interface Quotas {
-  analyses: { limit: number; used: number; remaining: number; resetDate: string };
-  batchJobs: { limit: number; used: number; remaining: number };
-  apiKeys: { limit: number; used: number; remaining: number };
+  analyses: { limit: number | null; used: number; remaining: number | null; resetDate: string };
+  batchJobs: { limit: number | null; used: number; remaining: number | null };
+  apiKeys: { limit: number | null; used: number; remaining: number | null };
   /** Null limit: nothing bounds the workspace as a whole. */
   teamMembers: { limit: number | null; used: number; remaining: number | null };
 }
@@ -29,6 +30,12 @@ interface UsageStats {
   topEvidenceTypes: Record<string, number>;
   activeApiKeys: number;
   activeBatches: number;
+}
+
+function quotaCard(q: { limit: number | null; used: number; remaining: number | null }) {
+  return q.limit === null
+    ? { value: String(q.used), sub: "No enforced limit" }
+    : { value: `${q.used} / ${q.limit}`, sub: `${q.remaining ?? 0} remaining` };
 }
 
 function safePercent(used: number, limit: number): number {
@@ -93,20 +100,17 @@ function QuotasPageInner() {
     return [
       {
         label: "Analysis Calls",
-        value: `${quotas.analyses.used} / ${quotas.analyses.limit}`,
-        sub: `${quotas.analyses.remaining} remaining`,
+        ...quotaCard(quotas.analyses),
         color: "var(--app-ink-heading)",
       },
       {
         label: "Batch Jobs",
-        value: `${quotas.batchJobs.used} / ${quotas.batchJobs.limit}`,
-        sub: `${quotas.batchJobs.remaining} remaining`,
+        ...quotaCard(quotas.batchJobs),
         color: "var(--app-ink-heading)",
       },
       {
         label: "API Keys",
-        value: `${quotas.apiKeys.used} / ${quotas.apiKeys.limit}`,
-        sub: `${quotas.apiKeys.remaining} remaining`,
+        ...quotaCard(quotas.apiKeys),
         color: "var(--app-ink-heading)",
       },
       {
@@ -411,25 +415,25 @@ function QuotasPageInner() {
                   </p>
 
                   <div className="dashboard-quotas-bar-stack">
-                    {renderQuotaBar(
+                    {quotas.analyses.limit === null ? null : renderQuotaBar(
                       "Analysis API Calls",
                       quotas.analyses.used,
                       quotas.analyses.limit,
-                      quotas.analyses.remaining
+                      quotas.analyses.remaining ?? 0
                     )}
 
-                    {renderQuotaBar(
+                    {quotas.batchJobs.limit === null ? null : renderQuotaBar(
                       "Batch Jobs",
                       quotas.batchJobs.used,
                       quotas.batchJobs.limit,
-                      quotas.batchJobs.remaining
+                      quotas.batchJobs.remaining ?? 0
                     )}
 
-                    {renderQuotaBar(
+                    {quotas.apiKeys.limit === null ? null : renderQuotaBar(
                       "API Keys",
                       quotas.apiKeys.used,
                       quotas.apiKeys.limit,
-                      quotas.apiKeys.remaining
+                      quotas.apiKeys.remaining ?? 0
                     )}
 
                     {quotas.teamMembers.limit === null ? null : renderQuotaBar(

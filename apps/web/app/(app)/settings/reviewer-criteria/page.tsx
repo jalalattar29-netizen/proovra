@@ -1,4 +1,5 @@
 "use client";
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { formatUserDate } from "../../../../lib/date";
 
 /**
@@ -8,7 +9,7 @@ import { formatUserDate } from "../../../../lib/date";
  */
 import { useCallback, useEffect, useState } from "react";
 
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
@@ -47,7 +48,7 @@ function ReviewerCriteriaPageInner() {
       setSets(res.sets);
       setError(null);
     } catch (err) {
-      setError(err instanceof ApiError && err.statusCode === 403 ? "You are not a member of this workspace." : "The criteria catalog is unavailable (it may not be provisioned in this environment yet).");
+      setError(isApiResponseError(err) && err.statusCode === 403 ? "Your role in this workspace does not include reviewer criteria." : "The criteria catalog is unavailable right now.");
       setSets([]);
     }
   }, [teamId]);
@@ -65,9 +66,9 @@ function ReviewerCriteriaPageInner() {
       await load();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.statusCode === 403
+        isApiResponseError(err) && err.statusCode === 403
           ? "Only workspace owners/admins can manage criteria."
-          : err instanceof ApiError && err.statusCode === 409
+          : isApiResponseError(err) && err.statusCode === 409
             ? "That action conflicts with the set's current state (e.g. a draft already exists, or the version is already published)."
             : `The ${op} action failed.`,
       );
@@ -196,14 +197,24 @@ function VersionHistory({ teamId, setId }: { teamId: string; setId: string }) {
       {detail.versions.length > 1 ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8, fontSize: 13 }}>
           <span>Compare</span>
-          <select aria-label="Compare from version" value={compareA ?? ""} onChange={(e) => setCompareA(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">from…</option>
-            {detail.versions.map((v) => <option key={v.id} value={v.version}>v{v.version}</option>)}
-          </select>
-          <select aria-label="Compare to version" value={compareB ?? ""} onChange={(e) => setCompareB(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">to…</option>
-            {detail.versions.map((v) => <option key={v.id} value={v.version}>v{v.version}</option>)}
-          </select>
+          <AppListbox
+            value={compareA === null ? "" : String(compareA)}
+            options={[
+              { value: "", label: "from…" },
+              ...detail.versions.map((v) => ({ value: String(v.version), label: `v${v.version}` })),
+            ]}
+            onChange={(next) => setCompareA(next ? Number(next) : null)}
+            ariaLabel={"Compare from version"}
+          />
+          <AppListbox
+            value={compareB === null ? "" : String(compareB)}
+            options={[
+              { value: "", label: "to…" },
+              ...detail.versions.map((v) => ({ value: String(v.version), label: `v${v.version}` })),
+            ]}
+            onChange={(next) => setCompareB(next ? Number(next) : null)}
+            ariaLabel={"Compare to version"}
+          />
         </div>
       ) : null}
       {vA && vB && vA.id !== vB.id ? (
@@ -353,7 +364,7 @@ function DraftEditor({ teamId, setId, onSaved }: { teamId: string; setId: string
       setConflict(null);
       onSaved();
     } catch (e) {
-      if (e instanceof ApiError && e.statusCode === 409) {
+      if (isApiResponseError(e) && e.statusCode === 409) {
         // Another admin changed the set — load their state for the panel.
         try {
           const server = await loadServer();
@@ -364,7 +375,7 @@ function DraftEditor({ teamId, setId, onSaved }: { teamId: string; setId: string
         }
       } else {
         setErr(
-          e instanceof ApiError && e.statusCode === 403
+          isApiResponseError(e) && e.statusCode === 403
             ? "Only workspace owners/admins can edit criteria."
             : "The draft could not be saved.",
         );
@@ -496,7 +507,7 @@ function CreateForm({ teamId, onCreated }: { teamId: string; onCreated: () => vo
       });
       onCreated();
     } catch (e) {
-      setErr(e instanceof ApiError && e.statusCode === 403 ? "Only workspace owners/admins can author criteria." : "Could not create the criteria set.");
+      setErr(isApiResponseError(e) && e.statusCode === 403 ? "Only workspace owners/admins can author criteria." : "Could not create the criteria set.");
     } finally {
       setBusy(false);
     }

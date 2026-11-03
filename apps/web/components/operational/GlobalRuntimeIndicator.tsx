@@ -48,7 +48,7 @@ import {
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
 import { useCan } from "../../lib/platform-context";
-import { summarizeTenantServiceStatus } from "@proovra/shared";
+import { summarizeTenantServiceStatus, identifierLabel } from "@proovra/shared";
 
 import { useHealthDestination } from "../../lib/navigation/healthDestination";
 import { formatUserTime } from "../../lib/date";
@@ -449,7 +449,7 @@ function DropdownBody({
                         : OPS_INK.subtle,
               }}
             >
-              {i.severity}
+              {identifierLabel(i.severity)}
             </span>
           </li>
         ))}
@@ -492,7 +492,7 @@ function DropdownBody({
                       : OPS_TONES.warning.inkMuted,
               }}
             >
-              {e.severity}
+              {identifierLabel(e.severity)}
             </span>
           </li>
         ))}

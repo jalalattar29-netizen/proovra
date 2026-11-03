@@ -25,6 +25,7 @@
  *   409  CLOSURE_IN_PROGRESS | WORKSPACE_NOT_CLOSED
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../../../../../components/ui/Button";
@@ -300,7 +301,7 @@ export function WorkspaceClosureCard({ teamId }: { teamId: string }) {
       {open && req ? (
         <div data-workspace-closure-status={req.status} style={{ marginTop: 10 }}>
           <p style={{ ...muted, color: "#21353a", margin: 0 }}>
-            {STATUS_LABEL[req.status] ?? req.status}
+            {STATUS_LABEL[req.status] ?? identifierLabel(req.status)}
             {req.status === "COOLING_OFF" && req.coolingOffEndsAtUtc
               ? ` — closes after ${formatUserDate(req.coolingOffEndsAtUtc)} unless cancelled.`
               : ""}

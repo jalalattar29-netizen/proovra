@@ -30,9 +30,10 @@
  *   * Stale-context rejection on every read and on the revoke outcome.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
-import { POLICY_ASSIGNMENT_SCOPES, type PolicyAssignmentScope } from "@proovra/shared";
+import { POLICY_ASSIGNMENT_SCOPES, type PolicyAssignmentScope, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import { formatUserDateTime } from "../../lib/date";
@@ -223,21 +224,17 @@ export function PolicyScopePanel({
       <div style={controlsStyle}>
         <label style={labelStyle}>
           Scope&nbsp;
-          <select
-            data-redaction-policy-scope-select
+          <AppListbox
             value={scope}
-            onChange={(e) => {
-              setScope(e.target.value as PolicyAssignmentScope);
-              setScopeTargetId("");
-            }}
-            style={inputStyle}
-          >
-            {POLICY_ASSIGNMENT_SCOPES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...POLICY_ASSIGNMENT_SCOPES.map((s) => ({ value: s, label: identifierLabel(s) })),
+            ]}
+            onChange={(next) => {
+                          setScope(next as PolicyAssignmentScope);
+                          setScopeTargetId("");
+                        }}
+            triggerProps={{ "data-redaction-policy-scope-select": "" }}
+          />
         </label>
         {needsTarget ? (
           <label style={labelStyle}>
@@ -246,7 +243,7 @@ export function PolicyScopePanel({
               data-redaction-policy-scope-target
               value={scopeTargetId}
               onChange={(e) => setScopeTargetId(e.target.value)}
-              placeholder="UUID"
+              placeholder="Paste the ID"
               style={{ ...inputStyle, minWidth: 260 }}
             />
           </label>
@@ -363,7 +360,7 @@ export function PolicyScopePanel({
                   >
                     {effective.resolution.map((r) => (
                       <li key={`${r.scope}:${r.policyVersionId}`}>
-                        {r.scope}
+                        {identifierLabel(r.scope)}
                         {r.scopeTargetId
                           ? ` (${r.scopeTargetId.slice(0, 8)}…)`
                           : ""}{" "}

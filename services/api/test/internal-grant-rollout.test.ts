@@ -172,10 +172,15 @@ describe("internal-grant rollout — migration state", () => {
       "20281107000100_review_sla_due_soon_window",
       "20281107000200_communication_body_resendable",
       "20281107000300_platform_backup_records",
+      "20281108000100_subprocessor_name_per_workspace",
+      // GOV-009: governance export snapshots are append-only. One trigger. EXPAND.
+      "20281109000100_governance_export_snapshots_append_only",
       // CAPACITY: three indexes built CONCURRENTLY, one statement each, measured. EXPAND.
       "20281111000000_capacity_evidence_team_status_updated_idx",
       "20281111000100_capacity_evidence_disclosure_changed_idx",
       "20281111000200_capacity_case_links_team_evidence_idx",
+      // REPORT-006: the publication intent records the object digest. EXPAND.
+      "20281113000100_artifact_publication_intent_digest",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

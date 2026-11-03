@@ -31,7 +31,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { formatUtcDate, formatUserDateTime } from "../../../../lib/date";
 import {
   useActiveWorkspaceId,
@@ -190,7 +190,7 @@ export function AiSection() {
        * this member may read the status but not the policy. Anything else is a
        * genuine failure.
        */
-      if (err instanceof ApiError && err.statusCode === 403) {
+      if (isApiResponseError(err) && err.statusCode === 403) {
         try {
           const safe = (await apiFetch(
             `/v1/workspaces/ai-assistance-status?teamId=${teamId}`,
@@ -273,12 +273,12 @@ export function AiSection() {
         },
       );
     } catch (err) {
-      if (err instanceof ApiError && err.statusCode === 409) {
+      if (isApiResponseError(err) && err.statusCode === 409) {
         setStatus("conflict");
         setMessage(
           "These settings were changed elsewhere. Reload to see the latest, then re-apply your changes.",
         );
-      } else if (err instanceof ApiError && err.statusCode === 403) {
+      } else if (isApiResponseError(err) && err.statusCode === 403) {
         setStatus("denied");
         setMessage("Only workspace owners or admins can change AI settings.");
       } else {

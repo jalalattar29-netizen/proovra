@@ -26,6 +26,7 @@
  *   - No raw error text: failures go through toSafeUserError.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
@@ -308,11 +309,14 @@ export function QueueSignalCell({
       ) : null}
       {intelligence.slaState?.status &&
       intelligence.slaState.status !== "ON_TRACK" ? (
-        <Badge tone="pending">SLA {intelligence.slaState.status}</Badge>
+        <Badge tone="pending">SLA {identifierLabel(intelligence.slaState.status)}</Badge>
       ) : null}
       {intelligence.escalationState?.activeEscalationId ? (
         <Badge tone="risk">
-          Escalated {intelligence.escalationState.severity}
+          Escalated{" "}
+          {intelligence.escalationState.severity
+            ? identifierLabel(intelligence.escalationState.severity)
+            : ""}
         </Badge>
       ) : null}
       {blockers.map((k) => (

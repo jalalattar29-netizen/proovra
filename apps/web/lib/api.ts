@@ -84,6 +84,12 @@ type GenericApiError = Error & {
   details?: Record<string, unknown>;
   /** A flat `{ error: "<reason>" }` body's reason. Control flow, never shown. */
   flatReason?: string;
+  /**
+   * The same envelope an ApiError carries, so a branch on
+   * `err.body?.error?.code` reads a flat refusal too. Twenty components branch
+   * that way, and a flat route left all of them on their fallback.
+   */
+  body?: ApiErrorResponse;
 };
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -546,6 +552,19 @@ async function runApiFetch(
     error.requestId = requestId;
     error.details = detailsFromBody ?? promotedDetails ?? billingWall;
     if (typeof obj?.["error"] === "string") error.flatReason = obj["error"] as string;
+    // Only a code the server sent: a body that named none stays code-less.
+    if (codeFromBody || typeof obj?.["denial"] === "string") {
+      error.body = {
+        error: {
+          ...(obj ?? {}),
+          code: error.code ?? "API_ERROR",
+          message,
+          requestId,
+          timestamp: new Date().toISOString(),
+          details: error.details,
+        },
+      };
+    }
 
     throw error;
   }

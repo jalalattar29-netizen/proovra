@@ -14,6 +14,7 @@
  *     panel never needs to re-query individual versions.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
 type VersionRow = {
@@ -84,11 +85,11 @@ export function VersionHistoryPanel({
               >
                 <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
                   <strong style={{ fontSize: 12 }}>v{v.versionOrdinal}</strong>
-                  <Chip label={v.state} tone={stateTone(v.state)} />
+                  <Chip label={identifierLabel(v.state)} tone={stateTone(v.state)} />
                   <span style={{ flex: 1 }} />
                   {v.derivative ? (
                     <Chip
-                      label={`derivative · ${v.derivative.state}`}
+                      label={`derivative · ${identifierLabel(v.derivative.state)}`}
                       tone={
                         v.derivative.state === "READY"
                           ? "ok"

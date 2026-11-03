@@ -266,7 +266,7 @@ function RolesTab() {
       <PageSection
         data-section="role-capability-matrix"
         title="Capability matrix"
-        description="Manage = can change it · Read = can view only · — = no org-scope access. Reflects the permission gates the backend enforces."
+        description="Manage = can change it · Read = can view only · — = no org-scope access. This is what the server enforces."
       >
         <div data-testid="role-capability-matrix">
           <DataTable<CapabilityRow>

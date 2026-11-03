@@ -31,6 +31,8 @@
  *   human claim read as machine evidence.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
+import { identifierLabel, identifierTextLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -471,8 +473,8 @@ export function GraphCurationPanel({
             {search.data.map((n) => (
               <li key={n.id} style={row} data-node-id={n.id}>
                 <span style={{ flex: 1 }}>
-                  <strong>{n.safeLabel ?? "(no label)"}</strong>{" "}
-                  <span style={chip}>{n.nodeKind}</span>
+                  <strong>{n.safeLabel ? identifierTextLabel(n.safeLabel) : "(no label)"}</strong>{" "}
+                  <span style={chip}>{identifierLabel(n.nodeKind)}</span>
                 </span>
                 {canCurate ? (
                   <>
@@ -540,8 +542,8 @@ export function GraphCurationPanel({
                 data-edge-has-provenance={e.provenance ? "true" : "false"}
               >
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <strong>{e.edgeType}</strong>{" "}
-                  <span style={chip}>{e.confidence}</span>
+                  <strong>{identifierLabel(e.edgeType)}</strong>{" "}
+                  <span style={chip}>{identifierLabel(e.confidence)}</span>
                   <div style={muted}>
                     {e.provenance ? (
                       <>
@@ -611,22 +613,16 @@ export function GraphCurationPanel({
                 onChange={(e) => setTargetNodeId(e.target.value)}
                 aria-label="Target node id"
               />
-              <select
-                style={input}
+              <AppListbox
                 value={edgeType}
-                onChange={(e) =>
-                  setEdgeType(
-                    e.target.value as (typeof MANUAL_EDGE_TYPES)[number],
-                  )
-                }
-                aria-label="Relationship type"
-              >
-                {MANUAL_EDGE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...MANUAL_EDGE_TYPES.map((t) => ({ value: t, label: identifierLabel(t) })),
+                ]}
+                onChange={(next) => setEdgeType(
+                                    next as (typeof MANUAL_EDGE_TYPES)[number],
+                                  )}
+                ariaLabel={"Relationship type"}
+              />
               <input
                 style={{ ...input, flex: "1 1 220px" }}
                 placeholder="Why are these related? (recorded with your name)"

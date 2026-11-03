@@ -28,6 +28,7 @@
  * projection does not contain them.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import { describeClient } from "../../../../../lib/ui/describeClient";
@@ -356,19 +357,15 @@ export function MfaMemberPostureSection() {
         >
           <label>
             <span style={sectionLabelStyle}>Member</span>
-            <select
+            <AppListbox
               value={selectedUserId ?? ""}
-              onChange={(e) => setSelectedUserId(e.target.value || null)}
-              style={sectionInputStyle}
-              data-mfa-member-select
-            >
-              <option value="">Select a member…</option>
-              {members.data.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {workspaceRoleLabel(m.role)} · {m.userId.slice(0, 8)}…
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Select a member…" },
+                ...members.data.map((m) => ({ value: m.userId, label: `${workspaceRoleLabel(m.role)} · ${m.userId.slice(0, 8)}…` })),
+              ]}
+              onChange={(next) => setSelectedUserId(next || null)}
+              triggerProps={{ "data-mfa-member-select": "" }}
+            />
             <span style={{ ...sectionMuted, display: "block", marginTop: 4 }}>
               Members are read from this workspace&apos;s server-projected roster.
             </span>

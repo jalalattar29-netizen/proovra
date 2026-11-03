@@ -22,6 +22,8 @@
  *   - Read-only. No mutations. No new root nav item.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { sourceTraceLabel } from "../../../../lib/labels/workspaceOpsLabels";
 import type { JSX } from "react";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
@@ -214,10 +216,10 @@ function MetricCard(props: {
         <div
           style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 8 }}
           data-analytics-source-trace={props.metric}
-          title={`Counted from ${trace.source} where ${trace.filter}${trace.windowed ? " (windowed)" : ""}`}
+          title={`Counted from ${sourceTraceLabel(trace.source)}${trace.windowed ? " in the selected period" : ""}`}
         >
           Workspace records
-          {trace.windowed ? " · windowed" : ""}
+          {trace.windowed ? " · selected period" : ""}
         </div>
       ) : null}
       {degraded ? (
@@ -454,31 +456,18 @@ function AnalyticsPageInner(): JSX.Element {
               >
               Window
               </label>
-              <select
-              id="analytics-window-select"
-              data-analytics-window-select
-              value={windowDays}
-              onChange={(e) => {
-              const next = Number(e.target.value) as AnalyticsWindowOption;
-              if (allowedWindowOptions.includes(next)) {
-              setWindowDays(next);
-              }
-              }}
-              style={{
-              // 44px touch floor (matrix measured 28px).
-              minHeight: 44,
-              fontSize: 13,
-              padding: "4px 8px",
-              border: "1px solid var(--border-standard)",
-              borderRadius: 6,
-              }}
-              >
-              {allowedWindowOptions.map((d) => (
-              <option key={d} value={d}>
-              Last {d} days
-              </option>
-              ))}
-              </select>
+              <AppListbox
+                value={String(windowDays)}
+                options={allowedWindowOptions.map((d) => ({ value: String(d), label: `Last ${d} days` }))}
+                onChange={(selected) => {
+                  const next = Number(selected) as AnalyticsWindowOption;
+                  if (allowedWindowOptions.includes(next)) {
+                    setWindowDays(next);
+                  }
+                }}
+                id="analytics-window-select"
+                triggerProps={{ "data-analytics-window-select": "" }}
+              />
               {headerWindow ? (
               <span
               data-analytics-window-active
@@ -519,7 +508,7 @@ function AnalyticsPageInner(): JSX.Element {
           <strong>How to read this page.</strong> Each tile counts one kind
           of workspace record. A tile shows "—" with an amber badge when its
           source could not be read; we never estimate. Figures limited to
-          a time window say "windowed".
+          a time window say "selected period".
         </p>
       </section>
 
@@ -546,42 +535,42 @@ function AnalyticsPageInner(): JSX.Element {
             metric="evidenceCreated"
             value={operations?.metrics.evidenceCreated ?? null}
             label="Evidence created"
-            hint="in window"
+            hint="In the selected period"
           />
           <MetricCard
             envelope={operations}
             metric="evidenceFinalized"
             value={operations?.metrics.evidenceFinalized ?? null}
             label="Evidence reported"
-            hint="status=REPORTED, in window"
+            hint="Reported, in the selected period"
           />
           <MetricCard
             envelope={operations}
             metric="openCases"
             value={operations?.metrics.openCases ?? null}
             label="Open cases"
-            hint="status=OPEN"
+            hint="Open"
           />
           <MetricCard
             envelope={operations}
             metric="openReviewWorkflows"
             value={operations?.metrics.openReviewWorkflows ?? null}
             label="Open review workflows"
-            hint="status not in (APPROVED_INTERNAL, CLOSED)"
+            hint="Not yet approved or closed"
           />
           <MetricCard
             envelope={operations}
             metric="openEscalations"
             value={operations?.metrics.openEscalations ?? null}
             label="Open escalations"
-            hint="status=OPEN"
+            hint="Open"
           />
           <MetricCard
             envelope={operations}
             metric="reviewerCount"
             value={operations?.metrics.reviewerCount ?? null}
             label="Active reviewers"
-            hint="OWNER + ADMIN + MEMBER"
+            hint="Owners, admins and members"
           />
         </div>
       </section>
@@ -606,35 +595,35 @@ function AnalyticsPageInner(): JSX.Element {
             metric="activeReviews"
             value={reviewer?.metrics.activeReviews ?? null}
             label="Active reviews"
-            hint="open statuses"
+            hint="Still open"
           />
           <MetricCard
             envelope={reviewer}
             metric="assignedReviews"
             value={reviewer?.metrics.assignedReviews ?? null}
             label="Assigned reviews"
-            hint="assignedToUserId set"
+            hint="Assigned to a reviewer"
           />
           <MetricCard
             envelope={reviewer}
             metric="overdueReviews"
             value={reviewer?.metrics.overdueReviews ?? null}
             label="Overdue reviews"
-            hint="dueAt < now"
+            hint="Past their due date"
           />
           <MetricCard
             envelope={reviewer}
             metric="openEscalations"
             value={reviewer?.metrics.openEscalations ?? null}
             label="Open escalations"
-            hint="status=OPEN"
+            hint="Open"
           />
           <MetricCard
             envelope={reviewer}
             metric="resolvedEscalationsInWindow"
             value={reviewer?.metrics.resolvedEscalationsInWindow ?? null}
             label="Escalations resolved"
-            hint="status=RESOLVED, in window"
+            hint="Resolved, in the selected period"
           />
         </div>
       </section>
@@ -659,28 +648,28 @@ function AnalyticsPageInner(): JSX.Element {
             metric="activeLegalHolds"
             value={governance?.metrics.activeLegalHolds ?? null}
             label="Active evidence holds"
-            hint="status=ACTIVE"
+            hint="Active"
           />
           <MetricCard
             envelope={governance}
             metric="activeCaseLegalHolds"
             value={governance?.metrics.activeCaseLegalHolds ?? null}
             label="Active case holds"
-            hint="status=ACTIVE"
+            hint="Active"
           />
           <MetricCard
             envelope={governance}
             metric="legalHoldsPlacedInWindow"
             value={governance?.metrics.legalHoldsPlacedInWindow ?? null}
             label="Holds placed"
-            hint="placedAtUtc in window"
+            hint="Placed in the selected period"
           />
           <MetricCard
             envelope={governance}
             metric="legalHoldsReleasedInWindow"
             value={governance?.metrics.legalHoldsReleasedInWindow ?? null}
             label="Holds released"
-            hint="releasedAtUtc in window"
+            hint="Released in the selected period"
           />
         </div>
       </section>
@@ -690,11 +679,8 @@ function AnalyticsPageInner(): JSX.Element {
         <header className="apf-section-head">
           <h2 className="apf-section-title">Automation health</h2>
           <span className="apf-section-note">
-            Bounded rules + run + webhook delivery counts. Detailed
-            webhook destinations and delivery logs are exposed via the
-            backend `/v1/automation/webhooks` and
-            `/v1/automation/webhook-deliveries` endpoints for API /
-            automation use; this surface shows aggregate counters only.
+            Counts of rules, runs and webhook deliveries. Webhook
+            destinations and delivery logs are listed under Automation.
           </span>
         </header>
         <div
@@ -709,42 +695,42 @@ function AnalyticsPageInner(): JSX.Element {
             metric="enabledRules"
             value={automation?.metrics.enabledRules ?? null}
             label="Enabled rules"
-            hint="enabled=true"
+            hint="Turned on"
           />
           <MetricCard
             envelope={automation}
             metric="runsInWindow"
             value={automation?.metrics.runsInWindow ?? null}
             label="Runs"
-            hint="all statuses, in window"
+            hint="All, in the selected period"
           />
           <MetricCard
             envelope={automation}
             metric="runsSucceededInWindow"
             value={automation?.metrics.runsSucceededInWindow ?? null}
             label="Runs succeeded"
-            hint="status=SUCCEEDED, in window"
+            hint="Succeeded, in the selected period"
           />
           <MetricCard
             envelope={automation}
             metric="runsFailedInWindow"
             value={automation?.metrics.runsFailedInWindow ?? null}
             label="Runs failed"
-            hint="status=FAILED, in window"
+            hint="Failed, in the selected period"
           />
           <MetricCard
             envelope={automation}
             metric="runsSkippedInWindow"
             value={automation?.metrics.runsSkippedInWindow ?? null}
             label="Runs skipped"
-            hint="status=SKIPPED, in window"
+            hint="Skipped, in the selected period"
           />
           <MetricCard
             envelope={automation}
             metric="webhookDeliveriesInWindow"
             value={automation?.metrics.webhookDeliveriesInWindow ?? null}
             label="Webhook deliveries"
-            hint="all statuses, in window"
+            hint="All, in the selected period"
           />
           <MetricCard
             envelope={automation}
@@ -753,7 +739,7 @@ function AnalyticsPageInner(): JSX.Element {
               automation?.metrics.webhookDeliveriesSucceededInWindow ?? null
             }
             label="Webhook 2xx"
-            hint="status=SUCCEEDED, in window"
+            hint="Succeeded, in the selected period"
           />
           <MetricCard
             envelope={automation}
@@ -762,7 +748,7 @@ function AnalyticsPageInner(): JSX.Element {
               automation?.metrics.webhookDeliveriesFailedInWindow ?? null
             }
             label="Webhook failed"
-            hint="status=FAILED, in window"
+            hint="Failed, in the selected period"
           />
           <MetricCard
             envelope={automation}
@@ -771,7 +757,7 @@ function AnalyticsPageInner(): JSX.Element {
               automation?.metrics.webhookDeliveriesRetryScheduled ?? null
             }
             label="Webhook retries pending"
-            hint="status=RETRY_SCHEDULED"
+            hint="Waiting for their next attempt"
           />
           <MetricCard
             envelope={automation}
@@ -781,14 +767,14 @@ function AnalyticsPageInner(): JSX.Element {
                 .webhookDeliveriesRetryExhaustedInWindow ?? null
             }
             label="Webhook retries exhausted"
-            hint="status=RETRY_EXHAUSTED, in window"
+            hint="Stopped after the last attempt, in the selected period"
           />
           <MetricCard
             envelope={automation}
             metric="autoDisabledDestinations"
             value={automation?.metrics.autoDisabledDestinations ?? null}
             label="Auto-disabled destinations"
-            hint="autoDisabledAt set"
+            hint="Turned off after repeated failures"
           />
         </div>
       </section>
@@ -813,14 +799,14 @@ function AnalyticsPageInner(): JSX.Element {
             metric="reportsGeneratedInWindow"
             value={artifacts?.metrics.reportsGeneratedInWindow ?? null}
             label="Reports generated"
-            hint="generatedAtUtc in window"
+            hint="Generated in the selected period"
           />
           <MetricCard
             envelope={artifacts}
             metric="packagesGeneratedInWindow"
             value={artifacts?.metrics.packagesGeneratedInWindow ?? null}
             label="Verification packages"
-            hint="generatedAtUtc in window"
+            hint="Generated in the selected period"
           />
         </div>
       </section>

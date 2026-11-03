@@ -9,6 +9,7 @@
 
 "use client";
 
+import { identifierLabel } from "@proovra/shared";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { AppendixBadge, AppendixEmpty, CopyButton } from "./MetadataRow";
@@ -113,7 +114,7 @@ function PartRow({ part: p }: { part: TechnicalMetadataPerPart }) {
             {name}
           </span>
           <span className="ta-part-role">
-            <AppendixBadge tone={roleTone(p.role)}>{p.role}</AppendixBadge>
+            <AppendixBadge tone={roleTone(p.role)}>{identifierLabel(p.role)}</AppendixBadge>
           </span>
           <span className="ta-part-compact">{p.mimeType ?? "—"}</span>
           <span className="ta-part-compact ta-part-compact--size">{fmtBytes(p.sizeBytes) ?? "—"}</span>

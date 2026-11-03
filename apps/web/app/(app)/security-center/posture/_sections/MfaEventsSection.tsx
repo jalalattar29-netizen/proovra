@@ -22,7 +22,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { securityEventLabel } from "@proovra/shared";
+import { securityEventLabel, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
@@ -252,14 +252,14 @@ export function MfaEventsSection() {
           <span style={{ fontSize: 12.5, fontWeight: 600 }}>
             {securityEventLabel(r.eventType)}
           </span>
-          <code style={{ fontSize: 11, color: "var(--ink-muted)" }}>{r.eventType}</code>
+          <span style={{ fontSize: 11, color: "var(--ink-muted)" }}>{identifierLabel(r.eventType)}</span>
         </span>
       ),
     },
     {
       key: "severity",
       header: "Severity",
-      render: (r) => <Badge tone={severityTone(r.severity)}>{r.severity}</Badge>,
+      render: (r) => <Badge tone={severityTone(r.severity)}>{identifierLabel(r.severity)}</Badge>,
     },
     {
       key: "actor",
@@ -323,7 +323,7 @@ export function MfaEventsSection() {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12.5, overflowWrap: "anywhere" }}>{r.summary}</div>
           <div style={sectionMuted}>
-            {r.eventType}
+            {identifierLabel(r.eventType)}
             {r.teamName ? ` · ${r.teamName}` : ""}
           </div>
         </div>
@@ -332,7 +332,7 @@ export function MfaEventsSection() {
     {
       key: "severity",
       header: "Severity",
-      render: (r) => <Badge tone={severityTone(r.severity)}>{r.severity}</Badge>,
+      render: (r) => <Badge tone={severityTone(r.severity)}>{identifierLabel(r.severity)}</Badge>,
     },
     {
       key: "when",

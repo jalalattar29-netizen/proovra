@@ -84,5 +84,5 @@ export function createStepUpCeremony(deps: { prisma: PrismaClient; inject: Injec
     return { "x-proovra-step-up-challenge-id": challengeId };
   }
 
-  return { approvedHeader };
+  return { approvedHeader, enroll, freshCode };
 }

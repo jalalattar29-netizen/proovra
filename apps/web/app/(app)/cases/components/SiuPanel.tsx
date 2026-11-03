@@ -18,9 +18,15 @@
  *   * No PII rendering when the API returns redacted placeholders.
  *   * Loading / error / empty / blocked states are explicit.
  */
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 
 const SIU_STANDING_CAPTION =
   "SIU bundles are operational signals. They do not determine fraud, authorship, or legal admissibility.";
@@ -154,9 +160,12 @@ type Preflight = {
 
 export type SiuPanelProps = {
   caseId: string;
+  /** The workspace of the case: a step-up is bound to it, not to the active one. */
+  teamId: string | null;
 };
 
-export function SiuPanel({ caseId }: SiuPanelProps) {
+export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
+  const stepUp = useStepUpAction({ teamId });
   const [profile, setProfile] = useState<Profile | null>(null);
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [history, setHistory] = useState<ReadonlyArray<ExportHistoryRow> | null>(null);
@@ -219,19 +228,22 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
 
   const revealPii = useCallback(async () => {
     try {
-      const res = (await apiFetch(
-        `/v1/cases/${caseId}/siu-profile/reveal-pii`,
-        { method: "POST" },
+      const res = (await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(`/v1/cases/${caseId}/siu-profile/reveal-pii`, {
+          method: "POST",
+          headers: { ...(stepUpHeaders ?? {}) },
+        }),
       )) as { profile: Profile; piiRedacted: false };
       setProfile(res.profile);
       setPiiRevealed(true);
-    } catch {
+    } catch (e) {
+      if (isStepUpCancelled(e)) return;
       // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy
       // regardless of backend response shape. Raw JSON payloads
       // never reach the DOM.
       setErr("PII reveal failed. This action needs an additional security step.");
     }
-  }, [caseId]);
+  }, [caseId, stepUp]);
 
   useEffect(() => {
     void loadProfile();
@@ -285,16 +297,34 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       };
       if (memToken) headers["Authorization"] = `Bearer ${memToken}`;
 
-      const res = await fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`, {
-        method: "POST",
-        credentials: "include",
-        headers,
-        body: JSON.stringify({
-          warningExportReason:
-            preflight.readiness === "ready_with_warnings"
-              ? exportReason.trim()
-              : null,
-        }),
+      // Every export takes a fresh step-up. The body is binary on success, so a
+      // refusal is read here and raised in the shape the step-up hook acts on.
+      const res = await stepUp.runStepUpAction(async (stepUpHeaders) => {
+        const answer = await fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`, {
+          method: "POST",
+          credentials: "include",
+          headers: { ...headers, ...(stepUpHeaders ?? {}) },
+          body: JSON.stringify({
+            warningExportReason:
+              preflight.readiness === "ready_with_warnings"
+                ? exportReason.trim()
+                : null,
+          }),
+        });
+        if (answer.status === 401) {
+          const refusal = (await answer
+            .clone()
+            .json()
+            .catch(() => null)) as { error?: { code?: string; details?: unknown } } | null;
+          if (refusal?.error?.code === "STEP_UP_REQUIRED") {
+            throw Object.assign(new Error("Step-up required"), {
+              code: "STEP_UP_REQUIRED",
+              statusCode: 401,
+              details: refusal.error.details,
+            });
+          }
+        }
+        return answer;
       });
       if (!res.ok) {
         // Phase CASE-DETAIL-PERSONAL-UX — never render the raw body
@@ -306,7 +336,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
             ? "Export refused — you don't have permission to export this case."
             : res.status === 409
               ? "Export refused — the case isn't ready to export yet. Run preflight and resolve any blockers."
-              : `Export refused (HTTP ${res.status}).`,
+              : "The export was refused. Try again.",
         );
         return;
       }
@@ -317,13 +347,14 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       link.download = `siu-export-${caseId}.zip`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (e) {
+      if (isStepUpCancelled(e)) return;
       // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy.
       setErr("Couldn't export the case right now. Try again or contact support.");
     } finally {
       setBusy(false);
     }
-  }, [caseId, exportReason, preflight]);
+  }, [caseId, exportReason, preflight, stepUp]);
 
   /**
    * PHASE 13 §C — NEW-027. The history row's Download control was an
@@ -359,7 +390,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
               ? "Download refused — you don't have permission to download this export."
               : res.status === 404
                 ? "That export is no longer available."
-                : `Download refused (HTTP ${res.status}).`,
+                : "The download was refused. Try again.",
           );
           return;
         }
@@ -400,6 +431,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
 
   return (
     <section data-testid="siu-panel" style={panelStyle}>
+      <StepUpModal control={stepUp} />
       <header style={{ marginBottom: 12 }}>
         <h2 style={{ margin: 0, fontSize: 18 }}>Insurance / SIU</h2>
         <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
@@ -496,7 +528,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                   <td style={td}>{item.label}</td>
                   <td style={td}>{item.required ? "yes" : "no"}</td>
                   <td style={td}>
-                    <code>{item.status}</code>
+                    <span>{identifierLabel(item.status)}</span>
                   </td>
                   <td style={td}>{item.mappedEvidenceIds.length}</td>
                 </tr>
@@ -515,8 +547,8 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
               <ul data-testid="siu-indicators">
                 {profile.reviewIndicators.map((ind, i) => (
                   <li key={`${ind.code}-${i}`}>
-                    <code>{ind.code}</code> — {ind.explanation}{" "}
-                    <span style={{ color: "#64748b" }}>({ind.severity})</span>
+                    <span>{identifierLabel(ind.code)}</span> — {ind.explanation}{" "}
+                    <span style={{ color: "#64748b" }}>({identifierLabel(ind.severity)})</span>
                   </li>
                 ))}
               </ul>
@@ -571,7 +603,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                 <ul style={{ marginTop: 6 }}>
                   {preflight.findings.map((f, i) => (
                     <li key={`${f.code}-${i}`}>
-                      <code>{f.code}</code> — {f.detail}
+                      <span>{identifierLabel(f.code)}</span> — {f.detail}
                     </li>
                   ))}
                 </ul>
@@ -658,8 +690,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                 </tbody>
               </table>
               <p style={mutedText} data-testid="siu-history-storage-note">
-                Storage keys are never rendered. Bundle integrity is asserted
-                by the SHA-256 columns and the durable export row.
+                Each export is listed with its SHA-256 hashes so its integrity can be checked.
               </p>
             </>
           ) : null}
@@ -667,21 +698,11 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
           {/* Standing limitations */}
           <h3 style={h3}>Standing limitations</h3>
           <ul style={{ fontSize: 12 }}>
-            <li>
-              <code>SIU_BUNDLE_IS_NOT_A_FRAUD_DETERMINATION</code>
-            </li>
-            <li>
-              <code>SIU_BUNDLE_DOES_NOT_PROVE_CONTENT_TRUTH</code>
-            </li>
-            <li>
-              <code>SIU_BUNDLE_DOES_NOT_PROVE_LEGAL_ADMISSIBILITY</code>
-            </li>
-            <li>
-              <code>REVIEW_INDICATORS_ARE_OPERATIONAL_SIGNALS_NOT_FINDINGS</code>
-            </li>
-            <li>
-              <code>PROOVRA_DOES_NOT_REPLACE_INSURER_CORE_SYSTEMS</code>
-            </li>
+            <li>This bundle is not a fraud determination.</li>
+            <li>This bundle does not prove that the content is true.</li>
+            <li>This bundle does not prove legal admissibility.</li>
+            <li>Review indicators are operational signals, not findings.</li>
+            <li>PROOVRA does not replace insurer core systems.</li>
           </ul>
         </>
       )}

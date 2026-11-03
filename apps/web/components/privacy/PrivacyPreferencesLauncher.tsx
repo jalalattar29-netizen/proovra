@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { openCookiePreferences } from "../../lib/consent";
 
 export const PRIVACY_LAUNCHER_TEST_ID = "privacy-preferences-launcher";
@@ -40,8 +41,37 @@ export const PRIVACY_LAUNCHER_TEST_ID = "privacy-preferences-launcher";
  * canonical `--accent-600`. A fourth purple in a product that has one is how a
  * palette stops being a palette.
  */
+/** A page that has a place for the control in its own flow marks it with this. */
+export const PRIVACY_PREFERENCES_SLOT = "data-privacy-preferences-slot";
+
+/*
+ * ============================================================================
+ * WHY IT DOCKS WHERE THE PAGE OFFERS A PLACE
+ * ============================================================================
+ * Fixed to the bottom corner, it sat over whatever the page put there: the
+ * first letter of a legal page's "Last Updated", a footer logo, a label under
+ * the hero. The public footer and the app sidebar now carry a slot, and the
+ * control renders inside it, in the page's flow, where it covers nothing. A
+ * page with no slot keeps the corner button, so it is never unreachable.
+ */
 export default function PrivacyPreferencesLauncher() {
   const [mounted, setMounted] = useState(false);
+  const [slot, setSlot] = useState<Element | null>(null);
+
+  useEffect(() => {
+    let frame = 0;
+    const find = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setSlot(document.querySelector(`[${PRIVACY_PREFERENCES_SLOT}]`)));
+    };
+    find();
+    const observer = new MutationObserver(find);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
 
@@ -57,7 +87,8 @@ export default function PrivacyPreferencesLauncher() {
 
   const active = hovered || focused;
 
-  return (
+  const docked = slot !== null;
+  const button = (
     <button
       type="button"
       onClick={handleClick}
@@ -69,9 +100,7 @@ export default function PrivacyPreferencesLauncher() {
       title="Privacy preferences"
       data-testid={PRIVACY_LAUNCHER_TEST_ID}
       style={{
-        position: "fixed",
-        insetInlineStart: 16,
-        bottom: 16,
+        ...(docked ? { position: "static" as const } : { position: "fixed" as const, insetInlineStart: 16, bottom: 16 }),
         width: 44,
         height: 44,
         padding: 0,
@@ -90,7 +119,7 @@ export default function PrivacyPreferencesLauncher() {
           ? "var(--focus-ring)"
           : "0 6px 18px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.06)",
         cursor: "pointer",
-        zIndex: 2147483000,
+        zIndex: docked ? undefined : 2147483000,
         transition:
           "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease",
         transform: hovered ? "translateY(-1px)" : "translateY(0)",
@@ -115,4 +144,6 @@ export default function PrivacyPreferencesLauncher() {
       </svg>
     </button>
   );
+
+  return slot ? createPortal(button, slot) : button;
 }

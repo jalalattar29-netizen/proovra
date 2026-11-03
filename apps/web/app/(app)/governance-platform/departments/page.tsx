@@ -35,6 +35,7 @@
  * names, emails, or any other subject PII.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -60,7 +61,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
@@ -101,7 +102,7 @@ const DENIAL_COPY: Record<string, string> = {
 
 function readDenialCode(err: unknown): string | null {
   const details =
-    err instanceof ApiError
+    isApiResponseError(err)
       ? err.details
       : (err as { details?: Record<string, unknown> })?.details;
   if (details && typeof details["denial"] === "string") {
@@ -117,7 +118,7 @@ function readDenialCode(err: unknown): string | null {
 /** The permission a `PERMISSION_REQUIRED` refusal names (label-gated downstream). */
 function readRequiredPermission(err: unknown): string | null {
   const details =
-    err instanceof ApiError
+    isApiResponseError(err)
       ? err.details
       : (err as { details?: Record<string, unknown> })?.details;
   return details && typeof details["permission"] === "string"
@@ -903,25 +904,19 @@ function Shell() {
               >
                 <input
                   data-department-grant-user-id
-                  placeholder="Member user UUID"
+                  placeholder="Member user ID"
                   value={grantUserId}
                   onChange={(e) => setGrantUserId(e.target.value)}
                   style={input}
                 />
-                <select
-                  data-department-grant-role
+                <AppListbox
                   value={grantRole}
-                  onChange={(e) =>
-                    setGrantRole(e.target.value as DepartmentMembershipRole)
-                  }
-                  style={input}
-                >
-                  {DEPARTMENT_MEMBERSHIP_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {departmentRoleLabel(r)}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...DEPARTMENT_MEMBERSHIP_ROLES.map((r) => ({ value: r, label: departmentRoleLabel(r) })),
+                  ]}
+                  onChange={(next) => setGrantRole(next as DepartmentMembershipRole)}
+                  triggerProps={{ "data-department-grant-role": "" }}
+                />
                 <Button
                   variant="enterprise"
                   data-department-grant-submit

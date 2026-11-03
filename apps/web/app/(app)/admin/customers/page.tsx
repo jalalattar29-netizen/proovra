@@ -16,6 +16,7 @@
  * dependency this page does not have.
  */
 
+import { planLabel } from "../../../../lib/labels/adminPlatformLabels";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -284,7 +285,7 @@ export default function AdminOrganizationsPage() {
         render: (row) =>
           row.plan ? (
             <Badge tone={row.enterprise ? "governance" : "info"}>
-              {row.plan}
+              {planLabel(row.plan)}
             </Badge>
           ) : (
             <span style={{ color: "var(--ink-muted)" }}>—</span>

@@ -387,6 +387,9 @@ const ROW_OVERRIDES: Record<string, (t: Tenant) => Record<string, unknown>> = {
   Evidence: () => ({ status: "SIGNED", type: "PHOTO", sizeBytes: 1000n, lifecycleState: "ACTIVE", title: "sweep record" }),
   ManualRelationship: () => ({ edgeType: "MANUALLY_LINKED_TO", status: "ACTIVE" }),
   AutomationRule: () => ({ actionType: "NOTIFY_USER", triggerType: "EVIDENCE_CREATED" }),
+  // A project names its record by a plain column, with no foreign key.
+  RedactionProject: () => ({ evidenceId: "$Evidence", artifactKind: "IMAGE" }),
+  RedactionVersion: () => ({ versionOrdinal: 1 }),
   ExternalReviewGrant: () => ({
     expiresAtUtc: new Date(Date.now() + 86_400_000),
     scopeKind: "EVIDENCE",
@@ -405,9 +408,34 @@ const ROW_OVERRIDES: Record<string, (t: Tenant) => Record<string, unknown>> = {
   InvestigationGraphEdge: () => ({ edgeType: "SAME_HASH_AS" }),
   EvidenceTrashed: () => ({ status: "SIGNED", type: "PHOTO", sizeBytes: 1000n, lifecycleState: "TRASHED", deletedAt: new Date() }),
   Case: () => ({ name: `sweep-${randomUUID().slice(0, 8)}` }),
-  EvidenceReviewWorkflow: () => ({ status: "NOT_STARTED" }),
+  EvidenceReviewWorkflow: () => ({ status: "NOT_STARTED", workspaceType: "TEAM" }),
   EvidenceWorkflowTemplate: () => ({ name: `sweep-${randomUUID().slice(0, 8)}` }),
+  SsoConnection: () => ({ provider: "GENERIC_SAML", allowedEmailDomains: [], status: "ACTIVE" }),
+  ScimProvisioningToken: () => ({ scopes: [], ipAllowlist: [], status: "ACTIVE", tokenPrefix: "sweep" }),
+  EvidenceRequestDeliverable: () => ({ acceptedKinds: [], status: "PENDING" }),
+  WorkflowIntakeLink: () => ({
+    workflowTemplateSlug: "general-evidence-record",
+    workflowTemplateVersion: 1,
+    workflowTemplateSnapshot: {},
+    intakeMode: "EXTERNAL_ONE_TIME",
+    expiresAtUtc: new Date(Date.now() + 86_400_000),
+    allowedAcceptedKinds: [],
+    ipAllowlistCidrs: [],
+  }),
 };
+
+/** What a route's setup may need beyond rows: a real authenticator on a person. */
+export type SideTools = {
+  enrollTotp: (userId: string) => Promise<void>;
+  totpCode: (userId: string) => Promise<string>;
+  /** Someone with an account and no membership here. */
+  newPerson: () => Promise<Actor>;
+  inject: (request: { method: string; url: string; headers?: Record<string, string>; payload?: unknown }) => Promise<{ statusCode: number; json: () => unknown }>;
+};
+const noTool = async (): Promise<never> => {
+  throw new Error("this row factory has no tools");
+};
+const NO_TOOLS: SideTools = { enrollTotp: noTool, totpCode: noTool, newPerson: noTool, inject: noTool };
 
 export class RowFactory {
   private readonly models: Map<string, DmmfModel>;
@@ -417,6 +445,7 @@ export class RowFactory {
   constructor(
     private readonly prisma: any,
     dmmf: Dmmf = readSchema(),
+    readonly tools: SideTools = NO_TOOLS,
   ) {
     this.models = new Map(dmmf.models.map((m) => [m.name, m]));
     this.enums = new Map(dmmf.enums.map((e) => [e.name, e.values[0]?.name ?? ""]));
@@ -454,7 +483,7 @@ export class RowFactory {
   }
 
   /** One row of `model` owned by the row set's tenant, with parents made as needed. */
-  async make(set: RowSet, model: string, alias?: string): Promise<string | null> {
+  async make(set: RowSet, model: string, alias?: string, extra?: Record<string, unknown>): Promise<string | null> {
     const shape = this.models.get(model);
     if (!shape) {
       this.failures.set(model, "no such model");
@@ -473,7 +502,7 @@ export class RowFactory {
       fks.forEach((fk) => fromRelation.add(fk));
       if (fks.length !== 1) continue;
       // A row's author or owner is the tenant's owner, who runs the control.
-      const parent = field.type === "User" ? tenant.owner.id : await set.id(field.type);
+      const parent = field.type === "User" ? set.actorId : await set.id(field.type);
       if (parent === null) {
         if (required) return null;
         continue;
@@ -493,15 +522,21 @@ export class RowFactory {
       if (!field.isRequired || field.hasDefaultValue || field.isList) continue;
       if (fromRelation.has(field.name)) continue;
       if (/UserId$/.test(field.name) && field.type === "String") {
-        data[field.name] = tenant.owner.id;
+        data[field.name] = set.actorId;
         continue;
       }
       if (field.name === "id") continue;
       data[field.name] = this.scalar(field);
     }
-    for (const [key, value] of Object.entries(ROW_OVERRIDES[alias ?? model]?.(tenant) ?? {})) {
-      const symbol = typeof value === "string" ? value.match(SYMBOL) : null;
-      data[key] = symbol ? await set.id(symbol[1]) : value;
+    const patches = [
+      ROW_OVERRIDES[model]?.(tenant),
+      alias && alias !== model ? ROW_OVERRIDES[alias]?.(tenant) : undefined,
+      set.rowPatch(model),
+      alias && alias !== model ? set.rowPatch(alias) : undefined,
+      extra,
+    ];
+    for (const patch of patches) {
+      for (const [key, value] of Object.entries(patch ?? {})) data[key] = await materialize(value, set);
     }
     try {
       const row = await this.accessor(model).create({ data });
@@ -518,16 +553,45 @@ export class RowSet {
   private readonly ids = new Map<string, string | null>();
   private restrictedCaseId: string | null = null;
 
+  /** Who stands for this side: authors of its rows, the person a row calls "mine". */
+  actorId: string;
+  private prepared = false;
+
   constructor(
     readonly factory: RowFactory,
     readonly prisma: any,
     readonly tenant: Tenant,
-    private readonly opts: { restricted?: boolean } = {},
-  ) {}
+    private readonly opts: { restricted?: boolean; hint?: RouteHint } = {},
+  ) {
+    this.actorId = tenant.owner.id;
+  }
+
+  rowPatch(name: string): Record<string, unknown> | undefined {
+    return this.opts.hint?.rows?.[name];
+  }
+
+  /** A named value a route's setup made, read later as `$name`. */
+  put(name: string, id: string): void {
+    this.ids.set(name, id);
+  }
+
+  /** A named value, if this side has made it. */
+  known(name: string): string | null {
+    return this.ids.get(name) ?? null;
+  }
+
+  /** Makes what the route needs to exist before any request names it. */
+  async prepare(): Promise<void> {
+    if (this.prepared) return;
+    this.prepared = true;
+    await this.opts.hint?.setup?.(this);
+    for (const name of this.opts.hint?.ensure ?? []) await this.id(name);
+  }
 
   /** The ids this set made, which are what an effect is searched for. */
   markers(): string[] {
-    return [...this.ids.values()].filter((v): v is string => typeof v === "string");
+    // Rows only: a name or a raw token a recipe noted is not a row of this side.
+    return [...this.ids.values()].filter((v): v is string => typeof v === "string" && UUID.test(v));
   }
 
   async id(model: string): Promise<string | null> {
@@ -539,6 +603,10 @@ export class RowSet {
 
   private async resolve(model: string): Promise<string | null> {
     const t = this.tenant;
+    const named = this.opts.hint?.make?.[model];
+    if (named) return this.factory.make(this, named.model, model, named.data);
+    if (model === "Actor") return this.actorId;
+    if (model === "Owner") return t.owner.id;
     if (model === "Team") return t.teamId;
     if (model === "Organization") return t.orgId;
     if (model === "User") return t.member.id;
@@ -578,6 +646,7 @@ export class RowSet {
 // ---------------------------------------------------------------------------
 
 type Json = unknown;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SYMBOL = /^\$([A-Za-z]+)$/;
 
 /** Field name to the row it most likely names. */
@@ -702,14 +771,47 @@ export type RequestShape = {
   query: Record<string, Json>;
 };
 
+/**
+ * What one route needs that schema and Zod cannot say. Every side gets the same
+ * recipe, so the attacker meets the victim's row in the state the control proved
+ * valid. `$Name` is a row or a person; a function is computed per side.
+ */
+export type RouteHint = Partial<RequestShape> & {
+  /** The route's true audience, where its prefix misleads. */
+  klass?: RouteClass;
+  /** Who runs the control. Defaults to the class's actor. */
+  actor?: "owner" | "operator" | "member";
+  /** The control's person, when the route is theirs alone (an invitee). */
+  session?: (set: RowSet) => Promise<Actor>;
+  /** Field overrides on a model, or on a name from `make`. */
+  rows?: Record<string, Record<string, unknown>>;
+  /** Further rows, readable as `$Name`. */
+  make?: Record<string, { model: string; data?: Record<string, unknown> }>;
+  /** Names that must exist before the request, though nothing in it says so. */
+  ensure?: string[];
+  /** Path values by position: `$Name` or a literal. */
+  path?: string[];
+  setup?: (set: RowSet) => Promise<void>;
+  /** A credential that is not a session: headers for this side's rows. */
+  credential?: (set: RowSet) => Promise<Record<string, string>>;
+  /** The credential is one deployment secret, with no tenant in it. */
+  machine?: boolean;
+  /** Why no control can succeed here. Attacks still run; the route stays unproven. */
+  unreachable?: string;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, Json> =>
+  Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+
 async function materialize(value: Json, set: RowSet): Promise<Json> {
+  if (typeof value === "function") return (value as (s: RowSet) => unknown)(set);
   if (typeof value === "string") {
     const m = value.match(SYMBOL);
     if (!m) return value;
     return (await set.id(m[1])) ?? randomUUID();
   }
   if (Array.isArray(value)) return Promise.all(value.map((v) => materialize(v, set)));
-  if (value && typeof value === "object") {
+  if (isPlainObject(value)) {
     const out: Record<string, Json> = {};
     for (const [k, v] of Object.entries(value)) out[k] = await materialize(v, set);
     return out;
@@ -719,7 +821,7 @@ async function materialize(value: Json, set: RowSet): Promise<Json> {
 
 /** The bulk form: each array of symbols holds the actor's row and the victim's. */
 async function materializeBulk(value: Json, own: RowSet, victim: RowSet): Promise<Json> {
-  if (typeof value === "string") return materialize(value, victim);
+  if (typeof value === "string" || typeof value === "function") return materialize(value, victim);
   if (Array.isArray(value)) {
     const allSymbols = value.length > 0 && value.every((v) => typeof v === "string" && SYMBOL.test(v));
     if (allSymbols) return [...(await materialize(value, own)) as Json[], ...(await materialize(value, victim)) as Json[]];
@@ -795,7 +897,8 @@ export type AttackVariant =
   | "nested-child-own"
   | "viewer"
   | "off-list"
-  | "removed-member";
+  | "removed-member"
+  | "wrong-credential";
 
 export type AttackResult = {
   variant: AttackVariant;
@@ -823,7 +926,7 @@ export type RouteResult = {
   klass: RouteClass;
   params: PathParam[];
   missingRows: string[];
-  control: { status: number; code: string; outcome: ControlOutcome; attempts: number; shape: RequestShape };
+  control: { status: number; code: string; outcome: ControlOutcome; attempts: number; shape: RequestShape; issues?: unknown; excerpt?: string };
   attacks: AttackResult[];
   disposition: string;
 };
@@ -858,12 +961,13 @@ export const REFUSAL_LOG_TABLES = new Set([
   "governance_policy_audits",
   "intelligence_activity_events",
   "step_up_challenges",
+  "organization_audit_events",
   "sweep_write_log",
 ]);
 
 /** A refusal by a validating lookup: the row is not this tenant's, or the person is not its member. */
 const NAMED_REFUSAL =
-  /NOT_FOUND|not_found|NOT_MEMBER|not_workspace_member|NOT_A_MEMBER|invalid_assignee|NOT_ELIGIBLE|INVALID_EVIDENCE|mismatch|REGION_INVALID|POLICY_REJECTED|indexing_failed/;
+  /NOT_FOUND|not_found|NOT_MEMBER|not_workspace_member|NOT_A_MEMBER|invalid_assignee|NOT_ELIGIBLE|INVALID_EVIDENCE|mismatch|REGION_INVALID|POLICY_REJECTED|indexing_failed|NOT_IN_WORKSPACE|grant_issue_denied|duplicate_or_invalid_relationship|code_invalid|stale_evidence_revision|NONCE_MISMATCH|current_password_invalid|no_password_set|DERIVATIVE_NOT_READY|token_unknown|transfer_target_not_active_member/;
 
 const SESSION_ENDING = [
   /^POST \/v1\/auth\/logout/,
@@ -882,9 +986,11 @@ export type SweepDeps = {
   throwaway: () => Promise<Tenant>;
   removedFromVictim: Actor;
   newMember: (teamId: string, role: string) => Promise<Actor>;
+  newPerson: () => Promise<Actor>;
+  restoreAttacker: () => Promise<void>;
   newOperator: () => Promise<{ token: string; userId: string }>;
   /** Body seeds for routes whose valid shape repair cannot find. */
-  hints: Record<string, (Partial<RequestShape>) | undefined>;
+  hints: Record<string, RouteHint | undefined>;
 };
 
 export async function installWriteLog(prisma: any): Promise<void> {
@@ -921,10 +1027,15 @@ export class WriteSweep {
   private readonly stepUp: ReturnType<typeof createStepUpCeremony>;
 
   constructor(private readonly deps: SweepDeps) {
-    this.factory = new RowFactory(deps.prisma);
     this.stepUp = createStepUpCeremony({
       prisma: deps.prisma,
       inject: (o) => deps.h.app.inject(o as never) as never,
+    });
+    this.factory = new RowFactory(deps.prisma, undefined, {
+      enrollTotp: (userId) => this.stepUp.enroll(userId),
+      totpCode: (userId) => this.stepUp.freshCode(userId),
+      newPerson: () => deps.newPerson(),
+      inject: (request) => deps.h.app.inject(request as never) as never,
     });
   }
 
@@ -941,6 +1052,7 @@ export class WriteSweep {
     extra?: { stepUpTeamId?: string },
   ): Promise<Sent> {
     const url = pathFor(route.url, pathValues) + queryString(shape.query);
+    let payload = shape.body;
     const inject = async (more: Record<string, string>) => {
       const res = await this.deps.h.app.inject({
         method: route.method as never,
@@ -950,13 +1062,19 @@ export class WriteSweep {
           ...headers,
           ...more,
         },
-        ...(route.method === "DELETE" && Object.keys(shape.body as object).length === 0
+        ...(route.method === "DELETE" && Object.keys(payload as object).length === 0
           ? {}
-          : { payload: shape.body as never }),
+          : { payload: payload as never }),
       });
       return { status: res.statusCode, code: codeOf(res.body), body: res.body };
     };
     let sent = await inject({});
+    // The account tier asks for a proof in the body, not a challenge.
+    if (sent.code === "STEP_UP_REQUIRED" && actor?.id && extra?.stepUpTeamId && this.isAccountStepUp(sent.body)) {
+      await this.stepUp.enroll(actor.id);
+      payload = { ...(shape.body as object), stepUp: { method: "mfa", code: await this.stepUp.freshCode(actor.id) } };
+      sent = await inject({});
+    }
     if (sent.code === "STEP_UP_REQUIRED" && actor?.id && extra?.stepUpTeamId) {
       const purpose = this.purposeFrom(sent.body);
       if (purpose) {
@@ -980,6 +1098,14 @@ export class WriteSweep {
     return sent;
   }
 
+  private isAccountStepUp(body: string): boolean {
+    try {
+      return Array.isArray((JSON.parse(body) as any)?.error?.methods);
+    } catch {
+      return false;
+    }
+  }
+
   private purposeFrom(body: string): string | null {
     try {
       const parsed = JSON.parse(body) as any;
@@ -989,8 +1115,12 @@ export class WriteSweep {
     }
   }
 
-  private async pathValues(params: PathParam[], set: RowSet, missing?: string[]): Promise<string[]> {
+  private async pathValues(params: PathParam[], set: RowSet, missing?: string[], hint?: RouteHint): Promise<string[]> {
     const out: string[] = [];
+    if (hint?.path) {
+      for (const value of hint.path) out.push(String(await materialize(value, set)));
+      return out;
+    }
     for (const p of params) {
       if (p.name === ":type") {
         out.push("ORGANIZATION");
@@ -1008,42 +1138,46 @@ export class WriteSweep {
   /** Discovers a valid request as an authorized actor, on rows nobody else needs. */
   private async runControl(route: LiveRoute, params: PathParam[], klass: RouteClass, missing: string[]) {
     const tenant = await this.deps.throwaway();
-    const set = new RowSet(this.factory, this.deps.prisma, tenant);
     const hint = this.deps.hints[route.key];
+    const set = new RowSet(this.factory, this.deps.prisma, tenant, { hint });
     const shape: RequestShape = {
       body: { ...(hint?.body ?? {}) },
       // A collaboration route's own :teamId is the group, so the workspace travels in
       // the header there and a `teamId` query would name something else.
       query: { ...(route.url.startsWith("/v1/collaboration-teams/:") ? {} : { teamId: "$Team" }), ...(hint?.query ?? {}) },
     };
-    const values = await this.pathValues(params, set, missing);
-    const operator = klass === "platform" ? await this.deps.newOperator() : null;
-    const actor = operator ?? tenant.owner;
+    const who = hint?.actor ?? (klass === "platform" ? "operator" : "owner");
+    const operator = who === "operator" ? await this.deps.newOperator() : null;
     if (operator) {
       await this.deps.prisma.teamMember.create({
         data: { teamId: tenant.teamId, userId: operator.userId, role: "ADMIN", status: "ACTIVE" },
       });
     }
-    const headers = { "x-proovra-workspace-id": tenant.teamId };
+    const personal = hint?.session ? await hint.session(set) : null;
+    const actor: { id: string; token: string } | null = hint?.credential
+      ? null
+      : personal ?? (operator ? { id: operator.userId, token: operator.token } : who === "member" ? tenant.member : tenant.owner);
+    if (actor) set.actorId = actor.id;
+    await set.prepare();
+    const values = await this.pathValues(params, set, missing, hint);
+    const headers = {
+      "x-proovra-workspace-id": tenant.teamId,
+      ...(hint?.credential ? await hint.credential(set) : {}),
+    };
     let sent: Sent = { status: 0, code: "", body: "" };
     let attempts = 0;
+    let lastIssues: CapturedIssue[] = [];
     for (; attempts < 12; attempts++) {
       const materialized = {
         body: await materialize(shape.body, set),
         query: (await materialize(shape.query, set)) as Record<string, Json>,
       };
       this.zod.take();
-      sent = await this.send(
-        route,
-        values,
-        materialized,
-        { id: (actor as { id?: string; userId?: string }).id ?? (actor as { userId: string }).userId, token: actor.token },
-        headers,
-        { stepUpTeamId: tenant.teamId },
-      );
+      sent = await this.send(route, values, materialized, actor, headers, { stepUpTeamId: tenant.teamId });
       await this.deps.h.handlersSettled();
       if (sent.status !== 400 && sent.status !== 422) break;
       const issues = this.zod.take();
+      lastIssues = issues;
       if (issues.length === 0) break;
       let changed = false;
       for (const issue of issues) {
@@ -1077,7 +1211,7 @@ export class WriteSweep {
       }
       if (!changed) break;
     }
-    return { sent, attempts: attempts + 1, shape, tenant, set };
+    return { sent, attempts: attempts + 1, shape, tenant, set, lastIssues };
   }
 
   private async attack(
@@ -1133,7 +1267,9 @@ export class WriteSweep {
     const viewer = await this.deps.newMember(fixedVictim.teamId, "VIEWER");
     const offList = await this.deps.newMember(fixedVictim.teamId, "ADMIN");
     const victim: Tenant = { ...fixedVictim, viewer };
-    const klass = routeClass(route);
+    await this.deps.restoreAttacker();
+    const hint = this.deps.hints[route.key];
+    const klass = hint?.klass ?? routeClass(route);
     const params = pathParams(route.url);
     const missing: string[] = [];
     await prisma.user.update({ where: { id: attacker.owner.id }, data: { currentWorkspaceId: attacker.teamId } });
@@ -1158,10 +1294,8 @@ export class WriteSweep {
       return result;
     }
 
-    const control =
-      klass === "token" || klass === "retired"
-        ? null
-        : await this.runControl(route, params, klass, missing);
+    const hasControl = klass === "token" ? Boolean(hint?.credential ?? hint?.session) : klass !== "retired";
+    const control = hasControl ? await this.runControl(route, params, klass, missing) : null;
     if (control) {
       result.control = {
         status: control.sent.status,
@@ -1169,17 +1303,20 @@ export class WriteSweep {
         outcome: controlOutcome(control.sent.status, control.sent.code, missing),
         attempts: control.attempts,
         shape: control.shape,
+        ...(control.sent.status >= 300 ? { excerpt: control.sent.body.slice(0, 200), issues: control.lastIssues } : {}),
       };
     }
     const shape = control?.shape ?? { body: {}, query: { teamId: "$Team" } };
     result.missingRows = [...new Set(missing)];
 
     // Rows on each side for this route.
-    const victimRows = new RowSet(this.factory, prisma, victim);
-    const ownRows = new RowSet(this.factory, prisma, attacker);
-    const restrictedRows = new RowSet(this.factory, prisma, victim, { restricted: true });
-    const victimPath = await this.pathValues(params, victimRows);
-    const ownPath = await this.pathValues(params, ownRows);
+    const victimRows = new RowSet(this.factory, prisma, victim, { hint });
+    const ownRows = new RowSet(this.factory, prisma, attacker, { hint });
+    const restrictedRows = new RowSet(this.factory, prisma, victim, { restricted: true, hint });
+    await victimRows.prepare();
+    await ownRows.prepare();
+    const victimPath = await this.pathValues(params, victimRows, undefined, hint);
+    const ownPath = await this.pathValues(params, ownRows, undefined, hint);
     const victimBody = await materialize(shape.body, victimRows);
     const victimQuery = (await materialize(shape.query, victimRows)) as Record<string, Json>;
     const ownBody = await materialize(shape.body, ownRows);
@@ -1204,6 +1341,33 @@ export class WriteSweep {
 
     if (klass === "retired") {
       result.disposition = "RETIRED";
+      return result;
+    }
+
+    // A credential that is not a session: the attacker's own on the victim's row, or,
+    // for a deployment secret with no tenant in it, a wrong one and a plain session.
+    if (hint?.credential && Object.keys(await hint.credential(ownRows)).length === 0) {
+      // The capability is the path itself: a session adds nothing, and the attacker's
+      // session on the victim's capability is the same request anyone holding it makes.
+      await run(this.attack("claimed-workspace", route, await this.pathValues(params, ownRows, undefined, hint), { body: ownBody, query: ownQuery }, attacker.owner, claimHeaders, markers, attacker.teamId));
+      if (params.length >= 2) {
+        // The attacker's own capability, aimed at the victim's child.
+        await run(this.attack("nested-parent-own", route, [ownPath[0], ...victimPath.slice(1)], { body: ownBody, query: ownQuery }, null, {}, markers));
+      }
+      result.disposition = this.dispose(result, true, true);
+      return result;
+    }
+    if (hint?.credential) {
+      const wrong = Object.fromEntries(
+        Object.keys(await hint.credential(ownRows)).map((k) => [k, `sweep-wrong-${randomUUID()}`]),
+      );
+      await run(this.attack("wrong-credential", route, victimPath, { body: victimBody, query: victimQuery }, null, wrong, markers));
+      if (!hint.machine) {
+        const theirs = await hint.credential(ownRows);
+        await run(this.attack("cross-tenant", route, victimPath, { body: mixedBody, query: ownQuery }, null, theirs, markers));
+      }
+      await run(this.attack("claimed-workspace", route, victimPath, { body: victimBody, query: victimQuery }, attacker.owner, claimHeaders, markers, attacker.teamId));
+      result.disposition = this.dispose(result, true, true);
       return result;
     }
 
@@ -1241,7 +1405,8 @@ export class WriteSweep {
       await run(this.attack("removed-member", route, victimPath, { body: victimBody, query: victimQuery }, this.deps.removedFromVictim, inHeaders, markers));
       await run(this.attack("viewer", route, victimPath, { body: victimBody, query: victimQuery }, victim.viewer, inHeaders, markers, victim.teamId));
       if (params.some((p) => p.model === "Evidence" || p.model === "Case") || containsSymbol(shape.body, (n) => n === "Evidence" || n === "Case")) {
-        const restrictedPath = await this.pathValues(params, restrictedRows);
+        await restrictedRows.prepare();
+        const restrictedPath = await this.pathValues(params, restrictedRows, undefined, hint);
         const restrictedBody = await materialize(shape.body, restrictedRows);
         const restrictedQuery = (await materialize(shape.query, restrictedRows)) as Record<string, Json>;
         const restrictedMarkers = restrictedRows.markers().filter((m) => m !== victim.teamId && m !== victim.orgId);
@@ -1251,6 +1416,19 @@ export class WriteSweep {
 
     result.disposition = this.dispose(result, aimed, namesRows || bodyNamesRows);
     return result;
+  }
+
+  /** A recipe that throws is a gap in this sweep, recorded as one, and the run goes on. */
+  failedRoute(route: LiveRoute, err: Error): RouteResult {
+    return {
+      key: route.key,
+      klass: routeClass(route),
+      params: pathParams(route.url),
+      missingRows: [],
+      control: { status: 0, code: String(err.message).slice(-160), outcome: "NOT_RUN", attempts: 0, shape: { body: {}, query: {} } },
+      attacks: [],
+      disposition: "SWEEP_RECIPE_ERROR",
+    };
   }
 
   private pickTenant(body: Json): Record<string, Json> {
@@ -1267,11 +1445,17 @@ export class WriteSweep {
     if (r.attacks.some((a) => a.outcome === "ACCEPTED_EFFECT" || a.outcome === "LEAK")) return "EFFECT";
     if (cross.some((a) => a.outcome === "SERVER_ERROR")) return "SERVER_ERROR_ON_ATTACK";
     if (!aimed) return "ACTOR_SCOPED_NO_TARGET";
-    if (r.klass === "token") return "TOKEN_ROUTE_SESSION_REFUSED";
     const proven = r.control.outcome === "AUTHORIZED_2XX";
     const held = cross.every((a) => a.outcome === "REFUSED" || a.outcome === "ACCEPTED_NO_EFFECT");
+    if (r.klass === "token") {
+      if (r.attacks.length > 0 && r.attacks.every((a) => a.status === 410)) return "RETIRED";
+      if (!proven) return "TOKEN_ROUTE_SESSION_REFUSED";
+      if (!held) return "CONTROL_OK_ATTACK_NOT_REFUSED_CLEANLY";
+      return this.deps.hints[r.key]?.machine ? "PROVEN_MACHINE_SECRET" : "PROVEN_TOKEN";
+    }
     if (proven && held) return namesRows ? "PROVEN_REAL_ROWS" : "PROVEN_TENANT_SCOPE";
     if (proven) return "CONTROL_OK_ATTACK_NOT_REFUSED_CLEANLY";
+    if (this.deps.hints[r.key]?.unreachable) return "NO_CONTROL_POSSIBLE";
     return `UNPROVEN_${r.control.outcome}`;
   }
 }

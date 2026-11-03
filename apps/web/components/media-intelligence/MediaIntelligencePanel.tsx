@@ -24,6 +24,7 @@
  *     nothing without a teamId, and it never throws.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, X } from "lucide-react";
 
@@ -407,7 +408,7 @@ export default function MediaIntelligencePanel({
 
       {state.error ? (
         <p className="evd-error">
-          Could not load signals ({state.error.code}). Retry from the
+          Could not load signals ({identifierLabel(state.error.code)}). Retry from the
           analyzer button above.
         </p>
       ) : null}

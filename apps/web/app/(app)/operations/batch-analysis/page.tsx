@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useEffect, useMemo, useState } from "react";
@@ -554,7 +555,7 @@ function BatchAnalysisPageInner() {
                           textTransform: "capitalize",
                         }}
                       >
-                        {job.status}
+                        {identifierLabel(job.status)}
                       </span>
                     </div>
 

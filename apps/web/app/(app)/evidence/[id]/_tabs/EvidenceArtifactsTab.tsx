@@ -510,7 +510,7 @@ function ArtifactLifecyclePanel({
             Report and verification package are queued for generation
           </strong>
           <p>
-            Work has been accepted and is waiting for a worker. This page checks
+            Your request has been accepted and is queued. This page checks
             for completion on its own; nothing further is needed from you.
           </p>
           <RuntimeStatusBanner requires={["artifactGeneration"]} />

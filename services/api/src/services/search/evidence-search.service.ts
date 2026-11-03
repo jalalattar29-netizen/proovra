@@ -372,11 +372,20 @@ export async function executeSearch(
 
   let rows: prismaPkg.EvidenceSearchDocument[];
   try {
+    // A positional cursor on a row that has since gone yields nothing, which read
+    // as the end of the results (EVID-015). The token carries the row's position,
+    // so the walk resumes from there.
+    const cursorRowGone =
+      cursor !== null &&
+      (await client.evidenceSearchDocument.count({ where: { id: cursor.id } })) === 0;
     rows = await client.evidenceSearchDocument.findMany({
-      where,
+      where:
+        cursor && cursorRowGone
+          ? { AND: [where, seekPastCursor(cursor, filter.sort ?? "UPDATED_DESC")] }
+          : where,
       orderBy,
       take: overscan,
-      ...(cursor
+      ...(cursor && !cursorRowGone
         ? {
             // We use a (updatedAt, id) tie-break to keep ordering
             // stable. Prisma does not give us a first-class
@@ -591,6 +600,7 @@ export async function executeSearch(
     hasMore && lastDatabaseRow
       ? encodeSearchCursor({
           updatedAtUtc: lastDatabaseRow.sourceUpdatedAtUtc?.toISOString() ?? lastDatabaseRow.updatedAt.toISOString(),
+          createdAtUtc: lastDatabaseRow.createdAt.toISOString(),
           id: lastDatabaseRow.id,
         })
       : null;
@@ -928,6 +938,25 @@ function buildSafeFilterSnapshot(
     hasQueryText: filter.q ? true : false,
     mode: filter.mode ?? null,
   };
+}
+
+/**
+ * The rows after a cursor whose document no longer exists, in `sortToOrderBy`'s
+ * order. Only for that case: positions are millisecond values, so a row sharing
+ * the deleted one's millisecond can be missed, where a live cursor cannot miss it.
+ */
+function seekPastCursor(
+  cursor: SearchCursor,
+  sort: NonNullable<SearchFilterInput["sort"]>,
+): prismaPkg.Prisma.EvidenceSearchDocumentWhereInput {
+  const byCreated = sort === "CREATED_ASC" || sort === "CREATED_DESC";
+  const ascending = sort === "CREATED_ASC" || sort === "UPDATED_ASC";
+  const position = new Date(byCreated ? (cursor.createdAtUtc ?? cursor.updatedAtUtc) : cursor.updatedAtUtc);
+  const beyond = ascending ? { gt: position } : { lt: position };
+  const idBeyond = ascending ? { gt: cursor.id } : { lt: cursor.id };
+  return byCreated
+    ? { OR: [{ createdAt: beyond }, { createdAt: position, id: idBeyond }] }
+    : { OR: [{ sourceUpdatedAtUtc: beyond }, { sourceUpdatedAtUtc: position, id: idBeyond }] };
 }
 
 function sortToOrderBy(

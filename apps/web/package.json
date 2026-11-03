@@ -16,6 +16,7 @@
     "pretypecheck": "pnpm run build:deps"
   },
   "dependencies": {
+    "@noble/hashes": "2.2.0",
     "@proovra/shared": "workspace:*",
     "@proovra/shared-billing": "workspace:*",
     "@proovra/shared-evidence-presentation": "workspace:*",

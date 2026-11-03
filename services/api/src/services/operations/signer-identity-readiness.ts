@@ -10,6 +10,7 @@
  * Which provider the API signs with is the signing owner's question. Both spellings
  * of KMS are read here so that this check does not depend on the answer.
  */
+import { parseSignerProvider } from "@proovra/shared-runtime";
 import type { PrismaClient } from "@prisma/client";
 
 export type SignerIdentityIssue =
@@ -21,8 +22,7 @@ export async function signerIdentityIssue(
   client: PrismaClient,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<SignerIdentityIssue | null> {
-  const provider = (env.SIGNER_PROVIDER ?? "").trim().toLowerCase().replace("_", "-");
-  if (provider !== "aws-kms") return null;
+  if (parseSignerProvider(env.SIGNER_PROVIDER) !== "aws-kms") return null;
   const keyId = (env.SIGNING_KEY_ID ?? "").trim();
   const version = Number((env.SIGNING_KEY_VERSION ?? "").trim());
   if (!keyId || !Number.isInteger(version) || version < 1) return "signer_identity_not_configured";

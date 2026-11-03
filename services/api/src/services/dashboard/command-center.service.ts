@@ -23,6 +23,7 @@
  *     `not_applicable` for personal workspaces.
  */
 
+import { readRetentionPosture } from "../governance-lifecycle/retention-posture.service.js";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring } from "@proovra/shared";
@@ -128,6 +129,7 @@ import { evaluateTelemetryHealth } from "../ops-health/telemetry-health.service.
 import { evaluateReconcileHealth } from "../ops-health/reconcile-health.service.js";
 import { evaluateSecurityRollupHealth } from "../ops-health/security-rollup-health.service.js";
 import type { OpsHealthState } from "../ops-health/types.js";
+import { evidenceRecordName } from "./evidence-record-name.js";
 
 import { primaryPublishedPackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 // ---------------------------------------------------------------------------
@@ -2174,7 +2176,7 @@ async function runGovernancePosture(
       0,
     ),
     activePoliciesCount: probe(
-      () => prisma.evidenceRetentionPolicy.count({ where: { teamId, status: "ACTIVE" } }),
+      () => readRetentionPosture([teamId], prisma).then((p) => p.activePolicyCount),
       true,
       0,
     ),
@@ -2466,12 +2468,7 @@ async function runTimeline(
     anyOk = true;
     for (const r of rows) {
       const entityName =
-        (r.title?.trim() && !/^digital evidence record$/i.test(r.title.trim())
-          ? r.title.trim()
-          : null) ??
-        r.displayFileName?.trim() ??
-        r.originalFileName?.trim() ??
-        `record ${r.id.slice(0, 8)}`;
+        evidenceRecordName(r) ?? `record ${r.id.slice(0, 8)}`;
       items.push({
         id: `evidence_finalized:${r.id}:${r.updatedAt.getTime()}`,
         kind: "evidence_finalized",
@@ -2785,6 +2782,8 @@ async function runRecentEvidence(
       select: {
         id: true,
         title: true,
+        displayFileName: true,
+        originalFileName: true,
         status: true,
         verificationStatus: true,
         createdAt: true,
@@ -2799,7 +2798,7 @@ async function runRecentEvidence(
       status: "ok",
       items: items.map((e) => ({
         id: e.id,
-        title: e.title ?? "Untitled evidence",
+        title: evidenceRecordName(e) ?? "Untitled evidence",
         status: e.status,
         verificationStatus: e.verificationStatus ?? null,
         createdAt: e.createdAt.toISOString(),
@@ -4269,6 +4268,8 @@ async function runCustodyIntegrityAnomalies(
       select: {
         id: true,
         title: true,
+        displayFileName: true,
+        originalFileName: true,
         verificationStatus: true,
         updatedAt: true,
       },
@@ -4277,7 +4278,7 @@ async function runCustodyIntegrityAnomalies(
       const failed = r.verificationStatus === "FAILED";
       items.push({
         evidenceId: r.id,
-        title: r.title ?? "Untitled evidence",
+        title: evidenceRecordName(r) ?? "Untitled evidence",
         reasonCode: failed ? "INTEGRITY_FAILED" : "INTEGRITY_REVIEW_REQUIRED",
         severity: failed ? "critical" : "high",
         detectedAt: r.updatedAt.toISOString(),
@@ -4295,12 +4296,18 @@ async function runCustodyIntegrityAnomalies(
       },
       orderBy: { updatedAt: "desc" },
       take: 6,
-      select: { id: true, title: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        displayFileName: true,
+        originalFileName: true,
+        updatedAt: true,
+      },
     });
     for (const r of packageButNoReport) {
       items.push({
         evidenceId: r.id,
-        title: r.title ?? "Untitled evidence",
+        title: evidenceRecordName(r) ?? "Untitled evidence",
         reasonCode: "PACKAGE_BUT_NO_REPORT",
         severity: "warning",
         detectedAt: r.updatedAt.toISOString(),
@@ -4318,6 +4325,8 @@ async function runCustodyIntegrityAnomalies(
       select: {
         id: true,
         title: true,
+        displayFileName: true,
+        originalFileName: true,
         updatedAt: true,
         verificationPackageMetadata: true,
       },
@@ -4330,7 +4339,7 @@ async function runCustodyIntegrityAnomalies(
       if (m && m.blocked === true) {
         items.push({
           evidenceId: row.id,
-          title: row.title ?? "Untitled evidence",
+          title: evidenceRecordName(row) ?? "Untitled evidence",
           reasonCode: "PACKAGE_BLOCKED",
           severity: "high",
           detectedAt: row.updatedAt.toISOString(),
@@ -5594,6 +5603,8 @@ async function runDeepIntegrityWatch(
       select: {
         id: true,
         title: true,
+        displayFileName: true,
+        originalFileName: true,
         verificationStatus: true,
         updatedAt: true,
       },
@@ -5602,7 +5613,7 @@ async function runDeepIntegrityWatch(
       const failed = r.verificationStatus === "FAILED";
       items.push({
         evidenceId: r.id,
-        title: r.title ?? "Untitled evidence",
+        title: evidenceRecordName(r) ?? "Untitled evidence",
         reasonCode: failed ? "INTEGRITY_FAILED" : "INTEGRITY_REVIEW_REQUIRED",
         severity: failed ? "critical" : "high",
         detectedAt: r.updatedAt.toISOString(),
@@ -5626,12 +5637,18 @@ async function runDeepIntegrityWatch(
       },
       orderBy: { updatedAt: "desc" },
       take: 6,
-      select: { id: true, title: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        displayFileName: true,
+        originalFileName: true,
+        updatedAt: true,
+      },
     });
     for (const r of tsaUnavailable) {
       items.push({
         evidenceId: r.id,
-        title: r.title ?? "Untitled evidence",
+        title: evidenceRecordName(r) ?? "Untitled evidence",
         reasonCode: "TSA_UNAVAILABLE",
         severity: "warning",
         detectedAt: r.updatedAt.toISOString(),
@@ -5660,7 +5677,14 @@ async function runDeepIntegrityWatch(
       },
       orderBy: { updatedAt: "desc" },
       take: 24,
-      select: { id: true, title: true, updatedAt: true, ...OTS_ANCHORING_RECORD_SELECT },
+      select: {
+        id: true,
+        title: true,
+        displayFileName: true,
+        originalFileName: true,
+        updatedAt: true,
+        ...OTS_ANCHORING_RECORD_SELECT,
+      },
     });
     const otsUnavailable = otsCandidates
       .map((r) => ({ ...r, otsState: resolveRecordOtsAnchoring(r).state }))
@@ -5670,7 +5694,7 @@ async function runDeepIntegrityWatch(
       const failed = r.otsState === "FAILED";
       items.push({
         evidenceId: r.id,
-        title: r.title ?? "Untitled evidence",
+        title: evidenceRecordName(r) ?? "Untitled evidence",
         reasonCode: failed ? "OTS_FAILED" : "OTS_UNAVAILABLE",
         severity: failed ? "high" : "warning",
         detectedAt: r.updatedAt.toISOString(),
@@ -5698,12 +5722,18 @@ async function runDeepIntegrityWatch(
       },
       orderBy: { updatedAt: "asc" },
       take: 6,
-      select: { id: true, title: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        displayFileName: true,
+        originalFileName: true,
+        updatedAt: true,
+      },
     });
     for (const r of reportFinalizedNoPackage) {
       items.push({
         evidenceId: r.id,
-        title: r.title ?? "Untitled evidence",
+        title: evidenceRecordName(r) ?? "Untitled evidence",
         reasonCode: "REPORT_FINALIZED_NO_PACKAGE_AGED",
         severity: "warning",
         detectedAt: r.updatedAt.toISOString(),
@@ -5726,6 +5756,8 @@ async function runDeepIntegrityWatch(
       select: {
         id: true,
         title: true,
+        displayFileName: true,
+        originalFileName: true,
         updatedAt: true,
         verificationPackageMetadata: true,
       },
@@ -5738,7 +5770,7 @@ async function runDeepIntegrityWatch(
       if (m && m.blocked === true) {
         items.push({
           evidenceId: row.id,
-          title: row.title ?? "Untitled evidence",
+          title: evidenceRecordName(row) ?? "Untitled evidence",
           reasonCode: "PACKAGE_BLOCKED",
           severity: "high",
           detectedAt: row.updatedAt.toISOString(),

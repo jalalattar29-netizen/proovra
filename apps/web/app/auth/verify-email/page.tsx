@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../providers";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { MarketingHeader } from "../../../components/marketing/MarketingHeader";
 import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 
@@ -150,7 +150,7 @@ function VerifyEmailPageContent() {
       } catch (err) {
         // ApiError with code INVALID_OR_EXPIRED or RATE_LIMITED both
         // resolve to the same calm fallback.
-        const code = err instanceof ApiError ? err.code : "NETWORK_ERROR";
+        const code = isApiResponseError(err) ? err.code : "NETWORK_ERROR";
         if (code === "EMAIL_VERIFICATION_PASSWORD_REQUIRED") {
           setState("password");
           return;

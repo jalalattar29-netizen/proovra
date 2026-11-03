@@ -24,6 +24,7 @@
  *   PASS / PARTIAL paths are unchanged — they post the verdict only.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import {
   useCallback,
   useEffect,
@@ -747,7 +748,7 @@ function QcAssignForm({
 }) {
   const fieldId = useId();
   const [choice, setChoice] = useState("");
-  const selectRef = useRef<HTMLSelectElement>(null);
+  const selectRef = useRef<HTMLButtonElement>(null);
   const ready = reviewers.kind === "ready";
   useEffect(() => {
     if (ready) selectRef.current?.focus();
@@ -785,21 +786,18 @@ function QcAssignForm({
       {ready && reviewers.value.length > 0 ? (
         <label htmlFor={fieldId} style={{ display: "grid", gap: 4, fontSize: 12, flex: "1 1 200px", minWidth: 0 }}>
           QC reviewer
-          <select
-            id={fieldId}
-            ref={selectRef}
+          <AppListbox
             value={choice}
+            options={[
+              { value: "", label: "Choose a reviewer…" },
+              ...reviewers.value.map((rv) => ({ value: rv.userId, label: rv.displayName ?? `Unnamed member (${rv.userId.slice(0, 8)})` })),
+            ]}
+            onChange={(next) => setChoice(next)}
+            id={fieldId}
             disabled={busy}
-            onChange={(e) => setChoice(e.target.value)}
+            triggerRef={selectRef}
             style={{ maxWidth: "100%" }}
-          >
-            <option value="">Choose a reviewer…</option>
-            {reviewers.value.map((rv) => (
-              <option key={rv.userId} value={rv.userId}>
-                {rv.displayName ?? `Unnamed member (${rv.userId.slice(0, 8)})`}
-              </option>
-            ))}
-          </select>
+          />
         </label>
       ) : null}
       <Button type="submit" size="sm" variant="primary" loading={busy} disabled={Boolean(reason)} disabledReason={reason} data-qc-assign-submit>
@@ -902,27 +900,16 @@ function QcFailPicker({
         }}
       >
         <span>Reason</span>
-        <select
-          data-qc-fail-reason-select
+        <AppListbox
           value={failureReason}
-          onChange={(e) => setFailureReason(e.target.value)}
+          options={[
+            { value: "", label: "Choose a reason…" },
+            ...QC_FAILURE_REASONS.map((r) => ({ value: r, label: QC_FAILURE_REASON_LABELS[r] ?? r })),
+          ]}
+          onChange={(next) => setFailureReason(next)}
           disabled={busy}
-          style={{
-            padding: "6px 8px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e1",
-            background: "#fff",
-            fontSize: 13,
-            color: "#0f172a",
-          }}
-        >
-          <option value="">Choose a reason…</option>
-          {QC_FAILURE_REASONS.map((r) => (
-            <option key={r} value={r}>
-              {QC_FAILURE_REASON_LABELS[r] ?? r}
-            </option>
-          ))}
-        </select>
+          triggerProps={{ "data-qc-fail-reason-select": "" }}
+        />
       </label>
       <label
         style={{

@@ -339,6 +339,39 @@ export const REVIEWER_DENIAL_REASONS = [
 ] as const;
 export type ReviewerDenialReason = (typeof REVIEWER_DENIAL_REASONS)[number];
 
+/**
+ * What a reviewer reads for each refusal (RT-011). The review pages printed the
+ * code itself, so a reviewer saw "Coding refused: NOT_ASSIGNED". A code this
+ * table does not know reads as a plain refusal rather than as the code.
+ */
+const REVIEWER_DENIAL_MESSAGES: Readonly<Record<ReviewerDenialReason, string>> = {
+  WORKSPACE_NOT_FOUND: "This workspace is not available to you.",
+  WORKFLOW_NOT_FOUND: "This review no longer exists.",
+  NOT_ASSIGNED: "This review is assigned to someone else.",
+  NOT_PERMITTED: "Your role does not allow this.",
+  WORKFLOW_CLOSED: "This review is closed.",
+  SCHEMA_NOT_FOUND: "The coding form for this review no longer exists.",
+  SCHEMA_VERSION_MISMATCH: "The coding form changed. Reload the page and try again.",
+  FIELD_NOT_FOUND: "A coding field no longer exists. Reload the page and try again.",
+  FIELD_VALIDATION_FAILED: "A coding value is not valid for its field.",
+  VERDICT_REQUIRED: "Choose a verdict first.",
+  RATIONALE_REQUIRED: "Add a rationale first.",
+  DISAGREEMENT_NOT_FOUND: "This disagreement no longer exists.",
+  DISAGREEMENT_STATE_INVALID: "This disagreement has already moved on. Reload the page.",
+  DISAGREEMENT_SELF_FILE: "You cannot file a disagreement against your own decision.",
+  QC_SAMPLE_NOT_FOUND: "This quality-check sample no longer exists.",
+  QC_VERDICT_INVALID: "That quality-check verdict is not allowed here.",
+  RATE_LIMITED: "Too many attempts. Wait a moment and try again.",
+  POLICY_REJECTED: "Your workspace's review policy does not allow this.",
+};
+
+export function reviewerDenialMessage(reason: string | null | undefined): string {
+  return (
+    (reason && (REVIEWER_DENIAL_MESSAGES as Record<string, string>)[reason]) ||
+    "The request was refused."
+  );
+}
+
 // =============================================================================
 // 9. Workspace aggregate shape (single read for the workspace landing)
 // =============================================================================

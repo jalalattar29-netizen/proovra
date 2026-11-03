@@ -11,6 +11,7 @@
  * charts, no legal admissibility claims.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -429,7 +430,7 @@ function PreservationTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                       <span className="cases-row-title">
                         Evidence {h.evidenceId.slice(0, 8)}
                       </span>
-                      <span className="cases-row-scope">{h.status}</span>
+                      <span className="cases-row-scope">{identifierLabel(h.status)}</span>
                     </div>
                     <div className="cases-row-meta">
                       {h.reason ? <span>{h.reason}</span> : null}
@@ -471,7 +472,7 @@ function PreservationTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                   >
                     <div className="cases-row-main">
                       <span className="cases-row-title">{h.title}</span>
-                      <span className="cases-row-scope">{h.status}</span>
+                      <span className="cases-row-scope">{identifierLabel(h.status)}</span>
                     </div>
                     <div className="cases-row-meta">
                       <time dateTime={h.placedAtUtc}>
@@ -548,7 +549,7 @@ function RetentionTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                       <span className="cases-row-title">
                         Evidence {c.evidenceId.slice(0, 8)}
                       </span>
-                      <span className="cases-row-scope">{c.status}</span>
+                      <span className="cases-row-scope">{identifierLabel(c.status)}</span>
                     </div>
                     <div className="cases-row-meta">
                       <time dateTime={c.createdAt}>
@@ -586,7 +587,7 @@ function RetentionTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                       <span className="cases-row-title">
                         Destruction {d.id.slice(0, 8)}
                       </span>
-                      <span className="cases-row-scope">{d.status}</span>
+                      <span className="cases-row-scope">{identifierLabel(d.status)}</span>
                     </div>
                     <div className="cases-row-meta">
                       <span>Evidence {d.evidenceId.slice(0, 8)}</span>
@@ -690,7 +691,7 @@ function ExportTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                     Evidence {b.evidenceId.slice(0, 8)}
                   </span>
                   <span className="cases-row-scope" data-governance-export-outcome={b.outcome}>
-                    {b.outcome ?? "blocked"}
+                    {identifierLabel(b.outcome ?? "blocked")}
                   </span>
                 </div>
                 <div className="cases-row-meta">
@@ -926,10 +927,10 @@ function IncidentsTab({ env }: { env: GovernanceControlPlaneEnvelope }) {
                 }}
               >
                 <Badge tone={incidentSeverityTone(row.severity)} subtle dot>
-                  {row.severity}
+                  {identifierLabel(row.severity)}
                 </Badge>
                 <span>
-                  {row.category} · {row.status}
+                  {identifierLabel(row.category)} · {identifierLabel(row.status)}
                 </span>
               </span>
             </div>

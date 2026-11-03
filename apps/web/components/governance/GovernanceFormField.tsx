@@ -10,6 +10,7 @@
  * rather than in a toast, so the error survives focus movement.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import React from "react";
 
 import { Card } from "../ui/Card";
@@ -215,22 +216,18 @@ export function GovernanceSelectField({
   const props = testAttr ? { [testAttr]: "" } : {};
   return (
     <FieldFrame id={id} label={label} error={error} hint={hint} span={span}>
-      <select
-        {...props}
+      <AppListbox
         id={id}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        options={options.map((o) => ({ value: o.value, label: o.label }))}
+        onChange={onChange}
         disabled={disabled}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-        style={controlStyle}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        triggerProps={{
+          ...props,
+          "aria-invalid": error ? true : undefined,
+          "aria-describedby": error ? `${id}-error` : hint ? `${id}-hint` : undefined,
+        }}
+      />
     </FieldFrame>
   );
 }

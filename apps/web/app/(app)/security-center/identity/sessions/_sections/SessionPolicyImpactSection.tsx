@@ -15,6 +15,7 @@
  * only renders them. The workspace comes from `lib/platform-context`.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../../lib/api";
@@ -38,7 +39,7 @@ import {
   sectionMuted,
   type SectionState,
 } from "../../../posture/_sections/section-state";
-import { shortId } from "../../_sections/identity-admin-shared";
+import { recordReference } from "../../../../../../lib/short-id";
 
 type ImpactRow = {
   userId: string;
@@ -156,12 +157,12 @@ export function SessionPolicyImpactSection() {
       key: "user",
       header: "Member",
       render: (r) => (
-        <code className="adm-mono" title={r.userId}>
-          {shortId(r.userId)}
-        </code>
+        <span title={r.userId} style={{ whiteSpace: "nowrap" }}>
+          {recordReference("Member", r.userId)}
+        </span>
       ),
     },
-    { key: "role", header: "Role", render: (r) => <Badge tone="neutral">{r.role}</Badge> },
+    { key: "role", header: "Role", render: (r) => <Badge tone="neutral">{identifierLabel(r.role)}</Badge> },
     {
       key: "count",
       header: "Live sessions",

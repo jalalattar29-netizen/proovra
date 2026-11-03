@@ -27,6 +27,7 @@
  * chrome classes.
  */
 
+import { planLabel } from "../../../../lib/labels/adminPlatformLabels";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -463,7 +464,7 @@ function ExecutiveDashboardBody() {
     {
       key: "plan",
       header: "Plan",
-      render: (r) => <Badge tone={planTone(r.plan)}>{r.plan}</Badge>,
+      render: (r) => <Badge tone={planTone(r.plan)}>{planLabel(r.plan)}</Badge>,
     },
     {
       key: "billingStatus",
@@ -494,7 +495,7 @@ function ExecutiveDashboardBody() {
     {
       key: "plan",
       header: "Plan",
-      render: (r) => <Badge tone={planTone(r.plan)}>{r.plan}</Badge>,
+      render: (r) => <Badge tone={planTone(r.plan)}>{planLabel(r.plan)}</Badge>,
     },
     {
       key: "billingStatus",

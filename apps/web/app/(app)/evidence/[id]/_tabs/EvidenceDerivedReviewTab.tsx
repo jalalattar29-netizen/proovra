@@ -35,6 +35,7 @@
 
 "use client";
 
+import { identifierLabel } from "@proovra/shared";
 import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 
@@ -459,11 +460,11 @@ function DerivedBlockRow({
   return (
     <li className="evidence-detail-extract-card uc4-derived-block">
       <div className="uc4-derived-block-head">
-        <span className="app-status-text uc4-derived-block-kind">{block.kind}</span>
+        <span className="app-status-text uc4-derived-block-kind">{identifierLabel(block.kind)}</span>
         <span className="uc4-derived-block-text">{block.text || "—"}</span>
       </div>
       <div className="evidence-detail-muted uc4-derived-block-meta">
-        Observed in {block.observedInFrames} frame(s) · overlap {block.confidence}
+        Observed in {block.observedInFrames} {block.observedInFrames === 1 ? "frame" : "frames"} · overlap {identifierLabel(block.confidence)}
         {block.possibleDuplicateOf ? " · possible repeat of the block above (unproven)" : ""}
         {" · "}
         <button

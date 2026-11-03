@@ -456,7 +456,7 @@ export function ApprovalPanel({
                 key={a.id}
                 data-redaction-approval-row={a.verdict}
               >
-                <code>{a.verdict}</code>{" "}
+                <span>{identifierLabel(a.verdict)}</span>{" "}
                 · {formatUserDateTime(a.decidedAtUtc)}{" "}
                 · approver <code>{a.approverUserId.slice(0, 8)}…</code>
                 {a.rationale ? (

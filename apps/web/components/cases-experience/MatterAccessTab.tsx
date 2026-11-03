@@ -28,6 +28,7 @@
  * announced. Errors are shown only through toSafeUserError.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { identifierLabel } from "@proovra/shared";
 
@@ -587,20 +588,16 @@ export function MatterAccessTab({
           ) : (
             <>
               <label htmlFor={`matter-access-team-${caseId}`}>Collaboration Team</label>
-              <select
-                id={`matter-access-team-${caseId}`}
-                className="app-select"
+              <AppListbox
                 value={selectedTeamId}
-                onChange={(e) => setSelectedTeamId(e.target.value)}
+                options={[
+                  { value: "", label: "Choose a team" },
+                  ...teamCandidates.data.map((t) => ({ value: t.id, label: t.name })),
+                ]}
+                onChange={(next) => setSelectedTeamId(next)}
+                id={`matter-access-team-${caseId}`}
                 disabled={busy !== null}
-              >
-                <option value="">Choose a team</option>
-                {teamCandidates.data.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              />
               <div>
                 <ReasonedActionButton
                   className="app-primary-action"

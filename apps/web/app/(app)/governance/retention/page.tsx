@@ -22,6 +22,7 @@
  * ARCHIVE — explicit verbs.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -192,6 +193,8 @@ export default function RetentionPoliciesPage() {
 function RetentionPoliciesPageInner() {
   const teamId = useTeamId();
   const [policies, setPolicies] = useState<Policy[] | null>(null);
+  // Template policies held in Evidence Lifecycle → Retention bind records too.
+  const [lifecycleTemplateCount, setLifecycleTemplateCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PolicyStatus | "ALL">("ALL");
   const [selectedVersionsFor, setSelectedVersionsFor] = useState<string | null>(
@@ -244,9 +247,10 @@ function RetentionPoliciesPageInner() {
       `/v1/governance/retention-policies?teamId=${encodeURIComponent(teamId)}${status}`,
       { method: "GET" },
     )
-      .then((res: { policies: Policy[] }) => {
+      .then((res: { policies: Policy[]; lifecycleTemplateCount?: number }) => {
         if (cancelled) return;
         setPolicies(res.policies);
+        setLifecycleTemplateCount(res.lifecycleTemplateCount ?? 0);
         setError(null);
       })
       .catch((err: { message?: string }) => {
@@ -499,7 +503,7 @@ function RetentionPoliciesPageInner() {
         <PageHeader
           eyebrow="Governance"
           title="Retention policies"
-          subtitle="Versioned retention rules. Most-specific scope wins (CASE → EVIDENCE_TYPE → REGULATORY → WORKSPACE). Mutations are append-only — every change writes a new immutable version row."
+          subtitle="Versioned retention rules. The most specific rule wins: case, then evidence type, then regulatory, then workspace. Every change creates a new version; earlier versions are kept."
           contextStrip={
             <OperationalBreadcrumb
               routeId="governance.retention"
@@ -569,9 +573,9 @@ function RetentionPoliciesPageInner() {
               onChange={setJurisdictionFilter}
               options={[
                 { value: "", label: "Any" },
-                { value: "EU", label: "EU" },
-                { value: "UK", label: "UK" },
-                { value: "US", label: "US" },
+                { value: "EU", label: "Eu" },
+                { value: "UK", label: "Uk" },
+                { value: "US", label: "Us" },
               ]}
             />
           </FilterBar>
@@ -706,7 +710,7 @@ function RetentionPoliciesPageInner() {
         }
       >
         <p style={{ ...mutedStyle, marginTop: 0 }}>
-          Sealed records the retention worker flagged as past their effective
+          Sealed records flagged as past their effective
           horizon, newest flag first. Records under legal hold are excluded by
           the engine and never appear here. This view proposes nothing — it
           reports what the worker found.
@@ -737,7 +741,7 @@ function RetentionPoliciesPageInner() {
               emptyState={
                 <EmptyState
                   title="No records flagged"
-                  purpose="The retention worker has not flagged any sealed record as past its effective retention horizon."
+                  purpose="No sealed record has been flagged as past its retention period."
                 />
               }
             />
@@ -766,6 +770,12 @@ function RetentionPoliciesPageInner() {
         }
       >
         {error ? <div style={errorBoxStyle} role="alert">{error}</div> : null}
+        {lifecycleTemplateCount > 0 ? (
+          <p data-retention-other-table style={{ ...mutedStyle, margin: "8px 0" }}>
+            {lifecycleTemplateCount} more in force in{" "}
+            <a href="/evidence-lifecycle/retention">Evidence Lifecycle → Retention</a>.
+          </p>
+        ) : null}
         {policyNotice ? (
           <p role="status" data-retention-policy-notice style={{ ...mutedStyle, margin: "8px 0" }}>
             {policyNotice}
@@ -1074,16 +1084,16 @@ function CreatePolicyModal({
         </Field>
 
         <Field label="Scope">
-          <select
-            style={inputStyle}
+          <AppListbox
             value={scope}
-            onChange={(e) => setScope(e.target.value as PolicyScope)}
-          >
-            <option value="WORKSPACE">Workspace</option>
-            <option value="EVIDENCE_TYPE">Evidence type</option>
-            <option value="CASE">Case</option>
-            <option value="REGULATORY">Regulatory</option>
-          </select>
+            options={[
+              { value: "WORKSPACE", label: "Workspace" },
+              { value: "EVIDENCE_TYPE", label: "Evidence type" },
+              { value: "CASE", label: "Case" },
+              { value: "REGULATORY", label: "Regulatory" },
+            ]}
+            onChange={(next) => setScope(next as PolicyScope)}
+          />
         </Field>
 
         {scope === "EVIDENCE_TYPE" ? (
@@ -1118,7 +1128,7 @@ function CreatePolicyModal({
               style={inputStyle}
               value={caseId}
               onChange={(e) => setCaseId(e.target.value.trim())}
-              placeholder="uuid"
+              placeholder="Paste the case ID"
             />
           </Field>
         ) : null}

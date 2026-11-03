@@ -96,7 +96,7 @@ function Shell() {
       key: "externalGrant",
       header: "External grant",
       render: (g) =>
-        g.externalReviewGrantId ? <code>{g.externalReviewGrantId.slice(0, 8)}…</code> : "—",
+        g.externalReviewGrantId ? "Linked" : "—",
     },
     {
       key: "expires",
@@ -112,7 +112,7 @@ function Shell() {
         <PageHeader
           eyebrow="Governance"
           title="Cross-Org Review"
-          subtitle="Org-to-org review grants. Integrates with the existing External Reviewer Portal — bound by `externalReviewGrantId` on accept."
+          subtitle="Review access granted from one organization to another. Accepted grants open through the External Reviewer Portal."
           contextStrip={
             <a href="/governance-platform" style={{ fontSize: 12 }}>← Back to Governance Platform</a>
           }

@@ -23,12 +23,13 @@
  * bypassing PageRouteGate + platform-context, per the render-test convention.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useStepUpAction, StepUpModal } from "../identity-security/StepUpModal";
 import { useTeamId, useTenantGuard, useDirtyWork } from "../../lib/platform-context";
@@ -87,7 +88,18 @@ interface PolicyResponse {
   organizationId?: string;
   reason?: string;
   policy: SecurityPolicy | null;
+  /** The MFA requirement sign-in enforces. */
+  mfaPolicyLevel?: string;
 }
+
+/** Security Center's vocabulary for the level, shown read-only here. */
+const MFA_LEVEL_LABEL: Record<string, string> = {
+  OFF: "Off",
+  ADMINS_ONLY: "Admins only",
+  REVIEWERS_AND_ABOVE: "Reviewers and above",
+  ALL_MEMBERS: "All members",
+  HIGH_RISK_ONLY: "High-risk actions only",
+};
 interface ReadinessResponse {
   ready?: boolean;
   missing?: string[];
@@ -115,7 +127,6 @@ const BOOLEAN_FIELDS: ReadonlyArray<{ key: keyof SecurityPolicy; label: string; 
   { key: "managedIdentityRequired", label: "Require managed identity", hint: "Only provisioned (SCIM/IdP) identities may access." },
   { key: "noPersonalSpace", label: "Disable Personal space", hint: "Members may not use a Personal workspace under this organization." },
   // PHASE 12B C1 — folded from the deleted legacy identity-policy writer.
-  { key: "mfaRequiredFlag", label: "Require MFA", hint: "Every member must hold an active second factor." },
   { key: "ssoReadyFlag", label: "SSO marked ready", hint: "Operator marker that SSO configuration has been verified end to end." },
   { key: "scimReadyFlag", label: "SCIM marked ready", hint: "Operator marker that SCIM provisioning has been verified end to end." },
 ];
@@ -162,6 +173,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
   // is used ONLY to bind the step-up SMS challenge — never a policy decision.
   const teamId = useTeamId();
   const [load, setLoad] = useState<Load>({ kind: "loading" });
+  const [mfaLevel, setMfaLevel] = useState<string | null>(null);
   const [form, setForm] = useState<SecurityPolicy | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -195,6 +207,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
         }
         setLoad({ kind: "ready", data: res.policy });
         setForm(res.policy);
+        setMfaLevel(res.mfaPolicyLevel ?? null);
         try {
           const r = (await apiFetch(
             `/v1/security-policy/high-security/readiness?organizationId=${encodeURIComponent(orgId)}`,
@@ -212,7 +225,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
           setLoad({ kind: "not_provisioned" });
           return;
         }
-        if (err instanceof ApiError) {
+        if (isApiResponseError(err)) {
           setLoad({ kind: "error", message: err.message, requestId: err.requestId });
         } else {
           setLoad({ kind: "error", message: toSafeUserError(err, { message: "Failed to load security policy." }).message });
@@ -270,7 +283,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
         setError("Each restricted range must be an IP address or a CIDR block, such as 203.0.113.0/24.");
       } else if (code === "RESTRICTED_IP_EXCLUDES_ACTOR") {
         setError("These ranges do not include the address you are connected from, so saving them would lock you out.");
-      } else if (err instanceof ApiError) setError(err.message);
+      } else if (isApiResponseError(err)) setError(err.message);
       else setError(toSafeUserError(err, { message: "Failed to update security policy." }).message);
     } finally {
       setSaving(false);
@@ -303,7 +316,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
       else if (code === "HIGH_SECURITY_PREREQUISITES_UNMET" && Array.isArray(missingList)) {
         setMissing(missingList);
         setError("High-security prerequisites are not met.");
-      } else if (err instanceof ApiError) setError(err.message);
+      } else if (isApiResponseError(err)) setError(err.message);
       else setError(toSafeUserError(err, { message: "Failed to activate high-security mode." }).message);
     } finally {
       setSaving(false);
@@ -389,6 +402,17 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
         {f.highSecurityMode ? <Badge tone="verified" subtle>High-security mode active</Badge> : null}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "0.75rem" }}>
+          <div data-field="mfaPolicyLevel" data-mfa-level={mfaLevel ?? "UNKNOWN"}>
+            <div style={{ fontWeight: 600 }}>MFA requirement</div>
+            <div style={{ opacity: 0.75, fontSize: "0.85rem" }}>
+              Who must hold an active second factor to sign in. Change it in{" "}
+              <a href="/security-center/posture#mfa-policy">Security Center → Posture</a>.
+            </div>
+            <div style={{ marginTop: "0.25rem" }} data-testid="sec-mfa-level">
+              {mfaLevel ? (MFA_LEVEL_LABEL[mfaLevel] ?? mfaLevel) : "Not available"}
+            </div>
+          </div>
+
           {BOOLEAN_FIELDS.map((bf) => (
             <div key={String(bf.key)} data-field={String(bf.key)}>
               <div style={{ fontWeight: 600 }}>{bf.label}</div>
@@ -582,7 +606,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
         {readiness ? (
           <ul data-testid="sec-readiness">
             {(readiness.checks ?? []).map((c) => (
-              <li key={c.code} data-met={c.met}>{c.met ? "✓" : "✗"} {c.label ?? c.code}</li>
+              <li key={c.code} data-met={c.met}>{c.met ? "✓" : "✗"} {c.label ?? identifierLabel(c.code)}</li>
             ))}
             {readiness.checks == null && Array.isArray(readiness.missing)
               ? readiness.missing.length === 0

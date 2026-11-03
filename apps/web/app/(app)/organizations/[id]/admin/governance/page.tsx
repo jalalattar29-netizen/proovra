@@ -94,6 +94,7 @@ interface ControlCenterResponse {
           displayName: string;
           scope: string;
           retentionDays: number | null;
+          retentionYears?: number | null;
           immutable: boolean;
         }>;
       } | null;
@@ -178,7 +179,7 @@ function GovernanceControlCenter() {
       if (isApiResponseError(err)) {
         setState({
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         });
@@ -408,7 +409,9 @@ function GovernanceControlCenter() {
                   <div style={{ fontWeight: 600 }}>{p.displayName}</div>
                   <div style={subtleText}>
                     {identifierLabel(p.scope)} ·{" "}
-                    {p.retentionDays === null
+                    {p.retentionYears != null
+                      ? `${p.retentionYears} year${p.retentionYears === 1 ? "" : "s"}`
+                      : p.retentionDays === null
                       ? "indefinite retention"
                       : `${p.retentionDays} day${p.retentionDays === 1 ? "" : "s"}`}
                     {p.immutable ? " · immutable" : ""}
@@ -489,7 +492,7 @@ function GovernanceControlCenter() {
                     {orgAuditEventLabel(e.eventType)}
                   </div>
                   {e.targetType ? (
-                    <div style={subtleText}>{e.targetType}</div>
+                    <div style={subtleText}>{identifierLabel(e.targetType)}</div>
                   ) : null}
                 </div>
                 <span style={subtleText}>

@@ -24,7 +24,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { useTeamId } from "../../../../lib/platform-context";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -142,7 +142,7 @@ function MfaRecoveryAdminBody() {
       setError(null);
     } catch (err) {
       if (
-        err instanceof ApiError &&
+        isApiResponseError(err) &&
         (err.statusCode === 403 || err.statusCode === 404)
       ) {
         setError(
@@ -579,8 +579,7 @@ function MfaRecoveryAdminBody() {
       <Card variant="admin" data-cc-mfa-recovery-digest-preview-card>
         <h2 style={{ ...sectionTitleStyle, marginTop: 0 }}>Next digest preview</h2>
         <p style={mutedStyle}>
-          A read-only preview of the consolidated email the worker
-          would send you on its next tick.{" "}
+          A read-only preview of the next summary email.{" "}
           <strong>No email is sent.</strong>
         </p>
         <label

@@ -17,6 +17,7 @@
  * Schema authoring and publishing are deliberately out of scope here.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
@@ -79,7 +80,7 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
   const [failure, setFailure] = useState("");
   const alive = useRef(true);
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const selectRef = useRef<HTMLSelectElement>(null);
+  const selectRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -292,24 +293,21 @@ function BindingWorkspace({ teamId, workflowId }: { teamId: string; workflowId: 
             {choices.kind === "ready" && choices.value.length > 0 ? (
               <>
                 <label htmlFor={`${formId}-schema`}>Published schema</label>
-                <select
-                  id={`${formId}-schema`}
-                  ref={selectRef}
+                <AppListbox
                   value={selected}
+                  options={[
+                    { value: "", label: "Choose a schema…" },
+                    ...choices.value.map((s) => ({ value: s.id, label: `${s.label} (version ${s.version})` })),
+                  ]}
+                  onChange={(next) => setSelected(next)}
+                  id={`${formId}-schema`}
                   disabled={busy}
-                  onChange={(e) => setSelected(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") close();
-                  }}
+                  triggerRef={selectRef}
                   style={{ maxWidth: "100%" }}
-                >
-                  <option value="">Choose a schema…</option>
-                  {choices.value.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label} (version {s.version})
-                    </option>
-                  ))}
-                </select>
+                  triggerProps={{ onKeyDown: (e) => {
+                                      if (e.key === "Escape") close();
+                                    } }}
+                />
               </>
             ) : null}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -15,10 +15,11 @@
  * authenticity, admissibility, or proven truth.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { reviewSlaLabel, reviewStageFilterLabel, reviewWorkflowStateLabel } from "@proovra/shared";
+import { reviewSlaLabel, reviewStageFilterLabel, reviewWorkflowStateLabel, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { Badge } from "../../../../components/ui/Badge";
@@ -270,19 +271,15 @@ useEffect(() => {
           <section style={cardStyle}>
             <div style={cardHeaderStyle}>
               <h2 style={sectionTitleStyle}>Queue</h2>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <select
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+                <AppListbox
                   value={stage}
-                  onChange={(e) => setStage(e.target.value as Stage | "")}
-                  style={selectStyle}
-                >
-                  <option value="">All statuses</option>
-                  {STAGES.map((s) => (
-                    <option key={s} value={s}>
-                      {reviewStageFilterLabel(s)} ({counts.byStage[s]})
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All statuses" },
+                    ...STAGES.map((s) => ({ value: s, label: `${reviewStageFilterLabel(s)} (${counts.byStage[s]})` })),
+                  ]}
+                  onChange={(next) => setStage(next as Stage | "")}
+                />
                 <label style={checkboxLabelStyle}>
                   <input
                     type="checkbox"
@@ -391,7 +388,7 @@ useEffect(() => {
                         Evidence {w.evidenceId.slice(0, 8)}…
                       </Link>
                       <div style={mutedStyle}>
-                        priority {w.priority}
+                        priority {identifierLabel(w.priority)}
                         {w.assignedToUserId
                           ? ` · assigned ${w.assignedToUserId.slice(0, 8)}…`
                           : " · unassigned"}
@@ -546,14 +543,6 @@ const errorBoxStyle: React.CSSProperties = {
   border: "1px solid #fecaca",
   borderRadius: 8,
   fontSize: 14,
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 12px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
 };
 const secondaryButtonStyle: React.CSSProperties = {
   padding: "6px 14px",

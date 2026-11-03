@@ -1,4 +1,5 @@
 "use client";
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 /**
@@ -639,7 +640,7 @@ function ReviewWorkspacePageInner() {
               }
             />
             <KV k="Assigned at" v={formatCellDateTime(p.assignedAtUtc)} />
-            <KV k="Priority" v={p.priority} />
+            <KV k="Priority" v={identifierLabel(p.priority)} />
           </div>
 
           {data.openEscalation ? (
@@ -1250,21 +1251,16 @@ function ReviewerNotesPanel({
         >
           <label style={{ fontSize: 12, fontWeight: 600 }}>
             Type
-            <select
+            <AppListbox
               value={composeType}
-              onChange={(e) =>
-                setComposeType(e.target.value as ReviewerNoteType)
-              }
+              options={[
+                ...NOTE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+              ]}
+              onChange={(next) => setComposeType(next as ReviewerNoteType)}
               disabled={submitting}
-              data-reviewer-notes-compose-type
-              style={{ marginLeft: 6, fontSize: 12 }}
-            >
-              {NOTE_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              style={{ marginLeft: 6 }}
+              triggerProps={{ "data-reviewer-notes-compose-type": "" }}
+            />
           </label>
         </div>
         <textarea
@@ -1376,7 +1372,7 @@ function ReviewerNotesPanel({
             ? "You don't have permission to view notes for this workflow."
             : state.status === 404
               ? "Workflow not found in this workspace."
-              : `Could not load notes${state.status ? ` (HTTP ${state.status})` : ""}.`}
+              : "Could not load notes."}
           <button
             type="button"
             onClick={() => void load()}
@@ -1468,7 +1464,7 @@ function ReviewerNotesPanel({
                         background: "rgba(127,127,127,0.18)",
                       }}
                     >
-                      {NOTE_TYPE_LABELS[n.type] ?? n.type}
+                      {NOTE_TYPE_LABELS[n.type] ?? identifierLabel(n.type)}
                     </span>
                     <span style={{ fontWeight: 600 }}>
                       {n.author.displayName ||
@@ -1859,7 +1855,7 @@ function ReviewerDecisionLineagePanel({
             ? "Workflow not found in this workspace."
             : state.status === 403
               ? "You don't have permission to view review decisions."
-              : `Could not load decisions${state.status ? ` (HTTP ${state.status})` : ""}.`}
+              : "Could not load decisions."}
         </div>
       </section>
     );
@@ -1972,40 +1968,31 @@ function ReviewerDecisionLineagePanel({
           </div>
           <label style={{ fontSize: 12 }}>
             Decision
-            <select
+            <AppListbox
               value={composeDecision}
-              onChange={(e) =>
-                setComposeDecision(e.target.value as DecisionKind | "")
-              }
+              options={[
+                { value: "", label: "— pick —" },
+                ...stageOptions.map((d) => ({ value: d, label: d.replace(/_/g, " ") })),
+              ]}
+              onChange={(next) => setComposeDecision(next as DecisionKind | "")}
               disabled={submitting}
-              required
-              data-decision-form-decision
-              style={{ marginLeft: 6, fontSize: 12 }}
-            >
-              <option value="">— pick —</option>
-              {stageOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              style={{ marginLeft: 6 }}
+              triggerProps={{ "aria-required": true, "data-decision-form-decision": "" }}
+            />
           </label>
           <label style={{ fontSize: 12 }}>
             Reason code (optional but recommended)
-            <select
+            <AppListbox
               value={composeReason}
-              onChange={(e) => setComposeReason(e.target.value as ReasonCode | "")}
+              options={[
+                { value: "", label: "— none —" },
+                ...REASON_CODE_OPTIONS.map((r) => ({ value: r, label: r.replace(/_/g, " ") })),
+              ]}
+              onChange={(next) => setComposeReason(next as ReasonCode | "")}
               disabled={submitting}
-              data-decision-form-reason
-              style={{ marginLeft: 6, fontSize: 12 }}
-            >
-              <option value="">— none —</option>
-              {REASON_CODE_OPTIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              style={{ marginLeft: 6 }}
+              triggerProps={{ "data-decision-form-reason": "" }}
+            />
           </label>
           <textarea
             value={composeRationale}
@@ -2153,7 +2140,7 @@ function ReviewerDecisionLineagePanel({
                         background: "rgba(127,127,127,0.18)",
                       }}
                     >
-                      #{idx + 1} · {d.stage}
+                      #{idx + 1} · {identifierLabel(d.stage)}
                     </span>
                     <span
                       data-decision-kind-chip={d.decision}
@@ -2251,10 +2238,8 @@ function ReviewerDeferredFeaturesPanel() {
     >
       <h3 className="app-panel__title">Reviewer collaboration scope</h3>
       <p style={{ fontSize: 12, color: "var(--silver-ink)", marginTop: 0 }}>
-        Honest summary of what reviewer collaboration supports today
-        vs what is deliberately deferred to future backend work. Items
-        marked “deferred” are not faked anywhere in this UI — the
-        underlying state machine genuinely does not exist yet.
+        What reviewer collaboration supports today, and what is planned.
+        Items marked “deferred” are not available yet.
       </p>
       <div
         style={{
@@ -2337,25 +2322,22 @@ function ReviewerDeferredFeaturesPanel() {
             </li>
             <li data-reviewer-deferred-item="senior-reviewer-role">
               <strong>Dedicated senior-reviewer role.</strong>{" "}
-              Adjudication uses the existing team OWNER / ADMIN role.
-              A separate review-lead role would require changes to the
-              workspace capability model.
+              Adjudication uses the workspace Owner and Admin roles. There is
+              no separate review-lead role yet.
             </li>
             <li data-reviewer-deferred-item="evidence-compare">
-              <strong>Evidence side-by-side compare.</strong> Manual
-              evidence relationships exist on /evidence; a dedicated
-              compare UI inside the review workspace is not built.
+              <strong>Evidence side-by-side compare.</strong> Evidence
+              records can be linked to each other; a compare view inside the
+              review workspace is not available yet.
             </li>
             <li data-reviewer-deferred-item="search-notes">
-              <strong>Full-text note search.</strong> Notes filter
-              locally by type today; backend full-text search is not
-              wired.
+              <strong>Full-text note search.</strong> Notes can be filtered by type; full-text search is not
+              available yet.
             </li>
             <li data-reviewer-deferred-item="auto-routing">
               <strong>Auto-routing rules engine.</strong> Reviewer
-              workload snapshots ARE wired at /reviewer-ops/sla — the
-              suggestions are advisory only. No rule-based automatic
-              assignment.
+              workload is shown under Reviewer SLA and its suggestions are
+              advisory. Reviews are not assigned automatically.
             </li>
             <li data-reviewer-deferred-item="note-edit-delete">
               <strong>Note edit / delete.</strong> The underlying

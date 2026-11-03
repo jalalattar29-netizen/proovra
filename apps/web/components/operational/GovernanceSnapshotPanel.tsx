@@ -18,6 +18,7 @@
  *     The snapshot endpoint already strips those.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
@@ -333,7 +334,7 @@ export function GovernanceSnapshotPanel({
                     opacity: 0.7,
                   }}
                 >
-                  {w.severity}
+                  {identifierLabel(w.severity)}
                 </span>
               </div>
             );
@@ -390,7 +391,7 @@ export function GovernanceSnapshotPanel({
                           : OPS_INK.subtle,
                   }}
                 >
-                  {i.severity}
+                  {identifierLabel(i.severity)}
                 </span>
               </div>
             ))}

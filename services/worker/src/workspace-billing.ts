@@ -272,6 +272,26 @@ export async function getTeamWorkspaceScope(
   };
 }
 
+/**
+ * An Enterprise workspace no ACTIVE contract governs takes no new AI spend
+ * (BILLING-007). The API asks `enterpriseContractWithheld`; this host cannot
+ * import it, so the rule is stated here too, as the storage term above is.
+ */
+export async function workspaceContractWithheld(teamId: string): Promise<boolean> {
+  const scope = await getTeamWorkspaceScope(teamId);
+  if (scope?.plan !== "ENTERPRISE") return false;
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organizationId: true },
+  });
+  if (!team?.organizationId) return true;
+  const contract = await prisma.enterpriseContract.findUnique({
+    where: { organizationId: team.organizationId },
+    select: { status: true },
+  });
+  return contract?.status !== "ACTIVE";
+}
+
 export async function resolveWorkspaceScopeForEvidence(params: {
   ownerUserId: string;
   teamId?: string | null;

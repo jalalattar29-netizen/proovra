@@ -1154,7 +1154,7 @@ function DriftTab({ teamId }: { teamId: string }) {
                       </td>
                       <td>
                         <Badge tone={riskBadge(i.riskLevel)}>
-                          {i.riskLevel}
+                          {identifierLabel(i.riskLevel)}
                         </Badge>
                       </td>
                       <td>

@@ -17,6 +17,7 @@
  *     is out of DRAFT.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -202,7 +203,7 @@ export function DetectionReviewPanel({
         }}
       >
         <label style={{ fontSize: 11, color: "#475569" }}>
-          Inline text (for REGEX_PII / OCR detections)
+          Text to scan (for pattern and OCR detections)
           <textarea
             data-redaction-detection-inline-text
             rows={3}
@@ -287,7 +288,7 @@ export function DetectionReviewPanel({
         >
           {probes.map((p) => (
             <div key={p.provider} data-redaction-detection-probe={p.provider}>
-              <code>{p.provider}</code> · <code>{p.state}</code>
+              <span>{identifierLabel(p.provider)}</span> · <span>{identifierLabel(p.state)}</span>
               {p.reason ? <span> — {p.reason}</span> : null}
             </div>
           ))}
@@ -393,10 +394,10 @@ export function DetectionReviewPanel({
                     ) : null}
                   </td>
                   <td style={td}>
-                    <code>{d.kind}</code>
+                    <span>{identifierLabel(d.kind)}</span>
                   </td>
                   <td style={td}>
-                    <code>{d.provider}</code>
+                    <span>{identifierLabel(d.provider)}</span>
                   </td>
                   <td style={td}>{d.confidenceBand}</td>
                   <td style={td}>{d.previewLabel ?? "—"}</td>

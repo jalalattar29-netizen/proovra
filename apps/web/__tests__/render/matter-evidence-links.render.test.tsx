@@ -1,3 +1,4 @@
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -151,10 +152,9 @@ describe("matter workspace evidence links", () => {
     await mount();
     await openFromHeader();
     const dlg = await chooseRow("Invoice scan");
-    const role = dlg.querySelector("[data-matter-evidence-link-role]") as HTMLSelectElement;
-    expect(role.value).toBe("SUPPORTING");
-    expect(within(dlg).getByRole("option", { name: "Supporting evidence" })).toBeTruthy();
-    fireEvent.change(role, { target: { value: "PRIMARY" } });
+    const role = dlg.querySelector("[data-matter-evidence-link-role]")!;
+    expect(role.textContent).toContain("Supporting evidence");
+    chooseListbox(role, "PRIMARY");
     fireEvent.change(dlg.querySelector("[data-matter-evidence-link-reason]")!, { target: { value: "Shows the invoice date." } });
     fireEvent.click(within(dlg).getByRole("button", { name: "Link evidence" }));
     await screen.findByText("Evidence linked as primary. The matter was reloaded.");

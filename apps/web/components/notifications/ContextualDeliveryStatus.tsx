@@ -8,6 +8,7 @@
  * cron diagnostics. The global delivery log remains an organization
  * operations/admin surface.
  */
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -91,7 +92,7 @@ export function ContextualDeliveryStatus({ requestId }: { requestId: string }) {
             className="ops-delivery-row"
           >
             <span className="ops-delivery-row__status">
-              {STATUS_LABEL[d.status] ?? d.status}
+              {STATUS_LABEL[d.status] ?? identifierLabel(d.status)}
             </span>
             <span>
               {d.eventType.toLowerCase().replace(/_/g, " ")} · last attempt{" "}

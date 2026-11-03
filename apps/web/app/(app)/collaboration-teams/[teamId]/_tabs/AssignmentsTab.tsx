@@ -22,7 +22,7 @@ import { AppStatusBadge, type AppTone } from "../../../../../components/app-prim
  * rather than a value every row carries, which is the case the badge exists for.
  */
 import { AppStatusText } from "../../../../../components/app-primitives/AppStatusText";
-import { ApiError } from "../../../../../lib/api";
+import { isApiResponseError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import type { SafeErrorFallback } from "../../../../../lib/feedback/toSafeUserError";
 import { formatUserDate, formatUserDateTime } from "../../../../../lib/date";
@@ -51,8 +51,7 @@ import {
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
   type CollaborationTeamAssignmentPriority,
-  type CollaborationTeamAssignmentStatus,
-} from "@proovra/shared";
+  type CollaborationTeamAssignmentStatus, identifierLabel } from "@proovra/shared";
 
 // =============================================================================
 // WORK — the group's operational surface.
@@ -237,7 +236,7 @@ function AssignmentsTab({
       setHasMore(page.nextCursor !== null);
     } catch (err) {
       if (isStale?.()) return;
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         addToast("Couldn't load work", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
       }
     } finally {
@@ -289,7 +288,7 @@ function AssignmentsTab({
       setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         addToast("Couldn't load more work", "error", undefined, err.requestId ? { supportReference: err.requestId } : undefined);
       }
     } finally {
@@ -705,7 +704,7 @@ function AssignmentRow({
         <div className="app-table__muted" style={{ marginTop: 2 }}>
           {targetLabel(assignment.targetType)}
           {assignment.target.sublabel ? ` · ${assignment.target.sublabel}` : ""}
-          {assignment.target.state ? ` · ${assignment.target.state}` : ""}
+          {assignment.target.state ? ` · ${identifierLabel(assignment.target.state)}` : ""}
         </div>
         {assignment.note ? (
           <div className="app-table__muted" style={{ marginTop: 2 }}>

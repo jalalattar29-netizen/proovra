@@ -848,7 +848,7 @@ export default function AdminOrganizationDetailPage({
           >
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <Badge tone={LIFECYCLE_TONE[detail.lifecycle.stage] ?? "neutral"} dot>
-                {LIFECYCLE_LABEL[detail.lifecycle.stage] ?? detail.lifecycle.stage}
+                {LIFECYCLE_LABEL[detail.lifecycle.stage] ?? identifierLabel(detail.lifecycle.stage)}
               </Badge>
               {detail.customerSuccess.riskStatus ? (
                 <Badge tone="risk" subtle>
@@ -1178,7 +1178,7 @@ export default function AdminOrganizationDetailPage({
                   >
                     <span>
                       <Badge tone="governance" subtle>
-                        {p.action}
+                        {identifierLabel(p.action)}
                       </Badge>{" "}
                       <span style={{ color: "var(--ink-secondary)" }}>
                         by {p.userId ?? "—"} · {p.outcome ? identifierLabel(p.outcome) : "—"}
@@ -1238,7 +1238,7 @@ export default function AdminOrganizationDetailPage({
                         {e.eventType}
                       </code>{" "}
                       <span style={{ color: "var(--ink-secondary)" }}>
-                        {e.targetType} · actor {e.actorUserId ?? "—"}
+                        {identifierLabel(e.targetType)} · actor {e.actorUserId ?? "—"}
                       </span>
                     </span>
                     <span style={{ color: "var(--ink-muted)" }}>

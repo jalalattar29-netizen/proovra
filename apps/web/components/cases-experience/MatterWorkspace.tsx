@@ -860,7 +860,7 @@ export function MatterWorkspace({
             <span className="case-detail-meta-item">
               <span className="case-detail-dot" aria-hidden />
               <span data-matter-case-priority>
-                Priority {envelope.case.priority}
+                Priority {identifierLabel(envelope.case.priority)}
               </span>
             </span>
             {/* Phase G3.1 — polling-based presence chip. Workspace +
@@ -1061,7 +1061,7 @@ export function MatterWorkspace({
         ) : null}
         {activeTab === "siu" ? (
           <div className="case-detail-split-main" data-cc-matter-siu-tab>
-            <SiuPanel caseId={envelope.case.id} />
+            <SiuPanel caseId={envelope.case.id} teamId={envelope.case.teamId} />
             {/* PHASE 12 — VERTICAL B. Saved views + intake templates +
                 the worklist they drive. Mounted alongside the per-case
                 profile so an investigator can pivot from this claim to
@@ -1630,11 +1630,11 @@ function DecisionsTab({
               <strong>{w.title}</strong>
               <span>
                 {" · "}
-                {w.workflowType}
+                {identifierLabel(w.workflowType)}
                 {" · "}
                 {identifierLabel(w.status)}
                 {" · priority "}
-                {w.priority}
+                {identifierLabel(w.priority)}
                 {w.dueAtUtc ? ` · due ${formatRelative(w.dueAtUtc)}` : ""}
               </span>
             </li>
@@ -1678,7 +1678,7 @@ function RiskTab({ envelope }: { envelope: MatterEnvelope }) {
   return (
     <div className="app-panel app-panel__body case-detail-stack">
       <p>
-        <strong>Risk level:</strong> {r.data.riskLevel ?? "—"}
+        <strong>Risk level:</strong> {identifierLabel(r.data.riskLevel ?? "—")}
         {typeof r.data.riskScore === "number"
           ? ` (score ${r.data.riskScore})`
           : ""}
@@ -2159,7 +2159,7 @@ function AuditTab({
         <ul className="app-chip-row">
           {filteredLifecycle.map((c) => (
             <li key={c.lifecycleState}>
-              <code>{c.lifecycleState}</code>
+              <span>{identifierLabel(c.lifecycleState)}</span>
               <span> · {c.count}</span>
             </li>
           ))}
@@ -2174,7 +2174,7 @@ function AuditTab({
         <ul className="app-chip-row">
           {filteredVerification.map((c) => (
             <li key={c.verificationStatus}>
-              <code>{c.verificationStatus}</code>
+              <span>{identifierLabel(c.verificationStatus)}</span>
               <span> · {c.count}</span>
             </li>
           ))}
@@ -2233,7 +2233,7 @@ function ExportTab({
     return (
       <EmptyState
         title="No deliverables ready"
-        body="Report PDFs and Verification Package ZIPs are generated per-evidence after finalization. When ready, they appear here with their version + generation time. The Report PDF and the Verification Package ZIP are distinct artifacts (Phase A2 vocabulary) — neither is a substitute for the other."
+        body="Report PDFs and Verification Package ZIPs are generated per-evidence after finalization. When ready, they appear here with their version + generation time. The Report PDF and the Verification Package ZIP are separate artifacts — neither is a substitute for the other."
       />
     );
   }

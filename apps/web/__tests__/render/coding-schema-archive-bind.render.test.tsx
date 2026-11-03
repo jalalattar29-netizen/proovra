@@ -1,3 +1,4 @@
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -145,7 +146,7 @@ describe("coding schema binding on a review", () => {
     const { select } = await openBinding();
     const submit = screen.getByRole("button", { name: "Bind schema" });
     expect(submit.getAttribute("data-disabled-reason")).toBe("Choose a published schema.");
-    fireEvent.change(select, { target: { value: schemaId } });
+    chooseListbox(select, schemaId);
     fireEvent.click(submit);
     await screen.findByText(BOUND);
     expect(writes(bindUrl)).toHaveLength(1);
@@ -159,7 +160,7 @@ describe("coding schema binding on a review", () => {
   it("cancelling the confirmation makes no write", async () => {
     mocks.confirm.mockResolvedValue(false);
     const { select } = await openBinding();
-    fireEvent.change(select, { target: { value: schemaId } });
+    chooseListbox(select, schemaId);
     fireEvent.click(screen.getByRole("button", { name: "Bind schema" }));
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalled());
     expect(writes(bindUrl)).toHaveLength(0);
@@ -180,9 +181,9 @@ describe("coding schema binding on a review", () => {
     await waitFor(() => expect(toggle.hasAttribute("disabled")).toBe(false));
     fireEvent.click(toggle);
     const select = await screen.findByLabelText("Published schema");
-    fireEvent.change(select, { target: { value: otherId } });
+    chooseListbox(select, otherId);
     expect(screen.getByRole("button", { name: "Bind schema" }).getAttribute("data-disabled-reason")).toBe("This review already uses that schema.");
-    fireEvent.change(select, { target: { value: schemaId } });
+    chooseListbox(select, schemaId);
     fireEvent.click(screen.getByRole("button", { name: "Bind schema" }));
     await screen.findByText(BOUND);
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Change this review's coding schema?", tone: "warning" }));
@@ -200,7 +201,7 @@ describe("coding schema binding on a review", () => {
       return { values: [], coverage: {}, schemaBinding: null };
     });
     const { select } = await openBinding();
-    fireEvent.change(select, { target: { value: schemaId } });
+    chooseListbox(select, schemaId);
     fireEvent.click(screen.getByRole("button", { name: "Bind schema" }));
     expect((await screen.findByText(text)).getAttribute("role")).toBe("alert");
     expect(screen.queryByText(BOUND)).toBeNull();
@@ -213,7 +214,7 @@ describe("coding schema binding on a review", () => {
       return { values: [], coverage: {}, schemaBinding: null };
     });
     const { select } = await openBinding();
-    fireEvent.change(select, { target: { value: schemaId } });
+    chooseListbox(select, schemaId);
     fireEvent.click(screen.getByRole("button", { name: "Bind schema" }));
     await screen.findByText(/does not show it yet/);
     expect(screen.queryByText(BOUND)).toBeNull();

@@ -23,8 +23,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   SCREEN_RECORDING_COMBINE_COPY,
   screenRecordingCombineHeadline,
-  screenRecordingGapLabel,
-} from "@proovra/shared";
+  screenRecordingGapLabel, identifierLabel } from "@proovra/shared";
 
 import { useCombinedRecording } from "./useCombinedRecording";
 
@@ -177,7 +176,7 @@ export function RecordingPlayer(props: RecordingPlayerProps) {
           ) : (
             <p role="note">
               You can see that a combined video exists, but your access does not include downloading recordings
-              {view.release.code ? ` (${view.release.code})` : ""}.
+              {view.release.code ? ` (${identifierLabel(view.release.code)})` : ""}.
             </p>
           )}
 

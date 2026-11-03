@@ -4,7 +4,9 @@
  * PROOVRA Phase 2B — Portal review surface.
  *
  * Token-authenticated review surface for an assigned workflow. Renders:
- *   - watermarked evidence frame (read-only iframe; watermark overlay)
+ *   - the disclosure package the grant carries, as a download. A workspace evidence
+ *     page cannot be framed here: the reviewer has no session on it, and the app
+ *     refuses to be framed at all, so the frame this page held stayed blank.
  *   - threaded comment panel
  *   - decision panel with bounded verdicts
  *
@@ -35,6 +37,7 @@ import {
   fetchComments,
   fetchDecisions,
   fetchPortalDashboard,
+  fetchReviewPackage,
   getSessionId,
   isPortalMfaDenial,
   markReviewOpened,
@@ -362,18 +365,7 @@ export default function PortalReviewPage({
             overflow: "hidden",
           }}
         >
-          <iframe
-            data-portal-evidence-iframe
-            title="Evidence preview"
-            src={`/evidence/${projection.assigned.find((a) => a.workflowId === workflowId)?.evidenceId ?? ""}?embed=1`}
-            style={{
-              width: "100%",
-              height: 480,
-              border: "1px solid rgba(15, 23, 42, 0.08)",
-              borderRadius: 8,
-              background: "#fff",
-            }}
-          />
+          <PortalPackagePanel workflowId={workflowId} />
           <WatermarkOverlay watermark={watermark} />
         </section>
 
@@ -565,6 +557,47 @@ function DecisionPanel({
         </>
       )}
     </section>
+  );
+}
+
+const PACKAGE_REFUSALS: Record<string, string> = {
+  package_download_not_granted: "Your access does not include the file for this review. Ask the person who invited you.",
+  external_disclosure_not_issued: "The file for this review has not been issued yet. Ask the person who invited you.",
+  package_file_unavailable: "The file for this review is unavailable right now. Try again later.",
+};
+
+/** The one rendition a grant carries. Refusals say why, in product language. */
+function PortalPackagePanel({ workflowId }: { workflowId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const download = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const released = await fetchReviewPackage(workflowId);
+      window.location.assign(released.url);
+    } catch (err) {
+      const { code } = readPortalFailure(err);
+      setMessage(
+        (code ? PACKAGE_REFUSALS[code] : undefined) ??
+          toSafeUserError(err, { message: "The file could not be opened. Try again." }).message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div data-portal-package-panel style={{ padding: 16 }}>
+      <p style={{ marginTop: 0, fontSize: 14 }}>The file for this review is released as a disclosure package.</p>
+      <button type="button" data-portal-package-download disabled={busy} onClick={() => void download()}>
+        {busy ? "Opening…" : "Download the package"}
+      </button>
+      {message ? (
+        <p role="alert" data-portal-package-message style={{ fontSize: 13 }}>
+          {message}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

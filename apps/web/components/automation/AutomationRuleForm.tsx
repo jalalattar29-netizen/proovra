@@ -38,6 +38,8 @@
  * GET /v1/automation/rules envelope, which is the single authority.
  */
 
+import { identifierLabel } from "@proovra/shared";
+import { AppListbox } from "../app-primitives/AppListbox";
 import type { JSX } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -807,21 +809,16 @@ export function AutomationRuleForm({
           <label htmlFor={`${idPrefix}-trigger`} style={labelStyle}>
             Trigger (required)
           </label>
-          <select
-            id={`${idPrefix}-trigger`}
-            data-automation-field="triggerType"
+          <AppListbox
             value={triggerType}
+            options={[
+              ...triggerTypes.map((t) => ({ value: t, label: triggerLabels?.[t] ?? t })),
+            ]}
+            onChange={(next) => setTriggerType(next)}
+            id={`${idPrefix}-trigger`}
             disabled={disabled || isEdit}
-            aria-invalid={errors.triggerType ? true : undefined}
-            onChange={(e) => setTriggerType(e.target.value)}
-            style={inputStyle}
-          >
-            {triggerTypes.map((t) => (
-              <option key={t} value={t}>
-                {triggerLabels?.[t] ?? t}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-automation-field": "triggerType", "aria-invalid": errors.triggerType ? true : undefined }}
+          />
           {isEdit ? (
             <span style={helpTextStyle}>
               Immutable after creation — create a new rule to change the trigger.
@@ -837,21 +834,16 @@ export function AutomationRuleForm({
           <label htmlFor={`${idPrefix}-action`} style={labelStyle}>
             Action (required)
           </label>
-          <select
-            id={`${idPrefix}-action`}
-            data-automation-field="actionType"
+          <AppListbox
             value={actionType}
+            options={[
+              ...actionTypes.map((a) => ({ value: a, label: actionLabels?.[a] ?? a })),
+            ]}
+            onChange={(next) => onActionTypeChange(next)}
+            id={`${idPrefix}-action`}
             disabled={disabled || isEdit}
-            aria-invalid={errors.actionType ? true : undefined}
-            onChange={(e) => onActionTypeChange(e.target.value)}
-            style={inputStyle}
-          >
-            {actionTypes.map((a) => (
-              <option key={a} value={a}>
-                {actionLabels?.[a] ?? a}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-automation-field": "actionType", "aria-invalid": errors.actionType ? true : undefined }}
+          />
           {isEdit ? (
             <span style={helpTextStyle}>
               Immutable after creation — the action config below is validated
@@ -891,42 +883,28 @@ export function AutomationRuleForm({
                     {spec.label}
                   </label>
                   {spec.key === "destinationId" && destinationOptions ? (
-                    <select
-                      id={fieldId}
-                      data-automation-config-field={spec.key}
+                    <AppListbox
                       value={value}
-                      aria-invalid={err ? true : undefined}
-                      onChange={(e) => setConfigValue(spec.key, e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">
-                        {destinationOptions.length === 0 ? "No destinations registered" : "Select a destination…"}
-                      </option>
-                      {value && !destinationOptions.some((o) => o.id === value) ? (
-                        <option value={value}>Destination no longer registered</option>
-                      ) : null}
-                      {destinationOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: destinationOptions.length === 0 ? "No destinations registered" : "Select a destination…" },
+                        ...(value && !destinationOptions.some((o) => o.id === value) ? [{ value: value, label: "Destination no longer registered" }] : []),
+                        ...destinationOptions.map((o) => ({ value: o.id, label: o.label })),
+                      ]}
+                      onChange={(next) => setConfigValue(spec.key, next)}
+                      id={fieldId}
+                      triggerProps={{ "data-automation-config-field": spec.key, "aria-invalid": err ? true : undefined }}
+                    />
                   ) : spec.kind === "select" ? (
-                    <select
-                      id={fieldId}
-                      data-automation-config-field={spec.key}
+                    <AppListbox
                       value={value}
-                      aria-invalid={err ? true : undefined}
-                      onChange={(e) => setConfigValue(spec.key, e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">Select…</option>
-                      {(spec.options ?? []).map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "Select…" },
+                        ...(spec.options ?? []).map((o) => ({ value: o, label: identifierLabel(o) })),
+                      ]}
+                      onChange={(next) => setConfigValue(spec.key, next)}
+                      id={fieldId}
+                      triggerProps={{ "data-automation-config-field": spec.key, "aria-invalid": err ? true : undefined }}
+                    />
                   ) : spec.kind === "textarea" ? (
                     <textarea
                       id={fieldId}
@@ -1020,25 +998,18 @@ export function AutomationRuleForm({
                   <label htmlFor={`${idPrefix}-cond-op`} style={labelStyle}>
                     Comparison (required)
                   </label>
-                  <select
-                    id={`${idPrefix}-cond-op`}
-                    data-automation-condition-op
+                  <AppListbox
                     value={condition.op}
-                    aria-invalid={errors.conditionOp ? true : undefined}
-                    onChange={(e) =>
-                      setCondition((c) => ({
-                        ...c,
-                        op: e.target.value as ConditionLeafOperator,
-                      }))
-                    }
-                    style={inputStyle}
-                  >
-                    {CONDITION_LEAF_OPERATORS.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      ...CONDITION_LEAF_OPERATORS.map((o) => ({ value: o, label: identifierLabel(o) })),
+                    ]}
+                    onChange={(next) => setCondition((c) => ({
+                                            ...c,
+                                            op: next as ConditionLeafOperator,
+                                          }))}
+                    id={`${idPrefix}-cond-op`}
+                    triggerProps={{ "data-automation-condition-op": "", "aria-invalid": errors.conditionOp ? true : undefined }}
+                  />
                   {errors.conditionOp ? (
                     <span style={errorTextStyle}>{errors.conditionOp}</span>
                   ) : null}

@@ -453,7 +453,7 @@ function DestructionQueuePageInner() {
       render: (x) => (
         <div>
           <StatusBadge status={x.status} />
-          {x.phase ? <div style={mutedStyle}>{x.phase}</div> : null}
+          {x.phase ? <div style={mutedStyle}>{identifierLabel(x.phase)}</div> : null}
         </div>
       ),
     },
@@ -537,7 +537,7 @@ function DestructionQueuePageInner() {
         <div data-reconciliation-run-row={r.id}>
           <div style={{ fontWeight: 600, fontSize: 13 }}>{reconciliationKindLabel(r.kind)}</div>
           <div style={mutedStyle}>
-            {r.trigger}
+            {identifierLabel(r.trigger)}
             {r.teamId === null ? " · platform-wide" : ""}
           </div>
         </div>
@@ -927,7 +927,7 @@ function DestructionQueuePageInner() {
         }
       >
         <p style={{ ...mutedStyle, marginTop: 0 }}>
-          Governance worker sweeps, newest start first. A run with failures or
+          Governance sweeps, newest first. A run with failures or
           incidents means the sweep did not complete cleanly — the queue above
           may be incomplete until the next successful run.
         </p>
@@ -957,7 +957,7 @@ function DestructionQueuePageInner() {
               emptyState={
                 <EmptyState
                   title="No reconciliation runs recorded"
-                  purpose="The governance reconciliation worker has not recorded a sweep for this workspace yet."
+                  purpose="No governance sweep has been recorded for this workspace yet."
                 />
               }
             />

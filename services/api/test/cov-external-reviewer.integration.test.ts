@@ -12,8 +12,9 @@
  * Own workflow, a sibling workflow in the same workspace, another tenant's workflow.
  * Email is the recording provider; no message leaves the machine.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -441,6 +442,76 @@ describe("external reviewer through the real invitation flow (live PostgreSQL + 
       expect(
         await prisma.adminAuditLog.count({ where: { action: "external_review.sessions.revoked", resourceId: g.grantId, userId: a.owner.userId } }),
       ).toBe(1);
+    });
+  });
+
+  describe("the file behind a review", () => {
+    const pkg = (id: string, raw: string, session?: string) =>
+      portal("GET", `/v1/portal/work/${id}/verification-package`, raw, session);
+
+    /** A record with a published disclosure package, at a real object. */
+    async function recordWithPackage(c: Customer) {
+      const { s3 } = await import("../src/storage.js");
+      const bucket = process.env.S3_BUCKET as string;
+      const id = await record(c, `pkg ${kit.tag()}`);
+      await prisma.evidence.update({ where: { id }, data: { type: "DOCUMENT", status: "REPORTED", signedAtUtc: new Date() } as never });
+      const key = `verification/${id}/external.zip`;
+      const body = Buffer.from(`package ${randomUUID()}`);
+      await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }));
+      await prisma.report.create({
+        data: { evidenceId: id, version: 1, storageBucket: "b", storageKey: `reports/${id}/v1.pdf`, generatedAtUtc: new Date(), sizeBytes: 1_000n },
+      });
+      await prisma.verificationPackage.create({
+        data: {
+          evidenceId: id,
+          version: 1,
+          storageBucket: bucket,
+          storageKey: key,
+          generatedAtUtc: new Date(),
+          sizeBytes: BigInt(body.length),
+          reportVersion: 1,
+          disclosureProfile: "EXTERNAL_DISCLOSURE",
+          packageSha256: createHash("sha256").update(body).digest("hex"),
+        } as never,
+      });
+      return id;
+    }
+
+    it("POSITIVE: a grant that allows the download gets the file, and custody records it", async () => {
+      const id = await recordWithPackage(a);
+      const wf = await workflowOn(a, id);
+      const g = await invited(a, { kind: "EVIDENCE", evidenceId: id }, { allowPackageDownload: true });
+      const session = await signIn(g.rawToken);
+      const before = await prisma.custodyEvent.count({ where: { evidenceId: id, eventType: "DOWNLOAD_AUTHORIZED" as never } });
+      const res = await pkg(wf, g.rawToken, session);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json()).toMatchObject({ disclosureProfile: "EXTERNAL_DISCLOSURE" });
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: id, eventType: "DOWNLOAD_AUTHORIZED" as never } })).toBe(before + 1);
+    });
+
+    it("a grant without the download is refused with its reason; custody records nothing", async () => {
+      const id = await recordWithPackage(a);
+      const wf = await workflowOn(a, id);
+      const g = await invited(a, { kind: "EVIDENCE", evidenceId: id }, { allowPackageDownload: false });
+      const session = await signIn(g.rawToken);
+      const before = await prisma.custodyEvent.count({ where: { evidenceId: id } });
+      const res = await pkg(wf, g.rawToken, session);
+      expect(res.statusCode, res.body).toBe(403);
+      expect(res.json().error.code).toBe("package_download_not_granted");
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: id } })).toBe(before);
+    });
+
+    it("a workflow outside the grant, another tenant's among them, is out of scope; no session gets nothing", async () => {
+      const id = await recordWithPackage(a);
+      const g = await invited(a, { kind: "EVIDENCE", evidenceId: id }, { allowPackageDownload: true });
+      const session = await signIn(g.rawToken);
+      for (const wf of [siblingWorkflow, foreignWorkflow]) {
+        const res = await pkg(wf, g.rawToken, session);
+        expect(res.statusCode, res.body).toBe(403);
+        expect(res.json().denial).toBe("OUT_OF_SCOPE");
+      }
+      const anonymous = await kit.call("GET", `/v1/portal/work/${workflow}/verification-package`, null);
+      expect(anonymous.statusCode, anonymous.body).toBe(401);
     });
   });
 });

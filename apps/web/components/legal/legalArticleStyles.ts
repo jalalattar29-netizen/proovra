@@ -50,7 +50,7 @@ export const LEGAL_ARTICLE_TYPOGRAPHY = `
   [&_ol>li::before]:absolute [&_ol>li::before]:left-0 [&_ol>li::before]:top-[0.15rem] [&_ol>li::before]:flex [&_ol>li::before]:h-7 [&_ol>li::before]:w-7 [&_ol>li::before]:items-center [&_ol>li::before]:justify-center [&_ol>li::before]:rounded-full [&_ol>li::before]:border [&_ol>li::before]:border-[#DDE6F2] [&_ol>li::before]:bg-[#F1F5F9] [&_ol>li::before]:text-[0.78rem] [&_ol>li::before]:font-semibold [&_ol>li::before]:text-[#0B1F4D] [&_ol>li::before]:content-[counter(legal-counter)]
   [&_ol>li]:counter-increment-[legal-counter]
   [&_hr]:my-8 [&_hr]:border-0 [&_hr]:h-px [&_hr]:bg-[linear-gradient(90deg,transparent_0%,#DDE6F2_30%,#DDE6F2_70%,transparent_100%)]
-  [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[0.9rem]
+  [&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-[0.9rem]
   [&_th]:border-b [&_th]:border-[#DDE6F2] [&_th]:px-2.5 [&_th]:py-2 [&_th]:text-left [&_th]:text-[0.78rem] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-[0.1em] [&_th]:text-[#475569]
   [&_td]:border-b [&_td]:border-[#EEF3FA] [&_td]:px-2.5 [&_td]:py-2 [&_td]:align-top [&_td]:text-[#475569]
   [&_code]:rounded [&_code]:bg-[#F1F5F9] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[0.82em] [&_code]:text-[#0B1F4D]

@@ -138,8 +138,8 @@ export default function AppleCallbackPage() {
         addToast("Sign-in was cancelled.", "info");
       } else {
         authLogger.logError("callback_no_token", "Neither idToken nor code provided");
-        setError("Missing OAuth token.");
-        addToast("Sign-in failed: Missing OAuth token.", "error");
+        setError("We could not finish signing you in. Please try again.");
+        
       }
       callbackProcessing = false;
       return;
@@ -314,28 +314,17 @@ if (error) {
       <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="/images/site-velvet-bg.webp.png"
+            src="/assets/hero/register-logo...png"
             alt=""
             className="h-full w-full object-cover object-center"
           />
         </div>
 
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_34%,rgba(8,18,22,0.68)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.08),transparent_24%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
-        <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,229,207,0.10)_0%,rgba(255,255,255,0.02)_45%,rgba(33,22,45,0.10)_100%)]" />
 
         <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10 md:px-8 md:py-14">
           <div className="w-full max-w-[560px]">
-            <div className="auth-card auth-premium relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.55)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.18),transparent_40%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.35),transparent_30%)]" />
+            <div className="auth-card auth-premium relative overflow-hidden bg-white/95 rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
 
               <div className="relative z-10 p-7 text-center md:p-8">
                 <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] text-[#16282d] md:text-[2rem]">
@@ -366,28 +355,17 @@ return (
     <div className="relative min-h-screen overflow-hidden">
       <div className="absolute inset-0">
         <img
-          src="/images/site-velvet-bg.webp.png"
+          src="/assets/hero/register-logo...png"
           alt=""
           className="h-full w-full object-cover object-center"
         />
       </div>
 
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,18,22,0.84)_0%,rgba(8,18,22,0.74)_34%,rgba(8,18,22,0.68)_100%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_14%,rgba(158,216,207,0.08),transparent_24%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_22%,rgba(214,184,157,0.06),transparent_18%)]" />
-      <div className="absolute inset-0 opacity-[0.035] [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022)_0px,rgba(255,255,255,0.022)_1px,transparent_1px,transparent_4px)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,229,207,0.10)_0%,rgba(255,255,255,0.02)_45%,rgba(33,22,45,0.10)_100%)]" />
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10 md:px-8 md:py-14">
         <div className="w-full max-w-[560px]">
-          <div className="auth-card auth-premium relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-            <img
-              src="/images/panel-silver.webp.png"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover object-center"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.55)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.18),transparent_40%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.35),transparent_30%)]" />
+          <div className="auth-card auth-premium relative overflow-hidden bg-white/95 rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
 
             <div className="relative z-10 p-7 text-center md:p-8">
               <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8d7d6e]">

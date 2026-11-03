@@ -23,8 +23,7 @@ import {
   type ExecutiveMetricsRange,
   type ExecutiveTrendsProjection,
   type TrendDirection,
-  type TrendMetric,
-} from "@proovra/shared";
+  type TrendMetric, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../lib/api";
@@ -88,7 +87,7 @@ function ExecutiveDashboardShell() {
         <h1 style={{ fontSize: 22, marginTop: 0 }}>Executive Dashboard</h1>
         <p style={{ color: "#475569", fontSize: 13, marginTop: 0 }}>
           Cross-domain enterprise metrics with historical trend.
-          Aggregate-only · NEVER PII.
+          Aggregates only, never personal data.
         </p>
       </header>
 
@@ -196,7 +195,7 @@ function ExecutiveDashboardShell() {
           {snapshot.limitations.length > 0 ? (
             <ul style={limitationList} data-executive-snapshot-limitations>
               {snapshot.limitations.map((l) => (
-                <li key={l}>{l}</li>
+                <li key={l}>{identifierLabel(l)}</li>
               ))}
             </ul>
           ) : null}
@@ -372,7 +371,7 @@ function ExecutiveDashboardShell() {
             <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
               {trends.limitations.map((l) => (
                 <li key={l}>
-                  <code>{l}</code>
+                  {identifierLabel(l)}
                 </li>
               ))}
             </ul>

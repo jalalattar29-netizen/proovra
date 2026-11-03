@@ -25,6 +25,8 @@
  *   * Hotkeys never intercept text inputs.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -424,7 +426,7 @@ function ReviewerWorkspaceShell() {
         setValues(state.values);
         setUnfulfilled(new Set(state.coverage.unfulfilledFieldIds));
       } else {
-        setStatusBanner(`Coding refused: ${res.denial}`);
+        setStatusBanner(`Coding not saved. ${reviewerDenialMessage(res.denial)}`);
       }
     },
     // Coding writes are workspace-scoped; the callback must not keep writing
@@ -560,7 +562,7 @@ function ReviewerWorkspaceShell() {
           code: res.code,
         });
         setStatusBanner(
-          `Decision recorded but workflow not closed (${res.code}) — please retry.`,
+          "Decision recorded but workflow not closed — please retry.",
         );
         setLifecycleBusy(false);
         return;
@@ -687,7 +689,7 @@ function ReviewerWorkspaceShell() {
               denial: res.denial,
             },
           );
-          setStatusBanner(`Disagreement refused: ${res.denial}`);
+          setStatusBanner(`Disagreement not filed. ${reviewerDenialMessage(res.denial)}`);
         }
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -1716,25 +1718,11 @@ function DisagreeForm({
           >
             Which decision are you challenging?
           </label>
-          <select
+          <AppListbox
             id="reviewer-disagree-decision-select"
-            data-reviewer-disagree-decision-select
             value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            style={{
-              fontSize: 12,
-              padding: 6,
-              borderRadius: "var(--radius-sm, 8px)",
-              border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
-              background: "var(--surface-card, #fff)",
-              color: "var(--ink-primary, #0f172a)",
-              fontFamily: "inherit",
-            }}
-          >
-            <option value="" disabled>
-              Select a recorded decision…
-            </option>
-            {state.decisions.map((d) => {
+            placeholder="Select a recorded decision…"
+            options={state.decisions.map((d) => {
               const who =
                 d.reviewer.displayName ||
                 d.reviewer.email ||
@@ -1746,13 +1734,14 @@ function DisagreeForm({
                   return d.decidedAt;
                 }
               })();
-              return (
-                <option key={d.id} value={d.id}>
-                  {d.stage} · {d.decision} · {who} · {when}
-                </option>
-              );
+              return {
+                value: d.id,
+                label: `${identifierLabel(d.stage)} · ${identifierLabel(d.decision)} · ${who} · ${when}`,
+              };
             })}
-          </select>
+            onChange={setSelectedId}
+            triggerProps={{ "data-reviewer-disagree-decision-select": "" }}
+          />
           <label
             htmlFor="reviewer-disagree-rationale"
             style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}

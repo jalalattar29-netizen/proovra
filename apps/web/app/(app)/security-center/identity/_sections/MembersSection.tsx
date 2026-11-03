@@ -39,6 +39,7 @@
  *   * Only opaque ids and bounded enums are rendered — never names or emails.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -765,27 +766,19 @@ export function MembersSection({
                   alignItems: "center",
                 }}
               >
-                <select
-                  aria-label="Role"
-                  data-identity-member-role-select={m.teamMemberId}
-                  className="adm-select"
+                <AppListbox
                   value={roleDraft[m.teamMemberId] ?? m.role}
+                  options={[
+                    ...[m.role, ...ASSIGNABLE_ROLES.filter((r) => r !== m.role)].map((r) => ({ value: r, label: identifierLabel(r) })),
+                  ]}
+                  onChange={(next) => setRoleDraft((prev) => ({
+                                        ...prev,
+                                        [m.teamMemberId]: next,
+                                      }))}
                   disabled={busyRow === m.teamMemberId}
-                  onChange={(e) =>
-                    setRoleDraft((prev) => ({
-                      ...prev,
-                      [m.teamMemberId]: e.target.value,
-                    }))
-                  }
-                >
-                  {[m.role, ...ASSIGNABLE_ROLES.filter((r) => r !== m.role)].map(
-                    (r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ),
-                  )}
-                </select>
+                  ariaLabel={"Role"}
+                  triggerProps={{ "data-identity-member-role-select": m.teamMemberId }}
+                />
                 <Button
                   title="Choose a different role for this member first — the current role is already applied."
                   variant="secondary"
@@ -922,21 +915,14 @@ export function MembersSection({
                   marginBottom: 10,
                 }}
               >
-                <select
-                  aria-label="Capability"
-                  data-identity-capability-select
-                  className="adm-select" style={{ maxWidth: 260 }}
+                <AppListbox
                   value={permissionDraft}
-                  onChange={(e) =>
-                    setPermissionDraft(e.target.value as Permission)
-                  }
-                >
-                  {PERMISSIONS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
+                  options={[...PERMISSIONS.map((p) => ({ value: p, label: identifierLabel(p) }))]}
+                  onChange={(next) => setPermissionDraft(next as Permission)}
+                  ariaLabel={"Capability"}
+                  style={{ maxWidth: 260 }}
+                  triggerProps={{ "data-identity-capability-select": "" }}
+                />
                 <Button
                   variant="enterprise"
                   size="sm"
@@ -1092,21 +1078,16 @@ export function MembersSection({
                   marginBottom: 10,
                 }}
               >
-                <select
-                  aria-label="Delegated-admin scope"
-                  data-identity-delegated-select
-                  className="adm-select" style={{ maxWidth: 260 }}
+                <AppListbox
                   value={scopeDraft}
-                  onChange={(e) =>
-                    setScopeDraft(e.target.value as DelegatedAdminScopeKind)
-                  }
-                >
-                  {DELEGATED_ADMIN_SCOPE_KINDS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...DELEGATED_ADMIN_SCOPE_KINDS.map((s) => ({ value: s, label: identifierLabel(s) })),
+                  ]}
+                  onChange={(next) => setScopeDraft(next as DelegatedAdminScopeKind)}
+                  ariaLabel={"Delegated-admin scope"}
+                  style={{ maxWidth: 260 }}
+                  triggerProps={{ "data-identity-delegated-select": "" }}
+                />
                 <Button
                   variant="enterprise"
                   size="sm"

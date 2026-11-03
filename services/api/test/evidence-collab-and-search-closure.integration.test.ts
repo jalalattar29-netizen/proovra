@@ -137,6 +137,51 @@ describe("evidence collaboration and search closures (live PostgreSQL)", () => {
       expect(events).toBe(1);
     });
 
+    it("each list says whether this reader may write, as the write itself would answer", async () => {
+      const open = await record();
+      const trashed = await record({ lifecycleState: "TRASHED" });
+      const list = async (id: string, kind: string, who: typeof member) => {
+        const r = await h.app.inject({ method: "GET", url: `/v1/evidence/${id}/${kind}`, headers: headers(who) });
+        expect(r.statusCode, r.body).toBe(200);
+        return (r.json() as { canWrite: boolean }).canWrite;
+      };
+      for (const kind of ["comments", "legal-notes", "annotations"]) {
+        expect(await list(open, kind, member)).toBe(true);
+        expect(await list(open, kind, viewer)).toBe(false);
+      }
+      expect(await list(trashed, "comments", member)).toBe(false);
+    });
+
+    it("an update that cannot record its audit event does not happen", async () => {
+      const id = await record();
+      const created = await post(`/v1/evidence/${id}/annotations`, member, writes(id)[2]![1]);
+      expect(created.statusCode, created.body).toBe(201);
+      const annotationId = (created.json() as { annotation: { id: string } }).annotation.id;
+      const events = () => prisma.evidenceReviewerAuditEvent.count({ where: { evidenceId: id } });
+      expect(await events()).toBe(1);
+
+      await prisma.$executeRawUnsafe(
+        `CREATE FUNCTION test_refuse_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'audit store down'; END $$`,
+      );
+      await prisma.$executeRawUnsafe(
+        `CREATE TRIGGER test_refuse_audit BEFORE INSERT ON evidence_reviewer_audit_events FOR EACH ROW EXECUTE FUNCTION test_refuse_audit()`,
+      );
+      try {
+        const r = await h.app.inject({
+          method: "DELETE",
+          url: `/v1/evidence/${id}/annotations/${annotationId}`,
+          headers: headers(member),
+        });
+        expect(r.statusCode).toBeGreaterThanOrEqual(500);
+      } finally {
+        await prisma.$executeRawUnsafe(`DROP TRIGGER test_refuse_audit ON evidence_reviewer_audit_events`);
+        await prisma.$executeRawUnsafe(`DROP FUNCTION test_refuse_audit()`);
+      }
+      const row = await prisma.evidenceAnnotation.findUniqueOrThrow({ where: { id: annotationId } });
+      expect(row.deletedAt).toBeNull();
+      expect(await events()).toBe(1);
+    });
+
     it("a trashed or destroyed record refuses, and a demoted author cannot edit", async () => {
       const trashed = await record({ lifecycleState: "TRASHED", deletedAt: new Date() });
       const destroyed = await record({ lifecycleState: "DESTROYED", deletedAt: new Date() });
@@ -288,6 +333,44 @@ describe("evidence collaboration and search closures (live PostgreSQL)", () => {
       }
       expect(seen).toHaveLength(4);
       expect(new Set(seen).size).toBe(4);
+    });
+
+    it("the document a cursor names can be deleted between pages, and the walk continues", async () => {
+      const word = `gonewalk${tag()}`;
+      const at = Date.now();
+      for (let i = 0; i < 6; i += 1) {
+        await prisma.evidenceSearchDocument.create({
+          data: {
+            teamId: A().teamId,
+            documentType: "NOTE",
+            sourceId: randomUUID(),
+            title: `${word} ${i}`,
+            searchableText: word,
+            workflowState: "OPEN",
+            sourceUpdatedAtUtc: new Date(at - i * 1000),
+          } as never,
+        });
+      }
+      const page = (cursor?: string | null) =>
+        executeSearch({
+          filter: { teamId: A().teamId, q: word, limit: 2, cursor },
+          actorUserId: A().ownerUserId,
+          isReviewerCapable: true,
+        } as never);
+      const first = await page();
+      expect(first.rows).toHaveLength(2);
+      await prisma.evidenceSearchDocument.delete({
+        where: { id: JSON.parse(Buffer.from(first.nextCursor!, "base64url").toString("utf8")).id },
+      });
+      const seen = first.rows.map((r) => r.documentId);
+      let cursor = first.nextCursor;
+      for (let n = 0; n < 6 && cursor; n += 1) {
+        const next = await page(cursor);
+        seen.push(...next.rows.map((r) => r.documentId));
+        cursor = next.nextCursor;
+      }
+      expect(seen).toHaveLength(6);
+      expect(new Set(seen).size).toBe(6);
     });
   });
 

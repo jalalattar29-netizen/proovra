@@ -124,8 +124,11 @@ describe("the vocabulary is complete", () => {
     // verification is enabled and the dedicated node cannot be used. ONE
     // PLATFORM_INTERNAL row, closed by the verifier's own readiness; it never
     // changes any evidence's OpenTimestamps truth.
-    expect(registryIds.length).toBe(46);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(46);
+    // 2026-11-03 — 46 → 47. platform.unreferenced_published_artifacts (REPORT-006): published,
+    // locked objects no row references. ONE PLATFORM_INTERNAL row from the
+    // publication intents; it never touches storage.
+    expect(registryIds.length).toBe(47);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(47);
   });
 });
 

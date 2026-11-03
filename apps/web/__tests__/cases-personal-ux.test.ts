@@ -197,7 +197,7 @@ test("Risk select is gated on canSeeAdvancedCaseOps (hidden on personal workspac
   // `{canSeeAdvancedCaseOps ? (...) : null}` conditional.
   assert.match(
     CASES_PAGE,
-    /\{canSeeAdvancedCaseOps \? \(\s*\n?\s*<select\s*\n?\s*aria-label="Risk level"/,
+    /\{canSeeAdvancedCaseOps \? \(\s*\n?\s*<AppListbox[\s\S]{0,700}?ariaLabel=\{"Risk level"\}/,
   );
 });
 

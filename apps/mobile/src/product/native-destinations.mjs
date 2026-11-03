@@ -531,6 +531,15 @@ export const NATIVE_DESTINATIONS = {
       "the CUSTOMER-kind and ACTIVE-membership filters are the SERVER'S and are not re-applied client-side - a client filter over a server-filtered list is a second authority that will disagree the moment either changes",
     ],
   },
+  "/organizations/[id]/setup": {
+    routeFile: "(stack)/organizations/[id].tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/(app)/organizations/[id]/setup/page.tsx"],
+    gaps: [
+      "the guided enterprise setup is a web console: the app has no wizard, and an accepted owner invitation lands on the organization (orgInviteLanding), whose page points to setup. Listed here because the registry gives the wizard its own entry with requiredActiveSpace NONE, so an owner can reach it before any workspace is active.",
+    ],
+  },
   "/organizations/[id]": {
     routeFile: "(stack)/organizations/[id].tsx",
     status: "CODE_PARITY",

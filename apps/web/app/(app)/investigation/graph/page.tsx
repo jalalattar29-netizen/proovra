@@ -19,6 +19,8 @@
  *     graph for CASE, evidence detail for EVIDENCE, etc.).
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { identifierLabel, identifierTextLabel } from "@proovra/shared";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -272,17 +274,13 @@ useEffect(() => {
 
       <section style={controlsRowStyle}>
         <label style={controlsLabelStyle}>Seed kind</label>
-        <select
+        <AppListbox
           value={filter}
-          onChange={(e) => setFilter(e.target.value as GraphSeedKind | "ALL")}
-          style={selectStyle}
-        >
-          {FILTER_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+          ]}
+          onChange={(next) => setFilter(next as GraphSeedKind | "ALL")}
+        />
         <Link
           href="/investigation/duplicates"
           style={pivotLinkSecondaryStyle}
@@ -418,14 +416,13 @@ function SeedRow({ seed }: { seed: GraphSeed }) {
   return (
     <li style={rowStyle}>
       <div style={rowMainStyle}>
-        <div style={kindBadgeStyle(seed.nodeKind)}>{seed.nodeKind.toLowerCase()}</div>
+        <div style={kindBadgeStyle(seed.nodeKind)}>{identifierLabel(seed.nodeKind)}</div>
         <div style={rowBodyStyle}>
           <div style={labelStyle}>
-            {seed.safeLabel ?? `${seed.nodeKind.toLowerCase()} ${seed.externalId.slice(0, 8)}…`}
+            {seed.safeLabel ? identifierTextLabel(seed.safeLabel) : identifierLabel(seed.nodeKind)}
           </div>
           <div style={mutedRowStyle}>
-            updated {formatDateTime(seed.updatedAtUtc)} · id{" "}
-            <span style={monoStyle}>{seed.externalId.slice(0, 12)}…</span>
+            updated {formatDateTime(seed.updatedAtUtc)}
           </div>
         </div>
       </div>
@@ -639,15 +636,6 @@ const controlsLabelStyle: React.CSSProperties = {
   color: "#475569",
 };
 
-const selectStyle: React.CSSProperties = {
-  padding: "5px 10px",
-  fontSize: 12,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  background: "#ffffff",
-  color: "#0f172a",
-};
-
 const emptyStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 13,
@@ -741,10 +729,6 @@ const mutedRowStyle: React.CSSProperties = {
   fontSize: 11,
   color: "#64748b",
   marginTop: 2,
-};
-
-const monoStyle: React.CSSProperties = {
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 
 function kindBadgeStyle(k: GraphSeedKind): React.CSSProperties {

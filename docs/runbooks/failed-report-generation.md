@@ -2,6 +2,30 @@
 
 **Incident slug**: `failed-report-generation` · **Category**: `REPORT` · **Default severity**: `WARNING`
 
+## Published but never committed (`platform.unreferenced_published_artifacts`)
+
+Every report PDF and package ZIP is published under Object Lock before its row
+commits, and the worker records a publication intent first. When the commit
+fails or the worker dies in between, the object stays in the bucket until its
+retention ends, and no row references it. A retry of the same request with the
+same bytes reuses that object; a retry whose bytes differ publishes another.
+
+Operations opens **one** platform condition while any such object appeared in
+the last week (older than a day, so a commit still in flight is not counted).
+It shows the recent count and the total. It closes when a week passes with
+none. The objects cannot be deleted early; the condition is about why commits
+fail after publication.
+
+- Read the worker log for `GenerateReportJob attempt raised an error` and the
+  report or package commit refusals in the same window.
+- Count what is outstanding from the database:
+  `SELECT family, count(*) FROM artifact_publication_intents i WHERE NOT EXISTS
+  (SELECT 1 FROM reports r WHERE r.storage_key = i.storage_key) AND NOT EXISTS
+  (SELECT 1 FROM verification_packages p WHERE p.storage_key = i.storage_key)
+  GROUP BY family;`
+- Reconciling against the provider bill needs a bucket inventory, which this
+  runbook cannot do.
+
 ## Symptoms
 - BullMQ `reportQueue` job moved to failed state; row visible in `reportDlqQueue`.
 - `jobs_failed_total` counter increased; `jobs_retry_exhausted_total` if retries hit cap.

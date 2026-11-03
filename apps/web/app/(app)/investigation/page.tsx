@@ -700,7 +700,7 @@ function RecentSignalsList({
             <Badge tone={statusTone(s.status)} subtle>
               {statusLabel(s.status)}
             </Badge>
-            <span style={signalTypeStyle}>{s.signalType}</span>
+            <span style={signalTypeStyle}>{identifierLabel(s.signalType)}</span>
           </div>
           <p style={summaryTextStyle}>{s.safeSummary}</p>
           <div style={rowFooterStyle}>

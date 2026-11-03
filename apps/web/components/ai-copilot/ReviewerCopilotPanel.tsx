@@ -9,11 +9,12 @@
  * canonical human-authored flow — never pre-filled or auto-submitted here.
  * Renders only bounded schema-typed fields + server-validated citations.
  */
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useEffect, useState } from "react";
 
-import { buildCopilotIdempotencyKey } from "@proovra/shared";
+import { buildCopilotIdempotencyKey, identifierLabel } from "@proovra/shared";
 
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { useActiveWorkspaceId } from "../../lib/platform-context";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
 
@@ -227,8 +228,8 @@ export function ReviewerCopilotPanel({
         prev[obsId] ? { ...prev, [obsId]: { ...prev[obsId], sync: "FAILED" } } : prev,
       );
       setAckError(
-        err instanceof ApiError
-          ? friendly(err.statusCode)
+        isApiResponseError(err)
+          ? friendly(err.statusCode ?? 0)
           : "Your verdict was not recorded. The review decision itself is unaffected.",
       );
     }
@@ -281,8 +282,8 @@ export function ReviewerCopilotPanel({
       setRunId(typeof res?.runId === "string" ? res.runId : null);
       setState({ kind: "result", result: res.data ?? (res as RunResult) });
     } catch (err) {
-      if (err instanceof ApiError) {
-        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode) });
+      if (isApiResponseError(err)) {
+        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode ?? 0) });
       } else {
         setState({ kind: "error", code: "NETWORK", message: "Could not reach the AI service. Review workflows are unaffected." });
       }
@@ -328,7 +329,7 @@ export function ReviewerCopilotPanel({
                   aria-label={`Select ${e.title}`}
                 />
                 <span style={{ flex: 1 }}>{e.title}</span>
-                <span className="app-chip">{e.status}</span>
+                <span className="app-chip">{identifierLabel(e.status)}</span>
                 {/*
                   The revision itself is never shown: it is a digest, and an
                   operator cannot act on one. What they can act on is whether
@@ -349,14 +350,15 @@ export function ReviewerCopilotPanel({
         <div style={{ marginTop: 12 }}>
           <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
             <strong>Review criteria</strong>
-            <select value={criteriaSetId} onChange={(e) => setCriteriaSetId(e.target.value)} aria-label="Select review criteria set">
-              <option value="">Default ({criteriaVersion})</option>
-              {criteriaSets.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} (v{s.versions[0]?.version ?? 1})
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={criteriaSetId}
+              options={[
+                { value: "", label: `Default (${criteriaVersion})` },
+                ...criteriaSets.map((s) => ({ value: s.id, label: `${s.name} (v${s.versions[0]?.version ?? 1})` })),
+              ]}
+              onChange={(next) => setCriteriaSetId(next)}
+              ariaLabel={"Select review criteria set"}
+            />
             <span style={{ opacity: 0.6, fontSize: 12 }}>Human-authored · immutable after publish</span>
           </label>
         </div>
@@ -367,7 +369,7 @@ export function ReviewerCopilotPanel({
         <div className="app-inner-surface app-panel__body" style={{ marginTop: 12 }}>
           <strong>Before you run</strong>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
-            <li>{selected.size} record(s) · criteria {criteriaVersion} · metadata only · external AI provider (advisory) · 1 operation</li>
+            <li>{selected.size} {selected.size === 1 ? "record" : "records"} · criteria {criteriaVersion} · metadata only · external AI provider (advisory) · 1 operation</li>
             <li>The Copilot prepares your review. It never makes or pre-fills the review decision.</li>
             <li>Advisory results are retained as bounded metadata per workspace retention policy.</li>
           </ul>
@@ -385,7 +387,7 @@ export function ReviewerCopilotPanel({
 
       {state.kind === "error" ? (
         <div className="app-alert app-alert--warn" style={{ marginTop: 12 }} role="alert">
-          {state.message} <span style={{ opacity: 0.6 }}>({state.code})</span>
+          {state.message} <span style={{ opacity: 0.6 }}>({identifierLabel(state.code)})</span>
         </div>
       ) : null}
 
@@ -442,15 +444,15 @@ export function ReviewerCopilotPanel({
               {ack.aiPolicy.policyVersion && ack.aiPolicy.policyVersion !== ack.aiPolicy.runPolicyVersion
                 ? ` · workspace policy is now ${ack.aiPolicy.policyVersion}`
                 : ""}
-              {ack.aiPolicy.decision ? ` · ${ack.aiPolicy.decision}` : ""}
+              {ack.aiPolicy.decision ? ` · ${identifierLabel(ack.aiPolicy.decision)}` : ""}
             </p>
           ) : null}
           {ack.disclosure && ack.disclosure.length > 0 ? (
             <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12, opacity: 0.75 }}>
               {ack.disclosure.map((d) => (
                 <li key={d.capability}>
-                  {d.capability}
-                  {d.provider ? ` · ${d.provider}` : ""}
+                  {identifierLabel(d.capability)}
+                  {d.provider ? ` · ${identifierLabel(d.provider)}` : ""}
                   {d.dataCategory ? ` · ${d.dataCategory}` : ""}
                   {d.trainingMode ? ` · training: ${d.trainingMode}` : ""}
                   {d.retentionMode ? ` · retention: ${d.retentionMode}` : ""}
@@ -501,7 +503,7 @@ function ResultView(props: {
     return <div className="app-alert" style={{ marginTop: 12 }}>AI is currently unavailable. Review workflows are unaffected.</div>;
   }
   if (result.status === "policy_denied") {
-    return <div className="app-alert" style={{ marginTop: 12 }}>Reviewer Copilot is disabled for this workspace ({result.decision}).</div>;
+    return <div className="app-alert" style={{ marginTop: 12 }}>Reviewer Copilot is disabled for this workspace {result.decision ? ` (${identifierLabel(result.decision)})` : ""}.</div>;
   }
   if (result.status === "schema_error") {
     return <div className="app-alert app-alert--warn" style={{ marginTop: 12 }}>The AI response could not be validated and was discarded. Please try again.</div>;

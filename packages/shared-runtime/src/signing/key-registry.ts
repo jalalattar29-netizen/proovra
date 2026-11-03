@@ -372,6 +372,27 @@ export async function revokeSigningKeyMaterial(
  * value meant KMS on the console and a local PEM in the API.
  */
 export function parseSignerProvider(raw: string | null | undefined): "aws-kms" | "local-pem" {
-  const v = (raw ?? "local-pem").trim().toLowerCase();
-  return v === "aws-kms" || v === "aws_kms" ? "aws-kms" : "local-pem";
+  return readSignerProvider(raw) === "aws-kms" ? "aws-kms" : "local-pem";
+}
+
+/**
+ * The full reading, for the surfaces that must tell `disabled` and an unknown
+ * value from a local key. Empty is the documented default.
+ */
+export function readSignerProvider(
+  raw: string | null | undefined,
+): "aws-kms" | "local-pem" | "disabled" | "unknown" {
+  const v = (raw ?? "").trim().toLowerCase().replace(/_/g, "-");
+  if (v === "" || v === "local-pem") return "local-pem";
+  if (v === "aws-kms" || v === "disabled") return v;
+  return "unknown";
+}
+
+/** The spelling the signer registry and signer ids use. An unknown value reads local. */
+export function signerProviderToken(
+  raw: string | null | undefined,
+): "aws_kms" | "local_pem" | "disabled" {
+  const provider = readSignerProvider(raw);
+  if (provider === "aws-kms") return "aws_kms";
+  return provider === "disabled" ? "disabled" : "local_pem";
 }

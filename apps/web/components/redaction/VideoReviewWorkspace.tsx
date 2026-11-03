@@ -23,8 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   VIDEO_TIMELINE_LAYERS,
-  type VideoTimelineLayer,
-} from "@proovra/shared";
+  type VideoTimelineLayer, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
@@ -490,7 +489,7 @@ function renderTrackSegment(
       key={t.id}
       data-redaction-video-track-span={t.id}
       data-redaction-video-track-state={t.state}
-      title={`${t.label ?? t.kind} · ${t.state} · ${t.startFrame}..${t.endFrame}`}
+      title={`${t.label ?? identifierLabel(t.kind)} · ${identifierLabel(t.state)} · ${t.startFrame}..${t.endFrame}`}
       onClick={() => toggleSelected(t.id)}
       style={{
         position: "absolute",
@@ -521,7 +520,7 @@ function renderTimelineEvent(
     <div
       key={e.id}
       data-redaction-video-timeline-event={e.code}
-      title={`${e.code} · ${e.label ?? ""} · ${e.startFrame}..${e.endFrame}`}
+      title={`${identifierLabel(e.code)} · ${e.label ?? ""} · ${e.startFrame}..${e.endFrame}`}
       style={{
         position: "absolute",
         left: `${left}%`,
@@ -601,14 +600,14 @@ function TracksTable({
             </td>
             <td style={td}>{t.label ?? `Track ${t.id.slice(0, 8)}`}</td>
             <td style={td}>
-              <code>{t.kind}</code>
+              <span>{identifierLabel(t.kind)}</span>
             </td>
             <td style={td}>
               {t.startFrame}..{t.endFrame}
             </td>
             <td style={td}>{t.confidenceBand}</td>
             <td style={td}>
-              <Chip label={t.state} tone={trackTone(t.state)} />
+              <Chip label={identifierLabel(t.state)} tone={trackTone(t.state)} />
             </td>
             <td style={td}>
               {t.state === "SUGGESTED" && !versionLocked ? (

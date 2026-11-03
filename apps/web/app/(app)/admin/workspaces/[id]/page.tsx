@@ -393,7 +393,7 @@ export default function AdminWorkspaceDetailPage() {
                   </Field>
                   <Field label="Commercial lifecycle">
                     <Badge tone={LIFECYCLE_TONE[detail.commercial.lifecycleState] ?? "neutral"}>
-                      {detail.commercial.lifecycleState}
+                      {identifierLabel(detail.commercial.lifecycleState)}
                     </Badge>
                     {detail.commercial.graceEndsAtUtc ? (
                       <div style={{ fontSize: 12, marginTop: 4, color: "var(--ink-secondary)" }}>

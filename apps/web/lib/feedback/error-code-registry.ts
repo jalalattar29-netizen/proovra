@@ -176,6 +176,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   REVIEW_ASSIGNEE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
   CASE_ACCESS_TARGET_NOT_MEMBER: { disposition: "customer", where: "global" },
+  NOT_A_MEMBER: {
+    disposition: "generic",
+    why: "An automation rule naming a person outside the workspace. Saying more would confirm whether an id belongs to another tenant.",
+  },
   WORKSPACE_MEMBERSHIP_REQUIRED: { disposition: "customer", where: "global" },
   WORKSPACE_CONTEXT_REQUIRED: { disposition: "customer", where: "global" },
   /**
@@ -272,6 +276,18 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   SUPPORT_ACCESS_APPROVER_REQUIRED: {
     disposition: "internal",
     why: "PROOVRA support break-glass; never rendered to a customer.",
+  },
+  SUPPORT_ACCESS_SCOPE_INVALID: {
+    disposition: "internal",
+    why: "PROOVRA support break-glass; never rendered to a customer.",
+  },
+  DESTRUCTION_EVIDENCE_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 from the lifecycle console: the record is gone or out of reach, and saying which would disclose it.",
+  },
+  DESTRUCTION_REQUEST_NOT_FOUND: {
+    disposition: "generic",
+    why: "A 404 from the lifecycle console: the request list refreshes, and the status bucket says enough.",
   },
 
   // -- Rate limiting --------------------------------------------------------

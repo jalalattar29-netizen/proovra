@@ -50,10 +50,9 @@ import {
   evaluateCopilotEvidenceEligibility,
   evidencePackageVersionLabel,
   type CopilotEligibility,
-  type EvidenceAnalysisRevision,
-} from "@proovra/shared";
+  type EvidenceAnalysisRevision, identifierLabel } from "@proovra/shared";
 
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import type { AppTone } from "../app-primitives/AppStatusBadge";
 import { AppStatusText } from "../app-primitives/AppStatusText";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
@@ -413,7 +412,7 @@ export function CaseCopilotPanel({
                     <span className="case-copilot__row-meta">
                       <span className="case-copilot__kind" data-case-copilot-kind={e.type}>
                         <KindIcon type={e.type} />
-                        {e.type}
+                        {identifierLabel(e.type)}
                       </span>{" "}
                       {/* The record's STATE, as text. The KIND beside it keeps
                           its chip: a kind is a classification and a state is a
@@ -708,7 +707,7 @@ function describeFailure(
   err: unknown,
   onRefreshEvidence?: () => void,
 ): { message: string; retryable: boolean } {
-  if (!(err instanceof ApiError)) {
+  if (!(isApiResponseError(err))) {
     return {
       message:
         "Could not reach the AI service. Evidence workflows are unaffected.",

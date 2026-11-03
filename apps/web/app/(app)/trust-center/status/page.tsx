@@ -4,6 +4,7 @@
  * Phase 4A — Status Page.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import type { StatusPageProjection } from "@proovra/shared";
@@ -269,7 +270,7 @@ function Shell() {
                       <td style={td}>{w.componentKeys.join(", ")}</td>
                       <td style={td}>{formatUserDateTime(w.startsAtUtc)}</td>
                       <td style={td}>{formatUserDateTime(w.endsAtUtc)}</td>
-                      <td style={td}>{w.state}</td>
+                      <td style={td}>{identifierLabel(w.state)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -328,7 +329,7 @@ function IncidentList({
           <header style={{ display: "flex", justifyContent: "space-between" }}>
             <strong style={{ fontSize: 14 }}>{i.title}</strong>
             <small>
-              <code>{i.severity}</code> · <code>{i.state}</code>
+              <span>{identifierLabel(i.severity)}</span> · <span>{identifierLabel(i.state)}</span>
             </small>
           </header>
           <p style={{ fontSize: 11, color: "#475569" }}>
@@ -342,7 +343,7 @@ function IncidentList({
             <ul style={{ marginTop: 6, paddingLeft: 18 }}>
               {i.updates.map((u) => (
                 <li key={u.id} style={{ fontSize: 12 }}>
-                  <code>{u.state}</code> · {formatUserDateTime(u.createdAtUtc)} —{" "}
+                  <span>{identifierLabel(u.state)}</span> · {formatUserDateTime(u.createdAtUtc)} —{" "}
                   {u.body}
                 </li>
               ))}

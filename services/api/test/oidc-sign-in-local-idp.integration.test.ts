@@ -237,6 +237,41 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
     ).toBe(1);
   });
 
+  it("RT-015: a new OIDC account owes acceptance, is refused until it accepts, and is then let through", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org);
+    const { state, cookie } = await initiate(id, "/home");
+    const session = /proovra_session=([^;]+)/.exec(setCookie(await callback(state, cookie)))![1]!;
+    const call = (method: "GET" | "POST", url: string, payload?: unknown) =>
+      harness.app.inject({
+        method,
+        url,
+        headers: { authorization: `Bearer ${session}`, ...(payload ? { "content-type": "application/json" } : {}) },
+        ...(payload ? { payload: payload as never } : {}),
+      });
+
+    const owed = (await call("GET", "/v1/users/legal-status")).json() as {
+      requiresReacceptance: boolean;
+      missingPolicies: string[];
+      requiredVersions: Record<string, string>;
+    };
+    expect(owed.requiresReacceptance).toBe(true);
+    const gated = `/v1/orgs/${org.organizationId}/invites/bulk/validate`;
+    expect((await call("POST", gated, { rows: [] })).statusCode).toBe(428);
+
+    // What the step after sign-in posts.
+    const accepted = await call("POST", "/v1/users/legal-acceptance", {
+      source: "post_sign_in",
+      acceptances: owed.missingPolicies.map((policyKey) => ({
+        policyKey,
+        policyVersion: owed.requiredVersions[policyKey],
+      })),
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect(((await call("GET", "/v1/users/legal-status")).json() as { ok: boolean }).ok).toBe(true);
+    expect((await call("POST", gated, { rows: [] })).statusCode).not.toBe(428);
+  });
+
   it("refuses a second use of the same state", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const id = await activeConnection(org);

@@ -47,6 +47,7 @@
  * stated only after the request is reread.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import {
   useCallback,
   useEffect,
@@ -492,29 +493,20 @@ export function MfaRecoveryRequestPanel({
             <label htmlFor={workspaceFieldId} style={labelStyle}>
               Workspace
             </label>
-            <select
-              id={workspaceFieldId}
-              name="teamId"
-              data-cc-mfa-recovery-request-workspace
+            <AppListbox
               value={selectedTeamId}
-              onChange={(e) => {
-                setSelectedTeamId(e.target.value);
-                setWorkspaceError(null);
-              }}
+              options={[
+                { value: "", label: "Select a workspace…" },
+                ...workspaces.map((w) => ({ value: w.id, label: w.name })),
+              ]}
+              onChange={(next) => {
+                              setSelectedTeamId(next);
+                              setWorkspaceError(null);
+                            }}
+              id={workspaceFieldId}
               disabled={busy || !eligible}
-              aria-invalid={workspaceError ? true : undefined}
-              aria-describedby={
-                workspaceError ? `${workspaceFieldId}-error` : undefined
-              }
-              style={inputStyle}
-            >
-              <option value="">Select a workspace…</option>
-              {workspaces.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
+              triggerProps={{ name: "teamId", "data-cc-mfa-recovery-request-workspace": "", "aria-invalid": workspaceError ? true : undefined, "aria-describedby": workspaceError ? `${workspaceFieldId}-error` : undefined }}
+            />
             {workspaceError ? (
               <p
                 id={`${workspaceFieldId}-error`}

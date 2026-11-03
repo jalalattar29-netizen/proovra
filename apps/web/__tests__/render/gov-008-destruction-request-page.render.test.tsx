@@ -6,6 +6,7 @@
  * state the API never returns; and it asked for a pasted UUID. The bodies below are
  * the shape the API sends, through the real `apiFetch` over a stubbed network.
  */
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -81,11 +82,11 @@ describe("destruction request page", () => {
     render(<DestructionPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Accident photo" }));
     fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "retention over" } });
-    fireEvent.change(await screen.findByLabelText("Approver"), { target: { value: APPROVER } });
+    chooseListbox(await screen.findByLabelText("Approver"), APPROVER);
     await waitFor(() =>
       expect(within(screen.getByLabelText("Approver")).getByText("Second Person")).toBeTruthy(),
     );
-    fireEvent.change(screen.getByLabelText("Approver"), { target: { value: APPROVER } });
+    chooseListbox(screen.getByLabelText("Approver"), APPROVER);
     fireEvent.click(screen.getByRole("button", { name: "Create Request" }));
     await waitFor(() => expect(posts()).toHaveLength(1));
     expect(posts()[0]?.body).toEqual({

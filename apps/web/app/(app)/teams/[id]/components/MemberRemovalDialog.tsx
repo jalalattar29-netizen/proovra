@@ -29,6 +29,8 @@
  *     and we surface that.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "../../../../../components/cases-experience/matter-modals/Modal";
@@ -286,7 +288,7 @@ export function MemberRemovalDialog({
         >
           You're about to remove{" "}
           <strong data-member-removal-target>{member.label}</strong> (
-          <code style={{ opacity: 0.85 }}>{member.role}</code>) from the workspace.
+          <span style={{ opacity: 0.85 }}>{identifierLabel(member.role)}</span>) from the workspace.
         </p>
 
         {loading ? (
@@ -359,39 +361,21 @@ export function MemberRemovalDialog({
                   >
                     Transfer ownership to
                   </label>
-                  <select
+                  <AppListbox
                     id="member-removal-transfer-target"
-                    data-member-removal-transfer-select
                     value={transferToUserId}
-                    onChange={(e) => setTransferToUserId(e.target.value)}
-                    disabled={submitting}
-                    className="cases-form-input"
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      fontSize: 13,
-                    }}
-                  >
-                    <option value="" disabled>
-                      Choose an admin to receive these records…
-                    </option>
-                    {impact.eligibleTransferTargets.map((t) => {
+                    placeholder="Choose an admin to receive these records…"
+                    options={impact.eligibleTransferTargets.map((t) => {
                       const label =
                         t.displayName?.trim() ||
                         t.email ||
                         `User ${t.userId.slice(0, 8)}`;
-                      return (
-                        <option
-                          key={t.userId}
-                          value={t.userId}
-                          data-member-removal-transfer-option={t.userId}
-                        >
-                          {label} ({t.role})
-                        </option>
-                      );
+                      return { value: t.userId, label: `${label} (${identifierLabel(t.role)})` };
                     })}
-                  </select>
+                    onChange={setTransferToUserId}
+                    disabled={submitting}
+                    triggerProps={{ "data-member-removal-transfer-select": "" }}
+                  />
                   <p
                     style={{
                       margin: "8px 0 0",

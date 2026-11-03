@@ -712,6 +712,10 @@ const EVENT_LABEL_ACRONYMS: Readonly<Record<string, string>> = {
   dns: "DNS",
   hmac: "HMAC",
   ssrf: "SSRF",
+  aws: "AWS",
+  ocr: "OCR",
+  ots: "OTS",
+  siu: "SIU",
 };
 
 /** Types whose rule-derived label misreads. Keep this list short and named. */
@@ -742,6 +746,30 @@ export function identifierLabel(value: string): string {
       return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
     })
     .join(" ");
+}
+
+/**
+ * A sentence the server composed around stored identifiers, as the reader
+ * should see it. Graph node labels and timeline summaries are written once as
+ * "Review workflow — NOT_STARTED (NORMAL)" or "Incident — IDENTITY_SECURITY
+ * (WARNING/OPEN)" and kept, so a repair at the writer would leave every stored
+ * row raw; this reads them at display time instead. It rewrites only what is
+ * unmistakably an identifier: an underscored token, a capitalised word after a
+ * dash, and a capitalised word or pair in parentheses. Everything else in the
+ * text, including acronyms such as OCR or PROOVRA, passes through.
+ */
+export function identifierTextLabel(text: string): string {
+  const lowerFirst = (value: string) => {
+    const label = identifierLabel(value);
+    return /^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+  };
+  return text
+    .replace(/\(([A-Z][A-Z0-9_]+)(?:\/([A-Z][A-Z0-9_]+))?\)/g, (_m, a: string, b?: string) =>
+      b ? `(${lowerFirst(a)}, ${lowerFirst(b)})` : `(${lowerFirst(a)})`,
+    )
+    .replace(/([—–] )([A-Z][A-Z0-9_]{2,})\b/g, (_m, dash: string, word: string) => dash + identifierLabel(word))
+    .replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g, (token) => identifierLabel(token))
+    .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g, (token) => lowerFirst(token));
 }
 
 // -----------------------------------------------------------------------------

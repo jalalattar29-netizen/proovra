@@ -50,6 +50,8 @@
  *      server is the only authority on which rows are visible.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -541,33 +543,6 @@ function statusSegmentClass(active: boolean): string {
     .join(" ");
 }
 
-/**
- * Phase 7C — inline token style for the pinned raw <select> controls.
- * The FilterBar.Select helper takes an options array + string change
- * handler, but the risk/status selects are source-pinned to their exact
- * JSX (option maps, aria-labels, data-testids), so we keep the raw
- * <select> elements and give them the same premium token chrome the
- * FilterBar controls use.
- */
-const FILTER_CONTROL_STYLE: React.CSSProperties = {
-  minHeight: 40,
-  fontSize: 13.5,
-  color: "var(--ink-primary, #0f172a)",
-  background: "var(--surface-card, #ffffff)",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: "var(--radius-md, 8px)",
-  padding: "0 30px 0 12px",
-  cursor: "pointer",
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-  backgroundImage:
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 8px center",
-  outline: "none",
-};
-
 function MatterQueueFilters({
   filters,
   viewerUserId,
@@ -666,23 +641,17 @@ function MatterQueueFilters({
                 "NONE" results, and the vocabulary is unfamiliar to the
                 target audience. Backend filter param + selector intact. */}
             {canSeeAdvancedCaseOps ? (
-              <select
-                aria-label="Risk level"
+              <AppListbox
                 value={filters.riskLevel}
-                onChange={(e) =>
-                  set("riskLevel", e.target.value as MatterRiskLevel | "")
-                }
-                data-matter-queue-risk-select
-                className="cases-filter-chip"
-                style={FILTER_CONTROL_STYLE}
-              >
-                <option value="">Any risk</option>
-                {RISK_LEVELS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: "", label: "Any risk" },
+                  ...RISK_LEVELS.map((s) => ({ value: s, label: identifierLabel(s) })),
+                ]}
+                onChange={(next) => set("riskLevel", next as MatterRiskLevel | "")}
+                ariaLabel={"Risk level"}
+                style={{ width: 160, flex: "0 0 160px" }}
+                triggerProps={{ "data-matter-queue-risk-select": "" }}
+              />
             ) : null}
           </div>
         </div>
@@ -1033,21 +1002,17 @@ function CaseBulkActionBar({
 
       {count > 0 ? (
         <>
-          <select
-            className="app-form-input"
-            style={{ width: "auto" }}
-            data-case-bulk-action
+          <AppListbox
             value={action}
-            onChange={(e) => setAction(e.target.value as BulkAction)}
+            options={[
+              ...(["CLOSE", "ARCHIVE", "RESOLVE"] as const).map((a) => ({ value: a, label: BULK_ACTION_LABELS[a] })),
+            ]}
+            onChange={(next) => setAction(next as BulkAction)}
             disabled={busy}
-            aria-label="Bulk action"
-          >
-            {(["CLOSE", "ARCHIVE", "RESOLVE"] as const).map((a) => (
-              <option key={a} value={a}>
-                {BULK_ACTION_LABELS[a]}
-              </option>
-            ))}
-          </select>
+            ariaLabel={"Bulk action"}
+            style={{ width: "auto" }}
+            triggerProps={{ "data-case-bulk-action": "" }}
+          />
           <input
             type="text"
             className="app-form-input"
@@ -1233,7 +1198,7 @@ function MatterQueueRow({
             data-matter-queue-row-chip="status"
             data-status={row.status}
           >
-            {STATUS_LABEL[row.status as CaseStatus] ?? row.status}
+            {STATUS_LABEL[row.status as CaseStatus] ?? identifierLabel(row.status)}
           </AppStatusText>
           {canSeeAdvancedCaseOps && row.priority && row.priority !== "P2" ? (
             <Badge
@@ -1242,7 +1207,7 @@ function MatterQueueRow({
               data-matter-queue-row-chip="priority"
               data-priority={row.priority}
             >
-              {row.priority}
+              {identifierLabel(row.priority)}
             </Badge>
           ) : null}
         </span>
