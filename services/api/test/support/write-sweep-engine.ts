@@ -955,7 +955,7 @@ export class WriteSweep {
   }
 
   /** Takes the write log off the shared database; call from the suite's teardown. */
-  async dispose(): Promise<void> {
+  async uninstallWriteLog(): Promise<void> {
     await removeWriteLog(this.deps.prisma);
   }
 

@@ -36,7 +36,7 @@ describe(`GOV-001 known positive (guard ${GUARD_REMOVED ? "removed" : "in place"
   }, 900_000);
 
   afterAll(async () => {
-    await sweep?.dispose();
+    await sweep?.uninstallWriteLog();
     await h?.cleanup();
   }, 300_000);
 
