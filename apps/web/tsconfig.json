@@ -66,8 +66,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    "node_modules/.cache/admin-fixture-next/types/**/*.ts",
-    "node_modules/.cache/acceptance-next-prod/types/**/*.ts"
+    "node_modules/.cache/admin-fixture-next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
