@@ -300,6 +300,31 @@ export type WorkspaceUsage = {
   }>;
 };
 
+/**
+ * The seat figures of `getWorkspaceUsage`, without its storage sums
+ * (capacity, 2026-11-03).
+ *
+ * The commercial context reads only the seats from the usage rollup, and it is
+ * resolved on reads that never show storage (the reviewer queue, the member and
+ * workspace lists, the output-entitlement narrowing). The rollup's six byte
+ * aggregates over evidence, reports and packages cost 1 to 2 s per call on a
+ * 300,000-record workspace of the capacity fixture, once per workspace listed.
+ * Same count, same limit, same rule: `getWorkspaceUsage` uses this too.
+ */
+export async function getWorkspaceSeatUsage(
+  scope: WorkspaceScope,
+): Promise<{ teamMemberCount: number; seatLimit: number | null; seatRemaining: number | null }> {
+  const teamMemberCount = scope.teamId
+    ? await prisma.teamMember.count({
+        // A seat is an ACTIVE member; the owner never holds one (members audit ENT-04).
+        where: { teamId: scope.teamId, status: "ACTIVE", userId: { not: scope.ownerUserId } },
+      })
+    : 0;
+  const seatLimit = getTeamMemberLimit(scope);
+  const seatRemaining = seatLimit === null ? null : Math.max(0, seatLimit - teamMemberCount);
+  return { teamMemberCount, seatLimit, seatRemaining };
+}
+
 export async function getWorkspaceUsage(
   scope: WorkspaceScope
 ): Promise<WorkspaceUsage> {
@@ -409,16 +434,10 @@ export async function getWorkspaceUsage(
     prisma.evidence.count({
       where: { AND: [populationWhere, allowanceSlotEvidenceWhere()] },
     }),
-    scope.teamId
-      ? prisma.teamMember.count({
-          // P5 domain remediation (2026-07-21) — a seat is an ACTIVE
-          // member. Suspended/revoked members no longer consume license
-          // seats (matches the stated business rule: "we limit actual
-          // members", and a suspended member is denied all access).
-          // The owner never holds a seat (members audit ENT-04).
-          where: { teamId: scope.teamId, status: "ACTIVE", userId: { not: scope.ownerUserId } },
-        })
-      : Promise.resolve(0),
+    // P5 domain remediation (2026-07-21) — a seat is an ACTIVE member;
+    // suspended/revoked members consume none, and the owner never holds one
+    // (members audit ENT-04). Counted by the one seat reader.
+    getWorkspaceSeatUsage(scope).then((seats) => seats.teamMemberCount),
     // UC-0 (D5) — derived review materials are stored bytes too.
     sumDerivedAssetStorageBytes(prisma, {
       teamId: scope.teamId ?? personalTeamForUsage?.id ?? null,
