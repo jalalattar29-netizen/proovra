@@ -237,8 +237,11 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
   }
 
   it("a large workspace reaches a due record behind more than a page of finished ones", async () => {
-    const finished = await alreadyTiered(420);
+    // Finished rows on both sides of the due one: an unordered read of any page
+    // starts at one end or the other, and misses it from either.
+    const before = await alreadyTiered(450);
     const rec = await sealedRecord(31);
+    const finished = [...before, ...(await alreadyTiered(450))];
     await worker.runArchiveTierAutoTransitions({ trigger: "test" });
     expect(await prisma.archiveTierTransition.count({ where: { evidenceId: rec.id, state: "COMPLETED" } })).toBe(1);
     expect(
