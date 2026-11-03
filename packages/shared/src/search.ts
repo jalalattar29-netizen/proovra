@@ -229,6 +229,8 @@ export type SearchResultRow = {
 
 export type SearchCursor = {
   updatedAtUtc: string;
+  /** Absent on a token issued before this field existed. */
+  createdAtUtc?: string;
   id: string;
 };
 
@@ -248,6 +250,9 @@ export function decodeSearchCursor(value: string): SearchCursor | null {
     }
     return {
       updatedAtUtc: parsed["updatedAtUtc"] as string,
+      ...(typeof parsed["createdAtUtc"] === "string"
+        ? { createdAtUtc: parsed["createdAtUtc"] }
+        : {}),
       id: parsed["id"] as string,
     };
   } catch {

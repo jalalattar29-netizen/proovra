@@ -16,6 +16,7 @@ export function AnnotationPanel({
   const [items, setItems] = useState<EvidenceAnnotation[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
+  const [canWrite, setCanWrite] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -26,6 +27,7 @@ export function AnnotationPanel({
         const data = (await apiFetch(`/v1/evidence/${evidenceId}/annotations`)) as EvidenceAnnotationsResponse;
         if (!cancelled) {
           setItems(Array.isArray(data.items) ? data.items : []);
+          setCanWrite(data.canWrite === true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -65,17 +67,21 @@ export function AnnotationPanel({
         <p className="evidence-library-muted">
           Annotations are reviewer notes layered over the review surface. They do not modify preserved evidence.
         </p>
-        <textarea
-          className="evidence-library-textarea"
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
+        {canWrite ? (
+          <>
+            <textarea
+              className="evidence-library-textarea"
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
 
-        />
-        <div className="evidence-library-panel__actions evd-block--tight">
-          <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createAnnotation()} disabled={!body.trim()}>
-            Add Text Annotation
-          </button>
-        </div>
+            />
+            <div className="evidence-library-panel__actions evd-block--tight">
+              <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createAnnotation()} disabled={!body.trim()}>
+                Add Text Annotation
+              </button>
+            </div>
+          </>
+        ) : null}
         {loading ? <p className="evidence-library-muted">Loading annotations...</p> : null}
         {!loading && items.length === 0 ? <p className="evidence-library-muted">No annotations yet.</p> : null}
         <div className="evidence-library-note-grid">
@@ -87,9 +93,11 @@ export function AnnotationPanel({
                 {formatUserDateTime(item.createdAt)}
               </p>
               <p>{item.body || "Annotation metadata recorded."}</p>
-              <div className="evidence-library-panel__actions evd-block--tight">
-                <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteAnnotation(item.id)}>Delete</button>
-              </div>
+              {canWrite ? (
+                <div className="evidence-library-panel__actions evd-block--tight">
+                  <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteAnnotation(item.id)}>Delete</button>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

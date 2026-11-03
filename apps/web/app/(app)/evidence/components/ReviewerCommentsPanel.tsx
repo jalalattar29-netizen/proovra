@@ -9,6 +9,7 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ReviewerComment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [canWrite, setCanWrite] = useState(false);
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState("");
@@ -22,6 +23,7 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
         const data = (await apiFetch(`/v1/evidence/${evidenceId}/comments`)) as ReviewerCommentsResponse;
         if (!cancelled) {
           setItems(Array.isArray(data.items) ? data.items : []);
+          setCanWrite(data.canWrite === true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -69,20 +71,22 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
         <p className="evidence-library-muted">
           Reviewer comments are operational notes and do not alter the recorded integrity state.
         </p>
-        <div className="evidence-library-filter-group evd-block--tight">
-          <label htmlFor={`comment-${evidenceId}`}>Add comment</label>
-          <textarea
-            id={`comment-${evidenceId}`}
-            className="evidence-library-textarea"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <div className="evidence-library-panel__actions evd-block--tight">
-            <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createComment()} disabled={!draft.trim()}>
-              Save Comment
-            </button>
+        {canWrite ? (
+          <div className="evidence-library-filter-group evd-block--tight">
+            <label htmlFor={`comment-${evidenceId}`}>Add comment</label>
+            <textarea
+              id={`comment-${evidenceId}`}
+              className="evidence-library-textarea"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <div className="evidence-library-panel__actions evd-block--tight">
+              <button type="button" className="app-secondary-action app-secondary-action--filled" onClick={() => void createComment()} disabled={!draft.trim()}>
+                Save Comment
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {loading ? <p className="evidence-library-muted">Loading comments...</p> : null}
         {!loading && items.length === 0 ? (
@@ -115,17 +119,19 @@ export function ReviewerCommentsPanel({ evidenceId }: { evidenceId: string }) {
               ) : (
                 <>
                   <p>{item.body}</p>
-                  <div className="evidence-library-panel__actions evd-block--tight">
-                    <button type="button" className="app-secondary-action"
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setEditingBody(item.body);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteComment(item.id)}>Delete</button>
-                  </div>
+                  {canWrite ? (
+                    <div className="evidence-library-panel__actions evd-block--tight">
+                      <button type="button" className="app-secondary-action"
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setEditingBody(item.body);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteComment(item.id)}>Delete</button>
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>
