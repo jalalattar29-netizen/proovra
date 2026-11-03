@@ -1309,3 +1309,12 @@ a.cases-row-title:hover {
     max-block-size: 52vh;
   }
 }
+
+/* Search, risk and the status segments do not fit one row until about
+   1180px; below that the filters take a second row instead of running off
+   the card. */
+@media (max-width: 1180px) {
+  .cases-toolbar {
+    flex-wrap: wrap;
+  }
+}

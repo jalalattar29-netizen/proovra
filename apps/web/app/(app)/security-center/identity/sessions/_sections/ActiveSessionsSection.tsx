@@ -84,7 +84,6 @@ import {
 } from "../../../posture/_sections/section-state";
 import { SessionTimelineDrawer } from "./SessionTimelineDrawer";
 import { formatCellDateTime } from "../../../../../../lib/date";
-import { shortId } from "../../_sections/identity-admin-shared";
 
 type ActiveSession = {
   id: string;
@@ -394,7 +393,7 @@ export function ActiveSessionsSection() {
       header: "Member",
       render: (s) => (
         <div style={{ display: "grid", gap: 2, minWidth: 0 }}>
-          <span title={s.userId}>{recordReference("Member", s.userId)}</span>
+          <span title={s.userId} style={{ whiteSpace: "nowrap" }}>{recordReference("Member", s.userId)}</span>
           {/* TIMELINE IS A READ, AND IT WAS COSTING THE ROW ITS LAST ACTION.
               Four controls in the actions cell made the table 1268px inside a
               1216px wrapper, so on a 1440px desktop "Revoke all" sat at x=1403
@@ -492,7 +491,7 @@ export function ActiveSessionsSection() {
       key: "user",
       header: "Member",
       render: (q) => (
-        <span title={q.userId}>{recordReference("Member", q.userId)}</span>
+        <span title={q.userId} style={{ whiteSpace: "nowrap" }}>{recordReference("Member", q.userId)}</span>
       ),
     },
     {

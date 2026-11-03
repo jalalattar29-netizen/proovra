@@ -175,7 +175,12 @@ export function EnterpriseFooter() {
         </div>
 
         <div className="mt-16 flex flex-col gap-4 border-t border-white/10 py-6 text-[12.5px] text-white/55 md:flex-row md:items-center md:justify-between">
-          <span>© {new Date().getFullYear()} {MARKETING_COPY.brandName}. All rights reserved.</span>
+          <span className="flex items-center gap-3">
+            {/* The privacy preferences control renders here, in the footer's
+                flow, instead of floating over the page. */}
+            <span data-privacy-preferences-slot="" className="inline-flex" />
+            <span>© {new Date().getFullYear()} {MARKETING_COPY.brandName}. All rights reserved.</span>
+          </span>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <Link href="/legal/privacy" className="transition-colors hover:text-white">
               Privacy Policy

@@ -101,8 +101,7 @@ import {
 import {
   searchReadinessHasUsableResults,
   type SearchReadinessProjection,
-  identifierLabel,
-} from "@proovra/shared";
+  identifierLabel, identifierTextLabel } from "@proovra/shared";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
 import {
@@ -2436,7 +2435,7 @@ function SearchInner() {
                         <span className="search-result__meta">{subtitle}</span>
                       ) : null}
                       {row.summary ? (
-                        <span className="search-result__meta">{row.summary}</span>
+                        <span className="search-result__meta">{identifierTextLabel(row.summary)}</span>
                       ) : null}
 
                       {otherBadges.length > 0 ? (
@@ -2917,7 +2916,7 @@ function Inspector({
 
       {row.summary ? (
         <Section label="Summary">
-          <p className="search-inspector__prose">{row.summary}</p>
+          <p className="search-inspector__prose">{identifierTextLabel(row.summary)}</p>
         </Section>
       ) : null}
 

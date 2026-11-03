@@ -1541,6 +1541,10 @@ textarea.app-form-input {
   position: relative;
   display: inline-block;
   width: 100%;
+  /* A flex row of filters that cannot wrap shares its width instead of
+     running off a phone: the value truncates, the control stays on screen. */
+  min-width: 0;
+  max-width: 100%;
 }
 .app-listbox__trigger {
   width: 100%;
