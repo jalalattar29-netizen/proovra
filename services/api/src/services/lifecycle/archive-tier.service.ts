@@ -172,11 +172,12 @@ export async function currentTierFor(input: {
   if (input.checkS3) {
     const ev = await prisma.evidence.findUnique({
       where: { id: input.evidenceId },
-      select: { storageBucket: true, storageKey: true },
+      select: { storageBucket: true, storageKey: true, storageVersionId: true },
     });
     if (ev?.storageBucket && ev.storageKey) {
       try {
         const head = await headObjectStorageClass({
+          versionId: ev.storageVersionId,
           bucket: ev.storageBucket,
           key: ev.storageKey,
         });
@@ -470,6 +471,7 @@ export async function restoreEvidenceTier(
       teamId: true,
       storageBucket: true,
       storageKey: true,
+      storageVersionId: true,
     },
   });
   if (!evidence || evidence.teamId !== input.teamId) {
@@ -526,7 +528,7 @@ export async function restoreEvidenceTier(
 
   if (bucket && key) {
     try {
-      await restoreObject({ bucket, key, days: restoreDays });
+      await restoreObject({ bucket, key, versionId: evidence.storageVersionId, days: restoreDays });
     } catch (err) {
       const failureReason = boundFailureReason(err);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
