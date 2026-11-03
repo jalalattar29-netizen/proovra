@@ -51,7 +51,7 @@ describe("flat refusals reach the branch written for them", () => {
   it("status: a flat 403 is a denial, not a failure", async () => {
     respond(403, { message: "Only workspace owners can read QC samples." });
     render(<QcSamplingPanel />);
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("not a member of this workspace"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Your role in this workspace does not include QC sampling"));
   });
 
   it("denial: a top-level denial names the missing entitlement", async () => {

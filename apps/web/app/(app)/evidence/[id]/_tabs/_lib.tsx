@@ -789,12 +789,7 @@ export function PreviewWorkspace({
 
     if (selectedItem.kind === "image") {
       return (
-        <img
-          key={selectedItem.id}
-          src={selectedItem.viewUrl}
-          alt={selectedItem.label}
-          className="evidence-detail-preview-media"
-        />
+        <PreviewImage key={selectedItem.id} src={selectedItem.viewUrl} label={selectedItem.label} />
       );
     }
 
@@ -1437,4 +1432,29 @@ export function getPriorityTone(priority: string | null | undefined): AppTone {
     default:
       return "slate";
   }
+}
+
+/**
+ * The image preview, with the same answer the library queue gives when the
+ * bytes do not arrive: a sentence instead of the browser's broken-image glyph
+ * and the file name in an empty box. Open original and Download stay above it.
+ */
+export function PreviewImage({ src, label }: { src: string; label: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="evidence-detail-preview-placeholder" data-evidence-preview-state="error" role="status">
+        <strong>The preview could not be loaded.</strong>
+        <p>{label} did not load here. Open the original or download it to review the preserved content.</p>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={label}
+      className="evidence-detail-preview-media"
+      onError={() => setFailed(true)}
+    />
+  );
 }
