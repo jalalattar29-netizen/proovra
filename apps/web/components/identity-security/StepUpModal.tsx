@@ -71,6 +71,11 @@ function isStepUpRequiredError(err: unknown): err is ApiErrorLike {
   return e.code === "STEP_UP_REQUIRED" && e.statusCode === 401;
 }
 
+/** True when the person closed the challenge: nothing failed, so nothing is reported. */
+export function isStepUpCancelled(err: unknown): boolean {
+  return (err as ApiErrorLike | null | undefined)?.code === "STEP_UP_CANCEL";
+}
+
 function extractDetails(
   details: Record<string, unknown> | undefined,
 ): StepUpRequiredDetails {

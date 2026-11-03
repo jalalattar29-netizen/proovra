@@ -137,6 +137,7 @@ export async function refuseSupportContextWrite(
         actorUserId,
         grantId: context.grantId,
         action: `${req.method} ${routePattern}`,
+        routePattern,
         ipAddress: (req.ip as string | undefined) ?? null,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
       });

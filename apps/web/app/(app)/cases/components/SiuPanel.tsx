@@ -22,6 +22,11 @@ import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 
 const SIU_STANDING_CAPTION =
   "SIU bundles are operational signals. They do not determine fraud, authorship, or legal admissibility.";
@@ -155,9 +160,12 @@ type Preflight = {
 
 export type SiuPanelProps = {
   caseId: string;
+  /** The workspace of the case: a step-up is bound to it, not to the active one. */
+  teamId: string | null;
 };
 
-export function SiuPanel({ caseId }: SiuPanelProps) {
+export function SiuPanel({ caseId, teamId }: SiuPanelProps) {
+  const stepUp = useStepUpAction({ teamId });
   const [profile, setProfile] = useState<Profile | null>(null);
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [history, setHistory] = useState<ReadonlyArray<ExportHistoryRow> | null>(null);
@@ -220,19 +228,22 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
 
   const revealPii = useCallback(async () => {
     try {
-      const res = (await apiFetch(
-        `/v1/cases/${caseId}/siu-profile/reveal-pii`,
-        { method: "POST" },
+      const res = (await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch(`/v1/cases/${caseId}/siu-profile/reveal-pii`, {
+          method: "POST",
+          headers: { ...(stepUpHeaders ?? {}) },
+        }),
       )) as { profile: Profile; piiRedacted: false };
       setProfile(res.profile);
       setPiiRevealed(true);
-    } catch {
+    } catch (e) {
+      if (isStepUpCancelled(e)) return;
       // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy
       // regardless of backend response shape. Raw JSON payloads
       // never reach the DOM.
       setErr("PII reveal failed. This action needs an additional security step.");
     }
-  }, [caseId]);
+  }, [caseId, stepUp]);
 
   useEffect(() => {
     void loadProfile();
@@ -286,16 +297,34 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       };
       if (memToken) headers["Authorization"] = `Bearer ${memToken}`;
 
-      const res = await fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`, {
-        method: "POST",
-        credentials: "include",
-        headers,
-        body: JSON.stringify({
-          warningExportReason:
-            preflight.readiness === "ready_with_warnings"
-              ? exportReason.trim()
-              : null,
-        }),
+      // Every export takes a fresh step-up. The body is binary on success, so a
+      // refusal is read here and raised in the shape the step-up hook acts on.
+      const res = await stepUp.runStepUpAction(async (stepUpHeaders) => {
+        const answer = await fetch(`${apiBaseUrl()}/v1/cases/${caseId}/siu-export`, {
+          method: "POST",
+          credentials: "include",
+          headers: { ...headers, ...(stepUpHeaders ?? {}) },
+          body: JSON.stringify({
+            warningExportReason:
+              preflight.readiness === "ready_with_warnings"
+                ? exportReason.trim()
+                : null,
+          }),
+        });
+        if (answer.status === 401) {
+          const refusal = (await answer
+            .clone()
+            .json()
+            .catch(() => null)) as { error?: { code?: string; details?: unknown } } | null;
+          if (refusal?.error?.code === "STEP_UP_REQUIRED") {
+            throw Object.assign(new Error("Step-up required"), {
+              code: "STEP_UP_REQUIRED",
+              statusCode: 401,
+              details: refusal.error.details,
+            });
+          }
+        }
+        return answer;
       });
       if (!res.ok) {
         // Phase CASE-DETAIL-PERSONAL-UX — never render the raw body
@@ -318,13 +347,14 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
       link.download = `siu-export-${caseId}.zip`;
       link.click();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (e) {
+      if (isStepUpCancelled(e)) return;
       // Phase CASE-DETAIL-PERSONAL-UX — bounded user-safe error copy.
       setErr("Couldn't export the case right now. Try again or contact support.");
     } finally {
       setBusy(false);
     }
-  }, [caseId, exportReason, preflight]);
+  }, [caseId, exportReason, preflight, stepUp]);
 
   /**
    * PHASE 13 §C — NEW-027. The history row's Download control was an
@@ -401,6 +431,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
 
   return (
     <section data-testid="siu-panel" style={panelStyle}>
+      <StepUpModal control={stepUp} />
       <header style={{ marginBottom: 12 }}>
         <h2 style={{ margin: 0, fontSize: 18 }}>Insurance / SIU</h2>
         <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>

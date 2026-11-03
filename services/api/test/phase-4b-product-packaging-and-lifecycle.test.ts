@@ -170,6 +170,8 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       }),
       findFirst: async () => null,
       findMany: async () => [],
+      // The package a transfer closes on is the workspace's own.
+      count: async () => 1,
       update: async () => ({}),
       updateMany: async () => ({ count: 1 }),
     },

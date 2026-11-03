@@ -446,6 +446,16 @@ export async function communicationsRoutes(app: FastifyInstance) {
       if (!actor) return;
       try {
         if (body.target.kind === "user") {
+          // A preference decides how a person is reached from this workspace, so
+          // it is written only for someone of this workspace.
+          const target = await prisma.teamMember.findUnique({
+            where: { teamId_userId: { teamId: body.teamId, userId: body.target.userId } },
+            select: { id: true },
+          });
+          if (!target) {
+            reply.code(404).send({ error: { code: "not_found" } });
+            return;
+          }
           const pref = await upsertUserPreference({
             teamId: body.teamId,
             userId: body.target.userId,

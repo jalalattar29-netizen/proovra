@@ -479,6 +479,12 @@ export async function completeChainTransfer(
   });
   if (!row) return { ok: false, denial: "NOT_FOUND" };
   if (row.state !== "ACCEPTED") return { ok: false, denial: "INVALID_STATE" };
+  // The package a transfer closes on is part of its custody record, so it must be
+  // this workspace's own. It was stored as given.
+  const ownPackage = await prisma.evidenceExchangePackage.count({
+    where: { id: input.packageId, teamId: input.teamId },
+  });
+  if (ownPackage !== 1) return { ok: false, denial: "NOT_FOUND" };
   const at = new Date();
   const moved = await prisma.$transaction(async (tx) => {
     const claim = await tx.chainTransfer.updateMany({

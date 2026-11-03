@@ -3862,6 +3862,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.platform_backup_records') IS NOT NULL;\"",
       "evidence": "OPS-004 (2026-11-01). New append-only table written by the backup schedule, so the readiness posture reports recorded runs and not an assumption from DATABASE_URL. No existing row is touched."
+    },
+    "20281108000100_subprocessor_name_per_workspace": {
+      "classification": "REPAIR",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='subprocessors_name_key');\"",
+      "evidence": "Write sweep, round 2 (2026-11-03). 20270101000000_phase_r3_model_catchup added a global UNIQUE (name) the schema does not declare, so only the first workspace could seed or register a vendor by name. The per-workspace (team_id, slug) unique stays. No row is touched."
     }
   }
 }

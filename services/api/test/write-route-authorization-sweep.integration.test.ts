@@ -37,7 +37,7 @@ describe("write-route authorization sweep (live PostgreSQL)", () => {
     const selected = only ? routes.filter((r) => new RegExp(only).test(r.key)) : routes;
     const results: RouteResult[] = [];
     for (const route of selected) {
-      results.push(await sweep.sweepRoute(route));
+      results.push(await sweep.sweepRoute(route).catch((err: Error) => sweep.failedRoute(route, err)));
       if (results.length % 50 === 0) writeFileSync(RESULTS, JSON.stringify(results));
     }
     writeFileSync(
@@ -64,7 +64,7 @@ describe("write-route authorization sweep (live PostgreSQL)", () => {
     if (!only) {
       expect(routes.length).toBeGreaterThan(690);
       const proven = results.filter((r) => r.disposition.startsWith("PROVEN")).length;
-      expect(proven, "routes with an authorized control and refused attacks").toBeGreaterThanOrEqual(260);
+      expect(proven, "routes with an authorized control and refused attacks").toBeGreaterThanOrEqual(500);
     }
   }, 3_000_000);
 });

@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { coverageKit, type CoverageKit, type Person } from "./support/coverage-actors.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 import { RowFactory, RowSet, type Tenant } from "./support/write-sweep-engine.js";
 import { enterpriseTenantMaker } from "./support/write-sweep-world.js";
 
@@ -248,13 +249,22 @@ describe("restricted-case reach on the residual surfaces (live PostgreSQL)", () 
     expect(await prisma.revokedSession.count({ where: { userId: other.member.id } })).toBe(before);
     expect((await session()).statusCode).toBe(200);
 
-    // The same request at the workspace's own member lands.
+    // The same request at the workspace's own member lands, behind the step-up the admin console asks too.
+    const ceremony = createStepUpCeremony({ prisma: prisma as never, inject: h.app.inject.bind(h.app) as never });
+    const proof = await ceremony.approvedHeader({
+      token: tenant.owner.token,
+      userId: tenant.owner.id,
+      teamId: tenant.teamId,
+      purpose: "CONTRIBUTOR_SESSION_REVOKE",
+      resourceKind: "user",
+      resourceId: tenant.viewer.id,
+    });
     const mine = await kit.call(
       "POST",
       "/v1/identity-security/sessions/revoke-all",
       tenant.owner,
       { teamId: tenant.teamId, userId: tenant.viewer.id },
-      headers(),
+      { ...headers(), ...proof },
     );
     expect(mine.statusCode, mine.body).toBe(200);
     expect(await prisma.revokedSession.count({ where: { userId: tenant.viewer.id } })).toBe(1);
