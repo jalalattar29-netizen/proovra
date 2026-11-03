@@ -19,6 +19,7 @@
  *     pivot to evidence detail or the graph view.
  */
 
+import { recordReference } from "../../../../lib/short-id";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -727,7 +728,7 @@ function EndpointCard({
   return (
     <div style={endpointCardStyle(highlight, deemphasize)}>
       <div style={endpointLabelStyle}>Evidence</div>
-      <div style={endpointIdStyle}>{id.slice(0, 12)}…</div>
+      <div style={endpointIdStyle} title={id}>{recordReference("Evidence", id)}</div>
     </div>
   );
 }

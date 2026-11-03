@@ -17,6 +17,7 @@
  * verbatim outside the input box.
  */
 
+import { recordReference } from "../../../lib/short-id";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -2769,13 +2770,13 @@ function Inspector({
       ) : null}
 
       <Section label="Pointers">
-        <KeyVal label="Document" value={row.documentId} mono />
+        <KeyVal label="Document" value={<span title={row.documentId}>{recordReference("Document", row.documentId)}</span>} mono />
         {row.evidenceId ? (
           <KeyVal
             label="Evidence"
             value={
-              <a className="search-pointer" href={`/evidence/${row.evidenceId}`}>
-                {row.evidenceId}
+              <a className="search-pointer" href={`/evidence/${row.evidenceId}`} title={row.evidenceId}>
+                {recordReference("Evidence", row.evidenceId)}
               </a>
             }
             mono
@@ -2789,14 +2790,15 @@ function Inspector({
                 <a
                   className="search-pointer"
                   href={`/workflows/${row.workflowInstanceId}`}
+                  title={row.workflowInstanceId}
                 >
-                  {row.workflowInstanceId}
+                  {recordReference("Workflow", row.workflowInstanceId)}
                 </a>
               ) : (
                 // Phase IA-self-serve-completion — show the ID but
                 // not the link for self-serve users. /workflows is
                 // ENTERPRISE_ONLY.
-                <span className="search-pointer">{row.workflowInstanceId}</span>
+                <span className="search-pointer" title={row.workflowInstanceId}>{recordReference("Workflow", row.workflowInstanceId)}</span>
               )
             }
             mono

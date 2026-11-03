@@ -24,6 +24,12 @@ vi.mock("../../lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+// The card reads the active workspace for step-up. In the app the shell's
+// provider supplies it; this suite is about the review summary.
+vi.mock("../../lib/platform-context", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useActiveWorkspaceId: () => "team-1",
+}));
 
 import ExternalIntakeSourceCard from "../../app/(app)/evidence/[id]/components/ExternalIntakeSourceCard";
 
