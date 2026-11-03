@@ -473,7 +473,7 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
   },
   NOT_FOUND: {
     title: "We couldn't find that",
-    message: "The item may have moved or is no longer available. Refresh and try again.",
+    message: "This is not available. It may have moved, or your role may not include it.",
     severity: "info",
   },
   /*

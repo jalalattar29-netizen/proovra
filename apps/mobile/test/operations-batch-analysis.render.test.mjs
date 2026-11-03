@@ -429,7 +429,7 @@ test("export: a server failure is shown safely and nothing is shared", async () 
   await r.press("Export CSV");
   await settle();
   assert.equal(batchCalls().filter((q) => q.path.includes("/export")).length, 1);
-  assert.ok(r.hasText("The item may have moved or is no longer available. Refresh and try again."));
+  assert.ok(r.hasText("This is not available. It may have moved, or your role may not include it."));
   assert.ok(!r.texts().some((t) => t.includes("req-9")));
   r.unmount();
 });
