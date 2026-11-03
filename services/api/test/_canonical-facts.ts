@@ -147,7 +147,12 @@ export function unmatchedClientCalls(): Array<{ site: string; method: string | n
  * registrations rather than the routes — but it is still the same analyzer, not
  * a sixth regex.
  */
+let cachedRegistrations: Map<string, string[]> | null = null;
+
 export function registrationsByOperation(): Map<string, string[]> {
+  // One parse per process: the tree does not change during a run, and the
+  // parse is seconds of AST work on a shared CI runner.
+  if (cachedRegistrations !== null) return cachedRegistrations;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { indexApiFunctions, extractRoutes } = require("../scripts/capability-authority/routes.mjs");
   const { routes } = extractRoutes(indexApiFunctions()) as {
@@ -162,5 +167,6 @@ export function registrationsByOperation(): Map<string, string[]> {
       out.set(key, files);
     }
   }
+  cachedRegistrations = out;
   return out;
 }

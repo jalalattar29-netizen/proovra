@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { registrationsByOperation } from "./_canonical-facts.js";
 
@@ -35,9 +35,19 @@ const OWN_AUTHORITY: Record<string, RegExp> = {
 const TOKEN_SCOPED = new Set(["external-review.routes.ts", "public-verify.routes.ts"]);
 
 describe("record routes", () => {
+  let registrations: Map<string, string[]>;
+
+  // The inventory parses every route file in the service: seconds of AST work,
+  // more on a shared CI runner, where it exceeded the 5s test default. It runs
+  // once here with the budget phase-r9-duplicate-route-guard gives the same
+  // parse; the assertions below keep the default.
+  beforeAll(() => {
+    registrations = registrationsByOperation();
+  }, 60_000);
+
   it("every file serving a record installs the guard or names its authority", () => {
     const files = new Set<string>();
-    for (const [operation, registeringFiles] of registrationsByOperation()) {
+    for (const [operation, registeringFiles] of registrations) {
       if (!/:evidenceId\b|\/evidence\/:id\b/.test(operation)) continue;
       for (const registering of registeringFiles) files.add(registering);
     }
@@ -59,7 +69,7 @@ describe("record routes", () => {
       resolve(routesDir, "../services/redaction/redaction-record-reach.service.ts"),
       "utf8",
     );
-    const keyed = [...registrationsByOperation().keys()].filter((operation) =>
+    const keyed = [...registrations.keys()].filter((operation) =>
       /^[A-Z]+ \/v1\/redaction\/(?:projects|versions|regions|detections|derivatives|video-tracks)\/:id/.test(operation),
     );
     expect(keyed.length).toBeGreaterThan(15);
