@@ -84,6 +84,7 @@ const SAMPLE: Record<ConditionMessageCode, Record<string, unknown>> = {
   "ops.pipeline.package_generation_denied": { outcome: "BLOCKED_BY_HOLD" },
   "ops.platform.worker_heartbeat_stale": {},
   "ops.platform.bitcoin_verifier_unavailable": {},
+  "ops.platform.unreferenced_published_artifacts": { recent: 2, total: 5 },
   "ops.job.background_failure": { queue: "Report generation" },
   "ops.search.not_built": {},
   "ops.search.reconciliation_failing": {},

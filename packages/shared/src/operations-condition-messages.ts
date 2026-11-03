@@ -1366,6 +1366,21 @@ const CATALOGUE = {
   }),
 
   // ---- platform -----------------------------------------------------------
+  "ops.platform.unreferenced_published_artifacts": def({
+    params: { recent: INT, total: INT },
+    en: (p) => ({
+      title: "Published reports or packages nothing references",
+      summary: `${p.recent} report or package file(s) were published in the last week and never committed to a record, ${p.total} in all. They are under Object Lock, cost storage until their retention ends, and may hold copies of originals. Check report and package commit failures.`,
+    }),
+    de: (p) => ({
+      title: "Veröffentlichte Berichte oder Pakete ohne Verweis",
+      summary: `${p.recent} Berichts- oder Paketdatei(en) wurden in der letzten Woche veröffentlicht und nie einem Datensatz zugeordnet, insgesamt ${p.total}. Sie unterliegen der Objektsperre, verursachen bis zum Ende ihrer Aufbewahrung Speicherkosten und können Kopien von Originalen enthalten. Prüfen Sie fehlgeschlagene Bericht- und Paketabschlüsse.`,
+    }),
+    ar: (p) => ({
+      title: "تقارير أو حزم منشورة لا يشير إليها شيء",
+      summary: `نُشر ${p.recent} ملف تقرير أو حزمة خلال الأسبوع الماضي ولم يُربط بأي سجل، و${p.total} إجمالًا. تخضع لقفل الكائنات وتكلّف تخزينًا حتى انتهاء مدة الاحتفاظ، وقد تحتوي نسخًا من الأصول. تحقّق من إخفاقات إتمام التقارير والحزم.`,
+    }),
+  }),
   "ops.platform.bitcoin_verifier_unavailable": def({
     params: {},
     en: () => ({
@@ -1573,6 +1588,7 @@ export const CONDITION_MESSAGE_SOURCES: Readonly<Record<ConditionMessageCode, re
   "ops.legacy.upload_session_signal": ["capture.legacy_upload_session_signal"],
   "ops.platform.worker_heartbeat_stale": ["platform.worker_heartbeat_stale"],
   "ops.platform.bitcoin_verifier_unavailable": ["platform.bitcoin_verifier_unavailable"],
+  "ops.platform.unreferenced_published_artifacts": ["platform.unreferenced_published_artifacts"],
   "ops.job.background_failure": ["job.background_failure"],
   "ops.search.not_built": ["search.indexing_failure"],
   "ops.search.reconciliation_failing": ["search.indexing_failure"],
@@ -1774,6 +1790,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "platform.telemetry_stale": "Queue telemetry sampler delayed (retired)",
     "platform.worker_heartbeat_stale": "Worker heartbeat stale",
     "platform.bitcoin_verifier_unavailable": "Bitcoin verifier unavailable",
+    "platform.unreferenced_published_artifacts": "Published artifacts nothing references",
     "intake.delivery_failed": "Uploads could not be started or resumed",
     "capture.upload_stalled": "Upload appears stalled",
     "capture.legacy_upload_session_signal": "Legacy upload-session signals",
@@ -1822,6 +1839,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "platform.telemetry_stale": "Telemetrie der Warteschlangen verzögert (eingestellt)",
     "platform.worker_heartbeat_stale": "Worker-Lebenszeichen veraltet",
     "platform.bitcoin_verifier_unavailable": "Bitcoin-Prüfdienst nicht verfügbar",
+    "platform.unreferenced_published_artifacts": "Veröffentlichte Berichte oder Pakete ohne Verweis",
     "intake.delivery_failed": "Uploads konnten nicht gestartet oder fortgesetzt werden",
     "capture.upload_stalled": "Upload scheint festzustecken",
     "capture.legacy_upload_session_signal": "Ältere Upload-Sitzungssignale",
@@ -1870,6 +1888,7 @@ const SOURCE_LABELS: Record<ConditionMessageLocale, Readonly<Record<string, stri
     "platform.telemetry_stale": "تأخر قياس الطوابير (متوقف)",
     "platform.worker_heartbeat_stale": "نبضات العامل متأخرة",
     "platform.bitcoin_verifier_unavailable": "مدقق بيتكوين غير متاح",
+    "platform.unreferenced_published_artifacts": "تقارير أو حزم منشورة لا يشير إليها شيء",
     "intake.delivery_failed": "تعذّر بدء عمليات الرفع أو استئنافها",
     "capture.upload_stalled": "يبدو أن الرفع متوقف",
     "capture.legacy_upload_session_signal": "إشارات قديمة لجلسات الرفع",
@@ -1935,6 +1954,7 @@ export const CONDITION_SUBJECT_KINDS = [
   "SEARCH_INDEX",
   "WORKER_FLEET",
   "BITCOIN_VERIFIER",
+  "PUBLISHED_ARTIFACTS",
   "JOB_QUEUE",
   "SIGN_IN_SECURITY",
   "DIRECTORY",
@@ -2030,6 +2050,7 @@ const SUBJECT_COPY: Record<ConditionSubjectKind, SubjectCopy> = {
   SEARCH_INDEX: workspaceWide({ en: "This workspace's search index", de: "Suchindex dieses Arbeitsbereichs", ar: "فهرس البحث في مساحة العمل هذه" }),
   WORKER_FLEET: workspaceWide({ en: "Background processing", de: "Hintergrundverarbeitung", ar: "المعالجة في الخلفية" }),
   BITCOIN_VERIFIER: workspaceWide({ en: "Bitcoin verifier", de: "Bitcoin-Prüfdienst", ar: "مدقق بيتكوين" }),
+  PUBLISHED_ARTIFACTS: workspaceWide({ en: "Published reports and packages", de: "Veröffentlichte Berichte und Pakete", ar: "التقارير والحزم المنشورة" }),
   JOB_QUEUE: {
     noun: { en: "Queue", de: "Warteschlange", ar: "الطابور" },
     standalone: { en: "A background queue", de: "Eine Hintergrund-Warteschlange", ar: "طابور خلفي" },

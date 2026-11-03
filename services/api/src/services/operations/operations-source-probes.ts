@@ -1444,6 +1444,11 @@ const PROBE_HANDLERS: Readonly<
     const o = await observeBitcoinVerifierReadiness(ctx.now);
     return { activity: o.activity, observedAtUtc: o.observedAtUtc, ...(o.severity ? { severity: o.severity } : {}) };
   },
+  "platform.unreferenced_published_artifacts_recent": async (ctx) => {
+    const { observeUnreferencedPublications } = await import("./platform-conditions.service.js");
+    const o = await observeUnreferencedPublications(ctx.now);
+    return { activity: o.activity, observedAtUtc: o.observedAtUtc, ...(o.severity ? { severity: o.severity } : {}) };
+  },
   "platform.queue_recent_failures": (ctx) =>
     observeQueueRecentFailures(queueNameFromPlatformFingerprint(ctx.fingerprint), ctx.now),
 });

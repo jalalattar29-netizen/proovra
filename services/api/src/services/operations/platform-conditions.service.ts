@@ -42,6 +42,39 @@ export const QUEUE_FAILURE_HIGH_COUNT = 5;
 
 export const WORKER_HEARTBEAT_FINGERPRINT = "platform:worker_heartbeat_stale";
 export const BITCOIN_VERIFIER_FINGERPRINT = "platform:bitcoin_verifier_unavailable";
+export const UNREFERENCED_PUBLICATIONS_FINGERPRINT = "platform:unreferenced_published_artifacts";
+
+/** A publication this young may still be committing. */
+export const UNREFERENCED_PUBLICATION_GRACE_MS = 24 * 60 * 60 * 1000;
+/** The condition is about recent failures; older objects are already counted. */
+export const UNREFERENCED_PUBLICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * REPORT-006 — PUBLISHED OBJECTS NOTHING REFERENCES. The worker records an intent
+ * before every locked publication; an intent no report or package row names was
+ * published and never committed. Counts recent ones (the condition) and all of
+ * them (for the operator), never touching storage.
+ */
+export async function observeUnreferencedPublications(
+  now: Date,
+): Promise<SourceObservation & { recent: number; total: number }> {
+  const graceEnd = new Date(now.getTime() - UNREFERENCED_PUBLICATION_GRACE_MS);
+  const windowStart = new Date(now.getTime() - UNREFERENCED_PUBLICATION_WINDOW_MS);
+  const rows = await prisma.$queryRaw<Array<{ recent: bigint; total: bigint }>>`
+    SELECT count(*) FILTER (WHERE i."created_at_utc" >= ${windowStart})::bigint AS "recent",
+           count(*)::bigint AS "total"
+      FROM "artifact_publication_intents" i
+     WHERE i."created_at_utc" < ${graceEnd}
+       AND NOT EXISTS (SELECT 1 FROM "reports" r
+                        WHERE r."storage_bucket" = i."storage_bucket" AND r."storage_key" = i."storage_key")
+       AND NOT EXISTS (SELECT 1 FROM "verification_packages" p
+                        WHERE p."storage_bucket" = i."storage_bucket" AND p."storage_key" = i."storage_key")`;
+  const recent = Number(rows[0]?.recent ?? 0);
+  const total = Number(rows[0]?.total ?? 0);
+  return recent > 0
+    ? { activity: "ACTIVE", observedAtUtc: now, severity: "WARNING" as IncidentSeverity, recent, total }
+    : { activity: "RECOVERED", observedAtUtc: now, recent, total };
+}
 
 /** A readiness report older than this no longer describes the verifier. */
 export const BITCOIN_VERIFIER_READINESS_FRESH_MS = 20 * 60 * 1000;
@@ -222,6 +255,36 @@ export async function reconcilePlatformConditions(
         fingerprint: BITCOIN_VERIFIER_FINGERPRINT,
         safeMessage:
           "The Bitcoin verifier reported ready (or live Bitcoin verification is no longer enabled). Resolved from the verifier readiness authority; no evidence truth changed.",
+      });
+      if (r.resolved) result.resolved += 1;
+    }
+  } catch {
+    /* an unreadable authority leaves the condition exactly as it was */
+  }
+
+  // ---- published artifacts nothing references (REPORT-006) ------------------
+  try {
+    const orphans = await observeUnreferencedPublications(now);
+    if (orphans.activity === "ACTIVE") {
+      await recordIncident({
+        sourceId: "platform.unreferenced_published_artifacts",
+        teamId: null,
+        platform: true,
+        category: "STORAGE",
+        severity: orphans.severity ?? "WARNING",
+        fingerprint: UNREFERENCED_PUBLICATIONS_FINGERPRINT,
+        message: { code: "ops.platform.unreferenced_published_artifacts", params: { recent: orphans.recent, total: orphans.total } },
+        runbookSlug: "failed-report-generation",
+        metadata: { recent: orphans.recent, total: orphans.total },
+      });
+      result.recorded += 1;
+    } else if (orphans.activity === "RECOVERED") {
+      const r = await resolveConditionFromSourceRecovery({
+        teamId: null,
+        platform: true,
+        fingerprint: UNREFERENCED_PUBLICATIONS_FINGERPRINT,
+        safeMessage:
+          "No published report or package went unreferenced in the last week. Resolved from the publication intents; objects published earlier remain under their lock and stay counted by the orphan scan.",
       });
       if (r.resolved) result.resolved += 1;
     }

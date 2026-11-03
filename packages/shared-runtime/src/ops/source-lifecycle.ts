@@ -364,6 +364,8 @@ export const ACTIVITY_PROBE_KEYS = [
   /** The canonical worker-fleet liveness verdict (worker-liveness.service). */
   "platform.worker_heartbeat_age",
   "platform.bitcoin_verifier_readiness",
+  /** REPORT-006 — published, locked objects no committed row references. */
+  "platform.unreferenced_published_artifacts_recent",
   /** Final job failures on one queue inside the recent window (queue-inventory). */
   "platform.queue_recent_failures",
   /** The append-only `ImmutableStorageCheck` verdict for one record. */
@@ -1162,6 +1164,36 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       requiresResolutionNote: false,
       rationale:
         "One global fact read from the newest Bitcoin-verifier readiness telemetry; one PLATFORM row that closes when the verifier reports ready. No evidence truth depends on it.",
+    },
+    {
+      // REPORT-006 — a report or package was published under Object Lock and its
+      // row never committed. The object cannot be deleted before its horizon and
+      // nothing lists it, so it was cost and copies of originals nobody saw. One
+      // platform row while any such object appeared in the last week; it closes
+      // when a week passes with none. The objects themselves stay where they are.
+      sourceId: "platform.unreferenced_published_artifacts",
+      category: "STORAGE",
+      displayLabel: "Published artifacts nothing references",
+      producers: ["services/api/src/services/operations/platform-conditions.service.ts"],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "platform.unreferenced_published_artifacts_recent",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SPECIALIZED_SURFACE",
+      requiredCapability: "operations.view",
+      audience: "PLATFORM_INTERNAL",
+      cardinality: "AGGREGATE",
+      observationModel: "STATE",
+      workspaceApplicability: "PLATFORM_OBSERVED",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      notApplicableDisposition: "REFUSE",
+      requiresResolutionNote: false,
+      rationale:
+        "One global count from artifact_publication_intents: intents older than a day, from the last week, that no report or package row references. Recent ones say commits are failing after publication; older ones are already counted by the orphan scan.",
     },
     // =======================================================================
     // THE SECURITY-EVENT BRIDGE.

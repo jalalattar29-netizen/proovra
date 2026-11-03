@@ -16,6 +16,7 @@ describe("artifact publication intents (live PostgreSQL 16)", () => {
   let orphan: typeof import("../../worker/src/orphan-scan.js");
   let intents: typeof import("../../worker/src/publication-intent.js");
   let publication: typeof import("../../worker/src/immutable-publication.js");
+  let platform: typeof import("../src/services/operations/platform-conditions.service.js");
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -24,6 +25,7 @@ describe("artifact publication intents (live PostgreSQL 16)", () => {
     orphan = await import("../../worker/src/orphan-scan.js");
     intents = await import("../../worker/src/publication-intent.js");
     publication = await import("../../worker/src/immutable-publication.js");
+    platform = await import("../src/services/operations/platform-conditions.service.js");
   }, 180_000);
   afterAll(async () => {
     await h?.cleanup();
@@ -85,6 +87,37 @@ describe("artifact publication intents (live PostgreSQL 16)", () => {
     expect(third.reused).toBe(false);
     expect(third.key).not.toBe(first.key);
     expect(keys).toHaveLength(2);
+  });
+
+  it("Operations raises one platform condition for a recent unreferenced publication, and closes it", async () => {
+    const openRow = () =>
+      prisma.operationalIncident.findFirst({
+        where: { fingerprint: platform.UNREFERENCED_PUBLICATIONS_FINGERPRINT, teamId: null, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+        select: { id: true, messageCode: true, messageParams: true },
+      });
+    const intent = await prisma.artifactPublicationIntent.create({
+      data: {
+        evidenceId: h.fixtures.teamA.evidenceId,
+        requestId: randomUUID(),
+        family: "verification",
+        storageBucket: "bucket-intent-test",
+        storageKey: `verification/${randomUUID()}.zip`,
+        createdAtUtc: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
+    });
+    try {
+      await platform.reconcilePlatformConditions();
+      const row = await openRow();
+      expect(row?.messageCode).toBe("ops.platform.unreferenced_published_artifacts");
+      expect((row?.messageParams as { recent?: number } | null)?.recent).toBeGreaterThanOrEqual(1);
+    } finally {
+      await prisma.artifactPublicationIntent.delete({ where: { id: intent.id } });
+    }
+    const after = await platform.observeUnreferencedPublications(new Date());
+    if (after.recent === 0) {
+      await platform.reconcilePlatformConditions();
+      expect(await openRow()).toBeNull();
+    }
   });
 
   it("an old intent no row references is counted, for as long as nothing references it", async () => {
