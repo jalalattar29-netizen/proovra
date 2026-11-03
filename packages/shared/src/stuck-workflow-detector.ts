@@ -96,12 +96,23 @@ export type StuckWorkflowFacts = {
   hasOpenEscalation: boolean;
   /** Whether an escalation has been acknowledged. */
   escalationAcknowledged: boolean;
+  /**
+   * When the open escalation was raised. The unacknowledged rule measures from
+   * here; it measured from the last reviewer touch, so an escalation on work
+   * nobody had touched was never reported (WORKFLOW-014).
+   */
+  escalationRaisedAtEpochMs?: number | null;
   /** Whether the workflow has been approved but export/package gate
    *  still blocks. */
   approvedButExportBlocked: boolean;
 };
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+
+/** The raise time when known; a caller that has none keeps the old reading. */
+function escalationClockStart(facts: StuckWorkflowFacts): number | null {
+  return facts.escalationRaisedAtEpochMs ?? facts.lastReviewerTouchAtEpochMs;
+}
 const ONE_DAY_MS = 24 * ONE_HOUR_MS;
 
 // Bounded thresholds — operators can tune by replacing this module's
@@ -205,8 +216,8 @@ export function detectStuckWorkflow(
   if (
     facts.hasOpenEscalation &&
     !facts.escalationAcknowledged &&
-    facts.lastReviewerTouchAtEpochMs != null &&
-    now - facts.lastReviewerTouchAtEpochMs >
+    escalationClockStart(facts) != null &&
+    now - (escalationClockStart(facts) as number) >
       STUCK_ESCALATION_UNACK_THRESHOLD_MS
   ) {
     reasons.push({

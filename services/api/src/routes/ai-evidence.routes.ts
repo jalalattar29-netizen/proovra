@@ -41,6 +41,7 @@ import {
 } from "../services/ai/structured-copilot-provider.js";
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
+import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
 import {
@@ -186,6 +187,7 @@ export async function aiEvidenceRoutes(app: FastifyInstance) {
       feature: policyFeatureForOperation(EVIDENCE_COPILOT_OPERATION),
       dataClass: "METADATA",
       userRole: membership.role,
+      planAllowed: await workspaceIncludesAiOperations(teamId),
     });
     // The server builds the identity from the revision it just recomputed, so
     // a client cannot buy a cache hit by sending a key from a previous state.

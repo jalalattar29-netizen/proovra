@@ -5,6 +5,8 @@
  * that went through provisioning and owner acceptance.
  */
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -473,6 +475,66 @@ describe("the Enterprise contract and its lifecycle (live PostgreSQL)", () => {
       });
       expect(created.statusCode, created.body).toBeGreaterThanOrEqual(400);
       expect(created.body).toContain("ENTERPRISE_CONTRACT_REQUIRED");
+    });
+
+    it("every AI spend path asks the contract: copilots and embeddings stop, in both hosts, and resume", async () => {
+      const t = await customer();
+      expect((await setTerms(t.orgId, { aiOperationsPerMonth: 100 })).statusCode).toBe(200);
+      const { workspaceIncludesAiOperations } = await import("../src/services/billing-enforcement.service.js");
+      const { workspaceContractWithheld } = await import("../../worker/src/workspace-billing.js");
+      const { decideAiPolicy } = await import("../src/services/ai/workspace-ai-policy.service.js");
+
+      expect(await workspaceIncludesAiOperations(t.workspaceId)).toBe(true);
+      expect(await workspaceContractWithheld(t.workspaceId)).toBe(false);
+
+      await prisma.enterpriseContract.update({ where: { organizationId: t.orgId }, data: { status: "SUSPENDED" } });
+      expect(await workspaceIncludesAiOperations(t.workspaceId)).toBe(false);
+      expect(await workspaceContractWithheld(t.workspaceId)).toBe(true);
+
+      // A plan answer of false is the policy's denial, whatever the workspace set.
+      const decision = decideAiPolicy({
+        policy: {
+          aiEnabled: true,
+          reviewerCopilotEnabled: true,
+          caseCopilotEnabled: true,
+          semanticSearchEnabled: true,
+          embeddingsAllowed: true,
+        } as never,
+        feature: "REVIEWER_COPILOT",
+        dataClass: "METADATA",
+        globalAiEnabled: true,
+        providerConfigured: true,
+        planAllowed: false,
+      });
+      expect(decision.allowed).toBe(false);
+
+      await prisma.enterpriseContract.update({ where: { organizationId: t.orgId }, data: { status: "ACTIVE" } });
+      expect(await workspaceIncludesAiOperations(t.workspaceId)).toBe(true);
+    });
+
+    it("the AI figure is the enforced allowance on the charged meter; nothing unenforced shows a limit", async () => {
+      const t = await customer(10);
+      expect((await setTerms(t.orgId, { aiOperationsPerMonth: 250 })).statusCode).toBe(200);
+      const res = await h.app.inject({ method: "GET", url: "/v1/quotas", headers: bearer(t.owner.token) });
+      expect(res.statusCode, res.body).toBe(200);
+      const data = (res.json() as { data: Record<string, { limit: number | null; used: number; remaining: number | null }> }).data;
+      expect(data.analyses).toMatchObject({ limit: 250, used: 0, remaining: 250 });
+      expect(data.batchJobs).toMatchObject({ limit: null, remaining: null });
+      expect(data.apiKeys).toMatchObject({ limit: null, remaining: null });
+    });
+
+    it("the routes that spend pass the plan answer to the policy", () => {
+      for (const file of [
+        "src/routes/ai-evidence.routes.ts",
+        "src/routes/ai-case.routes.ts",
+        "src/routes/ai-reviewer.routes.ts",
+        "src/routes/search.routes.ts",
+        "src/services/intelligence/semantic.service.ts",
+      ]) {
+        expect(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), file).toMatch(
+          /planAllowed: await workspaceIncludesAiOperations\(/,
+        );
+      }
     });
   });
 

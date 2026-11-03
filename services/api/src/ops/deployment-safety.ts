@@ -29,6 +29,7 @@ import {
   developmentSurfacesAllowed,
   isCommittedFixtureFingerprint,
   publicFingerprintOfPem,
+  readSignerProvider,
   resolveDeploymentEnvironment,
   type DeploymentEnvironmentKind,
 } from "@proovra/shared-runtime";
@@ -137,7 +138,7 @@ export function buildDeploymentSafetyReport(
   const devAuthRequested = env.DEV_AUTH_ENABLED === "true";
   const e2eSecret = (env.E2E_AUTH_BYPASS_SECRET ?? "").trim().length >= 32;
 
-  const rawProvider = (env.SIGNER_PROVIDER ?? "local-pem").trim().toLowerCase().replace(/_/g, "-");
+  const rawProvider = readSignerProvider(env.SIGNER_PROVIDER);
   const provider: DeploymentSafetyReport["signing"]["provider"] =
     rawProvider === "local-pem" || rawProvider === "aws-kms" ? rawProvider : "other";
   const localPem = provider === "local-pem";

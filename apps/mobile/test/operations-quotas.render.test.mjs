@@ -205,7 +205,7 @@ test("the header, usage-card and quota-card copy is the web's", async () => {
   assert.ok(r.hasText("USAGE & QUOTAS"));
   assert.ok(r.hasText("Monitor platform usage and current limits."));
   assert.ok(r.hasText("Review analysis activity, cost metrics, quota consumption, and active service usage from one dashboard."));
-  for (const t of ["Analyses processed today", "Analyses processed this week", "Analyses processed this month", "Average AI analysis cost"]) assert.ok(r.hasText(t), t);
+  for (const t of ["Analyses processed today", "Analyses processed this week", "Analyses processed this month", "A fixed list rate, not a measured cost"]) assert.ok(r.hasText(t), t);
   for (const t of ["Analysis Calls", "Batch Jobs", "API Keys", "Team Members"]) assert.ok(r.hasText(t), t);
   assert.ok(r.hasText("9,500 / 10,000 used · 500 remaining"));
   assert.ok(r.hasText("Current Quotas"));

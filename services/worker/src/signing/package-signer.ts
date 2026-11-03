@@ -11,6 +11,7 @@ import path from "node:path";
 import {
   assertNotCommittedFixture,
   publicFingerprintOfPem,
+  readSignerProvider,
 } from "@proovra/shared-runtime";
 
 export type PackageSignerProvider = "local-pem" | "aws-kms";
@@ -30,12 +31,8 @@ function required(name: string): string {
 }
 
 export function packageSignerProvider(): PackageSignerProvider {
-  const raw = (process.env.SIGNER_PROVIDER ?? "local-pem")
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, "-");
-  if (raw === "aws-kms") return "aws-kms";
-  if (raw === "local-pem") return "local-pem";
+  const provider = readSignerProvider(process.env.SIGNER_PROVIDER);
+  if (provider === "aws-kms" || provider === "local-pem") return provider;
   throw new Error("SIGNER_PROVIDER must be aws-kms or local-pem for package signing");
 }
 

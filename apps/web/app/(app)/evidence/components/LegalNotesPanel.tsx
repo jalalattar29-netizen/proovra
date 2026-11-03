@@ -12,6 +12,7 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<LegalNote[]>([]);
   const [loading, setLoading] = useState(false);
+  const [canWrite, setCanWrite] = useState(false);
   const [draft, setDraft] = useState("");
   const [noteType, setNoteType] = useState<(typeof NOTE_TYPES)[number]>("GENERAL");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -27,6 +28,7 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
         const data = (await apiFetch(`/v1/evidence/${evidenceId}/legal-notes`)) as LegalNotesResponse;
         if (!cancelled) {
           setItems(Array.isArray(data.items) ? data.items : []);
+          setCanWrite(data.canWrite === true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -75,6 +77,8 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
         <p className="evidence-library-muted">
           Legal notes are internal workspace notes. They do not determine legal outcome or evidentiary weight.
         </p>
+        {canWrite ? (
+          <>
         <div className="evidence-library-case-toolbar evd-block--tight">
           <AppListbox
             value={noteType}
@@ -97,6 +101,8 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
             Save Legal Note
           </button>
         </div>
+          </>
+        ) : null}
         {loading ? <p className="evidence-library-muted">Loading legal notes...</p> : null}
         {!loading && items.length === 0 ? <p className="evidence-library-muted">No legal notes yet.</p> : null}
         <div className="evidence-library-note-grid">
@@ -136,18 +142,20 @@ export function LegalNotesPanel({ evidenceId }: { evidenceId: string }) {
               ) : (
                 <>
                   <p>{item.body}</p>
-                  <div className="evidence-library-panel__actions evd-block--tight">
-                    <button type="button" className="app-secondary-action"
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setEditingBody(item.body);
-                        setEditingType(item.noteType);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteNote(item.id)}>Delete</button>
-                  </div>
+                  {canWrite ? (
+                    <div className="evidence-library-panel__actions evd-block--tight">
+                      <button type="button" className="app-secondary-action"
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setEditingBody(item.body);
+                          setEditingType(item.noteType);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button type="button" className="app-ghost-action evidence-detail-destructive-action" onClick={() => void deleteNote(item.id)}>Delete</button>
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>

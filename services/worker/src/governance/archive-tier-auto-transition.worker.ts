@@ -12,6 +12,13 @@
  * holding a record old enough to tier is swept: a cap on teams, taken oldest
  * first, meant the same workspaces every tick and none of the later ones, ever.
  *
+ * Within a team the walk is oldest record first, in pages, until the cap is met
+ * or the records run out. It used to read 400 rows in no order and stop there, so
+ * a team whose first 400 were already at their tier never reached the rest.
+ * A tag that failed is left for a day: a storage outage writes one FAILED row
+ * per attempt, so attempts are capped too, and without the pause the same failing
+ * rows would use that cap on every tick.
+ *
  * Hard rules:
  *   - One team failure must never abort the remaining sweep.
  *   - A tier is recorded by tagging the exact sealed version, and only a tag
@@ -37,6 +44,10 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const WARM_TO_COLD_CUMULATIVE_DAYS = 120;
 const COLD_TO_DEEP_CUMULATIVE_DAYS = 485;
 const MAX_PER_TEAM = 100;
+/** Every tag attempted in one tick, successful or not. */
+const MAX_ATTEMPTS_PER_TEAM = MAX_PER_TEAM * 4;
+const PAGE_SIZE = MAX_PER_TEAM * 4;
+const FAILED_TAG_RETRY_MS = MS_PER_DAY;
 
 const TIER_RANK: Record<ArchiveTier, number> = {
   HOT: 0,
@@ -44,6 +55,14 @@ const TIER_RANK: Record<ArchiveTier, number> = {
   COLD: 2,
   DEEP_ARCHIVE: 3,
 };
+
+type EvidencePage = Array<{
+  id: string;
+  createdAt: Date;
+  storageBucket: string | null;
+  storageKey: string | null;
+  storageVersionId: string | null;
+}>;
 
 function isArchiveTier(value: string): value is ArchiveTier {
   return value === "HOT" || value === "WARM" || value === "COLD" || value === "DEEP_ARCHIVE";
@@ -62,155 +81,201 @@ async function sweepTeam(teamId: string): Promise<number> {
   // omitted a personal workspace's legacy NULL-team rows, and reported the
   // smaller number as if it were the whole population.
   const scope = await workspaceEvidenceWhere(teamId, prisma);
-  // 1. Gather evidence rows that might need a tier downgrade.
-  const evidenceRows = await prisma.evidence.findMany({
-    where: { AND: [scope], deletedAt: null },
-    select: { id: true, createdAt: true },
-    take: MAX_PER_TEAM * 4, // over-fetch so we can skip already-at-tier rows
-  });
-  if (evidenceRows.length === 0) return 0;
-
-  // 2. Resolve the current tier for each evidence row via the last
-  //    ArchiveTierTransition.
-  const allTransitions = await prisma.archiveTierTransition.findMany({
-    where: { teamId, state: "COMPLETED" },
-    orderBy: { transitionedAtUtc: "desc" },
-    select: { evidenceId: true, toTier: true },
-  });
-  const latestByEvidence = new Map<string, ArchiveTier>();
-  for (const t of allTransitions) {
-    if (latestByEvidence.has(t.evidenceId)) continue;
-    if (isArchiveTier(t.toTier)) latestByEvidence.set(t.evidenceId, t.toTier);
-  }
-
-  const now = Date.now();
+  const dueBefore = new Date(Date.now() - HOT_TO_WARM_DAYS * MS_PER_DAY);
   let scheduled = 0;
+  let attempts = 0;
+  let after: { createdAt: Date; id: string } | null = null;
 
-  // 3. For each evidence item, determine if a tier downgrade is due.
-  for (const ev of evidenceRows) {
-    if (scheduled >= MAX_PER_TEAM) break;
+  while (scheduled < MAX_PER_TEAM && attempts < MAX_ATTEMPTS_PER_TEAM) {
+    // 1. The next page of records old enough for a first tier, oldest first. A
+    //    record with no sealed version has nothing to tag and is not read at all.
+    const position: { createdAt: Date; id: string } | null = after;
+    const page: EvidencePage = await prisma.evidence.findMany({
+      where: {
+        AND: [
+          scope,
+          ...(position
+            ? [
+                {
+                  OR: [
+                    { createdAt: { gt: position.createdAt } },
+                    { createdAt: position.createdAt, id: { gt: position.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+        deletedAt: null,
+        createdAt: { lte: dueBefore },
+        storageBucket: { not: null },
+        storageKey: { not: null },
+        storageVersionId: { not: null },
+      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        createdAt: true,
+        storageBucket: true,
+        storageKey: true,
+        storageVersionId: true,
+      },
+      take: PAGE_SIZE,
+    });
+    if (page.length === 0) break;
+    const last = page[page.length - 1]!;
+    after = { createdAt: last.createdAt, id: last.id };
 
-    const currentTier: ArchiveTier = latestByEvidence.get(ev.id) ?? "HOT";
-    const ageDays = (now - ev.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-
-    let targetTier: ArchiveTier | null = null;
-
-    if (currentTier === "HOT" && ageDays >= HOT_TO_WARM_DAYS) {
-      targetTier = "WARM";
-    } else if (currentTier === "WARM" && ageDays >= WARM_TO_COLD_CUMULATIVE_DAYS) {
-      targetTier = "COLD";
-    } else if (currentTier === "COLD" && ageDays >= COLD_TO_DEEP_CUMULATIVE_DAYS) {
-      targetTier = "DEEP_ARCHIVE";
-    }
-
-    if (!targetTier) continue;
-    if (TIER_RANK[targetTier] <= TIER_RANK[currentTier]) continue;
-
-    // 4. GOV-016 — record the tier on the exact sealed version. This used to
-    //    import the API service from a path that never existed, swallow the
-    //    failure, and write a PENDING label nothing ever processed: a record read
-    //    WARM after 30 days with no byte moved, and the next step was blocked by
-    //    the label itself. A record with no sealed version has nothing to tag, so
-    //    no row is written for it rather than one that claims a tier.
-    try {
-      const sealed = await prisma.evidence.findUnique({
-        where: { id: ev.id },
-        select: { storageBucket: true, storageKey: true, storageVersionId: true },
-      });
-      if (!sealed?.storageBucket || !sealed.storageKey || !sealed.storageVersionId) continue;
-
-      // THE CLAIM, durable before storage is touched: the row exists first, under
-      // the evidence lock, so overlapping sweeps tag once and a crash leaves
-      // something to reconcile. A row this sweep or an older build left PENDING is
-      // taken over; anything else in flight is left alone.
-      const claimId = await prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ev.id}))`;
-        // One statement on purpose. The claim holder finishes outside this lock,
-        // so reading "done" and then "active" separately could miss its row in
-        // both, between PENDING and COMPLETED, and tag the object a second time.
-        const blocking = await tx.archiveTierTransition.findMany({
-          where: {
-            evidenceId: ev.id,
-            OR: [
-              { state: "COMPLETED", toTier: targetTier },
-              { state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
-            ],
-          },
-          select: { id: true, state: true, reason: true, transitionedAtUtc: true },
-        });
-        if (blocking.some((row) => row.state === "COMPLETED")) return null;
-        const active = blocking[0];
-        if (active) {
-          const abandoned =
-            active.state === "PENDING" &&
-            (active.reason === "AUTO_TRANSITION_PENDING" ||
-              (active.reason === "AUTO_TRANSITION" &&
-                Date.now() - active.transitionedAtUtc.getTime() > AUTO_CLAIM_LEASE_MS));
-          if (!abandoned) return null;
-          await tx.archiveTierTransition.update({
-            where: { id: active.id },
-            data: { fromTier: currentTier, toTier: targetTier, reason: "AUTO_TRANSITION" },
-          });
-          return active.id;
-        }
-        const created = await tx.archiveTierTransition.create({
-          data: {
-            teamId,
-            evidenceId: ev.id,
-            fromTier: currentTier,
-            toTier: targetTier,
-            reason: "AUTO_TRANSITION",
-            costEstimateUsdMicros: 0n,
-            initiatedByUserId: null,
-            state: "PENDING",
-            storageClassBefore: null,
-            storageClassAfter: null,
-          },
-          select: { id: true },
-        });
-        return created.id;
-      });
-      if (!claimId) continue;
-
-      try {
-        const existing = await s3.send(
-          new GetObjectTaggingCommand({
-            Bucket: sealed.storageBucket,
-            Key: sealed.storageKey,
-            VersionId: sealed.storageVersionId,
-          }),
-        );
-        await s3.send(
-          new PutObjectTaggingCommand({
-            Bucket: sealed.storageBucket,
-            Key: sealed.storageKey,
-            VersionId: sealed.storageVersionId,
-            Tagging: {
-              TagSet: [
-                ...(existing.TagSet ?? []).filter((t) => t.Key !== ARCHIVE_TIER_OBJECT_TAG),
-                { Key: ARCHIVE_TIER_OBJECT_TAG, Value: targetTier },
-              ],
-            },
-          }),
-        );
-      } catch (err) {
-        await prisma.archiveTierTransition.update({
-          where: { id: claimId },
-          data: {
-            state: "FAILED",
-            failureReason: (err instanceof Error ? err.name : "TAGGING_FAILED").slice(0, 200),
-          },
-        });
+    // 2. Resolve the current tier of each row in this page via its last
+    //    ArchiveTierTransition, and which of them failed recently.
+    const transitions = await prisma.archiveTierTransition.findMany({
+      where: {
+        teamId,
+        evidenceId: { in: page.map((row) => row.id) },
+        state: { in: ["COMPLETED", "FAILED"] },
+      },
+      orderBy: { transitionedAtUtc: "desc" },
+      select: { evidenceId: true, toTier: true, state: true, transitionedAtUtc: true },
+    });
+    const latestByEvidence = new Map<string, ArchiveTier>();
+    const recentlyFailed = new Set<string>();
+    const retryAfter = Date.now() - FAILED_TAG_RETRY_MS;
+    for (const t of transitions) {
+      if (t.state === "FAILED") {
+        if (t.transitionedAtUtc.getTime() > retryAfter) recentlyFailed.add(t.evidenceId);
         continue;
       }
-      await prisma.archiveTierTransition.update({
-        where: { id: claimId },
-        data: { state: "COMPLETED", executedAtUtc: new Date() },
-      });
-      scheduled += 1;
-    } catch {
-      // One evidence failure must not abort the remaining batch.
+      if (latestByEvidence.has(t.evidenceId)) continue;
+      if (isArchiveTier(t.toTier)) latestByEvidence.set(t.evidenceId, t.toTier);
     }
+
+    const now = Date.now();
+
+    // 3. For each evidence item, determine if a tier downgrade is due.
+    for (const ev of page) {
+      if (scheduled >= MAX_PER_TEAM || attempts >= MAX_ATTEMPTS_PER_TEAM) break;
+      if (recentlyFailed.has(ev.id)) continue;
+
+      const currentTier: ArchiveTier = latestByEvidence.get(ev.id) ?? "HOT";
+      const ageDays = (now - ev.createdAt.getTime()) / MS_PER_DAY;
+
+      let targetTier: ArchiveTier | null = null;
+
+      if (currentTier === "HOT" && ageDays >= HOT_TO_WARM_DAYS) {
+        targetTier = "WARM";
+      } else if (currentTier === "WARM" && ageDays >= WARM_TO_COLD_CUMULATIVE_DAYS) {
+        targetTier = "COLD";
+      } else if (currentTier === "COLD" && ageDays >= COLD_TO_DEEP_CUMULATIVE_DAYS) {
+        targetTier = "DEEP_ARCHIVE";
+      }
+
+      if (!targetTier) continue;
+      if (TIER_RANK[targetTier] <= TIER_RANK[currentTier]) continue;
+
+      // 4. GOV-016 — record the tier on the exact sealed version. This used to
+      //    import the API service from a path that never existed, swallow the
+      //    failure, and write a PENDING label nothing ever processed: a record read
+      //    WARM after 30 days with no byte moved, and the next step was blocked by
+      //    the label itself. A record with no sealed version has nothing to tag, so
+      //    no row is written for it rather than one that claims a tier.
+      try {
+        const sealed = ev;
+        if (!sealed.storageBucket || !sealed.storageKey || !sealed.storageVersionId) continue;
+
+        // THE CLAIM, durable before storage is touched: the row exists first, under
+        // the evidence lock, so overlapping sweeps tag once and a crash leaves
+        // something to reconcile. A row this sweep or an older build left PENDING is
+        // taken over; anything else in flight is left alone.
+        const claimId = await prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ev.id}))`;
+          // One statement on purpose. The claim holder finishes outside this lock,
+          // so reading "done" and then "active" separately could miss its row in
+          // both, between PENDING and COMPLETED, and tag the object a second time.
+          const blocking = await tx.archiveTierTransition.findMany({
+            where: {
+              evidenceId: ev.id,
+              OR: [
+                { state: "COMPLETED", toTier: targetTier },
+                { state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
+              ],
+            },
+            select: { id: true, state: true, reason: true, transitionedAtUtc: true },
+          });
+          if (blocking.some((row) => row.state === "COMPLETED")) return null;
+          const active = blocking[0];
+          if (active) {
+            const abandoned =
+              active.state === "PENDING" &&
+              (active.reason === "AUTO_TRANSITION_PENDING" ||
+                (active.reason === "AUTO_TRANSITION" &&
+                  Date.now() - active.transitionedAtUtc.getTime() > AUTO_CLAIM_LEASE_MS));
+            if (!abandoned) return null;
+            await tx.archiveTierTransition.update({
+              where: { id: active.id },
+              data: { fromTier: currentTier, toTier: targetTier, reason: "AUTO_TRANSITION" },
+            });
+            return active.id;
+          }
+          const created = await tx.archiveTierTransition.create({
+            data: {
+              teamId,
+              evidenceId: ev.id,
+              fromTier: currentTier,
+              toTier: targetTier,
+              reason: "AUTO_TRANSITION",
+              costEstimateUsdMicros: 0n,
+              initiatedByUserId: null,
+              state: "PENDING",
+              storageClassBefore: null,
+              storageClassAfter: null,
+            },
+            select: { id: true },
+          });
+          return created.id;
+        });
+        if (!claimId) continue;
+        attempts += 1;
+
+        try {
+          const existing = await s3.send(
+            new GetObjectTaggingCommand({
+              Bucket: sealed.storageBucket,
+              Key: sealed.storageKey,
+              VersionId: sealed.storageVersionId,
+            }),
+          );
+          await s3.send(
+            new PutObjectTaggingCommand({
+              Bucket: sealed.storageBucket,
+              Key: sealed.storageKey,
+              VersionId: sealed.storageVersionId,
+              Tagging: {
+                TagSet: [
+                  ...(existing.TagSet ?? []).filter((t) => t.Key !== ARCHIVE_TIER_OBJECT_TAG),
+                  { Key: ARCHIVE_TIER_OBJECT_TAG, Value: targetTier },
+                ],
+              },
+            }),
+          );
+        } catch (err) {
+          await prisma.archiveTierTransition.update({
+            where: { id: claimId },
+            data: {
+              state: "FAILED",
+              failureReason: (err instanceof Error ? err.name : "TAGGING_FAILED").slice(0, 200),
+            },
+          });
+          continue;
+        }
+        await prisma.archiveTierTransition.update({
+          where: { id: claimId },
+          data: { state: "COMPLETED", executedAtUtc: new Date() },
+        });
+        scheduled += 1;
+      } catch {
+        // One evidence failure must not abort the remaining batch.
+      }
+    }
+    if (page.length < PAGE_SIZE) break;
   }
 
   return scheduled;

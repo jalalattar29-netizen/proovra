@@ -193,6 +193,27 @@ describe("retention decisions stick, certificates tell the truth (live PostgreSQ
   });
 
   describe("GOV-009", () => {
+    it("GOV-009: an export snapshot cannot be edited or deleted, and a new one is still written", async () => {
+      const snap = await prisma.governanceExportSnapshot.create({
+        data: {
+          teamId: A().teamId,
+          snapshotKind: "AUDIT_EXPORT",
+          lifecycleState: "ACTIVE",
+          exportEligibilityOutcome: "ALLOWED",
+          exportEligibilityReason: "test",
+          snapshotHash: "a".repeat(64),
+          snapshotPayload: {},
+        },
+        select: { id: true },
+      });
+      await expect(
+        prisma.governanceExportSnapshot.update({ where: { id: snap.id }, data: { exportEligibilityOutcome: "BLOCKED" } }),
+      ).rejects.toThrow(/append-only/);
+      await expect(prisma.governanceExportSnapshot.delete({ where: { id: snap.id } })).rejects.toThrow(/append-only/);
+      const kept = await prisma.governanceExportSnapshot.findUniqueOrThrow({ where: { id: snap.id } });
+      expect(kept.exportEligibilityOutcome).toBe("ALLOWED");
+    });
+
     it("a legacy request naming an id nothing resolves is refused, not certified over nothing", async () => {
       const id = await approvedRequest([randomUUID()]);
       await expect(execute(id)).rejects.toMatchObject({ publicCode: "DESTRUCTION_EVIDENCE_NOT_FOUND" });

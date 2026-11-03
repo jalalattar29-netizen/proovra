@@ -10,6 +10,10 @@ import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 import { prisma } from "../db.js";
 import { resolveWorkspaceSeatState } from "../services/billing/workspace-seats.service.js";
+import {
+  evaluateWorkspaceAiOperation,
+  getWorkspaceAiUsageThisMonth,
+} from "../services/billing-enforcement.service.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { AppError, ErrorCode } from "../errors.js";
 // A-3 closure — legacy in-memory `apiKeyService` import retired.
@@ -125,22 +129,11 @@ function nextMonthStart(): Date {
   return d;
 }
 
-function readIntEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const value = Number.parseInt(raw, 10);
-  return Number.isFinite(value) ? value : fallback;
-}
-
 function readFloatEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
   const value = Number.parseFloat(raw);
   return Number.isFinite(value) ? value : fallback;
-}
-
-function clampRemaining(limit: number, used: number): number {
-  return Math.max(0, limit - used);
 }
 
 async function getRealUsageStats(userId: string) {
@@ -264,26 +257,31 @@ async function getRealQuotas(req: FastifyRequest, userId: string) {
     ? await resolveWorkspaceSeatState(current.context.workspaceId, prisma)
     : null;
 
-  const analysesLimit = readIntEnv("QUOTA_ANALYSES_MONTHLY_LIMIT", 10000);
-  const batchJobsLimit = readIntEnv("QUOTA_BATCH_JOBS_LIMIT", 100);
-  const apiKeysLimit = readIntEnv("QUOTA_API_KEYS_LIMIT", 50);
+  // BILLING-010 — the AI allowance is the one the AI gate enforces, on the meter
+  // it charges. The three limits here were env figures nothing enforced, and the
+  // count was analytics events of the user. Batch jobs and API keys have no
+  // enforced limit, so none is shown.
+  const allowance = current.allowed
+    ? await evaluateWorkspaceAiOperation({ teamId: current.context.workspaceId })
+    : null;
+  const ai = allowance?.scope ? await getWorkspaceAiUsageThisMonth(allowance.scope) : null;
 
   return {
     analyses: {
-      limit: analysesLimit,
-      used: analysesUsed,
-      remaining: clampRemaining(analysesLimit, analysesUsed),
+      limit: ai?.cap ?? null,
+      used: ai ? ai.consumed : analysesUsed,
+      remaining: ai && ai.cap !== null ? Math.max(0, ai.cap - ai.consumed) : null,
       resetDate: nextMonthStart().toISOString(),
     },
     batchJobs: {
-      limit: batchJobsLimit,
+      limit: null,
       used: batchJobsUsed,
-      remaining: clampRemaining(batchJobsLimit, batchJobsUsed),
+      remaining: null,
     },
     apiKeys: {
-      limit: apiKeysLimit,
+      limit: null,
       used: apiKeysUsed,
-      remaining: clampRemaining(apiKeysLimit, apiKeysUsed),
+      remaining: null,
     },
     teamMembers: {
       // Null when nothing bounds the workspace as a whole: capacity is then per

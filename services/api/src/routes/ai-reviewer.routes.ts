@@ -39,6 +39,7 @@ import { runReviewerCopilot } from "../services/ai/reviewer-copilot.service.js";
 import { buildReviewerCopilotProvider, ReviewerCopilotProviderUnavailable } from "../services/ai/reviewer-copilot-provider.js";
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun, recordObservationInteraction } from "../services/ai/ai-copilot-run-store.service.js";
+import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { loadPublishedCriteria } from "./reviewer-criteria.routes.js";
 import { selectQcSample } from "../services/ai/ai-qc-sampling.service.js";
@@ -163,7 +164,7 @@ export async function aiReviewerRoutes(app: FastifyInstance) {
     }
     const serverRevisions: Record<string, string> = {};
     for (const snap of snapshots) serverRevisions[snap.row.id] = snap.revision;
-    const policyDecision = await evaluateWorkspaceAiPolicy({ teamId, feature: "REVIEWER_COPILOT", dataClass: "METADATA", userRole: membership.role });
+    const policyDecision = await evaluateWorkspaceAiPolicy({ teamId, feature: "REVIEWER_COPILOT", dataClass: "METADATA", userRole: membership.role, planAllowed: await workspaceIncludesAiOperations(teamId) });
     // BOUNDED and REVISION-AWARE. This concatenated up to fifty uuids into a
     // dedupe key — some 1,800 characters — and identified a SELECTION rather
     // than an OPERATION, so retrying after a record genuinely changed produced

@@ -704,6 +704,12 @@ export async function resendNotificationDelivery(
 // Idempotency: each row is flipped to PENDING with a single conditional
 // UPDATE before dispatch so two concurrent sweepers can't both pick the
 // same row.
+//
+// PENDING therefore means "a process holds this row". A process that died
+// holding it left the row PENDING with nothing coming back for it, so each sweep
+// first returns the claims that outlived their lease to the schedule, through
+// the same retry budget. The provider key is stored on the row, so if the lost
+// attempt did reach the provider, the second send carries the same key.
 // -----------------------------------------------------------------------------
 
 export type ProcessRetriesSummary = {
@@ -711,7 +717,17 @@ export type ProcessRetriesSummary = {
   resent: number;
   rescheduled: number;
   failed: number;
+  /** Claims a crash lost, returned to the schedule by this sweep. */
+  reclaimed: number;
 };
+
+/**
+ * How long a PENDING row may sit before its holder is presumed dead. Twice the
+ * provider client's five minute response limit (undici's default, since the Resend
+ * call sets none) plus a margin, so a slow send that is still alive is not
+ * taken over. Taking one over anyway costs a repeat of the same provider key.
+ */
+export const NOTIFICATION_CLAIM_LEASE_MS = 15 * 60 * 1000;
 
 export async function processDueNotificationRetries(
   input: { batchSize?: number } = {},
@@ -723,8 +739,11 @@ export async function processDueNotificationRetries(
     resent: 0,
     rescheduled: 0,
     failed: 0,
+    reclaimed: 0,
   };
   if (!isNotificationsFeatureEnabled()) return summary;
+
+  summary.reclaimed = await reclaimLostNotificationClaims(batchSize, client);
 
   const now = new Date();
   const candidates = await client.notificationDelivery.findMany({
@@ -749,6 +768,52 @@ export async function processDueNotificationRetries(
   }
 
   return summary;
+}
+
+/**
+ * Return claims that outlived their lease to the schedule. A lost attempt counts
+ * against the retry budget like any other, so a row that keeps killing its
+ * sender ends FAILED and is reported, instead of being sent for ever. The update
+ * repeats the lease test, so a holder that finished in the meantime keeps its
+ * result, and exactly one of two overlapping sweeps takes the row: this write
+ * moves `updatedAt` past the cutoff.
+ */
+async function reclaimLostNotificationClaims(
+  batchSize: number,
+  client: PrismaClient,
+): Promise<number> {
+  const leaseExpired = { updatedAt: { lte: new Date(Date.now() - NOTIFICATION_CLAIM_LEASE_MS) } };
+  const stale = await client.notificationDelivery.findMany({
+    where: { status: "PENDING", channel: "EMAIL", provider: "RESEND", ...leaseExpired },
+    orderBy: { updatedAt: "asc" },
+    take: batchSize,
+  });
+  let reclaimed = 0;
+  for (const row of stale) {
+    const retriable = row.retryCount + 1 < NOTIFICATION_RETRY_MAX_ATTEMPTS;
+    const claim = await client.notificationDelivery.updateMany({
+      where: { id: row.id, status: "PENDING", ...leaseExpired },
+      data: retriable
+        ? {
+            status: "RETRY_SCHEDULED",
+            retryCount: { increment: 1 },
+            nextAttemptAtUtc: new Date(),
+            errorCode: "claim_lease_expired",
+          }
+        : {
+            status: "FAILED",
+            failedAtUtc: new Date(),
+            errorCode: "claim_lease_expired",
+          },
+    });
+    if (claim.count !== 1) continue;
+    reclaimed += 1;
+    if (!retriable) {
+      const failed = await client.notificationDelivery.findUnique({ where: { id: row.id } });
+      if (failed) await emitNotificationFailedWebhook(failed, client);
+    }
+  }
+  return reclaimed;
 }
 
 /**

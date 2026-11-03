@@ -200,6 +200,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@noble/hashes':
+        specifier: 2.2.0
+        version: 2.2.0
       '@proovra/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -12323,8 +12326,7 @@ snapshots:
   '@next/swc-win32-x64-msvc@15.5.12':
     optional: true
 
-  '@noble/hashes@2.2.0':
-    optional: true
+  '@noble/hashes@2.2.0': {}
 
   '@nodable/entities@2.1.1': {}
 

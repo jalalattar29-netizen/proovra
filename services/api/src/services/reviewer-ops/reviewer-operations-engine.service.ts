@@ -1467,15 +1467,14 @@ async function runReconcileInner(
         limit: stuckLimit,
       });
       const activeIds = nonTerminal.flatMap((w) => (w.activeEscalationId ? [w.activeEscalationId] : []));
-      const acknowledged = new Set(
-        activeIds.length === 0
+      const active = new Map(
+        (activeIds.length === 0
           ? []
-          : (
-              await client.reviewEscalation.findMany({
-                where: { id: { in: activeIds }, status: "ACKNOWLEDGED" },
-                select: { id: true },
-              })
-            ).map((e) => e.id),
+          : await client.reviewEscalation.findMany({
+              where: { id: { in: activeIds } },
+              select: { id: true, status: true, createdAt: true },
+            })
+        ).map((e) => [e.id, e] as const),
       );
       const nowMs = Date.now();
       for (const wf of nonTerminal) {
@@ -1500,7 +1499,12 @@ async function runReconcileInner(
           lastContributorResponseAtEpochMs: null,
           slaStatus,
           hasOpenEscalation: !!wf.activeEscalationId,
-          escalationAcknowledged: wf.activeEscalationId ? acknowledged.has(wf.activeEscalationId) : false,
+          escalationAcknowledged: wf.activeEscalationId
+            ? active.get(wf.activeEscalationId)?.status === "ACKNOWLEDGED"
+            : false,
+          escalationRaisedAtEpochMs: wf.activeEscalationId
+            ? (active.get(wf.activeEscalationId)?.createdAt.getTime() ?? null)
+            : null,
           // This sweep reads open reviews, and an approved review is finished,
           // so the export-blocked rule does not apply here.
           approvedButExportBlocked: false,

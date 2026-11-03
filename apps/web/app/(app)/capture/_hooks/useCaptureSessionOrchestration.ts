@@ -31,6 +31,7 @@ import {
 } from "../_lib/file-utils";
 import { useCaptureLocation, type FinishLocation } from "./useCaptureLocation";
 import { computeIntegrityFromBlob } from "../_lib/hash-utils";
+import { sha256Base64OfBlob } from "../../../../lib/uploads/streaming-sha256";
 import {
   buildStorageLimitMessage,
   buildTeamPlanRequiredDetails,
@@ -132,6 +133,10 @@ async function runResumableItemUpload(input: {
   const { evidenceId, evidenceTeamId, item, index, resumable, setSessionItems } =
     input;
   const expectedPartCount = planChunks(item.file.size).length;
+  // The server compares the stored object with this. A digest staging did not
+  // get is computed now: without one, corruption in transit seals as the original.
+  const sha256Base64 =
+    item.clientSignals?.clientHintSha256Base64 ?? (await sha256Base64OfBlob(item.file));
   // 1. Create the upload session.
   const sessionRes = (await apiFetch("/v1/uploads/sessions", {
     method: "POST",
@@ -139,7 +144,7 @@ async function runResumableItemUpload(input: {
       teamId: evidenceTeamId,
       evidenceId,
       expectedPartCount,
-      ...declaredObject(item.file.size, item.clientSignals?.clientHintSha256Base64),
+      ...declaredObject(item.file.size, sha256Base64),
       idempotencyKey: `capture:${evidenceId}:${index}`,
       targetPartIndex: index,
       originalFileName: item.relativePath || item.file.name,
@@ -460,13 +465,11 @@ export function useCaptureSessionOrchestration({
           const signals = buildSessionItemSignals(nextFile, relativePath, existingItems);
 
           try {
-            const integrity = await computeIntegrityFromBlob(nextFile);
-            signals.clientHintSha256Base64 = integrity.checksumSha256Base64;
+            const staged = await sha256Base64OfBlob(nextFile);
+            signals.clientHintSha256Base64 = staged;
 
             const hashDuplicate = existingItems.some(
-              (existing) =>
-                existing.clientSignals?.clientHintSha256Base64 ===
-                integrity.checksumSha256Base64
+              (existing) => existing.clientSignals?.clientHintSha256Base64 === staged,
             );
 
             if (hashDuplicate) signals.duplicateStatus = "duplicate";

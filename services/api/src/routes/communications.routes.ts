@@ -756,6 +756,7 @@ async function handleTwilioWebhook(
           status: ev.status as prismaPkg.CommunicationStatus,
           deliveredAtUtc:
             ev.status === "DELIVERED" ? ev.occurredAtUtc : undefined,
+          nextAttemptAtUtc: ev.status === "DELIVERED" ? null : undefined,
           failedAtUtc:
             ev.status === "FAILED" || ev.status === "UNDELIVERED"
               ? ev.occurredAtUtc

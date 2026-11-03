@@ -5178,7 +5178,7 @@ function BulkActionsToolbar({
             ? `${actions.filter((a) => a.canAct).length} actions available`
             : scope === "SINGLE_OCCUPANT"
               ? "Switch to a workspace to unlock bulk actions"
-              : "Requires the Owner or Admin role"}
+              : "Only workspace administrators can run these"}
         </span>
       </div>
       <ul
