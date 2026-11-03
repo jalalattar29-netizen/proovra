@@ -24,7 +24,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { useTeamId } from "../../../../lib/platform-context";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime, formatUtcAuditDateTime } from "../../../../lib/date";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -142,7 +142,7 @@ function MfaRecoveryAdminBody() {
       setError(null);
     } catch (err) {
       if (
-        err instanceof ApiError &&
+        isApiResponseError(err) &&
         (err.statusCode === 403 || err.statusCode === 404)
       ) {
         setError(

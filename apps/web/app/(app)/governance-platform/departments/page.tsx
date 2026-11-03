@@ -60,7 +60,7 @@ import {
   StepUpModal,
   useStepUpAction,
 } from "../../../../components/identity-security/StepUpModal";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
@@ -101,7 +101,7 @@ const DENIAL_COPY: Record<string, string> = {
 
 function readDenialCode(err: unknown): string | null {
   const details =
-    err instanceof ApiError
+    isApiResponseError(err)
       ? err.details
       : (err as { details?: Record<string, unknown> })?.details;
   if (details && typeof details["denial"] === "string") {
@@ -117,7 +117,7 @@ function readDenialCode(err: unknown): string | null {
 /** The permission a `PERMISSION_REQUIRED` refusal names (label-gated downstream). */
 function readRequiredPermission(err: unknown): string | null {
   const details =
-    err instanceof ApiError
+    isApiResponseError(err)
       ? err.details
       : (err as { details?: Record<string, unknown> })?.details;
   return details && typeof details["permission"] === "string"

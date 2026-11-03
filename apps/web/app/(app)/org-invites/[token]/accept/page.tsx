@@ -27,7 +27,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
-import { ApiError, apiFetch } from "../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../../../lib/platform-context";
 
@@ -140,7 +140,7 @@ function OrgInviteAcceptPageInner() {
         router.push(`/login?next=${encodeURIComponent(here)}`);
         return;
       }
-      const code = err instanceof ApiError ? err.code : undefined;
+      const code = isApiResponseError(err) ? err.code : undefined;
       setState({ kind: "error", status, message, code });
     }
   }, [token, refresh, router]);

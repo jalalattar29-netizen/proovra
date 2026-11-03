@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 import { buildCopilotIdempotencyKey } from "@proovra/shared";
 
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { useActiveWorkspaceId } from "../../lib/platform-context";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
 
@@ -227,8 +227,8 @@ export function ReviewerCopilotPanel({
         prev[obsId] ? { ...prev, [obsId]: { ...prev[obsId], sync: "FAILED" } } : prev,
       );
       setAckError(
-        err instanceof ApiError
-          ? friendly(err.statusCode)
+        isApiResponseError(err)
+          ? friendly(err.statusCode ?? 0)
           : "Your verdict was not recorded. The review decision itself is unaffected.",
       );
     }
@@ -281,8 +281,8 @@ export function ReviewerCopilotPanel({
       setRunId(typeof res?.runId === "string" ? res.runId : null);
       setState({ kind: "result", result: res.data ?? (res as RunResult) });
     } catch (err) {
-      if (err instanceof ApiError) {
-        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode) });
+      if (isApiResponseError(err)) {
+        setState({ kind: "error", code: err.code ?? String(err.statusCode), message: friendly(err.statusCode ?? 0) });
       } else {
         setState({ kind: "error", code: "NETWORK", message: "Could not reach the AI service. Review workflows are unaffected." });
       }

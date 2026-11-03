@@ -28,7 +28,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useStepUpAction, StepUpModal } from "../identity-security/StepUpModal";
 import { useTeamId, useTenantGuard, useDirtyWork } from "../../lib/platform-context";
@@ -212,7 +212,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
           setLoad({ kind: "not_provisioned" });
           return;
         }
-        if (err instanceof ApiError) {
+        if (isApiResponseError(err)) {
           setLoad({ kind: "error", message: err.message, requestId: err.requestId });
         } else {
           setLoad({ kind: "error", message: toSafeUserError(err, { message: "Failed to load security policy." }).message });
@@ -270,7 +270,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
         setError("Each restricted range must be an IP address or a CIDR block, such as 203.0.113.0/24.");
       } else if (code === "RESTRICTED_IP_EXCLUDES_ACTOR") {
         setError("These ranges do not include the address you are connected from, so saving them would lock you out.");
-      } else if (err instanceof ApiError) setError(err.message);
+      } else if (isApiResponseError(err)) setError(err.message);
       else setError(toSafeUserError(err, { message: "Failed to update security policy." }).message);
     } finally {
       setSaving(false);
@@ -303,7 +303,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
       else if (code === "HIGH_SECURITY_PREREQUISITES_UNMET" && Array.isArray(missingList)) {
         setMissing(missingList);
         setError("High-security prerequisites are not met.");
-      } else if (err instanceof ApiError) setError(err.message);
+      } else if (isApiResponseError(err)) setError(err.message);
       else setError(toSafeUserError(err, { message: "Failed to activate high-security mode." }).message);
     } finally {
       setSaving(false);

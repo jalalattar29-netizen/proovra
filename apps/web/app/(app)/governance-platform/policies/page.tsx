@@ -19,7 +19,7 @@ import { DataTable, type DataTableColumn } from "../../../../components/ui/DataT
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { FilterBar } from "../../../../components/ui/FilterBar";
 import { GovernancePolicyForm } from "../../../../components/governance/GovernancePolicyForm";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useTenantGuard } from "../../../../lib/platform-context";
@@ -507,7 +507,7 @@ function applyDenial(
   err: unknown,
   setDenial: (v: PermissionDenialState) => void,
 ): boolean {
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const detailsDenial =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)

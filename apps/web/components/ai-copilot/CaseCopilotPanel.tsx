@@ -53,7 +53,7 @@ import {
   type EvidenceAnalysisRevision,
 } from "@proovra/shared";
 
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import type { AppTone } from "../app-primitives/AppStatusBadge";
 import { AppStatusText } from "../app-primitives/AppStatusText";
 import { CopilotCitationList, type CopilotCitationData } from "./CopilotCitation";
@@ -708,7 +708,7 @@ function describeFailure(
   err: unknown,
   onRefreshEvidence?: () => void,
 ): { message: string; retryable: boolean } {
-  if (!(err instanceof ApiError)) {
+  if (!(isApiResponseError(err))) {
     return {
       message:
         "Could not reach the AI service. Evidence workflows are unaffected.",

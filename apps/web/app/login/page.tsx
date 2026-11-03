@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
-import { apiBaseUrl, apiFetch, ApiError } from "../../lib/api";
+import { apiBaseUrl, apiFetch, isApiResponseError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
@@ -463,8 +463,8 @@ function LoginPageContent() {
       }
 
       const msg = toSafeUserError(err, { message: "Login failed" }).message;
-      const requestId = err instanceof ApiError ? err.requestId : undefined;
-      const errCode = err instanceof ApiError ? err.code : undefined;
+      const requestId = isApiResponseError(err) ? err.requestId : undefined;
+      const errCode = isApiResponseError(err) ? err.code : undefined;
 
       authLogger.log("AUTH_SESSION_FAILED", "error", { message: msg, requestId }, provider);
       authLogger.logTokenExchangeError(provider, msg);

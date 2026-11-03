@@ -19,7 +19,7 @@ import { Button } from "../../../../components/ui/Button";
 import { DataTable, type DataTableColumn } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { formatUserDate } from "../../../../lib/date";
 import { notifyApiError } from "../../../../lib/feedback/notify";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -85,7 +85,7 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
     setDenial({ denial: denial as string, permission });
     return;
   }
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const d =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
