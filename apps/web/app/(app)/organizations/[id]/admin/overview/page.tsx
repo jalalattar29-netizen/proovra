@@ -95,7 +95,8 @@ interface OrgResponse {
 
 interface MembersResponse {
   organizationId: string;
-  summary: { totalMembers: number };
+  /** Whole-organization counts; the member list is one page (CAP-10). */
+  summary: { totalMembers: number; byRole?: Partial<Record<OrgRole, number>> };
   members: Array<{ membershipId: string; role: OrgRole }>;
 }
 
@@ -227,6 +228,7 @@ function Overview() {
 
   const roleTally = useMemo(() => {
     if (members.kind !== "ready") return null;
+    if (members.data.summary.byRole) return { ...members.data.summary.byRole };
     const tally: Partial<Record<OrgRole, number>> = {};
     for (const m of members.data.members) {
       tally[m.role] = (tally[m.role] ?? 0) + 1;

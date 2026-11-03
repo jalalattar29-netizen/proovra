@@ -144,7 +144,8 @@ type OrgResponse = {
 
 type MembersResponse = {
   organizationId: string;
-  summary: { totalMembers: number };
+  /** Whole-organization counts; the member list is one page (CAP-10). */
+  summary: { totalMembers: number; byRole?: Partial<Record<OrgRole, number>> };
   members: Array<{
     membershipId: string;
     userId: string;
@@ -330,7 +331,7 @@ function OrganizationDetailInner() {
     // filterable timeline + CSV export live on the canonical admin/audit tab.
     const [o, m, w, a, p] = await Promise.all([
       safeFetch<OrgResponse>(`/v1/orgs/${orgId}`),
-      safeFetch<MembersResponse>(`/v1/orgs/${orgId}/members`),
+      safeFetch<MembersResponse>(`/v1/orgs/${orgId}/members?limit=200`),
       safeFetch<WorkspacesResponse>(`/v1/orgs/${orgId}/workspaces`),
       safeFetch<AuditResponse>(`/v1/orgs/${orgId}/audit-events`),
       safeFetch<PendingInvitesResponse>(`/v1/orgs/${orgId}/invites`),
@@ -371,6 +372,7 @@ function OrganizationDetailInner() {
       ORG_AUDITOR: 0,
       ORG_MEMBER: 0,
     };
+    if (members.data.summary.byRole) return { ...tally, ...members.data.summary.byRole };
     for (const m of members.data.members) {
       tally[m.role] = (tally[m.role] ?? 0) + 1;
     }

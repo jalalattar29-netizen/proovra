@@ -109,6 +109,8 @@ type OrgResponse = {
 };
 
 type MembersResponse = {
+  /** Whole-organization count; the member list is one page (CAP-10). */
+  summary?: { totalMembers: number };
   members: Array<{
     membershipId: string;
     userId: string;
@@ -625,7 +627,8 @@ function OrganizationSetupInner() {
                 timezone: org.data.timezone,
               }
             : null,
-        memberCount: members.kind === "ready" ? members.data.members.length : null,
+        memberCount:
+          members.kind === "ready" ? members.data.summary?.totalMembers ?? members.data.members.length : null,
         pendingInviteCount:
           pending.kind === "ready" ? pending.data.summary.totalPending : null,
         mfaPolicyLevel: mfa.kind === "ready" ? mfa.data.policy.level : null,
