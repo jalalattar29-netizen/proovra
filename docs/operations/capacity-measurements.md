@@ -273,11 +273,27 @@ a larger change than a bounded, same-result repair.
   tables carry no workspace column, so they hash-join whole tables (1.4 s and 1.5 s on
   the anchor workspace). No same-result rewrite without a schema change was found that
   measured faster; the options are a maintained projection or a workspace column.
-- **Command center recent custody (8.3 s on the re-seeded fixture, cold).** "Custody
-  events since a date for this workspace, newest 200" joins `custody_events` (10.3 M
-  rows, 7.4 GB) to `evidence` with no index on `at_utc`, so it reads the table. An
-  index on `custody_events (at_utc DESC)`, built concurrently, is the candidate; it was
-  not added in this round, which was limited to changes without a schema change.
+- **Recent custody for the timeline projection: index measured and not added.** "Custody
+  events of this workspace since a date, newest 200" (`projectWorkspaceTimeline`) runs
+  only when a workspace's timeline projection is empty, so once per workspace on its
+  first command center load, not on every load. No existing index leads with `at_utc`;
+  `custody_events (evidence_id, at_utc)` serves it for small and mid workspaces. An index
+  on `custody_events (at_utc DESC)`, built concurrently on the third fixture (15 s,
+  208 MB), measured by the query's own plan, three runs each:
+
+  | workspace | without the index (cold, warm) | with it (cold, warm) |
+  |---|---|---|
+  | anchor, 300,000 records | 4,162 ms, 969 ms (sequential scan, 510,000 blocks read) | 44 ms, 5 ms |
+  | large, 7,000 records | 683 ms, 71 to 93 ms (team index, then evidence_id/at_utc) | 2,647 ms, 293 to 305 ms (walks the new index across all workspaces) |
+  | mid, 800 records | 196 ms, 6 ms | 6 ms, 6 to 10 ms (same plan as without) |
+
+  The command center's p50 did not move with or without it (anchor 2,071 and 2,068 ms;
+  7,000-record workspace 285 and 276 ms), because the projection had already run. The
+  index would make the deepest workspace's first load fast and the large tenants' first
+  load slower, and adds an index to every custody append, the platform's busiest
+  append-only table. It is therefore not added. The migration, schema entry and gate
+  entries are kept as a patch outside the tree; a projection that is built ahead of the
+  first load, or a bounded window per workspace, would remove the need for either.
 - **Record creation (0.9 s)** sums the workspace's stored bytes on every create.
 - **Library search without a match (0.8 s)** is `ILIKE` over three columns with no
   trigram index; it grows linearly with the workspace. A trigram index would add three
@@ -286,9 +302,9 @@ a larger change than a bounded, same-result repair.
 - **Production pool size** — now a setting (section 5, item 6), still 10 everywhere.
   Choosing a value is a decision for whoever knows production's connection limit and
   pooler.
-- **Ownership transfer picker** on the organization page reads the largest member page
-  (200, owners and admins first). In an organization of more than 200 members a plain
-  member beyond that page cannot be picked there as the new owner.
+- **Ownership transfer picker** — after paging, it held only the members already read.
+  It now searches the paged member API (`q`) across the whole organization; a render
+  test hands ownership to member 250 of 250.
 - **The case-reach lookup** introduced in section 5 scans `cases` once per call
   (about 270 ms on 202,500 cases) because the restricted test is an OR over three
   sources. Cheaper than what it replaced; a candidate for a partial index once
