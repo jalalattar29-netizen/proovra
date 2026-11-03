@@ -512,6 +512,17 @@ describe("the Enterprise contract and its lifecycle (live PostgreSQL)", () => {
       expect(await workspaceIncludesAiOperations(t.workspaceId)).toBe(true);
     });
 
+    it("the AI figure is the enforced allowance on the charged meter; nothing unenforced shows a limit", async () => {
+      const t = await customer(10);
+      expect((await setTerms(t.orgId, { aiOperationsPerMonth: 250 })).statusCode).toBe(200);
+      const res = await h.app.inject({ method: "GET", url: "/v1/quotas", headers: bearer(t.owner.token) });
+      expect(res.statusCode, res.body).toBe(200);
+      const data = (res.json() as { data: Record<string, { limit: number | null; used: number; remaining: number | null }> }).data;
+      expect(data.analyses).toMatchObject({ limit: 250, used: 0, remaining: 250 });
+      expect(data.batchJobs).toMatchObject({ limit: null, remaining: null });
+      expect(data.apiKeys).toMatchObject({ limit: null, remaining: null });
+    });
+
     it("the routes that spend pass the plan answer to the policy", () => {
       for (const file of [
         "src/routes/ai-evidence.routes.ts",
