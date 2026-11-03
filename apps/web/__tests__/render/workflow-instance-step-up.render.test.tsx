@@ -25,7 +25,7 @@ vi.mock("../../lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({
-  useConfirmAction: () => ({ confirm: mocks.confirm }),
+  useConfirmAction: () => ({ confirm: mocks.confirm, askReason: async () => "Scene no longer accessible." }),
 }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({
   PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -127,7 +127,7 @@ beforeEach(() => {
   );
   mocks.confirm.mockReset();
   mocks.confirm.mockResolvedValue(true);
-  vi.spyOn(window, "prompt").mockReturnValue("Scene no longer accessible.");
+  vi.spyOn(window, "prompt").mockImplementation(() => { throw new Error("window.prompt was called"); });
   vi.spyOn(window, "alert").mockImplementation(() => {});
 });
 afterEach(() => {

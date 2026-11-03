@@ -102,6 +102,11 @@ export interface ConfirmActionOptions {
     label: string;
     placeholder?: string;
     maxLength?: number;
+    /** An empty answer is a real answer (an optional note). */
+    optional?: boolean;
+    initial?: string;
+    /** A date and time instead of free text. */
+    input?: "text" | "datetime-local";
   };
 }
 
@@ -109,6 +114,10 @@ export interface AskReasonOptions extends Omit<ConfirmActionOptions, "reasonFiel
   reasonLabel: string;
   reasonPlaceholder?: string;
   reasonMaxLength?: number;
+  /** Confirming with nothing typed resolves "" rather than staying disabled. */
+  reasonOptional?: boolean;
+  reasonInitial?: string;
+  reasonInput?: "text" | "datetime-local";
 }
 
 interface ConfirmActionRequest extends ConfirmActionOptions {
@@ -218,14 +227,14 @@ function ConfirmActionModal({
   const descriptionId = useId();
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
-  const [reason, setReason] = useState("");
-  const reasonRef = useRef<HTMLTextAreaElement | null>(null);
+  const [reason, setReason] = useState(request.reasonField?.initial ?? "");
+  const reasonRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
 
   const accent = toneAccent(tone);
   const dataTestId = testId ?? "confirm-action-modal";
   const confirmGated =
     (Boolean(requireConfirmText) && typed !== requireConfirmText) ||
-    (Boolean(reasonField) && reason.trim().length === 0);
+    (Boolean(reasonField) && !reasonField?.optional && reason.trim().length === 0);
   const confirmDisabled = busy || confirmGated;
 
   const close = useCallback(
@@ -527,8 +536,33 @@ function ConfirmActionModal({
               style={{ display: "block", marginTop: 14, fontSize: 12, color: "#5F6B7D" }}
             >
               {reasonField.label}
+              {reasonField.input === "datetime-local" ? (
+                <input
+                  ref={(el) => {
+                    reasonRef.current = el;
+                  }}
+                  type="datetime-local"
+                  data-confirm-action-reason-input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  disabled={busy}
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid rgba(15,23,42,0.14)",
+                    background: "rgba(255,255,255,0.9)",
+                    color: "#172033",
+                    fontSize: 13,
+                  }}
+                />
+              ) : (
               <textarea
-                ref={reasonRef}
+                ref={(el) => {
+                  reasonRef.current = el;
+                }}
                 data-confirm-action-reason-input
                 rows={3}
                 value={reason}
@@ -549,6 +583,7 @@ function ConfirmActionModal({
                   resize: "vertical",
                 }}
               />
+              )}
             </label>
           ) : null}
         </div>
@@ -626,11 +661,18 @@ export function ConfirmActionProvider({ children }: { children: React.ReactNode 
         new Promise<boolean>((resolve) => {
           setRequest({ ...options, resolve });
         }),
-      askReason: ({ reasonLabel, reasonPlaceholder, reasonMaxLength, ...options }) =>
+      askReason: ({ reasonLabel, reasonPlaceholder, reasonMaxLength, reasonOptional, reasonInitial, reasonInput, ...options }) =>
         new Promise<string | null>((resolve) => {
           setRequest({
             ...options,
-            reasonField: { label: reasonLabel, placeholder: reasonPlaceholder, maxLength: reasonMaxLength },
+            reasonField: {
+              label: reasonLabel,
+              placeholder: reasonPlaceholder,
+              maxLength: reasonMaxLength,
+              optional: reasonOptional,
+              initial: reasonInitial,
+              input: reasonInput,
+            },
             resolve: (ok, reason) => resolve(ok ? (reason ?? null) : null),
           });
         }),
