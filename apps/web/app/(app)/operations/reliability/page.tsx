@@ -47,8 +47,6 @@ type Thresholds = {
 
 type SizeLimits = {
   maxUploadFileSizeBytes: number;
-  multipartThresholdBytes: number;
-  multipartPartSizeBytes: number;
 };
 
 type QueuePolicy = {
@@ -362,8 +360,6 @@ useEffect(() => {
               Stalled threshold: {summary.thresholds.stalledMinutes} minutes
               · Abandoned threshold: {summary.thresholds.abandonedHours} hours
               · Max upload size: {formatBytes(summary.sizeLimits.maxUploadFileSizeBytes)}
-              · Multipart threshold: {formatBytes(summary.sizeLimits.multipartThresholdBytes)}
-              · Part size: {formatBytes(summary.sizeLimits.multipartPartSizeBytes)}
             </p>
           </section>
           ) : null}
