@@ -33,6 +33,7 @@ import {
 } from "../../lib/surface/access";
 import { useSurfaceUserContext } from "../../lib/surface/useSurfaceUserContext";
 import { usePlatformContext } from "../../lib/platform-context/PlatformContextProvider";
+import { isContextResolving } from "../../lib/platform-context/types";
 import { ProovraSystemState } from "../feedback/ProovraSystemState";
 
 export type SurfaceGateProps = {
@@ -142,10 +143,7 @@ export function SurfaceGate({
     state.name === "SWITCHING" &&
     state.targetWorkspaceId !== state.previous.workspace.id;
 
-  const resolving =
-    state.name === "IDLE" ||
-    state.name === "LOADING_CONTEXT" ||
-    switchingToAnotherWorkspace;
+  const resolving = isContextResolving(state);
 
   // The decision is only meaningful once a READY envelope exists. Computing it
   // unconditionally keeps the hook order below fixed — an early return placed

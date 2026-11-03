@@ -42,6 +42,7 @@ import {
 import { getRouteDefinition } from "../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../lib/navigation/routeAccessResolver";
 import { routeAccessInputFromEnvelope } from "../../lib/navigation/useRouteDestination";
+import { isContextResolving } from "../../lib/platform-context/types";
 import { ProovraDenialState } from "../feedback/ProovraDenialState";
 import type { SystemStateAction } from "../feedback/ProovraSystemState";
 
@@ -52,7 +53,7 @@ export function PageRouteGate({
   routeId: string;
   children: ReactNode;
 }) {
-  const { envelope } = usePlatformContext();
+  const { envelope, state } = usePlatformContext();
   // PERSONAL-FIRST RESCUE fragments come from the centralized
   // platform-context hooks — direct envelope reads for the workspace
   // fragment are forbidden outside lib/platform-context (see
@@ -102,6 +103,34 @@ export function PageRouteGate({
         message="This part of the console is not configured for access. Contact support if you expected to reach it."
         testId="route-gate-unknown-route"
       />
+    );
+  }
+
+  // No envelope yet (or the previous workspace's, mid-switch): the context has
+  // not decided, so neither may this gate. Reading the missing envelope as "no
+  // workspace" showed "Workspace setup required" on /home while it loaded.
+  if (isContextResolving(state)) {
+    return (
+      <div
+        data-page-route-gate-state="resolving"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        style={{ minHeight: "60vh" }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            overflow: "hidden",
+            clip: "rect(0 0 0 0)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Checking whether this area is available in your workspace…
+        </span>
+      </div>
     );
   }
 

@@ -15,7 +15,7 @@ import {
   useGlobalRuntimeState,
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
-import { usePlatformContext } from "../../lib/platform-context";
+import { isContextResolving, usePlatformContext } from "../../lib/platform-context";
 import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
 import { routeIconFor } from "../../lib/navigation/routeIcons";
 import {
@@ -471,7 +471,7 @@ function SidebarMoreView({
 // =============================================================================
 
 export function AppSidebarV2() {
-  const { envelope } = usePlatformContext();
+  const { envelope, state } = usePlatformContext();
   const pathname = usePathname();
 
   const activeSpaceType = envelope?.activeSpace?.type ?? null;
@@ -497,7 +497,12 @@ export function AppSidebarV2() {
   // commercial gating flow through the SERVER-projected
   // `flags.isEnterpriseWorkspace` + `planFeatures.*` booleans passed
   // below — no client-side plan/tier synthesis.
-  const resolved = ROUTE_REGISTRY.map((route: RouteDefinition) => {
+  //
+  // Nothing is listed until the context has decided: with no envelope yet the
+  // resolver reads an unknown workspace as one that needs setting up, keeps
+  // those entries visible, and a Personal user briefly saw Review.
+  const contextResolving = isContextResolving(state);
+  const resolved = (contextResolving ? [] : ROUTE_REGISTRY).map((route: RouteDefinition) => {
     const access = resolveRouteAccess({
       route,
       activeSpaceType,
