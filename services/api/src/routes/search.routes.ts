@@ -68,6 +68,7 @@ import {
   evaluateWorkspaceAiPolicy,
   resolveWorkspaceAiPolicy,
 } from "../services/ai/workspace-ai-policy.service.js";
+import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { getSemanticUsageSummary } from "../services/search/semantic-budget.service.js";
 import {
   isSemanticReadyAtRuntime,
@@ -754,6 +755,7 @@ export async function searchRoutes(app: FastifyInstance) {
         teamId: body.workspaceId,
         feature: "SEMANTIC_SEARCH",
         dataClass: "DERIVED_CONTENT",
+        planAllowed: await workspaceIncludesAiOperations(body.workspaceId),
       });
       if (!semPolicy.allowed) {
         return reply.code(403).send({
