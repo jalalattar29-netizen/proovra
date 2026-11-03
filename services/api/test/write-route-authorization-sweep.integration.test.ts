@@ -28,6 +28,7 @@ describe("write-route authorization sweep (live PostgreSQL)", () => {
   }, 900_000);
 
   afterAll(async () => {
+    await sweep?.dispose();
     await h?.cleanup();
   }, 300_000);
 

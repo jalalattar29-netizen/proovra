@@ -15,18 +15,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { buildSweepWorld } from "./support/write-sweep-world.js";
-import { WRITE_METHODS, liveRoutes, type RouteResult } from "./support/write-sweep-engine.js";
+import { WRITE_METHODS, liveRoutes, type RouteResult, type WriteSweep } from "./support/write-sweep-engine.js";
 
 const GUARD_REMOVED = process.env.SWEEP_REMOVE_GOV001_GUARD === "1";
 
 describe(`GOV-001 known positive (guard ${GUARD_REMOVED ? "removed" : "in place"})`, () => {
   let h: IntegrationHarness;
   let result: RouteResult;
+  let sweep: WriteSweep | undefined;
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
-    const sweep = await buildSweepWorld(h);
+    sweep = await buildSweepWorld(h);
     const route = liveRoutes(h.app.printRoutes({ commonPrefix: false })).find(
       (r) => WRITE_METHODS.has(r.method) && r.key === "POST /v1/lifecycle/destruction/requests",
     );
@@ -35,6 +36,7 @@ describe(`GOV-001 known positive (guard ${GUARD_REMOVED ? "removed" : "in place"
   }, 900_000);
 
   afterAll(async () => {
+    await sweep?.dispose();
     await h?.cleanup();
   }, 300_000);
 
