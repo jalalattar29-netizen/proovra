@@ -22,6 +22,7 @@ import Link from "next/link";
 import { reviewSlaLabel, reviewStageFilterLabel, reviewWorkflowStateLabel, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { Badge } from "../../../../components/ui/Badge";
 import { statusTone } from "../../../../components/ui/StatusBadge";
 import { formatUserDate } from "../../../../lib/date";
@@ -91,6 +92,7 @@ type Counts = {
 };
 
 function ReviewOperationsPageBody() {
+  const { askReason } = useConfirmAction();
   const teamId = useTeamId();
   const meUserId = usePlatformContext().envelope?.user.id ?? null;
   const [counts, setCounts] = useState<Counts | null>(null);
@@ -188,12 +190,13 @@ useEffect(() => {
     if (!teamId || selectedIds.length === 0) return;
     let note: string | null = null;
     if (action === "ESCALATE" || action === "REQUEST_MORE_INFO") {
-      note = window.prompt(
-        action === "ESCALATE"
-          ? "Reason for escalation (required)"
-          : "What additional information is needed? (required)",
-      );
-      if (!note || note.trim().length === 0) return;
+      note = await askReason({
+        title: action === "ESCALATE" ? "Escalate the selected reviews" : "Request more information",
+        reasonLabel: action === "ESCALATE" ? "Reason for escalation" : "What additional information is needed?",
+        confirmLabel: action === "ESCALATE" ? "Escalate" : "Request",
+        testId: "review-operations-bulk-note",
+      });
+      if (!note) return;
     }
     setBusy(true);
     try {

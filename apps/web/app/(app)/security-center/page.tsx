@@ -147,7 +147,7 @@ function SecurityCenterPageInner() {
   >([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { confirm } = useConfirmAction();
+  const { confirm, askReason } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
 
   useEffect(() => {
@@ -233,8 +233,15 @@ function SecurityCenterPageInner() {
 
   async function revokeDevice(deviceId: string) {
     if (!teamId) return;
-    const reason = window.prompt("Reason for revoking this device (internal only)");
-    if (!reason || reason.trim().length === 0) return;
+    const reason = await askReason({
+      title: "Revoke this device?",
+      description: "The reason is internal only.",
+      reasonLabel: "Reason for revoking",
+      confirmLabel: "Revoke device",
+      tone: "danger",
+      testId: "security-center-device-revoke",
+    });
+    if (!reason) return;
     setBusy(true);
     try {
       await apiFetch(`/v1/identity-security/devices/${deviceId}/revoke`, {

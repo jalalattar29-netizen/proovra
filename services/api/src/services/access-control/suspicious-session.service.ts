@@ -222,13 +222,16 @@ export async function detectAndScoreSession(
     }
   }
 
-  // (6) Unknown device: no deviceIdHash AND not the user's first
-  // session (we expect known devices for repeat logins).
+  // (6) Unknown device: this session carries no device hash, although the
+  // person has signed in before from a device that did. Only SSO and the app
+  // send a device hash; password and social sign-ins on the web never do, so
+  // counting every earlier session made each returning web sign-in MEDIUM
+  // risk, a step-up and an operations condition, from the second visit on.
   if (!session.deviceIdHash) {
     const userPriorCount = await client.authenticatedSession.count({
-      where: { userId: session.userId },
+      where: { userId: session.userId, deviceIdHash: { not: null }, NOT: { id: session.id } },
     });
-    if (userPriorCount > 1) {
+    if (userPriorCount > 0) {
       signals.push(
         signal("UNKNOWN_DEVICE_ANOMALY", "session has no trusted-device hash"),
       );

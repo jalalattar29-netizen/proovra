@@ -244,4 +244,32 @@ describe("fresh-enterprise repairs (live PostgreSQL)", () => {
       expect(refused.statusCode).toBe(403);
     });
   });
+
+  describe("a returning web sign-in is not suspicious for lacking a device hash", () => {
+    it("scores a second password session LOW, and a hashless session after a hashed one MEDIUM", async () => {
+      const inventory = await import("../src/services/access-control/session-inventory.service.js");
+      const scoring = await import("../src/services/access-control/suspicious-session.service.js");
+      const person = await kit.person(teamId, "MEMBER");
+      const now = Math.floor(Date.now() / 1000);
+      const open = (sid: string, deviceIdHash: string | null = null) =>
+        inventory.recordAuthenticatedSession(
+          { userId: person.id, teamId, sid, iat: now, exp: now + 3600, ipPreview: "127.0.0.x", authMethod: "PASSWORD", deviceIdHash },
+          prisma,
+        );
+      const score = async (id: string) => {
+        await scoring.detectAndScoreSession({ teamId, sessionId: id }, prisma);
+        return (await prisma.authenticatedSession.findUniqueOrThrow({ where: { id }, select: { riskScore: true } })).riskScore;
+      };
+
+      const first = await open(`fet-a-${kit.tag()}`);
+      expect(await score(first.id)).toBe(0);
+      const second = await open(`fet-b-${kit.tag()}`);
+      expect(await score(second.id), "the web never sends a device hash").toBe(0);
+
+      // Positive control: once a device with a hash has been used, a session without one stands out.
+      await open(`fet-c-${kit.tag()}`, "a".repeat(64));
+      const fourth = await open(`fet-d-${kit.tag()}`);
+      expect(await score(fourth.id)).toBeGreaterThanOrEqual(30);
+    });
+  });
 });

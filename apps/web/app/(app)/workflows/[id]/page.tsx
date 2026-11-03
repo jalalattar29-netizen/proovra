@@ -178,7 +178,7 @@ function WorkflowInstancePageInner() {
   // so the page reads as honest read-only; admins flip it on only when
   // closing out in-flight Phase 22 instances.
   const [showLegacyStepControls, setShowLegacyStepControls] = useState(false);
-  const { confirm } = useConfirmAction();
+  const { confirm, askReason } = useConfirmAction();
   const stepUp = useStepUpAction({ teamId });
 
   async function refresh() {
@@ -527,14 +527,18 @@ function WorkflowInstancePageInner() {
                         style={secondaryButtonStyle}
                         disabled={busy}
                         data-testid="workflow-instance-legacy-step-waive"
-                        onClick={() => {
-                          const reason = window.prompt(
-                            "Reason for waiving this required step (operator-visible only)",
-                          );
-                          if (!reason || !reason.trim()) return;
+                        onClick={async () => {
+                          const reason = await askReason({
+                            title: "Waive this required step?",
+                            description: "The reason is visible to operators only.",
+                            reasonLabel: "Reason for waiving",
+                            confirmLabel: "Waive",
+                            testId: "workflow-step-waive",
+                          });
+                          if (!reason) return;
                           void performAction(
                             `/steps/${encodeURIComponent(s.stepKey)}/waive`,
-                            { reason: reason.trim() },
+                            { reason },
                           );
                         }}
                       >

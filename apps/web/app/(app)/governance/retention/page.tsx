@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { formatUserDateTime } from "../../../../lib/date";
 import { useTeamId, useTenantGuard } from "../../../../lib/platform-context";
 import { Card } from "../../../../components/ui/Card";
@@ -191,6 +192,7 @@ export default function RetentionPoliciesPage() {
 }
 
 function RetentionPoliciesPageInner() {
+  const { askReason } = useConfirmAction();
   const teamId = useTeamId();
   const [policies, setPolicies] = useState<Policy[] | null>(null);
   // Template policies held in Evidence Lifecycle → Retention bind records too.
@@ -347,10 +349,14 @@ function RetentionPoliciesPageInner() {
     nextStatus: PolicyStatus,
   ): Promise<void> {
     if (!teamId) return;
-    const note = window.prompt(
-      `Change note for ${nextStatus} — required for audit trail.`,
-    );
-    if (!note || !note.trim()) return;
+    const note = await askReason({
+      title: "Change note",
+      description: "Required. It is kept in the audit trail.",
+      reasonLabel: "Why change this policy?",
+      confirmLabel: "Continue",
+      testId: "retention-policy-transition-note",
+    });
+    if (!note) return;
     try {
       await apiFetch(
         `/v1/governance/retention-policies/${policy.id}/transition`,

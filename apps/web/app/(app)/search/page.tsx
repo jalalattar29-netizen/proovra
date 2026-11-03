@@ -616,7 +616,7 @@ function SearchInner() {
   // (yyyy-MM-ddTHH:mm); converted to ISO on apply.
   const [dateSinceDraft, setDateSinceDraft] = useState<string>("");
   const [dateUntilDraft, setDateUntilDraft] = useState<string>("");
-  const { confirm } = useConfirmAction();
+  const { confirm, askReason } = useConfirmAction();
   // Phase 16 — semantic status envelope. The chip + mode selector honor
   // this when present and degrade to the per-response
   // `results.semanticAvailable` when the request fails. One fetch per
@@ -1402,8 +1402,14 @@ function SearchInner() {
 
   const saveCurrentView = useCallback(async () => {
     if (!teamId || !filter) return;
-    const name = window.prompt("Name this view (operator label)");
-    if (!name || name.trim().length === 0) return;
+    const name = await askReason({
+      title: "Save this view",
+      reasonLabel: "Name",
+      reasonMaxLength: 120,
+      confirmLabel: "Save view",
+      testId: "search-saved-view-name",
+    });
+    if (!name) return;
     setSavingView(true);
     try {
       const res = await apiFetch("/v1/search/saved-views", {
@@ -1426,7 +1432,7 @@ function SearchInner() {
     } finally {
       setSavingView(false);
     }
-  }, [teamId, filter]);
+  }, [teamId, filter, askReason]);
 
   const deleteSavedView = useCallback(
     async (id: string) => {
@@ -1467,8 +1473,14 @@ function SearchInner() {
   const renameSavedView = useCallback(
     async (id: string, currentName: string) => {
       if (!teamId) return;
-      if (typeof window === "undefined") return;
-      const next = window.prompt("Rename saved view", currentName);
+      const next = await askReason({
+        title: "Rename saved view",
+        reasonLabel: "Name",
+        reasonInitial: currentName,
+        reasonMaxLength: 120,
+        confirmLabel: "Rename",
+        testId: "search-saved-view-rename",
+      });
       if (next == null) return;
       const trimmed = next.trim();
       if (trimmed.length === 0 || trimmed === currentName) return;

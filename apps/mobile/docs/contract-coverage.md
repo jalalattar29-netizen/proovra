@@ -86,9 +86,9 @@ top level of it.
 | OK | `parseMediaIntelligence` | `GET /v1/evidence/:evidenceId/media-intelligence` | catalog, evidenceId, latestRun, signals | catalog, latestRun, signals |
 | OK | `parseEvidenceLifecycle` | `GET /v1/evidence/:id` | evidence | evidence, lifecycle |
 | OK | `parseAiCategorization` | `GET /v1/evidence/:id/ai-categorization` | categorization | categories, categorization, model, riskFlags, status, suggestedTags, summary, updatedAt |
-| OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | items | items |
+| OK | `parseAnnotations` | `GET /v1/evidence/:id/annotations` | canWrite, items | items |
 | OK | `parseDuplicateReport` | `GET /v1/evidence/:id/duplicates` | exactHashMatches, fingerprintMatches, groupedMatches, limitation, partHashMatches, possi… | groupedMatches, limitation, totalRecords |
-| OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items |
+| OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | canWrite, items | items |
 | OK | `parseOperationalTimeline` | `GET /v1/evidence/:id/operational-timeline` | entries, evidenceId, generatedAtUtc, teamId | entries |
 | OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | bucket, displayName, displaySizeLabel, downloadFileName, evidenceId, key, kind, lastAcce… | publicUrl, url |
 | OK | `parseOriginalPartLinks` | `GET /v1/evidence/:id/parts` | artifacts, evidenceId, multipart, originalDownloadBlockedByPolicy, parts, primary | parts |

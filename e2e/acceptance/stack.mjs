@@ -100,6 +100,10 @@ const env = buildLocalFixtureEnv({
     PUPPETEER_EXECUTABLE_PATH: "C:/Program Files/Google/Chrome/Application/chrome.exe",
     // The worker runs its real lifecycle timer, on a shorter period than production.
     LIFECYCLE_SWEEP_INTERVAL_MS: "15000",
+    // The test-only bypass the e2e helpers send (e2e/helpers/api-client.ts), so the
+    // repository e2e specs can run here without tripping the per-IP sign-in limit.
+    // The API refuses it under NODE_ENV=production.
+    E2E_AUTH_BYPASS_SECRET: "e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819",
     NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED: "true",
     NEXT_PUBLIC_STORAGE_ORIGIN: `http://localhost:${PORTS.minio}`,
   },

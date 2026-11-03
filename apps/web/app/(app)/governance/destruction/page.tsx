@@ -228,7 +228,7 @@ function DestructionQueuePageInner() {
   // governance endpoints.
   const [previewFor, setPreviewFor] = useState<Review | null>(null);
   const [certificateFor, setCertificateFor] = useState<Review | null>(null);
-  const { confirm } = useConfirmAction();
+  const { confirm, askReason } = useConfirmAction();
 
   // PHASE 12B CLUSTER 10 — tenant generation guard: drop any telemetry
   // response that lands after the operator switched workspace.
@@ -295,18 +295,29 @@ function DestructionQueuePageInner() {
       nextStatus === "DENIED" ||
       nextStatus === "RESTORED"
     ) {
-      const note = window.prompt(
-        `Decision note for ${nextStatus} — required for audit trail.`,
-      );
-      if (!note || !note.trim()) return;
-      decisionNote = note.trim();
+      const note = await askReason({
+        title: "Decision note",
+        description: "Required. It is kept in the audit trail.",
+        reasonLabel: "Why this decision?",
+        confirmLabel: "Continue",
+        testId: "destruction-decision-note",
+      });
+      if (!note) return;
+      decisionNote = note;
     }
     let deferredUntilUtc: string | null = null;
     if (nextStatus === "DEFERRED") {
-      const until = window.prompt(
-        "Defer until (ISO timestamp) — leave blank to defer indefinitely.",
-      );
-      if (until && until.trim()) {
+      const until = await askReason({
+        title: "Defer this review",
+        description: "Leave the date empty to defer with no end date.",
+        reasonLabel: "Defer until",
+        reasonInput: "datetime-local",
+        reasonOptional: true,
+        confirmLabel: "Defer",
+        testId: "destruction-defer-until",
+      });
+      if (until === null) return;
+      if (until) {
         const d = new Date(until.trim());
         if (!Number.isNaN(d.getTime())) {
           deferredUntilUtc = d.toISOString();

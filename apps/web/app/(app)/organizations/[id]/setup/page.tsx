@@ -26,7 +26,7 @@
  * surfaces already own and deep-links to them for anything deeper.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -359,8 +359,12 @@ function OrganizationSetupInner() {
   }, [loadAccountScoped]);
 
   // Workspace-scoped reads depend on the resolved primary workspace.
+  // Only the newest load may paint: an older one that resolves later carries
+  // what was true before a save, and would hide what the save changed.
+  const workspaceLoadSeq = useRef(0);
   const loadWorkspaceScoped = useCallback(async () => {
     if (!primaryWorkspaceId) return;
+    const seq = ++workspaceLoadSeq.current;
     // This Organization's workspace by name, which need not be the one the
     // header carries: setup can be open for any Organization the person runs.
     const inThisWorkspace = { headers: { [WORKSPACE_HEADER]: primaryWorkspaceId } };
@@ -373,6 +377,7 @@ function OrganizationSetupInner() {
         `/v1/evidence/library-summary?scope=active&teamId=${encodeURIComponent(primaryWorkspaceId)}`,
       ),
     ]);
+    if (seq !== workspaceLoadSeq.current) return;
     setMfa(mfaRes);
     setRetention(retRes);
     setEvidence(evidenceRes);

@@ -129,7 +129,7 @@ function Inner() {
   const [reviewerNote, setReviewerNote] = useState("");
   // Bumped after an assignment change so the activity timeline rereads.
   const [eventsRevision, setEventsRevision] = useState(0);
-  const { confirm } = useConfirmAction();
+  const { confirm, askReason } = useConfirmAction();
 
   const load = useCallback(async () => {
     if (!requestId) return;
@@ -180,10 +180,14 @@ function Inner() {
   const waiveDeliverable = useCallback(
     async (deliverableId: string) => {
       if (!requestId) return;
-      const reason = window.prompt(
-        "Reason for waiving this deliverable (visible only to workspace members):",
-      );
-      if (!reason || !reason.trim()) return;
+      const reason = await askReason({
+        title: "Waive this deliverable?",
+        description: "The reason is visible only to workspace members.",
+        reasonLabel: "Reason for waiving",
+        confirmLabel: "Waive",
+        testId: "evidence-request-waive",
+      });
+      if (!reason) return;
       setActionBusy(`waive:${deliverableId}`);
       try {
         await apiFetch(
@@ -204,7 +208,7 @@ function Inner() {
         setActionBusy(null);
       }
     },
-    [load, requestId],
+    [load, requestId, askReason],
   );
 
   const reviewResponse = useCallback(
@@ -213,9 +217,15 @@ function Inner() {
       const note =
         status === "ACCEPTED"
           ? null
-          : window.prompt(
-              "Reviewer note (internal — visible only to workspace members):",
-            );
+          : await askReason({
+              title: "Reviewer note",
+              description: "Internal: visible only to workspace members. You may leave it empty.",
+              reasonLabel: "Note",
+              reasonOptional: true,
+              confirmLabel: "Record decision",
+              testId: "evidence-request-review-note",
+            });
+      if (status !== "ACCEPTED" && note === null) return;
       // Phase IA-intake-completion — when rejecting, offer to notify the
       // external contributor via SMS. The backend ignores the flag when
       // the link has no recipientPhone, so this is safe to default true.
@@ -257,7 +267,7 @@ function Inner() {
       }
     },
     // `confirm` is memoised once by ConfirmActionProvider — stable identity.
-    [load, requestId, confirm],
+    [load, requestId, confirm, askReason],
   );
 
   const [requestMoreReveal, setRequestMoreReveal] = useState<{
@@ -268,9 +278,14 @@ function Inner() {
   const requestMoreEvidence = useCallback(
     async (responseId: string) => {
       if (!requestId) return;
-      const note = window.prompt(
-        "What additional information do you need? (internal note, not sent to contributor)",
-      );
+      const note = await askReason({
+        title: "Request more information",
+        description: "An internal note, not sent to the contributor. You may leave it empty.",
+        reasonLabel: "What additional information do you need?",
+        reasonOptional: true,
+        confirmLabel: "Continue",
+        testId: "evidence-request-request-more",
+      });
       if (note === null) return;
       const notifyContributor = await confirm({
         title: "Send the new link to the contributor?",

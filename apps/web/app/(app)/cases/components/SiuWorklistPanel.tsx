@@ -174,7 +174,7 @@ function isDenial(err: unknown): string | null {
 
 export function SiuWorklistPanel({ teamId }: { teamId: string | null }) {
   const guard = useTenantGuard();
-  const { confirm } = useConfirmAction();
+  const { confirm, askReason } = useConfirmAction();
 
   const [state, setState] = useState<PanelState>({ kind: "loading" });
   const [worklist, setWorklist] = useState<WorklistState>({ kind: "idle" });
@@ -599,11 +599,15 @@ export function SiuWorklistPanel({ teamId }: { teamId: string | null }) {
                         type="button"
                         style={ghostBtn}
                         disabled={busy === `rename:${view.id}`}
-                        onClick={() => {
-                          const next = window.prompt(
-                            "New name for this view",
-                            view.name,
-                          );
+                        onClick={async () => {
+                          const next = await askReason({
+                            title: "Rename this view",
+                            reasonLabel: "New name",
+                            reasonInitial: view.name,
+                            reasonMaxLength: 120,
+                            confirmLabel: "Rename",
+                            testId: "siu-saved-view-rename-dialog",
+                          });
                           if (next) void renameView(view, next);
                         }}
                         data-testid="siu-saved-view-rename"
