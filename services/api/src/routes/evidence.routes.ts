@@ -3,6 +3,7 @@ import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-run
 import {
   accessibleWorkspaceIdsFor,
   evidenceReachWhere,
+  resolvedEvidenceReachWhere,
 } from "../services/access/record-reach.js";
 import { readWorkspaceHeader } from "../services/access/request-workspace.js";
 import { loadRecordSigningKeyFacts, resolveRecordSignatureValidity } from "../signing/key-registry.js";
@@ -3346,6 +3347,12 @@ function buildEvidenceListBaseWhere(params: {
    * whether an address exists here.
    */
   recipientContactTeamIds?: string[];
+  /**
+   * The caller's reach with the restricted-case narrowing already resolved
+   * (`resolvedEvidenceReachWhere`). The same records as `evidenceReachWhere`;
+   * the whole-workspace reads pass it so the database is not asked once per row.
+   */
+  reachWhere?: Prisma.EvidenceWhereInput;
 }): Prisma.EvidenceWhereInput {
   const { query } = params;
 
@@ -3393,7 +3400,7 @@ function buildEvidenceListBaseWhere(params: {
   // case filter used to stand alone, trusting the caller's earlier check.
   const accessFilter: Prisma.EvidenceWhereInput = {
     AND: [
-      evidenceReachWhere(params.userId, params.memberTeamIds),
+      params.reachWhere ?? evidenceReachWhere(params.userId, params.memberTeamIds),
       ...(query.caseId ? [{ caseLinks: { some: { caseId: query.caseId } } }] : []),
     ],
   };
@@ -4246,15 +4253,40 @@ const EVIDENCE_LIST_SELECT = {
       },
     },
   },
-  // Wire contract D — ORIGINAL parts only: a capture record is never an item.
-  _count: {
-    select: { parts: { where: { artifactClass: "ORIGINAL" } } },
-  },
 } as const;
 
-type SelectedEvidenceListItem = prismaPkg.Prisma.EvidenceGetPayload<{
+type SelectedEvidenceListRow = prismaPkg.Prisma.EvidenceGetPayload<{
   select: typeof EVIDENCE_LIST_SELECT;
 }>;
+/** Wire contract D — `_count.parts` is the ORIGINAL parts only: a capture record is never an item. */
+type SelectedEvidenceListItem = SelectedEvidenceListRow & { _count: { parts: number } };
+
+/**
+ * The ORIGINAL part count for the rows actually returned (capacity, 2026-11-03).
+ *
+ * This was `_count` inside the list select, which Prisma compiles to a join on
+ * a GROUP BY over the WHOLE evidence_parts table: a sequential scan of every
+ * part in the database (2.6 million on the capacity fixture, 1.8 s with temp
+ * files) to count the parts of fifty records, on every page, search and filter,
+ * and on every single-record bulk action. One grouped count over the page's ids
+ * gives the same numbers.
+ */
+async function withOriginalPartCounts<T extends { id: string }>(
+  rows: readonly T[],
+): Promise<Array<T & { _count: { parts: number } }>> {
+  if (rows.length === 0) return [];
+  const counts = await prisma.evidencePart.groupBy({
+    by: ["evidenceId"],
+    where: { evidenceId: { in: rows.map((r) => r.id) }, artifactClass: "ORIGINAL" },
+    _count: { _all: true },
+  });
+  const byId = new Map(counts.map((c) => [c.evidenceId, c._count._all]));
+  return rows.map((r) => ({ ...r, _count: { parts: byId.get(r.id) ?? 0 } }));
+}
+
+async function withOriginalPartCount<T extends { id: string }>(row: T): Promise<T & { _count: { parts: number } }> {
+  return (await withOriginalPartCounts([row]))[0]!;
+}
 
 function toJsonSafe<T>(value: T): T {
   return JSON.parse(
@@ -7892,6 +7924,7 @@ return {
       query: parsedQuery,
       userId: ownerUserId,
       memberTeamIds,
+      reachWhere: await resolvedEvidenceReachWhere(ownerUserId, memberTeamIds),
       recipientContactTeamIds: await resolveRecipientContactSearchScope(
         req,
         memberTeamIds,
@@ -7926,7 +7959,7 @@ return {
         })
       : null;
 
-    const mappedItems = pageItems.map(mapEvidenceListItem);
+    const mappedItems = (await withOriginalPartCounts(pageItems)).map(mapEvidenceListItem);
 
     await auditEvidenceAction(req, {
       userId: ownerUserId,
@@ -8014,6 +8047,7 @@ return {
         query: parsedQuery,
         userId: ownerUserId,
         memberTeamIds,
+        reachWhere: await resolvedEvidenceReachWhere(ownerUserId, memberTeamIds),
         recipientContactTeamIds: await resolveRecipientContactSearchScope(
           req,
           memberTeamIds,
@@ -8271,7 +8305,7 @@ return {
               where: { id: evidenceId },
               select: EVIDENCE_LIST_SELECT,
             });
-            updatedItems.push(mapEvidenceListItem(updated));
+            updatedItems.push(mapEvidenceListItem(await withOriginalPartCount(updated)));
             break;
           }
           case "REMOVE_FROM_CASE": {
@@ -8334,7 +8368,7 @@ return {
               where: { id: evidenceId },
               select: EVIDENCE_LIST_SELECT,
             });
-            updatedItems.push(mapEvidenceListItem(updated));
+            updatedItems.push(mapEvidenceListItem(await withOriginalPartCount(updated)));
             break;
           }
           // ===================================================================
@@ -8424,7 +8458,7 @@ return {
               where: { id: evidenceId },
               select: EVIDENCE_LIST_SELECT,
             });
-            updatedItems.push(mapEvidenceListItem(updated));
+            updatedItems.push(mapEvidenceListItem(await withOriginalPartCount(updated)));
             break;
           }
           case "EXPORT_METADATA_CSV": {
@@ -8435,7 +8469,7 @@ return {
             if (!exportItem) {
               throw new Error("Evidence not found");
             }
-            updatedItems.push(mapEvidenceListItem(exportItem));
+            updatedItems.push(mapEvidenceListItem(await withOriginalPartCount(exportItem)));
             break;
           }
           default:
@@ -9153,8 +9187,8 @@ return {
     });
     const partHashValues = partHashes.map((part) => part.sha256).filter((value): value is string => Boolean(value));
 
-    const [exactHashMatches, fingerprintMatches, partHashMatches, possibleMetadataMatches] =
-      await Promise.all([
+    const [exactHashMatches, fingerprintMatches, partHashMatches, possibleMetadataMatches] = await Promise.all(
+      [
         evidence.fileSha256
           ? prisma.evidence.findMany({
               where: {
@@ -9209,7 +9243,8 @@ return {
               take: 20,
             })
           : Promise.resolve([]),
-      ]);
+      ].map(async (matches) => withOriginalPartCounts(await matches)),
+    );
 
     // Phase EVIDENCE-DUPLICATES-GROUPING — assemble a deduped,
     // grouped view of the four match arrays. The existing per-
