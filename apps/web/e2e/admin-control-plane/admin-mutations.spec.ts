@@ -73,7 +73,7 @@ async function seedConsent(context: BrowserContext) {
   );
   await context.addInitScript(() => {
     const style = document.createElement("style");
-    style.textContent = "#cc-main{display:none!important;pointer-events:none!important}";
+    style.textContent = "#cc-main#cc-main{display:none!important;pointer-events:none!important}";
     const attach = () => document.head?.appendChild(style);
     if (document.head) attach();
     else document.addEventListener("DOMContentLoaded", attach, { once: true });

@@ -57,11 +57,16 @@ const BARE_UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * The consent banner overlays the sign-in button and intercepts the click.
  * Hidden rather than dismissed: dismissing it is a consent decision, and a
  * test suite must not be the thing that makes one.
+ *
+ * The id is doubled on purpose. globals.css shows the banner with
+ * `html.show--consent #cc-main { display: block !important }`, which out-ranks a
+ * single `#cc-main` rule even when both are !important, so the old rule never
+ * hid it. At phone width the banner covers the submit button.
  */
 async function hideConsentBanner(page: Page) {
   await page.addInitScript(() => {
     const style = document.createElement("style");
-    style.textContent = "#cc-main{display:none!important;pointer-events:none!important}";
+    style.textContent = "#cc-main#cc-main{display:none!important;pointer-events:none!important}";
     const attach = () => document.head?.appendChild(style);
     if (document.head) attach();
     else document.addEventListener("DOMContentLoaded", attach, { once: true });

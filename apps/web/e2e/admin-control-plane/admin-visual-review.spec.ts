@@ -129,7 +129,7 @@ async function seedConsent(context: BrowserContext) {
   await context.addInitScript(() => {
     const style = document.createElement("style");
     style.textContent =
-      "#cc-main{display:none!important;pointer-events:none!important}";
+      "#cc-main#cc-main{display:none!important;pointer-events:none!important}";
     const attach = () => document.head?.appendChild(style);
     // addInitScript runs BEFORE the document exists, so a DOMContentLoaded
     // listener registered unconditionally never fires on a document that is
