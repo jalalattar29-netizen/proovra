@@ -152,6 +152,14 @@ async function emitNotificationFailedWebhook(
   }
 }
 
+/**
+ * What this module recovers, for the Point 5 topology gate. The sweep below
+ * collects any delivery a failed send scheduled, and anything the outbox enqueued
+ * that the inline dispatch never reached. Keys, not values: the registry addresses
+ * work through `SWEEP_NAMES`.
+ */
+export const RECOVERED_WORK_TYPES = ["API_DELIVERY"] as const;
+
 // -----------------------------------------------------------------------------
 // Feature flag
 // -----------------------------------------------------------------------------

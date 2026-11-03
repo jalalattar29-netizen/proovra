@@ -133,6 +133,10 @@ describe("EV phase 2 — service layer", () => {
     expect(AUTH_SVC_SRC).toMatch(
       /isOAuthProvider\s*=\s*[\s\S]*?AuthProvider\.GOOGLE[\s\S]*?AuthProvider\.APPLE/,
     );
+    // IDENT-022 — only when the provider vouches for the address.
+    expect(AUTH_SVC_SRC).toMatch(
+      /providerVouchesForEmail\s*=\s*isOAuthProvider\s*&&\s*profile\.emailVerified\s*!==\s*false/,
+    );
     // Both the create and update branches must apply the stamp.
     const create = AUTH_SVC_SRC.match(
       /prisma\.user\.create\(\{[\s\S]*?\}\)/,
@@ -141,10 +145,10 @@ describe("EV phase 2 — service layer", () => {
       /prisma\.user\.update\(\{\s*where:\s*\{\s*id:\s*user\.id\s*\}[\s\S]*?\}\)/,
     )?.[0];
     expect(create).toBeTruthy();
-    expect(create).toMatch(/isOAuthProvider/);
+    expect(create).toMatch(/providerVouchesForEmail/);
     expect(create).toMatch(/emailVerifiedAt/);
     expect(update).toBeTruthy();
-    expect(update).toMatch(/isOAuthProvider/);
+    expect(update).toMatch(/providerVouchesForEmail/);
     expect(update).toMatch(/emailVerifiedAt/);
   });
 });

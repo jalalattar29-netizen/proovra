@@ -2914,8 +2914,8 @@
     "phase": "P12",
     "name": "an older web build ignores a newer API contract",
     "file": "apps/web/lib/contract-skew.ts",
-    "find": "  if (presentationContractSkew(served) !== \"CLIENT_OLDER\") return;",
-    "replace": "  if (presentationContractSkew(served) !== \"CLIENT_OLDER\" || Date.now() > 0) return;",
+    "find": "  if (skew !== \"CLIENT_OLDER\" && skew !== \"CLIENT_NEWER\") return;",
+    "replace": "  if (skew !== \"CLIENT_NEWER\") return;",
     "tests": [
       {
         "cwd": "apps/web",

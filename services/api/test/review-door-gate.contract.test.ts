@@ -20,7 +20,7 @@ const WORKSPACE = read("../src/routes/reviewer-workspace.routes.ts");
 
 function handlers(source: string): Array<{ method: string; path: string; body: string }> {
   const out: Array<{ method: string; path: string; body: string }> = [];
-  const re = /\n  app\.(get|post|patch|delete|put)\(\n\s*"([^"]+)"/g;
+  const re = /\n {2}app\.(get|post|patch|delete|put)\(\n\s*"([^"]+)"/g;
   const starts = [...source.matchAll(re)];
   starts.forEach((m, i) => {
     const end = starts[i + 1]?.index ?? source.length;

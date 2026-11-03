@@ -163,11 +163,22 @@ describe("Members ledger closure (live PostgreSQL)", () => {
   });
 
   // ---------------------------------------------------------------------------
-  it("M5/M8 — a contract silent on Collaboration Teams grants none; the projection's ceilings are the gate's", async () => {
+  it("M5/M8 — a silent ACTIVE contract takes the published defaults, one that is not ACTIVE grants none; the projection's ceilings are the gate's", async () => {
+    // Ledger M5 is superseded by the owner decision CT-10: silence on an ACTIVE
+    // contract is the standard terms.
     const org = await seedOrganizationTenant(deps, { billingPlan: "ENTERPRISE", contractCollaboration: null });
-    const limits = await seats.resolveWorkspaceCollaborationLimits(org.workspaceId);
-    expect(limits.maxCollaborationTeamsPerWorkspace).toBe(0);
-    expect(limits.maxAcceptedMembersPerCollaborationTeam).toBe(0);
+    const silent = await seats.resolveWorkspaceCollaborationLimits(org.workspaceId);
+    expect(silent.maxCollaborationTeamsPerWorkspace).toBe(1000);
+    expect(silent.maxAcceptedMembersPerCollaborationTeam).toBe(500);
+
+    // What M5 still closes: without an ACTIVE contract there is no capacity.
+    await prisma.enterpriseContract.updateMany({
+      where: { organizationId: org.organizationId },
+      data: { status: "SUSPENDED" },
+    });
+    const withheld = await seats.resolveWorkspaceCollaborationLimits(org.workspaceId);
+    expect(withheld.maxCollaborationTeamsPerWorkspace).toBe(0);
+    expect(withheld.maxAcceptedMembersPerCollaborationTeam).toBe(0);
     expect(
       await codeOf(ct.createCollaborationTeam({ workspaceId: org.workspaceId, actorUserId: org.owner.userId, name: `M5 ${tag()}` })),
     ).toBe("ENTERPRISE_CONTRACT_REQUIRED");
@@ -175,7 +186,7 @@ describe("Members ledger closure (live PostgreSQL)", () => {
     // Once the contract states its figures, they are the limits.
     await prisma.enterpriseContract.updateMany({
       where: { organizationId: org.organizationId },
-      data: { collaborationTeamsMax: 3, collaborationTeamMembersMax: 7, seatCount: 20 },
+      data: { status: "ACTIVE", collaborationTeamsMax: 3, collaborationTeamMembersMax: 7, seatCount: 20 },
     });
     const stated = await seats.resolveWorkspaceCollaborationLimits(org.workspaceId);
     expect(stated.maxCollaborationTeamsPerWorkspace).toBe(3);

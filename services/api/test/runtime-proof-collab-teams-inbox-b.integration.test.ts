@@ -667,7 +667,7 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
       });
       const foreign = await call({ method: "POST", url, token: b.ownerToken, headers: { [STEP]: foreignChallenge } });
       expect(foreign.statusCode).toBe(404);
-      expect(foreign.json()).toEqual({ denial: "PACKAGE_NOT_FOUND" });
+      expect(foreign.json()).toEqual({ denial: "NOT_FOUND" });
       expect(
         (await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id: pkg.id } })).signedUrl,
       ).toBeNull();

@@ -1234,4 +1234,3 @@ const rollupFilterStyle: React.CSSProperties = {
   minWidth: 0,
   maxWidth: 260,
 };
-

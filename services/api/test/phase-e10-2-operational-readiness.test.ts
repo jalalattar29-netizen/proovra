@@ -159,7 +159,11 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
     // token is spent); the file had already grown to the edge of the band.
     // Rebaselined 2026-10-15 (AUD-020): 59567 -> 62873. Sign-out now revokes the
     // presented session (bearer or cookie) and fails closed when it cannot.
-    { rel: "src/routes/auth.routes.ts", expected: 62873, tolerance: 0.05 },
+    // Rebaselined 2026-11-02: 62873 -> 72066. Browser MFA can finish (RT-006), MFA
+    // can be enrolled at sign-in (IDENT-001), SSO completes through it (IDENT-011),
+    // first verification proves the mailbox (PROV-001), password and social
+    // sessions are scored (IDENT-019).
+    { rel: "src/routes/auth.routes.ts", expected: 72066, tolerance: 0.05 },
   ];
   for (const { rel, expected, tolerance } of POST_E10_1_PINS) {
     it(`${rel} unchanged at the post-E10.1 baseline`, () => {

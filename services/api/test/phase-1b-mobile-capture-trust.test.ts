@@ -393,9 +393,15 @@ describe("Phase 1B — routes", () => {
   });
 
   it("direct-session routes use the canonical authorization primitive", () => {
-    expect(ROUTES_CAPTURE_TRUST).toMatch(/authorizeOrFail\(/);
+    // f41313aef — authorizeOrFail is evaluateAuthorize + sendDenyResponse. The
+    // route calls the two itself so a refused sign-in can answer the 401 the
+    // extension acts on; every other denial still takes the canonical response.
+    expect(ROUTES_CAPTURE_TRUST).toMatch(/evaluateAuthorize\(req, \{/);
     expect(ROUTES_CAPTURE_TRUST).toMatch(/permission: "evidence\.create"/);
     expect(ROUTES_CAPTURE_TRUST).toMatch(/antiEnumeration: true/);
+    expect(ROUTES_CAPTURE_TRUST).toMatch(
+      /if \(!auth\.allowed\) \{[\s\S]{0,400}sendDenyResponse\(reply, auth\);[\s\S]{0,40}return null;/,
+    );
   });
 
   it("server registers captureTrustRoutes", () => {

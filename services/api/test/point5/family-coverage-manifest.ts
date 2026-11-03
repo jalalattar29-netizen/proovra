@@ -818,8 +818,26 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
   },
   {
     family: "notifications",
-    suites: ["test/point5/family-notifications.integration.test.ts"],
+    suites: [
+      "test/point5/family-notifications.integration.test.ts",
+      "test/point5/family-delivery-retries.integration.test.ts",
+    ],
     units: [
+      {
+        workName: "ApiDeliverySweeps",
+        executor: "services/api/src/services/notifications/index.ts",
+        cases: [
+          "delivery.durable.intent_before_work",
+          "delivery.tenant.workspace_reloaded",
+          "delivery.tenant.cross_workspace_denied",
+          "delivery.claim.one_winner",
+          "delivery.claim.active_not_stolen",
+          "delivery.idempotency.duplicate_is_noop",
+          "delivery.terminal.stale_cannot_overwrite",
+          "delivery.provider.failure_retryable_not_delivered",
+        ],
+        inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
+      },
       {
         workName: "MfaRecoveryDigestSweep",
         executor: "services/worker/src/mfa-recovery-digest.ts",

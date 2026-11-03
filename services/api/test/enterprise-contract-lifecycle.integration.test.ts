@@ -4,7 +4,7 @@
  * PROV-014, BILLING-007 — on real routes and a real PostgreSQL, from a customer
  * that went through provisioning and owner acceptance.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";

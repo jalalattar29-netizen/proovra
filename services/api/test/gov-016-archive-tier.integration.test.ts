@@ -178,6 +178,30 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
     }
   });
 
+  it("a workspace behind five hundred older ones is still swept", async () => {
+    const { organizationId } = await prisma.team.findUniqueOrThrow({
+      where: { id: A().teamId },
+      select: { organizationId: true },
+    });
+    const older = Array.from({ length: 501 }, (_, i) => ({
+      id: randomUUID(),
+      name: `gov-016 older ${i}`,
+      ownerUserId: A().ownerUserId,
+      organizationId,
+      workspaceKind: "ORGANIZATION",
+      isPersonal: false,
+      createdAt: new Date(Date.now() - 400 * 86_400_000),
+    }));
+    await prisma.team.createMany({ data: older as never });
+    try {
+      const rec = await sealedRecord(31);
+      await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+      expect(await prisma.archiveTierTransition.count({ where: { evidenceId: rec.id, state: "COMPLETED" } })).toBe(1);
+    } finally {
+      await prisma.team.deleteMany({ where: { id: { in: older.map((t) => t.id) } } });
+    }
+  });
+
   it("a record with no sealed version gets no label", async () => {
     const team = await prisma.team.findUniqueOrThrow({
       where: { id: A().teamId },

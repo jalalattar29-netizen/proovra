@@ -1267,12 +1267,24 @@ describe("POINT 5 FAMILY — retention/destruction, irreversible half (live Post
     expect(await transitionsFor(evidenceId)).toHaveLength(0);
 
     // The object store answers only after the row exists.
-    const rowsAtTag: number[] = [];
-    workerS3Send.mockImplementationOnce(async () => {
-      rowsAtTag.push((await transitionsFor(evidenceId)).length);
-      return { TagSet: [] };
+    // Keyed to this record: the sweep is global, so on a shared database the
+    // first object it touches may be another suite's.
+    const { storageKey } = await prisma.evidence.findUniqueOrThrow({
+      where: { id: evidenceId },
+      select: { storageKey: true },
     });
-    await archive.runArchiveTierAutoTransitions({ trigger: "point5-proof" });
+    const rowsAtTag: number[] = [];
+    workerS3Send.mockImplementation((async (command: { input?: { Key?: string } }) => {
+      if (command.input?.Key === storageKey && rowsAtTag.length === 0) {
+        rowsAtTag.push((await transitionsFor(evidenceId)).length);
+      }
+      return { TagSet: [] };
+    }) as never);
+    try {
+      await archive.runArchiveTierAutoTransitions({ trigger: "point5-proof" });
+    } finally {
+      workerS3Send.mockImplementation(async () => ({ TagSet: [] }));
+    }
     expect(rowsAtTag).toEqual([1]);
 
     const rows = await transitionsFor(evidenceId);

@@ -233,10 +233,11 @@ describe("O1.1 — `.env.example` documents OTEL keys without token", () => {
       "OTEL_EXPORTER_OTLP_PROTOCOL",
       "OTEL_EXPORTER_OTLP_HEADERS",
       "OTEL_RESOURCE_ATTRIBUTES",
-      "LOG_AGGREGATION_ENABLED",
     ]) {
       expect(src).toContain(key);
     }
+    // Passed everywhere and read nowhere, so the env contract retired it.
+    expect(src).not.toContain("LOG_AGGREGATION_ENABLED");
   });
 
   it("never embeds an Authorization token", () => {

@@ -707,7 +707,7 @@ describe("step 3 — collection rules", () => {
     await type("[data-intake-link-max-files]", "0");
     await clickNext();
     expect(step()).toBe("rules");
-    expect(document.body.textContent).toMatch(/between 1 and 500/i);
+    expect(document.body.textContent).toMatch(/between 1 and 200/i);
 
     await type("[data-intake-link-max-files]", "10");
     await clickNext();
@@ -1340,8 +1340,9 @@ describe("collection limits and accepted types", () => {
     const field = () =>
       document.querySelector("[data-intake-link-max-files]") as HTMLInputElement;
     expect(field().getAttribute("min")).toBe("1");
-    expect(field().getAttribute("max")).toBe("500");
-    for (const bad of ["0", "501"]) {
+    // INGEST-004: the one record bound.
+    expect(field().getAttribute("max")).toBe("200");
+    for (const bad of ["0", "201"]) {
       await act(async () => {
         fireEvent.change(field(), { target: { value: bad } });
       });

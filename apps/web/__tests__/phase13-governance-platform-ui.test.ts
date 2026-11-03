@@ -527,8 +527,10 @@ test("POST /v1/governance/destruction-reviews — enqueueing is wired, confirmed
   }
 
   // Validation: the uuid, the bounded reason enum, and the version integer.
-  assert.ok(src.includes("!isUuid(trimmed)"), "the evidence id is not validated as a UUID");
-  assert.ok(src.includes("An evidence id is required."));
+  // The record is picked by name (GOV-008), so no pasted id reaches the body; the
+  // route still validates the UUID.
+  assert.ok(src.includes("<RecordPicker"), "the record is not chosen through the picker");
+  assert.ok(src.includes("Choose the record to propose for destruction."));
   assert.ok(src.includes("DESTRUCTION_REVIEW_REASONS"), "the reason is not bound to the shared enum");
   assert.ok(
     src.includes("!Number.isInteger(parsed) || parsed < 1"),

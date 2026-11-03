@@ -434,7 +434,9 @@ describe("resolveTemplateIdForEvidence — Phase T direct-path source guard", ()
       "src",
       "services",
       "reviewer-ops",
-      "reviewer-operations-engine.service.ts",
+      // WORKFLOW-006 — the resolver moved here with the deadlines it serves; the
+      // engine re-exports it.
+      "review-sla-stamp.service.ts",
     ),
     "utf8",
   );

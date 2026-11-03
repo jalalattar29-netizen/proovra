@@ -428,6 +428,8 @@ function makeFake() {
     evidenceRequest: { findMany: async () => [] },
     reviewerDisagreement: { findMany: async () => [] },
     caseSiuProfile: { findMany: async () => [] },
+    // WORKFLOW-017 — and the discussion threads assigned to them.
+    discussionThread: { findMany: async () => [] },
     // SEC-08 — a suspension also ends the person's owner links and
     // external-review grants; this fixture holds none.
     verificationShareToken: { updateMany: async () => ({ count: 0 }) },

@@ -134,7 +134,8 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
   // the caller-supplied `body.teamId` before the CaptureSession row is written.
     // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
     // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23876);
+    // Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23898);
   });
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
     // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14)

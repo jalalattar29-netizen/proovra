@@ -132,14 +132,14 @@ describe("Capture scope hotfix — createEvidence honors explicit teamId only", 
     // Phase HOME-DATA-OWNERSHIP inverted the old rule. Capture now
     // stamps the ACTIVE workspace id (personal Team id or team
     // workspace id) so evidence is never orphaned with team_id NULL.
-    // The id comes from useActiveSpaceId() — NEVER from a capture
+    // The id comes from useActiveSpace() — NEVER from a capture
     // template and NEVER from owner.currentWorkspaceId on the server.
-    expect(src).toMatch(/useActiveSpaceId/);
+    expect(src).toMatch(/useActiveSpace\(\)/);
     const postBlock = src.slice(
       src.indexOf('apiFetch("/v1/evidence"'),
       src.indexOf('apiFetch("/v1/evidence"') + 1200,
     );
-    expect(postBlock).toMatch(/teamId:\s*activeSpaceId\s*\?\?\s*undefined/);
+    expect(postBlock).toMatch(/teamId:\s*activeSpace\?\.id\s*\|\|\s*undefined/);
   });
 });
 

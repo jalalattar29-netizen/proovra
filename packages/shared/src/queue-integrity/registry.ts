@@ -1332,6 +1332,46 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     projection: "GET /v1/me/inbox",
   },
   {
+    workName: SWEEP_NAMES.API_DELIVERY,
+    family: "notifications",
+    familyReason:
+      "Retries scheduled email and SMS and runs reminders and digests; outbound notifications on a durable schedule.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    durableAuthority: {
+      // NotificationDelivery is the outbox: enqueueEmailNotificationTx writes
+      // the row inside the caller's transaction, already RETRY_SCHEDULED.
+      model: "NotificationDelivery",
+      tenantSource: "NotificationDelivery.teamId",
+      createdBySynchronousPath: true,
+    },
+    // CROSS-SERVICE, like the follow-up and invite sweeps: the worker holds the
+    // timers and POSTs the cron-secret routes; the work happens in the api.
+    canonicalProducer: "services/api/src/services/notifications/index.ts",
+    canonicalProcessor: "services/api/src/services/notifications/index.ts",
+    workerRegistration: "services/worker/src/api-delivery-sweeps.ts",
+    // claimAndDispatch: one conditional updateMany on a row still
+    // RETRY_SCHEDULED. There is no lease: the status change is the claim.
+    claim: {
+      from: "RETRY_SCHEDULED",
+      to: "PENDING",
+      mechanism: "conditional_update_many",
+      leaseField: null,
+      leaseMs: null,
+    },
+    terminalWriter: "services/api/src/services/notifications/index.ts",
+    idempotency: ["conditional_state_claim", "provider_idempotency_key"],
+    reconciler: "services/api/src/services/notifications/index.ts",
+    retry: RETRY_POLICIES.EMAIL_DELIVERY,
+    recovery: RECOVERY_POLICIES.EXTERNAL_DELIVERY,
+    externalBoundary: "email",
+    auditFamily: "notifications.delivery",
+    projection: "GET /v1/me/inbox",
+  },
+  {
     workName: SWEEP_NAMES.DEMO_FOLLOW_UP,
     family: "notifications",
     familyReason:

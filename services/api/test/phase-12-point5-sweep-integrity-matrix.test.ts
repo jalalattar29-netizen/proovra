@@ -258,6 +258,8 @@ const EXECUTED: ReadonlySet<string> = (() => {
 const PROOF_PREFIX: Record<string, string> = {
   [SWEEP_NAMES.REDACTION_RECONCILER]: "redaction.recon",
   [SWEEP_NAMES.ORG_INVITE_DELIVERY]: "invite",
+  // WORKFLOW-008 (2026-11-01).
+  [SWEEP_NAMES.API_DELIVERY]: "delivery",
   [SWEEP_NAMES.DESTRUCTION_ORCHESTRATOR]: "destruction",
   [SWEEP_NAMES.RETENTION_RECONCILIATION]: "retention",
   [SWEEP_NAMES.ARCHIVE_AUTO_TRANSITION]: "archive",
@@ -534,7 +536,8 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
   // the registry, so only the title was stale; it states the real count now.
   // ET-SM-07 (2026-09-30) — 19 -> 20 with IntegrityRecheckSweep.
   // Members audit LIFE-11 (2026-10-25) — 20 -> 21 with LifecycleSweep.
-  it("SweepsBehaviorallyCovered = 21/21 (every registered sweep)", () => {
+  // WORKFLOW-008 (2026-11-01) — 21 -> 22 with ApiDeliverySweeps.
+  it("SweepsBehaviorallyCovered = 22/22 (every registered sweep)", () => {
     const covered = registered.filter((e) => {
       const prefix = PROOF_PREFIX[e.workName];
       if (!prefix) return false;

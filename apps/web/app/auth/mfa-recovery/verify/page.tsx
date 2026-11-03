@@ -51,17 +51,12 @@ type VerifyState =
 
 /**
  * The verify route answers a flat `{ error: "<reason>" }`, which apiFetch
- * raises as a plain Error, not ApiError. The body has no `message`, so the
- * error's message is the raw response text and the reason is read back out of
- * it. A nested envelope, a gateway page or a network failure names no reason.
+ * raises as a plain Error, not ApiError, carrying the reason as `flatReason`.
+ * A nested envelope, a gateway page or a network failure names no reason.
  */
 function readVerifyFailureReason(err: unknown): string | null {
-  try {
-    const body = JSON.parse((err as Error).message) as { error?: unknown } | null;
-    return typeof body?.error === "string" ? body.error : null;
-  } catch {
-    return null;
-  }
+  const reason = (err as { flatReason?: unknown } | null)?.flatReason;
+  return typeof reason === "string" ? reason : null;
 }
 
 function MfaRecoveryVerifyBody() {

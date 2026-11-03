@@ -722,7 +722,8 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
      * and each took its own `new Date()`, so the two sections of one page
      * could be built from windows milliseconds apart.
      *
-     * The original query, verbatim, against the same clock the snapshot uses.
+     * The original query, with the id tie-break both now share, against the same
+     * clock the snapshot uses.
      */
     const now = new Date();
     const since = new Date(
@@ -730,7 +731,7 @@ describe("COMMAND CENTER — counter equivalence (live PostgreSQL 16)", () => {
     );
     const original = await prisma.reviewEscalation.findMany({
       where: { teamId, createdAt: { gte: since } },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: RECENT_ESCALATION_LIMIT,
       select: {
         id: true,

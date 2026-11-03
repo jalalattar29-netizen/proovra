@@ -102,12 +102,16 @@ test("a 403 on the policy read leaves the read-only view — no switches at all"
 test("organization admins get the full governance editor; members do not", async () => {
   routes["/v1/platform/context"] = () =>
     platformContextEnvelope({ capabilities: { SETTINGS_MANAGE: true } });
+  await signIn(M, "admin-session");
   let r = await render();
   assert.equal(r.byLabel("AI capabilities may run in this workspace (per the policy below)").length, 1);
   assert.equal(r.byLabel("Semantic search").length, 1);
   assert.equal(r.byLabel("Save AI policy").length, 1);
   r.unmount();
   routes["/v1/platform/context"] = () => platformContextEnvelope({ capabilities: { SETTINGS_MANAGE: false } });
+  // Another session: within one, the shared context answers from what it knows
+  // and revalidates (MOBILE-013), so the member would start from the admin's read.
+  await signIn(M, "member-session");
   requests = [];
   r = await render();
   assert.equal(r.byRole("switch").length, 0, "an organization member was offered policy switches");

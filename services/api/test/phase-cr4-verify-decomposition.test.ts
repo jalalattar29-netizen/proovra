@@ -298,7 +298,8 @@ describe("CR4 Group 1 — file-size guards", () => {
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
     // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
     // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
-    expect(sz).toBe(23876);
+    // Rebaselined 2026-11-01: 23,876 -> 23,898 — INGEST-009: a draft reports its own workspace, so a resumed draft files where it was started
+    expect(sz).toBe(23898);
   });
 });
 

@@ -342,12 +342,17 @@ describe("O-Final — closure documentation", () => {
     });
   }
 
-  it("low-ram-deploy-runbook.md documents per-service builds + image-pull alternative", () => {
+  it("low-ram-deploy-runbook.md documents the image-pull path and forbids building on the server", () => {
     const src = read("docs/operations/low-ram-deploy-runbook.md");
     expect(src).toMatch(/docker compose .*(pull|build)/i);
-    // "per-service" OR "one at a time" — both express the same
-    // sequential-build constraint.
-    expect(src).toMatch(/per[- ]service|one at a time/i);
+    // 10be2801e — building one service at a time is gone, because nothing builds
+    // on the server: a hand-built image carries no revision label. The memory
+    // constraint is now met by pulling, and services still go one after another.
+    expect(src).toMatch(/There is no on-server build path/);
+    expect(src).toMatch(/Do not build on the server/);
+    expect(src).toMatch(/deploy-prod-pull\.sh/);
+    expect(exists("scripts/deploy-prod-pull.sh")).toBe(true);
+    expect(src).toMatch(/recreates the API\s+then the worker/);
     expect(src).toMatch(/4\s*GB|low.?RAM|memory/i);
   });
 

@@ -182,6 +182,12 @@ export const SWEEP_NAMES = {
   EXCHANGE_PACKAGE_BUILDER: "ExchangePackageBuilderSweep",
   REVIEWER_RECONCILIATION: "ReviewerReconciliationSweep",
   ORG_INVITE_DELIVERY: "OrgInviteDeliverySweep",
+  /**
+   * WORKFLOW-008 — the worker's timers for the notification and communication
+   * delivery routes. Registered as one launcher, because that is what the worker
+   * declares; the claim and the send happen in the api.
+   */
+  API_DELIVERY: "ApiDeliverySweeps",
   SEARCH_INDEX_RECONCILER: "SearchIndexStrandedReconciler",
   INTELLIGENCE_RUN_RECONCILER: "IntelligenceRunStrandedReconciler",
   /**

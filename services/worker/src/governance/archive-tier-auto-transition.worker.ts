@@ -8,8 +8,9 @@
  *   WARM → COLD           after 120 cumulative days (30 + 90)
  *   COLD → DEEP_ARCHIVE   after 485 cumulative days (30 + 90 + 365)
  *
- * Each team is capped at 100 transitions per scheduler tick.
- * At most MAX_TEAMS_PER_SWEEP teams are processed per tick.
+ * Each team is capped at 100 transitions per scheduler tick. Every workspace
+ * holding a record old enough to tier is swept: a cap on teams, taken oldest
+ * first, meant the same workspaces every tick and none of the later ones, ever.
  *
  * Hard rules:
  *   - One team failure must never abort the remaining sweep.
@@ -27,12 +28,12 @@ import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 /** A PENDING claim this old was abandoned by a crash. */
 const AUTO_CLAIM_LEASE_MS = 60 * 60 * 1000;
-const MAX_TEAMS_PER_SWEEP = 500;
 
 // Archive tier ordering for age-based promotion.
 type ArchiveTier = "HOT" | "WARM" | "COLD" | "DEEP_ARCHIVE";
 
 const HOT_TO_WARM_DAYS = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const WARM_TO_COLD_CUMULATIVE_DAYS = 120;
 const COLD_TO_DEEP_CUMULATIVE_DAYS = 485;
 const MAX_PER_TEAM = 100;
@@ -124,15 +125,21 @@ async function sweepTeam(teamId: string): Promise<number> {
       // taken over; anything else in flight is left alone.
       const claimId = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ev.id}))`;
-        const done = await tx.archiveTierTransition.findFirst({
-          where: { evidenceId: ev.id, state: "COMPLETED", toTier: targetTier },
-          select: { id: true },
-        });
-        if (done) return null;
-        const active = await tx.archiveTierTransition.findFirst({
-          where: { evidenceId: ev.id, state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
+        // One statement on purpose. The claim holder finishes outside this lock,
+        // so reading "done" and then "active" separately could miss its row in
+        // both, between PENDING and COMPLETED, and tag the object a second time.
+        const blocking = await tx.archiveTierTransition.findMany({
+          where: {
+            evidenceId: ev.id,
+            OR: [
+              { state: "COMPLETED", toTier: targetTier },
+              { state: { in: ["PENDING", "EXECUTING", "RESTORE_REQUESTED"] } },
+            ],
+          },
           select: { id: true, state: true, reason: true, transitionedAtUtc: true },
         });
+        if (blocking.some((row) => row.state === "COMPLETED")) return null;
+        const active = blocking[0];
         if (active) {
           const abandoned =
             active.state === "PENDING" &&
@@ -220,11 +227,22 @@ export async function runArchiveTierAutoTransitions(opts: {
   // outage of retention tiering that is indistinguishable, in every log and
   // metric, from a healthy run with nothing to do. The error now propagates
   // to the scheduler, which records a failed tick.
+  //
+  // A workspace with nothing past the first threshold has nothing to tier, so
+  // only those with such a record are visited. Each is still bounded by
+  // MAX_PER_TEAM, and the scheduler's cron lock stops ticks overlapping.
+  const dueBefore = new Date(Date.now() - HOT_TO_WARM_DAYS * MS_PER_DAY);
+  const withDueRecords = await prisma.evidence.groupBy({
+    by: ["teamId"],
+    where: { teamId: { not: null }, deletedAt: null, createdAt: { lte: dueBefore } },
+  });
   const teams = await prisma.team.findMany({
-    where: { isPersonal: false },
+    where: {
+      isPersonal: false,
+      id: { in: withDueRecords.flatMap((row) => (row.teamId ? [row.teamId] : [])) },
+    },
     select: { id: true },
     orderBy: { createdAt: "asc" },
-    take: MAX_TEAMS_PER_SWEEP,
   });
 
   let teamsProcessed = 0;

@@ -364,10 +364,11 @@ test("Backend /v1/cases/:id/available-evidence response shape stays backward-com
 
 test("Backend /v1/cases/:id/available-evidence keeps owner-scope authorization (cross-workspace blocked at the read layer)", () => {
   const window = availableEvidenceRoute();
-  // The handler checks the case belongs to the caller AND filters
-  // evidence by that same owner.
-  assert.match(window, /caseItem\.ownerUserId !== ownerUserId/);
-  assert.match(window, /ownerUserId,\s*\n?\s*deletedAt: null/);
+  // EVID-009 — the picker answers to the attach's own authority, and offers only
+  // what the caller reaches inside the Case's workspace.
+  assert.ok(window.includes("authorizeCaseEvidenceLink({ userId: ownerUserId, caseId: id })"));
+  assert.ok(window.includes("if (!linkAuth.allowed)"));
+  assert.ok(window.includes("evidenceReachWhere(ownerUserId, memberTeamIds), { teamId: caseItem.teamId }"));
 });
 
 // ===========================================================================

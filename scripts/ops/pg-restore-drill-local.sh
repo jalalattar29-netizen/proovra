@@ -21,6 +21,18 @@ for tool in initdb pg_ctl; do
 done
 
 DATA="$(mktemp -d /tmp/proovra-drill-XXXXXX)"
+# initdb refuses a user it cannot name, and a container started with --user for
+# a host UID has no passwd entry. The image's own entrypoint answers this with
+# libnss_wrapper, so do the same: give the current UID a name for this drill.
+if [ "$(id -u)" -ne 0 ] && ! id -un >/dev/null 2>&1; then
+  for wrapper in /usr/lib/*/libnss_wrapper.so /usr/lib/libnss_wrapper.so; do
+    [ -s "$wrapper" ] || continue
+    export LD_PRELOAD="$wrapper" NSS_WRAPPER_PASSWD="$DATA/passwd" NSS_WRAPPER_GROUP="$DATA/group"
+    printf 'postgres:x:%s:%s:PostgreSQL:%s:/bin/false\n' "$(id -u)" "$(id -g)" "$DATA" >"$NSS_WRAPPER_PASSWD"
+    printf 'postgres:x:%s:\n' "$(id -g)" >"$NSS_WRAPPER_GROUP"
+    break
+  done
+fi
 as_server() {
   if [ "$(id -u)" -eq 0 ]; then
     chown -R postgres:postgres "$DATA"

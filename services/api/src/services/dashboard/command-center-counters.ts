@@ -478,7 +478,9 @@ export async function loadOperationsCounters(
     prisma.reviewEscalation
       .findMany({
         where: { teamId, createdAt: { gte: escalationSince }, workflow: { evidence: reach.evidence } },
-        orderBy: { createdAt: "desc" },
+        // The id settles rows from one transaction, which share a timestamp:
+        // without it the plan decides their order and, at the bound, which are in.
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: RECENT_ESCALATION_LIMIT,
         select: {
           id: true,

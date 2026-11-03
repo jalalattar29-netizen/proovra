@@ -12,6 +12,7 @@ const PREFLIGHT = read(
   "../src/services/identity/account-lifecycle-preflight.service.ts",
 );
 const CLOSURE = read("../src/services/identity/account-closure.service.ts");
+const CLOSED_MARKER = read("../src/services/identity/account-closed.ts");
 const ROUTES = read("../src/routes/account-closure.routes.ts");
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
 // Members audit LIFE-11 — closures run through THE lifecycle tick, which the
@@ -104,7 +105,10 @@ describe("execution: anonymize + revoke, never destroy evidence", () => {
   it("revokes login methods: identity links REVOKED, password nulled, subject scrambled", () => {
     expect(CLOSURE).toMatch(/status:\s*"REVOKED",\s*revokedAtUtc/);
     expect(CLOSURE).toMatch(/passwordHash:\s*null/);
-    expect(CLOSURE).toMatch(/providerUserId:\s*`closed:\$\{userId\}`/);
+    // IDENT-010 — the marker has one spelling, because sign-in now checks it too.
+    expect(CLOSURE).toMatch(/providerUserId:\s*closedAccountProviderId\(userId\)/);
+    expect(CLOSED_MARKER).toMatch(/CLOSED_PREFIX = "closed:"/);
+    expect(CLOSED_MARKER).toMatch(/return `\$\{CLOSED_PREFIX\}\$\{userId\}`/);
   });
 
   it("anonymizes PII (email, names, avatar, bio, country)", () => {

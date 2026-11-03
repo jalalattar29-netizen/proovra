@@ -51,6 +51,8 @@ const seam = vi.hoisted(() => ({
   reportInputs: [] as unknown[],
   packageBuildFailures: 0,
   packageBuildCalls: 0,
+  /** F-14 closure — each real package build's input, as the processor passed it. */
+  packageBuildInputs: [] as Array<{ disclosureProfile?: string; recordedCoordinates?: ReadonlyArray<number> }>,
   /** Fail the HEAD that follows the report PUT inside the report transaction. */
   reportHeadFailures: 0,
   /** Fail reading the ORIGINAL evidence object (prepare and package streaming). */
@@ -97,6 +99,7 @@ vi.mock("../../../worker/src/verification-package.js", async (importOriginal) =>
     ...actual,
     createVerificationPackage: async (...args: unknown[]) => {
       seam.packageBuildCalls += 1;
+      seam.packageBuildInputs.push(args[0] as (typeof seam.packageBuildInputs)[number]);
       if (seam.packageBuildFailures > 0) {
         seam.packageBuildFailures -= 1;
         throw new Error("ACC_PACKAGE_BUILD_FAILED");
@@ -2489,7 +2492,16 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   }, 180_000);
 
   it("F-14: an UNDISCLOSED location never leaves in the external package (no coordinates, no accuracy, no capture-context)", async () => {
+    seam.packageBuildInputs.length = 0;
     expectUndisclosed(await externalPackageEntries({}));
+    // No document names the sealed fix under an unruled key today, so the scan
+    // above cannot see the value-based guard. Its behaviour is proved on the
+    // projection (packages/shared disclosure tests); this proves the processor
+    // arms it, on every build, so a field added later is caught by value.
+    expect(seam.packageBuildInputs.length).toBeGreaterThan(0);
+    for (const input of seam.packageBuildInputs) {
+      expect(input.recordedCoordinates).toEqual([FIX.lat, FIX.lng]);
+    }
   });
 
   it("F-14 closure: the leak check is semantic — a signing instant of 00:52:52.520Z (Main's failure) is not a coordinate", async () => {

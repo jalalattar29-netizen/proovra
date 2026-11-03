@@ -11,6 +11,7 @@ const read = (rel: string) => readFileSync(resolve(HERE, rel), "utf8");
 const SERVICE = read("../src/services/identity/account-data-export.service.ts");
 const ROUTES = read("../src/routes/account-data-export.routes.ts");
 const SCHEDULER = read("../src/services/notifications/digest-scheduler.ts");
+const LIFECYCLE_TICK = read("../src/services/lifecycle/lifecycle-scheduler.service.ts");
 const MIGRATION = read(
   "../prisma/migrations/20270919000000_account_data_export_requests/migration.sql",
 );
@@ -58,7 +59,11 @@ describe("async processing + retention", () => {
   });
 
   it("processing piggybacks the existing digest cron (no parallel job system)", () => {
-    expect(SCHEDULER).toMatch(/processAccountDataExports\(now\)/);
+    // WORKFLOW-008 — through the lifecycle tick the digest runs first, so a
+    // digest problem no longer stops an export.
+    expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);
+    expect(SCHEDULER).not.toMatch(/processAccountDataExports\(/);
+    expect(LIFECYCLE_TICK).toMatch(/processAccountDataExports\(now\)/);
   });
 
   it("ready + failed outcomes emit identity.* audit events", () => {

@@ -313,7 +313,7 @@ describe("M3.1 — SIU frontend panel", () => {
 
   it("renders durability note explaining redaction model", () => {
     expect(src).toContain('data-testid="siu-durability-note"');
-    expect(src).toMatch(/PII redacted by default/);
+    expect(src).toMatch(/Personal data is redacted by default/);
   });
 
   it("never uses forbidden vocabulary", () => {

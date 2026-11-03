@@ -208,7 +208,10 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
       batchSize: 50,
     });
     expect(result.ok).toBe(true);
-  });
+    // Two ticks. Each grows to cover every workspace that must run, up to 200
+    // of them on a shared database, at the per-workspace cost DRAIN_BUDGET_MS
+    // uses: measured at 60s and over against 1,365 workspaces.
+  }, 2 * 200 * 500);
 
   /**
    * Sweep until nothing is due, bounded.

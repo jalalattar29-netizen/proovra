@@ -80,7 +80,11 @@ describe("one canonical step-up union covers every sensitive lifecycle action", 
 
 describe("one worker host: every async lifecycle processor rides the digest cron", () => {
   it("all four processors are wired, each in its own isolation guard", () => {
-    expect(SCHEDULER).toMatch(/processAccountDataExports\(now\)/);
+    // WORKFLOW-008 — the export moved from the digest into the tick's own step.
+    expect(SCHEDULER).not.toMatch(/processAccountDataExports\(/);
+    expect(LIFECYCLE_TICK).toMatch(
+      /step\("accountDataExports", async \(\) => \{\s*await processAccountDataExports\(now\);/,
+    );
     expect(SCHEDULER).toMatch(/runLifecycleTick\(now\)/);
     expect(LIFECYCLE_TICK).toMatch(/processAccountClosures\(now\)/);
     expect(LIFECYCLE_TICK).toMatch(/processOrganizationClosures\(now\)/);
