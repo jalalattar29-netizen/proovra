@@ -365,9 +365,17 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
             },
             "auth.security_policy_denied",
           );
-          return reply
-            .code(401)
-            .send(createErrorResponse(ErrorCode.UNAUTHORIZED, req.id));
+          // A workspace rule that needs SSO is named like the organization gate
+          // below: a client that cannot do SSO must say so, not loop through a
+          // sign-in that can never pass. Other denials stay unexplained.
+          return reply.code(401).send(
+            verdict.reason === "saml_required"
+              ? createErrorResponse(ErrorCode.UNAUTHORIZED, req.id, {
+                  reason: "reauthentication_required",
+                  policy: verdict.reason,
+                })
+              : createErrorResponse(ErrorCode.UNAUTHORIZED, req.id),
+          );
         }
         if (!orgGate.allowed) {
           req.log.info(

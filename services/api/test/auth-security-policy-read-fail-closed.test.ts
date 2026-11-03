@@ -143,5 +143,30 @@ describe("governance SECURITY policy read failure → 503, handler never reached
     const res = await hit(app, token);
     expect(res.statusCode).toBe(401);
     expect(H.handlerCalls).toBe(0);
+    // Not an SSO rule, so nothing is explained.
+    expect(JSON.parse(res.body).error.details?.policy).toBeUndefined();
+  });
+
+  it("a requireSaml rule says so, so a client without SSO can tell the person (MOBILE-002)", async () => {
+    H.assignments = [
+      {
+        scope: "WORKSPACE",
+        scopeTargetId: "ws-org",
+        isOverride: false,
+        policy: {
+          id: "p-1", kind: "SECURITY", slug: "s", name: "s", summary: "", state: "ACTIVE",
+          enforcementMode: "BLOCK", rule: { requireSaml: true }, version: 1,
+          createdByUserId: "u", createdAt: new Date(),
+        },
+      },
+    ];
+    const { app, token } = await build();
+    const res = await hit(app, token);
+    expect(res.statusCode).toBe(401);
+    expect(H.handlerCalls).toBe(0);
+    expect(JSON.parse(res.body).error).toMatchObject({
+      code: "UNAUTHORIZED",
+      details: { reason: "reauthentication_required", policy: "saml_required" },
+    });
   });
 });
