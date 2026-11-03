@@ -25,11 +25,6 @@ import { authLogger } from "../../lib/auth-logger";
 import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { ForgotPasswordModal } from "../../components/marketing/ForgotPasswordModal";
-import {
-  clearPendingOAuthLegalAcceptance,
-  savePendingOAuthLegalAcceptance,
-} from "../../lib/legalAcceptance";
-import { REQUIRED_LEGAL_VERSIONS } from "@proovra/shared/legal";
 import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
 
 const DEBUG_AUTH = process.env.NEXT_PUBLIC_DEBUG_AUTH === "1";
@@ -177,7 +172,6 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const nextUrl = searchParams.get("next") || searchParams.get("returnUrl") || "/home";
 
-  const [acceptLegal, setAcceptLegal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -216,7 +210,6 @@ function LoginPageContent() {
   const googleInitOnceRef = useRef(false);
   const googleBtnWrapRef = useRef<HTMLDivElement | null>(null);
   const googleBtnHostRef = useRef<HTMLDivElement | null>(null);
-  const acceptLegalRef = useRef(false);
   const nextUrlRef = useRef(nextUrl);
 
   const ui = useMemo(() => {
@@ -226,10 +219,6 @@ function LoginPageContent() {
     const inputShadow = "0 12px 28px rgba(6, 16, 22, 0.08)";
     return { cardShadow, border, socialMaxW, inputShadow };
   }, []);
-
-  useEffect(() => {
-    acceptLegalRef.current = acceptLegal;
-  }, [acceptLegal]);
 
   useEffect(() => {
     nextUrlRef.current = nextUrl;
@@ -285,46 +274,12 @@ function LoginPageContent() {
     if (DEBUG_AUTH) console.info(`[Auth] ${msg}`);
   };
 
-  const getRequiredAcceptances = () => [
-    {
-      policyKey: "terms" as const,
-      policyVersion: REQUIRED_LEGAL_VERSIONS.terms,
-    },
-    {
-      policyKey: "privacy" as const,
-      policyVersion: REQUIRED_LEGAL_VERSIONS.privacy,
-    },
-    {
-      policyKey: "cookies" as const,
-      policyVersion: REQUIRED_LEGAL_VERSIONS.cookies,
-    },
-  ];
-
-  const persistPendingOAuthLegalAcceptance = () => {
-    savePendingOAuthLegalAcceptance({
-      source: "login",
-      returnUrl: nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home",
-      acceptances: getRequiredAcceptances(),
-      createdAt: new Date().toISOString(),
-    });
-  };
-
   const setReturnUrl = (url: string) => {
     try {
       sessionStorage.setItem("proovra-return-url", url);
     } catch {
       // ignore
     }
-  };
-
-  const recordRequiredLegalAcceptances = async () => {
-    await apiFetch("/v1/users/legal-acceptance", {
-      method: "POST",
-      body: JSON.stringify({
-        source: "login",
-        acceptances: getRequiredAcceptances(),
-      }),
-    });
   };
 
   const handleAuth = async (
@@ -336,16 +291,7 @@ function LoginPageContent() {
     if (!isMountedRef.current) return;
     if (inFlightRef.current) return;
 
-    const accepted = acceptLegalRef.current;
     const currentNextUrl = nextUrlRef.current.startsWith("/") ? nextUrlRef.current : "/home";
-
-    if (!accepted) {
-      const msg =
-        "You must accept the Terms of Service, Privacy Policy, and Cookie Policy before continuing.";
-      setError(msg);
-      addToast(msg, "error");
-      return;
-    }
 
     const provider = path.includes("google")
       ? "google"
@@ -354,12 +300,6 @@ function LoginPageContent() {
         : path.includes("guest")
           ? "guest"
           : "email";
-
-    if (provider === "google" || provider === "apple") {
-      persistPendingOAuthLegalAcceptance();
-    } else {
-      clearPendingOAuthLegalAcceptance();
-    }
 
     inFlightRef.current = true;
     setBusy(true);
@@ -421,16 +361,6 @@ function LoginPageContent() {
       }
 
       setToken(data.token);
-
-      try {
-        await recordRequiredLegalAcceptances();
-        clearPendingOAuthLegalAcceptance();
-      } catch {
-        addToast(
-          "Sign-in completed, but legal acceptance logging could not be saved.",
-          "warning"
-        );
-      }
 
       const me = await apiFetch("/v1/auth/me", { method: "GET" });
       authLogger.logSessionValidation("/v1/auth/me", me);
@@ -635,16 +565,6 @@ function LoginPageContent() {
     logDebug("Apple click");
     authLogger.log("AUTH_START", "provider=apple", {});
     setReturnUrl(nextUrlRef.current);
-
-    if (!acceptLegalRef.current) {
-      const msg =
-        "You must accept the Terms of Service, Privacy Policy, and Cookie Policy before continuing.";
-      setError(msg);
-      addToast(msg, "error");
-      return;
-    }
-
-    persistPendingOAuthLegalAcceptance();
 
     if (busy || inFlightRef.current) return;
 
@@ -1009,46 +929,21 @@ function LoginPageContent() {
                             </div>
                           </div>
 
-<label
-  className="auth-legal-check"
-  style={{
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 12,
-    padding: "12px 14px",
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.42)",
-    border: "1px solid rgba(230,72,128,0.20)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.30)",
-    fontSize: 14,
-    lineHeight: 1.75,
-    color: "#4B3B4F",
-  }}
->
-  <input
-    type="checkbox"
-    checked={acceptLegal}
-    onChange={(e) => setAcceptLegal(e.target.checked)}
-    disabled={busy}
-    className="auth-legal-checkbox"
-    style={{ accentColor: "#E64880" }}
-  />
-  <span style={{ display: "block", paddingTop: 1 }}>
-    I agree to the{" "}
-    <Link href="/legal/terms" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
-      Terms of Service
-    </Link>
-    {", "}
-    <Link href="/legal/privacy" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
-      Privacy Policy
-    </Link>
-    {" and "}
-    <Link href="/legal/cookies" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
-      Cookie Policy
-    </Link>
-    .
-  </span>
-</label>
+<p data-auth-legal-notice style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#4B3B4F" }}>
+  If our{" "}
+  <Link href="/legal/terms" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
+    Terms of Service
+  </Link>
+  {", "}
+  <Link href="/legal/privacy" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
+    Privacy Policy
+  </Link>
+  {" or "}
+  <Link href="/legal/cookies" className="auth-link" style={{ color: "#D63E76", fontWeight: 600 }}>
+    Cookie Policy
+  </Link>
+  {" need your acceptance, we will ask right after you sign in."}
+</p>
                           {/*
                             The Auth CTA, not the application primary. Its
                             colours live in ONE place (`.auth-email-cta`,
@@ -1213,7 +1108,6 @@ function LoginPageContent() {
                             <div style={{ fontWeight: 700, marginBottom: 6 }}>Auth Debug</div>
                             <div>Apple: {appleReady ? "ready" : "missing"}</div>
                             <div>nextUrl: {nextUrl}</div>
-                            <div>acceptLegal: {acceptLegal ? "true" : "false"}</div>
                           </div>
                         )}
                       </div>

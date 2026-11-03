@@ -167,7 +167,8 @@ export async function submitPassword(page: Page, email: string, password: string
   await page.goto("/login");
   await page.locator('input[placeholder="Email"]:visible').first().fill(email);
   await page.locator('input[placeholder="Password"]:visible').first().fill(password);
-  await page.locator("input.auth-legal-checkbox:visible").first().check();
+  // RT-015: sign-in asks nothing; acceptance is a step after it, when one is owed.
+  await expect(page.locator("input.auth-legal-checkbox")).toHaveCount(0);
   await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').first().click();
 }
 

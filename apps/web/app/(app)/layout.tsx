@@ -10,6 +10,7 @@ import { ProovraChatWidget } from "../../components/ai/ProovraChatWidget";
 import { useAuth } from "../providers";
 import { PlatformContextProvider } from "../../lib/platform-context";
 import { isInvitationAcceptPath } from "../../lib/navigation/invitation-path";
+import { LegalAcceptanceStep } from "../../components/legal/LegalAcceptanceStep";
 
 /**
  * Phase 32.8 Foundation — (app)/layout wraps every operator surface
@@ -123,6 +124,7 @@ export default function AppLayout({
    */
   return (
     <PlatformContextProvider>
+      <LegalAcceptanceStep active={authReady && hasSession} />
       {!authReady ? (
         <div className="min-h-screen bg-[#f3f5f7]" />
       ) : !hasSession && isInvitationAcceptPath(pathname) ? (
