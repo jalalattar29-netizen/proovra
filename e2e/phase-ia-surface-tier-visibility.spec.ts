@@ -123,7 +123,6 @@ const CORE_PATHS_THAT_RENDER = [
   "/reports",
   "/teams",
   "/inbox",
-  "/trust-center",
   "/settings",
   "/settings/security",
   "/billing",
@@ -256,6 +255,15 @@ async function settledMainText(page: Page): Promise<string> {
   await expect(main).not.toContainText(GATE_PENDING_COPY, {
     timeout: 30_000,
   });
+  // The route segment streams in after the shell, and main also holds the
+  // (empty) assistant dock, so a main that has not received its route yet
+  // reads "". It used to hold the floating assistant's label, which is how an
+  // empty route passed. Wait for the route's text; a main that never gets any
+  // is still returned, and the caller's assertion fails on it.
+  await expect
+    .poll(async () => (await main.innerText()).trim().length, { timeout: 30_000 })
+    .toBeGreaterThan(0)
+    .catch(() => undefined);
   return main.innerText();
 }
 
@@ -479,4 +487,16 @@ test.describe("Phase IA-surface-tier — CORE surfaces still render", () => {
       expect(main.trim().length, `${path} rendered an empty main`).toBeGreaterThan(0);
     });
   }
+
+  // /trust-center has redirected to the public Trust Center (/trust) since
+  // June: it is not an in-app surface and has no main landmark of its own. Its
+  // CORE promise is that a signed-in user gets the trust documentation, not a
+  // refusal; reading the app shell's main during the redirect measured nothing.
+  test("CORE: GET /trust-center lands on the public Trust Center", async ({ page }) => {
+    const res = await page.goto("/trust-center");
+    expect(res?.status()).toBeLessThan(500);
+    await page.waitForURL(/\/trust(\?|#|$)/, { timeout: 30_000 });
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Trust, security, privacy/i, { timeout: 30_000 });
+    await expect(page.locator("body")).not.toContainText(NOT_FOUND_COPY);
+  });
 });
