@@ -129,7 +129,13 @@ describe("the disclosure migration maps every shape fail closed (Prisma upgrade 
     const src = join(API_ROOT, "prisma", "migrations");
     cpSync(src, full, { recursive: true });
     cpSync(src, pre, { recursive: true });
-    rmSync(join(pre, TARGET), { recursive: true, force: true });
+    // The immediate pre-migration schema is every migration BEFORE the target,
+    // not every migration but the target: a later one may build on the
+    // target's columns (20281111000100 indexes verification_disclosure_changed_at_utc),
+    // and no real database ever applies it without the target first.
+    for (const name of readdirSync(pre)) {
+      if (/^\d/.test(name) && name >= TARGET) rmSync(join(pre, name), { recursive: true, force: true });
+    }
     expect(readdirSync(full)).toContain(TARGET);
     deploy(pre, "pre");
 
