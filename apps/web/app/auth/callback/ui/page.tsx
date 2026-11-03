@@ -324,15 +324,7 @@ if (error) {
 
         <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10 md:px-8 md:py-14">
           <div className="w-full max-w-[560px]">
-            <div className="auth-card auth-premium relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-              <img
-                src="/images/panel-silver.webp.png"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.55)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.18),transparent_40%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.35),transparent_30%)]" />
+            <div className="auth-card auth-premium relative overflow-hidden bg-white/95 rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
 
               <div className="relative z-10 p-7 text-center md:p-8">
                 <h2 className="text-[1.8rem] font-semibold tracking-[-0.04em] text-[#16282d] md:text-[2rem]">
@@ -373,15 +365,7 @@ return (
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10 md:px-8 md:py-14">
         <div className="w-full max-w-[560px]">
-          <div className="auth-card auth-premium relative overflow-hidden rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
-            <img
-              src="/images/panel-silver.webp.png"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover object-center"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.28)_0%,rgba(245,247,244,0.45)_50%,rgba(236,239,236,0.55)_100%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_20%,rgba(214,184,157,0.18),transparent_40%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.35),transparent_30%)]" />
+          <div className="auth-card auth-premium relative overflow-hidden bg-white/95 rounded-[30px] border border-[rgba(79,112,107,0.22)] shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
 
             <div className="relative z-10 p-7 text-center md:p-8">
               <div className="text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#8d7d6e]">

@@ -34,6 +34,7 @@
  * status is now classified too.
  */
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -116,11 +117,17 @@ export function ProovraChatWidget() {
   const [busy, setBusy] = useState(false);
   const [state, setState] = useState<AssistantState>(READY_STATE);
   const [showHint, setShowHint] = useState(false);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   const logRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
   /** Availability is read once per open, not once per keystroke. */
   const probedRef = useRef(false);
+
+  // The shell renders the slot before this effect runs.
+  useEffect(() => {
+    setHeaderSlot(document.getElementById("app-header-assistant-slot"));
+  }, []);
 
   // ---- the one-time nudge -------------------------------------------------
   useEffect(() => {
@@ -279,6 +286,48 @@ export function ProovraChatWidget() {
 
   const canSend = Boolean(draft.trim()) && !busy && state.canSend;
 
+  /*
+   * THE LAUNCHER LIVES IN THE HEADER.
+   *
+   * It used to float over the page's bottom corner, where every long list
+   * eventually puts a row: it covered Open buttons, table cells, form fields
+   * and stat cards at every width, and scrolling only moved the problem to the
+   * next row. Foot padding can clear the last row, never the ones above it. The
+   * header is the one place on the page that holds no page content.
+   *
+   * The nudge is a pulse on the button for the same reason: a label beside it
+   * would lie over whatever the page has there. Screen readers still hear it.
+   * The dock is the fallback for a shell with no slot, and it holds the panel,
+   * which the person opened on purpose.
+   */
+  const launcher = (
+    <div className="assistant-launcher-slot" data-assistant-in-header={headerSlot ? "true" : "false"}>
+      {showHint && !open ? (
+        <span className="assistant-hint" role="status">
+          Need help?
+        </span>
+      ) : null}
+      <button
+        type="button"
+        className="assistant-launcher"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-label={open ? "Close assistant" : "Open assistant"}
+        title="Need help?"
+        aria-expanded={open}
+        data-nudge={showHint && !open ? "true" : undefined}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4.6A8 8 0 0 1 13 4a8 8 0 0 1 8 8Z"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
     <div className="assistant-dock">
       {open ? (
@@ -430,29 +479,7 @@ export function ProovraChatWidget() {
         </div>
       ) : null}
 
-      <div className="assistant-launcher-slot">
-        {showHint && !open ? (
-          <div className="assistant-hint" role="status">
-            Need help?
-          </div>
-        ) : null}
-        <button
-          type="button"
-          className="assistant-launcher"
-          onClick={() => setOpen((prev) => !prev)}
-          aria-label={open ? "Close assistant" : "Open assistant"}
-          aria-expanded={open}
-        >
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4.6A8 8 0 0 1 13 4a8 8 0 0 1 8 8Z"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
+      {headerSlot ? createPortal(launcher, headerSlot) : launcher}
     </div>
   );
 }

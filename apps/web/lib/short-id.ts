@@ -46,3 +46,16 @@ export function shortId(value: string | null | undefined): string {
   if (text.length <= THRESHOLD) return text;
   return `${text.slice(0, HEAD)}…${text.slice(-TAIL)}`;
 }
+
+/**
+ * A reference a person can read aloud, for a record with no display name.
+ *
+ * The record's kind and the tail of its id, which is the part that differs:
+ * "Evidence ref 0000C1". It is not a name and does not pretend to be one. Keep
+ * the full id in the cell's `title` so it can still be correlated.
+ */
+export function recordReference(kind: string, value: string | null | undefined): string {
+  const text = (value ?? "").trim().replace(/-/g, "");
+  if (!text) return `${kind}: not available`;
+  return `${kind} ref ${text.slice(-TAIL).toUpperCase()}`;
+}

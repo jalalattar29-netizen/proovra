@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "../../app/providers";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -218,8 +219,12 @@ export function MarketingHeader() {
   // only — this component already opts into `"use client"`.
   const pathname = usePathname() ?? "";
   const isLoginPage = pathname === "/login" || pathname.startsWith("/login/");
-  const switchAuthLabel = isLoginPage ? "Create account" : "Sign in";
-  const switchAuthHref = isLoginPage ? "/register" : MARKETING_LINKS.signIn;
+  // A signed-in reader on a public page goes back to their workspace. The
+  // session authority is useAuth; until it answers, the signed-out pair stands.
+  const { hasSession } = useAuth();
+  const signedIn = hasSession && !isLoginPage;
+  const switchAuthLabel = signedIn ? "Open workspace" : isLoginPage ? "Create account" : "Sign in";
+  const switchAuthHref = signedIn ? "/home" : isLoginPage ? "/register" : MARKETING_LINKS.signIn;
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -364,13 +369,15 @@ className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[14.5px] xl:max-2xl:
           </Link>
           {/* Primary dark CTA — homepage hero language. Deep navy +
               white text, soft enterprise shadow, no glow. */}
-          <Link
-            href={MARKETING_LINKS.requestDemo}
-            className={`${MARKETING_BTN.primaryDark} shrink-0`}
-          >
-            Request a demo
-            <ArrowRight size={14} />
-          </Link>
+          {signedIn ? null : (
+            <Link
+              href={MARKETING_LINKS.requestDemo}
+              className={`${MARKETING_BTN.primaryDark} shrink-0`}
+            >
+              Request a demo
+              <ArrowRight size={14} />
+            </Link>
+          )}
         </div>
 
         <button
@@ -463,14 +470,16 @@ className="w-[170px] h-auto object-contain"
             >
               {switchAuthLabel}
             </Link>
-            <Link
-              href={MARKETING_LINKS.requestDemo}
-              onClick={() => setMobileOpen(false)}
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0B1F5E] text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,31,94,0.25)]"
-            >
-              Request a demo
-              <ArrowRight size={15} />
-            </Link>
+            {signedIn ? null : (
+              <Link
+                href={MARKETING_LINKS.requestDemo}
+                onClick={() => setMobileOpen(false)}
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0B1F5E] text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,31,94,0.25)]"
+              >
+                Request a demo
+                <ArrowRight size={15} />
+              </Link>
+            )}
           </div>
         </div>
       )}

@@ -138,6 +138,20 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "generic",
     why: "Anti-enumeration, as CASE_NOT_FOUND.",
   },
+  DESTRUCTION_REQUEST_NOT_FOUND: {
+    disposition: "generic",
+    why: "Anti-enumeration, as CASE_NOT_FOUND.",
+  },
+  DESTRUCTION_EVIDENCE_NOT_FOUND: {
+    disposition: "generic",
+    why: "Anti-enumeration, as CASE_NOT_FOUND. The refusal does not say which record.",
+  },
+  SUPPORT_ACCESS_SCOPE_INVALID: {
+    disposition: "internal",
+    why:
+      "Platform staff only. The support-access form offers the valid scopes, so this " +
+      "is a request the product does not send; a customer never reaches the route.",
+  },
   REVIEW_WORKFLOW_NOT_FOUND: {
     disposition: "generic",
     why:

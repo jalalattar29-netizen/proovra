@@ -2405,3 +2405,66 @@ body.app-mobile-sidebar-open {
     --team-header-action-clearance: clamp(72px, 10%, 210px);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE ASSISTANT LAUNCHER IN THE HEADER.
+   It moved here from a floating corner button that covered page controls.
+   Collapsed, it takes the search control's square so the row still fits a
+   390px phone; below 420px the workspace trigger gives up the difference.
+   --------------------------------------------------------------------------- */
+@media (max-width: 980px) {
+  .app-account-toolbar .app-header-assistant-slot .assistant-launcher {
+    inline-size: 36px;
+    min-inline-size: 36px;
+    block-size: 36px;
+    min-block-size: 36px;
+  }
+}
+@media (max-width: 419px) {
+  .app-account-toolbar .app-topbar-v2-workspace-button {
+    max-width: 104px;
+  }
+}
+
+.app-sidebar-v2-privacy-slot {
+  display: flex;
+  justify-content: center;
+  padding-block: 4px;
+}
+.app-sidebar-v2-privacy-slot:empty {
+  display: none;
+}
+
+/* The launcher's 36px plus a gap is what the desktop arrangement did not
+   budget for at its lower edge (981px measured an overlap of search and New
+   Case). Language stands down there too, as it already does below 981;
+   Settings, Preferences still offers it. */
+@media (min-width: 981px) and (max-width: 1080px) {
+  .app-account-toolbar .app-topbar-v2-language {
+    display: none;
+  }
+}
+/* Narrower than 390 the workspace trigger keeps its icon and a few letters,
+   then only its icon; the menu it opens still names the workspace. */
+@media (max-width: 379px) {
+  .app-account-toolbar .app-topbar-v2-workspace-button {
+    max-width: 72px;
+  }
+}
+@media (max-width: 339px) {
+  .app-account-toolbar .app-topbar-v2-workspace-copy {
+    display: none;
+  }
+  .app-account-toolbar .app-topbar-v2-workspace-button {
+    max-width: 48px;
+  }
+}
+@media (max-width: 339px) {
+  .app-account-toolbar-inner {
+    gap: 4px;
+    padding: 0 8px;
+  }
+  .app-header-zone-right {
+    gap: 2px;
+  }
+}

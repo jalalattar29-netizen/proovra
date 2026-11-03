@@ -56,6 +56,7 @@
  *     are explicitly absent.
  */
 
+import { recordReference } from "../../lib/short-id";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
@@ -1375,7 +1376,7 @@ function QueueTable({
                   />
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
-                  {row.reviewerSummary ?? row.evidenceId ?? row.id ?? "—"}
+                  {row.reviewerSummary ?? (row.evidenceId ? recordReference("Evidence", row.evidenceId) : row.id ? recordReference("Review", row.id) : "—")}
                 </td>
                 <td style={{ padding: rowPad, ...reviewerTdStyle }}>
                   {identifierLabel(row.stage ?? "—")}

@@ -17,6 +17,7 @@
  * verbatim outside the input box.
  */
 
+import { recordReference } from "../../../lib/short-id";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -100,8 +101,7 @@ import {
 import {
   searchReadinessHasUsableResults,
   type SearchReadinessProjection,
-  identifierLabel,
-} from "@proovra/shared";
+  identifierLabel, identifierTextLabel } from "@proovra/shared";
 // The guidance column stands in for the Inspector while nothing is selected,
 // so the region is never an empty white gutter. Every list in it is real.
 import {
@@ -2435,7 +2435,7 @@ function SearchInner() {
                         <span className="search-result__meta">{subtitle}</span>
                       ) : null}
                       {row.summary ? (
-                        <span className="search-result__meta">{row.summary}</span>
+                        <span className="search-result__meta">{identifierTextLabel(row.summary)}</span>
                       ) : null}
 
                       {otherBadges.length > 0 ? (
@@ -2769,13 +2769,13 @@ function Inspector({
       ) : null}
 
       <Section label="Pointers">
-        <KeyVal label="Document" value={row.documentId} mono />
+        <KeyVal label="Document" value={<span title={row.documentId}>{recordReference("Document", row.documentId)}</span>} mono />
         {row.evidenceId ? (
           <KeyVal
             label="Evidence"
             value={
-              <a className="search-pointer" href={`/evidence/${row.evidenceId}`}>
-                {row.evidenceId}
+              <a className="search-pointer" href={`/evidence/${row.evidenceId}`} title={row.evidenceId}>
+                {recordReference("Evidence", row.evidenceId)}
               </a>
             }
             mono
@@ -2789,14 +2789,15 @@ function Inspector({
                 <a
                   className="search-pointer"
                   href={`/workflows/${row.workflowInstanceId}`}
+                  title={row.workflowInstanceId}
                 >
-                  {row.workflowInstanceId}
+                  {recordReference("Workflow", row.workflowInstanceId)}
                 </a>
               ) : (
                 // Phase IA-self-serve-completion — show the ID but
                 // not the link for self-serve users. /workflows is
                 // ENTERPRISE_ONLY.
-                <span className="search-pointer">{row.workflowInstanceId}</span>
+                <span className="search-pointer" title={row.workflowInstanceId}>{recordReference("Workflow", row.workflowInstanceId)}</span>
               )
             }
             mono
@@ -2915,7 +2916,7 @@ function Inspector({
 
       {row.summary ? (
         <Section label="Summary">
-          <p className="search-inspector__prose">{row.summary}</p>
+          <p className="search-inspector__prose">{identifierTextLabel(row.summary)}</p>
         </Section>
       ) : null}
 
