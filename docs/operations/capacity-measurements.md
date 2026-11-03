@@ -87,7 +87,7 @@ Raw output (git-ignored): `.p7tmp/capacity/` (`before*.json`, `after*.json`,
 | command center (owner) | 7038 | 8092 | 2327 | 2546 | 217 / 219 | 28590 / 11956 |
 | command center (member) | 7094 | 7928 | 2388 | 3546 | 217 / 219 | 25383 / 11995 |
 | command center (7,000-record tenant) | 898 | 1017 | 303 | 445 | 220 / 219 | 2231 / 858 |
-| trust summary | 1952 | 2374 | 2887 | 3389 | 71 / 74 | 9644 / 6672 |
+| trust summary (change reverted, see 5a) | 1952 | 2374 | 2887 | 3389 | 71 / 74 | 9644 / 6672 |
 | library list, one workspace | 3930 | 4299 | 518 | 548 | 207 / 209 | 3654 / 297 |
 | library list, all workspaces | 5976 | 12820 | 918 | 1025 | 206 / 208 | 5784 / 678 |
 | library list, filtered | 6279 | 10302 | 504 | 590 | 207 / 209 | 5431 / 275 |
@@ -173,8 +173,8 @@ Each change keeps the same results; the tests below were run.
    the caller, the same predicate driven from the other end, and applied as an id list,
    or as the old relation filter above 2,000 ids
    (`services/api/src/services/access/record-reach.ts`). Used by the library list and
-   summary, the workspace reach every dashboard engine shares, the trust summary and
-   search reach.
+   summary, the workspace reach every dashboard engine shares, search reach and the
+   matter queue. **Not** used by the trust summary: see section 4a.
 3. **Commercial context** — resolving a workspace's commercial context computed the
    whole usage rollup, six byte aggregates, and used only the seat figures. It now reads
    seats through one seat reader that the usage rollup also uses
@@ -184,9 +184,15 @@ Each change keeps the same results; the tests below were run.
    transition ever recorded, then each candidate again by id; a workspace whose first
    400 rows were already tiered never had the rest looked at. One ordered statement now
    selects the due records (latest completed known tier, age past its threshold, oldest
-   first) with their sealed version (`services/worker/src/governance/archive-tier-auto-transition.worker.ts`).
-   A new integration test (a due record behind 401 that are not due) fails on the old
-   sweep and passes on the new.
+   first) with their sealed version. After merging with the integration branch's
+   rewrite of the same sweep, it keeps that branch's guarantees (every team with a due
+   record is visited each tick; per team a cap of 100 transitions and 400 attempts; a
+   failed tag waits a day) and each page is one statement that reads only DUE records,
+   skipping recent failures, with at most 5 pages per team
+   (`services/worker/src/governance/archive-tier-auto-transition.worker.ts`).
+   Integration tests from both sides pass, including "a due record behind 401 that are
+   not due" (fails on the original sweep) and "a due record behind more than a page of
+   finished ones". On the re-seeded fixture one tick took 9.2 s and 1,258 statements.
 5. **Three indexes**, each its own single-statement migration built `CONCURRENTLY`
    (`20281111000000`, `000100`, `000200`; rows in `docs/architecture/migration-deployment-plan.md`):
    `evidence (team_id, status, updated_at DESC)` for the command center's
@@ -196,6 +202,50 @@ Each change keeps the same results; the tests below were run.
    for records in more than one case (3.4 to 4.4 s, 0.36 s with the index). Build cost
    on the fixture: 76 s and 84 MB, 4 s and 8 kB, 9 s and 50 MB. Each is one more index
    to maintain on every write of its table; `evidence` already carries 54.
+
+6. **Connection pool ceiling (CAP-9)** — `DATABASE_POOL_MAX` sets the API's and the
+   worker's pool. Unset keeps the `pg` default of 10, so nothing changes until someone
+   sets it; a value outside 1 to 500 stops the process. No production value is chosen
+   here (`services/api/.env.example`, `services/worker/.env.example`).
+7. **Organization members (CAP-10)** — `GET /v1/orgs/:id/members` returned every
+   membership: 1,500 rows, 556 kB. It now pages like the workspace roster (`limit`
+   default 50, at most 200; a `cursor` that must belong to the same organization;
+   `q`), with whole-organization counts by role and status on every page. The members
+   tab appends with Load more; the admin overview, organization page and setup wizard
+   read their totals from the counts. The full roster stays at
+   `GET /v1/orgs/:id/reports/members.csv`. Measured: p50 57 ms and 556 kB, then 29 ms
+   and 18.7 kB.
+8. **Matter queue** — each case's visible linked records were read separately (50 reads
+   per page, each with the restricted-case predicate). One reach lookup and one lateral
+   statement now read them for the page, with the same 500-per-case bound. Measured:
+   p50 354 ms and 512 statements, then 203 ms and 464; the rest are seven per-case
+   counters that were not batched.
+
+### 5a. Second round: what was reverted, and what the pool setting showed
+
+These ran on a re-seeded fixture (the same deterministic seed, rebuilt after the first
+stack was removed), so compare within this section, not with section 4.
+
+- **Trust summary, reverted.** Back to back on the same data, 20 samples each: with the
+  narrowing resolved once, p50 2,648 ms (database 7.1 s); with the per-count predicate,
+  p50 1,860 ms (database 8.2 s). The resolved form spends about 300 ms on the reach
+  lookup before any count can start, and without the per-row predicate the planner ran
+  the largest count (records with both a report and a package) with no parallel
+  workers: 2.3 s against 1.3 s with three. The per-count predicate is restored for this
+  surface only; after the revert p50 was 1,889 ms.
+- **Pool ceiling, 10 against 20, same mix, 30 s per level** (this machine only; the
+  database here had idle CPU and no connection cap):
+
+  | clients | pool 10: req/s, p50, p95 (ms) | pool 20: req/s, p50, p95 (ms) |
+  |---:|---|---|
+  | 5 | 2.5, 1058, 5988 | 3.0, 758, 5839 |
+  | 10 | 2.5, 2607, 10237 | 3.7, 1176, 7139 |
+  | 20 | 2.0, 7955, 17801 | 4.5, 2175, 11922 |
+
+  Connections held at the database rose from 17 to 27. This shows the setting works and
+  that this workload was pool-bound here. It does not say what production should use,
+  which depends on the database's connection limit and CPU, the pooler, and how many API
+  and worker replicas share them.
 
 ## 6. Measured and not repaired
 
@@ -220,17 +270,25 @@ a larger change than a bounded, same-result repair.
   decision.
 - **Command center (2.3 s) and library summary (3.3 s).** About 30 whole-workspace
   aggregates per load. Report and package counts join through `evidence` because those
-  tables carry no workspace column, so they hash-join whole tables. Bounded only by a
-  maintained projection or a denormalised workspace column.
+  tables carry no workspace column, so they hash-join whole tables (1.4 s and 1.5 s on
+  the anchor workspace). No same-result rewrite without a schema change was found that
+  measured faster; the options are a maintained projection or a workspace column.
+- **Command center recent custody (8.3 s on the re-seeded fixture, cold).** "Custody
+  events since a date for this workspace, newest 200" joins `custody_events` (10.3 M
+  rows, 7.4 GB) to `evidence` with no index on `at_utc`, so it reads the table. An
+  index on `custody_events (at_utc DESC)`, built concurrently, is the candidate; it was
+  not added in this round, which was limited to changes without a schema change.
 - **Record creation (0.9 s)** sums the workspace's stored bytes on every create.
 - **Library search without a match (0.8 s)** is `ILIKE` over three columns with no
   trigram index; it grows linearly with the workspace. A trigram index would add three
   more indexes to `evidence`.
 - **Inbox (1.8 s)** two evidence reads per load; not analysed further.
-- **Organization members** returns every member in one response (1,500 members,
-  556 kB); it is an unbounded read and needs pagination in the API and the page.
-- **Connection pool.** Fixed at the `pg` default of 10 with no setting; the right size
-  depends on the production database's connection limit and pooler, which are unknown.
+- **Production pool size** — now a setting (section 5, item 6), still 10 everywhere.
+  Choosing a value is a decision for whoever knows production's connection limit and
+  pooler.
+- **Ownership transfer picker** on the organization page reads the largest member page
+  (200, owners and admins first). In an organization of more than 200 members a plain
+  member beyond that page cannot be picked there as the new owner.
 - **The case-reach lookup** introduced in section 5 scans `cases` once per call
   (about 270 ms on 202,500 cases) because the restricted test is an OR over three
   sources. Cheaper than what it replaced; a candidate for a partial index once
