@@ -335,8 +335,10 @@ describe("M3 — frontend panel source contract", () => {
 
   it("panel renders the standing caption + bounded limitation codes", () => {
     expect(src).toMatch(/operational signals/i);
-    expect(src).toContain("SIU_BUNDLE_IS_NOT_A_FRAUD_DETERMINATION");
-    expect(src).toContain("REVIEW_INDICATORS_ARE_OPERATIONAL_SIGNALS_NOT_FINDINGS");
+    // The limitation codes are shown to the customer as sentences (visual copy
+    // pass); the two standing limitations must still be stated.
+    expect(src).toContain("This bundle is not a fraud determination.");
+    expect(src).toContain("Review indicators are operational signals, not findings.");
   });
 
   it("panel never uses forbidden vocabulary", () => {

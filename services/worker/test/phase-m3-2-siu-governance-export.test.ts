@@ -253,7 +253,9 @@ describe("M3.2 — frontend panel", () => {
 
   it("renders the storage-safety note", () => {
     expect(src).toContain('data-testid="siu-history-storage-note"');
-    expect(src).toMatch(/Storage keys are never rendered/);
+    // The note no longer says so in words; what it promised is pinned instead:
+    // the panel reads no storage key at all.
+    expect(src).not.toMatch(/storageKey|objectKey|s3Key|bucketKey/);
   });
 
   it("only `generated` or `downloaded` rows show the Download link", () => {
