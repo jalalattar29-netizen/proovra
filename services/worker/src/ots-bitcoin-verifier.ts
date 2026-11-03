@@ -89,12 +89,32 @@ function remember(r: OtsBitcoinVerifierReadiness): void {
  */
 const OTS_READINESS_GATE_MS = 30_000;
 
-function freshReadiness(endpoint: string, gateMs: number, now: Date): OtsBitcoinVerifierReadiness | null {
-  const seen = lastReadiness.observedAtUtc ? new Date(lastReadiness.observedAtUtc).getTime() : Number.NaN;
+/**
+ * Only a NOT-READY answer is reused, and only for the same verifier: endpoint,
+ * user, password source and expected chain. A ready answer carries the tip
+ * height that confirmations are counted from, and a node that is up is worth
+ * asking again, so a ready node is probed for every record. Keying on the
+ * endpoint alone let a probe with another credential or chain (a wrong-password
+ * or wrong-chain check against the same node) refuse every record for 30 s,
+ * and let a stale tip undercount confirmations.
+ */
+let lastRefusal: { key: string; readiness: OtsBitcoinVerifierReadiness } | null = null;
+
+function verifierKey(config: Extract<OtsBitcoinVerifierConfig, { kind: "enabled" }>): string {
+  return JSON.stringify([
+    config.rpcEndpointLabel,
+    config.username,
+    config.passwordFile,
+    config.passwordFromEnvironmentAllowed,
+    config.policy.expectedChain,
+  ]);
+}
+
+function freshRefusal(key: string, gateMs: number, now: Date): OtsBitcoinVerifierReadiness | null {
+  if (!lastRefusal || lastRefusal.key !== key) return null;
+  const seen = lastRefusal.readiness.observedAtUtc ? new Date(lastRefusal.readiness.observedAtUtc).getTime() : Number.NaN;
   const age = now.getTime() - seen;
-  return lastReadiness.enabled && lastReadiness.endpoint === endpoint && age >= 0 && age < gateMs
-    ? lastReadiness
-    : null;
+  return age >= 0 && age < gateMs ? lastRefusal.readiness : null;
 }
 
 export type OtsBitcoinVerifierDeps = {
@@ -193,9 +213,11 @@ export async function checkOtsProofAgainstBitcoin(
   }
   const client = deps.client ?? clientFor(config);
   const gateMs = deps.readinessGateMs ?? (deps.client ? 0 : OTS_READINESS_GATE_MS);
+  const key = verifierKey(config);
   const readiness =
-    freshReadiness(config.rpcEndpointLabel, gateMs, now) ??
+    freshRefusal(key, gateMs, now) ??
     (await probeOtsBitcoinVerifierReadiness({ config, client, now: () => now }));
+  lastRefusal = readiness.ready ? null : { key, readiness };
   if (!readiness.ready) return unavailable((readiness.code as OtsChainFailureCode) ?? "BTC_RPC_UNAVAILABLE", readiness.detail ?? "not ready", now);
 
   const tipHeight = readiness.tipHeight ?? 0;

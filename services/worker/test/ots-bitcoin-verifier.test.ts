@@ -414,6 +414,31 @@ describe("checkOtsProofAgainstBitcoin — one readiness answer serves a batch (C
   });
 });
 
+describe("checkOtsProofAgainstBitcoin — the gate reuses a refusal, for that verifier only", () => {
+  it("a refusal under another credential does not refuse this one; a ready node is asked again with its current tip", async () => {
+    const at = (ms: number) => () => new Date(NOW.getTime() + ms);
+    // A dead node, seen through another user's credential, within the gate.
+    const down = fakeClient(scenario());
+    const dead = { ...down.client, getNetworkInfo: async () => { throw new Error("connect refused"); } };
+    const other = { ...CONFIG, username: "someone-else" } as OtsBitcoinVerifierConfig;
+    const refused = await checkOtsProofAgainstBitcoin(anchoringOf(UP.base64), { config: other, client: dead, readinessGateMs: 30_000, now: at(0) });
+    expect(refused.kind).toBe("UNAVAILABLE");
+
+    // This verifier probes for itself and decides.
+    const shallow = fakeClient(scenario({ tip: H + 1 }));
+    const first = await checkOtsProofAgainstBitcoin(anchoringOf(UP.base64), { config: CONFIG, client: shallow.client, readinessGateMs: 30_000, now: at(1_000) });
+    expect(first.kind).toBe("DECIDED");
+    if (first.kind === "DECIDED") expect(first.decision.status).toBe("INSUFFICIENT_CONFIRMATIONS");
+
+    // Blocks are mined; within the gate the ready answer is not reused, so the new tip counts.
+    const deep = fakeClient(scenario());
+    const second = await checkOtsProofAgainstBitcoin(anchoringOf(UP.base64), { config: CONFIG, client: deep.client, readinessGateMs: 30_000, now: at(2_000) });
+    expect(deep.calls.some((c) => c.method === "getBlockchainInfo")).toBe(true);
+    expect(second.kind).toBe("DECIDED");
+    if (second.kind === "DECIDED") expect(second.decision.status).toBe("VERIFIED");
+  });
+});
+
 describe("checkOtsProofAgainstBitcoin — configuration and proof preconditions", () => {
   it("disabled: DISABLED and the client is never called", async () => {
     const { result, calls } = await check(scenario(), anchoringOf(UP.base64), { kind: "disabled" });
