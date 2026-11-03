@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test support reads Prisma delegates and JSON bodies of many shapes. */
 /**
  * THE WRITE-ROUTE AUTHORIZATION SWEEP ENGINE.
  *

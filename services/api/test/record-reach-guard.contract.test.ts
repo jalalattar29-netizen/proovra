@@ -6,11 +6,13 @@
  * here with the authority it uses, or the suite fails. New files cannot
  * quietly fall back to workspace scope.
  */
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { registrationsByOperation } from "./_canonical-facts.js";
 
 const routesDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src/routes");
 
@@ -34,12 +36,16 @@ const TOKEN_SCOPED = new Set(["external-review.routes.ts", "public-verify.routes
 
 describe("record routes", () => {
   it("every file serving a record installs the guard or names its authority", () => {
+    const files = new Set<string>();
+    for (const [operation, registeringFiles] of registrationsByOperation()) {
+      if (!/:evidenceId\b|\/evidence\/:id\b/.test(operation)) continue;
+      for (const registering of registeringFiles) files.add(registering);
+    }
+    expect(files.size).toBeGreaterThan(10);
     const missing: string[] = [];
-    for (const file of readdirSync(routesDir)) {
-      if (!file.endsWith(".ts")) continue;
+    for (const registering of files) {
+      const file = basename(registering);
       const src = readFileSync(resolve(routesDir, file), "utf8");
-      const names = /app\.(get|post|put|patch|delete)\(\s*"[^"]*(:evidenceId\b|\/evidence\/:id\b)/.test(src);
-      if (!names) continue;
       if (/installRecordReachGuard\(app\)/.test(src)) continue;
       if (OWN_AUTHORITY[file]?.test(src)) continue;
       if (TOKEN_SCOPED.has(file)) continue;
@@ -49,16 +55,15 @@ describe("record routes", () => {
   });
 
   it("every redaction route keyed by a record row is listed with the row it names", () => {
-    const src = readFileSync(resolve(routesDir, "redaction.routes.ts"), "utf8");
     const registry = readFileSync(
       resolve(routesDir, "../services/redaction/redaction-record-reach.service.ts"),
       "utf8",
     );
-    const keyed = [...src.matchAll(/app\.(get|post|put|patch|delete)(?:<[^>]*>)?\(\s*"(\/v1\/redaction\/(?:projects|versions|regions|detections|derivatives|video-tracks)\/:id[^"]*)"/g)];
+    const keyed = [...registrationsByOperation().keys()].filter((operation) =>
+      /^[A-Z]+ \/v1\/redaction\/(?:projects|versions|regions|detections|derivatives|video-tracks)\/:id/.test(operation),
+    );
     expect(keyed.length).toBeGreaterThan(15);
-    const unlisted = keyed
-      .map((m) => `${m[1]!.toUpperCase()} ${m[2]}`)
-      .filter((route) => !registry.includes(`"${route}"`));
+    const unlisted = keyed.filter((route) => !registry.includes(`"${route}"`));
     expect(unlisted).toEqual([]);
   });
 });

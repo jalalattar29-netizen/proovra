@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test support reads Prisma delegates and JSON bodies of many shapes. */
 /**
  * Residuals of the restricted-case work (GOV-017, EVID-019 and the surfaces the
  * remediation left open), each on real rows. `off` is an OWNER of the workspace off

@@ -14,7 +14,6 @@ import { seedOperator } from "../helpers/operator-step-up.js";
 /** Builds ENTERPRISE organization tenants under an ACTIVE contract. */
 export async function enterpriseTenantMaker(h: IntegrationHarness): Promise<() => Promise<Tenant>> {
   const { prisma } = await import("../../src/db.js");
-  const { signJwt } = await import("../../src/services/jwt.js");
   const kit = await coverageKit(h);
 
   const contract = (organizationId: string) =>

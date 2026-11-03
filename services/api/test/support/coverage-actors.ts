@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- test support reads Prisma delegates and JSON bodies of many shapes. */
 /**
  * Real actors for the coverage suites: a user row, legal acceptance, a membership
  * where one is asked for, and a signed session. Each suite states who may act, so
