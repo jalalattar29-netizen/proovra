@@ -202,6 +202,17 @@ function projectRun(row: {
 // Route registrar
 // ---------------------------------------------------------------------------
 
+/** A rule that names a person names someone of its own workspace. */
+async function actionTargetsWorkspaceMember(teamId: string, config: unknown): Promise<boolean> {
+  const userId = (config as { userId?: unknown } | null)?.userId;
+  if (typeof userId !== "string") return true;
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { status: true },
+  });
+  return member !== null && member.status !== "REVOKED";
+}
+
 export async function automationRoutes(
   app: FastifyInstance,
 ): Promise<void> {
@@ -285,6 +296,9 @@ export async function automationRoutes(
           message: "Invalid action config",
           errors: actionResult.errors,
         });
+      }
+      if (!(await actionTargetsWorkspaceMember(body.data.teamId, actionResult.config))) {
+        return reply.code(400).send({ code: "NOT_A_MEMBER", message: "That person is not a member of this workspace." });
       }
       const conditionResult = validateCondition(body.data.conditionJson);
       if (!conditionResult.ok) {
@@ -371,6 +385,9 @@ export async function automationRoutes(
           return reply
             .code(400)
             .send({ message: "Invalid action config", errors: r.errors });
+        }
+        if (!(await actionTargetsWorkspaceMember(existing.teamId, r.config))) {
+          return reply.code(400).send({ code: "NOT_A_MEMBER", message: "That person is not a member of this workspace." });
         }
         data.actionConfigJson = r.config as object;
       }

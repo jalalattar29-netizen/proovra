@@ -3205,7 +3205,12 @@ export async function teamsRoutes(app: FastifyInstance) {
       // workspace, and read the full row back. A linkable case is an UNLINKED
       // (teamId null) case whose owner is an ACTIVE member of THIS workspace;
       // anything else is indistinguishable from a missing case.
-      const candidate = await prisma.case.findUnique({ where: { id: caseId } });
+      //
+      // A restricted case stays closed here too: an administrator off its list gets
+      // the same answer as a missing case, not the row and the link.
+      const candidate = await prisma.case.findFirst({
+        where: { id: caseId, ...caseVisibleToWhere(userId) },
+      });
       const ownerIsActiveMember = candidate
         ? (await prisma.teamMember.count({
             where: { teamId, userId: candidate.ownerUserId, status: "ACTIVE" },
