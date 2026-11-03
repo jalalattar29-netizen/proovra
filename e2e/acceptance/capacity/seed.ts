@@ -420,7 +420,8 @@ const STEPS: Array<[name: string, sql: string]> = [
     // Fixture headroom, not a business figure: the seeded byte counts are large
     // enough that the upload path would stop at the quota gate it is measuring.
     "storage-headroom",
-    ,
+    `UPDATE teams SET storage_bytes_override = 1000000000000000
+      WHERE name LIKE 'CAPACITY-FIXTURE %' AND NOT is_personal`,
   ],
   ["analyze", "ANALYZE"],
 ];
