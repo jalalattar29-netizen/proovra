@@ -79,7 +79,7 @@ async function main() {
   const out = [];
   for (const [name, run] of SWEEPS) {
     if (only && !only.test(name)) continue;
-    await prisma.$queryRawUnsafe(`SELECT pg_stat_statements_reset()`);
+    await prisma.$queryRawUnsafe(`SELECT pg_stat_statements_reset()::text`);
     const started = Date.now();
     let outcome: string;
     let summary: unknown = null;

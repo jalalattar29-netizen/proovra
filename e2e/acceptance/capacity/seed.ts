@@ -329,7 +329,7 @@ const STEPS: Array<[name: string, sql: string]> = [
   [
     "organization-audit",
     `INSERT INTO organization_audit_events (id, organization_id, actor_user_id, event_type, target_type, target_id, metadata, created_at)
-     SELECT ${SCHEMA}.uid('oa', o.org_n * 100000 + i), o.org_id, ${SCHEMA}.uid('user', o.user_first + i % o.users),
+     SELECT ${SCHEMA}.uid('oa', o.org_n::bigint * 10000000 + i), o.org_id, ${SCHEMA}.uid('user', o.user_first + i % o.users),
             (ARRAY['member.invited','member.role_changed','policy.updated','evidence.exported','session.revoked'])[1 + i % 5],
             'member', (o.user_first + i % o.users)::text, '{"fixture":"capacity"}'::jsonb,
             ${NOW} - (i % 700) * interval '1 day' - (i % 86400) * interval '1 second'
@@ -415,6 +415,12 @@ const STEPS: Array<[name: string, sql: string]> = [
        FROM evidence_upload_sessions s
        JOIN evidence e ON e.id = s.evidence_id AND e.storage_bucket = 'capacity-fixture'
        CROSS JOIN LATERAL generate_series(0, 3) p`,
+  ],
+  [
+    // Fixture headroom, not a business figure: the seeded byte counts are large
+    // enough that the upload path would stop at the quota gate it is measuring.
+    "storage-headroom",
+    ,
   ],
   ["analyze", "ANALYZE"],
 ];
