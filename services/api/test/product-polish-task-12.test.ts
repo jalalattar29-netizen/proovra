@@ -35,7 +35,7 @@ const API_CLIENT = read("lib/api.ts");
 /** CSS with its comments removed — several rules below are EXPLAINED in prose
  *  that names the very values and selectors being asserted, so a search over
  *  the raw file would match the explanation instead of the rule. */
-const cssCode = SHELL_CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+const stripCssComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /**
  * The header arrangement contract, comments stripped.
@@ -51,7 +51,7 @@ const headerContract = (() => {
   const start = SHELL_CSS.indexOf("/* HEADER ARRANGEMENT CONTRACT */");
   const end = SHELL_CSS.indexOf("/* ACCOUNT AND WORKSPACE MENUS", start);
   if (start < 0) return "";
-  return SHELL_CSS.slice(start, end < 0 ? undefined : end).replace(/\/\*[\s\S]*?\*\//g, "");
+  return stripCssComments(SHELL_CSS.slice(start, end < 0 ? undefined : end));
 })();
 
 // ===========================================================================
