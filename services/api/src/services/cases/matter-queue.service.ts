@@ -16,7 +16,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
-import { listCaseEvidenceIdsForViewer } from "./case-risk-engine.service.js";
+import { listCaseEvidenceIdsForViewerByCase } from "./case-risk-engine.service.js";
 import { caseVisibleToWhere } from "./case-visibility.js";
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import { OUTPUT_PRODUCING_LIFECYCLE_WHERE } from "../billing/owed-output-population.service.js";
@@ -354,12 +354,16 @@ export async function buildMatterQueue(input: {
   // AUD-30 (2026-10-20): a gap is a record an output is OWED for — read once
   // for the workspace from the canonical narrowing (null = the plan funds all).
   const owedInWorkspace = outputEntitledEvidenceWhere({ teamId: input.teamId });
+  // The page's linked records in two statements, not one read per case.
+  // A failed read degrades every row exactly as a failed per-case read did.
+  const evidenceIdsByCase = await listCaseEvidenceIdsForViewerByCase({
+    caseIds: cases.map((c) => c.id),
+    viewerUserId: input.userId,
+  }).catch(() => null);
   for (const c of cases) {
     try {
-      const evidenceIds = await listCaseEvidenceIdsForViewer({
-        caseId: c.id,
-        viewerUserId: input.userId,
-      });
+      if (!evidenceIdsByCase) throw new Error("case evidence ids unavailable");
+      const evidenceIds = evidenceIdsByCase.get(c.id) ?? [];
       const [
         openIncidentCount,
         activeWorkflowCount,

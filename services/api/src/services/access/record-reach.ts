@@ -47,7 +47,7 @@ function closedThroughCaseLinkWhere(callerUserId: string | null): Prisma.CaseEvi
   return { case: { AND: [RESTRICTED_CASE_WHERE, { NOT: caseVisibleToWhere(callerUserId) }] } };
 }
 
-async function closedEvidenceIdsIn(
+export async function closedEvidenceIdsIn(
   scope: Prisma.EvidenceWhereInput,
   callerUserId: string | null,
   client: Pick<PrismaClient, "caseEvidenceLink">,
