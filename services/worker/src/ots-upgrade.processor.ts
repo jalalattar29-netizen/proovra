@@ -665,9 +665,15 @@ async function requestChainVerifiedReportVersion(evidenceId: string, anchoring: 
 export const OTS_CHAIN_FIRST_CHECK_DELAY_MS = 60 * 1000;
 
 /** Re-enqueue the same `ots-upgrade-<evidenceId>` job when another chain check is due. */
-async function scheduleNextChainCheck(evidenceId: string, anchoring: OtsAnchoring, jobId: string | null, overrideDelayMs?: number): Promise<void> {
+async function scheduleNextChainCheck(
+  evidenceId: string,
+  anchoring: OtsAnchoring,
+  jobId: string | null,
+  overrideDelayMs?: number,
+  opts: { verifierUnavailable?: boolean } = {},
+): Promise<void> {
   if (resolveOtsBitcoinVerifierConfig().kind === "disabled") return;
-  const delayMs = overrideDelayMs ?? nextOtsChainCheckDelayMs(anchoring);
+  const delayMs = overrideDelayMs ?? nextOtsChainCheckDelayMs(anchoring, Date.now(), opts);
   if (delayMs == null) return;
   await enqueueOtsUpgradeJob(evidenceId, { delayMs, traceId: "ots_chain_check", selfJobId: jobId ?? undefined }).catch((err: unknown) => {
     // Not an integrity problem: the reconciler re-enqueues an unchecked ANCHORED record.
@@ -730,7 +736,9 @@ async function verifyAnchoredProofAgainstChain(input: {
   });
   if (transition.kind !== "WRITE") {
     if (current.verification === "CHAIN_VERIFIED") await requestChainVerifiedReportVersion(evidenceId, current, job.id ?? null);
-    await scheduleNextChainCheck(evidenceId, current, job.id ?? null);
+    await scheduleNextChainCheck(evidenceId, current, job.id ?? null, undefined, {
+      verifierUnavailable: check.kind === "UNAVAILABLE",
+    });
     logger.info(
       {
         ...withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "chain_no_change" }),

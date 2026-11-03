@@ -16,6 +16,13 @@ const chain = (status: string, extra: Record<string, unknown> = {}) =>
   ({ status, failureCode: null, confirmations: null, ...extra }) as never;
 
 describe("nextOtsChainCheckDelayMs", () => {
+  it("an outage over a recorded outcome keeps the outage ladder, not the hourly one", () => {
+    const anchoredAtUtc = anchored(8 * 24 * HOUR);
+    const waiting = { state: "ANCHORED" as const, chain: chain("INSUFFICIENT_CONFIRMATIONS"), anchoredAtUtc };
+    expect(nextOtsChainCheckDelayMs(waiting, now)).toBe(HOUR);
+    expect(nextOtsChainCheckDelayMs(waiting, now, { verifierUnavailable: true })).toBe(24 * HOUR);
+  });
+
   it("a VERIFIED outcome is rechecked once for reorgs and is final at the confirmation threshold", () => {
     expect(nextOtsChainCheckDelayMs({ state: "ANCHORED", chain: chain("VERIFIED", { confirmations: 12 }) }, now)).toBe(24 * HOUR);
     expect(
