@@ -125,4 +125,25 @@ describe("portal work page", () => {
     expect(document.body.textContent).toContain("Another reviewer");
     expect(document.body.textContent).not.toContain("null");
   });
+
+  it("offers the disclosure package, not a frame the app refuses to load", async () => {
+    open();
+    await waitFor(() => expect(document.querySelector("[data-portal-package-panel]")).toBeTruthy());
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("says why when the grant does not carry the file", async () => {
+    const served = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) =>
+      url.endsWith("/verification-package")
+        ? json({ status: 403, body: { error: { code: "package_download_not_granted" } } })
+        : served(url, init),
+    );
+    open();
+    await waitFor(() => expect(document.querySelector("[data-portal-package-download]")).toBeTruthy());
+    fireEvent.click(document.querySelector("[data-portal-package-download]") as HTMLButtonElement);
+    await waitFor(() => expect(document.querySelector("[data-portal-package-message]")).toBeTruthy());
+    expect(document.querySelector("[data-portal-package-message]")!.textContent).toContain("does not include the file");
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith(`/v1/portal/work/${workflowId}/verification-package`))).toBe(true);
+  });
 });

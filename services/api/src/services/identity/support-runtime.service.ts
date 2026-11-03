@@ -38,6 +38,7 @@ import {
   recordSupportAccessForCustomer,
   type SupportAccessGrant,
   type SupportAccessLevel,
+  isSupportForbiddenRoute,
 } from "./support-access.service.js";
 
 /**
@@ -702,8 +703,9 @@ async function auditGuardRefusal(
  * authenticated route, whether or not that route reaches the canonical chain
  * (middleware/support-context-boundary.ts). Re-reads the grant, so an expiry or a
  * revocation ends the context here as it does on the chain. Only an ELEVATED
- * grant passes, and it still meets the forbidden actions wherever the route runs
- * the guard. Fails closed, and a refusal is audited with both identities.
+ * grant passes, and only on a route outside the forbidden areas; the chain then
+ * meets the forbidden actions wherever the route runs the guard. Fails closed, and
+ * a refusal is audited with both identities.
  */
 export async function evaluateSupportContextWrite(
   input: {
@@ -711,6 +713,7 @@ export async function evaluateSupportContextWrite(
     grantId: string;
     /** "POST /v1/cases": the route, since no permission has been resolved yet. */
     action: string;
+    routePattern: string;
     ipAddress?: string | null;
     userAgent?: string | null;
   },
@@ -725,9 +728,11 @@ export async function evaluateSupportContextWrite(
   });
   const reason: SupportRuntimeDenyReason | null = !evaluation.active
     ? ((evaluation.reason as SupportRuntimeDenyReason) ?? "inactive")
-    : grant.accessLevel === "ELEVATED"
-      ? null
-      : "support_read_only";
+    : grant.accessLevel !== "ELEVATED"
+      ? "support_read_only"
+      : isSupportForbiddenRoute(input.routePattern)
+        ? "support_forbidden_action"
+        : null;
   if (reason === null) return true;
   await auditSupportAction(
     {

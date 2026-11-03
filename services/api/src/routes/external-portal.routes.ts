@@ -46,6 +46,7 @@ import {
 // capability gate.
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { releaseExternalDisclosurePackage } from "../services/external-review/external-review-package.service.js";
 import { externalPortalCapabilitiesForRole } from "@proovra/shared";
 import { workspaceIncludesExternalReview } from "../services/billing-enforcement.service.js";
 
@@ -1036,6 +1037,43 @@ export async function externalPortalRoutes(app: FastifyInstance) {
           rationale: row.rationale,
           submittedAtUtc: row.submittedAtUtc.toISOString(),
         })),
+      });
+    },
+  );
+
+  // The file behind a review. The evidence page is a workspace page: a reviewer
+  // has no session there and the app refuses to be framed, so the portal holds no
+  // preview of its own. This is the rendition a grant does carry, under the rules
+  // of the capability-link route: an evidence grant with download allowed, eligible
+  // for export now, every release a custody event.
+  app.get(
+    "/v1/portal/work/:workflowId/verification-package",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const s = await resolvePortalSession(req, reply);
+      if (!s) return reply;
+      const { workflowId } = z
+        .object({ workflowId: z.string().uuid() })
+        .parse(req.params);
+      if (!(await requireWorkflowInScope(s, workflowId, reply))) return reply;
+      const grant = await prisma.externalReviewGrant.findUnique({
+        where: { id: s.grantId },
+        select: { id: true, teamId: true, scopeKind: true, evidenceId: true, allowPackageDownload: true, invitedByUserId: true },
+      });
+      if (!grant) return reply.code(403).send({ denial: "OUT_OF_SCOPE" });
+      const released = await releaseExternalDisclosurePackage({
+        grant,
+        ip: req.ip ?? null,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+      });
+      if (!released.ok) {
+        return reply.code(released.status).send({ error: { code: released.code } });
+      }
+      return reply.code(200).send({
+        packageId: released.packageId,
+        disclosureProfile: "EXTERNAL_DISCLOSURE",
+        reportVersion: released.reportVersion,
+        packageSha256: released.packageSha256,
+        url: released.downloadUrl,
       });
     },
   );
