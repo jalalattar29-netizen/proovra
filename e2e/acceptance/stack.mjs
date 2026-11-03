@@ -78,6 +78,16 @@ const env = buildLocalFixtureEnv({
     PUPPETEER_EXECUTABLE_PATH: "C:/Program Files/Google/Chrome/Application/chrome.exe",
     NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED: "true",
     NEXT_PUBLIC_STORAGE_ORIGIN: `http://localhost:${PORTS.minio}`,
+    // Capacity profiling attributes statements to one route at a time. The API's
+    // in-process sweeps share its pool, so they are measured on their own instead.
+    ...(process.env.ACCEPTANCE_QUIET_SWEEPS === "1"
+      ? {
+          OPERATIONS_RECONCILER_ENABLED: "false",
+          BILLING_ADDON_RETRY_ENABLED: "false",
+          BILLING_RECONCILER_ENABLED: "false",
+          PLATFORM_MAINTENANCE_RECONCILER_ENABLED: "false",
+        }
+      : {}),
   },
 });
 
