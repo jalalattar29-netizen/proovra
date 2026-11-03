@@ -28,7 +28,6 @@
  *     with a sanitised reason code (no raw IdP error).
  */
 
-import { createHash } from "node:crypto";
 import {
   setMfaEnrollmentCookie,
   signMfaEnrollmentToken,
@@ -65,7 +64,10 @@ import {
   noteSsoSuccess,
   persistCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
-import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+import {
+  recordAuthenticatedSession,
+  requestDeviceIdHash,
+} from "../services/access-control/session-inventory.service.js";
 import { organizationIdForPolicy } from "../services/identity/org-security-policy.service.js";
 import { completeSsoSession } from "../services/identity/sso-session-completion.service.js";
 import { resolveOrganizationPolicy } from "../services/identity/org-security-policy.service.js";
@@ -130,15 +132,7 @@ function uaPreview(req: FastifyRequest): string | null {
 }
 
 function deviceIdHash(req: FastifyRequest): string | null {
-  // Best-effort device fingerprint from UA + accept-language. Hashed
-  // with the same HMAC key the trusted-device service uses for
-  // continuity.
-  const ua = req.headers["user-agent"];
-  const lang = req.headers["accept-language"];
-  if (typeof ua !== "string" || ua.length === 0) return null;
-  const raw = `${ua}|${typeof lang === "string" ? lang : ""}`;
-  const secret = process.env["IDENTITY_SECURITY_HASH_SECRET"] || "phase26-dev";
-  return createHash("sha256").update(secret + ":" + raw).digest("hex");
+  return requestDeviceIdHash(req.headers);
 }
 
 function sanitiseRedirectAfter(value: unknown): string | null {

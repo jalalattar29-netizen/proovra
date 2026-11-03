@@ -97,7 +97,10 @@ import {
   noteSsoSuccess,
   persistSamlCallbackAttempt,
 } from "../services/access-control/sso-hardening.service.js";
-import { recordAuthenticatedSession } from "../services/access-control/session-inventory.service.js";
+import {
+  recordAuthenticatedSession,
+  requestDeviceIdHash,
+} from "../services/access-control/session-inventory.service.js";
 // 2026-10-28 — SP endpoint identities shared with the IDP_REAUTH step-up round
 // trip (byte-identical ACS URL / entityID / signing key resolution).
 import {
@@ -165,15 +168,7 @@ function uaPreview(req: FastifyRequest): string | null {
 }
 
 function deviceIdHash(req: FastifyRequest): string | null {
-  const ua = req.headers["user-agent"];
-  const lang = req.headers["accept-language"];
-  if (typeof ua !== "string" || ua.length === 0) return null;
-  const raw = `${ua}|${typeof lang === "string" ? lang : ""}`;
-  const secret =
-    process.env["IDENTITY_SECURITY_HASH_SECRET"] || "phase26-dev";
-  return createHash("sha256")
-    .update(secret + ":" + raw)
-    .digest("hex");
+  return requestDeviceIdHash(req.headers);
 }
 
 function sanitiseRedirectAfter(value: unknown): string | null {

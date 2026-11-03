@@ -23,6 +23,8 @@ import type {
   PrismaClient,
   AuthenticatedSession as DbSession,
 } from "@prisma/client";
+import { createHash } from "node:crypto";
+
 import type { SessionRevocationReason } from "@proovra/shared";
 import {
   SESSION_HEARTBEAT_DEFAULT_SAMPLE_SECONDS,
@@ -105,6 +107,29 @@ function projectSession(row: DbSession): ActiveSessionProjection {
 // for generating the `sid` claim that goes into the JWT and passing it
 // here (raw — we hash it).
 // -----------------------------------------------------------------------------
+
+/**
+ * THE SESSION'S DEVICE FINGERPRINT, one rule for every way in.
+ *
+ * Best-effort, from the user agent and accept-language, hashed with the key
+ * the trusted-device service uses. SAML and OIDC sign-ins always recorded it;
+ * password and social sign-ins did not, and once IDENT-019 scored those
+ * sessions too, `UNKNOWN_DEVICE_ANOMALY` fired on every repeat sign-in from
+ * the same browser and opened a "Suspicious session detected" condition in
+ * the person's workspace. Null only when the request carries no user agent,
+ * which is what that signal is for.
+ */
+export function requestDeviceIdHash(headers: {
+  "user-agent"?: string | string[] | undefined;
+  "accept-language"?: string | string[] | undefined;
+}): string | null {
+  const ua = headers["user-agent"];
+  const lang = headers["accept-language"];
+  if (typeof ua !== "string" || ua.length === 0) return null;
+  const raw = `${ua}|${typeof lang === "string" ? lang : ""}`;
+  const secret = process.env["IDENTITY_SECURITY_HASH_SECRET"] || "phase26-dev";
+  return createHash("sha256").update(secret + ":" + raw).digest("hex");
+}
 
 export type RecordAuthenticatedSessionInput = {
   userId: string;
