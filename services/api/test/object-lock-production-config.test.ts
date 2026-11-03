@@ -4,7 +4,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import { collectStartupViolations } from "../src/config/index.js";
+import { collectStartupViolations, vendorCloudWithoutInternalToken } from "../src/config/index.js";
 
 const ORIGINAL = { ...process.env };
 afterEach(() => {
@@ -80,5 +80,20 @@ describe("runtime readiness — s3_object_lock reflects the contract", () => {
     expect(ok?.status).toBe("HEALTHY");
     const dev = await subsystem({ NODE_ENV: "development", S3_OBJECT_LOCK_ENABLED: "false" });
     expect(dev?.status).toBe("DEGRADED");
+  });
+});
+
+describe("OPS-012 — VENDOR_CLOUD without the internal token is named at boot", () => {
+  it("names the modes when a producer needs the token and none is set", () => {
+    expect(vendorCloudWithoutInternalToken({ OCR_PRODUCER_MODE: "VENDOR_CLOUD" } as never)).toEqual({
+      ocrProducerMode: "VENDOR_CLOUD",
+      transcriptProducerMode: "NOT_CONFIGURED",
+    });
+  });
+  it("says nothing with the token, or with no vendor producer", () => {
+    expect(
+      vendorCloudWithoutInternalToken({ TRANSCRIPT_PRODUCER_MODE: "VENDOR_CLOUD", INTERNAL_SERVICE_TOKEN: "t" } as never),
+    ).toBeNull();
+    expect(vendorCloudWithoutInternalToken({} as never)).toBeNull();
   });
 });

@@ -12,11 +12,10 @@
  *     appear in the output. Only booleans, bounded modes, provider
  *     labels, day counts, and timestamps.
  *   * Backup posture NEVER claims "configured"/"backed up" as a
- *     positive when it cannot be proven. Database backup is a
- *     managed-platform assumption (there are NO repo-level pg_dump /
- *     automated backup scripts), so it is reported as
- *     "managed_platform_assumed" — an honest assumption label, not a
- *     guarantee.
+ *     positive when it cannot be proven. It is read from the recorded
+ *     backup and restore-drill runs (scripts/ops/pg-backup.sh and
+ *     pg-restore-drill.sh, run by the compose "backup" profile), so only a
+ *     run that happened can move it, and it falls back as its records age.
  *   * We never assert SOC2 / ISO / uptime SLA / "penetration tested".
  *     Those words do not appear here.
  *   * When a value cannot be determined we return null + a reason.

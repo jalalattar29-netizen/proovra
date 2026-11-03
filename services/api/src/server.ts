@@ -1228,7 +1228,10 @@ allowedHeaders: [
     }
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return reply.code(200).send({ ok: true, db: "up", ...(isolation ? { isolation } : {}) });
+      // OPS-015 — the commit this process runs, so web and API versions can be
+      // compared from outside. The web's own /api/health already states its own.
+      const revision = (process.env.APP_RELEASE_SHA ?? "").trim() || null;
+      return reply.code(200).send({ ok: true, db: "up", revision, ...(isolation ? { isolation } : {}) });
     } catch {
       return reply.code(503).send({ ok: false, db: "down", ...(isolation ? { isolation } : {}) });
     }

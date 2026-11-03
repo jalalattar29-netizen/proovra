@@ -35,6 +35,8 @@ import {
 } from "@proovra/shared";
 import {
   developmentSurfacesAllowed,
+  getOcrProducerMode,
+  getTranscriptProducerMode,
   parseSignerProvider,
   resolveDeploymentEnvironment,
 } from "@proovra/shared-runtime";
@@ -667,6 +669,15 @@ export function runStartupConfigValidation(log: {
     }
   }
 
+  // OPS-012 — a producer in VENDOR_CLOUD extracts through the internal route,
+  // which INTERNAL_SERVICE_TOKEN authorizes, and the token is read from the
+  // environment only. Without it every run fails one at a time. A warning, not a
+  // refusal: the rest of the product works, and refusing would stop a deploy.
+  const vendorCloudWithoutToken = vendorCloudWithoutInternalToken(process.env);
+  if (vendorCloudWithoutToken) {
+    log.warn(vendorCloudWithoutToken, "ops_012.startup.vendor_cloud_without_internal_service_token");
+  }
+
   const violations = collectStartupViolations();
   if (violations.length === 0) return;
   // Every deployment refuses to start on a violation (production, staging,
@@ -684,6 +695,17 @@ export function runStartupConfigValidation(log: {
     { violations },
     "phase20.startup.config_violations_non_production",
   );
+}
+
+/** The producer modes that need INTERNAL_SERVICE_TOKEN when none is set, or null. */
+export function vendorCloudWithoutInternalToken(
+  env: NodeJS.ProcessEnv,
+): { ocrProducerMode: string; transcriptProducerMode: string } | null {
+  const ocr = getOcrProducerMode(env);
+  const transcript = getTranscriptProducerMode(env);
+  if (ocr !== "VENDOR_CLOUD" && transcript !== "VENDOR_CLOUD") return null;
+  if ((env.INTERNAL_SERVICE_TOKEN ?? "").trim().length > 0) return null;
+  return { ocrProducerMode: ocr, transcriptProducerMode: transcript };
 }
 
 function scrubSnapshotForLog(snapshot: FeatureSnapshot): FeatureSnapshot {

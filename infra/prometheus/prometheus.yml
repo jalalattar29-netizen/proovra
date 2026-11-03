@@ -8,7 +8,7 @@
 #
 # THE JOB NAMES ARE LOAD-BEARING. `proovra-api` is written into the rules by
 # hand (`up{job="proovra-api"}`), so renaming a job here silently disarms the
-# alert that depends on it. `alert-target-parity.test.mjs` compares the two
+# alert that depends on it. `services/api/test/alert-target-parity.test.ts` compares the two
 # files and fails when a rule references a job this config does not scrape.
 global:
   scrape_interval: 15s
