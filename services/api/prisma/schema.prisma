@@ -993,8 +993,16 @@ model ArtifactPublicationIntent {
   storageBucket String   @map("storage_bucket") @db.VarChar(255)
   storageKey    String   @map("storage_key") @db.VarChar(512)
   createdAtUtc  DateTime @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  /// REPORT-006 — set only after the object was read back by version and found
+  /// to be the bytes sent. A retry of the same request with identical bytes
+  /// reuses it; an intent without them is never reused.
+  sha256Hex     String?   @map("sha256_hex") @db.VarChar(64)
+  sizeBytes     BigInt?   @map("size_bytes")
+  versionId     String?   @map("version_id") @db.VarChar(1024)
+  verifiedAtUtc DateTime? @map("verified_at_utc") @db.Timestamptz(6)
 
   @@unique([storageBucket, storageKey], map: "artifact_publication_intents_bucket_key_key")
+  @@index([requestId, family], map: "artifact_publication_intents_request_family_idx")
   @@index([createdAtUtc], map: "artifact_publication_intents_created_at_idx")
   @@index([evidenceId], map: "artifact_publication_intents_evidence_idx")
   @@map("artifact_publication_intents")

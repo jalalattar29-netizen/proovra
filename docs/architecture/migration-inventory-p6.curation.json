@@ -3775,6 +3775,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('artifact_publication_intents') IS NOT NULL\"",
       "evidence": "ARTIFACT PUBLICATION INTENTS (REPORT-006, 2026-11-05). One new, empty table the worker writes before publishing. Nothing reads it for behaviour; objects published earlier have no intent and stay uncounted."
     },
+    "20281113000100_artifact_publication_intent_digest": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='artifact_publication_intents' AND column_name IN ('sha256_hex','size_bytes','version_id','verified_at_utc')) = 4;\"",
+      "evidence": "REPORT-006 (2026-11-03). Four nullable columns and one index on artifact_publication_intents, written after a publication is read back as sent; a retry of the same request with identical bytes reuses that object. Older intents have no digest and are never reused. No row is rewritten."
+    },
     "20281109000100_governance_export_snapshots_append_only": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",

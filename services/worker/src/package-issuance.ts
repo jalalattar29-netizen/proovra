@@ -37,14 +37,10 @@ import {
 
 import { appendCustodyEventTx } from "./custody-events.js";
 import { prisma } from "./db.js";
-import { recordPublicationIntent } from "./publication-intent.js";
+import { publishThroughIntent } from "./publication-intent.js";
 import { artifactLockFor } from "./object-retention.js";
 import { env } from "./config.js";
-import {
-  buildPublicationKey,
-  publishImmutableArtifact,
-  type PublishedArtifact,
-} from "./immutable-publication.js";
+import { publishImmutableArtifact, type PublishedArtifact } from "./immutable-publication.js";
 import { cleanupStagedTemp, type StagedPackage } from "./verification-package-staging.js";
 import type { PackageSealResult } from "./verification-package.js";
 import {
@@ -157,22 +153,19 @@ export async function publishBuiltProfiles(input: {
 }): Promise<PublishedProfile[]> {
   const out: PublishedProfile[] = [];
   for (const b of input.built) {
-    const key = buildPublicationKey({
-      family: "verification",
-      evidenceId: input.evidenceId,
-      version: input.version,
-      requestId: input.requestId,
-      extension: "zip",
-    });
-    await recordPublicationIntent({
+    const lock = await artifactLockFor(input.evidenceId);
+    const head = await publishThroughIntent({
       evidenceId: input.evidenceId,
       requestId: input.requestId,
       family: "verification",
       bucket: env.S3_BUCKET,
-      key,
-    });
-    const head = await publishImmutableArtifact({
-      lock: await artifactLockFor(input.evidenceId),
+      version: input.version,
+      extension: "zip",
+      sizeBytes: b.staged.sizeBytes,
+      sha256Base64: b.staged.sha256Base64,
+      lock,
+      publish: (key) => publishImmutableArtifact({
+      lock,
       bucket: env.S3_BUCKET,
       key,
       body: { kind: "file", filePath: b.staged.tempPath, sizeBytes: b.staged.sizeBytes },
@@ -190,6 +183,7 @@ export async function publishBuiltProfiles(input: {
         package_format_version: b.seal ? String(b.seal.packageFormatVersion) : "4",
       },
       tags: { artifact: "verification-package", evidenceId: input.evidenceId, immutable: "true" },
+    }),
     });
     // The local temp is no longer the only copy — bound worker disk.
     await cleanupStagedTemp(b.staged);

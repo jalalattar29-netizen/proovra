@@ -129,7 +129,7 @@ import {
 import { appendWorkerAnalyticsEvent } from "./analytics-events.js";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { prisma } from "./db.js";
-import { recordPublicationIntent } from "./publication-intent.js";
+import { publishThroughIntent } from "./publication-intent.js";
 import { artifactLockFor } from "./object-retention.js";
 import { env } from "./config.js";
 import { logger, withJobContext } from "./logger.js";
@@ -149,7 +149,6 @@ import { cleanupStagedTemp } from "./verification-package-staging.js";
 // single-use key, read back by VersionId before a row may say READY.
 import {
   StoragePublicationRejectedError,
-  buildPublicationKey,
   publishImmutableArtifact,
 } from "./immutable-publication.js";
 import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
@@ -4851,22 +4850,19 @@ async function runReportGeneration(
 
         // DURABLE PROGRESS — rendered; publishing + reading back the stored PDF.
         await recordRequestProgress(command, "VERIFYING_REPORT");
-        const reportPublicationKey = buildPublicationKey({
-          family: "reports",
-          evidenceId: prepared.evidenceId,
-          version: prepared.version,
-          requestId: command.requestId,
-          extension: "pdf",
-        });
-        await recordPublicationIntent({
+        const reportLock = await artifactLockFor(prepared.evidenceId);
+        const publishedReport = await publishThroughIntent({
           evidenceId: prepared.evidenceId,
           requestId: command.requestId,
           family: "reports",
           bucket: env.S3_BUCKET,
-          key: reportPublicationKey,
-        });
-        const publishedReport = await publishImmutableArtifact({
-          lock: await artifactLockFor(prepared.evidenceId),
+          version: prepared.version,
+          extension: "pdf",
+          sizeBytes: finalizedReportPdf.length,
+          sha256Base64: finalizedReportDigest.toString("base64"),
+          lock: reportLock,
+          publish: (reportPublicationKey) => publishImmutableArtifact({
+          lock: reportLock,
           bucket: env.S3_BUCKET,
           key: reportPublicationKey,
           body: { kind: "buffer", buffer: finalizedReportPdf },
@@ -4883,6 +4879,7 @@ async function runReportGeneration(
             evidenceId: prepared.evidenceId,
             immutable: "true",
           },
+        }),
         });
         prepared.reportKey = publishedReport.key;
         // Phase O1.5C — bounded report.publish span emitted post-upload.

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 363,
-    "classifiedMigrations": 363,
+    "filesystemMigrations": 364,
+    "classifiedMigrations": 364,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 363,
+    "productionSnapshotUnknown": 364,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 363,
-    "classifiedMigrations": 363,
+    "filesystemMigrations": 364,
+    "classifiedMigrations": 364,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 363,
+    "productionSnapshotUnknown": 364,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 126,
+      "EXPAND": 127,
       "BACKFILL": 35,
       "CONTRACT_DROP": 12,
       "REPAIR": 5
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 146,
+      "SAFE_TO_APPLY_NOW": 147,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 6
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 363
+    "ProductionMigrationStateUnknown": 364
   },
   "gateFailures": [],
   "migrations": [
@@ -27302,7 +27302,7 @@
       "checksumSha256": "443d6bc1e9a4eb3b7237bd9c7c5d67c5777ea4c8b248e49806ad68bbaf165a29",
       "checksumSha256Raw": "443d6bc1e9a4eb3b7237bd9c7c5d67c5777ea4c8b248e49806ad68bbaf165a29",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
@@ -27356,8 +27356,76 @@
       "evidence": "GOV-009 (2026-11-03). One trigger: governance_export_snapshots refuses UPDATE and DELETE through proovra_refuse_history_rewrite from 20281102000000. The code only inserts snapshots; no row is read or rewritten."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281113000100_artifact_publication_intent_digest",
       "order": 362,
+      "sqlPresent": true,
+      "byteLength": 1186,
+      "checksumSha256": "ea643eed6e7dc0b96104df941fc509619ca3d798072997c9a8f87622a655d1f0",
+      "checksumSha256Raw": "ea643eed6e7dc0b96104df941fc509619ca3d798072997c9a8f87622a655d1f0",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:4 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "artifact_publication_intents"
+        ],
+        "addedColumns": [
+          "sha256_hex",
+          "size_bytes",
+          "verified_at_utc",
+          "version_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "artifact_publication_intents_request_family_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20281105000001_artifact_publication_intents"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='artifact_publication_intents' AND column_name IN ('sha256_hex','size_bytes','version_id','verified_at_utc')) = 4;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "REPORT-006 (2026-11-03). Four nullable columns and one index on artifact_publication_intents, written after a publication is read back as sent; a retry of the same request with identical bytes reuses that object. Older intents have no digest and are never reused. No row is rewritten."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 363,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",
