@@ -546,8 +546,14 @@ test("S13 review: a reviewer claims, begins and decides; the decision survives a
   } else {
     await page.getByRole("dialog").getByRole("button").last().click();
   }
-  // A decision takes a fresh step-up, answered in the panel's own dialog.
-  await answerStepUp(page, admin);
+  // A decision asks for step-up only when the review gate does: the workspace
+  // flag, or an adaptive risk above LOW. This session is a known, low-risk
+  // sign-in, so the gate may let it through; when it asks, the panel's own
+  // dialog answers it.
+  await page.waitForTimeout(700);
+  if (await page.locator('[data-step-up-form="code"]').isVisible().catch(() => false)) {
+    await answerStepUp(page, admin);
+  }
   await shot(page, "s13-after-approve");
   await expect(page.locator('[data-evidence-review-outcome="success"]')).toBeVisible();
   await page.reload();
