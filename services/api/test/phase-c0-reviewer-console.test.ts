@@ -127,10 +127,12 @@ describe("Phase C0 — sensitive review decision step-up enforcement", () => {
     expect(REVIEW_GATE).toContain('"REVIEWER_OPS_REJECT"');
   });
 
-  it("step-up flag-off is a true no-op (request proceeds, no 401)", () => {
+  it("step-up flag-off proceeds without a step-up unless adaptive auth asks for one", () => {
     // The gate reads the flag and only invokes
-    // `requireStepUpForSensitiveAction` when the flag is set.
-    expect(REVIEW_GATE).toMatch(/if \(!flags\[gate\.flag\]\) return true/);
+    // `requireStepUpForSensitiveAction` when the flag is set, or when the
+    // runtime adaptive gate has decided this session must step up
+    // (20ef15600): the adaptive decision is answered here, not ignored.
+    expect(REVIEW_GATE).toMatch(/if \(!flags\[gate\.flag\] && !adaptive\.stepUpRequired\) return true/);
   });
 });
 

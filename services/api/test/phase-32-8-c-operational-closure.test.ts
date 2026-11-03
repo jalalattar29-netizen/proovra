@@ -202,9 +202,9 @@ describe("Phase 32.8C closure — unsupported signals positioning", () => {
   });
 
   it("summary explicitly labels itself as engineering diagnostics, not platform failure", () => {
-    expect(CC).toMatch(
-      /Engineering diagnostics · capability catalog/,
-    );
+    // Customer wording since a7b27efb5 ("Engineering diagnostics · capability
+    // catalog" was developer wording); it still says these are not failures.
+    expect(CC).toMatch(/Signals not yet available/);
     expect(CC).toMatch(/not a platform failure/);
   });
 
@@ -222,12 +222,11 @@ describe("Phase 32.8C closure — operationally meaningful empty states", () => 
     expect(CC).toMatch(
       /No suspicious activity in the last 24h/,
     );
-    expect(CC).toMatch(/no repeated failed access/);
-    expect(CC).toMatch(/no blocked export attempts/);
-    expect(CC).toMatch(/no API credential changes/);
-    expect(CC).toMatch(/no webhook failure spikes/);
-    expect(CC).toMatch(/no step-up failures/);
-    expect(CC).toMatch(/no permission-denied bursts/);
+    // One sentence since a7b27efb5 ("show no A, B, C …"): every category is
+    // still named under the one "no".
+    expect(CC).toMatch(
+      /show no repeated failed access, blocked exports, API credential changes, webhook failure spikes, step-up failures, permission-denied bursts or unusual admin role changes/,
+    );
   });
 
   it("security watch empty state explains what 0-result means in operational terms", () => {

@@ -40,13 +40,19 @@ const cssCode = SHELL_CSS.replace(/\/\*[\s\S]*?\*\//g, "");
 /**
  * The header arrangement contract, comments stripped.
  *
- * `lastIndexOf`, because `@media (min-width: 981px)` appears earlier in the
- * file too — the shell grid uses the same breakpoint for a different concern,
- * which is the point of it being one number.
+ * `@media (min-width: 981px)` appears elsewhere in the file too — the shell
+ * grid uses the same breakpoint for a different concern, which is the point of
+ * it being one number — so the section is found by its own marker.
  */
-const headerContract = cssCode.slice(
-  cssCode.lastIndexOf("@media (min-width: 981px)"),
-);
+// The contract is the section the file names as such, up to the next section.
+// It used to be found as "from the LAST `@media (min-width: 981px)` to the end",
+// which a later 981-1080 band would capture instead of the contract.
+const headerContract = (() => {
+  const start = SHELL_CSS.indexOf("/* HEADER ARRANGEMENT CONTRACT */");
+  const end = SHELL_CSS.indexOf("/* ACCOUNT AND WORKSPACE MENUS", start);
+  if (start < 0) return "";
+  return SHELL_CSS.slice(start, end < 0 ? undefined : end).replace(/\/\*[\s\S]*?\*\//g, "");
+})();
 
 // ===========================================================================
 // B — the header's workspace and account triggers

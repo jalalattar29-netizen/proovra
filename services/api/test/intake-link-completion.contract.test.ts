@@ -274,8 +274,9 @@ describe("Public intake file picker — multi-select", () => {
     );
     // Per-file SHA-256 still computed — batching files into a single
     // POST would break verification-package layout, so the hash step
-    // must remain per-file.
-    assert.match(src, /sha256Base64\(file\)/);
+    // must remain per-file. Since af3d141a2 it streams the file (a large one no
+    // longer fills memory), still one call per file.
+    assert.match(src, /sha256Base64OfBlob\(file\)/);
   });
 
   it("stageFile does NOT derive partIndex from React state (no `const partIndex = parts.length`)", () => {

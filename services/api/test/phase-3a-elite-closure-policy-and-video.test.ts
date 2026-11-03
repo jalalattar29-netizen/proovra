@@ -405,7 +405,9 @@ describe("Phase 3A Elite — Policy Management Console UI", () => {
   });
 
   it("exposes the assignment + compare controls", () => {
-    expect(UI_POLICY).toMatch(/data-redaction-policy-assign-scope=/);
+    // The scope picker is an AppListbox since a7b27efb5; its hook rides on the
+    // trigger through `triggerProps`, so it is written as an object key.
+    expect(UI_POLICY).toMatch(/"data-redaction-policy-assign-scope":\s*v\.id/);
     expect(UI_POLICY).toMatch(/data-redaction-policy-compare-left=/);
     expect(UI_POLICY).toMatch(/data-redaction-policy-compare-right=/);
   });

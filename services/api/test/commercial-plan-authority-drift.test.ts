@@ -271,8 +271,9 @@ describe("effective plan — no customer surface reads the raw column as truth",
     );
     expect(code).toMatch(/env\.workspace\.effectivePlan/);
     // The Billing tile reads `sections.billing.data.plan`, which the server now
-    // fills from the resolved plan.
-    expect(code).toMatch(/cc-tile-value">\{d\.plan\}/);
+    // fills from the resolved plan, and shows it in words (a7b27efb5) through
+    // the one plan label table, never the raw column.
+    expect(code).toMatch(/cc-tile-value">\{planLabel\(d\.plan\)\}/);
   });
 
   it("the allowlist has a reason for every entry, and every entry still reads the column", () => {

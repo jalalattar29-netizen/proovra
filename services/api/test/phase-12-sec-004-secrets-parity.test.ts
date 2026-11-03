@@ -88,8 +88,10 @@ describe("§4 (a) — exactly one implementation", () => {
   });
 
   it("both services import the SHARED symbol, not a local loader", () => {
+    // The worker's one import from shared-runtime also brings the OCR and
+    // transcript producer modes; the secrets symbol is still the shared one.
     expect(read("services/worker/src/index.ts")).toMatch(
-      /import \{ initSecretsAuthority \} from "@proovra\/shared-runtime"/,
+      /import \{[^}]*\binitSecretsAuthority\b[^}]*\} from "@proovra\/shared-runtime"/,
     );
     // The API keeps the historical name; it resolves to the same function.
     expect(read("services/api/src/server.ts")).toMatch(

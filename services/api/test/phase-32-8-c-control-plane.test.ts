@@ -248,9 +248,15 @@ describe("Phase 32.8C control plane — incident generator", () => {
     const platformCodes = [...PLATFORM_CONDITIONS.matchAll(/code:\s*"(ops\.[a-z0-9_.]+)"/g)].map((m) => m[1]!);
     expect(platformCodes).toEqual(expect.arrayContaining(["ops.platform.worker_heartbeat_stale", "ops.job.background_failure"]));
     expect(PLATFORM_CONDITIONS).not.toMatch(/^\s*title:/m);
+    // Each code is rendered with the params its writer passes, so a title that
+    // embedded one of them would show a digit here.
+    const PARAMS: Record<string, Record<string, unknown>> = {
+      "ops.job.background_failure": { queue: "Reports" },
+      "ops.platform.unreferenced_published_artifacts": { recent: 2, total: 7 },
+    };
     for (const code of platformCodes) {
       for (const locale of ["en", "de", "ar"] as const) {
-        const rendered = renderConditionMessage(locale, code, code === "ops.job.background_failure" ? { queue: "Reports" } : {});
+        const rendered = renderConditionMessage(locale, code, (PARAMS[code] ?? {}) as never);
         expect(rendered, code).not.toBeNull();
         expect(rendered!.title, `${code}/${locale}`).not.toMatch(/\d/);
       }
@@ -608,11 +614,16 @@ describe("Phase 32.8C control plane — frontend rendering", () => {
   });
 
   it("empty state enumerates every real source the generator scans", () => {
+    // In customer words since a7b27efb5: stale telemetry and the worker
+    // heartbeat are both "background processing", a retry storm is "repeated
+    // retries". Every source the generator scans is still named.
     expect(CC_TSX).toMatch(/No open operational incidents/);
-    expect(CC_TSX).toMatch(/report\/package backlog/);
-    expect(CC_TSX).toMatch(/stale telemetry/);
-    expect(CC_TSX).toMatch(/worker heartbeat staleness/);
-    expect(CC_TSX).toMatch(/retry storms/);
+    expect(CC_TSX).toMatch(/report and package backlogs/);
+    expect(CC_TSX).toMatch(/stale review assignments/);
+    expect(CC_TSX).toMatch(/repeated retries/);
+    expect(CC_TSX).toMatch(/background processing/);
+    expect(CC_TSX).toMatch(/aged unsigned evidence/);
+    expect(CC_TSX).toMatch(/stale coordination work/);
   });
 });
 

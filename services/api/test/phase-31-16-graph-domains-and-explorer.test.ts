@@ -343,7 +343,9 @@ describe("Phase 32.15 — Case Graph Explorer UI", () => {
   it("empty states with next-action guidance present (no dead-end UI)", () => {
     const flat = src.replace(/\s+/g, " ");
     expect(flat).toMatch(/No nodes recorded[\s\S]*?graph reconciler/);
-    expect(flat).toMatch(/No relationships recorded[\s\S]*?graph reconciler/);
+    // Customer wording since a7b27efb5 (no worker names on a customer page);
+    // still the next step, not a dead end.
+    expect(flat).toMatch(/No relationships recorded[\s\S]*?once evidence is assigned to this case/);
   });
 
   it("safer canonical-custody language in the page subtitle", () => {

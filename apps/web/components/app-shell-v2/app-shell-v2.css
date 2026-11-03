@@ -2233,6 +2233,17 @@
   }
 }
 
+/* The desktop arrangement's lower edge, since the assistant launcher moved
+   into the header: its 36px plus a gap is what 981-1080 did not budget for
+   (981px measured an overlap of search and New Case). Language stands down
+   there too, as it already does below 981; Settings, Preferences still offers
+   it. A visibility rule, so it is stated here with the rest. */
+@media (min-width: 981px) and (max-width: 1080px) {
+  .app-account-toolbar .app-topbar-v2-language {
+    display: none;
+  }
+}
+
 /* ACCOUNT AND WORKSPACE MENUS — GEOMETRY */
 /* ---------------------------------------------------------------------------
    THE MENU WAS WEARING THE HEADER'S TOUCH FLOOR.
@@ -2435,15 +2446,6 @@ body.app-mobile-sidebar-open {
   display: none;
 }
 
-/* The launcher's 36px plus a gap is what the desktop arrangement did not
-   budget for at its lower edge (981px measured an overlap of search and New
-   Case). Language stands down there too, as it already does below 981;
-   Settings, Preferences still offers it. */
-@media (min-width: 981px) and (max-width: 1080px) {
-  .app-account-toolbar .app-topbar-v2-language {
-    display: none;
-  }
-}
 /* Narrower than 390 the workspace trigger keeps its icon and a few letters,
    then only its icon; the menu it opens still names the workspace. */
 @media (max-width: 379px) {

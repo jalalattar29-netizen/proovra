@@ -681,9 +681,11 @@ describe("Phase 32.8C FINAL-2 — frontend rendering", () => {
   });
 
   it("empty state remains operationally meaningful when all four arrays are empty", () => {
-    expect(CC_TSX).toMatch(
-      /Workflows and causality chains follow incidents — when there are no incidents there is nothing to orchestrate/,
-    );
+    // Shorter customer copy since a7b27efb5: the empty state says what was
+    // checked and that all of it is within tolerance, so an empty workflow and
+    // causality section reads as "nothing to act on", not as missing data.
+    expect(CC_TSX).toMatch(/No open operational incidents/);
+    expect(CC_TSX).toMatch(/All of them are currently within tolerance\./);
   });
 
   it("dashboard is read-only: footnote delegates lifecycle to the workspace Operations Center", () => {

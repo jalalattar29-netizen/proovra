@@ -143,6 +143,13 @@ const LEGAL_DISCLAIMER_ALLOWLIST = new Set<string>([
    */
   "components/ai/ProovraChatWidget.tsx",
   "lib/ai/assistant-state.ts",
+  /*
+   * The external reviewer portal's boundary sentence (30559d5e0):
+   * "PROOVRA records what you decide. It does not assert that content is
+   * authentic." Its only use of a banned word, and it names the claim to
+   * refuse it. Every other match in the file is "authenticate".
+   */
+  "app/portal/[token]/page.tsx",
 ]);
 
 // Comment-stripping helper. Removes // line comments and /* block */

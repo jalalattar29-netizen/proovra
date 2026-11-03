@@ -63,10 +63,12 @@ describe("Phase P1 — Identity operations canonical hub", () => {
 
   it("renders an Identity operations title + procurement-grade subtitle", () => {
     expect(HUB).toContain("Identity operations");
-    expect(HUB).toContain("procurement-grade");
+    // Customer wording since a7b27efb5 ("procurement-grade, audited backend
+    // endpoint" was internal language); the same three promises remain.
     // JSX wraps lines; whitespace-tolerant regex.
-    expect(HUB).toMatch(/audited\s+backend\s+endpoint/);
+    expect(HUB).toMatch(/authorized\s+on\s+the\s+server/);
     expect(HUB).toMatch(/workspace\s+step-up\s+policy/);
+    expect(HUB).toMatch(/written\s+to\s+the\s+audit\s+trail/);
   });
 
   it("surfaces SAML / SCIM / Audit as the three primary cards", () => {
@@ -491,6 +493,6 @@ describe("Phase P1 — no fake identity claims", () => {
     // conditional gate. This is honest because backend
     // `enforceStepUpIfFlagged` only fires when the workspace flag is
     // set.
-    expect(HUB).toMatch(/require\s+step-up\s+where\s+flagged/);
+    expect(HUB).toMatch(/asks\s+you\s+to\s+verify\s+again\s+where\s+the\s+workspace\s+step-up\s+policy\s+says\s+so/);
   });
 });

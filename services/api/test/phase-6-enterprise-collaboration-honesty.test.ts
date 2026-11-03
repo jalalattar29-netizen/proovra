@@ -163,8 +163,10 @@ describe("Phase 6 · SCOPE H — Intelligence honesty", () => {
   it("provider config surfaces the honest noop / not-wired state", () => {
     // When no engine is wired the page must say so honestly rather than
     // faking a configured provider.
-    expect(UI_INTELLIGENCE).toMatch(/noop/);
-    expect(UI_INTELLIGENCE).toMatch(/no real engine/i);
+    // Since a7b27efb5 the page shows a noop provider as "Not set up" instead
+    // of printing the code and explaining it; that is the honest state.
+    expect(UI_INTELLIGENCE).toMatch(/providers\.ocr === "noop" \? "Not set up"/);
+    expect(UI_INTELLIGENCE).toMatch(/providers\.transcript === "noop" \? "Not set up"/);
   });
 
   it("intelligence routes never leak 403 (anti-enumeration) + require membership", () => {
