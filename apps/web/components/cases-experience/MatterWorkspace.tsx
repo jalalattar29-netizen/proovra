@@ -1061,7 +1061,7 @@ export function MatterWorkspace({
         ) : null}
         {activeTab === "siu" ? (
           <div className="case-detail-split-main" data-cc-matter-siu-tab>
-            <SiuPanel caseId={envelope.case.id} />
+            <SiuPanel caseId={envelope.case.id} teamId={envelope.case.teamId} />
             {/* PHASE 12 — VERTICAL B. Saved views + intake templates +
                 the worklist they drive. Mounted alongside the per-case
                 profile so an investigator can pivot from this claim to
