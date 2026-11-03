@@ -33,7 +33,11 @@ import {
   objectLockPostureViolations,
   type ObjectLockPostureViolation,
 } from "@proovra/shared";
-import { developmentSurfacesAllowed, resolveDeploymentEnvironment } from "@proovra/shared-runtime";
+import {
+  developmentSurfacesAllowed,
+  parseSignerProvider,
+  resolveDeploymentEnvironment,
+} from "@proovra/shared-runtime";
 import {
   inspectWebauthnConfig,
   type WebauthnConfigIssue,
@@ -457,10 +461,7 @@ export function collectStartupViolations(): StartupConfigViolation[] {
   // R8.C — Signing provider consistency.
   // When SIGNER_PROVIDER=aws-kms, KMS_KEY_ID must be configured.
   // When SIGNER_PROVIDER=local-pem, SIGNING_PRIVATE_KEY_PATH must be set.
-  const signerProvider = (process.env.SIGNER_PROVIDER ?? "local-pem")
-    .trim()
-    .toLowerCase();
-  if (signerProvider === "aws-kms") {
+  if (parseSignerProvider(process.env.SIGNER_PROVIDER) === "aws-kms") {
     if ((process.env.KMS_KEY_ID ?? "").trim().length === 0) {
       out.push({
         envName: "KMS_KEY_ID",

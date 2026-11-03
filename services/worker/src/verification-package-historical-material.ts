@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { trace, SpanStatusCode } from "@opentelemetry/api";
 
-import { publicFingerprintOfPem } from "@proovra/shared-runtime";
+import { publicFingerprintOfPem, signerProviderToken } from "@proovra/shared-runtime";
 
 import { captureException } from "./sentry.js";
 
@@ -159,15 +159,7 @@ export async function buildHistoricalVerificationMaterial(input: {
     async (span) => {
       try {
         const generatedAtUtc = new Date().toISOString();
-        const providerRaw = (process.env.SIGNER_PROVIDER ?? "local-pem")
-          .trim()
-          .toLowerCase();
-        const provider: SignerProvider =
-          providerRaw === "aws-kms" || providerRaw === "aws_kms"
-            ? "aws_kms"
-            : providerRaw === "disabled"
-              ? "disabled"
-              : "local_pem";
+        const provider: SignerProvider = signerProviderToken(process.env.SIGNER_PROVIDER);
 
         // ET-PKG-11 — PER PURPOSE. The package signer prefers
         // PACKAGE_SIGNING_PUBLIC_KEY_PATH, so a distinct package key was

@@ -41,7 +41,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { objectLockPolicyFromEnv } from "@proovra/shared-runtime";
+import { objectLockPolicyFromEnv, readSignerProvider as readSignerProviderValue } from "@proovra/shared-runtime";
 import {
   getObjectLockStatus,
   type ObjectLockStatus,
@@ -257,12 +257,7 @@ function readSignerProvider():
   | "local-pem"
   | "disabled"
   | "unknown" {
-  const raw = clean(process.env.SIGNER_PROVIDER).toLowerCase();
-  if (raw === "") return "local-pem"; // documented default
-  if (raw === "aws-kms" || raw === "aws_kms") return "aws-kms";
-  if (raw === "local-pem" || raw === "local_pem") return "local-pem";
-  if (raw === "disabled") return "disabled";
-  return "unknown";
+  return readSignerProviderValue(process.env.SIGNER_PROVIDER);
 }
 
 /**

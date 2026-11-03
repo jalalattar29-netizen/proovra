@@ -23,6 +23,8 @@ export {
   registerSigningKey,
   revokeSigningKeyMaterial,
   parseSignerProvider,
+  readSignerProvider,
+  signerProviderToken,
   assertNotCommittedFixtureKey,
   findRegisteredSigningKey,
   describePublicSigningKey,

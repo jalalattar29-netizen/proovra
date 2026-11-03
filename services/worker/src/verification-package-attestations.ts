@@ -38,6 +38,7 @@
  * `/v1/operations/custody-attestations/*` routes.
  */
 
+import { signerProviderToken } from "@proovra/shared-runtime";
 import { trace, SpanStatusCode } from "@opentelemetry/api";
 import { isAccessCustodyEventType } from "@proovra/shared";
 
@@ -515,15 +516,7 @@ async function buildSignerSnapshotJson(input: {
     async (span) => {
       try {
         const generatedAtUtc = new Date().toISOString();
-        const providerRaw = (process.env.SIGNER_PROVIDER ?? "local-pem")
-          .trim()
-          .toLowerCase();
-        const provider: SignerProvider =
-          providerRaw === "aws-kms" || providerRaw === "aws_kms"
-            ? "aws_kms"
-            : providerRaw === "disabled"
-              ? "disabled"
-              : "local_pem";
+        const provider: SignerProvider = signerProviderToken(process.env.SIGNER_PROVIDER);
 
         // A package never carries a KMS key ARN (account id, region) or a
         // server file path: the key is identified by id, version and the
