@@ -600,11 +600,14 @@ const COMMUNICATION_STATUS_MAY_FOLLOW: Readonly<Record<string, ReadonlyArray<pri
   SENT: [prismaPkg.CommunicationStatus.QUEUED],
   FAILED: [prismaPkg.CommunicationStatus.QUEUED, prismaPkg.CommunicationStatus.SENT],
   UNDELIVERED: [prismaPkg.CommunicationStatus.QUEUED, prismaPkg.CommunicationStatus.SENT],
+  // A retry is scheduled from a failure report. A later DELIVERED for the same
+  // message says it arrived after all, and a resend would deliver it twice.
   DELIVERED: [
     prismaPkg.CommunicationStatus.QUEUED,
     prismaPkg.CommunicationStatus.SENT,
     prismaPkg.CommunicationStatus.FAILED,
     prismaPkg.CommunicationStatus.UNDELIVERED,
+    prismaPkg.CommunicationStatus.RETRY_SCHEDULED,
   ],
 };
 

@@ -363,7 +363,7 @@ export async function projectQueueIntelligence(
   const workflowIds = workflows.map((w) => w.id);
   let escalationByWorkflow: Map<
     string,
-    { id: string; severity: string }
+    { id: string; severity: string; status: string; createdAt: Date }
   > = new Map();
   try {
     if (workflowIds.length > 0) {
@@ -374,7 +374,7 @@ export async function projectQueueIntelligence(
           status: { in: ["OPEN", "ACKNOWLEDGED", "REASSIGNED"] },
         },
         orderBy: { createdAt: "desc" },
-        select: { id: true, workflowId: true, severity: true },
+        select: { id: true, workflowId: true, severity: true, status: true, createdAt: true },
       });
       // Latest open escalation per workflow.
       for (const e of escalations) {
@@ -382,6 +382,8 @@ export async function projectQueueIntelligence(
           escalationByWorkflow.set(e.workflowId, {
             id: e.id,
             severity: e.severity,
+            status: e.status,
+            createdAt: e.createdAt,
           });
         }
       }
@@ -463,8 +465,9 @@ export async function projectQueueIntelligence(
         lastContributorResponseAtEpochMs: null,
         slaStatus,
         hasOpenEscalation: !!escalation,
-        escalationAcknowledged:
-          escalation?.severity ? false : false,
+        // This read false whatever the escalation said (WORKFLOW-014).
+        escalationAcknowledged: escalation?.status === "ACKNOWLEDGED",
+        escalationRaisedAtEpochMs: escalation ? escalation.createdAt.getTime() : null,
         approvedButExportBlocked:
           (wf.status === "APPROVED_INTERNAL" ||
             wf.status === "READY_FOR_EXTERNAL_REVIEW") &&
