@@ -70,6 +70,10 @@ export interface AppListboxProps<T extends string = string> {
    * stays one line: in a dense row the control sizes to its value instead.
    */
   wrapValue?: boolean;
+  /** The trigger button, for a caller that moves focus to the control. */
+  triggerRef?: React.Ref<HTMLButtonElement>;
+  /** Layout of the control in its row: width, flex, margin. Never its look. */
+  style?: React.CSSProperties;
 }
 
 let listboxSeq = 0;
@@ -88,6 +92,8 @@ export function AppListbox<T extends string = string>({
   disabledReason,
   triggerProps,
   wrapValue = false,
+  triggerRef: forwardedTriggerRef,
+  style,
 }: AppListboxProps<T>) {
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
@@ -255,11 +261,18 @@ export function AppListbox<T extends string = string>({
     <div
       ref={rootRef}
       className={`app-listbox${wrapValue ? " app-listbox--wrap" : ""}${className ? ` ${className}` : ""}`}
+      style={style}
     >
       <button
         {...triggerProps}
         title={disabled ? (disabledReason ?? triggerProps?.title) : triggerProps?.title}
-        ref={triggerRef}
+        ref={(el) => {
+          triggerRef.current = el;
+          if (typeof forwardedTriggerRef === "function") forwardedTriggerRef(el);
+          else if (forwardedTriggerRef) {
+            (forwardedTriggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el;
+          }
+        }}
         type="button"
         id={baseId}
         role="combobox"
@@ -272,7 +285,10 @@ export function AppListbox<T extends string = string>({
         data-placeholder={selected ? "false" : "true"}
         className="app-listbox__trigger"
         onClick={() => (open ? closeMenu() : openMenu())}
-        onKeyDown={onTriggerKeyDown}
+        onKeyDown={(event) => {
+          triggerProps?.onKeyDown?.(event);
+          onTriggerKeyDown(event);
+        }}
       >
         <span className="app-listbox__value">
           {selected?.markerColor ? (
@@ -334,6 +350,7 @@ export function AppListbox<T extends string = string>({
                   optionRefs.current[i] = el;
                 }}
                 role="option"
+                data-value={opt.value}
                 aria-selected={isSelected}
                 aria-disabled={opt.disabled || undefined}
                 data-active={isActive}
