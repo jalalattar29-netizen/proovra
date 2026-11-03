@@ -66,7 +66,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 439,
+    "AuditFilesInventoried": 441,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -115,7 +115,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 345
+    "ProductBehaviorTestsInventoried": 347
   },
   "reportRoles": {
     "counts": {
@@ -132,7 +132,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 345,
+    "PRODUCT_BEHAVIOR_TEST": 347,
     "DOMAIN_AUTHORITY": 62,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "CURRENT_GENERATED_REPORT": 1,
@@ -592,6 +592,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "apps/web/__tests__/render/evidence-collaborative-panels-write-gate.render.test.tsx",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "apps/web/__tests__/render/fixtures/public-verify-content-preview-location.json",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Curated architecture artifact for a single domain, consumed rather than re-derived.",
@@ -670,7 +685,9 @@
       "path": "apps/web/__tests__/render/governance-department-archive.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "apps/web/lib/api.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -685,7 +702,10 @@
       "path": "apps/web/__tests__/render/governance-policy-assignments.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "apps/web/__tests__/render/_listbox.ts",
+        "apps/web/lib/api.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -778,7 +798,9 @@
       "path": "apps/web/__tests__/render/phase11-audit-surface.render.test.tsx",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "apps/web/__tests__/render/_listbox.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -1172,6 +1194,7 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [
+        "e2e/helpers/listbox.ts",
         "e2e/point7/_harness.ts"
       ],
       "importedBy": [],
@@ -1188,7 +1211,9 @@
       "path": "e2e/point7/ui-capabilities-evidence.spec.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "e2e/helpers/listbox.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -1203,7 +1228,9 @@
       "path": "e2e/point7/ui-capabilities-governance.spec.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
-      "imports": [],
+      "imports": [
+        "e2e/helpers/listbox.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -1219,6 +1246,7 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [
+        "e2e/helpers/listbox.ts",
         "e2e/point7/_harness.ts"
       ],
       "importedBy": [],
@@ -1236,6 +1264,7 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [
+        "e2e/helpers/listbox.ts",
         "e2e/point7/_harness.ts"
       ],
       "importedBy": [],
@@ -2711,6 +2740,21 @@
     },
     {
       "path": "services/api/test/audit-request-context-columns.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/authz-coverage-defect-closures.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
