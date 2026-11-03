@@ -36,7 +36,7 @@
  *   * Device registry and read routes require a workspace context (teamId);
  *     personal-space callers receive a bounded 403.
  *   * Direct-capture sessions are authorized with the canonical primitive
- *     (`authorizeOrFail`, evidence.create, anti-enumeration) at open, reserve,
+ *     (`evaluateAuthorize`, evidence.create, anti-enumeration) at open, reserve,
  *     declaration and completion, plus the personal-space guard. A session is
  *     only ever visible to its owner; a foreign or unknown id is a 404.
  *   * Bytes never travel in these JSON bodies: parts are uploaded through the
@@ -829,7 +829,7 @@ async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
 
 /**
  * Canonical authorization for a direct-capture workspace: ACTIVE membership,
- * evidence.create, org lifecycle — all decided by `authorizeOrFail` — plus the
+ * evidence.create, org lifecycle — all decided by `evaluateAuthorize` — plus the
  * managed-identity personal-space guard. Returns the proven team id or null
  * (the response has been sent).
  */

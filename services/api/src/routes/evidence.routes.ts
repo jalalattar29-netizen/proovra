@@ -3926,6 +3926,22 @@ async function getEvidenceForCollaborativeWrite(
   return evidence;
 }
 
+/**
+ * The same answer as a write, for a reader's screen. The list routes return it so
+ * the panels show write controls only to someone the write would accept: the rule
+ * stays here, and a client cannot drift from it.
+ */
+async function canWriteCollaborativeContent(userId: string, evidenceId: string): Promise<boolean> {
+  try {
+    await getEvidenceForCollaborativeWrite(userId, evidenceId);
+    return true;
+  } catch (err) {
+    const status = (err as { statusCode?: number }).statusCode;
+    if (status === 403 || status === 404 || status === 409) return false;
+    throw err;
+  }
+}
+
 async function getEvidenceWithReadAccess(
   userId: string,
   evidenceId: string
@@ -8497,6 +8513,7 @@ return {
     });
 
     return reply.code(200).send({
+      canWrite: await canWriteCollaborativeContent(userId, id),
       items: comments.map((comment) => ({
         id: comment.id,
         evidenceId: comment.evidenceId,
@@ -8576,24 +8593,26 @@ return {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      const updated = await prisma.evidenceReviewerComment.update({
-        where: { id: commentId },
-        data: {
-          ...(body.body !== undefined ? { body: body.body } : {}),
-          ...(body.visibility !== undefined ? { visibility: body.visibility } : {}),
-        },
-        include: { author: { select: { id: true, displayName: true, email: true } } },
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.evidenceReviewerComment.update({
+          where: { id: commentId },
+          data: {
+            ...(body.body !== undefined ? { body: body.body } : {}),
+            ...(body.visibility !== undefined ? { visibility: body.visibility } : {}),
+          },
+          include: { author: { select: { id: true, displayName: true, email: true } } },
+        });
+        await appendReviewerAuditEventTx(tx, {
+          evidenceId: id,
+          actorUserId: userId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_UPDATED,
+          metadata: {
+            commentId: row.id,
+            visibility: row.visibility,
+          } as Prisma.InputJsonValue,
+        });
+        return row;
       });
-
-      await appendReviewerAuditEvent({
-        evidenceId: id,
-        actorUserId: userId,
-        eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_UPDATED,
-        metadata: {
-          commentId: updated.id,
-          visibility: updated.visibility,
-        } as Prisma.InputJsonValue,
-      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         comment: {
@@ -8631,17 +8650,18 @@ return {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      await prisma.evidenceReviewerComment.update({
-        where: { id: commentId },
-        data: { deletedAt: new Date() },
+      await prisma.$transaction(async (tx) => {
+        await tx.evidenceReviewerComment.update({
+          where: { id: commentId },
+          data: { deletedAt: new Date() },
+        });
+        await appendReviewerAuditEventTx(tx, {
+          evidenceId: id,
+          actorUserId: userId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_DELETED,
+          metadata: { commentId } as Prisma.InputJsonValue,
+        });
       });
-
-      await appendReviewerAuditEvent({
-        evidenceId: id,
-        actorUserId: userId,
-        eventType: prismaPkg.EvidenceReviewerAuditEventType.COMMENT_DELETED,
-        metadata: { commentId } as Prisma.InputJsonValue,
-      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -8659,6 +8679,7 @@ return {
     });
 
     return reply.code(200).send({
+      canWrite: await canWriteCollaborativeContent(userId, id),
       items: items.map((note) => ({
         id: note.id,
         evidenceId: note.evidenceId,
@@ -8736,24 +8757,26 @@ return {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      const updated = await prisma.evidenceLegalNote.update({
-        where: { id: noteId },
-        data: {
-          ...(body.body !== undefined ? { body: body.body } : {}),
-          ...(body.noteType !== undefined ? { noteType: body.noteType } : {}),
-        },
-        include: { author: { select: { id: true, displayName: true, email: true } } },
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.evidenceLegalNote.update({
+          where: { id: noteId },
+          data: {
+            ...(body.body !== undefined ? { body: body.body } : {}),
+            ...(body.noteType !== undefined ? { noteType: body.noteType } : {}),
+          },
+          include: { author: { select: { id: true, displayName: true, email: true } } },
+        });
+        await appendReviewerAuditEventTx(tx, {
+          evidenceId: id,
+          actorUserId: userId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_UPDATED,
+          metadata: {
+            legalNoteId: row.id,
+            noteType: row.noteType,
+          } as Prisma.InputJsonValue,
+        });
+        return row;
       });
-
-      await appendReviewerAuditEvent({
-        evidenceId: id,
-        actorUserId: userId,
-        eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_UPDATED,
-        metadata: {
-          legalNoteId: updated.id,
-          noteType: updated.noteType,
-        } as Prisma.InputJsonValue,
-      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         legalNote: {
@@ -8791,17 +8814,18 @@ return {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      await prisma.evidenceLegalNote.update({
-        where: { id: noteId },
-        data: { deletedAt: new Date() },
+      await prisma.$transaction(async (tx) => {
+        await tx.evidenceLegalNote.update({
+          where: { id: noteId },
+          data: { deletedAt: new Date() },
+        });
+        await appendReviewerAuditEventTx(tx, {
+          evidenceId: id,
+          actorUserId: userId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_DELETED,
+          metadata: { legalNoteId: noteId } as Prisma.InputJsonValue,
+        });
       });
-
-      await appendReviewerAuditEvent({
-        evidenceId: id,
-        actorUserId: userId,
-        eventType: prismaPkg.EvidenceReviewerAuditEventType.LEGAL_NOTE_DELETED,
-        metadata: { legalNoteId: noteId } as Prisma.InputJsonValue,
-      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }
@@ -8819,6 +8843,7 @@ return {
     });
 
     return reply.code(200).send({
+      canWrite: await canWriteCollaborativeContent(userId, id),
       items: items.map((annotation) => ({
         id: annotation.id,
         evidenceId: annotation.evidenceId,
@@ -8850,34 +8875,36 @@ return {
       return reply.code(400).send(ANNOTATION_PART_MISMATCH);
     }
 
-    const created = await prisma.evidenceAnnotation.create({
-      data: {
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.evidenceAnnotation.create({
+        data: {
+          evidenceId: id,
+          evidencePartId: body.evidencePartId ?? null,
+          authorUserId: userId,
+          annotationType: body.annotationType,
+          body: body.body ?? null,
+          pageNumber: body.pageNumber ?? null,
+          mediaTimestampMs: body.mediaTimestampMs ?? null,
+          x: body.x ?? null,
+          y: body.y ?? null,
+          width: body.width ?? null,
+          height: body.height ?? null,
+          coordinateSpace: body.coordinateSpace,
+        },
+        include: { author: { select: { id: true, displayName: true, email: true } } },
+      });
+      await appendReviewerAuditEventTx(tx, {
         evidenceId: id,
-        evidencePartId: body.evidencePartId ?? null,
-        authorUserId: userId,
-        annotationType: body.annotationType,
-        body: body.body ?? null,
-        pageNumber: body.pageNumber ?? null,
-        mediaTimestampMs: body.mediaTimestampMs ?? null,
-        x: body.x ?? null,
-        y: body.y ?? null,
-        width: body.width ?? null,
-        height: body.height ?? null,
-        coordinateSpace: body.coordinateSpace,
-      },
-      include: { author: { select: { id: true, displayName: true, email: true } } },
+        actorUserId: userId,
+        eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_CREATED,
+        metadata: {
+          annotationId: row.id,
+          annotationType: row.annotationType,
+          evidencePartId: row.evidencePartId ?? null,
+        } as Prisma.InputJsonValue,
+      });
+      return row;
     });
-
-    await appendReviewerAuditEvent({
-      evidenceId: id,
-      actorUserId: userId,
-      eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_CREATED,
-      metadata: {
-        annotationId: created.id,
-        annotationType: created.annotationType,
-        evidencePartId: created.evidencePartId ?? null,
-      } as Prisma.InputJsonValue,
-    }).catch(noteCustodyFailure);
 
     return reply.code(201).send({
       annotation: {
@@ -8929,37 +8956,39 @@ return {
         return reply.code(400).send(ANNOTATION_PART_MISMATCH);
       }
 
-      const updated = await prisma.evidenceAnnotation.update({
-        where: { id: annotationId },
-        data: {
-          ...(body.evidencePartId !== undefined ? { evidencePartId: body.evidencePartId ?? null } : {}),
-          ...(body.annotationType !== undefined ? { annotationType: body.annotationType } : {}),
-          ...(body.body !== undefined ? { body: body.body ?? null } : {}),
-          ...(body.pageNumber !== undefined ? { pageNumber: body.pageNumber ?? null } : {}),
-          ...(body.mediaTimestampMs !== undefined
-            ? { mediaTimestampMs: body.mediaTimestampMs ?? null }
-            : {}),
-          ...(body.x !== undefined ? { x: body.x ?? null } : {}),
-          ...(body.y !== undefined ? { y: body.y ?? null } : {}),
-          ...(body.width !== undefined ? { width: body.width ?? null } : {}),
-          ...(body.height !== undefined ? { height: body.height ?? null } : {}),
-          ...(body.coordinateSpace !== undefined
-            ? { coordinateSpace: body.coordinateSpace }
-            : {}),
-        },
-        include: { author: { select: { id: true, displayName: true, email: true } } },
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.evidenceAnnotation.update({
+          where: { id: annotationId },
+          data: {
+            ...(body.evidencePartId !== undefined ? { evidencePartId: body.evidencePartId ?? null } : {}),
+            ...(body.annotationType !== undefined ? { annotationType: body.annotationType } : {}),
+            ...(body.body !== undefined ? { body: body.body ?? null } : {}),
+            ...(body.pageNumber !== undefined ? { pageNumber: body.pageNumber ?? null } : {}),
+            ...(body.mediaTimestampMs !== undefined
+              ? { mediaTimestampMs: body.mediaTimestampMs ?? null }
+              : {}),
+            ...(body.x !== undefined ? { x: body.x ?? null } : {}),
+            ...(body.y !== undefined ? { y: body.y ?? null } : {}),
+            ...(body.width !== undefined ? { width: body.width ?? null } : {}),
+            ...(body.height !== undefined ? { height: body.height ?? null } : {}),
+            ...(body.coordinateSpace !== undefined
+              ? { coordinateSpace: body.coordinateSpace }
+              : {}),
+          },
+          include: { author: { select: { id: true, displayName: true, email: true } } },
+        });
+        await appendReviewerAuditEventTx(tx, {
+          evidenceId: id,
+          actorUserId: userId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_UPDATED,
+          metadata: {
+            annotationId: row.id,
+            annotationType: row.annotationType,
+            evidencePartId: row.evidencePartId ?? null,
+          } as Prisma.InputJsonValue,
+        });
+        return row;
       });
-
-      await appendReviewerAuditEvent({
-        evidenceId: id,
-        actorUserId: userId,
-        eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_UPDATED,
-        metadata: {
-          annotationId: updated.id,
-          annotationType: updated.annotationType,
-          evidencePartId: updated.evidencePartId ?? null,
-        } as Prisma.InputJsonValue,
-      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({
         annotation: {
@@ -9008,17 +9037,18 @@ return {
         return reply.code(403).send({ message: "Forbidden" });
       }
 
-      await prisma.evidenceAnnotation.update({
-        where: { id: annotationId },
-        data: { deletedAt: new Date() },
+      await prisma.$transaction(async (tx) => {
+        await tx.evidenceAnnotation.update({
+          where: { id: annotationId },
+          data: { deletedAt: new Date() },
+        });
+        await appendReviewerAuditEventTx(tx, {
+          evidenceId: id,
+          actorUserId: userId,
+          eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_DELETED,
+          metadata: { annotationId } as Prisma.InputJsonValue,
+        });
       });
-
-      await appendReviewerAuditEvent({
-        evidenceId: id,
-        actorUserId: userId,
-        eventType: prismaPkg.EvidenceReviewerAuditEventType.ANNOTATION_DELETED,
-        metadata: { annotationId } as Prisma.InputJsonValue,
-      }).catch(noteCustodyFailure);
 
       return reply.code(200).send({ deleted: true });
     }

@@ -738,6 +738,8 @@ export function AppSidebarV2() {
         {/* /support is intentionally public (Marketing Header/Footer). Open
             it in a NEW tab so the authenticated App Shell stays put in the
             current tab; the ↗ cue marks it as an external/public page. */}
+        {/* Privacy preferences dock here in the app, in the sidebar's flow. */}
+        <span data-privacy-preferences-slot="" className="app-sidebar-v2-privacy-slot" />
         <Link
           href="/support"
           target="_blank"

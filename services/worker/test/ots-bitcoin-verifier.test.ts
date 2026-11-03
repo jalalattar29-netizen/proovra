@@ -394,6 +394,26 @@ describe("checkOtsProofAgainstBitcoin — the verifier could not check (UNAVAILA
   });
 });
 
+describe("checkOtsProofAgainstBitcoin — one readiness answer serves a batch (CRYPTO-008)", () => {
+  it("records checked within the gate reuse the probe; a dead node costs one probe, not one per record", async () => {
+    const down = scenario();
+    const { client, calls } = fakeClient(down);
+    const dead = { ...client, getNetworkInfo: async () => { calls.push(["getNetworkInfo"] as never); throw new Error("connect refused"); } };
+    const at = (ms: number) => () => new Date(NOW.getTime() + 3_600_000 + ms);
+    const gated = { config: CONFIG, client: dead, readinessGateMs: 30_000 };
+
+    const first = await checkOtsProofAgainstBitcoin(anchoringOf(UP.base64), { ...gated, now: at(0) });
+    const second = await checkOtsProofAgainstBitcoin(anchoringOf(UP.base64), { ...gated, now: at(10_000) });
+    expect(first.kind).toBe("UNAVAILABLE");
+    expect(second.kind).toBe("UNAVAILABLE");
+    expect(calls).toHaveLength(1);
+
+    // The answer expires, and a node that returned is seen.
+    await checkOtsProofAgainstBitcoin(anchoringOf(UP.base64), { ...gated, now: at(31_000) });
+    expect(calls).toHaveLength(2);
+  });
+});
+
 describe("checkOtsProofAgainstBitcoin — configuration and proof preconditions", () => {
   it("disabled: DISABLED and the client is never called", async () => {
     const { result, calls } = await check(scenario(), anchoringOf(UP.base64), { kind: "disabled" });

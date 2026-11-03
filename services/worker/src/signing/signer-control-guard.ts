@@ -15,6 +15,7 @@
  * to remove.
  */
 
+import { signerProviderToken } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 
 export type WorkerSignerPurpose =
@@ -41,13 +42,7 @@ function envValue(name: string): string | null {
 
 /** Must match `buildSignerId` in the API's signer registry, exactly. */
 function providerToken(): string {
-  const raw = (process.env.SIGNER_PROVIDER ?? "local_pem")
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, "_");
-  if (raw === "aws_kms") return "aws_kms";
-  if (raw === "disabled") return "disabled";
-  return "local_pem";
+  return signerProviderToken(process.env.SIGNER_PROVIDER);
 }
 
 export function workerSignerId(purpose: WorkerSignerPurpose): string {

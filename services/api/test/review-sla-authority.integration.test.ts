@@ -404,6 +404,31 @@ describe("Review SLA authority (live PostgreSQL)", () => {
     expect(detectStuckWorkflow({ ...facts, status: String(fresh.status) }).isStuck).toBe(false);
   });
 
+  it("WORKFLOW-014: an escalation nobody acknowledged is reported from when it was raised, touched or not", async () => {
+    const { detectStuckWorkflow } = await import("@proovra/shared");
+    const now = Date.now();
+    const base = {
+      nowEpochMs: now,
+      status: "IN_REVIEW",
+      submittedAtEpochMs: now - 72 * 3_600_000,
+      assignedAtEpochMs: now - 70 * 3_600_000,
+      firstOpenedAtEpochMs: null,
+      lastReviewerTouchAtEpochMs: null,
+      lastContributorResponseAtEpochMs: null,
+      slaStatus: null,
+      hasOpenEscalation: true,
+      escalationAcknowledged: false,
+      approvedButExportBlocked: false,
+    } as const;
+    const codes = (facts: Record<string, unknown>) =>
+      detectStuckWorkflow({ ...base, ...facts } as never).reasons.map((r) => r.code);
+    expect(codes({ escalationRaisedAtEpochMs: now - 9 * 3_600_000 })).toContain("escalated_unacknowledged");
+    expect(codes({ escalationRaisedAtEpochMs: now - 1 * 3_600_000 })).not.toContain("escalated_unacknowledged");
+    expect(codes({ escalationRaisedAtEpochMs: now - 9 * 3_600_000, escalationAcknowledged: true })).not.toContain(
+      "escalated_unacknowledged",
+    );
+  });
+
   it("WORKFLOW-012: a row past the first batch is reached, and the read wraps", async () => {
     const org = await seedOrganizationTenant(deps);
     await setPolicy(org, { defaultCompletionDueHours: 100, defaultFirstResponseDueHours: 100, defaultAssignmentDueHours: 100, defaultEscalationDueHours: 100 });

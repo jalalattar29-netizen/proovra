@@ -24,6 +24,11 @@ import { formatUserDate, formatUtcAuditDateTime } from "../../../lib/date";
 import { useTeamId } from "../../../lib/platform-context";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../components/identity-security/StepUpModal";
 import { PageShell, PageHeader, PageSection } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -143,6 +148,7 @@ function SecurityCenterPageInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { confirm, askReason } = useConfirmAction();
+  const stepUp = useStepUpAction({ teamId });
 
   useEffect(() => {
     if (!teamId) return;
@@ -268,17 +274,20 @@ function SecurityCenterPageInner() {
     if (!ok) return;
     setBusy(true);
     try {
-      await apiFetch("/v1/identity-security/sessions/revoke-all", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ teamId, userId, reason: "OPERATOR_REVOKED" }),
-      });
+      await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch("/v1/identity-security/sessions/revoke-all", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(stepUpHeaders ?? {}) },
+          body: JSON.stringify({ teamId, userId, reason: "OPERATOR_REVOKED" }),
+        }),
+      );
       const fresh: { revoked: RevokedSession[] } = await apiFetch(
         `/v1/identity-security/sessions?teamId=${encodeURIComponent(teamId)}`,
         { method: "GET" },
       );
       setRevocations(fresh.revoked ?? []);
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       alert(toSafeUserError(err, { message: "Revoke-all failed." }).message);
     } finally {
       setBusy(false);
@@ -610,6 +619,7 @@ function SecurityCenterPageInner() {
           </PageSection>
         </>
       )}
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

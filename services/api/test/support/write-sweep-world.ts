@@ -9,6 +9,7 @@ import type { IntegrationHarness } from "../integration-harness.js";
 import { coverageKit } from "./coverage-actors.js";
 import { WriteSweep, installWriteLog, type Tenant } from "./write-sweep-engine.js";
 import { WRITE_SWEEP_HINTS } from "./write-sweep-hints.js";
+import { MACHINE_SECRETS } from "./write-sweep-token-hints.js";
 import { seedOperator } from "../helpers/operator-step-up.js";
 
 /** Builds ENTERPRISE organization tenants under an ACTIVE contract. */
@@ -90,6 +91,11 @@ export async function buildSweepWorld(h: IntegrationHarness): Promise<WriteSweep
   process.env.WORKFLOW_INTAKE_LINKS_ENABLED = "true";
   process.env.WORKFLOW_INTAKE_TOKEN_SECRET = randomBytes(32).toString("hex");
   process.env.EVIDENCE_REQUESTS_ENABLED = "true";
+  process.env.MESSAGING_TRANSPORT = "recording";
+  process.env.WEBAUTHN_RP_ID = "sweep.test";
+  process.env.WEBAUTHN_ORIGINS = "https://sweep.test";
+  process.env.APP_BASE_URL = "https://sweep.test";
+  Object.assign(process.env, MACHINE_SECRETS);
 
   const { prisma } = await import("../../src/db.js");
   const { signJwt } = await import("../../src/services/jwt.js");
@@ -132,6 +138,19 @@ export async function buildSweepWorld(h: IntegrationHarness): Promise<WriteSweep
     throwaway: makeTenant,
     removedFromVictim: removed,
     newMember: (teamId, role) => kit.person(teamId, role),
+    newPerson: () => kit.person(null),
+    // A control-sized act by the attacker on its own tenant (a closure, a suspension)
+    // must not read as a refusal on the next route.
+    restoreAttacker: async () => {
+      await prisma.organization.update({ where: { id: attacker.orgId }, data: { status: "ACTIVE" } as never });
+      await prisma.team.update({
+        where: { id: attacker.teamId },
+        data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE", closedAtUtc: null } as never,
+      });
+      await prisma.enterpriseContract.update({ where: { organizationId: attacker.orgId }, data: { status: "ACTIVE" } as never });
+      await prisma.teamMember.updateMany({ where: { teamId: attacker.teamId, userId: attacker.owner.id }, data: { role: "OWNER", status: "ACTIVE" } as never });
+      await prisma.subscription.deleteMany({ where: { userId: attacker.owner.id } as never });
+    },
     hints: WRITE_SWEEP_HINTS,
   });
 }

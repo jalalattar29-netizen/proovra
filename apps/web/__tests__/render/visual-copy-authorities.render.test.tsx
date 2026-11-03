@@ -14,7 +14,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppListbox } from "../../components/app-primitives/AppListbox";
 import { FilterBar } from "../../components/ui/FilterBar";
+import { PreviewImage } from "../../app/(app)/evidence/[id]/_tabs/_lib";
 import { sourceTraceLabel } from "../../lib/labels/workspaceOpsLabels";
+import { recordReference } from "../../lib/short-id";
 import { chooseListbox, listboxLabels } from "./_listbox";
 
 afterEach(cleanup);
@@ -59,6 +61,17 @@ describe("sourceTraceLabel: provenance without code", () => {
   it("drops internal phase names", () => {
     expect(sourceTraceLabel("AccessAnomaly (Phase 32.8C++++ — persisted classifier output)")).toBe("Access anomaly");
     expect(sourceTraceLabel("CaseComment(resolvedAtUtc IS NULL — Phase 32.8C+++++)")).toBe("Case comment");
+  });
+});
+
+describe("recordReference: a reference, not a name", () => {
+  it("uses the kind and the tail of the id, which is the part that differs", () => {
+    expect(recordReference("Evidence", "627df57a-0000-4000-8000-0000000000c1")).toBe("Evidence ref 0000C1");
+    expect(recordReference("Member", "627df57a-0000-4000-8000-0000000000c2")).toBe("Member ref 0000C2");
+  });
+
+  it("says so when there is nothing to refer to", () => {
+    expect(recordReference("Evidence", null)).toBe("Evidence: not available");
   });
 });
 
@@ -158,5 +171,14 @@ describe("the retired dark wash", () => {
   it("the callback says what happened in words", () => {
     const source = readFileSync(join(WEB_ROOT, "app/auth/callback/ui/page.tsx"), "utf8");
     expect(source).not.toContain("Missing OAuth token");
+  });
+});
+
+describe("an evidence image that does not load", () => {
+  it("says so in words instead of showing a broken image", () => {
+    render(<PreviewImage src="http://localhost/missing.png" label="site-photo.png" />);
+    fireEvent.error(screen.getByAltText("site-photo.png"));
+    expect(screen.getByRole("status").textContent).toContain("The preview could not be loaded.");
+    expect(screen.queryByAltText("site-photo.png")).toBeNull();
   });
 });

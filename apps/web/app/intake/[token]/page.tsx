@@ -34,6 +34,7 @@ import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
+import { sha256Base64OfBlob } from "../../../lib/uploads/streaming-sha256";
 import { formatUserDateTime } from "../../../lib/date";
 import { IntakeChecklist } from "../../../components/intake/IntakeChecklist";
 import {
@@ -357,17 +358,6 @@ const DEFAULT_DISCLOSURE = [
   "that issued the link. By accepting you confirm the upload is yours to share,",
   "and you agree to the workspace's evidence handling terms.",
 ].join(" ");
-
-async function sha256Base64(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
-  let binary = "";
-  const bytes = new Uint8Array(digest);
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
-}
 
 function kindFromMime(mime: string): AcceptedKind {
   const m = mime.toLowerCase();
@@ -772,7 +762,7 @@ export default function ExternalIntakePage({
 
     let checksum: string;
     try {
-      checksum = await sha256Base64(file);
+      checksum = await sha256Base64OfBlob(file);
     } catch {
       setErrorMessage("Unable to compute file checksum in this browser.");
       return;

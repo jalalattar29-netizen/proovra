@@ -24,6 +24,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // keyword-fallback ranker; the queue handles the pgvector side.
 import { enqueueEmbedChunks } from "../../queue/mi-embed-queue.js";
 import { evaluateWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
+import { workspaceIncludesAiOperations } from "../billing-enforcement.service.js";
 
 export function isSemanticSearchEnabled(): boolean {
   return process.env.SEMANTIC_SEARCH_ENABLED === "true";
@@ -113,6 +114,7 @@ export async function indexEvidenceText(
           teamId: input.teamId,
           feature: "SEMANTIC_SEARCH",
           dataClass: "DERIVED_CONTENT",
+          planAllowed: await workspaceIncludesAiOperations(input.teamId),
         });
         if (!semPolicy.allowed) {
           return { chunks: chunks.length, embedded };

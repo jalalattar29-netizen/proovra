@@ -28,6 +28,7 @@
  *   * KMS ARNs / region are operator-safe to expose.
  */
 
+import { signerProviderToken } from "@proovra/shared-runtime";
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
@@ -92,12 +93,7 @@ export type SignerRecord = {
 // ---------------------------------------------------------------------------
 
 function envProvider(): SignerProvider {
-  const raw = (process.env.SIGNER_PROVIDER ?? "local-pem")
-    .trim()
-    .toLowerCase();
-  if (raw === "aws-kms" || raw === "aws_kms") return "aws_kms";
-  if (raw === "disabled") return "disabled";
-  return "local_pem";
+  return signerProviderToken(process.env.SIGNER_PROVIDER);
 }
 
 function envValue(name: string): string | null {

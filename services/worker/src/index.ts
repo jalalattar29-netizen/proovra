@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { Worker } from "bullmq";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004) — the ONE secrets authority, shared
 // with the API. See the call site near the bottom of this file.
-import { initSecretsAuthority } from "@proovra/shared-runtime";
+import { getOcrProducerMode, getTranscriptProducerMode, initSecretsAuthority } from "@proovra/shared-runtime";
 import { logger } from "./logger.js";
 import {
   derivedAssetsQueue,
@@ -2636,6 +2636,13 @@ async function shutdown(exitCode: number) {
  */
 initSecretsAuthority(logger)
   .then(async () => {
+    // OPS-012 — the worker's half of the API's boot warning: it sends the token.
+    if (
+      (getOcrProducerMode() === "VENDOR_CLOUD" || getTranscriptProducerMode() === "VENDOR_CLOUD") &&
+      (process.env.INTERNAL_SERVICE_TOKEN ?? "").trim().length === 0
+    ) {
+      logger.warn({}, "ops_012.startup.vendor_cloud_without_internal_service_token");
+    }
     const signer = await validatePackageSignerAtStartup();
     logger.info(
       {

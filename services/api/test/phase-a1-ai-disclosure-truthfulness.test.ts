@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // Side-effect import registers the OpenAI entity/summary adapters.
 import "../src/services/intelligence/providers/openai-adapter.js";
 import { listAdapterProbes } from "../src/services/intelligence/providers/provider-adapter.js";
+import { resolveAiCapabilityDisclosure } from "../src/services/ai/ai-capability-disclosure.service.js";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -74,5 +75,25 @@ describe("Phase A1 — Trust Center prose no longer overstates OpenAI", () => {
     expect(TRUST_CENTER).toMatch(/no live OpenAI call/i);
     expect(TRUST_CENTER).toMatch(/local[^.]*fallback|LOCAL[^.]*fallback|local REGEX_PII/i);
     expect(TRUST_CENTER).toMatch(/embeddings/i);
+  });
+});
+
+describe("OPS-013 — the OpenAI verification date stamps OpenAI rows only", () => {
+  it("other providers and local code carry no verified time", async () => {
+
+    const saved = process.env.OPENAI_PRIVACY_VERIFIED_AT;
+    process.env.OPENAI_PRIVACY_VERIFIED_AT = "2026-11-01T00:00:00Z";
+    try {
+      const rows = await resolveAiCapabilityDisclosure(null);
+      const openai = rows.filter((r) => r.provider.startsWith("OpenAI"));
+      const others = rows.filter((r) => !r.provider.startsWith("OpenAI"));
+      expect(openai.length).toBeGreaterThan(0);
+      expect(others.length).toBeGreaterThan(0);
+      for (const r of openai) expect(r.lastVerifiedAtUtc, r.capability).toBe("2026-11-01T00:00:00Z");
+      for (const r of others) expect(r.lastVerifiedAtUtc, r.capability).toBeNull();
+    } finally {
+      if (saved === undefined) delete process.env.OPENAI_PRIVACY_VERIFIED_AT;
+      else process.env.OPENAI_PRIVACY_VERIFIED_AT = saved;
+    }
   });
 });

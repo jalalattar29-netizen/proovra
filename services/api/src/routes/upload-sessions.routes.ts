@@ -194,6 +194,8 @@ function statusForDenial(
     case "storage_unavailable":
     case "configuration_missing":
       return 503;
+    case "evidence_too_large":
+      return 413;
     case "hash_mismatch":
       return 422;
     case "invalid_part_index":

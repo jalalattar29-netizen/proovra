@@ -82,7 +82,24 @@ function remember(r: OtsBitcoinVerifierReadiness): void {
   lastReadiness = r;
 }
 
+/**
+ * CRYPTO-008 — how long one readiness answer serves every record. Each record
+ * checked ran its own probe of four calls, so a batch against a dead node cost
+ * four failed calls per record to learn one fact about the node.
+ */
+const OTS_READINESS_GATE_MS = 30_000;
+
+function freshReadiness(endpoint: string, gateMs: number, now: Date): OtsBitcoinVerifierReadiness | null {
+  const seen = lastReadiness.observedAtUtc ? new Date(lastReadiness.observedAtUtc).getTime() : Number.NaN;
+  const age = now.getTime() - seen;
+  return lastReadiness.enabled && lastReadiness.endpoint === endpoint && age >= 0 && age < gateMs
+    ? lastReadiness
+    : null;
+}
+
 export type OtsBitcoinVerifierDeps = {
+  /** Defaults to OTS_READINESS_GATE_MS, or 0 with an injected client. */
+  readinessGateMs?: number;
   config?: OtsBitcoinVerifierConfig;
   client?: Pick<BtcRpcClient, "getNetworkInfo" | "getBlockchainInfo" | "getBlockHash" | "getBlockHeaderRaw" | "getBlockHeaderVerbose">;
   now?: () => Date;
@@ -175,7 +192,10 @@ export async function checkOtsProofAgainstBitcoin(
     return unavailable("NO_BITCOIN_ATTESTATION", "the stored proof carries no Bitcoin attestation", now);
   }
   const client = deps.client ?? clientFor(config);
-  const readiness = await probeOtsBitcoinVerifierReadiness({ config, client, now: () => now });
+  const gateMs = deps.readinessGateMs ?? (deps.client ? 0 : OTS_READINESS_GATE_MS);
+  const readiness =
+    freshReadiness(config.rpcEndpointLabel, gateMs, now) ??
+    (await probeOtsBitcoinVerifierReadiness({ config, client, now: () => now }));
   if (!readiness.ready) return unavailable((readiness.code as OtsChainFailureCode) ?? "BTC_RPC_UNAVAILABLE", readiness.detail ?? "not ready", now);
 
   const tipHeight = readiness.tipHeight ?? 0;

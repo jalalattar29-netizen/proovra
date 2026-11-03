@@ -3775,6 +3775,22 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('artifact_publication_intents') IS NOT NULL\"",
       "evidence": "ARTIFACT PUBLICATION INTENTS (REPORT-006, 2026-11-05). One new, empty table the worker writes before publishing. Nothing reads it for behaviour; objects published earlier have no intent and stay uncounted."
     },
+    "20281113000100_artifact_publication_intent_digest": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='artifact_publication_intents' AND column_name IN ('sha256_hex','size_bytes','version_id','verified_at_utc')) = 4;\"",
+      "evidence": "REPORT-006 (2026-11-03). Four nullable columns and one index on artifact_publication_intents, written after a publication is read back as sent; a retry of the same request with identical bytes reuses that object. Older intents have no digest and are never reused. No row is rewritten."
+    },
+    "20281109000100_governance_export_snapshots_append_only": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM pg_trigger WHERE tgname='governance_export_snapshots_append_only') = 1;\"",
+      "evidence": "GOV-009 (2026-11-03). One trigger: governance_export_snapshots refuses UPDATE and DELETE through proovra_refuse_history_rewrite from 20281102000000. The code only inserts snapshots; no row is read or rewritten."
+    },
     "20281102000000_destruction_governance_truth": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",
@@ -3846,6 +3862,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.platform_backup_records') IS NOT NULL;\"",
       "evidence": "OPS-004 (2026-11-01). New append-only table written by the backup schedule, so the readiness posture reports recorded runs and not an assumption from DATABASE_URL. No existing row is touched."
+    },
+    "20281108000100_subprocessor_name_per_workspace": {
+      "classification": "REPAIR",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='subprocessors_name_key');\"",
+      "evidence": "Write sweep, round 2 (2026-11-03). 20270101000000_phase_r3_model_catchup added a global UNIQUE (name) the schema does not declare, so only the first workspace could seed or register a vendor by name. The per-workspace (team_id, slug) unique stays. No row is touched."
     }
   }
 }

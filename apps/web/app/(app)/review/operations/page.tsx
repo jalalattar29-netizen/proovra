@@ -274,7 +274,7 @@ useEffect(() => {
           <section style={cardStyle}>
             <div style={cardHeaderStyle}>
               <h2 style={sectionTitleStyle}>Queue</h2>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
                 <AppListbox
                   value={stage}
                   options={[

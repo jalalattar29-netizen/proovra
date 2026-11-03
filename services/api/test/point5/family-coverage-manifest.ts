@@ -835,6 +835,7 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
           "delivery.idempotency.duplicate_is_noop",
           "delivery.terminal.stale_cannot_overwrite",
           "delivery.provider.failure_retryable_not_delivered",
+          "delivery.reconciler.recovers_stranded_once",
         ],
         inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
       },

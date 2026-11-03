@@ -633,6 +633,8 @@ export const OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS = 30 * 24 * 60 * 60 * 1000;
 export function nextOtsChainCheckDelayMs(
   anchoring: Pick<OtsAnchoring, "state" | "chain"> & { anchoredAtUtc?: string | Date | null },
   now: number = Date.now(),
+  /** This check got no answer, whatever the last recorded outcome says. */
+  opts: { verifierUnavailable?: boolean } = {},
 ): number | null {
   const HOUR = 60 * 60 * 1000;
   if (anchoring.state !== "ANCHORED") return null;
@@ -652,8 +654,10 @@ export function nextOtsChainCheckDelayMs(
    * CRYPTO-008 — the verifier could not answer. It backs off with the same
    * ladder, so a dead node costs each record one check a day rather than one an
    * hour for ever. It never gives up: the answer is still owed when the node returns.
+   * An outage over a recorded outcome keeps that outcome, so the record reads
+   * INSUFFICIENT_CONFIRMATIONS, and only the caller knows this check got no answer.
    */
-  if (c.status === "UNAVAILABLE") {
+  if (c.status === "UNAVAILABLE" || opts.verifierUnavailable) {
     const anchoredAt = anchoring.anchoredAtUtc ? new Date(anchoring.anchoredAtUtc).getTime() : Number.NaN;
     const age = Number.isFinite(anchoredAt) ? now - anchoredAt : 0;
     if (age >= 7 * 24 * HOUR) return 24 * HOUR;

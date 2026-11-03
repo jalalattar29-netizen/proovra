@@ -86,8 +86,9 @@ export function loadEnvFiles(cwd: string, env: Env = process.env): EnvFileLoad {
   const repoRootEnv = resolve(cwd, "../../.env");
 
   // Precedence: first writer wins (loadEnvFile only sets undefined keys).
-  // Service-local file wins over repo-root, matching the existing convention
-  // where the service-scoped .env is the operator's primary surface.
+  // Started from services/api, the service file wins over repo-root, the
+  // convention where the service-scoped .env is the operator's primary surface.
+  // Started from the repo root, cwd IS the root, so the root file wins instead.
   const candidates = [cwdEnv];
   if (serviceEnv !== cwdEnv) candidates.push(serviceEnv);
   if (repoRootEnv !== cwdEnv && repoRootEnv !== serviceEnv) candidates.push(repoRootEnv);

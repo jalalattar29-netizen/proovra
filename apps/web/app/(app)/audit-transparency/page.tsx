@@ -28,7 +28,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AUDIT_TRANSPARENCY_CATEGORIES,
   identifierLabel,
-  identifierTextLabel,
   type AuditTransparencyCategory,
   type AuditTransparencyEntry,
 } from "@proovra/shared";
@@ -195,7 +194,7 @@ function AuditTransparencyShell() {
                         >
                           {failureReason ? (
                             <span style={{ color: "var(--status-risk-fg, #b91c1c)" }}>
-                              {identifierTextLabel(String(failureReason)).slice(0, 60)}
+                              {identifierLabel(String(failureReason).replace(/:/g, " ")).slice(0, 60)}
                             </span>
                           ) : (
                             "—"

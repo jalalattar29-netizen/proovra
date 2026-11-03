@@ -58,6 +58,7 @@ import { runCaseCopilot } from "../services/ai/case-copilot.service.js";
 import { buildCaseCopilotProvider, CaseCopilotProviderUnavailable } from "../services/ai/case-copilot-provider.js";
 import { buildCitationResolver, buildWorkspaceCitationLookups, type CitationPrisma } from "../services/ai/ai-citation-db-resolver.service.js";
 import { persistCopilotRun } from "../services/ai/ai-copilot-run-store.service.js";
+import { workspaceIncludesAiOperations } from "../services/billing-enforcement.service.js";
 import { buildPrismaLedgerStore, reconcileAiUsage, releaseAiReservation, tryReserveAiBudget } from "../services/ai/ai-usage-ledger.service.js";
 import { cleanupExpiredCopilotRuns } from "../services/ai/ai-retention.service.js";
 
@@ -210,6 +211,7 @@ export async function aiCaseRoutes(app: FastifyInstance) {
     // Policy gate (CASE_COPILOT) + role + rate limit.
     const policyDecision = await evaluateWorkspaceAiPolicy({
       teamId, feature: "CASE_COPILOT", dataClass: body.processingMode === "APPROVED_CONTENT" ? "DERIVED_CONTENT" : "METADATA", userRole: membership.role,
+      planAllowed: await workspaceIncludesAiOperations(teamId),
     });
     const guard = await enforceAiEndpointGuard({
       feature: "case-copilot", userId, ip: req.ip,

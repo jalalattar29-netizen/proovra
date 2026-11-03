@@ -98,6 +98,9 @@ export const UPLOAD_SESSION_DENIAL_CODES = [
   "invalid_part_index",
   "invalid_expiry",
   "invalid_part_count",
+  // INGEST-002 — the declared total is past the one limit. Refused here, before a
+  // byte moves, with the same 413 the presign and the seal answer.
+  "evidence_too_large",
   "hash_mismatch",
   "completion_blocked_pending_parts",
   "service_unavailable",
@@ -344,12 +347,14 @@ export async function createUploadSession(
   ) {
     return { ok: false, reason: "invalid_part_count" };
   }
+  if (input.expectedTotalBytes != null && input.expectedTotalBytes < 0) {
+    return { ok: false, reason: "invalid_part_count" };
+  }
   if (
     input.expectedTotalBytes != null &&
-    (input.expectedTotalBytes < 0 ||
-      input.expectedTotalBytes > getUploadSizeLimits().maxUploadFileSizeBytes)
+    input.expectedTotalBytes > getUploadSizeLimits().maxUploadFileSizeBytes
   ) {
-    return { ok: false, reason: "invalid_part_count" };
+    return { ok: false, reason: "evidence_too_large" };
   }
   if (
     input.expectedSha256 != null &&

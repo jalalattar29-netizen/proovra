@@ -223,21 +223,21 @@ function CommunicationsPageInner() {
               <div style={healthGridStyle}>
                 <Stat
                   label="Feature flag"
-                  value={health.communicationsEnabled ? "enabled" : "disabled"}
+                  value={health.communicationsEnabled ? "Enabled" : "Disabled"}
                 />
-                <Stat label="Provider" value={health.provider} />
+                <Stat label="Provider" value={identifierLabel(health.provider)} />
                 <Stat
                   label="Configured"
-                  value={health.configured ? "yes" : "no"}
+                  value={health.configured ? "Yes" : "No"}
                 />
-                <Stat label="SMS" value={health.capabilities.sms ? "ready" : "—"} />
+                <Stat label="SMS" value={health.capabilities.sms ? "Ready" : "—"} />
                 <Stat
                   label="WhatsApp"
-                  value={health.capabilities.whatsapp ? "ready" : "—"}
+                  value={health.capabilities.whatsapp ? "Ready" : "—"}
                 />
                 <Stat
                   label="Verify (OTP)"
-                  value={health.capabilities.verify ? "ready" : "—"}
+                  value={health.capabilities.verify ? "Ready" : "—"}
                 />
               </div>
             )}
@@ -253,12 +253,12 @@ function CommunicationsPageInner() {
           <section style={cardStyle}>
             <div style={cardHeaderStyle}>
               <h2 style={sectionTitleStyle}>Messages</h2>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
                 <AppListbox
                   value={channel}
                   options={[
                     { value: "", label: "All channels" },
-                    ...CHANNELS.map((c) => ({ value: c, label: identifierLabel(c) })),
+                    ...CHANNELS.map((c) => ({ value: c, label: c === "WHATSAPP" ? "WhatsApp" : identifierLabel(c) })),
                   ]}
                   onChange={(next) => setChannel(next as Channel | "")}
                 />

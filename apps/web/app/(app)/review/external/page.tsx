@@ -29,6 +29,7 @@
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -361,7 +362,7 @@ function ExternalReviewManagementConsole() {
     if (!caps.canBulkRevoke) {
       setBanner({
         tone: "warn",
-        text: "Bulk revoke refused: NOT_PERMITTED",
+        text: "Your role does not allow revoking access in bulk.",
       });
       return;
     }
@@ -412,7 +413,7 @@ function ExternalReviewManagementConsole() {
         code: (err as any)?.code ?? "UNKNOWN",
       });
       const denial = denialFromError(err);
-      setBanner({ tone: "warn", text: `Bulk revoke refused: ${denial}` });
+      setBanner({ tone: "warn", text: `Access was not revoked. ${reviewerDenialMessage(denial)}` });
     }
   }, [caps.canBulkRevoke, multiSelected, refresh]);
 

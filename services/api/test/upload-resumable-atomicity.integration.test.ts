@@ -50,7 +50,7 @@ describe("INGEST-005 the resumable sequence (live PostgreSQL and object store)",
     await h?.cleanup();
   }, 300_000);
 
-  async function uploadedSession() {
+  async function uploadedSession(opts: { declaredSha256?: string } = {}) {
     const teamId = A().teamId;
     const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true } });
     const evidence = await prisma.evidence.create({
@@ -65,7 +65,7 @@ describe("INGEST-005 the resumable sequence (live PostgreSQL and object store)",
       evidenceId: evidence.id,
       expectedPartCount: 1,
       expectedTotalBytes: bytes.length,
-      expectedSha256: sha,
+      expectedSha256: opts.declaredSha256 ?? sha,
       targetPartIndex: 0,
       originalFileName: "large.mov",
       expectedMimeType: "video/quicktime",
@@ -102,6 +102,39 @@ describe("INGEST-005 the resumable sequence (live PostgreSQL and object store)",
     const rows = await parts(s.evidenceId);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ partIndex: 0 });
+  });
+
+  it("INGEST-006: bytes that are not what the client hashed fail the session and bridge nothing", async () => {
+    const s = await uploadedSession({ declaredSha256: "0".repeat(64) });
+    const res = await complete(s);
+    expect(res.statusCode, res.body).toBe(422);
+    expect(res.json()).toMatchObject({ error: { reason: "hash_mismatch" } });
+    expect(await parts(s.evidenceId)).toHaveLength(0);
+    const held = await gate({ teamId: s.teamId, evidenceId: s.evidenceId }, prisma as never);
+    expect(held).toMatchObject({ ok: false });
+  });
+
+  it("INGEST-002: a declared total over the limit gets the typed refusal, and no session", async () => {
+    const before = await prisma.$queryRaw<Array<{ n: bigint }>>`SELECT count(*) AS n FROM evidence_upload_sessions`;
+    const { getUploadSizeLimits } = await import("../src/services/reliability/upload-limits.service.js");
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A().teamId }, select: { organizationId: true } });
+    const evidence = await prisma.evidence.create({
+      data: { title: "too large", type: "VIDEO", status: "UPLOADING", teamId: A().teamId, organizationId: team.organizationId, ownerUserId: A().ownerUserId },
+      select: { id: true },
+    });
+    const res = await post("/v1/uploads/sessions", {
+      teamId: A().teamId,
+      evidenceId: evidence.id,
+      expectedPartCount: 1,
+      expectedTotalBytes: getUploadSizeLimits().maxUploadFileSizeBytes + 1,
+      targetPartIndex: 0,
+      originalFileName: "large.mov",
+      expectedMimeType: "video/quicktime",
+    });
+    expect(res.statusCode, res.body).toBe(413);
+    expect(res.json()).toMatchObject({ error: { reason: "evidence_too_large" } });
+    const after = await prisma.$queryRaw<Array<{ n: bigint }>>`SELECT count(*) AS n FROM evidence_upload_sessions`;
+    expect(after[0]?.n).toBe(before[0]?.n);
   });
 
   it("a bridge failure is reported as a failure, and the seal is refused meanwhile", async () => {

@@ -28,6 +28,11 @@ import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 
 // PHASE 12B CLUSTER 9 — the WorkspaceGovernancePolicy surface. A SEPARATE
 // engine from the reviewer SLA policy this page already administers: different
@@ -106,6 +111,9 @@ function GovernancePolicyPageInner() {
     load();
   }, [load]);
 
+  // Saving always asks for a fresh step-up; the page says so and now answers it.
+  const stepUp = useStepUpAction({ teamId });
+
   const save = useCallback(async () => {
     if (!teamId) return;
     setBusy(true);
@@ -117,27 +125,30 @@ function GovernancePolicyPageInner() {
           cleanOverrides[k] = Math.floor(v);
         }
       }
-      const res = await apiFetch("/v1/reviewer-ops/sla-policy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          overrides:
-            Object.keys(cleanOverrides).length > 0 ? cleanOverrides : undefined,
-          flags: Object.keys(flagDraft).length > 0 ? flagDraft : undefined,
+      const res = await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch("/v1/reviewer-ops/sla-policy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(stepUpHeaders ?? {}) },
+          body: JSON.stringify({
+            teamId,
+            overrides:
+              Object.keys(cleanOverrides).length > 0 ? cleanOverrides : undefined,
+            flags: Object.keys(flagDraft).length > 0 ? flagDraft : undefined,
+          }),
         }),
-      });
+      );
       setPolicy(res.policy);
       setFlags(res.flags);
       setNotice("Policy saved.");
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       setError(
         toSafeUserError(err, { message: "Could not save policy." }).message,
       );
     } finally {
       setBusy(false);
     }
-  }, [teamId, overrides, flagDraft]);
+  }, [teamId, overrides, flagDraft, stepUp]);
 
   // PageRouteGate already guaranteed ALLOWED. If teamId is null the
   // envelope hasn't hydrated yet — render the bounded loading shell.
@@ -369,6 +380,7 @@ function GovernancePolicyPageInner() {
         through a different contract (expectedVersion + step-up).
       */}
       <WorkspaceGovernancePolicySection />
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

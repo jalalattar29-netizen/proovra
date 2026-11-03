@@ -649,6 +649,7 @@ function MatterQueueFilters({
                 ]}
                 onChange={(next) => set("riskLevel", next as MatterRiskLevel | "")}
                 ariaLabel={"Risk level"}
+                style={{ width: 160, flex: "0 0 160px" }}
                 triggerProps={{ "data-matter-queue-risk-select": "" }}
               />
             ) : null}

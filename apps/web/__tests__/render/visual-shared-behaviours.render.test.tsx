@@ -199,12 +199,17 @@ describe("RT-008: a migrated select keeps its hooks and its reason", () => {
 describe("V-018: the help nudge and the page's primary controls", () => {
   const css = read("components/ai/assistant.css");
 
-  it("stays in the launcher's column and never takes a pointer", () => {
+  it("is spoken, not drawn over the page, and never takes a pointer", () => {
     const hint = rulesFor(css, ".assistant-hint")[0];
     expect(hint).toContain("pointer-events: none");
-    expect(hint).toContain("inset-inline-end: 0");
-    expect(hint).toContain("inline-size: 3rem");
-    expect(hint).not.toMatch(/right:\s*3\.75rem/);
+    expect(hint).toContain("clip-path: inset(50%)");
+  });
+
+  it("mounts the launcher in the header, which holds no page controls", () => {
+    expect(read("components/app-shell-v2/AppAccountToolbar.tsx")).toContain('id="app-header-assistant-slot"');
+    const widget = read("components/ai/ProovraChatWidget.tsx");
+    expect(widget).toContain('document.getElementById("app-header-assistant-slot")');
+    expect(widget).toContain("createPortal(launcher, headerSlot)");
   });
 
   it("leaves room at the foot of every page to scroll clear of the launcher", () => {

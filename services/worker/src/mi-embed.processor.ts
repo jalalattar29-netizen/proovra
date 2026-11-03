@@ -32,6 +32,7 @@ import { JOB_NAMES } from "@proovra/shared";
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
+import { workspaceContractWithheld } from "./workspace-billing.js";
 
 type ProviderHandle = {
   name: string;
@@ -412,6 +413,14 @@ export async function processMiEmbedJob(
     }
   } catch {
     /* policy table not migrated in this environment — env gates still apply */
+  }
+
+  if (await workspaceContractWithheld(teamId)) {
+    logger.info(
+      { requestId, jobId: job.id ?? null, teamId },
+      "mi_embed.contract_withheld_completed",
+    );
+    return;
   }
 
   // PHASE 12 — POINT 5, STEP 7: the vector objects must actually EXIST.

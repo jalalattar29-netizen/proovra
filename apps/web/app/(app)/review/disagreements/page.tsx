@@ -37,6 +37,7 @@
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -197,7 +198,7 @@ function DisagreementsShell() {
           setPickerArmed(null);
           await refresh();
         } else {
-          setBanner(`Refused: ${res.denial}`);
+          setBanner(reviewerDenialMessage(res.denial));
         }
       } finally {
         setBusyDisagreementId(null);

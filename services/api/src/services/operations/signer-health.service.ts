@@ -25,6 +25,7 @@
  *     `signing_disabled`.
  */
 
+import { signerProviderToken } from "@proovra/shared-runtime";
 import { GetPublicKeyCommand, KMSClient } from "@aws-sdk/client-kms";
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -128,9 +129,7 @@ export async function probeSignerHealth(deps: SignerHealthDeps = {}): Promise<Si
   return withProovraSpan(
     PROOVRA_SPAN_NAMES.SIGNER_HEALTH_CHECK,
     {
-      provider: (process.env.SIGNER_PROVIDER ?? "local-pem")
-        .trim()
-        .toLowerCase(),
+      provider: signerProviderToken(process.env.SIGNER_PROVIDER),
     },
     () => probeSignerHealthInner(deps.registry ?? defaultPrisma),
   );
@@ -141,15 +140,7 @@ async function probeSignerHealthInner(
 ): Promise<SignerHealthSnapshot> {
   bump("signer_health_check_total");
   const checkedAtUtc = new Date().toISOString();
-  const providerRaw = (process.env.SIGNER_PROVIDER ?? "local-pem")
-    .trim()
-    .toLowerCase();
-  const provider: SignerHealthSnapshot["provider"] =
-    providerRaw === "aws-kms" || providerRaw === "aws_kms"
-      ? "aws_kms"
-      : providerRaw === "disabled"
-        ? "disabled"
-        : "local_pem";
+  const provider: SignerHealthSnapshot["provider"] = signerProviderToken(process.env.SIGNER_PROVIDER);
 
   if (provider === "disabled") {
     bump("signer_health_degraded_total");

@@ -2148,7 +2148,13 @@ async function recordDeclaredTypeObservations(evidenceId: string): Promise<void>
       : evidence.storageBucket && evidence.storageKey
         ? [{ partIndex: 0, mimeType: evidence.mimeType, originalFileName: evidence.originalFileName, storageBucket: evidence.storageBucket, storageKey: evidence.storageKey, storageVersionId: evidence.storageVersionId }]
         : [];
-  const mismatches: Array<{ partIndex: number; declaredMime: string | null; detected: string | null }> = [];
+  const mismatches: Array<{
+    partIndex: number;
+    declaredMime: string | null;
+    detected: string | null;
+    reason: string | null;
+    executableBytes: boolean;
+  }> = [];
   for (const file of files) {
     const head = await getObjectRange({
       bucket: file.storageBucket,
@@ -2164,8 +2170,17 @@ async function recordDeclaredTypeObservations(evidenceId: string): Promise<void>
       head: new Uint8Array(head),
       source: "authenticated",
     });
-    if (findings.reason === "mime_content_mismatch") {
-      mismatches.push({ partIndex: file.partIndex, declaredMime: file.mimeType ?? null, detected: findings.sniffedMime ?? null });
+    // Every concern the classifier raised, not only a family mismatch. It checks
+    // executables first, so a Windows executable declared image/png classified as
+    // dangerous and left nothing on the chain: the case this record exists for.
+    if (findings.mismatch !== "none") {
+      mismatches.push({
+        partIndex: file.partIndex,
+        declaredMime: file.mimeType ?? null,
+        detected: findings.sniffedMime ?? null,
+        reason: findings.reason,
+        executableBytes: findings.executable,
+      });
     }
   }
   if (mismatches.length > 0) {
@@ -2173,7 +2188,14 @@ async function recordDeclaredTypeObservations(evidenceId: string): Promise<void>
       appendCustodyEventTx(tx, {
         evidenceId,
         eventType: prismaPkg.CustodyEventType.TECHNICAL_VERIFICATION_CHECKED,
-        payload: { source: "DECLARED_TYPE_CHECK", outcome: "BYTES_DIFFER_FROM_DECLARED_TYPE", files: mismatches.slice(0, 20) },
+        payload: {
+          source: "DECLARED_TYPE_CHECK",
+          // A dangerous name on ordinary bytes is a fact about the name.
+          outcome: mismatches.some((m) => m.executableBytes || m.reason === "mime_content_mismatch")
+            ? "BYTES_DIFFER_FROM_DECLARED_TYPE"
+            : "DANGEROUS_FILE_NAME_OR_DECLARED_TYPE",
+          files: mismatches.slice(0, 20),
+        },
       }),
     );
   }

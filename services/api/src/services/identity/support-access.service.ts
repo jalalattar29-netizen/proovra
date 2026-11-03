@@ -69,6 +69,42 @@ export const SUPPORT_FORBIDDEN_ACTIONS = [
   "break_glass.create",
 ] as const;
 
+/**
+ * The same boundary for routes that never ask the guard about a permission: the
+ * Organization routes on `checkOrgAccess` and the routes that read a membership
+ * row for themselves. An ELEVATED context passes `requireAuth`, so on these the
+ * list above was never consulted and the grant wrote with the actor's own authority.
+ * Matched on the route pattern, so a new sibling route is covered by its prefix.
+ */
+const SUPPORT_FORBIDDEN_ROUTES: readonly RegExp[] = [
+  // Organization administration: members, invites, domains, ownership, closure.
+  /^\/v1\/orgs(\/|$)/,
+  /^\/v1\/org-invites\//,
+  // Workspace membership, ownership and closure.
+  /^\/v1\/(teams|workspaces)\/[^/]+\/(members|invites|transfer-ownership|closure|reopen|leave|external-grants)(\/|$)/,
+  /^\/v1\/(teams|workspaces)\/[^/]+$/,
+  /^\/v1\/teams\/invites\//,
+  // Destruction, legal hold, retention.
+  /^\/v1\/lifecycle\/(destruction|legal-holds|retention|archive)(\/|$)/,
+  /^\/v1\/governance\/(destruction-reviews|legal-holds|case-legal-holds|retention-policies|reconcile-retention)(\/|$)/,
+  // Security policy, identity configuration, sessions.
+  /^\/v1\/security-policy(\/|$)/,
+  /^\/v1\/identity(\/|$)/,
+  /^\/v1\/identity-security\/(?!step-up\/)/,
+  /^\/v1\/admin\/identity(\/|$)/,
+  /^\/v1\/scim(\/|$)/,
+  // Credentials that outlive the grant.
+  /^\/v1\/integrations\/(api-keys|webhooks)(\/|$)/,
+  // Billing.
+  /^\/v1\/billing(\/|$)/,
+  /^\/v1\/break-glass(\/|$)/,
+];
+
+/** "POST /v1/orgs/:id": may a support context write here at all? */
+export function isSupportForbiddenRoute(routePattern: string): boolean {
+  return SUPPORT_FORBIDDEN_ROUTES.some((route) => route.test(routePattern));
+}
+
 export type SupportAccessGrant = {
   id: string;
   supportUserId: string;

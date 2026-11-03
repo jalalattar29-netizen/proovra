@@ -310,18 +310,51 @@ export async function publishImmutableArtifact(
     }
   }
 
-  const observed = await headVersion(input.bucket, input.key, versionId);
+  const read = await readBackPublishedArtifact({
+    bucket: input.bucket,
+    key: input.key,
+    versionId,
+    sizeBytes,
+    sha256Base64: input.sha256Base64,
+    lockMode: lock.mode ?? null,
+    minimumRetainUntil: lock.retainUntilDate ?? null,
+  });
+  if (read.mismatches.length > 0) throw new StoragePublicationVerifyError(read.mismatches);
+  return read.artifact;
+}
+
+/**
+ * Read one stored version back and compare it with what was sent: the check a
+ * publication ends with, and the check before a verified object is reused.
+ */
+export async function readBackPublishedArtifact(input: {
+  bucket: string;
+  key: string;
+  versionId: string | null;
+  sizeBytes: number;
+  sha256Base64: string;
+  lockMode: string | null;
+  minimumRetainUntil: Date | null;
+}): Promise<{ mismatches: string[]; artifact: PublishedArtifact }> {
+  const sizeBytes = input.sizeBytes;
+  const observed = await headVersion(input.bucket, input.key, input.versionId);
   const mismatches = comparePublishedObject({
     expected: {
       sizeBytes,
       sha256Base64: input.sha256Base64,
-      objectLockMode: lock.mode ?? null,
-      minimumRetainUntil: lock.retainUntilDate ?? null,
+      objectLockMode: input.lockMode as ObjectLockMode | null,
+      minimumRetainUntil: input.minimumRetainUntil,
     },
     observed,
   });
-  if (mismatches.length > 0) throw new StoragePublicationVerifyError(mismatches);
+  return { mismatches, artifact: publishedFrom(input, sizeBytes, observed) };
+}
 
+function publishedFrom(
+  input: { bucket: string; key: string; sha256Base64: string },
+  sizeBytes: number,
+  observed: Awaited<ReturnType<typeof headVersion>>,
+): PublishedArtifact {
   return {
     bucket: input.bucket,
     key: input.key,

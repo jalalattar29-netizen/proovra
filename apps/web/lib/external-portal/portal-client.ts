@@ -85,10 +85,12 @@ async function portalFetch(
   const res = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
   if (!res.ok) {
     let denial: string | null = null;
+    let code: string | null = null;
     let mfa: PortalMfaDetail | null = null;
     try {
       const body = await res.json();
       denial = body?.denial ?? null;
+      code = body?.error?.code ?? null;
       mfa = readMfaDetail(body);
     } catch {
       /* swallow */
@@ -98,6 +100,8 @@ async function portalFetch(
     (err as any).status = res.status;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (err as any).denial = denial;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (err as any).code = code;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (err as any).mfa = mfa;
     throw err;
@@ -154,12 +158,14 @@ function readMfaDetail(body: unknown): PortalMfaDetail | null {
 /** The denial and code detail carried by a failed portal request. */
 export function readPortalFailure(err: unknown): {
   denial: string | null;
+  code: string | null;
   status: number | null;
   mfa: PortalMfaDetail | null;
 } {
   const e = (err && typeof err === "object" ? err : {}) as Record<string, unknown>;
   return {
     denial: typeof e.denial === "string" ? e.denial : null,
+    code: typeof e.code === "string" ? e.code : null,
     status: num(e.status),
     mfa: (e.mfa as PortalMfaDetail | null | undefined) ?? null,
   };
@@ -211,6 +217,13 @@ export async function fetchPortalDashboard(): Promise<
 
 export async function markReviewOpened(workflowId: string): Promise<void> {
   await portalFetch(`/v1/portal/work/${workflowId}/view`, { method: "POST" });
+}
+
+/** The disclosure package behind a review, as a short-lived link. */
+export async function fetchReviewPackage(workflowId: string): Promise<{ url: string; packageSha256: string | null }> {
+  return (await portalFetch(`/v1/portal/work/${workflowId}/verification-package`, {
+    method: "GET",
+  })) as { url: string; packageSha256: string | null };
 }
 
 export type PortalComment = {

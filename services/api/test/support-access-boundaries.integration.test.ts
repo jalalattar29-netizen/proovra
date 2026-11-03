@@ -399,6 +399,37 @@ describe("support access boundaries", () => {
     expect((await prisma.teamMember.findUniqueOrThrow({ where: { id: target.memberId } })).status).toBe("ACTIVE");
   });
 
+  it("ELEVATED meets the forbidden areas on routes that never ask the guard, and may still write outside them", async () => {
+    const id = await grant({ accessLevel: "ELEVATED" });
+    const token = await enter(id);
+    const headers = { [WORKSPACE]: customer.w1, [CONTEXT]: token };
+
+    // Organization administration runs on checkOrgAccess, so the permission list alone never met it.
+    const orgName = `sab-${kit.tag()}`;
+    refusedByContext(await kit.call("PATCH", `/v1/orgs/${customer.orgId}`, staff, { name: orgName }, headers));
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: customer.orgId } })).name).not.toBe(orgName);
+    const denied = await auditRow("identity.support_access.action.denied", id);
+    expect(denied!.metadata).toMatchObject({ reason: "support_forbidden_action" });
+
+    const sessions = await prisma.revokedSession.count({ where: { userId: target.userId } });
+    refusedByContext(
+      await kit.call("POST", "/v1/identity-security/sessions/revoke-all", staff, { teamId: customer.w1, userId: target.userId }, headers),
+    );
+    expect(await prisma.revokedSession.count({ where: { userId: target.userId } })).toBe(sessions);
+
+    const keys = await prisma.apiCredential.count({ where: { teamId: customer.w1 } });
+    refusedByContext(
+      await kit.call("POST", "/v1/integrations/api-keys", staff, { teamId: customer.w1, name: "support key", scopes: ["integration.evidence.read"] }, headers),
+    );
+    expect(await prisma.apiCredential.count({ where: { teamId: customer.w1 } })).toBe(keys);
+
+    // Control: the same grant writes outside those areas, so the refusals above are the list's doing.
+    const name = `sab-elevated-${kit.tag()}`;
+    const created = await kit.call("POST", "/v1/cases", staff, { name, teamId: customer.w1 }, headers);
+    expect([200, 201], created.body).toContain(created.statusCode);
+    expect(await prisma.case.count({ where: { name } })).toBe(1);
+  });
+
   it("the customer sees the grant on its own audit trail: who, why, until when, and when it ended", async () => {
     const id = await grant();
     await enter(id);

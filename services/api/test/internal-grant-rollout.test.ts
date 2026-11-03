@@ -172,6 +172,7 @@ describe("internal-grant rollout — migration state", () => {
       "20281107000100_review_sla_due_soon_window",
       "20281107000200_communication_body_resendable",
       "20281107000300_platform_backup_records",
+      "20281108000100_subprocessor_name_per_workspace",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

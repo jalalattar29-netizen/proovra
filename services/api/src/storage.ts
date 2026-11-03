@@ -1004,16 +1004,22 @@ export async function tagObjectVersionTier(params: {
   );
 }
 
-/** Initiate a Glacier restore for a COLD/DEEP_ARCHIVE object. */
+/**
+ * Initiate a Glacier restore for a COLD/DEEP_ARCHIVE object. Pass the sealed
+ * version: on a versioned bucket the key alone names the current version, which
+ * is not the sealed one once anything newer was written (GOV-016).
+ */
 export async function restoreObject(params: {
   bucket: string;
   key: string;
+  versionId?: string | null;
   days?: number;
 }): Promise<void> {
   await s3.send(
     new RestoreObjectCommand({
       Bucket: params.bucket,
       Key: params.key,
+      ...(params.versionId ? { VersionId: params.versionId } : {}),
       RestoreRequest: { Days: params.days ?? 7, GlacierJobParameters: { Tier: "Standard" } },
     })
   );
@@ -1023,10 +1029,15 @@ export async function restoreObject(params: {
 export async function headObjectStorageClass(params: {
   bucket: string;
   key: string;
+  versionId?: string | null;
 }): Promise<string | null> {
   try {
     const res = await s3.send(
-      new HeadObjectCommand({ Bucket: params.bucket, Key: params.key })
+      new HeadObjectCommand({
+        Bucket: params.bucket,
+        Key: params.key,
+        ...(params.versionId ? { VersionId: params.versionId } : {}),
+      })
     );
     return res.StorageClass ?? "STANDARD";
   } catch {

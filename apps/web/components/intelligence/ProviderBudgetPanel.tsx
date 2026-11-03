@@ -16,6 +16,7 @@
  *   * NEVER raw provider payloads — counts + bands only.
  */
 
+import { intelligenceProviderLabel } from "../../lib/labels/workspaceOpsLabels";
 import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -160,7 +161,7 @@ export function ProviderBudgetPanel() {
               title={p.reason ?? ""}
               style={chipStyle(p.state)}
             >
-              {identifierLabel(p.provider)} · {identifierLabel(p.state)}
+              {intelligenceProviderLabel(p.provider)} · {identifierLabel(p.state)}
             </span>
           ))}
         </div>
@@ -173,7 +174,7 @@ export function ProviderBudgetPanel() {
           <strong data-intelligence-total-cost>
             ${totalCostUsd.toFixed(2)}
           </strong>{" "}
-          · NEVER includes blocked calls (those show as <code>BLOCK</code> in
+          · never includes blocked calls (those show as <code>BLOCK</code> in
           the audit centre).
         </p>
         <table
@@ -193,7 +194,7 @@ export function ProviderBudgetPanel() {
             {usageSummary.map((r, idx) => (
               <tr key={`${r.provider}:${r.operation}:${idx}`}>
                 <td style={td}>
-                  <span>{identifierLabel(r.provider)}</span>
+                  <span>{intelligenceProviderLabel(r.provider)}</span>
                 </td>
                 <td style={td}>{identifierLabel(r.operation)}</td>
                 <td style={td}>{r.unit}</td>
@@ -245,7 +246,7 @@ export function ProviderBudgetPanel() {
                 >
                   <td style={td}>{identifierLabel(b.scope)}</td>
                   <td style={td}>
-                    {b.provider ? <span>{identifierLabel(b.provider)}</span> : "all"}
+                    {b.provider ? <span>{intelligenceProviderLabel(b.provider)}</span> : "all"}
                   </td>
                   <td style={td}>{b.period}</td>
                   <td style={td}>
@@ -275,7 +276,7 @@ export function ProviderBudgetPanel() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
             gap: 8,
             marginBottom: 6,
           }}

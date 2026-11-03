@@ -533,7 +533,7 @@ function OrganizationsListPageInner() {
                   data-action="open-workspace-admin"
                   data-org-id={org.organizationId}
                 >
-                  Workspace admin
+                  Workspace administration
                 </Link>
               </div>
             </li>

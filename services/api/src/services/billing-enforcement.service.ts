@@ -1321,6 +1321,16 @@ export async function scopeIncludesAiOperations(scope: WorkspaceScope): Promise<
   );
 }
 
+/**
+ * The same answer from a bare workspace id, for the routes that hold nothing else
+ * (BILLING-007). The AI policy reads an omitted `planAllowed` as entitled, so a
+ * route that did not ask spent AI on a suspended contract.
+ */
+export async function workspaceIncludesAiOperations(teamId: string): Promise<boolean> {
+  const { denial } = await evaluateWorkspaceAiOperation({ teamId });
+  return denial !== "AI_NOT_INCLUDED" && denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED";
+}
+
 export async function evaluateWorkspaceAiOperation(input: {
   teamId: string;
 }): Promise<AiOperationAllowance> {

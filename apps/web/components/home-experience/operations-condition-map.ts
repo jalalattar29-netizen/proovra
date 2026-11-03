@@ -109,6 +109,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "platform.telemetry_stale",
   "platform.worker_heartbeat_stale",
   "platform.bitcoin_verifier_unavailable",
+  "platform.unreferenced_published_artifacts",
   "intake.delivery_failed",
   "capture.upload_stalled",
   "capture.legacy_upload_session_signal",
@@ -487,6 +488,10 @@ export const HOME_CONDITION_REPRESENTATION: Record<
   "platform.bitcoin_verifier_unavailable": {
     kind: "PLATFORM",
     because: "PLATFORM_INTERNAL: the platform's Bitcoin verifier node; no workspace caused it and recorded attestations stay recorded.",
+  },
+  "platform.unreferenced_published_artifacts": {
+    kind: "PLATFORM",
+    because: "PLATFORM_INTERNAL: locked objects in the platform's bucket that no row references; no workspace can act on them.",
   },
   "job.background_failure": {
     kind: "PLATFORM",

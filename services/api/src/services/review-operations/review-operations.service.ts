@@ -1265,9 +1265,11 @@ export async function bulkReviewAction(
 
   // Record a single BULK_ACTION event on the first workflow (audit
   // breadcrumb only — individual events are recorded above per item).
-  if (uniqueIds[0]) {
-    const first = await client.evidenceReviewWorkflow.findUnique({
-      where: { evidenceId: uniqueIds[0] },
+  // On the first item that was acted on: the first id of the request can be anyone's.
+  const firstActedOn = items.find((item) => item.ok)?.evidenceId;
+  if (firstActedOn) {
+    const first = await client.evidenceReviewWorkflow.findFirst({
+      where: { evidenceId: firstActedOn, teamId: input.teamId },
     });
     if (first) {
       await recordEvent(

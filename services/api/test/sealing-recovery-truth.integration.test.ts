@@ -64,6 +64,23 @@ describe("sealing and its recovery (live PostgreSQL 16, MinIO)", () => {
     });
   });
 
+  it("INGEST-007: an executable declared as an image is on the chain, with what was found", async () => {
+    const pe = Buffer.concat([Buffer.from("MZ"), randomBytes(62)]);
+    const id = await record([{ body: pe, mime: "image/png" }]);
+    const res = await complete(id);
+    expect(res.statusCode, res.body).toBeLessThan(300);
+    await vi.waitFor(async () => {
+      const row = await prisma.custodyEvent.findFirst({
+        where: { evidenceId: id, eventType: "TECHNICAL_VERIFICATION_CHECKED", payload: { path: ["source"], equals: "DECLARED_TYPE_CHECK" } },
+        select: { payload: true },
+      });
+      expect(row?.payload).toMatchObject({
+        outcome: "BYTES_DIFFER_FROM_DECLARED_TYPE",
+        files: [{ partIndex: 0, declaredMime: "image/png", reason: "executable_or_dangerous_type", executableBytes: true }],
+      });
+    });
+  });
+
   it("positive control: a file that is what it declares leaves no such row", async () => {
     const id = await record([{ body: Buffer.from("plain words"), mime: "text/plain" }]);
     expect((await complete(id)).statusCode).toBeLessThan(300);

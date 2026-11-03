@@ -117,8 +117,8 @@ describe("Phase 5 §8.4/§8.5 — source contracts", () => {
     const routes = read("routes/external-portal.routes.ts");
     const gateCalls =
       routes.match(/requireWorkflowInScope\(s, workflowId, reply\)/g) ?? [];
-    // comments GET+POST, decision POST, decisions GET, view POST.
-    expect(gateCalls.length).toBe(5);
+    // comments GET+POST, decision POST, decisions GET, view POST, verification-package GET.
+    expect(gateCalls.length).toBe(6);
     expect(routes).toContain("resolveWorkflowInGrantScope");
     // Reads gate on capability (comment/decide OR history.read).
     expect(routes).toMatch(
