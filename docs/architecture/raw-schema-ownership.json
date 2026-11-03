@@ -89,17 +89,17 @@
   "categoryCounts": {
     "COLUMN_DEFAULT_DECLARATION": 101,
     "COLUMN_TYPE_DECLARATION": 110,
-    "INDEX_DECLARATION": 203,
+    "INDEX_DECLARATION": 201,
     "FOREIGN_KEY_DECLARATION": 182,
     "INDEX_NAME_CONVENTION": 266,
     "UNIQUE_DECLARATION": 5,
-    "PARTIAL_INDEX_DECLARATION": 2,
+    "PARTIAL_INDEX_DECLARATION": 5,
     "PARTIAL_UNIQUE_DECLARATION": 14,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 888,
+  "totalRegisteredObjects": 889,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -1663,6 +1663,22 @@
       "category": "INDEX_NAME_CONVENTION"
     },
     {
+      "table": "destruction_reviews",
+      "sign": "-",
+      "object": "Removed index on columns (execution_not_before_utc, execution_requested_at_utc)",
+      "category": "PARTIAL_INDEX_DECLARATION",
+      "indexName": "destruction_reviews_execution_due_idx",
+      "columns": [
+        "execution_not_before_utc",
+        "execution_requested_at_utc"
+      ],
+      "predicate": "status = 'APPROVED' AND execution_requested_at_utc IS NOT NULL",
+      "createdBy": "20281102000000_destruction_governance_truth",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unfiltered @@index would cover every review ever opened, most of them closed, which is the opposite of what the predicate is for.",
+      "prismaExpressible": false,
+      "purpose": "The execution sweep asks which approved destructions a person has requested and whose not-before time has passed. Only APPROVED reviews with a request can be due, so the predicate keeps the index proportional to destructions awaiting execution."
+    },
+    {
       "table": "discussion_mentions",
       "sign": "*",
       "object": "Renamed index discussion_mentions_msg_user_unique to discussion_mentions_message_id_mentioned_user_id_key",
@@ -1940,6 +1956,37 @@
       "sign": "*",
       "object": "Renamed index evidence_retention_policy_version_idx to evidence_retention_policy_version_id_idx",
       "category": "INDEX_NAME_CONVENTION"
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (destruction_partial_at_utc)",
+      "category": "PARTIAL_INDEX_DECLARATION",
+      "indexName": "evidence_destruction_partial_idx",
+      "columns": [
+        "destruction_partial_at_utc"
+      ],
+      "predicate": "destruction_partial_at_utc IS NOT NULL",
+      "createdBy": "20281102000000_destruction_governance_truth",
+      "mayBeModifiedBy": "a forward migration only. The datamodel must never declare it: an unfiltered @@index over a column that is NULL for every record not mid-destruction would index the whole evidence table.",
+      "prismaExpressible": false,
+      "purpose": "Finds the records whose destruction stopped part-way, so the operator surface and the retry can resume them. The column is NULL for every other record, so the predicate keeps the index to the records that need attention."
+    },
+    {
+      "table": "evidence",
+      "sign": "-",
+      "object": "Removed index on columns (team_id, verification_disclosure_changed_at_utc)",
+      "category": "PARTIAL_INDEX_DECLARATION",
+      "indexName": "evidence_team_id_disclosure_changed_idx",
+      "columns": [
+        "team_id",
+        "verification_disclosure_changed_at_utc"
+      ],
+      "predicate": "verification_disclosure_changed_at_utc IS NOT NULL",
+      "createdBy": "20281111000100_capacity_evidence_disclosure_changed_idx",
+      "mayBeModifiedBy": "a forward migration only (built CONCURRENTLY in a single-statement file). The datamodel must never declare it: an unfiltered @@index would cover every evidence row, most of which never had a disclosure change.",
+      "prismaExpressible": false,
+      "purpose": "The command center lists a workspace's recent verification-disclosure changes newest first. Before this index that read was a parallel sequential scan of every evidence row (3.9 s on the capacity fixture); the predicate holds only the rows that had a change."
     },
     {
       "table": "evidence_annotations",
@@ -4777,12 +4824,6 @@
     },
     {
       "table": "status_components",
-      "sign": "-",
-      "object": "Removed unique index on columns (key)",
-      "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "status_components",
       "sign": "*",
       "object": "Renamed index status_components_team_key_uniq to status_components_team_id_key_key",
       "category": "INDEX_NAME_CONVENTION"
@@ -4971,12 +5012,6 @@
       "table": "subprocessors",
       "sign": "-",
       "object": "Removed index on columns (team_id, state)",
-      "category": "INDEX_DECLARATION"
-    },
-    {
-      "table": "subprocessors",
-      "sign": "-",
-      "object": "Removed unique index on columns (name)",
       "category": "INDEX_DECLARATION"
     },
     {
