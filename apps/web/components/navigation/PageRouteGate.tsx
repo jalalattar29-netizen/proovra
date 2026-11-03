@@ -42,7 +42,7 @@ import {
 import { getRouteDefinition } from "../../lib/navigation/routeRegistry";
 import { resolveRouteAccess } from "../../lib/navigation/routeAccessResolver";
 import { routeAccessInputFromEnvelope } from "../../lib/navigation/useRouteDestination";
-import { isContextResolving } from "../../lib/platform-context/types";
+import { hasNoContextYet } from "../../lib/platform-context/types";
 import { ProovraDenialState } from "../feedback/ProovraDenialState";
 import type { SystemStateAction } from "../feedback/ProovraSystemState";
 
@@ -106,10 +106,10 @@ export function PageRouteGate({
     );
   }
 
-  // No envelope yet (or the previous workspace's, mid-switch): the context has
+  // No envelope yet: the context has
   // not decided, so neither may this gate. Reading the missing envelope as "no
   // workspace" showed "Workspace setup required" on /home while it loaded.
-  if (isContextResolving(state)) {
+  if (hasNoContextYet(state)) {
     return (
       <div
         data-page-route-gate-state="resolving"

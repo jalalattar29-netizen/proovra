@@ -15,7 +15,7 @@ import {
   useGlobalRuntimeState,
   type GlobalRuntimeSeverity,
 } from "../../lib/useGlobalRuntimeState";
-import { isContextResolving, usePlatformContext } from "../../lib/platform-context";
+import { hasNoContextYet, usePlatformContext } from "../../lib/platform-context";
 import { ROUTE_REGISTRY, type RouteDefinition } from "../../lib/navigation/routeRegistry";
 import { routeIconFor } from "../../lib/navigation/routeIcons";
 import {
@@ -501,7 +501,7 @@ export function AppSidebarV2() {
   // Nothing is listed until the context has decided: with no envelope yet the
   // resolver reads an unknown workspace as one that needs setting up, keeps
   // those entries visible, and a Personal user briefly saw Review.
-  const contextResolving = isContextResolving(state);
+  const contextResolving = hasNoContextYet(state);
   const resolved = (contextResolving ? [] : ROUTE_REGISTRY).map((route: RouteDefinition) => {
     const access = resolveRouteAccess({
       route,

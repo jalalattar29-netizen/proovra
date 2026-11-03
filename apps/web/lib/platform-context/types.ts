@@ -765,15 +765,25 @@ export type PlatformContextState =
  * screen belongs to a workspace being switched away from. Nothing may decide
  * access in this state. A gate that read the missing envelope as "no
  * workspace" showed "Workspace setup required" on /home while the context was
- * still loading, and the sidebar listed Review to a Personal user. SurfaceGate,
- * PageRouteGate and the sidebar all ask this one question.
+ * still loading, and the sidebar listed Review to a Personal user. SurfaceGate
+ * asks this question.
  */
 export function isContextResolving(s: PlatformContextState): boolean {
   return (
-    s.name === "IDLE" ||
-    s.name === "LOADING_CONTEXT" ||
+    hasNoContextYet(s) ||
     (s.name === "SWITCHING" && s.targetWorkspaceId !== s.previous.workspace.id)
   );
+}
+
+/**
+ * NO ENVELOPE HAS ARRIVED AT ALL (first load). PageRouteGate and the sidebar
+ * wait on this, not on a switch: during a switch they keep the page mounted on
+ * the previous envelope, because a page that unmounts mid-switch remounts
+ * already in the new workspace and loses what it does on a switch (Operations
+ * drops the previous tenant's `?incident=` on the change it no longer sees).
+ */
+export function hasNoContextYet(s: PlatformContextState): boolean {
+  return s.name === "IDLE" || s.name === "LOADING_CONTEXT";
 }
 
 // Convenience predicate used by the workspace switcher + tests.
