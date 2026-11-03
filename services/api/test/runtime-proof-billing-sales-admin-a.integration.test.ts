@@ -729,10 +729,12 @@ describe("K7-A — platform admin sales + billing actions (live PostgreSQL 16)",
       const request = await prisma.enterpriseProvisioningRequest.findUniqueOrThrow({ where: { idempotencyKey } });
       expect(request).toMatchObject({ status: "COMPLETED", resultOrganizationId: org.id, requestedByUserId: op.userId });
 
-      const orgEvent = await prisma.organizationAuditEvent.findFirstOrThrow({
+      // Two events, each its own actor: the operator provisioned, the owner's
+      // acceptance completed it. An unordered findFirst returned either.
+      const orgEvents = await prisma.organizationAuditEvent.findMany({
         where: { organizationId: org.id, eventType: "ENTERPRISE_PROVISIONED" },
       });
-      expect(orgEvent.actorUserId).toBe(op.userId);
+      expect(orgEvents.map((e) => e.actorUserId).sort()).toEqual([op.userId, owner.userId].sort());
       const platform = await prisma.adminAuditLog.findFirstOrThrow({
         where: { action: "ENTERPRISE_PROVISIONED", resourceId: org.id },
       });

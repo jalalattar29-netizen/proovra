@@ -578,6 +578,9 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
 
   it("SearchIndexStrandedReconciler: finds drift, re-enqueues once, never duplicates", async () => {
     queued.reset();
+    // The scan is bounded and oldest-first, and on a shared database earlier
+    // suites' records can fill the default batch ahead of this one.
+    const WHOLE_BACKLOG = { batchSize: 1000 };
     // A record whose projection is MISSING and which has settled past the
     // grace window. `updatedAt` is set explicitly because the selector
     // compares it against the projection's own timestamp.
@@ -588,7 +591,7 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
       new Date(Date.now() - 48 * 60 * 60 * 1000),
     );
 
-    const first = await searchRecon.runSearchIndexReconciler({});
+    const first = await searchRecon.runSearchIndexReconciler(WHOLE_BACKLOG);
     expect(first.ok).toBe(true);
     expect(first.missing).toBeGreaterThanOrEqual(1);
     expect(queued.searchIndex.some((q) => q.sourceId === drifted)).toBe(true);
@@ -621,8 +624,8 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
     // Two overlapping ticks collapse onto one live job per source.
     const before = queued.searchIndex.filter((q) => q.sourceId === drifted).length;
     const [a, b] = await Promise.all([
-      searchRecon.runSearchIndexReconciler({}),
-      searchRecon.runSearchIndexReconciler({}),
+      searchRecon.runSearchIndexReconciler(WHOLE_BACKLOG),
+      searchRecon.runSearchIndexReconciler(WHOLE_BACKLOG),
     ]);
     expect(a.ok && b.ok).toBe(true);
     const after = queued.searchIndex.filter((q) => q.sourceId === drifted).length;
