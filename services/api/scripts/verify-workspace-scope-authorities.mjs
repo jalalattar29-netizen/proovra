@@ -263,6 +263,18 @@ const ALLOWLIST = [
       "owner. Binding it to one owner would strand every other owner's record.",
   },
   {
+    file: "services/worker/src/governance/archive-tier-auto-transition.worker.ts",
+    symbol: "runArchiveTierAutoTransitions",
+    reason:
+      "Platform discovery, not a tenant population read: which workspaces hold " +
+      "a record past the first tier threshold (6a54a7390), so a workspace behind " +
+      "hundreds of older ones is still visited. `groupBy({ by: ['teamId'] })` " +
+      "cannot attribute a NULL-team row to a workspace, and the result only " +
+      "selects which SHARED workspaces (`isPersonal: false`, the team read right " +
+      "after it) are swept. Each one's records are then read under its canonical " +
+      "scope, which for a non-personal workspace is exactly team_id = workspace.",
+  },
+  {
     file: "src/services/identity/org-security-policy.service.ts",
     symbol: "*",
     reason:
