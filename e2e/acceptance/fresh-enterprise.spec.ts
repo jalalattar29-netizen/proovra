@@ -842,9 +842,9 @@ test("S19B bulk invite names the workspace, and the invitee lands in it", async 
   await page.getByTestId("bulk-invite-workspace-role").click();
   await page.getByRole("option", { name: /^Viewer$/ }).click();
   await page.getByTestId("bulk-invite-preview").click();
-  await expect(page.getByTestId("bulk-invite-preview-table")).toContainText("WOULD_INVITE");
+  await expect(page.getByTestId("bulk-invite-preview-table")).toContainText("Would invite");
   await page.getByTestId("bulk-invite-send").click();
-  await expect(page.getByTestId("bulk-invite-result-table")).toContainText("INVITED");
+  await expect(page.getByTestId("bulk-invite-result-table")).toContainText(/Invited/);
   await shot(page, "s19b-bulk-sent");
   await keepProfile(context, owner, s, "owner");
   await context.close();

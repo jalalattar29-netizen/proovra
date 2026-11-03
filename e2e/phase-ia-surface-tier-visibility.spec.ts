@@ -207,12 +207,8 @@ async function loginAsPersonalUser(page: Page): Promise<GuestSession> {
   // two VISIBLE forms would fail here as they should.
   await page.locator('input[placeholder="Email"]:visible').fill(session.email);
   await page.locator('input[placeholder="Password"]:visible').fill(SESSION_PASSWORD);
-  // The form will not submit without this. Sign-in requires agreeing to
-  // the Terms, Privacy and Cookie policies, and refuses with
-  // "You must accept the Terms of Service, Privacy Policy, and Cookie
-  // Policy before continuing." — a refusal that renders in the page
-  // rather than as a failed request, so a fixture that skips it simply
-  // waits on a navigation that is never coming.
+  // Sign-in asks nothing about the terms (RT-015): an owed acceptance is a
+  // step after sign-in, and this fixture account has accepted at registration.
   await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').click();
   // Landing on /home is the proof the session exists. Without this wait a
   // later assertion could read the login page again and call it a pass.
