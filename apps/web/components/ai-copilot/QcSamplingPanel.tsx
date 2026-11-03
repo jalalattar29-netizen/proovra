@@ -1,4 +1,6 @@
 "use client";
+import { AppListbox } from "../app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { formatUserDateTime } from "../../lib/date";
 
 /**
@@ -134,9 +136,14 @@ export function QcSamplingPanel() {
           <span className="app-chip">Human quality control</span>
           <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
             Strategy
-            <select value={strategy} onChange={(e) => setStrategy(e.target.value)} aria-label="Sampling strategy">
-              {STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <AppListbox
+              value={strategy}
+              options={[
+                ...STRATEGIES.map((s) => ({ value: s.value, label: s.label })),
+              ]}
+              onChange={(next) => setStrategy(next)}
+              ariaLabel={"Sampling strategy"}
+            />
           </label>
         </span>
       </div>
@@ -147,7 +154,7 @@ export function QcSamplingPanel() {
       </p>
 
       {state.kind === "loading" ? <p style={{ opacity: 0.6 }} aria-live="polite">Loading samples…</p> : null}
-      {state.kind === "denied" ? <div className="app-alert" role="alert">You are not a member of this workspace.</div> : null}
+      {state.kind === "denied" ? <div className="app-alert" role="alert">Your role in this workspace does not include QC sampling.</div> : null}
       {state.kind === "error" ? <div className="app-alert app-alert--warn" role="alert">QC sampling is unavailable right now. Review workflows are unaffected.</div> : null}
       {state.kind === "ready" && !state.catalogAvailable ? (
         <div className="app-alert">The AI run catalog is not provisioned in this environment yet.</div>
@@ -165,7 +172,7 @@ export function QcSamplingPanel() {
                 <li key={s.id} style={{ borderTop: "1px solid var(--app-border,#eee)", padding: "8px 0" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <strong>{FEATURE_LABEL[s.feature] ?? s.feature}</strong>
-                    <span className="app-chip">{s.status}</span>
+                    <span className="app-chip">{identifierLabel(s.status)}</span>
                     <span className={`app-chip ${chip.cls}`}>{chip.label}</span>
                     <span style={{ fontSize: 12, opacity: 0.6 }}>{formatUserDateTime(s.generatedAt)}</span>
                   </div>

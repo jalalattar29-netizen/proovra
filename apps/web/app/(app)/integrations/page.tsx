@@ -2605,7 +2605,7 @@ function ApiKeyUsageDialog({
                   </div>
                 </div>
                 <div style={mutedStyle}>
-                  {u.action}
+                  {identifierLabel(u.action)}
                   {u.failureReason ? <> · reason: {u.failureReason}</> : null}{" "}
                   · {formatUserDateTime(u.createdAt)}
                 </div>

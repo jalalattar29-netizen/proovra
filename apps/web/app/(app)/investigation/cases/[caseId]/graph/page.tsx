@@ -22,6 +22,8 @@
  *   * Tone is operational only. No forbidden vocabulary.
  */
 
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
+import { identifierLabel, identifierTextLabel } from "@proovra/shared";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -218,29 +220,21 @@ function CaseGraphExplorerPageBody() {
 
       <section style={controlsRowStyle}>
         <label style={controlsLabelStyle}>Node kind</label>
-        <select
+        <AppListbox
           value={nodeKindFilter}
-          onChange={(e) => setNodeKindFilter(e.target.value as NodeKindFilter)}
-          style={selectStyle}
-        >
-          {ALL_NODE_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {k === "ALL" ? "All node kinds" : k}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...ALL_NODE_KINDS.map((k) => ({ value: k, label: k === "ALL" ? "All node kinds" : k })),
+          ]}
+          onChange={(next) => setNodeKindFilter(next as NodeKindFilter)}
+        />
         <label style={controlsLabelStyle}>Edge type</label>
-        <select
+        <AppListbox
           value={edgeTypeFilter}
-          onChange={(e) => setEdgeTypeFilter(e.target.value as EdgeTypeFilter)}
-          style={selectStyle}
-        >
-          {ALL_EDGE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t === "ALL" ? "All relationships" : t}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...ALL_EDGE_TYPES.map((t) => ({ value: t, label: t === "ALL" ? "All relationships" : t })),
+          ]}
+          onChange={(next) => setEdgeTypeFilter(next as EdgeTypeFilter)}
+        />
         {data?.truncated ? (
           <span style={truncatedNoticeStyle}>
             Showing a bounded subgraph. Narrow your filters to see deeper
@@ -267,7 +261,7 @@ function CaseGraphExplorerPageBody() {
               .map(([kind, nodes]) => (
                 <li key={kind} style={nodeGroupStyle}>
                   <div style={nodeGroupHeaderStyle}>
-                    <span style={nodeKindBadgeStyle(kind)}>{kind}</span>
+                    <span style={nodeKindBadgeStyle(kind)}>{identifierLabel(kind)}</span>
                     <span style={nodeGroupCountStyle}>
                       {nodes.length}{" "}
                       {nodes.length === 1 ? "node" : "nodes"}
@@ -276,10 +270,10 @@ function CaseGraphExplorerPageBody() {
                   <ul style={nodeItemsStyle}>
                     {nodes.map((n) => (
                       <li key={n.id} style={nodeItemStyle}>
-                        <div style={nodeLabelStyle}>{n.safeLabel}</div>
+                        <div style={nodeLabelStyle}>{identifierTextLabel(n.safeLabel)}</div>
                         <div style={nodeMetaRowStyle}>
                           <span style={nodeMetaItemStyle}>
-                            {n.visibilityScope}
+                            {identifierLabel(n.visibilityScope)}
                           </span>
                         </div>
                       </li>
@@ -297,10 +291,9 @@ function CaseGraphExplorerPageBody() {
           <p style={emptyStyle}>Loading…</p>
         ) : filteredEdges.length === 0 ? (
           <p style={emptyStyle}>
-            No relationships recorded under the current filter. Once
-            evidence is assigned to this case, reports are generated, or
-            packages are produced, the graph reconciler materializes the
-            corresponding edges automatically.
+            No relationships recorded under the current filter. Links
+            appear on their own once evidence is assigned to this case or
+            reports and packages are produced.
           </p>
         ) : (
           <ul style={edgeListStyle}>
@@ -311,7 +304,7 @@ function CaseGraphExplorerPageBody() {
                 <li key={e.id} style={edgeRowStyle}>
                   <div style={edgeKindStyle}>
                     <span style={edgeTypeBadgeStyle(e.edgeType)}>
-                      {e.edgeType}
+                      {identifierLabel(e.edgeType)}
                     </span>
                     <span style={edgeConfidenceStyle(e.confidence)}>
                       {confidenceLabel(e.confidence)}
@@ -319,18 +312,18 @@ function CaseGraphExplorerPageBody() {
                   </div>
                   <div style={edgeArrowRowStyle}>
                     <span style={edgeEndpointStyle}>
-                      {src?.safeLabel ?? "—"}
+                      {src?.safeLabel ? identifierTextLabel(src.safeLabel) : "—"}
                     </span>
                     <span style={edgeArrowStyle}>→</span>
                     <span style={edgeEndpointStyle}>
-                      {tgt?.safeLabel ?? "—"}
+                      {tgt?.safeLabel ? identifierTextLabel(tgt.safeLabel) : "—"}
                     </span>
                   </div>
                   {e.safeSummary ? (
-                    <div style={edgeSummaryStyle}>{e.safeSummary}</div>
+                    <div style={edgeSummaryStyle}>{identifierTextLabel(e.safeSummary)}</div>
                   ) : null}
                   <div style={edgeMetaRowStyle}>
-                    <span style={edgeMetaItemStyle}>{e.sourceKind}</span>
+                    <span style={edgeMetaItemStyle}>{identifierLabel(e.sourceKind)}</span>
                   </div>
                 </li>
               );
@@ -466,15 +459,6 @@ const controlsLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   color: "#475569",
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: "5px 10px",
-  fontSize: 12,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  background: "#ffffff",
-  color: "#0f172a",
 };
 
 const truncatedNoticeStyle: React.CSSProperties = {

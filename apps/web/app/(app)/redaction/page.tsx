@@ -13,6 +13,7 @@
  * redaction workspace at `/redaction/[projectId]`.
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -256,9 +257,8 @@ function ProviderHealthRibbon({
           fontSize: 11.5,
         }}
       >
-        Ready means the provider&apos;s credentials are bound for this
-        workspace. Not configured is honest — the provider is wired but
-        its credentials are not yet present.
+        Ready means the provider is set up for this workspace. Not
+        configured means it is available but has no credentials yet.
       </small>
     </Card>
   );
@@ -329,7 +329,7 @@ function RedactionOpenForm({
         alignItems: "end",
       }}
     >
-      <Field label="Evidence id (UUID)">
+      <Field label="Evidence ID">
         <input
           data-redaction-open-evidence
           value={evidenceId}
@@ -339,21 +339,19 @@ function RedactionOpenForm({
         />
       </Field>
       <Field label="Artifact">
-        <select
-          data-redaction-open-artifact
+        <AppListbox
           value={artifactKind}
-          onChange={(e) =>
-            setArtifactKind(
-              e.target.value as "IMAGE" | "PDF" | "VIDEO" | "AUDIO",
-            )
-          }
-          style={inputStyle}
-        >
-          <option value="IMAGE">IMAGE</option>
-          <option value="PDF">PDF</option>
-          <option value="VIDEO">VIDEO</option>
-          <option value="AUDIO">AUDIO</option>
-        </select>
+          options={[
+            { value: "IMAGE", label: "Image" },
+            { value: "PDF", label: "PDF" },
+            { value: "VIDEO", label: "Video" },
+            { value: "AUDIO", label: "Audio" },
+          ]}
+          onChange={(next) => setArtifactKind(
+                        next as "IMAGE" | "PDF" | "VIDEO" | "AUDIO",
+                      )}
+          triggerProps={{ "data-redaction-open-artifact": "" }}
+        />
       </Field>
       <Field label="Title (optional)">
         <input

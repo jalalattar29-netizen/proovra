@@ -14,6 +14,7 @@
  * proof", or "impossible to bypass".
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -387,7 +388,7 @@ function SecurityCenterPageInner() {
               {policy ? (
                 <>
                   <p style={{ ...mutedStyle, marginTop: 0 }}>
-                    Current level: <strong>{policy.level}</strong> · step-up TTL{" "}
+                    Current level: <strong>{identifierLabel(policy.level)}</strong> · step-up TTL{" "}
                     {policy.stepUpTtlSeconds}s · trusted-device TTL{" "}
                     {policy.trustedDeviceTtlDays}d
                   </p>

@@ -29,6 +29,7 @@
  *     workspace's policy under another workspace's heading.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -622,27 +623,17 @@ export function WorkspaceGovernancePolicySection() {
               }}
             >
               <span>Record deletion</span>
-              <select
+              <AppListbox
                 value={deletionMode}
-                disabled={busy || !canManage}
-                title={!canManage ? GOVERNANCE_READ_ONLY_REASON : undefined}
-                data-workspace-governance-policy-field="evidenceDeletionMode"
-                onChange={(e) =>
-                  setDraft((p) => ({
-                    ...p,
-                    evidenceDeletionMode: e.target
-                      .value as EvidenceDeletionMode,
-                  }))
+                options={DELETION_MODES.map((m) => ({ value: m.value, label: m.label }))}
+                onChange={(next) =>
+                  setDraft((p) => ({ ...p, evidenceDeletionMode: next as EvidenceDeletionMode }))
                 }
-                className="app-form-input"
+                disabled={busy || !canManage}
+                disabledReason={!canManage ? GOVERNANCE_READ_ONLY_REASON : undefined}
                 style={{ maxWidth: 280 }}
-              >
-                {DELETION_MODES.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+                triggerProps={{ "data-workspace-governance-policy-field": "evidenceDeletionMode" }}
+              />
               <span style={{ fontSize: 11, color: "var(--silver-ink)" }}>
                 Saved value:{" "}
                 {DELETION_MODES.find((m) => m.value === policy.evidenceDeletionMode)

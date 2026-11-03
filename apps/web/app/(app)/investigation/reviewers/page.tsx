@@ -20,6 +20,7 @@
  *   * Bounded polling — 60s, paused when the tab is hidden.
  */
 
+import { identifierLabel, identifierTextLabel } from "@proovra/shared";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -317,6 +318,8 @@ useEffect(() => {
     return Math.floor((Date.now() - lastFetchAt) / 1000);
   }, [lastFetchAt]);
 
+  const failedBlocks = new Set(data?.dataQuality?.degradedBlocks ?? []);
+
   return (
     <div style={pageStyle}>
       <header style={headerStyle}>
@@ -345,12 +348,14 @@ useEffect(() => {
         </div>
       </header>
 
+      {/* A block the server could not read comes back as zeros. Those are not
+          counts, so its tile shows a dash beside the banner below. */}
       <section style={tilesRowStyle}>
         <TotalsTile
           title="Review workflows"
-          total={data?.workflowTotals?.total ?? null}
+          total={failedBlocks.has("workflow_totals") ? null : (data?.workflowTotals?.total ?? null)}
           breakdown={
-            data?.workflowTotals
+            data?.workflowTotals && !failedBlocks.has("workflow_totals")
               ? [
                   { label: "Not started", value: data.workflowTotals.notStarted },
                   { label: "In progress", value: data.workflowTotals.inProgress },
@@ -364,9 +369,9 @@ useEffect(() => {
         />
         <TotalsTile
           title="Escalations"
-          total={data?.escalationTotals?.total ?? null}
+          total={failedBlocks.has("escalation_totals") ? null : (data?.escalationTotals?.total ?? null)}
           breakdown={
-            data?.escalationTotals
+            data?.escalationTotals && !failedBlocks.has("escalation_totals")
               ? [
                   { label: "Open", value: data.escalationTotals.open },
                   { label: "Acknowledged", value: data.escalationTotals.acknowledged },
@@ -379,9 +384,9 @@ useEffect(() => {
         />
         <TotalsTile
           title="External-reviewer grants"
-          total={data?.externalReviewTotals?.total ?? null}
+          total={failedBlocks.has("external_review_totals") ? null : (data?.externalReviewTotals?.total ?? null)}
           breakdown={
-            data?.externalReviewTotals
+            data?.externalReviewTotals && !failedBlocks.has("external_review_totals")
               ? [
                   { label: "Invited", value: data.externalReviewTotals.invited },
                   { label: "Active", value: data.externalReviewTotals.active },
@@ -396,7 +401,7 @@ useEffect(() => {
       {data?.dataQuality?.state === "degraded" ? (
         <div style={dataQualityBannerStyle}>
           Some reviewer console counters could not be loaded for this request.
-          The remaining tiles still reflect real workspace state. Details:{" "}
+          Tiles showing a dash are the ones affected:{" "}
           {data.dataQuality.degradedBlocks.map(humaniseCode).join(", ")}.
         </div>
       ) : null}
@@ -831,7 +836,7 @@ function PendingSignalRow({
         <Badge tone={severityTone(signal.severity)} subtle>
           {signal.severity.toLowerCase()}
         </Badge>
-        <span style={reasonChipStyle}>{signal.signalType}</span>
+        <span style={reasonChipStyle}>{identifierLabel(signal.signalType)}</span>
         <span style={statusBadgeStyle(signal.confidence)}>
           {signal.confidence.toLowerCase()} confidence
         </span>
@@ -883,7 +888,7 @@ function EscalationRow({ esc }: { esc: RecentEscalation }) {
           {esc.severity.toLowerCase()}
         </Badge>
         <span style={statusBadgeStyle(esc.status)}>{esc.status.toLowerCase()}</span>
-        <span style={reasonChipStyle}>{esc.reason}</span>
+        <span style={reasonChipStyle}>{identifierTextLabel(esc.reason)}</span>
         <span style={timestampStyle}>{formatDateTime(esc.createdAtUtc)}</span>
       </div>
       <div style={summaryStyle}>{esc.safeSummary}</div>
@@ -1046,7 +1051,7 @@ function freshnessPillStyle(
 
 const tilesRowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
   gap: 12,
   marginBottom: 20,
 };
@@ -1086,6 +1091,7 @@ const tileBreakdownStyle: React.CSSProperties = {
 const tileBreakdownRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
+  gap: 8,
   fontSize: 12,
 };
 

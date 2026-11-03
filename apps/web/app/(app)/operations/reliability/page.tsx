@@ -21,6 +21,8 @@
  * Public verify, external intake, and report-v2 do NOT read these.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
@@ -379,20 +381,19 @@ useEffect(() => {
               <label className="app-field-label" htmlFor="reliability-status">
                 Status
               </label>
-              <select
+              <AppListbox
                 id="reliability-status"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="apf-control"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {/* The count is the summary's, so it is omitted rather
-                        than shown as zero when the summary did not arrive. */}
-                    {summary ? `${s} (${summary.counts[s] ?? 0})` : s}
-                  </option>
-                ))}
-              </select>
+                options={STATUSES.map((s) => ({
+                  value: s,
+                  // The count is the summary's, so it is omitted rather than
+                  // shown as zero when the summary did not arrive.
+                  label: summary
+                    ? `${identifierLabel(s)} (${summary.counts[s] ?? 0})`
+                    : identifierLabel(s),
+                }))}
+                onChange={setStatusFilter}
+              />
             </div>
             {sessions === null ? (
               <p className="apf-muted">Loading…</p>
@@ -462,7 +463,7 @@ useEffect(() => {
                         {s.failureReason ? ` · ${s.failureReason}` : ""}
                       </div>
                     </div>
-                    <Badge tone={statusTone(s.status)}>{s.status}</Badge>
+                    <Badge tone={statusTone(s.status)}>{identifierLabel(s.status)}</Badge>
                     {!s.isTerminal && s.status !== "REVIEW_REQUIRED" ? (
                       <button
                         type="button"

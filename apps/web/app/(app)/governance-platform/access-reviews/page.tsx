@@ -5,8 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ACCESS_REVIEW_CAMPAIGN_KINDS,
   type AccessReviewCampaignProjection,
-  type AccessReviewItemProjection,
-} from "@proovra/shared";
+  type AccessReviewItemProjection, identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
@@ -168,8 +167,8 @@ function Shell() {
         </span>
       ),
     },
-    { key: "kind", header: "Kind", render: (c) => <code>{c.kind}</code> },
-    { key: "state", header: "State", render: (c) => <Badge tone="governance">{c.state}</Badge> },
+    { key: "kind", header: "Kind", render: (c) => <span>{identifierLabel(c.kind)}</span> },
+    { key: "state", header: "State", render: (c) => <Badge tone="governance">{identifierLabel(c.state)}</Badge> },
     {
       key: "scheduled",
       header: "Scheduled",
@@ -204,7 +203,7 @@ function Shell() {
     {
       key: "decision",
       header: "Decision",
-      render: (i) => <Badge tone="risk">{i.decision}</Badge>,
+      render: (i) => <Badge tone="risk">{identifierLabel(i.decision)}</Badge>,
     },
     {
       key: "reviewer",

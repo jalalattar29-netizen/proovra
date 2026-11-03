@@ -32,6 +32,7 @@
  * layout would otherwise have already sent its status line.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -163,7 +164,7 @@ export default async function RunbookDetailPage({
             }}
           >
             <Badge tone="info" subtle>
-              {rb.category}
+              {identifierLabel(rb.category)}
             </Badge>
             {rb.subsystems.map((s) => (
               <Badge key={s} tone="neutral" subtle>

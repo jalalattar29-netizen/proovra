@@ -51,8 +51,7 @@ import {
   COLLABORATION_TEAM_ASSIGNMENT_STATUSES,
   COLLABORATION_TEAM_ASSIGNMENT_TARGETS,
   type CollaborationTeamAssignmentPriority,
-  type CollaborationTeamAssignmentStatus,
-} from "@proovra/shared";
+  type CollaborationTeamAssignmentStatus, identifierLabel } from "@proovra/shared";
 
 // =============================================================================
 // WORK — the group's operational surface.
@@ -705,7 +704,7 @@ function AssignmentRow({
         <div className="app-table__muted" style={{ marginTop: 2 }}>
           {targetLabel(assignment.targetType)}
           {assignment.target.sublabel ? ` · ${assignment.target.sublabel}` : ""}
-          {assignment.target.state ? ` · ${assignment.target.state}` : ""}
+          {assignment.target.state ? ` · ${identifierLabel(assignment.target.state)}` : ""}
         </div>
         {assignment.note ? (
           <div className="app-table__muted" style={{ marginTop: 2 }}>

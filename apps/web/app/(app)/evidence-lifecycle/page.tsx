@@ -350,7 +350,7 @@ function Shell() {
         <PageHeader
           eyebrow="Evidence Lifecycle"
           title="Lifecycle Operations"
-          subtitle="Mutation-first operator console for retention, legal holds, archive tiers, destruction, webhooks, and chain transfers."
+          subtitle="Manage retention, legal holds, archive tiers, destruction, webhooks and chain transfers."
           primaryAction={
             <Button
               type="button"

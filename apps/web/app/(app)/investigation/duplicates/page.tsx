@@ -19,6 +19,7 @@
  *     pivot to evidence detail or the graph view.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -366,35 +367,25 @@ function DuplicatesReviewPageInner() {
       <section style={controlsRowStyle}>
         <div style={controlsGroupStyle}>
           <label style={controlsLabelStyle}>Relationship</label>
-          <select
+          <AppListbox
             value={filter}
-            onChange={(e) => setFilter(e.target.value as DuplicateEdgeKind | "ALL")}
-            style={selectStyle}
-          >
-            {FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+            ]}
+            onChange={(next) => setFilter(next as DuplicateEdgeKind | "ALL")}
+          />
         </div>
         <div style={controlsGroupStyle}>
           <label style={controlsLabelStyle}>Confidence</label>
-          <select
+          <AppListbox
             value={confidenceFilter}
-            onChange={(e) =>
-              setConfidenceFilter(
-                e.target.value as "ALL" | "LOW" | "MEDIUM" | "HIGH",
-              )
-            }
-            style={selectStyle}
-          >
-            {CONFIDENCE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...CONFIDENCE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+            ]}
+            onChange={(next) => setConfidenceFilter(
+                            next as "ALL" | "LOW" | "MEDIUM" | "HIGH",
+                          )}
+          />
         </div>
         {truncated ? (
           <span style={truncatedNoticeStyle}>
@@ -912,15 +903,6 @@ const controlsLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   color: "#475569",
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: "5px 10px",
-  fontSize: 12,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  background: "#ffffff",
-  color: "#0f172a",
 };
 
 function exportButtonStyle(busy: boolean): React.CSSProperties {

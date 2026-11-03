@@ -33,6 +33,7 @@
  * semantics so no positive is fabricated.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -325,7 +326,7 @@ function BackupSection({ backup }: { backup: ReadinessPosture["backup"] }) {
               tone={backup.objectLockStatus.mode === "verified" ? GREEN : AMBER}
               testId="object-lock-status"
             >
-              {backup.objectLockStatus.mode}
+              {identifierLabel(backup.objectLockStatus.mode)}
             </PostureBadge>
           </Row>
         </div>
@@ -541,7 +542,7 @@ function ResiliencySection({
           <div>
             <Row label="Runtime readiness">
               <PostureBadge tone={statusTone(rr.status)} testId="runtime-status">
-                {rr.status}
+                {identifierLabel(rr.status)}
               </PostureBadge>
             </Row>
             <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>
@@ -557,7 +558,7 @@ function ResiliencySection({
           <div>
             <Row label="Schema drift">
               <PostureBadge tone={statusTone(sd.status)} testId="schema-status">
-                {sd.status}
+                {identifierLabel(sd.status)}
               </PostureBadge>
             </Row>
             <p className="adm-help" style={{ fontSize: 12, marginTop: 6 }}>

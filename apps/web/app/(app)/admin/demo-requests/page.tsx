@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -975,7 +976,7 @@ export default function AdminDemoRequestsPage() {
                       >
                         <Badge tone={statusTone(item.status)}>{titleCaseToken(item.status)}</Badge>
                         <Badge tone={priorityTone(item.priority)}>
-                          {item.priority}
+                          {identifierLabel(item.priority)}
                         </Badge>
                         {/* THE VERDICT IS THE FACT; THE SCORE IS THE EVIDENCE.
                             These read "Clean 0" and "ACTIVE · S0" — a bare
@@ -1077,7 +1078,7 @@ export default function AdminDemoRequestsPage() {
                 <br />
                 Recommended action: {titleCaseToken(details.recommendedAction)}
                 <br />
-                Priority: {details.priority}
+                Priority: {identifierLabel(details.priority)}
                 <br />
                 SLA:{" "}
                 {details.responseSlaHours != null

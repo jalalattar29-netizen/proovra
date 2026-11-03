@@ -1361,9 +1361,9 @@ function GovernanceSection({ content }: { content: UseCasePageContent }) {
                   </span>
                 </div>
                 <ul className="mt-2 space-y-1 text-[12px] text-[#64748B]">
-                  <li>· reviewer.access · 14:32 UTC</li>
-                  <li>· report.generated · 09:18 UTC</li>
-                  <li>· retention.applied · 09:14 UTC</li>
+                  <li>· Reviewer access · 14:32 UTC</li>
+                  <li>· Report generated · 09:18 UTC</li>
+                  <li>· Retention applied · 09:14 UTC</li>
                 </ul>
               </div>
             </div>

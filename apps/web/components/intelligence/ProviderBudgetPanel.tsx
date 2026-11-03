@@ -16,6 +16,7 @@
  *   * NEVER raw provider payloads — counts + bands only.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -28,8 +29,7 @@ import {
   type ProviderAdapterProbe,
   type ProviderBudgetPeriod,
   type ProviderBudgetProjection,
-  type ProviderBudgetScope,
-} from "@proovra/shared";
+  type ProviderBudgetScope, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
@@ -160,7 +160,7 @@ export function ProviderBudgetPanel() {
               title={p.reason ?? ""}
               style={chipStyle(p.state)}
             >
-              {p.provider} · {p.state}
+              {identifierLabel(p.provider)} · {identifierLabel(p.state)}
             </span>
           ))}
         </div>
@@ -193,9 +193,9 @@ export function ProviderBudgetPanel() {
             {usageSummary.map((r, idx) => (
               <tr key={`${r.provider}:${r.operation}:${idx}`}>
                 <td style={td}>
-                  <code>{r.provider}</code>
+                  <span>{identifierLabel(r.provider)}</span>
                 </td>
-                <td style={td}>{r.operation}</td>
+                <td style={td}>{identifierLabel(r.operation)}</td>
                 <td style={td}>{r.unit}</td>
                 <td style={td}>{r.callCount}</td>
                 <td style={td}>
@@ -243,9 +243,9 @@ export function ProviderBudgetPanel() {
                   data-intelligence-budget-row={b.id}
                   data-intelligence-budget-state={b.state}
                 >
-                  <td style={td}>{b.scope}</td>
+                  <td style={td}>{identifierLabel(b.scope)}</td>
                   <td style={td}>
-                    {b.provider ? <code>{b.provider}</code> : "all"}
+                    {b.provider ? <span>{identifierLabel(b.provider)}</span> : "all"}
                   </td>
                   <td style={td}>{b.period}</td>
                   <td style={td}>
@@ -257,7 +257,7 @@ export function ProviderBudgetPanel() {
                   <td style={td}>
                     ${(b.consumedUsdMicrosThisPeriod / 1_000_000).toFixed(4)}
                   </td>
-                  <td style={td}>{b.state}</td>
+                  <td style={td}>{identifierLabel(b.state)}</td>
                 </tr>
               ))}
             </tbody>
@@ -268,9 +268,9 @@ export function ProviderBudgetPanel() {
       <section data-intelligence-quick-run style={panelStyle}>
         <strong style={{ fontSize: 13 }}>Quick provider run · inline text</strong>
         <p style={{ color: "#475569", fontSize: 11 }}>
-          For ad-hoc reviewer use. Paste OCR / transcript / document text to
-          trigger an EXTRACT_ENTITIES or SUMMARISE_DOCUMENT call; inserted
-          records appear in the evidence&apos;s record list.
+          For one-off review. Paste document text or a transcript to extract
+          entities or summarize it; the results appear in the evidence&apos;s
+          record list.
         </p>
         <div
           style={{
@@ -292,37 +292,25 @@ export function ProviderBudgetPanel() {
           </label>
           <label style={lblStyle}>
             Provider
-            <select
-              data-intelligence-run-provider
+            <AppListbox
               value={provider}
-              onChange={(e) =>
-                setProvider(e.target.value as MediaIntelligenceProvider)
-              }
-              style={inputStyle}
-            >
-              {MEDIA_INTELLIGENCE_PROVIDERS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...MEDIA_INTELLIGENCE_PROVIDERS.map((p) => ({ value: p, label: identifierLabel(p) })),
+              ]}
+              onChange={(next) => setProvider(next as MediaIntelligenceProvider)}
+              triggerProps={{ "data-intelligence-run-provider": "" }}
+            />
           </label>
           <label style={lblStyle}>
             Operation
-            <select
-              data-intelligence-run-operation
+            <AppListbox
               value={operation}
-              onChange={(e) =>
-                setOperation(e.target.value as ProviderAdapterOperation)
-              }
-              style={inputStyle}
-            >
-              {PROVIDER_ADAPTER_OPERATIONS.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...PROVIDER_ADAPTER_OPERATIONS.map((o) => ({ value: o, label: identifierLabel(o) })),
+              ]}
+              onChange={(next) => setOperation(next as ProviderAdapterOperation)}
+              triggerProps={{ "data-intelligence-run-operation": "" }}
+            />
           </label>
         </div>
         <textarea
@@ -330,7 +318,7 @@ export function ProviderBudgetPanel() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={4}
-          placeholder="Paste OCR text / transcript here for EXTRACT_ENTITIES or SUMMARISE_DOCUMENT"
+          placeholder="Paste document text or a transcript"
           style={{
             width: "100%",
             padding: 8,
@@ -627,41 +615,31 @@ function ProviderBudgetCreateForm({
       >
         <div style={lblStyle}>
           <label htmlFor="budget-scope">Scope (required)</label>
-          <select
-            id="budget-scope"
-            data-intelligence-budget-scope
+          <AppListbox
             value={scope}
+            options={[
+              ...PROVIDER_BUDGET_SCOPES.map((s) => ({ value: s, label: identifierLabel(s) })),
+            ]}
+            onChange={(next) => setScope(next as ProviderBudgetScope)}
+            id={"budget-scope"}
             disabled={disabled}
-            aria-invalid={errors.scope ? true : undefined}
-            onChange={(e) => setScope(e.target.value as ProviderBudgetScope)}
-            style={inputStyle}
-          >
-            {PROVIDER_BUDGET_SCOPES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-intelligence-budget-scope": "", "aria-invalid": errors.scope ? true : undefined }}
+          />
           {errors.scope ? <span style={errStyle}>{errors.scope}</span> : null}
         </div>
 
         <div style={lblStyle}>
           <label htmlFor="budget-period">Period (required)</label>
-          <select
-            id="budget-period"
-            data-intelligence-budget-period
+          <AppListbox
             value={period}
+            options={[
+              ...PROVIDER_BUDGET_PERIODS.map((p) => ({ value: p, label: identifierLabel(p) })),
+            ]}
+            onChange={(next) => setPeriod(next as ProviderBudgetPeriod)}
+            id={"budget-period"}
             disabled={disabled}
-            aria-invalid={errors.period ? true : undefined}
-            onChange={(e) => setPeriod(e.target.value as ProviderBudgetPeriod)}
-            style={inputStyle}
-          >
-            {PROVIDER_BUDGET_PERIODS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-intelligence-budget-period": "", "aria-invalid": errors.period ? true : undefined }}
+          />
           {errors.period ? <span style={errStyle}>{errors.period}</span> : null}
         </div>
 
@@ -669,24 +647,17 @@ function ProviderBudgetCreateForm({
           <label htmlFor="budget-provider">
             Provider {providerRequired ? "(required)" : "(optional — all)"}
           </label>
-          <select
-            id="budget-provider"
-            data-intelligence-budget-provider
+          <AppListbox
             value={provider}
+            options={[
+              { value: "", label: "All providers" },
+              ...MEDIA_INTELLIGENCE_PROVIDERS.map((p) => ({ value: p, label: identifierLabel(p) })),
+            ]}
+            onChange={(next) => setProvider(next as MediaIntelligenceProvider | "")}
+            id={"budget-provider"}
             disabled={disabled}
-            aria-invalid={errors.provider ? true : undefined}
-            onChange={(e) =>
-              setProvider(e.target.value as MediaIntelligenceProvider | "")
-            }
-            style={inputStyle}
-          >
-            <option value="">All providers</option>
-            {MEDIA_INTELLIGENCE_PROVIDERS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-intelligence-budget-provider": "", "aria-invalid": errors.provider ? true : undefined }}
+          />
           {errors.provider ? (
             <span style={errStyle}>{errors.provider}</span>
           ) : null}

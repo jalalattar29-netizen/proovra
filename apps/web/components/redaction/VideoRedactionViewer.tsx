@@ -16,6 +16,7 @@
  *     tracker is wired in.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useRef, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -172,26 +173,19 @@ export function VideoRedactionViewer({
         <span style={{ flex: 1 }} />
         <label style={{ fontSize: 11, color: "#475569" }}>
           Method&nbsp;
-          <select
-            data-redaction-video-method
+          <AppListbox
             value={method}
-            onChange={(e) =>
-              setMethod(
-                e.target.value as "BLUR" | "PIXELATE" | "BLACKOUT",
-              )
-            }
+            options={[
+              { value: "BLUR", label: "Blur" },
+              { value: "PIXELATE", label: "Pixelate" },
+              { value: "BLACKOUT", label: "Blackout" },
+            ]}
+            onChange={(next) => setMethod(
+                            next as "BLUR" | "PIXELATE" | "BLACKOUT",
+                          )}
             disabled={versionLocked}
-            style={{
-              padding: "3px 6px",
-              borderRadius: 6,
-              border: "1px solid #cbd5e1",
-              fontSize: 11,
-            }}
-          >
-            <option value="BLUR">BLUR</option>
-            <option value="PIXELATE">PIXELATE</option>
-            <option value="BLACKOUT">BLACKOUT</option>
-          </select>
+            triggerProps={{ "data-redaction-video-method": "" }}
+          />
         </label>
       </header>
 
@@ -250,9 +244,9 @@ export function VideoRedactionViewer({
           fontSize: 11,
         }}
       >
-        Regions persist across the bounded frame range. The worker
-        ffmpeg pipeline applies the method (blur / pixelate /
-        blackout) per frame; the original video is never modified.
+        Regions apply across the selected frames. The method (blur,
+        pixelate or blackout) is applied in the background, frame by
+        frame; the original video is never modified.
       </small>
     </section>
   );

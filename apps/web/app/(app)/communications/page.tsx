@@ -15,6 +15,8 @@
  * provider-reported via webhook.
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import { useEffect, useMemo, useState } from "react";
 
@@ -252,42 +254,30 @@ function CommunicationsPageInner() {
             <div style={cardHeaderStyle}>
               <h2 style={sectionTitleStyle}>Messages</h2>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <select
+                <AppListbox
                   value={channel}
-                  onChange={(e) => setChannel(e.target.value as Channel | "")}
-                  style={selectStyle}
-                >
-                  <option value="">All channels</option>
-                  {CHANNELS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <select
+                  options={[
+                    { value: "", label: "All channels" },
+                    ...CHANNELS.map((c) => ({ value: c, label: identifierLabel(c) })),
+                  ]}
+                  onChange={(next) => setChannel(next as Channel | "")}
+                />
+                <AppListbox
                   value={purpose}
-                  onChange={(e) => setPurpose(e.target.value as Purpose | "")}
-                  style={selectStyle}
-                >
-                  <option value="">All purposes</option>
-                  {PURPOSES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                <select
+                  options={[
+                    { value: "", label: "All purposes" },
+                    ...PURPOSES.map((p) => ({ value: p, label: identifierLabel(p) })),
+                  ]}
+                  onChange={(next) => setPurpose(next as Purpose | "")}
+                />
+                <AppListbox
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as Status | "")}
-                  style={selectStyle}
-                >
-                  <option value="">All statuses</option>
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: "All statuses" },
+                    ...STATUSES.map((s) => ({ value: s, label: identifierLabel(s) })),
+                  ]}
+                  onChange={(next) => setStatus(next as Status | "")}
+                />
               </div>
             </div>
             {counts ? (
@@ -325,7 +315,7 @@ function CommunicationsPageInner() {
                         <div style={previewStyle}>{m.bodyPreview}</div>
                       ) : null}
                     </div>
-                    <span style={statusBadgeStyle(m.status)}>{m.status}</span>
+                    <span style={statusBadgeStyle(m.status)}>{identifierLabel(m.status)}</span>
                     {m.status === "RETRY_SCHEDULED" ? (
                       <button
                         type="button"
@@ -487,14 +477,6 @@ const warnBoxStyle: React.CSSProperties = {
   border: "1px solid #fcd34d",
   borderRadius: 8,
   fontSize: 13,
-};
-const selectStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  fontSize: 13,
-  background: "#fff",
-  color: "#0f172a",
 };
 const primaryButtonStyle: React.CSSProperties = {
   padding: "6px 14px",

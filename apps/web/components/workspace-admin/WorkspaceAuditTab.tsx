@@ -16,6 +16,8 @@
  *   - a 403/404 renders one generic denial (no existence/scope leak).
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -126,17 +128,17 @@ export function WorkspaceAuditTab({ teamId }: { teamId: string }) {
           onChange={(e) => setAction(e.target.value)}
           className="cc-input"
         />
-        <select
+        <AppListbox
           value={outcome}
-          aria-label="Filter by outcome"
-          onChange={(e) => setOutcome(e.target.value as OutcomeFilter)}
-          className="cc-input"
-        >
-          <option value="">Any outcome</option>
-          <option value="success">Success</option>
-          <option value="denied">Denied</option>
-          <option value="error">Error</option>
-        </select>
+          options={[
+            { value: "", label: "Any outcome" },
+            { value: "success", label: "Success" },
+            { value: "denied", label: "Denied" },
+            { value: "error", label: "Error" },
+          ]}
+          onChange={(next) => setOutcome(next as OutcomeFilter)}
+          ariaLabel={"Filter by outcome"}
+        />
         <button
           type="button"
           onClick={() => void exportAudit()}
@@ -169,10 +171,10 @@ export function WorkspaceAuditTab({ teamId }: { teamId: string }) {
             {rows.map((r) => (
               <tr key={r.eventId} data-audit-event-id={r.eventId}>
                 <td>{r.occurredAtUtc}</td>
-                <td>{r.action}</td>
-                <td data-audit-outcome={r.outcome ?? ""}>{r.outcome ?? "—"}</td>
+                <td>{identifierLabel(r.action)}</td>
+                <td data-audit-outcome={r.outcome ?? ""}>{r.outcome ? identifierLabel(r.outcome) : "—"}</td>
                 <td>
-                  {r.resourceType ? `${r.resourceType}:${r.resourceId ?? ""}` : "—"}
+                  {r.resourceType ? `${identifierLabel(r.resourceType)}:${r.resourceId ?? ""}` : "—"}
                 </td>
               </tr>
             ))}

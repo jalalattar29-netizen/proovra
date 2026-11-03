@@ -989,7 +989,7 @@ describe("Reliability — POST /v1/reliability/upload-sessions/:evidenceId/mark-
     expect(posts("/v1/reliability/upload-sessions/")).toHaveLength(0);
     await cancelModal("reliability-mark-abandoned");
     expect(posts("/v1/reliability/upload-sessions/")).toHaveLength(0);
-    expect(sessionRow().textContent).toContain("STALLED");
+    expect(sessionRow().textContent).toContain("Stalled");
 
     postReply = () => ({
       session: reliabilitySession({
@@ -1010,8 +1010,8 @@ describe("Reliability — POST /v1/reliability/upload-sessions/:evidenceId/mark-
     // The response row IS the new state: the badge changed and, being
     // terminal, the row offers no further actions.
     const row = sessionRow();
-    expect(row.textContent).toContain("ABANDONED");
-    expect(row.textContent).not.toContain("STALLED");
+    expect(row.textContent).toContain("Abandoned");
+    expect(row.textContent).not.toContain("Stalled");
     expect(screen.queryByRole("button", { name: "Mark abandoned" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Request review" })).toBeNull();
     // Committed to state, not re-read.
@@ -1028,8 +1028,8 @@ describe("Reliability — POST /v1/reliability/upload-sessions/:evidenceId/mark-
     expect(document.body.textContent).toContain(SAFE_500);
     // The row keeps the state the server last returned, and its actions stay.
     const row = sessionRow();
-    expect(row.textContent).toContain("STALLED");
-    expect(row.textContent).not.toContain("ABANDONED");
+    expect(row.textContent).toContain("Stalled");
+    expect(row.textContent).not.toContain("Abandoned");
     expect(screen.getByRole("button", { name: "Mark abandoned" })).toBeTruthy();
   });
 });
@@ -1052,7 +1052,7 @@ describe("Reliability — POST /v1/reliability/upload-sessions/:evidenceId/reque
     );
     expect(reviews).toHaveLength(1);
     expect(JSON.parse(reviews[0].body as string)).toEqual({ teamId: WS });
-    expect(sessionRow().textContent).toContain("REVIEW_REQUIRED");
+    expect(sessionRow().textContent).toContain("Review required");
     // A row already under review is offered no second Request review; the
     // non-terminal session can still be abandoned.
     expect(screen.queryByRole("button", { name: "Request review" })).toBeNull();

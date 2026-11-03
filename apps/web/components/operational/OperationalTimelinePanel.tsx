@@ -16,6 +16,7 @@
  *     activity" when the read itself failed).
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
 
@@ -406,7 +407,7 @@ export function OperationalTimelinePanel({
                     >
                       <span>{KIND_LABEL[entry.kind]}</span>
                       <span>·</span>
-                      <span>{entry.eventType}</span>
+                      <span>{identifierLabel(entry.eventType)}</span>
                       {entry.actorUserId ? (
                         <>
                           <span>·</span>
@@ -430,7 +431,7 @@ export function OperationalTimelinePanel({
                                   : OPS_INK.subtle,
                         }}
                       >
-                        {entry.severity}
+                        {identifierLabel(entry.severity)}
                       </span>
                     </div>
                   </div>

@@ -25,6 +25,7 @@
  *   * Hotkeys never intercept text inputs.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -1716,25 +1717,11 @@ function DisagreeForm({
           >
             Which decision are you challenging?
           </label>
-          <select
+          <AppListbox
             id="reviewer-disagree-decision-select"
-            data-reviewer-disagree-decision-select
             value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            style={{
-              fontSize: 12,
-              padding: 6,
-              borderRadius: "var(--radius-sm, 8px)",
-              border: "1px solid var(--border-strong, rgba(15, 23, 42, 0.18))",
-              background: "var(--surface-card, #fff)",
-              color: "var(--ink-primary, #0f172a)",
-              fontFamily: "inherit",
-            }}
-          >
-            <option value="" disabled>
-              Select a recorded decision…
-            </option>
-            {state.decisions.map((d) => {
+            placeholder="Select a recorded decision…"
+            options={state.decisions.map((d) => {
               const who =
                 d.reviewer.displayName ||
                 d.reviewer.email ||
@@ -1746,13 +1733,14 @@ function DisagreeForm({
                   return d.decidedAt;
                 }
               })();
-              return (
-                <option key={d.id} value={d.id}>
-                  {d.stage} · {d.decision} · {who} · {when}
-                </option>
-              );
+              return {
+                value: d.id,
+                label: `${identifierLabel(d.stage)} · ${identifierLabel(d.decision)} · ${who} · ${when}`,
+              };
             })}
-          </select>
+            onChange={setSelectedId}
+            triggerProps={{ "data-reviewer-disagree-decision-select": "" }}
+          />
           <label
             htmlFor="reviewer-disagree-rationale"
             style={{ fontSize: 11, color: "var(--ink-secondary, #475569)" }}

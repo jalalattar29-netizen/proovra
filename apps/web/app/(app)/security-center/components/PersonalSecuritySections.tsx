@@ -32,6 +32,7 @@
  * var(--surface-card)) shared with the redesigned internal pages.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -2075,10 +2076,10 @@ function SecurityEventsCard() {
                 </summary>
                 <div style={{ ...mutedStyle, marginTop: 4 }}>
                   <div>Event key: {ev.action}</div>
-                  {ev.outcome ? <div>Outcome: {ev.outcome}</div> : null}
-                  {ev.severity ? <div>Severity: {ev.severity}</div> : null}
+                  {ev.outcome ? <div>Outcome: {identifierLabel(ev.outcome)}</div> : null}
+                  {ev.severity ? <div>Severity: {identifierLabel(ev.severity)}</div> : null}
                   {ev.ipPreview ? <div>IP: {ev.ipPreview}</div> : null}
-                  {ev.resourceType ? <div>Resource: {ev.resourceType}</div> : null}
+                  {ev.resourceType ? <div>Resource: {identifierLabel(ev.resourceType)}</div> : null}
                 </div>
               </details>
             </li>

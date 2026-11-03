@@ -22,6 +22,7 @@
  * registered copy through toSafeUserError.
  */
 
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../../lib/api";
@@ -432,32 +433,24 @@ export function DirectoryGroupsSection({ teamId }: { teamId: string }) {
                 >
                   <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
                     <span>Workspace</span>
-                    <select
-                      className="adm-select"
+                    <AppListbox
                       value={draftWorkspace}
-                      onChange={(e) => setDraftWorkspace(e.target.value)}
-                    >
-                      <option value="">Choose a workspace</option>
-                      {options.map((w) => (
-                        <option key={w.workspaceId} value={w.workspaceId}>
-                          {workspaceLabel(w.name)}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "Choose a workspace" },
+                        ...options.map((w) => ({ value: w.workspaceId, label: workspaceLabel(w.name) })),
+                      ]}
+                      onChange={(next) => setDraftWorkspace(next)}
+                    />
                   </label>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
                     <span>Role it grants there</span>
-                    <select
-                      className="adm-select"
+                    <AppListbox
                       value={draftRole}
-                      onChange={(e) => setDraftRole(e.target.value as ProjectionRole)}
-                    >
-                      {PROJECTION_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {scimGroupRoleLabel(r)}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        ...PROJECTION_ROLES.map((r) => ({ value: r, label: scimGroupRoleLabel(r) })),
+                      ]}
+                      onChange={(next) => setDraftRole(next as ProjectionRole)}
+                    />
                   </label>
                   <Button
                     variant="enterprise"

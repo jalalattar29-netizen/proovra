@@ -6,6 +6,7 @@
  * It now reads `GET /v1/teams/:id/members?eligible=ownership_transfer`, where
  * the server applies eligibility, search and paging.
  */
+import { chooseListbox, listboxLabels } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -95,10 +96,7 @@ const memberReads = () =>
   mocks.fetch.mock.calls
     .filter(([p]) => String(p).startsWith(`/v1/teams/${TEAM}/members?`))
     .map(([p]) => new URL(String(p), "http://x").searchParams);
-const optionLabels = () =>
-  Array.from(
-    (screen.getByLabelText("New owner") as HTMLSelectElement).options,
-  ).map((o) => o.textContent);
+const optionLabels = () => listboxLabels(screen.getByLabelText("New owner"));
 
 beforeEach(() => {
   mocks.fetch.mockReset();
@@ -116,8 +114,7 @@ describe("workspace ownership transfer — eligible-member picker", () => {
     const more = await within(card).findByRole("button", { name: "Show more members" });
     fireEvent.click(more);
     await within(card).findByText("Showing 61 of 61 members who can take ownership");
-    const select = within(card).getByLabelText("New owner") as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.textContent)).toContain("Heir 61");
+    expect(listboxLabels(within(card).getByLabelText("New owner"))).toContain("Heir 61");
   });
 
   it("reads the server's eligible list and reaches the 61st member with Show more", async () => {
@@ -143,7 +140,7 @@ describe("workspace ownership transfer — eligible-member picker", () => {
     expect(optionLabels()).toContain("Heir 61");
     expect(screen.queryByRole("button", { name: "Show more members" })).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("New owner"), { target: { value: "user-61" } });
+    chooseListbox(screen.getByLabelText("New owner"), "user-61");
     fireEvent.click(screen.getByRole("button", { name: /Transfer ownership/ }));
     expect(screen.getByText(/Transfer/, { selector: "p" }).textContent).toContain("Heir 61");
     fireEvent.click(screen.getByRole("button", { name: "Confirm transfer" }));
@@ -172,11 +169,11 @@ describe("workspace ownership transfer — eligible-member picker", () => {
     expect(last.has("cursor")).toBe(false);
     expect(optionLabels()).toEqual(["Select the new owner…", "Heir 60"]);
 
-    fireEvent.change(screen.getByLabelText("New owner"), { target: { value: "user-60" } });
+    chooseListbox(screen.getByLabelText("New owner"), "user-60");
     fireEvent.change(screen.getByLabelText("Find a member"), { target: { value: "nobody" } });
     await screen.findByText("No active member matches that search.");
     // The chosen person is still selected and still named.
-    expect((screen.getByLabelText("New owner") as HTMLSelectElement).value).toBe("user-60");
+    expect(screen.getByLabelText("New owner").textContent).toContain("Heir 60");
     expect(optionLabels()).toContain("Heir 60");
   });
 

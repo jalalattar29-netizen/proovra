@@ -158,9 +158,8 @@ export function StatusChangeModal({
         remain unchanged.
       </p>
       <p className="app-hint">
-        This change is audited. If the case has an active legal hold, the
-        backend will reject transitions to Closed or Archived with a clear
-        explanation.
+        This change is audited. If the case has an active legal hold, moving it
+        to Closed or Archived is refused, with an explanation.
       </p>
 
       <label className="case-detail-stack">

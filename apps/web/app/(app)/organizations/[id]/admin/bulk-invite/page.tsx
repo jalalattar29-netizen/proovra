@@ -28,6 +28,7 @@
  *   - Strong TypeScript types throughout.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -313,7 +314,7 @@ function BulkInviteTab() {
         header: "Outcome",
         render: (r) => (
           <Badge tone={outcomeTone(r.outcome)} subtle>
-            {r.outcome}
+            {identifierLabel(r.outcome)}
           </Badge>
         ),
       },
@@ -332,7 +333,7 @@ function BulkInviteTab() {
         header: "Outcome",
         render: (r) => (
           <Badge tone={outcomeTone(r.outcome)} subtle>
-            {r.outcome}
+            {identifierLabel(r.outcome)}
           </Badge>
         ),
       },

@@ -27,6 +27,7 @@
  *   * Safer canonical-custody language.
  */
 
+import { identifierLabel, identifierTextLabel } from "@proovra/shared";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -325,7 +326,7 @@ function EdgeInspector({
     <section style={sectionStyle}>
       <div style={cardStyle}>
         <div style={cardHeaderStyle}>
-          <span style={edgeBadgeStyle}>{edge.edgeType}</span>
+          <span style={edgeBadgeStyle}>{identifierLabel(edge.edgeType)}</span>
           <span style={confidenceBadgeStyle(edge.confidence)}>
             {confidenceLabel(edge.confidence)}
           </span>
@@ -362,8 +363,8 @@ function EdgeInspector({
         )}
 
         <div style={metaRowStyle}>
-          <span style={metaItemStyle}>Source kind: {edge.sourceKind}</span>
-          <span style={metaItemStyle}>Edge type: {edge.edgeType}</span>
+          <span style={metaItemStyle}>Source kind: {identifierLabel(edge.sourceKind)}</span>
+          <span style={metaItemStyle}>Edge type: {identifierLabel(edge.edgeType)}</span>
         </div>
       </div>
 
@@ -395,10 +396,10 @@ function NodeInspector({
     <section style={sectionStyle}>
       <div style={cardStyle}>
         <div style={cardHeaderStyle}>
-          <span style={nodeKindBadgeStyle(node.nodeKind)}>{node.nodeKind}</span>
-          <span style={visibilityBadgeStyle}>{node.visibilityScope}</span>
+          <span style={nodeKindBadgeStyle(node.nodeKind)}>{identifierLabel(node.nodeKind)}</span>
+          <span style={visibilityBadgeStyle}>{identifierLabel(node.visibilityScope)}</span>
         </div>
-        <h2 style={nodeTitleStyle}>{node.safeLabel}</h2>
+        <h2 style={nodeTitleStyle}>{identifierTextLabel(node.safeLabel)}</h2>
       </div>
 
       <div style={cardStyle}>
@@ -420,7 +421,7 @@ function NodeInspector({
               return (
                 <li key={e.id} style={edgeListRowStyle}>
                   <div style={edgeListBadgeRowStyle}>
-                    <span style={edgeBadgeStyle}>{e.edgeType}</span>
+                    <span style={edgeBadgeStyle}>{identifierLabel(e.edgeType)}</span>
                     <span style={confidenceBadgeStyle(e.confidence)}>
                       {confidenceLabel(e.confidence)}
                     </span>
@@ -434,8 +435,8 @@ function NodeInspector({
                   </div>
                   <div style={edgeListLabelStyle}>
                     {direction === "outgoing"
-                      ? `→ ${other?.safeLabel ?? "—"}`
-                      : `← ${other?.safeLabel ?? "—"}`}
+                      ? `→ ${other?.safeLabel ? identifierTextLabel(other.safeLabel) : "—"}`
+                      : `← ${other?.safeLabel ? identifierTextLabel(other.safeLabel) : "—"}`}
                   </div>
                   {e.safeSummary ? (
                     <div style={edgeListSummaryStyle}>{e.safeSummary}</div>
@@ -487,9 +488,9 @@ function EndpointCard({
     <div style={endpointCardStyle}>
       <div style={endpointLabelStyle}>{label}</div>
       <div style={endpointBadgeRowStyle}>
-        <span style={nodeKindBadgeStyle(node.nodeKind)}>{node.nodeKind}</span>
+        <span style={nodeKindBadgeStyle(node.nodeKind)}>{identifierLabel(node.nodeKind)}</span>
       </div>
-      <div style={endpointNameStyle}>{node.safeLabel}</div>
+      <div style={endpointNameStyle}>{identifierTextLabel(node.safeLabel)}</div>
       <Link
         href={`/investigation/relationships?caseId=${encodeURIComponent(caseId)}&nodeId=${encodeURIComponent(node.id)}`}
         style={pivotLinkStyle}

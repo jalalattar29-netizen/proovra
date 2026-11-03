@@ -1,3 +1,4 @@
+import { identifierLabel } from "@proovra/shared";
 import { Modal } from "../../../../components/cases-experience/matter-modals/Modal";
 import type { EvidenceSavedView } from "../lib/evidence-library-types";
 import { useState } from "react";
@@ -106,7 +107,7 @@ export function SavedViewsMenu({
                 <strong>{view.name}</strong>
                 <p>{view.description || "Saved evidence library filter set."}</p>
                 <p className="evidence-library-muted">
-                  Scope: {view.scope} • Sort: {view.filters.sort}
+                  Scope: {identifierLabel(view.scope)} • Sort: {view.filters.sort}
                   {view.teamId ? " • Team view" : " • Personal view"}
                   {view.isDefault ? " • Default" : ""}
                 </p>

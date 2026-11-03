@@ -31,6 +31,7 @@
  *     the tab is hidden.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
@@ -691,19 +692,15 @@ useEffect(() => {
             </div>
           </div>
           <div style={actionControlStyle}>
-            <select
-              className="apf-control"
-              aria-label="Run status to list"
+            <AppListbox
               value={runStatus}
-              data-media-run-status
-              onChange={(e) => setRunStatus(e.target.value as RunStatusFilter)}
-            >
-              {RUN_STATUS_FILTERS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...RUN_STATUS_FILTERS.map((s) => ({ value: s, label: identifierLabel(s) })),
+              ]}
+              onChange={(next) => setRunStatus(next as RunStatusFilter)}
+              ariaLabel={"Run status to list"}
+              triggerProps={{ "data-media-run-status": "" }}
+            />
             <Button
               variant="secondary"
               size="sm"

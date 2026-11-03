@@ -35,6 +35,7 @@
  * names, emails, or any other subject PII.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -903,25 +904,19 @@ function Shell() {
               >
                 <input
                   data-department-grant-user-id
-                  placeholder="Member user UUID"
+                  placeholder="Member user ID"
                   value={grantUserId}
                   onChange={(e) => setGrantUserId(e.target.value)}
                   style={input}
                 />
-                <select
-                  data-department-grant-role
+                <AppListbox
                   value={grantRole}
-                  onChange={(e) =>
-                    setGrantRole(e.target.value as DepartmentMembershipRole)
-                  }
-                  style={input}
-                >
-                  {DEPARTMENT_MEMBERSHIP_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {departmentRoleLabel(r)}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...DEPARTMENT_MEMBERSHIP_ROLES.map((r) => ({ value: r, label: departmentRoleLabel(r) })),
+                  ]}
+                  onChange={(next) => setGrantRole(next as DepartmentMembershipRole)}
+                  triggerProps={{ "data-department-grant-role": "" }}
+                />
                 <Button
                   variant="enterprise"
                   data-department-grant-submit

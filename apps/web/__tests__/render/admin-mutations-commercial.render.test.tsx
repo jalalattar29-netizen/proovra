@@ -23,6 +23,7 @@
  *   "POST /v1/admin/demo-requests/follow-up/run"
  */
 
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -635,9 +636,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
     await mountDemoRequests();
     await openDemoDetails();
 
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "CONTACTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "CONTACTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(q('[role="dialog"]')).toBeNull();
@@ -652,9 +651,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
     await mountDemoRequests();
     await openDemoDetails();
 
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "REJECTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "REJECTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
 
     const d = dialog("commercial-status-rejected");
@@ -667,9 +664,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
   it("cancel sends nothing", async () => {
     await mountDemoRequests();
     await openDemoDetails();
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "REJECTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "REJECTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
     await cancelDialog("commercial-status-rejected");
     expect(writes()).toHaveLength(0);
@@ -678,9 +673,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
   it("confirm sends exactly ONE PATCH carrying expectedStatus and the edit form", async () => {
     await mountDemoRequests();
     await openDemoDetails();
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "REJECTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "REJECTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
     await confirmDialog("commercial-status-rejected");
 
@@ -700,11 +693,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
   it("stopping follow-up (no status move) confirms first and names the recipient", async () => {
     await mountDemoRequests();
     await openDemoDetails();
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText("Follow-up status"), {
-        target: { value: "STOPPED" },
-      });
-    });
+    chooseListbox(screen.getByLabelText("Follow-up status"), "STOPPED");
     await click(screen.getByRole("button", { name: "Save changes" }));
 
     const d = dialog("demo-request-stop-follow-up");
@@ -724,9 +713,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
     await openDemoDetails();
     const readsBefore = gets().length;
 
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "REJECTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "REJECTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
     await confirmDialog("commercial-status-rejected");
 
@@ -752,9 +739,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
     await openDemoDetails();
     const readsBefore = gets().length;
 
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "REJECTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "REJECTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
     await confirmDialog("commercial-status-rejected");
 
@@ -770,9 +755,7 @@ describe("Demo Requests — PATCH /v1/admin/demo-requests/:id", () => {
     await mountDemoRequests();
     await openDemoDetails();
 
-    await act(async () => {
-      fireEvent.change(reviewStatusSelect(), { target: { value: "REJECTED" } });
-    });
+    chooseListbox(reviewStatusSelect(), "REJECTED");
     await click(screen.getByRole("button", { name: "Save changes" }));
     await confirmDialog("commercial-status-rejected");
 
@@ -791,11 +774,7 @@ describe("Demo Requests — POST /v1/admin/demo-requests/:id/route", () => {
   async function chooseTarget() {
     await mountDemoRequests();
     await openDemoDetails();
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText("Routing target"), {
-        target: { value: "MANUAL_SALES" },
-      });
-    });
+    chooseListbox(screen.getByLabelText("Routing target"), "MANUAL_SALES");
   }
 
   it("asks first, naming the request and the track, before any request", async () => {

@@ -186,7 +186,7 @@ function Overview() {
       if (isApiResponseError(err)) {
         return {
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         };

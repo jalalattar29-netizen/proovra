@@ -20,6 +20,8 @@
  *     connection (mapping changes are inert).
  */
 
+import { identifierLabel } from "@proovra/shared";
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -300,24 +302,18 @@ function SamlMappingContent() {
 
   const connectionSelect = (
     <div>
-      <label className="app-field-help" style={{ marginRight: 8 }}>Connection</label>
-      <select
-        className="app-select"
+      <span id="sso-mapping-connection-label" className="app-field-help" style={{ marginRight: 8 }}>Connection</span>
+      <AppListbox
+        ariaLabelledby="sso-mapping-connection-label"
         value={connectionId ?? ""}
-        onChange={(e) => setConnectionId(e.target.value || null)}
-      >
-        {providers === null ? (
-          <option value="">Loading…</option>
-        ) : providers.length === 0 ? (
-          <option value="">No SAML connections</option>
-        ) : (
-          providers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {identityProviderLabel(p.provider)} · {p.id.slice(0, 8)}…
-            </option>
-          ))
-        )}
-      </select>
+        placeholder={providers === null ? "Loading…" : "No SAML connections"}
+        options={(providers ?? []).map((p) => ({
+          value: p.id,
+          label: identityProviderLabel(p.provider),
+        }))}
+        onChange={(next) => setConnectionId(next || null)}
+        style={{ maxWidth: 360 }}
+      />
     </div>
   );
 
@@ -527,18 +523,14 @@ function FieldEditor({
         {descriptor.description}
       </p>
       {descriptor.kind === "enum" && descriptor.enumValues ? (
-        <select
-          className="app-select"
+        <AppListbox
           value={value ?? ""}
-          onChange={(e) => onChange(e.target.value || null)}
-        >
-          <option value="">— default —</option>
-          {descriptor.enumValues.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: "", label: "— default —" },
+            ...descriptor.enumValues.map((v) => ({ value: v, label: identifierLabel(v) })),
+          ]}
+          onChange={(next) => onChange(next || null)}
+        />
       ) : (
         <input
           className="app-input"
@@ -603,20 +595,18 @@ function GroupRoleMapEditor({
                   />
                 </td>
                 <td >
-                  <select
-                    className="app-select"
+                  <AppListbox
                     value={e.role}
-                    onChange={(ev) =>
-                      update(i, {
-                        role: ev.target.value as GroupRoleEntry["role"],
-                      })
-                    }
-                  >
-                    <option value="OWNER">OWNER</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="MEMBER">MEMBER</option>
-                    <option value="VIEWER">VIEWER</option>
-                  </select>
+                    options={[
+                      { value: "OWNER", label: "Owner" },
+                      { value: "ADMIN", label: "Admin" },
+                      { value: "MEMBER", label: "Member" },
+                      { value: "VIEWER", label: "Viewer" },
+                    ]}
+                    onChange={(next) => update(i, {
+                                            role: next as GroupRoleEntry["role"],
+                                          })}
+                  />
                 </td>
                 <td >
                   <Button

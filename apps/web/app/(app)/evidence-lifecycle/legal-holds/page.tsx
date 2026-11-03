@@ -1,5 +1,6 @@
 "use client";
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -469,13 +470,11 @@ function Shell() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             Kind
-            <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
-              {HOLD_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={kind}
+              options={[...HOLD_KINDS.map((k) => ({ value: k, label: identifierLabel(k) }))]}
+              onChange={(next) => setKind(next)}
+            />
           </label>
           <label style={labelStyle}>
             Name

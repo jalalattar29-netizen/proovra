@@ -14,6 +14,7 @@
  *     what the operator is recording, never the truth of content.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useState } from "react";
 
 import {
@@ -282,19 +283,15 @@ function SelectWidget({
   disabled: boolean;
 }) {
   return (
-    <select
+    <AppListbox
       value={current}
+      options={[
+        { value: "", label: "— Select —" },
+        ...options.map((o) => ({ value: o.value, label: o.label })),
+      ]}
+      onChange={(next) => onChange(next)}
       disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      style={widgetStyle}
-    >
-      <option value="">— Select —</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    />
   );
 }
 

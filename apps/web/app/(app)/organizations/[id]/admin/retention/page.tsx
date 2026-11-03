@@ -75,7 +75,7 @@ function RetentionTab() {
       if (isApiResponseError(err)) {
         setPolicy({
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         });
@@ -192,7 +192,7 @@ function RetentionTab() {
           <DeepLink
             testId="ret-deep-link-legal-holds"
             label="Evidence Lifecycle · Legal holds"
-            description="Place, list, and release legal holds (mutation requires ADMIN+)."
+            description="Place, list and release legal holds. Changes require the Admin role or higher."
             href="/evidence-lifecycle/legal-holds"
           />
           <DeepLink

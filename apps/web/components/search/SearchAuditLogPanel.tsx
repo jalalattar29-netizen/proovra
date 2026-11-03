@@ -25,6 +25,7 @@
  *   * Errors go through toSafeUserError — never a raw error.message.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -219,7 +220,7 @@ export function SearchAuditLogPanel({ teamId }: { teamId: string | null }) {
                       <code>{r.actorUserId.slice(0, 8)}…</code>
                     </td>
                     <td>
-                      <code>{r.surface}</code>
+                      <span>{identifierLabel(r.surface)}</span>
                     </td>
                     <td>
                       {r.queryHash ? (

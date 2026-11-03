@@ -27,6 +27,7 @@
  *     submit without a note.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useCallback, useState } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -278,23 +279,23 @@ export function ReviewerBulkOpsBar({
             margin: "0 4px",
           }}
         />
-        <select
-          data-reviewer-bulk-note-action
+        <AppListbox
           value={noteAction ?? ""}
-          onChange={(e) => {
-            const v = e.target.value as BulkAction | "";
-            setNoteAction(v === "" ? null : v);
-          }}
+          options={[
+            { value: "", label: "— with note —" },
+            { value: "ESCALATE", label: "Escalate" },
+            { value: "PAUSE", label: "Pause" },
+            { value: "REQUEST_INFO", label: "Request info" },
+            { value: "CLOSE", label: "Close" },
+          ]}
+          onChange={(next) => {
+                      const v = next as BulkAction | "";
+                      setNoteAction(v === "" ? null : v);
+                    }}
           disabled={submitting}
-          style={{ fontSize: 12 }}
-          aria-label="Bulk action requiring a note"
-        >
-          <option value="">— with note —</option>
-          <option value="ESCALATE">Escalate</option>
-          <option value="PAUSE">Pause</option>
-          <option value="REQUEST_INFO">Request info</option>
-          <option value="CLOSE">Close</option>
-        </select>
+          ariaLabel={"Bulk action requiring a note"}
+          triggerProps={{ "data-reviewer-bulk-note-action": "" }}
+        />
         {noteAction ? (
           <>
             <input

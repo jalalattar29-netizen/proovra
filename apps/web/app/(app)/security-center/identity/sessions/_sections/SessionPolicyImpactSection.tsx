@@ -15,6 +15,7 @@
  * only renders them. The workspace comes from `lib/platform-context`.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../../lib/api";
@@ -161,7 +162,7 @@ export function SessionPolicyImpactSection() {
         </code>
       ),
     },
-    { key: "role", header: "Role", render: (r) => <Badge tone="neutral">{r.role}</Badge> },
+    { key: "role", header: "Role", render: (r) => <Badge tone="neutral">{identifierLabel(r.role)}</Badge> },
     {
       key: "count",
       header: "Live sessions",

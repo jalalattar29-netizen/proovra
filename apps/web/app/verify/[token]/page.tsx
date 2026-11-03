@@ -775,7 +775,7 @@ function OutputContextBadge({
             : "#5a3fcc",
         }}
       >
-        Signals source: {friendlySource}
+        Results: {friendlySource}
       </span>
       {snapAt ? (
         <span>
@@ -1733,7 +1733,7 @@ export default function VerifyPage() {
 
                     {tsaDetails?.legacyMode ? (
                       <div style={{ ...VERIFY_TYPO.small, color: VERIFY_BRAND.subtle }}>
-                        Legacy mode: this record predates explicit timestamp-input digest storage.
+                        This record was timestamped before the timestamped digest was stored separately.
                       </div>
                     ) : null}
 

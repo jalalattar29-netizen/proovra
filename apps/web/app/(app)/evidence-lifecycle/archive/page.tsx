@@ -29,6 +29,7 @@
  *     (`services/api/src/services/lifecycle/archive-tier.service.ts:540`).
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import { identifierLabel } from "@proovra/shared";
@@ -357,18 +358,18 @@ function Shell() {
               style={inputStyle}
               value={evidenceId}
               onChange={(e) => setEvidenceId(e.target.value)}
-              placeholder="evidence UUID"
+              placeholder="Evidence ID"
             />
           </label>
           <label style={labelStyle}>
             Target tier
-            <select style={inputStyle} value={toTier} onChange={(e) => setToTier(e.target.value)}>
-              {ARCHIVE_TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {TIER_LABELS[t] ?? t}
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={toTier}
+              options={[
+                ...ARCHIVE_TIERS.map((t) => ({ value: t, label: TIER_LABELS[t] ?? t })),
+              ]}
+              onChange={(next) => setToTier(next)}
+            />
           </label>
           <Button
             type="button"

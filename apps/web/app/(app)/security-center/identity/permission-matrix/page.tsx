@@ -26,6 +26,7 @@
  * another organization.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -551,14 +552,14 @@ export default function PermissionMatrixPage() {
           >
             <input
               data-permission-matrix-subject
-              aria-label="Member user id (UUID) to inspect"
+              aria-label="Member user ID to inspect"
               className="adm-input" style={{ maxWidth: 360 }}
-              placeholder="Member user id (UUID)"
+              placeholder="Member user ID"
               value={subjectUserId}
               onChange={(e) => setSubjectUserId(e.target.value.trim())}
             />
             <Button
-              title="Paste a member's user id (UUID) to inspect their effective access."
+              title="Paste a member's user ID to inspect their effective access."
               variant="enterprise"
               data-permission-matrix-inspect
               onClick={() => void loadSnapshot()}
@@ -647,19 +648,15 @@ export default function PermissionMatrixPage() {
                   value={elevationPermission}
                   onChange={(e) => setElevationPermission(e.target.value.trim())}
                 />
-                <select
-                  aria-label="Elevation window"
-                  data-elevation-ttl
-                  className="adm-select"
+                <AppListbox
                   value={elevationTtl}
-                  onChange={(e) => setElevationTtl(e.target.value)}
-                >
-                  {ELEVATION_TTL_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ...ELEVATION_TTL_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+                  ]}
+                  onChange={(next) => setElevationTtl(next)}
+                  ariaLabel={"Elevation window"}
+                  triggerProps={{ "data-elevation-ttl": "" }}
+                />
                 <input
                   data-elevation-reason
                   className="adm-input" style={{ maxWidth: 320 }}

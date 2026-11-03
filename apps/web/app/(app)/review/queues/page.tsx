@@ -58,6 +58,7 @@
  *     at the server-side 100-row bulk cap).
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -609,35 +610,22 @@ function QueuesShell() {
               }}
             >
               Queue
-              <select
-                data-reviewer-queue-filter
+              <AppListbox
                 value={filter}
-                onChange={(e) => {
-                  const next = e.target.value as ReviewerOpsQueueType;
-                  setFilter(next);
-                  setSelected(new Set());
-                  router.replace(
-                    `/review/queues?queue=${encodeURIComponent(next)}`,
-                    { scroll: false },
-                  );
-                }}
-                style={{
-                  minHeight: 40,
-                  fontSize: 13.5,
-                  color: "var(--ink-primary, #0f172a)",
-                  background: "var(--surface-card, #ffffff)",
-                  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-                  borderRadius: "var(--radius-md, 8px)",
-                  padding: "0 12px",
-                  cursor: "pointer",
-                }}
-              >
-                {REVIEWER_OPS_QUEUE_TYPES.map((q) => (
-                  <option key={q} value={q}>
-                    {QUEUE_LABELS[q]}
-                  </option>
-                ))}
-              </select>
+                options={[
+                  ...REVIEWER_OPS_QUEUE_TYPES.map((q) => ({ value: q, label: QUEUE_LABELS[q] })),
+                ]}
+                onChange={(selected) => {
+                                  const next = selected as ReviewerOpsQueueType;
+                                  setFilter(next);
+                                  setSelected(new Set());
+                                  router.replace(
+                                    `/review/queues?queue=${encodeURIComponent(next)}`,
+                                    { scroll: false },
+                                  );
+                                }}
+                triggerProps={{ "data-reviewer-queue-filter": "" }}
+              />
             </label>
           }
         />
@@ -810,7 +798,7 @@ function QueuesShell() {
                     <code>{r.evidenceId.slice(0, 8)}…</code>
                   </td>
                   <td style={td}>{identifierLabel(r.status)}</td>
-                  <td style={td}>{r.priority}</td>
+                  <td style={td}>{identifierLabel(r.priority)}</td>
                   <td style={td}>
                     <QueueSignalCell
                       state={intelligenceState}

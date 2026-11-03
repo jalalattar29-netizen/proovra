@@ -437,7 +437,7 @@ export default function AdminPersonDetailPage() {
                       <Badge
                         tone={LIFECYCLE_TONE[detail.commercial.lifecycleState] ?? "neutral"}
                       >
-                        {detail.commercial.lifecycleState}
+                        {identifierLabel(detail.commercial.lifecycleState)}
                       </Badge>
                       {detail.commercial.graceEndsAtUtc ? (
                         <div

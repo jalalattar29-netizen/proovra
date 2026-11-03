@@ -37,8 +37,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   FILE_SECURITY_SCAN_STATUSES,
-  SECURITY_EVENT_SEVERITIES,
-} from "@proovra/shared";
+  SECURITY_EVENT_SEVERITIES, identifierLabel } from "@proovra/shared";
 import { apiFetch } from "../../../../../lib/api";
 import { useTeamId, useTenantGuard } from "../../../../../lib/platform-context";
 import { Badge, type BadgeTone } from "../../../../../components/ui/Badge";
@@ -332,7 +331,7 @@ export function WorkspaceSecurityPostureSection() {
   }, [loadOverview, loadEvents]);
 
   const description = (
-    <SectionDescription text="Malware-scan and security-event posture for the workspace you are currently in. Counts, statuses and event details are read live from the backend aggregate; nothing on this panel is estimated and no scanner internals, payloads or raw IP addresses are shown." />
+    <SectionDescription text="Malware-scan and security-event posture for the workspace you are currently in. Counts, statuses and event details are read live; nothing on this panel is estimated and no scanner internals, payloads or raw IP addresses are shown." />
   );
 
   if (!teamId) {
@@ -384,7 +383,7 @@ export function WorkspaceSecurityPostureSection() {
     {
       key: "status",
       header: "Result",
-      render: (r) => <Badge tone={scanTone(r.status)}>{r.status}</Badge>,
+      render: (r) => <Badge tone={scanTone(r.status)}>{identifierLabel(r.status)}</Badge>,
     },
     {
       key: "scanner",
@@ -419,14 +418,14 @@ export function WorkspaceSecurityPostureSection() {
       header: "Event",
       render: (r) => (
         <span style={{ fontWeight: 600, fontSize: 12.5, overflowWrap: "anywhere" }}>
-          {r.eventType}
+          {identifierLabel(r.eventType)}
         </span>
       ),
     },
     {
       key: "severity",
       header: "Severity",
-      render: (r) => <Badge tone={severityTone(r.severity)}>{r.severity}</Badge>,
+      render: (r) => <Badge tone={severityTone(r.severity)}>{identifierLabel(r.severity)}</Badge>,
     },
     {
       key: "details",

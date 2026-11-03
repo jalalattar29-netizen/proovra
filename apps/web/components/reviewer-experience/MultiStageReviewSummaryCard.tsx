@@ -103,8 +103,8 @@ export function MultiStageReviewSummaryCard({ teamId }: { teamId: string }) {
       >
         Workflow counts by derived multi-stage review state across the last{" "}
         {state.kind === "ready" ? state.data.summary.windowDays : 90} days.
-        Items in the “Conflict” bucket are gated to team OWNER/ADMIN for
-        adjudication (Phase B.2).
+        Items in the “Conflict” bucket need a workspace Owner or Admin to
+        adjudicate them.
       </p>
 
       {state.kind === "loading" ? (
@@ -127,8 +127,7 @@ export function MultiStageReviewSummaryCard({ teamId }: { teamId: string }) {
             fontSize: 12,
           }}
         >
-          Multi-stage review summary unavailable
-          {state.status ? ` (HTTP ${state.status})` : ""}.
+          Multi-stage review summary unavailable.
           <button
             type="button"
             onClick={() => void load()}

@@ -1680,7 +1680,6 @@ function InboxPageInner() {
                 color: "var(--ink-secondary, inherit)",
               }}
             >
-              {state.status ? `HTTP ${state.status}: ` : ""}
               {state.message}
             </div>
             <div style={{ marginTop: 12 }}>

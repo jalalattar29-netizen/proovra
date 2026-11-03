@@ -26,6 +26,7 @@
  *     step-up. This component is preview-only.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
@@ -192,7 +193,7 @@ export function DestructionImpactPreview({
               <strong>{data.evidence.title || data.evidence.id}</strong>
               <span style={mutedStyle}>
                 {" "}
-                · lifecycle state: {data.evidence.lifecycleState}
+                · lifecycle state: {identifierLabel(data.evidence.lifecycleState)}
               </span>
             </li>
           </ul>
@@ -206,7 +207,7 @@ export function DestructionImpactPreview({
         <h4 style={headingStyle}>Governing retention policy</h4>
         {data.policy ? (
           <p>
-            <strong>{data.policy.displayName}</strong> · {data.policy.status}
+            <strong>{data.policy.displayName}</strong> · {identifierLabel(data.policy.status)}
             {data.policy.retentionDays != null
               ? ` · retention ${data.policy.retentionDays} days`
               : " · indefinite retention"}

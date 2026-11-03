@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 // Admin detail route for a single demo request.
@@ -386,10 +387,10 @@ export default function AdminDemoRequestDetailPage({
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge tone={statusTone(state.details.status)}>
-                  {state.details.status}
+                  {identifierLabel(state.details.status)}
                 </Badge>
                 <Badge tone={priorityTone(state.details.priority)}>
-                  {state.details.priority}
+                  {identifierLabel(state.details.priority)}
                 </Badge>
                 <Badge tone={state.details.isSpam ? "risk" : "verified"} dot>
                   {state.details.isSpam

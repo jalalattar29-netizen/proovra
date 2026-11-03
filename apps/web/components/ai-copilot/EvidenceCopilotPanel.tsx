@@ -5,7 +5,7 @@
  * Structured Evidence-Operations assistant for ONE authorized record.
  * Advisory only; deterministic integrity facts are explained, never decided.
  */
-import { buildCopilotIdempotencyKey } from "@proovra/shared";
+import { buildCopilotIdempotencyKey, identifierLabel } from "@proovra/shared";
 import { useState } from "react";
 
 import { apiFetch, ApiError } from "../../lib/api";
@@ -309,7 +309,7 @@ export function EvidenceCopilotPanel({
 
       {state.kind === "error" ? (
         <div className="app-alert app-alert--warn evd-block" role="alert">
-          {state.message} <span className="evd-muted">({state.code})</span>
+          {state.message} <span className="evd-muted">({identifierLabel(state.code)})</span>
         </div>
       ) : null}
       {state.kind === "result" ? (
@@ -336,7 +336,7 @@ function ResultView({
   onOutputsRequested?: () => void;
 }) {
   if (result.status === "provider_unavailable") return <div className="app-alert evd-block">AI is currently unavailable. Evidence workflows are unaffected.</div>;
-  if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace ({result.decision}).</div>;
+  if (result.status === "policy_denied") return <div className="app-alert evd-block">Evidence AI is disabled for this workspace {result.decision ? ` (${identifierLabel(result.decision)})` : ""}.</div>;
   if (result.status === "schema_error") {
     // The response is DISCARDED and never rendered. The user gets an actionable
     // control rather than a dead end; the internal category is logged

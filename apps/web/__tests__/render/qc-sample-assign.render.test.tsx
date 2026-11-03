@@ -1,3 +1,4 @@
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -93,7 +94,7 @@ describe("QC sample assignment", () => {
     const { select } = await openAssign();
     const submit = screen.getByRole("button", { name: "Assign" });
     expect(submit.getAttribute("data-disabled-reason")).toBe("Choose a reviewer.");
-    fireEvent.change(select, { target: { value: me } });
+    chooseListbox(select, me);
     fireEvent.click(submit);
     await screen.findByText(SUCCESS);
     expect(mocks.confirm).not.toHaveBeenCalled();
@@ -118,7 +119,7 @@ describe("QC sample assignment", () => {
     mocks.assignee = other;
     mocks.confirm.mockResolvedValue(false);
     const { select } = await openAssign("Reassign QC reviewer");
-    fireEvent.change(select, { target: { value: me } });
+    chooseListbox(select, me);
     fireEvent.click(screen.getByRole("button", { name: "Assign" }));
     await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Reassign this QC sample?" })));
     await waitFor(() => expect(screen.getByRole("button", { name: "Assign" }).hasAttribute("disabled")).toBe(false));
@@ -153,7 +154,7 @@ describe("QC sample assignment", () => {
       return base(path, init);
     });
     const { select } = await openAssign();
-    fireEvent.change(select, { target: { value: other } });
+    chooseListbox(select, other);
     fireEvent.click(screen.getByRole("button", { name: "Assign" }));
     expect((await screen.findByText(text)).getAttribute("role")).toBe("alert");
     expect(screen.queryByText(SUCCESS)).toBeNull();
@@ -166,7 +167,7 @@ describe("QC sample assignment", () => {
       return base(path, init);
     });
     const { select } = await openAssign();
-    fireEvent.change(select, { target: { value: other } });
+    chooseListbox(select, other);
     fireEvent.click(screen.getByRole("button", { name: "Assign" }));
     await screen.findByText(/does not show it yet/);
     expect(screen.queryByText(SUCCESS)).toBeNull();

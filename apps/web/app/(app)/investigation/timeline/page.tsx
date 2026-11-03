@@ -20,6 +20,8 @@
  *     evidence detail.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { identifierTextLabel } from "@proovra/shared";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -77,9 +79,9 @@ const FILTER_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "ALL", label: "All events" },
-  { value: "NODE_CREATED", label: "Graph nodes" },
-  { value: "EDGE_CREATED", label: "Graph edges (created)" },
-  { value: "EDGE_REMOVED", label: "Graph edges (removed)" },
+  { value: "NODE_CREATED", label: "Records added" },
+  { value: "EDGE_CREATED", label: "Links added" },
+  { value: "EDGE_REMOVED", label: "Links removed" },
   { value: "LIFECYCLE_EVENT", label: "Evidence lifecycle" },
   { value: "MEDIA_RUN_STARTED", label: "Intelligence runs (started)" },
   { value: "MEDIA_RUN_COMPLETED", label: "Intelligence runs (completed)" },
@@ -325,17 +327,13 @@ function InvestigationTimelinePageInner() {
 
       <section style={controlsRowStyle}>
         <label style={controlsLabelStyle}>Event kind</label>
-        <select
+        <AppListbox
           value={filter}
-          onChange={(e) => setFilter(e.target.value as TimelineEventKind | "ALL")}
-          style={selectStyle}
-        >
-          {FILTER_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...FILTER_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label })),
+          ]}
+          onChange={(next) => setFilter(next as TimelineEventKind | "ALL")}
+        />
         {truncated ? (
           <span style={truncatedNoticeStyle}>
             Showing the most recent 200 events. Narrow your filter to see
@@ -436,7 +434,7 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
     <li className="inv-timeline-row" style={eventRowStyle}>
       <div style={eventTimeStyle}>{formatTime(event.atUtc)}</div>
       <div style={eventKindBadgeStyle(event.kind)}>{kindLabel(event.kind)}</div>
-      <div className="inv-timeline-row__summary" style={eventSummaryStyle}>{event.summary}</div>
+      <div className="inv-timeline-row__summary" style={eventSummaryStyle}>{identifierTextLabel(event.summary)}</div>
       <div style={eventPivotsStyle}>
         <Link
           href={`/investigation/relationships?nodeId=${encodeURIComponent(
@@ -458,11 +456,11 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
 function kindLabel(k: TimelineEventKind): string {
   switch (k) {
     case "NODE_CREATED":
-      return "Graph node";
+      return "Record added";
     case "EDGE_CREATED":
-      return "Edge added";
+      return "Link added";
     case "EDGE_REMOVED":
-      return "Edge removed";
+      return "Link removed";
     case "LIFECYCLE_EVENT":
       return "Lifecycle";
     case "MEDIA_RUN_STARTED":
@@ -606,15 +604,6 @@ const controlsLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   color: "#475569",
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: "5px 10px",
-  fontSize: 12,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  background: "#ffffff",
-  color: "#0f172a",
 };
 
 function timelineExportButtonStyle(busy: boolean): React.CSSProperties {

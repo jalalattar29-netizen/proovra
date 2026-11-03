@@ -17,12 +17,12 @@
  * concealed as "not part of this workspace", never confirmed to exist.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import {
   EXTERNAL_IDENTITY_PROVIDERS,
-  type ExternalIdentityProvider,
-} from "@proovra/shared";
+  type ExternalIdentityProvider, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -210,7 +210,7 @@ export function ExternalMappingsSection({
     {
       key: "provider",
       header: "Provider",
-      render: (m) => <Badge tone="governance">{m.provider}</Badge>,
+      render: (m) => <Badge tone="governance">{identifierLabel(m.provider)}</Badge>,
     },
     {
       key: "subject",
@@ -284,35 +284,26 @@ export function ExternalMappingsSection({
         <div
           style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}
         >
-          <select
-            aria-label="Member"
-            data-identity-mapping-member
-            className="adm-select" style={{ maxWidth: 260 }}
+          <AppListbox
             value={subjectUserId}
-            onChange={(e) => setSubjectUserId(e.target.value)}
-          >
-            <option value="">Select a member…</option>
-            {activeMembers.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {shortId(m.userId)} · {m.role}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Provider"
-            data-identity-mapping-provider
-            className="adm-select"
+            options={[
+              { value: "", label: "Select a member…" },
+              ...activeMembers.map((m) => ({ value: m.userId, label: `${shortId(m.userId)} · ${identifierLabel(m.role)}` })),
+            ]}
+            onChange={(next) => setSubjectUserId(next)}
+            ariaLabel={"Member"}
+            style={{ maxWidth: 260 }}
+            triggerProps={{ "data-identity-mapping-member": "" }}
+          />
+          <AppListbox
             value={provider}
-            onChange={(e) =>
-              setProvider(e.target.value as ExternalIdentityProvider)
-            }
-          >
-            {EXTERNAL_IDENTITY_PROVIDERS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
+            options={[
+              ...EXTERNAL_IDENTITY_PROVIDERS.map((p) => ({ value: p, label: identifierLabel(p) })),
+            ]}
+            onChange={(next) => setProvider(next as ExternalIdentityProvider)}
+            ariaLabel={"Provider"}
+            triggerProps={{ "data-identity-mapping-provider": "" }}
+          />
           <input
             data-identity-mapping-subject
             aria-label="Provider subject id (NameID or sub claim) to link"

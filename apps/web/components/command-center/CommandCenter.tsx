@@ -61,7 +61,8 @@ import {
 import { ContextualHelp } from "../contextual-help/ContextualHelp";
 import { CommandCenterQuickActions } from "./CommandCenterQuickActions";
 import { WorkflowOperationsSection } from "./_sections/WorkflowOperationsSection";
-import { summarizeTenantServiceStatus } from "@proovra/shared";
+import { summarizeTenantServiceStatus, identifierLabel, identifierTextLabel } from "@proovra/shared";
+import { sourceTraceLabel } from "../../lib/labels/workspaceOpsLabels";
 import { useServiceStatus } from "../../lib/useServiceStatus";
 import { hasRunbook, resolveRunbookSlug } from "../../lib/runbooks/slugs.generated";
 import type {
@@ -1006,8 +1007,8 @@ function ReviewerCapacityBoard({
       >
         <EnterpriseEmpty
           title="No reviewer with active assignments"
-          body="The capacity engine scans EvidenceReviewWorkflow rows assigned to a reviewer (ASSIGNED / IN_REVIEW / NEEDS_INFO). A 0-result state means no reviewer currently carries an active workload."
-          hint="Routing recommendations (REASSIGN / ESCALATE / SPLIT_LOAD) appear only when at least one reviewer is at HIGH or CRITICAL saturation."
+          body="No review is currently assigned, in review or waiting for information, so no reviewer carries an active workload."
+          hint="Suggestions to reassign, escalate or split work appear only when a reviewer is close to capacity."
         />
       </SectionShell>
     );
@@ -1095,7 +1096,7 @@ function ReviewerCapacityBoard({
                 data-cc-rec-severity={r.severity}
               >
                 <div className="ec-coord-row-main">
-                  <span className="ec-coord-type">{r.recommendationType}</span>
+                  <span className="ec-coord-type">{identifierLabel(r.recommendationType)}</span>
                   <span
                     className="ec-chip"
                     data-cc-tile-severe={
@@ -1104,10 +1105,10 @@ function ReviewerCapacityBoard({
                         : "false"
                     }
                   >
-                    {r.reasonCode}
+                    {identifierLabel(r.reasonCode)}
                   </span>
                 </div>
-                <div className="ec-coord-explanation">{r.explanation}</div>
+                <div className="ec-coord-explanation">{identifierTextLabel(r.explanation)}</div>
                 <time className="ec-chip-faint" dateTime={r.createdAt}>
                   {relTime(r.createdAt)}
                 </time>
@@ -1162,7 +1163,7 @@ function OperationalGraphSummaryBoard({
             data-cc-graph-node-type={n.nodeType}
           >
             <span className="ec-tile-value">{n.count}</span>
-            <span className="ec-tile-label">{n.nodeType}</span>
+            <span className="ec-tile-label">{identifierLabel(n.nodeType)}</span>
           </div>
         ))}
       </div>
@@ -1200,7 +1201,7 @@ function OperationalGraphSummaryBoard({
               >
                 <div className="ec-telemetry-row-main">
                   <span className="ec-telemetry-label">{r.label}</span>
-                  <span className="ec-chip-faint">{r.nodeType}</span>
+                  <span className="ec-chip-faint">{identifierLabel(r.nodeType)}</span>
                   <span
                     className="ec-chip"
                     data-cc-tile-severe={
@@ -1209,12 +1210,12 @@ function OperationalGraphSummaryBoard({
                         : "false"
                     }
                   >
-                    {r.severity}
+                    {identifierLabel(r.severity)}
                   </span>
                 </div>
                 <div className="ec-telemetry-meta">
                   <span>out-degree {r.outDegree}</span>
-                  <span className="ec-chip-faint">{r.status}</span>
+                  <span className="ec-chip-faint">{identifierLabel(r.status)}</span>
                 </div>
               </li>
             ))}
@@ -1365,13 +1366,13 @@ function PredictiveRiskBoard({
             data-cc-forecast-confidence={f.confidence}
           >
             <div className="ec-forecast-row-head">
-              <span className="ec-forecast-type">{f.forecastType}</span>
+              <span className="ec-forecast-type">{identifierLabel(f.forecastType)}</span>
               <span className="ec-chip" data-cc-tile-severe={f.severity === "high" || f.severity === "critical" ? "true" : "false"}>
                 {f.severity.toUpperCase()}
               </span>
-              <span className="ec-chip-faint">confidence · {f.confidence}</span>
+              <span className="ec-chip-faint">confidence · {identifierLabel(f.confidence)}</span>
             </div>
-            <div className="ec-forecast-reason">{f.reason}</div>
+            <div className="ec-forecast-reason">{identifierTextLabel(f.reason)}</div>
             <div className="ec-forecast-impact">
               Likely impact: {f.likelyImpact}
             </div>
@@ -1462,7 +1463,7 @@ function OrgIntelligenceV2Board({
                 className="ec-bottleneck-row"
                 data-cc-pressure-source={s.sourceTable}
               >
-                <code className="ec-bottleneck-source">{s.sourceTable}</code>
+                <span className="ec-bottleneck-source">{sourceTraceLabel(s.sourceTable)}</span>
                 <span className="ec-chip">{s.itemCount}</span>
               </li>
             ))}
@@ -1526,11 +1527,11 @@ function RelationshipIntelligenceBoard({
             data-cc-cluster-severity={c.severity}
           >
             <div className="ec-cluster-row-main">
-              <span className="ec-cluster-kind">{c.kind}</span>
+              <span className="ec-cluster-kind">{identifierLabel(c.kind)}</span>
               <span className="ec-chip" data-cc-tile-severe={c.severity === "high" || c.severity === "critical" ? "true" : "false"}>
-                {c.reasonCode}
+                {identifierLabel(c.reasonCode)}
               </span>
-              <span className="ec-chip-faint">{c.confidence}</span>
+              <span className="ec-chip-faint">{identifierLabel(c.confidence)}</span>
             </div>
             <div className="ec-cluster-explanation">
               {c.operationalExplanation}
@@ -1603,7 +1604,7 @@ function CrossCaseIntelligenceV2Board({
             data-cc-cross-severity={s.severity}
           >
             <div className="ec-cross-row-main">
-              <span className="ec-cross-type">{s.signalType}</span>
+              <span className="ec-cross-type">{identifierLabel(s.signalType)}</span>
               <span className="ec-chip" data-cc-tile-severe={s.severity === "high" || s.severity === "critical" ? "true" : "false"}>
                 {s.severity.toUpperCase()}
               </span>
@@ -1651,7 +1652,7 @@ function DeepIntegrityWatch({
       >
         <EnterpriseEmpty
           title="No deep integrity anomalies detected"
-          body="The deep watch reads Evidence verificationStatus + TSA token + OTS status + report/package relations. Deeper hash-recompute lives in the worker pipeline."
+          body="This check reads each record’s verification result, timestamp, anchoring status, report and package. Full hash checks run separately in the background."
         />
       </SectionShell>
     );
@@ -1685,11 +1686,11 @@ function DeepIntegrityWatch({
                     className="ec-chip"
                     data-cc-tile-severe={it.severity === "critical" || it.severity === "high" ? "true" : "false"}
                   >
-                    {it.reasonCode}
+                    {identifierLabel(it.reasonCode)}
                   </span>
                 </div>
                 <div className="ec-deep-integrity-explanation">
-                  {it.explanation}
+                  {identifierTextLabel(it.explanation)}
                 </div>
                 {renderTsa ? (
                   <div
@@ -1723,12 +1724,12 @@ function DeepIntegrityWatch({
                         {tsa!.parseErrorCode ? ` · ${tsa!.parseErrorCode}` : ""}
                       </span>
                     ) : (
-                      <span className="ec-chip-faint">TSA · {tsa!.parseStatus}</span>
+                      <span className="ec-chip-faint">TSA · {identifierLabel(tsa!.parseStatus ?? "unknown")}</span>
                     )}
                   </div>
                 ) : null}
                 <div className="ec-deep-integrity-source">
-                  Source · {it.sourceFields.join(" + ")}
+                  Source · {it.sourceFields.map(sourceTraceLabel).join(", ")}
                 </div>
               </Link>
             </li>
@@ -1736,8 +1737,8 @@ function DeepIntegrityWatch({
         })}
       </ul>
       <div className="ec-section-foot">
-        Each signal includes the exact source field(s). Language is operator-side
-        review — no claim of authenticity or admissibility.
+        Each signal names the record it was read from. These are prompts for review,
+        not a claim of authenticity or admissibility.
       </div>
     </SectionShell>
   );
@@ -1794,8 +1795,8 @@ function AccessSecurityClassifierBoard({
       >
         <EnterpriseEmpty
           title="No suspicious activity in the last 24h"
-          body="The classifier reads the last 24 hours of the security audit log and groups them by (category, actor, eventType). A 0-result state means: no repeated failed access, no blocked export attempts, no API credential changes, no webhook failure spikes, no step-up failures, no permission-denied bursts, no admin role changes flagged above the burst threshold."
-          hint="The classifier is rule-based — no ML scoring. The full audit trail remains in the security audit log."
+          body="The last 24 hours of the security audit log show no repeated failed access, blocked exports, API credential changes, webhook failure spikes, step-up failures, permission-denied bursts or unusual admin role changes."
+          hint="This check follows fixed rules. The full trail stays in the security audit log."
         />
       </SectionShell>
     );
@@ -1816,7 +1817,7 @@ function AccessSecurityClassifierBoard({
             data-cc-classifier-count={a.count}
           >
             <div className="ec-classifier-row-main">
-              <span className="ec-classifier-category">{a.category}</span>
+              <span className="ec-classifier-category">{identifierLabel(a.category)}</span>
               <span className="ec-chip">{a.count}× · {a.timeWindow}</span>
               <span
                 className="ec-chip"
@@ -1825,13 +1826,13 @@ function AccessSecurityClassifierBoard({
                 {a.severity.toUpperCase()}
               </span>
             </div>
-            <div className="ec-classifier-explanation">{a.explanation}</div>
+            <div className="ec-classifier-explanation">{identifierTextLabel(a.explanation)}</div>
             <div className="ec-classifier-action">
               Recommended: {a.recommendedAction}
             </div>
             <div className="ec-classifier-source">
-              source · {a.sourceTable} · eventType:{" "}
-              <code>{a.eventType}</code>
+              Source: {sourceTraceLabel(a.sourceTable)} ·{" "}
+              {identifierLabel(a.eventType)}
             </div>
           </li>
         ))}
@@ -2037,15 +2038,15 @@ function CoordinationSignalsBoard({
           >
             <Link href={s.route} className="ec-coord-link">
               <div className="ec-coord-row-main">
-                <span className="ec-coord-type">{s.signalType}</span>
+                <span className="ec-coord-type">{identifierLabel(s.signalType)}</span>
                 <span
                   className="ec-chip"
                   data-cc-tile-severe={s.severity === "critical" || s.severity === "high" ? "true" : "false"}
                 >
-                  {s.reasonCode}
+                  {identifierLabel(s.reasonCode)}
                 </span>
               </div>
-              <div className="ec-coord-explanation">{s.explanation}</div>
+              <div className="ec-coord-explanation">{identifierTextLabel(s.explanation)}</div>
               <time className="ec-chip-faint" dateTime={s.detectedAt}>
                 {relTime(s.detectedAt)}
               </time>
@@ -2081,7 +2082,7 @@ function ReconstructedTimelineSection({
       >
         <EnterpriseEmpty
           title="Reconstructed timeline empty"
-          body="The reconstructed view aggregates Reports, Verification Packages, EvidenceLifecycleEvents, Reviewer Escalations, Operational Incidents, and Security Events — each tagged with actor + confidence + safeToDisplay."
+          body="This timeline brings together reports, verification packages, evidence lifecycle events, reviewer escalations, operational incidents and security events."
         />
       </SectionShell>
     );
@@ -2116,10 +2117,10 @@ function ReconstructedTimelineSection({
                 </span>
               )}
               <span className="ec-reconstructed-meta">
-                {ev.family} · {ev.type}
+                {identifierLabel(ev.family)} · {identifierLabel(ev.type)}
                 {ev.actor ? ` · actor ${ev.actor}` : ""}
                 {" · source: "}
-                {ev.sourceTable}
+                {sourceTraceLabel(ev.sourceTable)}
               </span>
             </div>
             <time
@@ -2288,7 +2289,7 @@ function RoutingRow({ item }: { item: OperationalPressureItem }) {
             {item.title}
           </Link>
           <span className="ec-routing-explanation">
-            {item.operationalExplanation}
+            {identifierTextLabel(item.operationalExplanation)}
           </span>
           <span className="ec-routing-meta">
             {humaniseCode(item.reasonCode)} · {humaniseCode(item.affectedDomain)}
@@ -2404,7 +2405,7 @@ function InvestigationRiskBoard({
                       : "false"
                   }
                 >
-                  {c.riskLevel}
+                  {identifierLabel(c.riskLevel)}
                 </span>
               </div>
               <div className="ec-risk-meta">
@@ -2450,7 +2451,7 @@ function InvestigationRiskBoard({
         </div>
       ) : null}
       <div className="ec-section-foot">
-        Source: {section.meta.sourceSummary.join(", ")}.
+        Source: {section.meta.sourceSummary.map(sourceTraceLabel).join(", ")}.
       </div>
     </SectionShell>
   );
@@ -2612,15 +2613,14 @@ function QueueCongestionSection({
           >
             <span className="ec-queue-tile-value">{q.depth}</span>
             <span className="ec-queue-tile-label">{q.label}</span>
-            <span className="ec-queue-tile-source">{q.source}</span>
+            <span className="ec-queue-tile-source">{sourceTraceLabel(q.source)}</span>
           </div>
         ))}
       </div>
       {section.meta.unsupportedSignals.length > 0 ? (
         <div className="ec-section-foot">
-          Remaining gaps are listed in the Unsupported Signals section. Queue
-          depth and worker heartbeat are in the Queue / Worker Telemetry
-          section.
+          Remaining gaps are listed under Unsupported signals. Background
+          queue health is listed under Queue telemetry.
         </div>
       ) : null}
     </SectionShell>
@@ -2655,8 +2655,8 @@ function CustodyIntegrityWatch({
       >
         <EnterpriseEmpty
           title="No integrity anomalies detected"
-          body="Evidence integrity is classified by the worker pipeline (verificationStatus field). REVIEW_REQUIRED and FAILED classifications surface here. The dashboard never recomputes hashes — it surfaces existing classifier output."
-          hint="Deep custody-chain recompute is performed by the worker, not the dashboard."
+          body="Records whose integrity check failed or needs review appear here. This page shows the recorded result; it does not recompute hashes."
+          hint="Full custody-chain checks run in the background."
         />
       </SectionShell>
     );
@@ -2682,7 +2682,7 @@ function CustodyIntegrityWatch({
                 className="ec-chip"
                 data-cc-tile-severe={it.severity === "critical" || it.severity === "high" ? "true" : "false"}
               >
-                {it.reasonCode}
+                {identifierLabel(it.reasonCode)}
               </span>
               <time className="ec-chip-faint" dateTime={it.detectedAt}>
                 {relTime(it.detectedAt)}
@@ -2750,7 +2750,7 @@ function AccessSecurityWatch({
             data-cc-security-event-id={s.eventId}
             data-cc-security-severity={s.severity}
           >
-            <span className="ec-security-event-type">{s.eventType}</span>
+            <span className="ec-security-event-type">{identifierLabel(s.eventType)}</span>
             <span
               className="ec-chip"
               data-cc-tile-severe={s.severity === "high" ? "true" : "false"}
@@ -2783,7 +2783,7 @@ function UnsupportedSignalsSection({
   return (
     <details className="ec-unsupported" data-cc-unsupported-signals>
       <summary className="ec-unsupported-summary" data-cc-diagnostics-disclosure>
-        Engineering diagnostics · capability catalog · {signals.length}
+        Signals not yet available · {signals.length}
         <small> (intelligence signals the platform does not yet compute — not a platform failure)</small>
       </summary>
       <ul className="ec-unsupported-list">
@@ -2794,7 +2794,7 @@ function UnsupportedSignalsSection({
             data-cc-unsupported-signal={s.signal}
           >
             <code className="ec-unsupported-signal">{s.signal}</code>
-            <span className="ec-unsupported-reason">{s.reason}</span>
+            <span className="ec-unsupported-reason">{identifierTextLabel(s.reason)}</span>
           </li>
         ))}
       </ul>
@@ -3904,9 +3904,9 @@ function CausalityChainsStrip({
                     : "false"
                 }
               >
-                {c.severity}
+                {identifierLabel(c.severity)}
               </span>
-              <span className="ec-chip-faint">{c.rootCauseType}</span>
+              <span className="ec-chip-faint">{identifierLabel(c.rootCauseType)}</span>
             </div>
             <div className="ec-coord-explanation" data-cc-chain-summary>
               {c.summary}
@@ -4001,14 +4001,14 @@ function WorkflowsStrip({
                   className="ec-chip"
                   data-cc-tile-severe={severe ? "true" : "false"}
                 >
-                  {w.severity}
+                  {identifierLabel(w.severity)}
                 </span>
                 <span className="ec-chip-faint" data-cc-workflow-priority-chip>
-                  {w.priority}
+                  {identifierLabel(w.priority)}
                 </span>
-                <span className="ec-chip-faint">{w.workflowType}</span>
+                <span className="ec-chip-faint">{identifierLabel(w.workflowType)}</span>
                 <span className="ec-chip-faint" data-cc-workflow-status-chip>
-                  {w.status}
+                  {identifierLabel(w.status)}
                 </span>
                 {isOverdue ? (
                   <span className="ec-chip" data-cc-tile-severe="true">
@@ -4119,13 +4119,13 @@ function IncidentCorrelations({
                   c.severity === "CRITICAL" || c.severity === "HIGH" ? "true" : "false"
                 }
               >
-                {c.severity}
+                {identifierLabel(c.severity)}
               </span>
               <span className="ec-chip-faint">
                 {c.linkedIncidentIds.length} incident
                 {c.linkedIncidentIds.length === 1 ? "" : "s"}
               </span>
-              <span className="ec-chip-faint">{c.confidence} confidence</span>
+              <span className="ec-chip-faint">{identifierLabel(c.confidence)} confidence</span>
             </div>
             <div className="ec-coord-explanation" data-cc-correlation-root>
               {c.rootOperationalCause}
@@ -4188,7 +4188,7 @@ function IncidentsSection({
       <SectionShell kicker="Incidents" title="No open incidents · workspace healthy">
         <EnterpriseEmpty
           title="No open operational incidents"
-          body="The incident generator scans real platform conditions on every dashboard load — report/package backlog, stale review assignments, retry storms, stale telemetry, worker heartbeat staleness, unsigned aged evidence, and stale coordination backlog. A 0-result state means every one of these thresholds is currently within tolerance. Workflows and causality chains follow incidents — when there are no incidents there is nothing to orchestrate."
+          body="Each time this page loads it checks report and package backlogs, stale review assignments, repeated retries, background processing, aged unsigned evidence and stale coordination work. All of them are currently within tolerance."
           hint="Detailed health remains accessible from the Operations Center."
           actionLabel={healthDestination?.label}
           actionHref={healthDestination?.href}
@@ -4262,7 +4262,7 @@ function IncidentsSection({
                 <>
                   <span className="ec-incident-title">{i.title}</span>
                   <span className="ec-incident-meta">
-                    {i.category} · {i.severity} · {i.occurrenceCount}×
+                    {identifierLabel(i.category)} · {identifierLabel(i.severity)} · {i.occurrenceCount}×
                     {i.assignedOperatorUserId ? (
                       <>
                         {" · "}
@@ -5178,7 +5178,7 @@ function BulkActionsToolbar({
             ? `${actions.filter((a) => a.canAct).length} actions available`
             : scope === "SINGLE_OCCUPANT"
               ? "Switch to a workspace to unlock bulk actions"
-              : "Requires ADMIN or OWNER role"}
+              : "Requires the Owner or Admin role"}
         </span>
       </div>
       <ul

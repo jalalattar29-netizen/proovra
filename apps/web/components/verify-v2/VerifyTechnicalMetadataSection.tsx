@@ -10,6 +10,7 @@
  * instead of empty rows. Renders nothing when the projection is null.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import type { CSSProperties } from "react";
 
 export type VerifyTechnicalMetadata = {
@@ -103,7 +104,7 @@ export function VerifyTechnicalMetadataSection({
   // EXIF-GPS — those are duplicative or non-public.
   const camera = exif && exif.exifPresent ? exif.camera : null;
   const os = ce ? [ce.osName, ce.osVersion].filter(Boolean).join(" ") || null : null;
-  const deviceClass = ce?.deviceClass ?? null;
+  const deviceClass = ce?.deviceClass ? identifierLabel(ce.deviceClass) : null;
   const captureTime = exif && exif.exifPresent ? exif.originalCaptureTime : null;
 
   const hasDevice =

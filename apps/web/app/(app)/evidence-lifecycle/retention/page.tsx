@@ -24,6 +24,7 @@
  * failed read is never shown as an empty list.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -228,7 +229,7 @@ function Shell() {
                 ? { years: Number.parseInt(years, 10) }
                 : {}),
               scopeKind,
-              // The route validates scopeTargetId as an optional UUID: a
+              // The route validates scopeTargetId as an Optional ID: a
               // `null` is a 400, so a blank target is omitted, not nulled.
               ...(scopeTargetId.trim() ? { scopeTargetId: scopeTargetId.trim() } : {}),
             }),
@@ -417,17 +418,13 @@ function Shell() {
           </label>
           <label style={labelStyle}>
             Template
-            <select
-              style={inputStyle}
+            <AppListbox
               value={template}
-              onChange={(e) => setTemplate(e.target.value)}
-            >
-              {RETENTION_TEMPLATES.map((t) => (
-                <option key={t} value={t}>
-                  {retentionTemplateLabel(t)}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...RETENTION_TEMPLATES.map((t) => ({ value: t, label: retentionTemplateLabel(t) })),
+              ]}
+              onChange={(next) => setTemplate(next)}
+            />
           </label>
           {template === "CUSTOM" ? (
             <label style={labelStyle}>
@@ -445,15 +442,15 @@ function Shell() {
           ) : null}
           <label style={labelStyle}>
             Scope kind
-            <select
-              style={inputStyle}
+            <AppListbox
               value={scopeKind}
-              onChange={(e) => setScopeKind(e.target.value)}
-            >
-              <option value="WORKSPACE">Workspace</option>
-              <option value="DEPARTMENT">Department</option>
-              <option value="CASE">Case</option>
-            </select>
+              options={[
+                { value: "WORKSPACE", label: "Workspace" },
+                { value: "DEPARTMENT", label: "Department" },
+                { value: "CASE", label: "Case" },
+              ]}
+              onChange={(next) => setScopeKind(next)}
+            />
           </label>
           <label style={labelStyle}>
             Scope target ID

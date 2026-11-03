@@ -253,10 +253,10 @@ export function SessionGovernanceSection({ stepUp }: { stepUp: StepUpControl }) 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               data-identity-contributor-session-id
-              aria-label="Contributor session id (UUID) to revoke"
+              aria-label="Contributor session ID to revoke"
               className="adm-input" style={{ maxWidth: 320 }}
               value={sessionId}
-              placeholder="Contributor session id (UUID)"
+              placeholder="Contributor session ID"
               onChange={(e) => setSessionId(e.target.value.trim())}
             />
             <input

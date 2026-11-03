@@ -41,6 +41,7 @@
  * server projection carries previews only.
  */
 
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import { FilterBar } from "../../../../../../components/ui/FilterBar";
@@ -76,7 +77,6 @@ import {
   SectionError,
   SectionLoading,
   classifyError,
-  sectionInputStyle,
   sectionLabelStyle,
   sectionMuted,
   type SectionState,
@@ -583,17 +583,13 @@ export function ActiveSessionsSection() {
         >
           <label style={{ minWidth: 220 }}>
             <span style={sectionLabelStyle}>Reason used when you quarantine</span>
-            <select
+            <AppListbox
               value={quarantineReason}
-              onChange={(e) => setQuarantineReason(e.target.value)}
-              style={sectionInputStyle}
-            >
-              {QUARANTINE_REASONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...QUARANTINE_REASONS.map((r) => ({ value: r.value, label: r.label })),
+              ]}
+              onChange={(next) => setQuarantineReason(next)}
+            />
           </label>
         </div>
       </Card>

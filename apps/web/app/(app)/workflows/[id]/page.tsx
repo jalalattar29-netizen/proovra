@@ -333,9 +333,8 @@ function WorkflowInstancePageInner() {
       <header>
         <h1 style={titleStyle}>Workflow</h1>
         <p style={mutedStyle}>
-          Operational workflow detail. Frontend reflects the backend
-          engine state; every action is validated server-side and
-          audited. Wording is operational only.
+          The current state of this workflow. Every action is checked and
+          recorded in the audit log.
         </p>
       </header>
 
@@ -583,7 +582,7 @@ function WorkflowInstancePageInner() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{e.summary}</div>
                       <div style={mutedStyle}>
-                        actor {e.actorType}
+                        actor {identifierLabel(e.actorType)}
                         {e.actorUserId ? ` (${e.actorUserId.slice(0, 8)}…)` : ""}
                         {" · "}
                         {formatUserDateTime(e.occurredAtUtc)}

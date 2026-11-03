@@ -13,6 +13,7 @@
  * No raw IPs / coordinates / private notes.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import {
   classifyFailure,
@@ -749,7 +750,7 @@ export default function IdentityRuntimePage() {
                 : `${scoreResult.previousRiskScore} (${scoreResult.previousLevel})`}
               {" → "}
               <strong>
-                {scoreResult.riskScore} ({scoreResult.level})
+                {scoreResult.riskScore} ({identifierLabel(scoreResult.level)})
               </strong>
             </span>
             <span className="adm-help" style={{ fontSize: 12 }}>
@@ -918,7 +919,7 @@ export default function IdentityRuntimePage() {
         >
           <FilterBar.Search
             label="User ID"
-            placeholder="Full user UUID"
+            placeholder="Full user ID"
             value={userFilter}
             onChange={setUserFilter}
           />

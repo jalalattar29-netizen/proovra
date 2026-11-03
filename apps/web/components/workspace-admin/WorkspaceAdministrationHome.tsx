@@ -24,6 +24,7 @@
  *   - The page makes no role derivations locally.
  */
 
+import { planLabel, orgRoleLabel } from "../../lib/labels/adminPlatformLabels";
 import Link from "next/link";
 
 import {
@@ -98,7 +99,7 @@ export function WorkspaceAdministrationHome() {
               FREE" for a workspace whose plan was simply unknown.
             */}
             <span data-personal-space-plan={personalSpace?.plan ?? "unknown"}>
-              Plan: {personalSpace?.plan ?? "—"}
+              Plan: {planLabel(personalSpace?.plan ?? "—")}
             </span>
             <Link
               href="/billing"
@@ -177,11 +178,11 @@ export function WorkspaceAdministrationHome() {
                   <div className="cases-row-meta">
                     {org.role ? (
                       <span data-organization-role={org.role}>
-                        Role: {org.role}
+                        Role: {orgRoleLabel(org.role)}
                       </span>
                     ) : null}
                     <span data-organization-plan={org.plan ?? "FREE"}>
-                      Plan: {org.plan ?? "FREE"}
+                      Plan: {planLabel(org.plan ?? "FREE")}
                     </span>
                     {isActive ? (
                       <span data-organization-active-chip>Active</span>

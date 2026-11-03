@@ -44,8 +44,7 @@ import {
   custodyEventLabel,
   pdfSignatureStatusLabel,
   downloadOriginalFilesLabel,
-  technicalPartCountLabel,
-} from "@proovra/shared";
+  technicalPartCountLabel, identifierLabel } from "@proovra/shared";
 import type { EvidenceOutputState } from "@proovra/shared";
 import { groupEvidencePreviewItems } from "./recording-items";
 import { EvidenceRecordingMount } from "./EvidenceRecordingMount";
@@ -850,7 +849,7 @@ export function PreviewWorkspace({
             {selectedItem.originalFileName || selectedItem.label}
           </span>
           {" — "}
-          {selectedItem.kind}
+          {identifierLabel(selectedItem.kind)}
           {selectedItem.sizeBytes
             ? ` · ${selectedItem.displaySizeLabel || formatBytes(selectedItem.sizeBytes)}`
             : ""}
@@ -933,7 +932,7 @@ export function PreviewWorkspace({
                   data-size="sm"
                   data-tone={mediaKindTone(item.kind)}
                 >
-                  {recording ? "recording" : item.kind}
+                  {recording ? "recording" : identifierLabel(item.kind)}
                 </span>
               </div>
               <p data-content-item-recording={recording ? recording.layout : undefined}>

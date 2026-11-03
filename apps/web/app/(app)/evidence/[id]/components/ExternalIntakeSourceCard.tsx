@@ -26,6 +26,7 @@
  *     claims.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { StepUpModal, useStepUpAction } from "../../../../../components/identity-security/StepUpModal";
 import { useActiveWorkspaceId } from "../../../../../lib/platform-context";
@@ -534,7 +535,7 @@ export default function ExternalIntakeSourceCard({
             {recipientAddressed}
             {recipientContacts.map((contact) => (
               <span key={contact.kind} className="evd-recipient-line">
-                <span className="evd-muted">{contact.kind}</span>{" "}
+                <span className="evd-muted">{identifierLabel(contact.kind)}</span>{" "}
                 <span className="evd-mono evd-wrap">
                   {contact.raw ?? contact.masked}
                 </span>
@@ -581,9 +582,9 @@ export default function ExternalIntakeSourceCard({
             {formatUserDateTime(summary.session.openedAtUtc)}
           </Detail>
         ) : null}
-        <Detail label="Session status">{summary.session.status}</Detail>
+        <Detail label="Session status">{identifierLabel(summary.session.status)}</Detail>
         <Detail label="Link status">
-          {summary.link.status} (used {summary.link.usedCount}/{summary.link.maxUses})
+          {identifierLabel(summary.link.status)} (used {summary.link.usedCount}/{summary.link.maxUses})
           <span className="evd-hint">
             Expires {formatUserDateTime(summary.link.expiresAtUtc)}
           </span>

@@ -18,6 +18,7 @@
  *   * No PII rendering when the API returns redacted placeholders.
  *   * Loading / error / empty / blocked states are explicit.
  */
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../../lib/api";
@@ -306,7 +307,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
             ? "Export refused — you don't have permission to export this case."
             : res.status === 409
               ? "Export refused — the case isn't ready to export yet. Run preflight and resolve any blockers."
-              : `Export refused (HTTP ${res.status}).`,
+              : "The export was refused. Try again.",
         );
         return;
       }
@@ -359,7 +360,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
               ? "Download refused — you don't have permission to download this export."
               : res.status === 404
                 ? "That export is no longer available."
-                : `Download refused (HTTP ${res.status}).`,
+                : "The download was refused. Try again.",
           );
           return;
         }
@@ -496,7 +497,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                   <td style={td}>{item.label}</td>
                   <td style={td}>{item.required ? "yes" : "no"}</td>
                   <td style={td}>
-                    <code>{item.status}</code>
+                    <span>{identifierLabel(item.status)}</span>
                   </td>
                   <td style={td}>{item.mappedEvidenceIds.length}</td>
                 </tr>
@@ -515,8 +516,8 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
               <ul data-testid="siu-indicators">
                 {profile.reviewIndicators.map((ind, i) => (
                   <li key={`${ind.code}-${i}`}>
-                    <code>{ind.code}</code> — {ind.explanation}{" "}
-                    <span style={{ color: "#64748b" }}>({ind.severity})</span>
+                    <span>{identifierLabel(ind.code)}</span> — {ind.explanation}{" "}
+                    <span style={{ color: "#64748b" }}>({identifierLabel(ind.severity)})</span>
                   </li>
                 ))}
               </ul>
@@ -571,7 +572,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                 <ul style={{ marginTop: 6 }}>
                   {preflight.findings.map((f, i) => (
                     <li key={`${f.code}-${i}`}>
-                      <code>{f.code}</code> — {f.detail}
+                      <span>{identifierLabel(f.code)}</span> — {f.detail}
                     </li>
                   ))}
                 </ul>
@@ -658,8 +659,7 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
                 </tbody>
               </table>
               <p style={mutedText} data-testid="siu-history-storage-note">
-                Storage keys are never rendered. Bundle integrity is asserted
-                by the SHA-256 columns and the durable export row.
+                Each export is listed with its SHA-256 hashes so its integrity can be checked.
               </p>
             </>
           ) : null}
@@ -667,21 +667,11 @@ export function SiuPanel({ caseId }: SiuPanelProps) {
           {/* Standing limitations */}
           <h3 style={h3}>Standing limitations</h3>
           <ul style={{ fontSize: 12 }}>
-            <li>
-              <code>SIU_BUNDLE_IS_NOT_A_FRAUD_DETERMINATION</code>
-            </li>
-            <li>
-              <code>SIU_BUNDLE_DOES_NOT_PROVE_CONTENT_TRUTH</code>
-            </li>
-            <li>
-              <code>SIU_BUNDLE_DOES_NOT_PROVE_LEGAL_ADMISSIBILITY</code>
-            </li>
-            <li>
-              <code>REVIEW_INDICATORS_ARE_OPERATIONAL_SIGNALS_NOT_FINDINGS</code>
-            </li>
-            <li>
-              <code>PROOVRA_DOES_NOT_REPLACE_INSURER_CORE_SYSTEMS</code>
-            </li>
+            <li>This bundle is not a fraud determination.</li>
+            <li>This bundle does not prove that the content is true.</li>
+            <li>This bundle does not prove legal admissibility.</li>
+            <li>Review indicators are operational signals, not findings.</li>
+            <li>PROOVRA does not replace insurer core systems.</li>
           </ul>
         </>
       )}

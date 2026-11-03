@@ -60,6 +60,7 @@
  * expiry, without weakening the server's single response.
  */
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import {
   useCallback,
   useEffect,
@@ -716,21 +717,16 @@ export function ContactFactorEnrollmentPanel({
             <label htmlFor={channelFieldId} style={labelStyle}>
               How should the code be sent?
             </label>
-            <select
-              id={channelFieldId}
-              name="channel"
-              data-contact-factor-channel
+            <AppListbox
               value={channel}
-              onChange={(e) => setChannel(e.target.value as ContactFactorKind)}
+              options={[
+                ...CHANNELS.map((c) => ({ value: c.value, label: c.label })),
+              ]}
+              onChange={(next) => setChannel(next as ContactFactorKind)}
+              id={channelFieldId}
               disabled={busy || !eligible}
-              style={inputStyle}
-            >
-              {CHANNELS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              triggerProps={{ name: "channel", "data-contact-factor-channel": "" }}
+            />
           </div>
 
           <div style={fieldStyle}>

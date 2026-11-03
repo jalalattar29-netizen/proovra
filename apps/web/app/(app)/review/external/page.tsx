@@ -28,6 +28,7 @@
  * caller's session, which the API resolves to a teamId.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -1745,36 +1746,24 @@ function BulkInvitePanel({
 
         <div style={{ display: "grid", gap: 8 }}>
           <Field label="Default role">
-            <select
-              data-bulk-default-role
+            <AppListbox
               value={defaultRole}
-              onChange={(e) =>
-                setDefaultRole(e.target.value as ExternalReviewerRole)
-              }
-              style={inputStyle}
-            >
-              {EXTERNAL_REVIEWER_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {identifierLabel(r)}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...EXTERNAL_REVIEWER_ROLES.map((r) => ({ value: r, label: identifierLabel(r) })),
+              ]}
+              onChange={(next) => setDefaultRole(next as ExternalReviewerRole)}
+              triggerProps={{ "data-bulk-default-role": "" }}
+            />
           </Field>
           <Field label="Default watermark policy">
-            <select
-              data-bulk-default-watermark
+            <AppListbox
               value={defaultWatermark}
-              onChange={(e) =>
-                setDefaultWatermark(e.target.value as typeof defaultWatermark)
-              }
-              style={inputStyle}
-            >
-              {WATERMARK_POLICIES.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...WATERMARK_POLICIES.map((w) => ({ value: w, label: identifierLabel(w) })),
+              ]}
+              onChange={(next) => setDefaultWatermark(next as typeof defaultWatermark)}
+              triggerProps={{ "data-bulk-default-watermark": "" }}
+            />
           </Field>
           <Field label="Expires in (hours)">
             <input
@@ -1815,20 +1804,14 @@ function BulkInvitePanel({
             SSO controls
           </strong>
           <Field label="Auth method">
-            <select
-              data-bulk-auth-method
+            <AppListbox
               value={authMethod}
-              onChange={(e) =>
-                setAuthMethod(e.target.value as PortalAuthMethod)
-              }
-              style={inputStyle}
-            >
-              {PORTAL_AUTH_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+              options={[
+                ...PORTAL_AUTH_METHODS.map((m) => ({ value: m, label: identifierLabel(m) })),
+              ]}
+              onChange={(next) => setAuthMethod(next as PortalAuthMethod)}
+              triggerProps={{ "data-bulk-auth-method": "" }}
+            />
           </Field>
           <Field label="SSO connection id (optional)">
             <input

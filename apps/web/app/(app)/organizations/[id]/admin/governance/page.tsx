@@ -178,7 +178,7 @@ function GovernanceControlCenter() {
       if (isApiResponseError(err)) {
         setState({
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         });
@@ -489,7 +489,7 @@ function GovernanceControlCenter() {
                     {orgAuditEventLabel(e.eventType)}
                   </div>
                   {e.targetType ? (
-                    <div style={subtleText}>{e.targetType}</div>
+                    <div style={subtleText}>{identifierLabel(e.targetType)}</div>
                   ) : null}
                 </div>
                 <span style={subtleText}>

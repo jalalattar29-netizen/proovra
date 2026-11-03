@@ -36,6 +36,7 @@
  * said in words.
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
@@ -702,21 +703,21 @@ function Shell() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
           <label style={labelStyle}>
             Kind
-            <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
-              {PACKAGE_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={kind}
+              options={[
+                ...PACKAGE_KINDS.map((k) => ({ value: k, label: identifierLabel(k) })),
+              ]}
+              onChange={(next) => setKind(next)}
+            />
           </label>
           <label style={labelStyle}>
-            Evidence IDs (comma-sep)
+            Evidence IDs, separated by commas
             <input
               style={{ ...inputStyle, minWidth: 280 }}
               value={evidenceIds}
               onChange={(e) => setEvidenceIds(e.target.value)}
-              placeholder="uuid1, uuid2"
+              placeholder="Paste evidence IDs"
             />
           </label>
           <button

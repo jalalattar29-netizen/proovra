@@ -37,6 +37,7 @@
  * is reachable.
  */
 
+import { AppListbox } from "../../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "../../../../../components/ui/Button";
@@ -433,37 +434,26 @@ export function WorkspaceOwnershipTransferCard({
           >
             New owner
           </label>
-          <select
-            id="workspace-transfer-target"
+          <AppListbox
             value={targetUserId}
+            options={[
+              { value: "", label: "Select the new owner…" },
+              ...options.map((c) => ({ value: c.userId, label: c.label })),
+            ]}
+            onChange={(selected) => {
+                          const next = selected;
+                          setTargetUserId(next);
+                          setTargetLabel(
+                            options.find((c) => c.userId === next)?.label ?? "",
+                          );
+                          setConfirming(false);
+                          if (validationError) setValidationError(null);
+                        }}
+            id={"workspace-transfer-target"}
             disabled={busy}
-            aria-invalid={validationError ? true : undefined}
-            onChange={(e) => {
-              const next = e.target.value;
-              setTargetUserId(next);
-              setTargetLabel(
-                options.find((c) => c.userId === next)?.label ?? "",
-              );
-              setConfirming(false);
-              if (validationError) setValidationError(null);
-            }}
-            data-control="workspace-transfer-target"
-            style={{
-              marginTop: 4,
-              fontSize: 13,
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid rgba(15,23,42,0.15)",
-              minWidth: 240,
-            }}
-          >
-            <option value="">Select the new owner…</option>
-            {options.map((c) => (
-              <option key={c.userId} value={c.userId}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+            style={{ marginTop: 4, minWidth: 240 }}
+            triggerProps={{ "aria-invalid": validationError ? true : undefined, "data-control": "workspace-transfer-target" }}
+          />
 
           <p
             data-state="candidates-count"

@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 
 /**
@@ -118,7 +119,7 @@ function AuditTab() {
       if (isApiResponseError(err)) {
         setAudit({
           kind: "error",
-          message: err.message,
+          message: toSafeUserError(err, { message: "Failed to load." }).message,
           status: err.statusCode ?? 0,
           requestId: err.requestId,
         });
@@ -337,15 +338,9 @@ function AuditTab() {
                 >
                   <div>
                     <strong>{orgAuditEventLabel(e.eventType)}</strong>{" "}
-                    <code
-                      data-identifier
-                      style={{ fontSize: 11, color: "var(--ink-muted)" }}
-                    >
-                      {e.eventType}
-                    </code>{" "}
-                    <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
-                      ({e.targetType}
-                      {e.targetId ? ` ${e.targetId.slice(0, 8)}…` : ""})
+                                        <span style={{ color: "var(--ink-muted, #94a3b8)" }}>
+                      ({identifierLabel(e.targetType)}
+                      )
                     </span>
                   </div>
                   <div

@@ -12,6 +12,7 @@
  * content-credential acronyms are intentionally excluded.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { OTS_ANCHORING_COPY, otsBoundaryFor, parseTsaProofStatus, readOtsAnchoringView, recordSignaturePresentation, TSA_PROOF_STATUS_LABELS, objectLockModeLabel } from "@proovra/shared";
 import type { AppendixRow, TechnicalMetadataInternal } from "./types";
 
@@ -181,7 +182,7 @@ export function buildCaptureDeviceRows(
       label: "Operating system",
       value: [ce.osName, ce.osVersion].filter(Boolean).join(" ") || null,
     },
-    { label: "Device type", value: ce.deviceClass },
+    { label: "Device type", value: ce.deviceClass && identifierLabel(ce.deviceClass) },
     {
       label: "Browser",
       value: [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || null,
@@ -282,7 +283,7 @@ export function buildClientEnvRows(
       label: "Operating system",
       value: [ce.osName, ce.osVersion].filter(Boolean).join(" ") || null,
     },
-    { label: "Device type", value: ce.deviceClass },
+    { label: "Device type", value: ce.deviceClass && identifierLabel(ce.deviceClass) },
     { label: "Timezone", value: ce.timezone },
     { label: "Locale / language", value: ce.locale ?? null },
     { label: "Engine", value: ce.engine },

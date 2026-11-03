@@ -40,6 +40,7 @@
  *     /evidence-requests/[id].
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -47,8 +48,7 @@ import {
   EVIDENCE_REQUEST_PRIORITIES,
   EVIDENCE_REQUEST_STATUSES,
   type EvidenceRequestPriority,
-  type EvidenceRequestStatus,
-} from "@proovra/shared";
+  type EvidenceRequestStatus, identifierLabel } from "@proovra/shared";
 
 import { apiFetch } from "../../../../lib/api";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
@@ -188,39 +188,27 @@ export function EvidenceRequestReviewQueue({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <label style={filterLabel}>
             Status
-            <select
-              data-evidence-request-queue-status
+            <AppListbox
               value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as EvidenceRequestStatus | "")
-              }
-              style={selectStyle}
-            >
-              <option value="">Any</option>
-              {EVIDENCE_REQUEST_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Any" },
+                ...EVIDENCE_REQUEST_STATUSES.map((s) => ({ value: s, label: identifierLabel(s) })),
+              ]}
+              onChange={(next) => setStatus(next as EvidenceRequestStatus | "")}
+              triggerProps={{ "data-evidence-request-queue-status": "" }}
+            />
           </label>
           <label style={filterLabel}>
             Priority
-            <select
-              data-evidence-request-queue-priority
+            <AppListbox
               value={priority}
-              onChange={(e) =>
-                setPriority(e.target.value as EvidenceRequestPriority | "")
-              }
-              style={selectStyle}
-            >
-              <option value="">Any</option>
-              {EVIDENCE_REQUEST_PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Any" },
+                ...EVIDENCE_REQUEST_PRIORITIES.map((p) => ({ value: p, label: identifierLabel(p) })),
+              ]}
+              onChange={(next) => setPriority(next as EvidenceRequestPriority | "")}
+              triggerProps={{ "data-evidence-request-queue-priority": "" }}
+            />
           </label>
           <label
             style={{
@@ -334,7 +322,7 @@ export function EvidenceRequestReviewQueue({
                 <tr key={item.id} data-evidence-request-queue-row={item.id}>
                   <td style={td}>{item.title}</td>
                   <td style={td}>{item.requestType}</td>
-                  <td style={td}>{item.status}</td>
+                  <td style={td}>{identifierLabel(item.status)}</td>
                   <td style={td}>
                     <Badge
                       tone={
@@ -342,7 +330,7 @@ export function EvidenceRequestReviewQueue({
                         "neutral"
                       }
                     >
-                      {item.priority}
+                      {identifierLabel(item.priority)}
                     </Badge>
                   </td>
                   <td style={td}>
@@ -411,13 +399,3 @@ const filterLabel = {
   fontWeight: 600,
   color: "var(--ink-secondary, #475569)",
 };
-const selectStyle = {
-  minHeight: 32,
-  fontSize: 12.5,
-  color: "var(--ink-primary, #0f172a)",
-  background: "var(--surface-card, #ffffff)",
-  border: "1px solid var(--border-default, rgba(15,23,42,0.09))",
-  borderRadius: "var(--radius-md, 8px)",
-  padding: "0 8px",
-  cursor: "pointer",
-} as const;

@@ -13,6 +13,7 @@
  * picker. Every mutation is announced only after the list reread shows it; a
  * signing secret is shown once with a copy control.
  */
+import { chooseListbox, listboxLabels } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -391,10 +392,10 @@ describe("rule form destination picker", () => {
   it("offers the registered destinations by name instead of a raw id", () => {
     render(<AutomationRuleForm {...baseProps} destinationOptions={[{ id: ID, label: "Receiver (https://receiver.example)" }]} />);
     const field = screen.getByLabelText("Webhook destination") as HTMLSelectElement;
-    expect(field.tagName).toBe("SELECT");
-    expect(within(field).getByRole("option", { name: "Receiver (https://receiver.example)" })).toBeTruthy();
-    fireEvent.change(field, { target: { value: ID } });
-    expect(field.value).toBe(ID);
+    expect(field.getAttribute("role")).toBe("combobox");
+    expect(listboxLabels(field)).toContain("Receiver (https://receiver.example)");
+    chooseListbox(field, ID);
+    expect(field.textContent).toContain("Receiver (https://receiver.example)");
   });
 
   it("says why the id must be typed when the destination list is unreadable", () => {
@@ -405,7 +406,7 @@ describe("rule form destination picker", () => {
 
   it("tells the operator to register a destination first when there are none", () => {
     render(<AutomationRuleForm {...baseProps} destinationOptions={[]} />);
-    expect(screen.getByRole("option", { name: "No destinations registered" })).toBeTruthy();
+    expect(listboxLabels(screen.getByLabelText("Webhook destination"))).toContain("No destinations registered");
     expect(screen.getByText("Register a destination under Webhook destinations first.")).toBeTruthy();
   });
 });
@@ -424,7 +425,7 @@ describe("automation page wiring", () => {
     await within(section).findByText("Receiver");
     fireEvent.click(screen.getByRole("button", { name: "Create the first rule" }));
     const picker = (await screen.findByLabelText("Webhook destination")) as HTMLSelectElement;
-    expect(picker.tagName).toBe("SELECT");
-    expect(within(picker).getByRole("option", { name: "Receiver (https://receiver.example) — disabled" })).toBeTruthy();
+    expect(picker.getAttribute("role")).toBe("combobox");
+    expect(listboxLabels(picker)).toContain("Receiver (https://receiver.example) — disabled");
   });
 });

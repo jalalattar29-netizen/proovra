@@ -25,6 +25,7 @@
  * live, and that is the rule working rather than the button being broken.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -378,7 +379,7 @@ export default function AdminOperationsPage() {
               style={{ marginTop: 2 }}
               title={`Last seen ${formatUserDateTime(r.lastSeenAtUtc)}`}
             >
-              {r.category} · seen {r.occurrenceCount}× · last{" "}
+              {identifierLabel(r.category)} · seen {r.occurrenceCount}× · last{" "}
               {formatRelativeTime(r.lastSeenAtUtc)}
             </div>
             <ConditionSubject row={r} />
@@ -395,7 +396,7 @@ export default function AdminOperationsPage() {
             return (
               <span
                 style={{ fontSize: 12, color: "var(--ink-muted)" }}
-                title={`Scope: ${r.scope}`}
+                title={`Scope: ${identifierLabel(r.scope)}`}
               >
                 {r.scope === "PLATFORM" ? "Platform-wide" : "No owning workspace"}
               </span>
@@ -435,7 +436,7 @@ export default function AdminOperationsPage() {
         key: "severity",
         header: "Severity",
         render: (r) => (
-          <Badge tone={SEVERITY_TONE[r.severity] ?? "neutral"}>{r.severity}</Badge>
+          <Badge tone={SEVERITY_TONE[r.severity] ?? "neutral"}>{identifierLabel(r.severity)}</Badge>
         ),
       },
       {
@@ -443,7 +444,7 @@ export default function AdminOperationsPage() {
         header: "Status",
         render: (r) => (
           <Badge tone={STATUS_TONE[r.status] ?? "neutral"} dot>
-            {r.status}
+            {identifierLabel(r.status)}
           </Badge>
         ),
       },

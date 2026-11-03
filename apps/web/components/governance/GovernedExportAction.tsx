@@ -28,6 +28,7 @@
  *   * Read-only otherwise — the wrapper itself does not mutate.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { Component, useCallback, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 
 import { apiFetch } from "../../lib/api";
@@ -371,7 +372,7 @@ function GovernedExportActionInner({
                 data-governed-export-lifecycle={data.lifecycleState}
                 style={{ fontSize: 11, opacity: 0.8 }}
               >
-                Lifecycle: {data.lifecycleState}
+                Lifecycle: {identifierLabel(data.lifecycleState)}
               </span>
             ) : null}
           </div>

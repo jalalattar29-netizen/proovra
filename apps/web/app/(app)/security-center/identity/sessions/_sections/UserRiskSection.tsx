@@ -19,6 +19,8 @@
  * The score, the level and the signal reasons are all computed server-side.
  */
 
+import { AppListbox } from "../../../../../../components/app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch } from "../../../../../../lib/api";
@@ -39,7 +41,6 @@ import {
   SectionError,
   SectionLoading,
   classifyError,
-  sectionInputStyle,
   sectionLabelStyle,
   sectionMuted,
   type SectionState,
@@ -233,19 +234,15 @@ export function UserRiskSection() {
       <Card padding="comfortable" style={{ marginBottom: 12 }}>
         <label style={{ maxWidth: 320, display: "block" }}>
           <span style={sectionLabelStyle}>Member</span>
-          <select
+          <AppListbox
             value={selectedUserId ?? ""}
-            onChange={(e) => setSelectedUserId(e.target.value || null)}
-            style={sectionInputStyle}
-            data-user-risk-member-select
-          >
-            <option value="">Select a member…</option>
-            {members.data.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {workspaceRoleLabel(m.role)} · {m.userId.slice(0, 8)}…
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "Select a member…" },
+              ...members.data.map((m) => ({ value: m.userId, label: `${workspaceRoleLabel(m.role)} · ${m.userId.slice(0, 8)}…` })),
+            ]}
+            onChange={(next) => setSelectedUserId(next || null)}
+            triggerProps={{ "data-user-risk-member-select": "" }}
+          />
           <span style={{ ...sectionMuted, display: "block", marginTop: 4 }}>
             Only members of this workspace are listed, and only they can be read.
           </span>
@@ -281,7 +278,7 @@ export function UserRiskSection() {
           <Card padding="comfortable" style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Badge tone={levelTone(snapshot.data.level)}>
-                Risk level: {snapshot.data.level}
+                Risk level: {identifierLabel(snapshot.data.level)}
               </Badge>
               <Badge tone="neutral">Score: {snapshot.data.score}</Badge>
               <Badge tone="neutral">

@@ -12,6 +12,7 @@
  * No private notes, no raw IPs, no secrets.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
@@ -256,7 +257,7 @@ export default function IdentityTimelinePage() {
       key: "severity",
       header: "Severity",
       render: (e) => (
-        <Badge tone={SEVERITY_TONE[e.severity]}>{e.severity}</Badge>
+        <Badge tone={SEVERITY_TONE[e.severity]}>{identifierLabel(e.severity)}</Badge>
       ),
     },
     {
@@ -268,7 +269,7 @@ export default function IdentityTimelinePage() {
       render: (e) => (
         <span style={{ display: "grid", gap: 1 }}>
           <span style={{ fontSize: 12.5, fontWeight: 600 }}>{e.label}</span>
-          <code
+          <span
             style={{
               fontFamily:
                 "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -276,8 +277,8 @@ export default function IdentityTimelinePage() {
               color: "var(--ink-muted)",
             }}
           >
-            {e.kind}
-          </code>
+            {identifierLabel(e.kind)}
+          </span>
         </span>
       ),
     },

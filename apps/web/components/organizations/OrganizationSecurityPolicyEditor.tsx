@@ -23,6 +23,7 @@
  * bypassing PageRouteGate + platform-context, per the render-test convention.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Card } from "../ui/Card";
@@ -582,7 +583,7 @@ export function OrganizationSecurityPolicyEditor({ orgId }: { orgId: string }) {
         {readiness ? (
           <ul data-testid="sec-readiness">
             {(readiness.checks ?? []).map((c) => (
-              <li key={c.code} data-met={c.met}>{c.met ? "✓" : "✗"} {c.label ?? c.code}</li>
+              <li key={c.code} data-met={c.met}>{c.met ? "✓" : "✗"} {c.label ?? identifierLabel(c.code)}</li>
             ))}
             {readiness.checks == null && Array.isArray(readiness.missing)
               ? readiness.missing.length === 0

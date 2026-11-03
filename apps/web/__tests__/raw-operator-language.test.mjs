@@ -154,9 +154,10 @@ test("every file the audit cited renders no stored identifier as operator text",
  * The rest of the product, outside the audited surfaces, still carries raw
  * identifiers (recorded as a follow-up in the closure ledger). This ratchet
  * only moves DOWN: fixing one lowers it, adding one fails here. Measured
- * after the PV-LANG-003 fixes: 394 before, 247 after.
+ * after the PV-LANG-003 fixes: 394 before, 247 after; 8 after the second
+ * visual round (marketing mock rows, form errors and two false positives).
  */
-const APP_WIDE_CEILING = 247;
+const APP_WIDE_CEILING = 8;
 
 test("the app-wide count of raw identifiers does not grow", () => {
   assert.ok(

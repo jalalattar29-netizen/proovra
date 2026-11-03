@@ -1,5 +1,6 @@
 "use client";
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -527,7 +528,7 @@ export default function AdminAuditPage() {
       {
         key: "severity",
         header: "Severity",
-        render: (entry) => <Badge tone={severityTone(entry.severity)}>{entry.severity ?? "info"}</Badge>,
+        render: (entry) => <Badge tone={severityTone(entry.severity)}>{identifierLabel(entry.severity ?? "info")}</Badge>,
       },
       {
         key: "outcome",
@@ -560,7 +561,7 @@ export default function AdminAuditPage() {
               </span>
               {actor.kind && actor.kind !== actor.name ? (
                 <span style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}>
-                  {actor.kind}
+                  {identifierLabel(actor.kind)}
                 </span>
               ) : null}
               {actor.reference ? (
@@ -598,7 +599,7 @@ export default function AdminAuditPage() {
                 style={{ color: "var(--ink-secondary)", fontSize: 11.5 }}
                 title={target.scopeFull ?? undefined}
               >
-                {target.scope}
+                {identifierLabel(target.scope)}
               </span>
               {transition ? (
                 <span style={{ color: "var(--ink-muted)", fontSize: 11 }}>{transition.text}</span>

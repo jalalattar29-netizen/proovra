@@ -36,6 +36,7 @@
  * VISIBILITY, ENTRY and REVOCATION, which is what an on-call responder needs.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
@@ -987,15 +988,15 @@ function Shell() {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
               <label style={{ display: "grid", gap: 4 }}>
                 <span style={muted}>Support access level</span>
-                <select
-                  className="app-input"
+                <AppListbox
                   value={mintAccessLevel}
-                  onChange={(e) => setMintAccessLevel(e.target.value)}
-                  data-testid="mint-access-level"
-                >
-                  <option value="READ_ONLY">Read only</option>
-                  <option value="ELEVATED">Elevated</option>
-                </select>
+                  options={[
+                    { value: "READ_ONLY", label: "Read only" },
+                    { value: "ELEVATED", label: "Elevated" },
+                  ]}
+                  onChange={(next) => setMintAccessLevel(next)}
+                  triggerProps={{ "data-testid": "mint-access-level" }}
+                />
               </label>
               {/* DISABLED WITH THE REASON. Both controls on this card sat grey
                   with nothing saying what was missing, and both act over a
@@ -1037,15 +1038,15 @@ function Shell() {
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
               <label style={{ display: "grid", gap: 4 }}>
                 <span style={muted}>Emergency role</span>
-                <select
-                  className="app-input"
+                <AppListbox
                   value={emergencyRole}
-                  onChange={(e) => setEmergencyRole(e.target.value)}
-                  data-testid="break-glass-role"
-                >
-                  <option value="EMERGENCY_READ_ONLY">Emergency read only</option>
-                  <option value="EMERGENCY_OPERATOR">Emergency operator</option>
-                </select>
+                  options={[
+                    { value: "EMERGENCY_READ_ONLY", label: "Emergency read only" },
+                    { value: "EMERGENCY_OPERATOR", label: "Emergency operator" },
+                  ]}
+                  onChange={(next) => setEmergencyRole(next)}
+                  triggerProps={{ "data-testid": "break-glass-role" }}
+                />
               </label>
               <Button
                 size="sm"

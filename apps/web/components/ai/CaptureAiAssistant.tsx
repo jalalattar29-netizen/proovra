@@ -1,5 +1,6 @@
 "use client";
 
+import { identifierLabel } from "@proovra/shared";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Card } from "../ui";
@@ -566,7 +567,7 @@ export function CaptureAiAssistant({
                           <ul>
                             {sortedAiFlags.map((flag, index) => (
                               <li key={`${flag.title}-${index}`}>
-                                [{flag.severity}] {flag.title}: {flag.detail}
+                                [{identifierLabel(flag.severity)}] {flag.title}: {flag.detail}
                               </li>
                             ))}
                           </ul>

@@ -15,6 +15,7 @@
  * `services/api/src/services/governance-lifecycle/governance-analytics.service.ts`.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -153,7 +154,7 @@ function GovernanceAnalyticsPageInner() {
     {
       key: "status",
       header: "Status",
-      render: (r) => <span style={runStatusBadge(r.status)}>{r.status}</span>,
+      render: (r) => <span style={runStatusBadge(r.status)}>{identifierLabel(r.status)}</span>,
     },
     {
       key: "started",

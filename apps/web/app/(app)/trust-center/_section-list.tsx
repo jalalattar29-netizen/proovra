@@ -87,7 +87,7 @@ function BodyParagraphs({ body }: { body: string }) {
     <>
       {blocks.map((block, i) => (
         <p key={i} style={{ whiteSpace: "pre-line" }}>
-          {block}
+          {block.replace(/`/g, "")}
         </p>
       ))}
     </>

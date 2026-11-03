@@ -228,7 +228,7 @@ export function GovernancePolicyForm({
               label: m,
             }))}
             error={errors[`${uid}-mode`]}
-            hint="BLOCK refuses the operation, WARN allows it with a warning, AUDIT_ONLY records it."
+            hint="Block refuses the operation, Warn allows it with a warning, Audit only records it."
             disabled={!permitted || busy}
             testAttr="data-governance-policy-mode"
           />

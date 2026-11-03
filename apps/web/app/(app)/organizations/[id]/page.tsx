@@ -1,4 +1,5 @@
 "use client";
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 
 /**
@@ -642,7 +643,7 @@ function OrganizationDetailInner() {
             tone="governance"
             data-section="org-onboarding-next-steps"
             title="You just created this organization — next steps"
-            subtitle="Three governance steps that turn a single-owner org into a real collaborative tenant. Each one is wired to a real audited endpoint."
+            subtitle="Three steps that turn a single-owner organization into a shared one. Each one is recorded in the audit log."
           >
             <ol
               data-onboarding-steps
@@ -792,7 +793,7 @@ function OrganizationDetailInner() {
         variant="admin"
         data-section="org-settings"
         title="Settings"
-        subtitle="Identity metadata. ORG_ADMIN+ required."
+        subtitle="Organization details. Requires the Organization admin role or higher."
       >
         {!canMutate && (
           <div data-state="forbidden" style={{ fontSize: 13, color: "var(--ink-secondary, #475569)" }}>
@@ -1132,7 +1133,7 @@ function OrganizationDetailInner() {
         header={
           <SectionHeader
             title="Audit timeline"
-            subtitle="Organization governance events moved to the Admin console, with event-type / actor / date filters and CSV export. Requires ORG_AUDITOR or higher."
+            subtitle="Organization governance events moved to the Admin console, with event type, actor and date filters and CSV export. Requires the Auditor role or higher."
             right={
               isSystemOrganization ? undefined : (
                 <Link
@@ -1199,9 +1200,9 @@ function OrganizationDetailInner() {
           <div data-scope="workspace" style={scopeCard}>
             <div style={scopeTitle}>Workspace</div>
             <div style={{ color: "var(--ink-secondary, #475569)" }}>
-              Operational tenant. Evidence, cases, reviewer queues, retention
-              policy, plan + seats. Each workspace is bound to exactly one
-              organization. Workspace-level RBAC is independent of
+              Where the work happens: evidence, cases, reviewer queues, retention
+              policy, plan and seats. Each workspace belongs to exactly one
+              organization. Workspace roles are independent of
               organization role.
             </div>
           </div>
@@ -1471,21 +1472,17 @@ function OrgLifecycleControls({
           </p>
         ) : (
           <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <select
+            <AppListbox
               value={targetUserId}
-              onChange={(e) => setTargetUserId(e.target.value)}
-              aria-label="New owner"
-              data-control="transfer-ownership-target"
-              className="app-form-input"
+              options={[
+                { value: "", label: "Select the new owner…" },
+                ...eligibleTargets.map((m) => ({ value: m.userId, label: m.displayName ?? m.email ?? m.userId })),
+              ]}
+              onChange={(next) => setTargetUserId(next)}
+              ariaLabel={"New owner"}
               style={{ width: "auto", minWidth: 220, maxWidth: "100%" }}
-            >
-              <option value="">Select the new owner…</option>
-              {eligibleTargets.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.displayName ?? m.email ?? m.userId}
-                </option>
-              ))}
-            </select>
+              triggerProps={{ "data-control": "transfer-ownership-target" }}
+            />
             <Button
               variant="secondary"
               size="sm"
@@ -1839,7 +1836,7 @@ function SectionError({
       <div style={{ fontSize: 13, marginTop: 4 }}>
         {status === 403
           ? forbiddenMessage
-          : `${status ? `HTTP ${status}: ` : ""}${message}`}
+          : message}
       </div>
     </Card>
   );

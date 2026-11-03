@@ -1,5 +1,6 @@
 "use client";
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -237,18 +238,14 @@ function Shell() {
           </label>
           <label style={labelStyle}>
             Approver
-            <select
-              style={inputStyle}
+            <AppListbox
               value={approverUserId}
-              onChange={(e) => setApproverUserId(e.target.value)}
-            >
-              <option value="">Choose a second person</option>
-              {(approvers ?? []).map((a) => (
-                <option key={a.userId} value={a.userId}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Choose a second person" },
+                ...(approvers ?? []).map((a) => ({ value: a.userId, label: a.label })),
+              ]}
+              onChange={(next) => setApproverUserId(next)}
+            />
           </label>
           <Button
             type="button"

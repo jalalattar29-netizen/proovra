@@ -76,9 +76,8 @@ function DepartmentsTab() {
             color: "var(--ink-secondary, #475569)",
           }}
         >
-          Department CRUD is intentionally NOT duplicated here. Use the
-          canonical surface so audit events + drift detection remain a
-          single source of truth.
+          Departments are managed in the Governance Platform, so their audit
+          history stays in one place.
         </div>
       </Card>
 

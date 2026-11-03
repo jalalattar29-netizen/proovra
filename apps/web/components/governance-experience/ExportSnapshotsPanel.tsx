@@ -1,5 +1,6 @@
 "use client";
 
+import { AppListbox } from "../app-primitives/AppListbox";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { GOVERNANCE_EXPORT_SNAPSHOT_KINDS, identifierLabel, type GovernanceExportSnapshotKind } from "@proovra/shared";
 import { apiFetch } from "../../lib/api";
@@ -113,9 +114,13 @@ function SnapshotWorkspace({ teamId }: { teamId: string }) {
       <p>Review the governance state recorded for an export. A snapshot is an immutable record; it does not generate an export file or establish legal admissibility.</p>
       <form onSubmit={create} style={{ display: "grid", gap: 12 }}>
         <div style={rowStyle}>
-          <label style={fieldStyle}>Snapshot purpose<select value={createKind} onChange={event => setCreateKind(event.target.value as GovernanceExportSnapshotKind)}>
-            {GOVERNANCE_EXPORT_SNAPSHOT_KINDS.map(value => <option key={value} value={value}>{identifierLabel(value)}</option>)}
-          </select></label>
+          <label style={fieldStyle}>Snapshot purpose<AppListbox
+            value={createKind}
+            options={[
+              ...GOVERNANCE_EXPORT_SNAPSHOT_KINDS.map((value) => ({ value: value, label: identifierLabel(value) })),
+            ]}
+            onChange={(next) => setCreateKind(next as GovernanceExportSnapshotKind)}
+          /></label>
           <label style={fieldStyle}>Evidence ID (optional)<input value={evidenceId} onChange={event => setEvidenceId(event.target.value)} aria-describedby="snapshot-evidence-help" /></label>
           <Button type="submit" variant="primary" loading={busy} disabled={Boolean(disabledReason)} disabledReason={disabledReason}>Record snapshot</Button>
         </div>
@@ -127,10 +132,14 @@ function SnapshotWorkspace({ teamId }: { teamId: string }) {
     </Card>
     <Card>
       <form style={rowStyle} onSubmit={event => { event.preventDefault(); setAppliedEvidence(evidenceFilter.trim()); }}>
-        <label style={fieldStyle}>Filter by purpose<select value={kind} onChange={event => setKind(event.target.value)}>
-          <option value="">All purposes</option>
-          {GOVERNANCE_EXPORT_SNAPSHOT_KINDS.map(value => <option key={value} value={value}>{identifierLabel(value)}</option>)}
-        </select></label>
+        <label style={fieldStyle}>Filter by purpose<AppListbox
+          value={kind}
+          options={[
+            { value: "", label: "All purposes" },
+            ...GOVERNANCE_EXPORT_SNAPSHOT_KINDS.map((value) => ({ value: value, label: identifierLabel(value) })),
+          ]}
+          onChange={(next) => setKind(next)}
+        /></label>
         <label style={fieldStyle}>Filter by evidence ID<input value={evidenceFilter} onChange={event => setEvidenceFilter(event.target.value)} /></label>
         <Button type="submit" disabled={Boolean(evidenceFilter.trim()) && !uuid.test(evidenceFilter.trim())} disabledReason="Enter a valid evidence ID, or clear the field to show all evidence.">Apply filter</Button>
         <Button onClick={() => { setRevision(value => value + 1); }}>Refresh list</Button>

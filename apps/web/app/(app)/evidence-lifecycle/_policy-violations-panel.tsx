@@ -28,6 +28,8 @@
  *     timestamps are shown.
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useMemo, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -181,9 +183,9 @@ export function PolicyViolationsPanel({
             Policy violations
           </strong>
           <small style={{ color: "var(--ink-muted, #64748b)", fontSize: 11.5 }}>
-            Bounded POLICY_VIOLATION_* events recorded by the lifecycle
-            engine. Counts come from the dedicated violations summary, not
-            from the dashboard tile.
+            Policy violations recorded while evidence moved through its
+            lifecycle. Counts come from the violations summary, not from the
+            dashboard tile.
           </small>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
@@ -208,18 +210,12 @@ export function PolicyViolationsPanel({
           ) : null}
           <label style={labelStyle}>
             Window
-            <select
-              data-lifecycle-violations-window-select
-              value={windowDays}
-              onChange={(e) => setWindowDays(Number(e.target.value))}
-              style={selectStyle}
-            >
-              {WINDOWS.map((w) => (
-                <option key={w.days} value={w.days}>
-                  {w.label}
-                </option>
-              ))}
-            </select>
+            <AppListbox
+              value={String(windowDays)}
+              options={WINDOWS.map((w) => ({ value: String(w.days), label: w.label }))}
+              onChange={(next) => setWindowDays(Number(next))}
+              triggerProps={{ "data-lifecycle-violations-window-select": "" }}
+            />
           </label>
         </div>
       </div>
@@ -363,11 +359,11 @@ export function PolicyViolationsPanel({
                   <tr key={event.id} data-lifecycle-violation-row={event.id}>
                     <td style={td}>
                       <strong>
-                        {CODE_LABEL[event.code as ViolationCode] ?? event.code}
+                        {CODE_LABEL[event.code as ViolationCode] ?? identifierLabel(event.code)}
                       </strong>
                     </td>
                     <td style={td}>
-                      {event.targetType ?? "—"}
+                      {identifierLabel(event.targetType ?? "—")}
                       {event.targetId ? (
                         <code style={{ marginLeft: 6, fontSize: 11 }}>
                           {event.targetId.slice(0, 8)}…
@@ -424,11 +420,3 @@ const labelStyle = {
   fontWeight: 600,
   color: "var(--ink-secondary, #475569)",
 };
-const selectStyle = {
-  fontSize: 12,
-  padding: "4px 6px",
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  background: "var(--surface-card, #ffffff)",
-  minWidth: 140,
-} as const;

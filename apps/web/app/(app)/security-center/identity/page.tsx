@@ -179,7 +179,7 @@ function AdminIdentityConsoleInner() {
             // backend endpoint, and step-up fires WHERE FLAGGED by the workspace
             // step-up policy — the hub must not promise step-up will always fire,
             // because `enforceStepUpIfFlagged` only fires when the flag is set.
-            subtitle="Administer who belongs to this workspace, what extra access they hold, which machine identities can act, and which identity-provider subjects map to which member. Every action here calls a procurement-grade, audited backend endpoint that authorizes server-side, will require step-up where flagged by the workspace step-up policy, and writes to the immutable audit trail with both your identity and the target's."
+            subtitle="Administer who belongs to this workspace, what extra access they hold, which machine identities can act, and which identity-provider subjects map to which member. Every action is authorized on the server, asks you to verify again where the workspace step-up policy says so, and is written to the audit trail with both your identity and the target's."
           />
         </div>
       }

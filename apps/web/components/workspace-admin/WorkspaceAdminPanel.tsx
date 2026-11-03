@@ -20,6 +20,8 @@
  *   - Backend authorization remains authoritative.
  */
 
+import { planLabel } from "../../lib/labels/adminPlatformLabels";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -142,7 +144,7 @@ export function WorkspaceAdminPanel() {
             </span>
             {" · "}
             <span data-workspace-role={env.workspace.role}>
-              Role: {env.workspace.role}
+              Role: {identifierLabel(env.workspace.role)}
             </span>
             {env.workspace.pendingInviteCount > 0 ? (
               <>
@@ -327,13 +329,13 @@ function AccessTab({
                     className="cases-row-scope"
                     data-workspace-member-role-chip={m.role}
                   >
-                    {m.role}
+                    {identifierLabel(m.role)}
                   </span>
                 </div>
                 <div className="cases-row-meta">
                   {m.email ? <span>{m.email}</span> : null}
                   <span data-workspace-member-status-chip={m.status}>
-                    {m.status}
+                    {identifierLabel(m.status)}
                   </span>
                   <span title={m.joinedAt}>
                     Joined {relTime(m.joinedAt)}
@@ -368,7 +370,7 @@ function AccessTab({
                 <div className="cases-row-link">
                   <div className="cases-row-main">
                     <span className="cases-row-title">{i.email}</span>
-                    <span className="cases-row-scope">{i.role}</span>
+                    <span className="cases-row-scope">{identifierLabel(i.role)}</span>
                   </div>
                   <div className="cases-row-meta">
                     <span title={i.createdAt}>
@@ -433,9 +435,8 @@ function RoleMatrixTab() {
         <h2 className="cc-section-title">Role Permission Matrix</h2>
       </header>
       <div className="cc-section-foot">
-        Product-level summary. Backend permissions remain authoritative —
-        capabilities marked "partial" depend on workspace policy (step-up
-        flags, governance gates, role grants).
+        A summary of what each role can do. Capabilities marked "partial"
+        also depend on workspace policy, such as step-up and governance rules.
       </div>
       <table className="workspace-permission-matrix" data-workspace-permission-matrix>
         <thead>
@@ -450,7 +451,7 @@ function RoleMatrixTab() {
         <tbody>
           {rows.map((r) => (
             <tr key={r.capability} data-workspace-permission-row={r.capability}>
-              <td>{r.capability}</td>
+              <td>{identifierLabel(r.capability)}</td>
               <td data-permission-cell={r.OWNER}>{cellGlyph(r.OWNER)}</td>
               <td data-permission-cell={r.ADMIN}>{cellGlyph(r.ADMIN)}</td>
               <td data-permission-cell={r.MEMBER}>{cellGlyph(r.MEMBER)}</td>
@@ -616,11 +617,11 @@ function BillingTab({
       </header>
       <div className="cc-tile-grid" data-workspace-billing-tiles>
         <div className="cc-tile" data-workspace-billing-tile="plan">
-          <span className="cc-tile-value">{d.plan}</span>
+          <span className="cc-tile-value">{planLabel(d.plan)}</span>
           <span className="cc-tile-label">Plan</span>
         </div>
         <div className="cc-tile" data-workspace-billing-tile="status">
-          <span className="cc-tile-value">{d.status}</span>
+          <span className="cc-tile-value">{identifierLabel(d.status)}</span>
           <span className="cc-tile-label">Billing status</span>
         </div>
         <div className="cc-tile" data-workspace-billing-tile="seats">
@@ -644,8 +645,7 @@ function BillingTab({
         ) : (
           "Administrators can adjust plan + seats in Billing."
         )}{" "}
-        · This panel reads from the workspace billing row — it does not
-        change billing state.
+        · This panel is read-only and does not change billing.
       </div>
     </section>
   );
@@ -713,7 +713,7 @@ function AccountabilityTab({ env }: { env: WorkspaceAdminEnvelope }) {
                 ) : null}
                 {row.targetType ? (
                   <span className="cases-activity-actor">
-                    · {row.targetType}
+                    · {identifierLabel(row.targetType)}
                   </span>
                 ) : null}
               </div>
@@ -729,8 +729,8 @@ function AccountabilityTab({ env }: { env: WorkspaceAdminEnvelope }) {
       ) : null}
       <div className="cc-section-foot">
         Reviewer workload links to{" "}
-        <Link href="/reviewer-ops">Reviewer Ops</Link>. Activity feed reads the
-        workspace `team_activities` table — no audit emission on browse.
+        <Link href="/reviewer-ops">Reviewer Ops</Link>. Browsing this activity
+        feed is not itself recorded.
       </div>
     </section>
   );

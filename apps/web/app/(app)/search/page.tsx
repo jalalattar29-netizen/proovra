@@ -2934,7 +2934,7 @@ function Inspector({
                     : r.sourceEvidenceId;
                 return (
                   <li key={r.relationshipId} className="search-relationship">
-                    <span className="app-chip">{r.relationshipType}</span>
+                    <span className="app-chip">{identifierLabel(r.relationshipType)}</span>
                     {/* The full identifier, not a truncated one: it is the
                         thing the operator would copy, and it reads
                         left-to-right whatever the surrounding direction. */}

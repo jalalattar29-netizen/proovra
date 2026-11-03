@@ -1,4 +1,5 @@
 "use client";
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { AdmReadFailure } from "../../../../components/admin/AdminSurfaces";
 import {
@@ -497,7 +498,7 @@ export default function AdminContactSalesPage() {
               key: "stage",
               header: "Stage",
               render: (it) => (
-                <span style={{ color: "var(--ink-secondary)" }}>{it.stage}</span>
+                <span style={{ color: "var(--ink-secondary)" }}>{identifierLabel(it.stage)}</span>
               ),
             },
             {

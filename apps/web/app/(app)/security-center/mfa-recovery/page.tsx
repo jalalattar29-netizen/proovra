@@ -579,8 +579,7 @@ function MfaRecoveryAdminBody() {
       <Card variant="admin" data-cc-mfa-recovery-digest-preview-card>
         <h2 style={{ ...sectionTitleStyle, marginTop: 0 }}>Next digest preview</h2>
         <p style={mutedStyle}>
-          A read-only preview of the consolidated email the worker
-          would send you on its next tick.{" "}
+          A read-only preview of the next summary email.{" "}
           <strong>No email is sent.</strong>
         </p>
         <label

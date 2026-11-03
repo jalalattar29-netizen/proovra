@@ -30,6 +30,7 @@
  *   6. confirmation
  */
 
+import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch } from "../../../lib/api";
@@ -1576,19 +1577,14 @@ export default function ExternalIntakePage({
                     ) : null}
                   </div>
                   {expectedSteps.length > 0 ? (
-                    <select
-                      className="app-form-input"
+                    <AppListbox
                       value={p.checklistStepId ?? ""}
-                      onChange={(e) => setPartStep(p.id, e.target.value)}
-                    >
-                      <option value="">Map to step…</option>
-                      {expectedSteps.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.purposeLabel}
-                          {s.required ? " *" : ""}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "Map to step…" },
+                        ...expectedSteps.map((s) => ({ value: s.id, label: `${s.purposeLabel}${s.required ? " *" : ""}` })),
+                      ]}
+                      onChange={(next) => setPartStep(p.id, next)}
+                    />
                   ) : null}
                 </li>
               ))}

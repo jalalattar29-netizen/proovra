@@ -27,6 +27,7 @@
  *   * Step-up modal handled via `useStepUpAction`.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
@@ -622,7 +623,7 @@ function WorkerHealthPanel({ workers }: { workers: WorkerHealthRow[] | null }) {
                   <Badge tone={w.status === "missing"
                         ? "risk"
                         : "pending"}>
-                    {w.status}
+                    {identifierLabel(w.status)}
                   </Badge>
                 </td>
                 <td>{w.stalledCount}</td>
@@ -809,7 +810,7 @@ function ReplayDialog({
         <>
           <span className="adm-mono">{target.jobName}</span>{" "}
           <span className="adm-mono">{target.jobId.slice(0, 24)}</span>{" "}
-          <Badge tone={categoryBadge(target.category)}>{target.category}</Badge>
+          <Badge tone={categoryBadge(target.category)}>{identifierLabel(target.category)}</Badge>
         </>
       }
       onClose={onCancel}

@@ -11,6 +11,7 @@
  * real transfer attempt for each code, exactly as the API sends it (lowercase
  * codes included), and checks an unknown code falls back safely.
  */
+import { chooseListbox } from "./_listbox";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
@@ -61,7 +62,7 @@ async function attempt(code: string, statusCode = 409): Promise<HTMLElement> {
   );
   const card = container.querySelector("[data-workspace-ownership-transfer-card]") as HTMLElement;
   const select = (await within(card).findByLabelText("New owner")) as HTMLSelectElement;
-  fireEvent.change(select, { target: { value: "user-heir" } });
+  chooseListbox(select, "user-heir");
   fireEvent.click(card.querySelector('[data-action="open-workspace-transfer-ownership"]') as HTMLElement);
   fireEvent.click(card.querySelector('[data-action="transfer-workspace-ownership"]') as HTMLElement);
   await waitFor(() =>

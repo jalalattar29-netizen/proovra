@@ -25,6 +25,7 @@
  * this file holds no second copy of it.
  */
 
+import { chooseListbox, listboxLabels, listboxValues } from "./_listbox";
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, act, cleanup, fireEvent } from "@testing-library/react";
@@ -238,8 +239,8 @@ async function openAddFor(id: string) {
 
 async function chooseAndApply(id: string, workspaceId: string, role: string) {
   const card = groupCard(id);
-  fireEvent.change(within(card).getByLabelText("Workspace"), { target: { value: workspaceId } });
-  fireEvent.change(within(card).getByLabelText("Role it grants there"), { target: { value: role } });
+  chooseListbox(within(card).getByLabelText("Workspace"), workspaceId);
+  chooseListbox(within(card).getByLabelText("Role it grants there"), role);
   await act(async () => {
     fireEvent.click(within(card).getByRole("button", { name: "Apply group" }));
   });
@@ -284,13 +285,12 @@ describe("SCIM Directory groups — the Organization's groups and their workspac
   it("offers only the organization's open, not-yet-projected workspaces", async () => {
     await mountGroupsTab();
     await openAddFor("g1");
-    const select = within(groupCard("g1")).getByLabelText("Workspace") as HTMLSelectElement;
-    const labels = Array.from(select.options).map((o) => o.textContent);
-    expect(labels).toEqual(["Choose a workspace", "Legal Review"]);
-    const roles = within(groupCard("g1")).getByLabelText("Role it grants there") as HTMLSelectElement;
-    expect(Array.from(roles.options).map((o) => o.value)).toEqual(["ADMIN", "MEMBER", "VIEWER"]);
+    const select = within(groupCard("g1")).getByLabelText("Workspace");
+    expect(listboxLabels(select)).toEqual(["Choose a workspace", "Legal Review"]);
+    const roles = within(groupCard("g1")).getByLabelText("Role it grants there");
+    expect(listboxValues(roles)).toEqual(["ADMIN", "MEMBER", "VIEWER"]);
     // Plain words, never the stored enum.
-    for (const o of Array.from(roles.options)) expect(o.textContent).not.toMatch(/^[A-Z_]+$/);
+    for (const label of listboxLabels(roles)) expect(label).not.toMatch(/^[A-Z_]+$/);
   });
 
   it("adds a projection with the exact POST body, retried under step-up", async () => {

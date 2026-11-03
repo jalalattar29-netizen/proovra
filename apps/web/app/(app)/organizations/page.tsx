@@ -380,7 +380,6 @@ function OrganizationsListPageInner() {
         <div data-state="error" role="alert" style={listErrorStyle}>
           <strong>Couldn’t load organizations.</strong>
           <div style={{ fontSize: 13, marginTop: 4 }}>
-            {state.status ? `HTTP ${state.status}: ` : ""}
             {state.message}
           </div>
           <div style={{ marginTop: 10 }}>
@@ -402,7 +401,7 @@ function OrganizationsListPageInner() {
           style={listEmptyStyle}
         >
           <div style={{ fontSize: 13, opacity: 0.85 }}>
-            You’re not a member of any organization yet.
+            You don’t hold an organization role yet. Workspace roles are separate, so you may still work in an organization’s workspaces.
           </div>
           <ul style={{ margin: "0.6rem 0 0", paddingLeft: "1.1rem", fontSize: 13, opacity: 0.85 }}>
             <li>

@@ -329,7 +329,7 @@ test("transfer workspace ownership: a real target list, a confirmation, and step
 
   // Body validation: a target must be chosen.
   assert.match(src, /Choose the member who should own this workspace/);
-  assert.match(src, /aria-invalid=/);
+  assert.match(src, /"aria-invalid":/);
   assert.match(src, /disabled=\{busy \|\| !targetUserId\}/);
 
   // The route is step-up gated; the denial is handled, not swallowed.

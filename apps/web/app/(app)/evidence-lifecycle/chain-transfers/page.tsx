@@ -220,12 +220,12 @@ function Shell() {
             />
           </label>
           <label style={labelStyle}>
-            Evidence IDs (comma-sep)
+            Evidence IDs, separated by commas
             <input
               style={{ ...inputStyle, minWidth: 240 }}
               value={evidenceIds}
               onChange={(e) => setEvidenceIds(e.target.value)}
-              placeholder="uuid1, uuid2"
+              placeholder="Paste evidence IDs"
             />
           </label>
           <label style={labelStyle}>

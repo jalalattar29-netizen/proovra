@@ -8,6 +8,7 @@
  * pressure. Operator-readable only — no per-reviewer private text.
  */
 
+import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
 import { useCallback, useEffect, useState } from "react";
 
@@ -312,8 +313,7 @@ function SlaDashboardPageInner() {
             }
             tone=""
           />
-          <Stat label="Worker health" value="See runtime banner above" tone="" />
-        </div>
+                  </div>
         <p style={{ marginTop: 10, fontSize: 12, color: "var(--silver-ink)" }}>
           Workload and assignment suggestions depend on reconcile snapshots.
           Escalation analytics refresh separately from the queue snapshot. When
@@ -474,22 +474,17 @@ function SlaDashboardPageInner() {
           }}
         >
           <h3 className="app-panel__title">Escalation analytics</h3>
-          <select
-            value={rangeDays}
-            onChange={(e) => setRangeDays(Number(e.target.value))}
-            style={{
-              padding: "4px 8px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 6,
-              fontSize: 12,
-            }}
-          >
-            <option value={7}>Last 7d</option>
-            <option value={14}>Last 14d</option>
-            <option value={30}>Last 30d</option>
-            <option value={60}>Last 60d</option>
-            <option value={90}>Last 90d</option>
-          </select>
+          <AppListbox
+            value={String(rangeDays)}
+            options={[
+              { value: "7", label: "Last 7 days" },
+              { value: "14", label: "Last 14 days" },
+              { value: "30", label: "Last 30 days" },
+              { value: "60", label: "Last 60 days" },
+              { value: "90", label: "Last 90 days" },
+            ]}
+            onChange={(next) => setRangeDays(Number(next))}
+          />
         </div>
         {!analytics ? (
           <p className="app-field-help">Loading analytics…</p>

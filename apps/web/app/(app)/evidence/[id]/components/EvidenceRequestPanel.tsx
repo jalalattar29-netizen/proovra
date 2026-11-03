@@ -18,6 +18,7 @@
  *     URL is held in component state ONLY while the dialog is open.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { AppListbox } from "../../../../../components/app-primitives";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 import { useEffect, useState } from "react";
@@ -285,7 +286,7 @@ export default function EvidenceRequestPanel({
               </div>
             </div>
             <span className="app-status-badge" data-tone={requestStatusTone(req.status)}>
-              {STATUS_LABEL[req.status] ?? req.status}
+              {STATUS_LABEL[req.status] ?? identifierLabel(req.status)}
             </span>
           </div>
 
@@ -302,7 +303,7 @@ export default function EvidenceRequestPanel({
                     <span className="evd-badge evd-badge--accent">Required</span>
                   ) : null}
                   <span className="app-status-badge" data-tone={deliverableStatusTone(d.status)}>
-                    {DELIVERABLE_LABEL[d.status] ?? d.status}
+                    {DELIVERABLE_LABEL[d.status] ?? identifierLabel(d.status)}
                   </span>
                 </li>
               ))}
@@ -324,7 +325,7 @@ export default function EvidenceRequestPanel({
                       </span>
                     </div>
                     <div className="evd-muted">
-                      Status: {RESPONSE_STATUS_LABEL[r.status] ?? r.status}
+                      Status: {RESPONSE_STATUS_LABEL[r.status] ?? identifierLabel(r.status)}
                     </div>
                   </div>
                   <div className="evd-actions">
@@ -955,7 +956,7 @@ function ActivityTimelineDrawer({
                 className="evd-activity-row"
               >
                 <div className="evd-strong">
-                  {ACTIVITY_LABEL[e.eventType] ?? e.eventType}
+                  {ACTIVITY_LABEL[e.eventType] ?? identifierLabel(e.eventType)}
                 </div>
                 <div className="evd-muted">
                   {formatUserDateTime(e.createdAt)}

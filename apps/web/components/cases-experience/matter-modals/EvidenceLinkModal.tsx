@@ -18,6 +18,7 @@
  *   - Backend remains authoritative; this modal is UI only.
  */
 
+import { AppListbox } from "../../app-primitives/AppListbox";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -429,19 +430,15 @@ export function EvidenceLinkModal({
       >
         <label style={{ display: "grid", gap: 4 }}>
           <span style={{ fontSize: 12, opacity: 0.85 }}>Link role</span>
-          <select
+          <AppListbox
             value={role}
-            onChange={(e) => setRole(e.target.value as EvidenceLinkRole)}
+            options={[
+              ...EVIDENCE_LINK_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+            ]}
+            onChange={(next) => setRole(next as EvidenceLinkRole)}
             disabled={submitting}
-            data-matter-evidence-link-role
-            className="cases-filter-chip"
-          >
-            {EVIDENCE_LINK_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </option>
-            ))}
-          </select>
+            triggerProps={{ "data-matter-evidence-link-role": "" }}
+          />
         </label>
         <label style={{ display: "grid", gap: 4 }}>
           <span style={{ fontSize: 12, opacity: 0.85 }}>

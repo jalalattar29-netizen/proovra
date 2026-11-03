@@ -312,7 +312,7 @@ export function resolveRouteAccess(
           canLoad: false,
           canSeeNav: false,
           accessState: "DENIED_NO_CAPABILITY",
-          reason: `Missing required capability: ${cap}`,
+          reason: "Your role does not include this page.",
           primaryAction: null,
           secondaryAction: null,
         };

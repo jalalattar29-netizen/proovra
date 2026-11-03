@@ -23,6 +23,7 @@
  * the IP hash are never returned by the server.
  */
 
+import { identifierLabel } from "@proovra/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import { describeClient } from "../../../../../../lib/ui/describeClient";
@@ -252,7 +253,7 @@ export function TrustedDevicesSection() {
       key: "status",
       header: "Status",
       render: (d) => (
-        <Badge tone={d.status === "ACTIVE" ? "verified" : "neutral"}>{d.status}</Badge>
+        <Badge tone={d.status === "ACTIVE" ? "verified" : "neutral"}>{identifierLabel(d.status)}</Badge>
       ),
     },
     {
