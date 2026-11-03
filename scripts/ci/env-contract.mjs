@@ -19,7 +19,12 @@ import { fileURLToPath } from "node:url";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-export const EXAMPLE_FILES = ["services/api/.env.example", "services/worker/.env.example"];
+export const EXAMPLE_FILES = [
+  "services/api/.env.example",
+  "services/worker/.env.example",
+  // The web reads its own: NEXT_PUBLIC_VERIFY_DEMO_TOKEN sat here with no reader.
+  "apps/web/.env.example",
+];
 
 const SOURCE_ROOTS = [
   "services/api/src",
