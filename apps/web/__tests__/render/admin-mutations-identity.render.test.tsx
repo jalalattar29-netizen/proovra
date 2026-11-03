@@ -85,7 +85,8 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-vi.mock("../../lib/api", () => ({
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()),
   apiFetch: async (path: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? "GET";
     requestLog.push({ path, method, body: init?.body });

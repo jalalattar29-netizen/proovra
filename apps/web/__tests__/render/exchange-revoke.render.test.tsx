@@ -13,7 +13,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), confirm: vi.fn() }));
 
-vi.mock("../../lib/api", () => ({
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()),
   apiFetch: mocks.fetch,
   ApiError: class ApiError extends Error {},
 }));

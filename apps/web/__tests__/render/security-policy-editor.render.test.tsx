@@ -13,7 +13,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // ── apiFetch mock (path + method switch) ────────────────────────────────────
 const calls: Array<{ path: string; method: string; body?: unknown }> = [];
 let impl: (path: string, init?: RequestInit) => Promise<unknown> = async () => ({});
-vi.mock("../../lib/api", () => ({
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()),
   apiFetch: async (path: string, init?: RequestInit) => {
     calls.push({ path, method: init?.method ?? "GET", body: init?.body ? JSON.parse(init.body as string) : undefined });
     return impl(path, init);
@@ -74,6 +75,14 @@ beforeEach(() => {
 });
 
 describe("OrganizationSecurityPolicyEditor", () => {
+  it("states the MFA level sign-in enforces, read-only, and no longer offers a toggle that disagrees", async () => {
+    impl = orgPolicy({ applicability: "ORGANIZATION", organizationId: "org-1", policy: POLICY, mfaPolicyLevel: "ALL_MEMBERS" });
+    render(<OrganizationSecurityPolicyEditor orgId="org-1" />);
+    await waitFor(() => expect(screen.getByTestId("sec-mfa-level").textContent).toBe("All members"));
+    expect(screen.queryByTestId("sec-mfaRequiredFlag-on")).toBeNull();
+    expect(screen.queryByTestId("sec-mfaRequiredFlag-off")).toBeNull();
+  });
+
   it("reads the org-keyed policy (no workspace lookup) and renders the server projection", async () => {
     render(<OrganizationSecurityPolicyEditor orgId="org-1" />);
     await waitFor(() => expect(screen.getByTestId("sec-save")).toBeTruthy());
