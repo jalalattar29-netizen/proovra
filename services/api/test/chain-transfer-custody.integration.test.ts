@@ -63,15 +63,33 @@ describe("chain transfer custody (live PostgreSQL 16)", () => {
     expect(init.ok).toBe(true);
     const transferId = (init as { transferId: string }).transferId;
     expect(await svc.acceptChainTransfer({ teamId: B.teamId, transferId, acceptingUserId: B.ownerUserId })).toEqual({ ok: true });
+    // AZ-R2-02 (e0f257a50): the completing package must be one of A's own
+    // exchange packages. Another tenant's package and an id that names nothing
+    // are refused alike, and append nothing.
+    const pkg = (kind: { teamId: string; ownerUserId: string }, evidenceIds: string[]) =>
+      prisma.evidenceExchangePackage.create({
+        data: { teamId: kind.teamId, kind: "EVIDENCE", state: "READY", evidenceIds: evidenceIds as never, createdByUserId: kind.ownerUserId } as never,
+        select: { id: true },
+      });
+    const own = await pkg(A, [r1.id, r2.id]);
+    const foreign = await pkg(B, []);
+    for (const packageId of [foreign.id, randomUUID()]) {
+      expect(await svc.completeChainTransfer({ teamId: A.teamId, transferId, packageId, actorUserId: A.ownerUserId })).toEqual({
+        ok: false,
+        denial: "NOT_FOUND",
+      });
+    }
+    expect(await transferEvents(r1.id)).toHaveLength(2);
     expect(
-      await svc.completeChainTransfer({ teamId: A.teamId, transferId, packageId: randomUUID(), actorUserId: A.ownerUserId }),
+      await svc.completeChainTransfer({ teamId: A.teamId, transferId, packageId: own.id, actorUserId: A.ownerUserId }),
     ).toEqual({ ok: true });
+    expect((await prisma.chainTransfer.findUniqueOrThrow({ where: { id: transferId }, select: { packageId: true } })).packageId).toBe(own.id);
     for (const id of [r1.id, r2.id]) {
       const states = (await transferEvents(id)).map((e) => (e.payload as { state: string }).state);
       expect(states).toEqual(["INITIATED", "ACCEPTED", "COMPLETED"]);
     }
     // A second completion is refused and appends nothing.
-    expect(await svc.completeChainTransfer({ teamId: A.teamId, transferId, packageId: randomUUID() })).toEqual({ ok: false, denial: "INVALID_STATE" });
+    expect(await svc.completeChainTransfer({ teamId: A.teamId, transferId, packageId: own.id })).toEqual({ ok: false, denial: "INVALID_STATE" });
     expect(await transferEvents(r1.id)).toHaveLength(3);
   });
 
