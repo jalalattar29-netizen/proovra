@@ -8,9 +8,9 @@
   "capabilityRouteInventoryHash": "926c8cd89bbc15244764115eac539d6ba86b4ef002c515b3b8cf9ddb1de3168f",
   "totals": {
     "routes": 1230,
-    "routesWithAnyTestCaller": 47,
-    "testOnlyRoutes": 5,
-    "testCallSites": 113,
+    "routesWithAnyTestCaller": 53,
+    "testOnlyRoutes": 9,
+    "testCallSites": 125,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -1218,10 +1218,11 @@
     },
     {
       "routeId": "GET /v1/evidence",
-      "testCallerCount": 4,
+      "testCallerCount": 5,
       "testOnly": false,
       "testCallerFiles": [
         "apps/web/__tests__/render/api-response-error-shapes.render.test.tsx",
+        "e2e/acceptance/capacity/profile.mjs",
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts",
         "services/api/test/web-apifetch-single-flight.test.ts"
       ]
@@ -4121,9 +4122,11 @@
     },
     {
       "routeId": "POST /v1/auth/email/login",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "e2e/acceptance/capacity/profile.mjs"
+      ]
     },
     {
       "routeId": "POST /v1/auth/email/register",
@@ -4821,9 +4824,11 @@
     },
     {
       "routeId": "POST /v1/communications/process-retries",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
+      "testCallerCount": 1,
+      "testOnly": true,
+      "testCallerFiles": [
+        "e2e/acceptance/capacity/sweeps.ts"
+      ]
     },
     {
       "routeId": "POST /v1/communications/verify/check",
@@ -6047,9 +6052,11 @@
     },
     {
       "routeId": "POST /v1/internal/lifecycle/run",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "e2e/acceptance/capacity/sweeps.ts"
+      ]
     },
     {
       "routeId": "POST /v1/internal/media-intelligence/extract",
@@ -6209,21 +6216,27 @@
     },
     {
       "routeId": "POST /v1/notifications/process-retries",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
+      "testCallerCount": 1,
+      "testOnly": true,
+      "testCallerFiles": [
+        "e2e/acceptance/capacity/sweeps.ts"
+      ]
     },
     {
       "routeId": "POST /v1/notifications/run-digests",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
+      "testCallerCount": 1,
+      "testOnly": true,
+      "testCallerFiles": [
+        "e2e/acceptance/capacity/sweeps.ts"
+      ]
     },
     {
       "routeId": "POST /v1/notifications/run-reminders",
-      "testCallerCount": 0,
-      "testOnly": false,
-      "testCallerFiles": []
+      "testCallerCount": 1,
+      "testOnly": true,
+      "testCallerFiles": [
+        "e2e/acceptance/capacity/sweeps.ts"
+      ]
     },
     {
       "routeId": "POST /v1/oauth/extension/revoke",
@@ -7500,5 +7513,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "0cc4a4107426dd1ae640d9beccaecc5ab79ae0ffd70b91ec95a6f2a5a5cec3c4"
+  "contentHash": "748044ef6bf378c8ea12d1225b9880553102e446102bb1330a788d8f5c5f5c2b"
 }
