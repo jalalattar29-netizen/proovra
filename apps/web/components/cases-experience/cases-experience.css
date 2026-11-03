@@ -1318,3 +1318,33 @@ a.cases-row-title:hover {
     flex-wrap: wrap;
   }
 }
+
+/* THE TABLE FITS ITS CARD, NOT THE VIEWPORT.
+   The seven tracks, their gaps, the padding and the bulk-select gutter need
+   about 1,080px. The card is that wide only on a wide screen: beside the rail
+   and page padding it measured about 810px at a 1024 viewport, and the last
+   columns ran out of the card. The breakpoint is the card's own width, so the
+   rows stack the same way they already do on a phone whenever the card is too
+   narrow, whatever the viewport. */
+.cases-table {
+  container: cases-table / inline-size;
+}
+@container cases-table (max-width: 1079px) {
+  .cases-table-head { display: none; }
+  .cases-row-link {
+    grid-template-columns: 1fr auto;
+    grid-auto-rows: min-content;
+    gap: 8px 12px;
+    padding: 14px 16px;
+  }
+  .cases-cell-case { grid-column: 1; }
+  .cases-cell-actions { grid-column: 2; grid-row: 1; }
+  .cases-cell-status { grid-column: 1 / -1; }
+  .cases-cell-owner,
+  .cases-cell-evidence,
+  .cases-cell-readiness,
+  .cases-cell-updated { grid-column: auto; }
+  .cases-row:has(> .cases-row-select) .cases-row-link {
+    padding-inline-start: 40px;
+  }
+}

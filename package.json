@@ -30,7 +30,8 @@
     "test:e2e:admin": "playwright test --config apps/web/e2e/admin-control-plane/playwright.config.ts",
     "test:e2e:admin:list": "playwright test --config apps/web/e2e/admin-control-plane/playwright.config.ts --list",
     "test:e2e:admin:build": "node apps/web/scripts/dev-admin-fixture.mjs --mode=production --build-only",
-    "uc1:acceptance:windows": "node scripts/uc1-acceptance-windows.mjs"
+    "uc1:acceptance:windows": "node scripts/uc1-acceptance-windows.mjs",
+    "typecheck:e2e": "pnpm --filter proovra-web exec tsc -p ../../e2e/tsconfig.json"
   },
   "keywords": [],
   "author": "",
