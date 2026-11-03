@@ -524,6 +524,8 @@ model Evidence {
   @@index([teamId, intakeCustomerId])
   @@index([integrityCheckedAtUtc], map: "evidence_integrity_checked_at_utc_idx")
   @@index([integrityRecheckRequestedAtUtc], map: "evidence_integrity_recheck_requested_at_utc_idx")
+  // CAPACITY (2026-11-03): command center "signed, not timestamped / no package" reads.
+  @@index([teamId, status, updatedAt(sort: Desc)], map: "evidence_team_id_status_updated_at_idx")
   @@map("evidence")
 }
 
@@ -10783,6 +10785,8 @@ model CaseEvidenceLink {
   // UC-CASE-004 — one link row per pair (migration 20281001000200).
   @@unique([caseId, evidenceId])
   @@index([teamId, linkedAtUtc(sort: Desc)])
+  // CAPACITY (2026-11-03): records linked to more than one case, per workspace.
+  @@index([teamId, evidenceId], map: "case_evidence_links_team_id_evidence_id_idx")
   @@index([caseId])
   @@index([evidenceId])
   @@index([role])

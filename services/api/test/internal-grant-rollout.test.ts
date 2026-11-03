@@ -172,6 +172,10 @@ describe("internal-grant rollout — migration state", () => {
       "20281107000100_review_sla_due_soon_window",
       "20281107000200_communication_body_resendable",
       "20281107000300_platform_backup_records",
+      // CAPACITY: three indexes built CONCURRENTLY, one statement each, measured. EXPAND.
+      "20281111000000_capacity_evidence_team_status_updated_idx",
+      "20281111000100_capacity_evidence_disclosure_changed_idx",
+      "20281111000200_capacity_case_links_team_evidence_idx",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

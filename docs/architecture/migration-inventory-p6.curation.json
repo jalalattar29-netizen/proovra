@@ -3846,6 +3846,30 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.platform_backup_records') IS NOT NULL;\"",
       "evidence": "OPS-004 (2026-11-01). New append-only table written by the backup schedule, so the readiness posture reports recorded runs and not an assumption from DATABASE_URL. No existing row is touched."
+    },
+    "20281111000000_capacity_evidence_team_status_updated_idx": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = 'evidence_team_id_status_updated_at_idx' AND i.indisvalid;\"",
+      "evidence": "CAPACITY (2026-11-03). One index built CONCURRENTLY, single statement, measured on the capacity fixture (docs/operations/capacity-measurements.md). No row is touched; an interrupted build leaves an INVALID index the readiness command reports as not ready."
+    },
+    "20281111000100_capacity_evidence_disclosure_changed_idx": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = 'evidence_team_id_disclosure_changed_idx' AND i.indisvalid;\"",
+      "evidence": "CAPACITY (2026-11-03). One index built CONCURRENTLY, single statement, measured on the capacity fixture (docs/operations/capacity-measurements.md). No row is touched; an interrupted build leaves an INVALID index the readiness command reports as not ready."
+    },
+    "20281111000200_capacity_case_links_team_evidence_idx": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.relname = 'case_evidence_links_team_id_evidence_id_idx' AND i.indisvalid;\"",
+      "evidence": "CAPACITY (2026-11-03). One index built CONCURRENTLY, single statement, measured on the capacity fixture (docs/operations/capacity-measurements.md). No row is touched; an interrupted build leaves an INVALID index the readiness command reports as not ready."
     }
   }
 }
