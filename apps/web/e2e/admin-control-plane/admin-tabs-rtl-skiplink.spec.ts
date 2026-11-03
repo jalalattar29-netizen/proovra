@@ -298,6 +298,8 @@ test("the analytics window is selected, addressable and restored", async ({
 
   await select.click();
   const optionRows = page.locator('[role="option"]');
+  // The list is portaled and opens on the next frame.
+  await optionRows.first().waitFor({ state: "visible" });
   const values = await optionRows.evaluateAll((rows) =>
     rows.map((row) => ({
       value: row.getAttribute("data-value"),
@@ -325,10 +327,12 @@ test("the analytics window is selected, addressable and restored", async ({
     waitUntil: "networkidle",
   });
   await page.waitForTimeout(600);
-  expect(
-    await select.evaluate((el) => (el as HTMLSelectElement).value),
+  await select.click();
+  await expect(
+    page.locator(`[role="option"][data-value="${other}"]`),
     "a shared link did not restore its window",
-  ).toBe(other);
+  ).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Escape");
 
   await context.close();
 });

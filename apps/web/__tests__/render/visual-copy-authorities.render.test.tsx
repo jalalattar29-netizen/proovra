@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppListbox } from "../../components/app-primitives/AppListbox";
 import { FilterBar } from "../../components/ui/FilterBar";
+import { PreviewImage } from "../../app/(app)/evidence/[id]/_tabs/_lib";
 import { sourceTraceLabel } from "../../lib/labels/workspaceOpsLabels";
 import { recordReference } from "../../lib/short-id";
 import { chooseListbox, listboxLabels } from "./_listbox";
@@ -170,5 +171,14 @@ describe("the retired dark wash", () => {
   it("the callback says what happened in words", () => {
     const source = readFileSync(join(WEB_ROOT, "app/auth/callback/ui/page.tsx"), "utf8");
     expect(source).not.toContain("Missing OAuth token");
+  });
+});
+
+describe("an evidence image that does not load", () => {
+  it("says so in words instead of showing a broken image", () => {
+    render(<PreviewImage src="http://localhost/missing.png" label="site-photo.png" />);
+    fireEvent.error(screen.getByAltText("site-photo.png"));
+    expect(screen.getByRole("status").textContent).toContain("The preview could not be loaded.");
+    expect(screen.queryByAltText("site-photo.png")).toBeNull();
   });
 });
