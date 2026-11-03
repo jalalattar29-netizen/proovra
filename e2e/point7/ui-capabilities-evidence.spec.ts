@@ -38,6 +38,7 @@
  * version, recorded in the custody chain as VERIFICATION_DISCLOSURE_CHANGED.
  */
 
+import { chooseListbox } from "../helpers/listbox";
 import { test, expect, type Page } from "@playwright/test";
 
 import {
@@ -485,7 +486,7 @@ test.describe("JOURNEY E — evidence governance and video redaction", () => {
         await expect(trackSubmit()).toBeEnabled({ timeout: 30_000 });
       },
       arm: async () => {
-        await page.locator("[data-redaction-video-track-kind]").selectOption("FACE");
+        await chooseListbox(page.locator("[data-redaction-video-track-kind]"), "FACE");
         await page.locator("[data-redaction-video-track-from]").fill("0");
         await page.locator("[data-redaction-video-track-to]").fill("0");
         await page.locator("[data-redaction-video-track-bbox-x]").fill("0.2");

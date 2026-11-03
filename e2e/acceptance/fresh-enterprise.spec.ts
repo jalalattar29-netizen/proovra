@@ -19,6 +19,7 @@
  * Each step leaves its state in .p7tmp/acceptance-state.json, so a repaired step
  * can be rerun alone: ACCEPT_RESUME=1 ... -g "S07".
  */
+import { chooseListbox } from "../helpers/listbox";
 import { readFileSync } from "node:fs";
 
 import { expect, test, type Browser, type Page } from "@playwright/test";
@@ -506,7 +507,7 @@ test("S15 Legal Hold from the contract, against the record; retention stays in f
   await expect(page.locator("[data-retention-release]").first()).toBeVisible();
   await page.goto("/evidence-lifecycle/legal-holds");
   await settle(page);
-  await page.locator("main select").first().selectOption("EVIDENCE");
+  await chooseListbox(page.locator("main [role=combobox]").first(), "EVIDENCE");
   await page.getByPlaceholder("Hold name").fill(`Aurora litigation ${s.runId}`);
   await page.getByPlaceholder("Legal basis").fill("Anticipated hull claim dispute");
   await page.locator('[data-record-picker="evidence"] button').first().click();

@@ -64,6 +64,7 @@
  * less than capability one.
  */
 
+import { chooseListbox } from "../helpers/listbox";
 import { test, expect, type Page } from "@playwright/test";
 
 import { countRows, login, provenBrowserScenario, sql } from "./_harness";
@@ -654,9 +655,8 @@ test.describe("JOURNEY W — workspace lifecycle write surfaces", () => {
     };
 
     const arm = async () => {
-      await page
-        .locator('[data-control="workspace-transfer-target"]')
-        .selectOption(fixture.member.userId);
+      await chooseListbox(page
+        .locator('[data-control="workspace-transfer-target"]'), fixture.member.userId);
       // Ownership moves billing with it, so the card requires an explicit
       // confirmation step before the request may leave.
       await page.locator('[data-action="open-workspace-transfer-ownership"]').click();

@@ -296,18 +296,25 @@ test("the analytics window is selected, addressable and restored", async ({
   expect(Math.round(box!.height), "the window control is under the touch floor")
     .toBeGreaterThanOrEqual(44);
 
-  const options = await select.evaluate((el) =>
-    Array.from((el as HTMLSelectElement).options).map((o) => o.value),
+  await select.click();
+  const optionRows = page.locator('[role="option"]');
+  const values = await optionRows.evaluateAll((rows) =>
+    rows.map((row) => ({
+      value: row.getAttribute("data-value"),
+      selected: row.getAttribute("aria-selected") === "true",
+    })),
   );
-  const selectValue = () =>
-    select.evaluate((el) => (el as HTMLSelectElement).value);
-  const current = await selectValue();
-  const other = options.find((o) => o !== current);
+  const other = values.find((o) => !o.selected)?.value;
   expect(other, "the window control offers only one option").toBeTruthy();
 
-  await select.selectOption(other!);
+  await page.locator(`[role="option"][data-value="${other}"]`).click();
   await page.waitForTimeout(800);
-  expect(await selectValue(), "the control did not take the selection").toBe(other);
+  await select.click();
+  await expect(
+    page.locator(`[role="option"][data-value="${other}"]`),
+    "the control did not take the selection",
+  ).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Escape");
   expect(
     new URL(page.url()).searchParams.get("window"),
     "the window did not reach the address bar",

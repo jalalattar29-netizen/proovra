@@ -52,6 +52,7 @@
  * capability seventeen rather than proving the toggle.
  */
 
+import { chooseListbox } from "../helpers/listbox";
 import { test, expect, type Page } from "@playwright/test";
 
 import { countRows, directApiCall, login, provenBrowserScenario, sql } from "./_harness";
@@ -169,12 +170,10 @@ test.describe("JOURNEY A — automation console and provider budgets", () => {
     const arm = async () => {
       const form = page.locator(createForm);
       await form.locator('[data-automation-field="name"]').fill(ruleName);
-      await form
-        .locator('[data-automation-field="triggerType"]')
-        .selectOption(TRIGGER_TYPE);
-      await form
-        .locator('[data-automation-field="actionType"]')
-        .selectOption(ACTION_TYPE);
+      await chooseListbox(form
+        .locator('[data-automation-field="triggerType"]'), TRIGGER_TYPE);
+      await chooseListbox(form
+        .locator('[data-automation-field="actionType"]'), ACTION_TYPE);
       // The action-config fieldset is keyed on the selected action type and
       // re-renders when it changes, so the label field is filled after it.
       await form
@@ -569,8 +568,8 @@ test.describe("JOURNEY A — automation console and provider budgets", () => {
     const arm = async () => {
       // WORKSPACE scope needs neither a provider nor a scope target, so it
       // isolates the budget write itself rather than a scope resolver.
-      await page.locator("[data-intelligence-budget-scope]").selectOption("WORKSPACE");
-      await page.locator("[data-intelligence-budget-period]").selectOption("MONTHLY");
+      await chooseListbox(page.locator("[data-intelligence-budget-scope]"), "WORKSPACE");
+      await chooseListbox(page.locator("[data-intelligence-budget-period]"), "MONTHLY");
       await page.locator("[data-intelligence-budget-soft-limit]").fill("100");
       await page.locator("[data-intelligence-budget-hard-limit]").fill("250");
     };

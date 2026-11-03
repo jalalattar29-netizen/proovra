@@ -1561,6 +1561,11 @@ textarea.app-form-input {
   cursor: pointer;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
+@media (max-width: 720px) {
+  .app-listbox__trigger {
+    min-height: 44px;
+  }
+}
 .app-listbox__trigger:hover:not(:disabled) {
   border-color: rgba(100, 116, 139, 0.36);
 }
