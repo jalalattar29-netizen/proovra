@@ -33,7 +33,7 @@ import {
   useState,
 } from "react";
 
-import { ApiError } from "../../../lib/api";
+import { isApiResponseError } from "../../../lib/api";
 // PHASE 7 §10.7/§10.G — tenant-aware lifecycle fetch (re-scope on switch).
 import { usePlatformContext } from "../../../lib/platform-context";
 import {
@@ -135,7 +135,7 @@ export function resolveLifecycleError(err: unknown): LifecycleDenial | null {
   if (err === null || err === undefined) return null;
 
   // Canonical client error.
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const { denial, permission, feature } = extractDenialDetails(err.details);
     if (err.statusCode === 403 && denial === "ENTITLEMENT_REQUIRED") {
       return {

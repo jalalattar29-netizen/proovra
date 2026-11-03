@@ -143,6 +143,41 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     expect(await prisma.user.count({ where: { email } })).toBe(1);
   });
 
+  it("RT-015: a new SAML account owes acceptance until it accepts", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const conn = await connection(org);
+    const email = `legal-${randomUUID().slice(0, 8)}@example.test`;
+    const res = await signIn(conn, email);
+    const raw = res.headers["set-cookie"];
+    const session = (Array.isArray(raw) ? raw : [String(raw)])
+      .find((c) => String(c).startsWith("proovra_session="))!
+      .split(";")[0]!
+      .slice("proovra_session=".length);
+    const authorization = `Bearer ${session}`;
+    const status = () =>
+      harness.app.inject({ method: "GET", url: "/v1/users/legal-status", headers: { authorization } });
+    const owed = (await status()).json() as {
+      requiresReacceptance: boolean;
+      missingPolicies: string[];
+      requiredVersions: Record<string, string>;
+    };
+    expect(owed.requiresReacceptance).toBe(true);
+    const accepted = await harness.app.inject({
+      method: "POST",
+      url: "/v1/users/legal-acceptance",
+      headers: { authorization, "content-type": "application/json" },
+      payload: {
+        source: "post_sign_in",
+        acceptances: owed.missingPolicies.map((policyKey) => ({
+          policyKey,
+          policyVersion: owed.requiredVersions[policyKey],
+        })),
+      },
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect(((await status()).json() as { ok: boolean }).ok).toBe(true);
+  });
+
   it("IDENT-004: each URL the console tells an administrator to copy is one the API serves", async () => {
     // The console's own helpers, with the API origin left out because inject has none.
     const conn = await connection(await seedOrganizationTenant(deps, {}));
@@ -365,6 +400,105 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     const before = await prisma.authenticatedSession.count({ where: { userId: user.id } });
 
     const refused = await signInThroughMfa(conn, email, secretBytes);
+    expect(refused.statusCode, refused.body).toBe(403);
+    expect((refused.json() as { token?: string }).token).toBeUndefined();
+    expect(sessionSet(refused)).toBe(false);
+    expect(await prisma.authenticatedSession.count({ where: { userId: user.id } })).toBe(before);
+  });
+
+  /** Sign in with no factor under a required policy, enrol as the page does, and finish. */
+  async function signInThroughEnrolment(conn: string, email: string) {
+    const redirected = await signIn(conn, email);
+    const location = String(redirected.headers.location);
+    expect(location).toContain("/auth/mfa-challenge");
+    expect(location).toContain("enroll=1");
+    expect(sessionSet(redirected)).toBe(false);
+    const raw = redirected.headers["set-cookie"];
+    const cookie = (Array.isArray(raw) ? raw : [String(raw)])
+      .find((c) => String(c).startsWith("proovra_mfa_enroll="))!
+      .split(";")[0]!;
+    const enrolment = decodeURIComponent(cookie.slice("proovra_mfa_enroll=".length));
+    const post = (url: string, token: string, payload: unknown = {}) =>
+      harness.app.inject({
+        method: "POST",
+        url,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: payload as never,
+      });
+    const start = await post("/v1/identity/mfa/enroll/start", enrolment);
+    expect(start.statusCode, start.body).toBe(200);
+    const begun = start.json() as { factorId: string; secretBase32: string };
+    const verify = await post("/v1/identity/mfa/enroll/verify", enrolment, {
+      factorId: begun.factorId,
+      code: totp.computeTotpCode(
+        totp.decodeBase32(begun.secretBase32),
+        totp.timeStep(Math.floor(Date.now() / 1000)),
+      ),
+    });
+    expect(verify.statusCode, verify.body).toBe(200);
+    const enrolled = (verify.json() as { mfaEnrollmentToken: string }).mfaEnrollmentToken;
+    return post("/v1/auth/mfa/enrollment/complete", enrolled);
+  }
+
+  it("IDENT-011: through enrolment, a session gets its workspace, its binding and its context", async () => {
+    const org = await seedOrganizationTenant(deps, { managedIdentityRequired: true });
+    await prisma.organizationSecurityPolicy.update({
+      where: { organizationId: org.organizationId },
+      data: { mfaPolicyLevel: "ALL_MEMBERS" },
+    });
+    const conn = await connection(org);
+    // Already linked to the IdP, already a member, with no factor and no binding.
+    const person = await seedUser(deps, "enrol-linked");
+    const row0 = await prisma.user.findUniqueOrThrow({ where: { id: person.userId }, select: { email: true } });
+    const email = row0.email!;
+    await prisma.externalIdentityMapping.create({
+      data: {
+        teamId: org.workspaceId,
+        organizationId: org.organizationId,
+        userId: person.userId,
+        provider: "GENERIC_SAML",
+        externalSubjectId: email,
+        externalEmail: email,
+      },
+    });
+    await prisma.teamMember.create({
+      data: { teamId: org.workspaceId, userId: person.userId, role: "MEMBER", status: "ACTIVE" },
+    });
+    await prisma.organizationMembership.create({
+      data: { organizationId: org.organizationId, userId: person.userId, role: "ORG_MEMBER" },
+    });
+
+    const done = await signInThroughEnrolment(conn, email);
+    expect(done.statusCode, done.body).toBe(200);
+    expect((done.json() as { token?: string }).token).toBeTruthy();
+
+    const row = await prisma.authenticatedSession.findFirstOrThrow({
+      where: { userId: person.userId, revokedAtUtc: null, ssoConnectionId: conn },
+    });
+    expect(row.teamId).toBe(org.workspaceId);
+    expect(row.authMethod).toBe("SAML");
+    const bound = await prisma.user.findUniqueOrThrow({
+      where: { id: person.userId },
+      select: { managedBySsoConnectionId: true },
+    });
+    expect(bound.managedBySsoConnectionId).toBe(conn);
+    const factor = await prisma.mfaFactor.count({ where: { userId: person.userId, status: "ACTIVE" } });
+    expect(factor).toBe(1);
+  });
+
+  it("IDENT-011: the concurrent-session limit holds through enrolment, with no credential issued", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const conn = await connection(org);
+    const email = `enrol-limit-${randomUUID().slice(0, 8)}@example.test`;
+    expect((await signIn(conn, email)).headers.location).toBe(`${WEB}/home`);
+    const user = await prisma.user.findFirstOrThrow({ where: { email }, select: { id: true } });
+    await prisma.organizationSecurityPolicy.update({
+      where: { organizationId: org.organizationId },
+      data: { concurrentSessionLimit: 1, mfaPolicyLevel: "ALL_MEMBERS" },
+    });
+    const before = await prisma.authenticatedSession.count({ where: { userId: user.id } });
+
+    const refused = await signInThroughEnrolment(conn, email);
     expect(refused.statusCode, refused.body).toBe(403);
     expect((refused.json() as { token?: string }).token).toBeUndefined();
     expect(sessionSet(refused)).toBe(false);

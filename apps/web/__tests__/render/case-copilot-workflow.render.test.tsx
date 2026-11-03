@@ -64,7 +64,8 @@ const H = vi.hoisted(() => {
   };
 });
 
-vi.mock("../../lib/api", () => ({
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()),
   apiFetch: async (path: string, init?: { body?: string }) => {
     const body = init?.body ? JSON.parse(init.body) : {};
     H.requests.push({ path, body });

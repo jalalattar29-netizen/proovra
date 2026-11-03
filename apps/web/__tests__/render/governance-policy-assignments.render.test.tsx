@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   guard: { stamp: () => 1, isStale: () => false, generation: 1 },
   platform: { envelope: null, contextGeneration: 1 },
 }));
-vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()), apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
 vi.mock("../../components/ui/ConfirmActionModal", () => ({ useConfirmAction: () => ({ confirm: mocks.confirm }) }));
 vi.mock("../../components/navigation/PageRouteGate", () => ({ PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("../../lib/platform-context", () => ({ useTenantGuard: () => mocks.guard, usePlatformContext: () => mocks.platform }));

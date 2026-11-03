@@ -18,7 +18,7 @@ import { formatUserDateTime } from "../../lib/date";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
-import { apiFetch, ApiError } from "../../lib/api";
+import { apiFetch, isApiResponseError } from "../../lib/api";
 import { useActiveWorkspaceId } from "../../lib/platform-context";
 
 const STRATEGIES = [
@@ -104,7 +104,7 @@ export function QcSamplingPanel() {
       setState({ kind: "ready", samples: res.samples, catalogAvailable: res.catalogAvailable !== false });
       setPage(0);
     } catch (err) {
-      setState(err instanceof ApiError && err.statusCode === 403 ? { kind: "denied" } : { kind: "error" });
+      setState(isApiResponseError(err) && err.statusCode === 403 ? { kind: "denied" } : { kind: "error" });
     }
   }, [teamId, strategy]);
   useEffect(() => { void load(); }, [load]);

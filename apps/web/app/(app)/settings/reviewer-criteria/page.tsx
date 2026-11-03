@@ -9,7 +9,7 @@ import { formatUserDate } from "../../../../lib/date";
  */
 import { useCallback, useEffect, useState } from "react";
 
-import { apiFetch, ApiError } from "../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../lib/api";
 import { useActiveWorkspaceId } from "../../../../lib/platform-context";
 import { PageRouteGate } from "../../../../components/navigation/PageRouteGate";
 
@@ -48,7 +48,7 @@ function ReviewerCriteriaPageInner() {
       setSets(res.sets);
       setError(null);
     } catch (err) {
-      setError(err instanceof ApiError && err.statusCode === 403 ? "Your role in this workspace does not include reviewer criteria." : "The criteria catalog is unavailable right now.");
+      setError(isApiResponseError(err) && err.statusCode === 403 ? "Your role in this workspace does not include reviewer criteria." : "The criteria catalog is unavailable right now.");
       setSets([]);
     }
   }, [teamId]);
@@ -66,9 +66,9 @@ function ReviewerCriteriaPageInner() {
       await load();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.statusCode === 403
+        isApiResponseError(err) && err.statusCode === 403
           ? "Only workspace owners/admins can manage criteria."
-          : err instanceof ApiError && err.statusCode === 409
+          : isApiResponseError(err) && err.statusCode === 409
             ? "That action conflicts with the set's current state (e.g. a draft already exists, or the version is already published)."
             : `The ${op} action failed.`,
       );
@@ -364,7 +364,7 @@ function DraftEditor({ teamId, setId, onSaved }: { teamId: string; setId: string
       setConflict(null);
       onSaved();
     } catch (e) {
-      if (e instanceof ApiError && e.statusCode === 409) {
+      if (isApiResponseError(e) && e.statusCode === 409) {
         // Another admin changed the set — load their state for the panel.
         try {
           const server = await loadServer();
@@ -375,7 +375,7 @@ function DraftEditor({ teamId, setId, onSaved }: { teamId: string; setId: string
         }
       } else {
         setErr(
-          e instanceof ApiError && e.statusCode === 403
+          isApiResponseError(e) && e.statusCode === 403
             ? "Only workspace owners/admins can edit criteria."
             : "The draft could not be saved.",
         );
@@ -507,7 +507,7 @@ function CreateForm({ teamId, onCreated }: { teamId: string; onCreated: () => vo
       });
       onCreated();
     } catch (e) {
-      setErr(e instanceof ApiError && e.statusCode === 403 ? "Only workspace owners/admins can author criteria." : "Could not create the criteria set.");
+      setErr(isApiResponseError(e) && e.statusCode === 403 ? "Only workspace owners/admins can author criteria." : "Could not create the criteria set.");
     } finally {
       setBusy(false);
     }

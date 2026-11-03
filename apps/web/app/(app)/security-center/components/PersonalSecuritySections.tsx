@@ -1199,9 +1199,10 @@ function MfaCard({
       });
       await reloadMfa();
     } catch (err) {
-      const e = err as { body?: { error?: string } };
+      // The route refuses with a flat { error: "<reason>" }.
+      const e = err as { flatReason?: string };
       setError(
-        MFA_VERIFY_ERRORS[e.body?.error ?? ""] ??
+        MFA_VERIFY_ERRORS[e.flatReason ?? ""] ??
           toSafeUserError(err, { message: "Verification failed. Try again." })
             .message,
       );

@@ -36,6 +36,7 @@ vi.mock("../src/auth.js", () => ({ getAuthUserId: () => H.actorUserId }));
 // an emergency action runs on.
 vi.mock("../src/db.js", () => ({
   prisma: {
+    organizationSecurityPolicy: { findUnique: async () => null },
     organization: { findUnique: async () => ({ id: "44444444-4444-4444-8444-444444444444" }) },
     team: { findUnique: async () => ({ organizationId: "44444444-4444-4444-8444-444444444444" }) },
   },

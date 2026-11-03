@@ -36,7 +36,6 @@ async function signIn(page: Page, s: GuestSession): Promise<void> {
   // The visible form only — a production build briefly holds a hidden copy.
   await page.locator('input[placeholder="Email"]:visible').fill(s.email);
   await page.locator('input[placeholder="Password"]:visible').fill(SESSION_PASSWORD);
-  await page.locator("input.auth-legal-checkbox:visible").check();
   await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').click();
   await page.waitForURL(/\/home/, { timeout: 30_000 });
 }

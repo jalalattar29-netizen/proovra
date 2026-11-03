@@ -42,7 +42,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { Button } from "../../../components/ui/Button";
 import { useConfirmAction } from "../../../components/ui/ConfirmActionModal";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import {
   StepUpModal,
   useStepUpAction,
@@ -132,7 +132,7 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
     setDenial({ denial: denial as string, permission });
     return;
   }
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const d =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)

@@ -93,14 +93,32 @@ export interface ConfirmActionOptions {
    * confirmed. Callers in this mode should ignore the result.
    */
   noticeOnly?: boolean;
+  /**
+   * REASON MODE — the replacement for `window.prompt`. The dialog carries a
+   * required text field and the confirm button stays disabled until it holds
+   * something other than whitespace. Set by `askReason`.
+   */
+  reasonField?: {
+    label: string;
+    placeholder?: string;
+    maxLength?: number;
+  };
+}
+
+export interface AskReasonOptions extends Omit<ConfirmActionOptions, "reasonField" | "noticeOnly" | "requireConfirmText"> {
+  reasonLabel: string;
+  reasonPlaceholder?: string;
+  reasonMaxLength?: number;
 }
 
 interface ConfirmActionRequest extends ConfirmActionOptions {
-  resolve: (value: boolean) => void;
+  resolve: (value: boolean, reason?: string) => void;
 }
 
 interface ConfirmActionContextValue {
   confirm: (options: ConfirmActionOptions) => Promise<boolean>;
+  /** Resolves with the trimmed reason, or null when the person cancels. */
+  askReason: (options: AskReasonOptions) => Promise<string | null>;
 }
 
 // -----------------------------------------------------------------------------
@@ -180,7 +198,7 @@ function ConfirmActionModal({
   onClose,
 }: {
   request: ConfirmActionRequest;
-  onClose: (result: boolean) => void;
+  onClose: (result: boolean, reason?: string) => void;
 }) {
   const {
     title,
@@ -191,6 +209,7 @@ function ConfirmActionModal({
     requireConfirmText,
     testId,
     noticeOnly = false,
+    reasonField,
   } = request;
 
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -199,10 +218,14 @@ function ConfirmActionModal({
   const descriptionId = useId();
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
+  const [reason, setReason] = useState("");
+  const reasonRef = useRef<HTMLTextAreaElement | null>(null);
 
   const accent = toneAccent(tone);
   const dataTestId = testId ?? "confirm-action-modal";
-  const confirmGated = Boolean(requireConfirmText) && typed !== requireConfirmText;
+  const confirmGated =
+    (Boolean(requireConfirmText) && typed !== requireConfirmText) ||
+    (Boolean(reasonField) && reason.trim().length === 0);
   const confirmDisabled = busy || confirmGated;
 
   const close = useCallback(
@@ -216,8 +239,8 @@ function ConfirmActionModal({
   const handleConfirm = useCallback(async () => {
     if (confirmDisabled) return;
     setBusy(true);
-    onClose(true);
-  }, [confirmDisabled, onClose]);
+    onClose(true, reasonField ? reason.trim() : undefined);
+  }, [confirmDisabled, onClose, reasonField, reason]);
 
   // Focus trap, scroll lock, escape, restore focus.
   useEffect(() => {
@@ -226,7 +249,10 @@ function ConfirmActionModal({
         ? (document.activeElement as HTMLElement | null)
         : null) ?? null;
 
-    const focusTimer = setTimeout(() => focusFirstIn(dialogRef.current), 0);
+    const focusTimer = setTimeout(() => {
+      if (reasonRef.current) reasonRef.current.focus();
+      else focusFirstIn(dialogRef.current);
+    }, 0);
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -494,6 +520,37 @@ function ConfirmActionModal({
               />
             </label>
           ) : null}
+
+          {reasonField ? (
+            <label
+              data-confirm-action-reason-label
+              style={{ display: "block", marginTop: 14, fontSize: 12, color: "#5F6B7D" }}
+            >
+              {reasonField.label}
+              <textarea
+                ref={reasonRef}
+                data-confirm-action-reason-input
+                rows={3}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={reasonField.placeholder}
+                maxLength={reasonField.maxLength}
+                disabled={busy}
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(15,23,42,0.14)",
+                  background: "rgba(255,255,255,0.9)",
+                  color: "#172033",
+                  fontSize: 13,
+                  resize: "vertical",
+                }}
+              />
+            </label>
+          ) : null}
         </div>
 
         <footer
@@ -569,14 +626,22 @@ export function ConfirmActionProvider({ children }: { children: React.ReactNode 
         new Promise<boolean>((resolve) => {
           setRequest({ ...options, resolve });
         }),
+      askReason: ({ reasonLabel, reasonPlaceholder, reasonMaxLength, ...options }) =>
+        new Promise<string | null>((resolve) => {
+          setRequest({
+            ...options,
+            reasonField: { label: reasonLabel, placeholder: reasonPlaceholder, maxLength: reasonMaxLength },
+            resolve: (ok, reason) => resolve(ok ? (reason ?? null) : null),
+          });
+        }),
     }),
     [],
   );
 
   const onClose = useCallback(
-    (result: boolean) => {
+    (result: boolean, reason?: string) => {
       setRequest((current) => {
-        if (current) current.resolve(result);
+        if (current) current.resolve(result, reason);
         return null;
       });
     },

@@ -12,6 +12,7 @@
  *   node e2e/acceptance/stack.mjs build | web-build
  *   node e2e/acceptance/stack.mjs api | worker | web
  *   node e2e/acceptance/stack.mjs isolation      (exit 1 unless /health proves it)
+ *   node e2e/acceptance/stack.mjs manifest <org> <file>   (the GOV-015 operator script)
  *
  * production-controls.json holds production's non-secret controls (flags and
  * limits only), so the fixture is not silently a smaller product. It never holds
@@ -28,13 +29,19 @@ const { buildLocalFixtureEnv, describeLocalFixtureEnv } = await import(
   pathToFileURL(resolve(ROOT, "scripts/local-fixture-env/index.mjs")).href
 );
 
-const PORTS = { api: "8391", web: "3511", postgres: "55733", redis: "56679", minio: "59300" };
+// A second instance, for when another run already holds the first: its own
+// containers and ports. ACCEPT_STACK_INSTANCE=b, with API_BASE and WEB_BASE to match.
+const SECOND = process.env.ACCEPT_STACK_INSTANCE === "b";
+const PORTS = SECOND
+  ? { api: "8491", web: "3611", postgres: "55833", redis: "56779", minio: "59400" }
+  : { api: "8391", web: "3511", postgres: "55733", redis: "56679", minio: "59300" };
 const DB_NAME = "proovra_acceptance_fixture";
 const BUCKET = "proovra-acceptance-fixture";
 const MINIO_USER = "fixture-local-only";
 const MINIO_SECRET = "fixture-local-only-secret";
 const CRON = "fixture-local-only-acceptance-cron-secret-00000000";
-const C = { postgres: "acc-postgres", redis: "acc-redis", minio: "acc-minio" };
+const PREFIX = SECOND ? "acc-b" : "acc";
+const C = { postgres: `${PREFIX}-postgres`, redis: `${PREFIX}-redis`, minio: `${PREFIX}-minio` };
 const MINIO_IMAGE = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z";
 
 const controls = JSON.parse(readFileSync(resolve(HERE, "production-controls.json"), "utf8"));
@@ -76,6 +83,8 @@ const env = buildLocalFixtureEnv({
     S3_OBJECT_LOCK_MODE: "COMPLIANCE",
     S3_OBJECT_LOCK_RETAIN_DAYS: "1",
     PUPPETEER_EXECUTABLE_PATH: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    // The worker runs its real lifecycle timer, on a shorter period than production.
+    LIFECYCLE_SWEEP_INTERVAL_MS: "15000",
     NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED: "true",
     NEXT_PUBLIC_STORAGE_ORIGIN: `http://localhost:${PORTS.minio}`,
   },
@@ -154,6 +163,7 @@ switch (cmd) {
   case "migrate": run(api, "npx", ["prisma", "migrate", "deploy"]); break;
   case "seed-operator": run(api, "npx", ["tsx", "scripts/seed-admin-fixture.ts"]); break;
   case "tsx": run(api, "npx", ["tsx", ...process.argv.slice(3)]); break;
+  case "manifest": run(api, "npx", ["tsx", "src/scripts/organization-export-manifest.ts", `--organization=${process.argv[3]}`, `--out=${process.argv[4]}`]); break;
   // tsc directly: the packages' prebuild regenerates Prisma, which fails while a process holds the client.
   case "build-api": run(api, "npx", ["tsc", "-p", "tsconfig.build.json"]); break;
   case "build-worker": run(worker, "npx", ["tsc", "-p", "tsconfig.build.json", "&&", "node", "./scripts/copy-assets.mjs"]); break;

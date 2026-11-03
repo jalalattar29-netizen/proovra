@@ -20,7 +20,7 @@
  * denial, nothing more.
  */
 
-import { ApiError } from "../../../../../lib/api";
+import { isApiResponseError } from "../../../../../lib/api";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
 
 export type SurfaceFailure = {
@@ -120,7 +120,7 @@ const BLOCKED_CODES = new Set([
 ]);
 
 function readCode(err: unknown): string | null {
-  if (err instanceof ApiError) return err.code ?? null;
+  if (isApiResponseError(err)) return err.code ?? null;
   const e = err as { code?: unknown };
   return typeof e?.code === "string" ? e.code : null;
 }

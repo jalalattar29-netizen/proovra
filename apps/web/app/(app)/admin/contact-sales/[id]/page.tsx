@@ -27,7 +27,7 @@ import { Badge } from "../../../../../components/ui/Badge";
 import type { BadgeTone } from "../../../../../components/ui/Badge";
 import { Button, buttonSurfaceStyle } from "../../../../../components/ui/Button";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { useConfirmAction } from "../../../../../components/ui/ConfirmActionModal";
 import {
@@ -200,7 +200,7 @@ export default function AdminContactSalesDetailPage({
         setState({ kind: "notFound" });
       }
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         if (err.statusCode === 404) {
           setState({ kind: "notFound" });
           return;

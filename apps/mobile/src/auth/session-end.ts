@@ -33,6 +33,7 @@ export function sessionEndReason(input: {
 export function requiresOrganizationSso(reason: unknown): boolean {
   return (
     reason === "mandatory_sso_required" ||
+    reason === "saml_required" ||
     reason === "sso_connection_unbound" ||
     reason === "sso_connection_wrong_organization"
   );

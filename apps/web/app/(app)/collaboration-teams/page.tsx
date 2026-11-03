@@ -59,7 +59,7 @@ import { AppListbox } from "../../../components/app-primitives/AppListbox";
 import { AppStatusBadge } from "../../../components/app-primitives/AppStatusBadge";
 import { AppStatusText } from "../../../components/app-primitives/AppStatusText";
 import { PlanLimitBadge } from "../../../components/billing/PlanLimitBadge";
-import { ApiError } from "../../../lib/api";
+import { isApiResponseError } from "../../../lib/api";
 import { toSafeUserError } from "../../../lib/feedback/toSafeUserError";
 import {
   TEAMS_PLAN_LOCKED_COPY,
@@ -1556,7 +1556,7 @@ function CreateTeamModal({
       // Team.") instead of the generic sentence. Numbers are NEVER
       // fabricated: when details are missing we keep the safe generic copy.
       const message =
-        err instanceof ApiError && err.code === "TEAM_LIMIT_REACHED"
+        isApiResponseError(err) && err.code === "TEAM_LIMIT_REACHED"
           ? formatTeamLimitReachedMessage(err.details) ?? safe.message
           : safe.message;
       setError({ message, requestId: safe.supportReference });

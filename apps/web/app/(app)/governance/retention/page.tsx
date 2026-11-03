@@ -193,6 +193,8 @@ export default function RetentionPoliciesPage() {
 function RetentionPoliciesPageInner() {
   const teamId = useTeamId();
   const [policies, setPolicies] = useState<Policy[] | null>(null);
+  // Template policies held in Evidence Lifecycle → Retention bind records too.
+  const [lifecycleTemplateCount, setLifecycleTemplateCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PolicyStatus | "ALL">("ALL");
   const [selectedVersionsFor, setSelectedVersionsFor] = useState<string | null>(
@@ -245,9 +247,10 @@ function RetentionPoliciesPageInner() {
       `/v1/governance/retention-policies?teamId=${encodeURIComponent(teamId)}${status}`,
       { method: "GET" },
     )
-      .then((res: { policies: Policy[] }) => {
+      .then((res: { policies: Policy[]; lifecycleTemplateCount?: number }) => {
         if (cancelled) return;
         setPolicies(res.policies);
+        setLifecycleTemplateCount(res.lifecycleTemplateCount ?? 0);
         setError(null);
       })
       .catch((err: { message?: string }) => {
@@ -767,6 +770,12 @@ function RetentionPoliciesPageInner() {
         }
       >
         {error ? <div style={errorBoxStyle} role="alert">{error}</div> : null}
+        {lifecycleTemplateCount > 0 ? (
+          <p data-retention-other-table style={{ ...mutedStyle, margin: "8px 0" }}>
+            {lifecycleTemplateCount} more in force in{" "}
+            <a href="/evidence-lifecycle/retention">Evidence Lifecycle → Retention</a>.
+          </p>
+        ) : null}
         {policyNotice ? (
           <p role="status" data-retention-policy-notice style={{ ...mutedStyle, margin: "8px 0" }}>
             {policyNotice}

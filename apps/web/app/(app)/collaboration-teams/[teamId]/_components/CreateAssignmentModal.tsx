@@ -27,7 +27,7 @@ import {
   AppSearchSelect,
   type AppSearchSelectOption,
 } from "../../../../../components/app-primitives/AppSearchSelect";
-import { ApiError } from "../../../../../lib/api";
+import { isApiResponseError } from "../../../../../lib/api";
 import { notifyApiError } from "../../../../../lib/feedback/notify";
 import {
   ASSIGNEE_TEAM_LEVEL_LABEL,
@@ -155,7 +155,7 @@ export function CreateAssignmentModal({
       });
       await onCreated();
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         notifyApiError(addToast, err);
       } else {
         addToast("Couldn't create assignment.", "error");

@@ -213,7 +213,6 @@ async function loginAsPersonalUser(page: Page): Promise<GuestSession> {
   // Policy before continuing." — a refusal that renders in the page
   // rather than as a failed request, so a fixture that skips it simply
   // waits on a navigation that is never coming.
-  await page.locator("input.auth-legal-checkbox:visible").check();
   await page.locator('[data-auth-email-cta="SIGN_IN"]:visible').click();
   // Landing on /home is the proof the session exists. Without this wait a
   // later assertion could read the login page again and call it a pass.

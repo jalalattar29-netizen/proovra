@@ -32,7 +32,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { ProovraSystemState } from "../../../../../../components/feedback/ProovraSystemState";
 import { useToast } from "../../../../../../components/ui";
-import { ApiError } from "../../../../../../lib/api";
+import { isApiResponseError } from "../../../../../../lib/api";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { acceptInvite } from "../../../../../../lib/api/collaboration-teams";
 import {
@@ -127,7 +127,7 @@ function AcceptTeamInvite() {
         router.replace(`/collaboration-teams/${result.teamId}`);
       }, 700);
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (isApiResponseError(err)) {
         setRequestId(err.requestId);
         setErrorMessage(toSafeUserError(err).message);
         // Map STABLE backend codes to safe surface states — never regex

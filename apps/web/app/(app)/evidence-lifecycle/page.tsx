@@ -31,7 +31,7 @@ import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 import { PageShell, PageHeader } from "../../../components/ui/PageShell";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { LifecycleSectionBoundary, permissionRequiredDetail } from "./_shared";
 // PHASE 12B (Evidence Operations) — the lifecycle console is the home for
 // the dedicated policy-violation observability reads and the bounded
@@ -220,7 +220,7 @@ function normaliseDashboard(res: unknown): LifecycleDashboard {
 
 function mapErrorToState(err: unknown): LoadState {
   // ApiError (canonical) — denial details land in `details.denial`.
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const denial =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)

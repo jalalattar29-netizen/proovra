@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { identifierLabel } from "@proovra/shared";
 
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
-import { apiFetch, ApiError } from "../../../lib/api";
+import { apiFetch, isApiResponseError } from "../../../lib/api";
 import { formatUserDate } from "../../../lib/date";
 import { permissionDenialCopy } from "../../../lib/labels/governanceReviewLabels";
 
@@ -52,7 +52,7 @@ function applyDenial(err: unknown, setDenial: (v: PermissionDenialState) => void
   ) {
     setDenial({ denial: denial as string, permission });
   }
-  if (err instanceof ApiError) {
+  if (isApiResponseError(err)) {
     const d =
       err.details && typeof err.details["denial"] === "string"
         ? (err.details["denial"] as string)
