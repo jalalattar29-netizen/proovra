@@ -225,6 +225,61 @@ describe("Sessions, step-up and provider claims (live PostgreSQL)", () => {
     expect(session.riskScore).not.toBeNull();
   });
 
+  it("IDENT-019: signing in again from the same browser is not a suspicious session; a sign-in with no device is", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const person = await seedUser(deps, "again");
+    const row = await prisma.user.update({
+      where: { id: person.userId },
+      data: {
+        passwordHash: passwords.hashPassword("Correct-horse-9-battery"),
+        emailVerifiedAt: new Date(),
+        currentWorkspaceId: org.workspaceId,
+      },
+      select: { email: true },
+    });
+    await prisma.teamMember.create({
+      data: { teamId: org.workspaceId, userId: person.userId, role: "MEMBER", status: "ACTIVE" },
+    });
+    await prisma.organizationMembership.create({
+      data: { organizationId: org.organizationId, userId: person.userId, role: "ORG_MEMBER" },
+    });
+    const browser = { "user-agent": "Mozilla/5.0 (integration) Chrome/131", "accept-language": "en-GB" };
+    const signIn = (headers: Record<string, string>) =>
+      harness.app.inject({
+        method: "POST",
+        url: "/v1/auth/email/login",
+        headers,
+        payload: { email: row.email, password: "Correct-horse-9-battery" },
+      });
+    const condition = () =>
+      prisma.operationalIncident.count({
+        where: { teamId: org.workspaceId, sourceId: "identity.security_condition", status: { not: "RESOLVED" } },
+      });
+
+    // The fixture's own session is not one of these sign-ins.
+    const seeded = (await prisma.authenticatedSession.findMany({ where: { userId: person.userId }, select: { id: true } })).map((s) => s.id);
+    for (let i = 0; i < 3; i += 1) expect((await signIn(browser)).statusCode).toBe(200);
+    const sessions = await prisma.authenticatedSession.findMany({
+      where: { userId: person.userId, id: { notIn: seeded } },
+      orderBy: { issuedAtUtc: "asc" },
+    });
+    expect(sessions).toHaveLength(3);
+    for (const s of sessions) {
+      expect(s.deviceIdHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(s.riskScore).toBe(0);
+    }
+    expect(new Set(sessions.map((s) => s.deviceIdHash)).size).toBe(1);
+    expect(await condition()).toBe(0);
+
+    // The signal still stands for what it is for: a session with no device at all.
+    expect((await signIn({ "user-agent": "" })).statusCode).toBe(200);
+    const bare = await prisma.authenticatedSession.findFirstOrThrow({
+      where: { userId: person.userId, deviceIdHash: null, id: { notIn: seeded } },
+    });
+    expect(bare.riskScore).toBeGreaterThanOrEqual(30);
+    await expect.poll(condition, { timeout: 10_000 }).toBe(1);
+  });
+
   it("IDENT-022: an address the provider does not vouch for gets no stamp and no guest row", async () => {
     const email = `guest-${randomUUID().slice(0, 8)}@example.test`;
     const guest = await prisma.user.create({

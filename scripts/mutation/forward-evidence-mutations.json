@@ -2520,8 +2520,8 @@
     "phase": "P11",
     "name": "a billing admin may export the oversight reports again",
     "file": "services/api/src/routes/organizations-reports.routes.ts",
-    "find": "const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = [\"ORG_OWNER\", \"ORG_ADMIN\", \"ORG_SECURITY_ADMIN\", \"ORG_AUDITOR\"];",
-    "replace": "const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = [\"ORG_OWNER\", \"ORG_ADMIN\", \"ORG_SECURITY_ADMIN\", \"ORG_AUDITOR\", \"ORG_BILLING_ADMIN\"];",
+    "find": "const OVERSIGHT_EXPORT_ROLES = ORG_OVERSIGHT_ROLES;",
+    "replace": "const OVERSIGHT_EXPORT_ROLES: ReadonlyArray<OrgRole> = [...ORG_OVERSIGHT_ROLES, \"ORG_BILLING_ADMIN\"];",
     "tests": [
       {
         "cwd": "services/api",

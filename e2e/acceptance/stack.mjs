@@ -31,16 +31,31 @@ const { buildLocalFixtureEnv, describeLocalFixtureEnv } = await import(
 
 // A second instance, for when another run already holds the first: its own
 // containers and ports. ACCEPT_STACK_INSTANCE=b, with API_BASE and WEB_BASE to match.
-const SECOND = process.env.ACCEPT_STACK_INSTANCE === "b";
-const PORTS = SECOND
-  ? { api: "8491", web: "3611", postgres: "55833", redis: "56779", minio: "59400" }
-  : { api: "8391", web: "3511", postgres: "55733", redis: "56679", minio: "59300" };
+// Any other instance name takes its five ports from ACCEPT_STACK_PORTS
+// ("api,web,postgres,redis,minio") and its own container prefix, so parallel
+// runs never share a container, a port or a database.
+const INSTANCE = (process.env.ACCEPT_STACK_INSTANCE ?? "").trim();
+const SECOND = INSTANCE === "b";
+const CUSTOM = INSTANCE !== "" && !SECOND;
+function customPorts() {
+  const p = (process.env.ACCEPT_STACK_PORTS ?? "").split(",").map((s) => s.trim());
+  if (!/^[a-z0-9-]+$/.test(INSTANCE) || p.length !== 5 || !p.every((x) => /^\d{4,5}$/.test(x))) {
+    console.error("ACCEPT_STACK_INSTANCE=<name> needs ACCEPT_STACK_PORTS=api,web,postgres,redis,minio");
+    process.exit(2);
+  }
+  return { api: p[0], web: p[1], postgres: p[2], redis: p[3], minio: p[4] };
+}
+const PORTS = CUSTOM
+  ? customPorts()
+  : SECOND
+    ? { api: "8491", web: "3611", postgres: "55833", redis: "56779", minio: "59400" }
+    : { api: "8391", web: "3511", postgres: "55733", redis: "56679", minio: "59300" };
 const DB_NAME = "proovra_acceptance_fixture";
 const BUCKET = "proovra-acceptance-fixture";
 const MINIO_USER = "fixture-local-only";
 const MINIO_SECRET = "fixture-local-only-secret";
 const CRON = "fixture-local-only-acceptance-cron-secret-00000000";
-const PREFIX = SECOND ? "acc-b" : "acc";
+const PREFIX = CUSTOM ? `acc-${INSTANCE}` : SECOND ? "acc-b" : "acc";
 const C = { postgres: `${PREFIX}-postgres`, redis: `${PREFIX}-redis`, minio: `${PREFIX}-minio` };
 const MINIO_IMAGE = "pgsty/minio:RELEASE.2026-08-04T00-00-00Z";
 

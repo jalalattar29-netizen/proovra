@@ -614,14 +614,19 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       const payload = { rows: [{ detectionId: d1.id, decisionState: "ACCEPTED" }, { detectionId: d2.id, decisionState: "REJECTED" }] };
 
       expect((await call({ method: "POST", url, token: a.memberToken, payload })).statusCode).toBe(403);
+      // The route names one version, held to the caller's workspace (5391f131b):
+      // another tenant's version is answered exactly like a version that does not
+      // exist, the same 409 the region route gives.
       const foreign = await call({ method: "POST", url, token: b.ownerToken, payload });
-      expect(foreign.statusCode).toBe(200);
-      const missing = await call({ method: "POST", url, token: b.ownerToken, payload: { rows: [{ detectionId: randomUUID(), decisionState: "ACCEPTED" }] } });
-      // Another tenant's rows are answered exactly like rows that do not exist.
-      for (const o of foreign.json().outcomes) {
-        expect(o).toMatchObject({ outcome: "NOT_FOUND", denial: "DETECTION_NOT_FOUND", promotedRegionId: null });
-      }
-      expect(missing.json().outcomes[0]).toMatchObject({ outcome: "NOT_FOUND", denial: "DETECTION_NOT_FOUND" });
+      expect(foreign.statusCode, foreign.body).toBe(409);
+      expect(foreign.json()).toEqual({ denial: "VERSION_NOT_FOUND" });
+      const noVersion = await call({ method: "POST", url: `/v1/redaction/versions/${randomUUID()}/decisions/bulk`, token: a.ownerToken, payload });
+      expect(noVersion.statusCode).toBe(409);
+      expect(noVersion.json()).toEqual({ denial: "VERSION_NOT_FOUND" });
+      // Inside the named version, a row that is not there is a per-row NOT_FOUND.
+      const missing = await call({ method: "POST", url, token: a.ownerToken, payload: { rows: [{ detectionId: randomUUID(), decisionState: "ACCEPTED" }] } });
+      expect(missing.statusCode, missing.body).toBe(200);
+      expect(missing.json().outcomes[0]).toMatchObject({ outcome: "NOT_FOUND", denial: "DETECTION_NOT_FOUND", promotedRegionId: null });
       expect(await prisma.redactionDecision.count({ where: { versionId } })).toBe(0);
 
       const decided = await call({ method: "POST", url, token: a.ownerToken, payload });

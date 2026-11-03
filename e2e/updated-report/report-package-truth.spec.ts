@@ -313,7 +313,22 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
     expect(byId.body.packageSha256).toBe(sha);
     expect(byId.body.sealKeyFingerprintSha256).toBe(sig.signingKeyFingerprint);
     expect(byId.body.keyBinding).toBe("BOUND");
-    expect(byId.body.sealKey).toMatchObject({ purpose: "PACKAGE_SEAL", algorithm: "Ed25519", status: "ACTIVE", fingerprintSha256: sig.signingKeyFingerprint });
+    // The registry is insert-only, and J6 registers a newer version of this
+    // seal key id as its rotation fixture, which nothing can take back. A J1
+    // that runs after it on the same stack (a retry, or a second run) sees the
+    // key correctly reported SUPERSEDED. So the status must be what the
+    // registry says: ACTIVE on a stack with no newer version, SUPERSEDED by
+    // exactly the newest one otherwise.
+    const [newer] = sql<{ version: number }>(
+      "SELECT version FROM signing_keys WHERE key_id = $1 AND purpose = 'PACKAGE_SEAL' AND version > $2 ORDER BY version ASC LIMIT 1",
+      [String(sig.signingKeyId), Number(sig.signingKeyVersion)],
+    );
+    expect(byId.body.sealKey).toMatchObject({
+      purpose: "PACKAGE_SEAL",
+      algorithm: "Ed25519",
+      fingerprintSha256: sig.signingKeyFingerprint,
+      ...(newer ? { status: "SUPERSEDED", supersededByVersion: Number(newer.version) } : { status: "ACTIVE" }),
+    });
     expect((byId.body.issuedWith as Array<Record<string, unknown>>).map((x) => x.packageId)).toEqual([id === v1.packageId ? v1.extPackageId : v1.packageId]);
     expect(JSON.stringify(byId.body)).not.toMatch(/@example\.test|storageKey|proovra-rga/);
     expect(JSON.stringify(byId.body)).not.toContain(evidenceId);
@@ -609,12 +624,23 @@ test("J8 authorization: a VIEWER gets only the external disclosure package; an o
   expect([403, 404]).toContain((await outsider.api.get(`/v1/evidence/${evidenceId}/verification-packages/1`)).status());
   expect([403, 404]).toContain((await outsider.api.get(`/v1/evidence/${evidenceId}/verification-packages/1/external-disclosure`)).status());
 
+  // EVID-008 (c80acd093): a package download is a presigned link, so the API
+  // records the link it issued (DOWNLOAD_AUTHORIZED), never a transfer it
+  // cannot see. Each profile's issue is its own custody event.
   const events = sql<{ payload: Record<string, unknown> }>(
-    "SELECT payload FROM custody_events WHERE evidence_id = $1 AND event_type = 'VERIFICATION_PACKAGE_DOWNLOADED'",
+    "SELECT payload FROM custody_events WHERE evidence_id = $1 AND event_type = 'DOWNLOAD_AUTHORIZED' AND payload->>'artifact' = 'verification_package'",
     [evidenceId],
   );
-  expect(events.some((e) => e.payload.disclosureProfile === "EXTERNAL_DISCLOSURE")).toBe(true);
-  expect(events.some((e) => e.payload.disclosureProfile === "FULL_FORENSIC")).toBe(true);
+  expect(events.some((e) => e.payload.disclosureProfile === "EXTERNAL_DISCLOSURE" && e.payload.accessedByUserId === viewer.userId)).toBe(true);
+  expect(events.some((e) => e.payload.disclosureProfile === "FULL_FORENSIC" && e.payload.accessedByUserId === owner.userId)).toBe(true);
+  // The refused full-package request issued nothing to the VIEWER, and the outsider nothing at all.
+  expect(events.some((e) => e.payload.disclosureProfile === "FULL_FORENSIC" && e.payload.accessedByUserId === viewer.userId)).toBe(false);
+  expect(events.some((e) => e.payload.accessedByUserId === outsider.userId)).toBe(false);
+  const claimed = sql<{ n: number }>(
+    "SELECT count(*)::int AS n FROM custody_events WHERE evidence_id = $1 AND event_type = 'VERIFICATION_PACKAGE_DOWNLOADED'",
+    [evidenceId],
+  );
+  expect(claimed[0]!.n, "a link is not a download").toBe(0);
 });
 
 test("J9 browser — Artifacts shows identity, profile and both downloads; the public record binds a ZIP; an unreachable registry is stated", async ({ page }) => {

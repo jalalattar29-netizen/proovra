@@ -1007,11 +1007,33 @@ export async function installWriteLog(prisma: any): Promise<void> {
   const tables = (await prisma.$queryRawUnsafe(
     `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('sweep_write_log', '_prisma_migrations')`,
   )) as Array<{ tablename: string }>;
+  // Idempotent: the integration suite runs every file against ONE database, and
+  // two suites build a sweep world. A trigger left by an earlier suite (or by a
+  // run that died before its teardown) is replaced, not collided with.
   for (const { tablename } of tables) {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS sweep_log ON "${tablename}"`);
     await prisma.$executeRawUnsafe(
       `CREATE TRIGGER sweep_log AFTER INSERT OR UPDATE OR DELETE ON "${tablename}" FOR EACH ROW EXECUTE FUNCTION sweep_log_write()`,
     );
   }
+}
+
+/**
+ * Removes every trigger, the function and the log table the sweep installed, so
+ * the suites that run after it on the same database write without a sweep
+ * logging each row. Safe to call when nothing is installed.
+ */
+export async function removeWriteLog(prisma: any): Promise<void> {
+  const triggered = (await prisma.$queryRawUnsafe(
+    `SELECT c.relname AS tablename FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE t.tgname = 'sweep_log' AND n.nspname = 'public'`,
+  )) as Array<{ tablename: string }>;
+  for (const { tablename } of triggered) {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS sweep_log ON "${tablename}"`);
+  }
+  await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS sweep_log_write()`);
+  await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS sweep_write_log`);
 }
 
 async function drainWrites(prisma: any): Promise<Array<{ tbl: string; doc: string }>> {
@@ -1041,6 +1063,11 @@ export class WriteSweep {
 
   get fixtureFailures(): Map<string, string> {
     return this.factory.failures;
+  }
+
+  /** Takes the write log off the shared database; call from the suite's teardown. */
+  async uninstallWriteLog(): Promise<void> {
+    await removeWriteLog(this.deps.prisma);
   }
 
   private async send(

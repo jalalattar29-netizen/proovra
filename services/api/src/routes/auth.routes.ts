@@ -71,6 +71,7 @@ import { enforceRateLimit, clearAllRateLimitBuckets } from "../services/rate-lim
 import {
   endOwnSession,
   recordAuthenticatedSession,
+  requestDeviceIdHash,
 } from "../services/access-control/session-inventory.service.js";
 // PHASE 11 — canonical internal URL builder (destination-URL construction
 // only; this file's identity/session/MFA logic is untouched).
@@ -242,6 +243,10 @@ async function recordSessionFromSignedToken(
       exp: payload.exp,
       ipPreview: authIpPreview(req),
       uaPreview: authUaPreview(req),
+      // The same device fingerprint every sign-in records, so the score below
+      // compares a real device rather than reading every password session as
+      // an unknown one.
+      deviceIdHash: requestDeviceIdHash(req.headers),
       authMethod,
       ...(isSso && typeof payload.ssoConnId === "string"
         ? {
