@@ -1061,7 +1061,7 @@ export async function externalPortalRoutes(app: FastifyInstance) {
       });
       if (!grant) return reply.code(403).send({ denial: "OUT_OF_SCOPE" });
       const released = await releaseExternalDisclosurePackage({
-        grant,
+        grant: { ...grant, scopeKind: grant.scopeKind as "EVIDENCE" | "CASE" | "PACKAGE" },
         ip: req.ip ?? null,
         userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
       });
