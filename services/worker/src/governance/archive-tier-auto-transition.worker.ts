@@ -50,6 +50,71 @@ function isArchiveTier(value: string): value is ArchiveTier {
 }
 
 /**
+ * The records of one workspace that are due a tier, oldest first, with their
+ * current tier and sealed version (capacity, 2026-11-03).
+ *
+ * This used to read 400 of the workspace's records in no stated order, then
+ * EVERY completed transition the workspace had ever recorded, then each
+ * candidate again by id. On the capacity fixture one hourly tick took 699 s and
+ * 194,591 statements across 628 workspaces, and because the 400 were not
+ * ordered, a workspace whose first 400 rows were already tiered never had its
+ * other records looked at. One statement now selects the due records:
+ *
+ *   - the current tier is the latest COMPLETED transition naming a known tier
+ *     (an unknown label was skipped before too), else HOT;
+ *   - a record is due when its age passes the threshold of its current tier;
+ *   - oldest first, so a backlog drains in age order and nothing is starved.
+ *
+ * The scope is the workspace's own records: the sweep visits ORGANIZATION and
+ * OWNED workspaces only (`isPersonal: false` below), whose canonical evidence
+ * scope is exactly `team_id = workspace`, asserted before the read.
+ */
+type DueRecord = {
+  id: string;
+  created_at: Date;
+  current_tier: string | null;
+  storage_bucket: string | null;
+  storage_key: string | null;
+  storage_version_id: string | null;
+};
+
+async function dueRecordsForTeam(teamId: string, limit: number): Promise<DueRecord[]> {
+  const scope = await workspaceEvidenceWhere(teamId, prisma);
+  if (JSON.stringify(scope) !== JSON.stringify({ teamId })) {
+    throw new Error("archive tier sweep: a workspace whose scope is not its own team id");
+  }
+  const now = Date.now();
+  const hot = new Date(now - HOT_TO_WARM_DAYS * MS_PER_DAY);
+  const warm = new Date(now - WARM_TO_COLD_CUMULATIVE_DAYS * MS_PER_DAY);
+  const cold = new Date(now - COLD_TO_DEEP_CUMULATIVE_DAYS * MS_PER_DAY);
+  return prisma.$queryRaw<DueRecord[]>`
+    SELECT e.id::text AS id, e.created_at, cur.to_tier AS current_tier,
+           e.storage_bucket, e.storage_key, e.storage_version_id
+      FROM evidence e
+      LEFT JOIN LATERAL (
+        SELECT t.to_tier
+          FROM archive_tier_transitions t
+         WHERE t.team_id = ${teamId}::uuid
+           AND t.evidence_id = e.id
+           AND t.state = 'COMPLETED'
+           AND t.to_tier IN ('HOT', 'WARM', 'COLD', 'DEEP_ARCHIVE')
+         ORDER BY t.transitioned_at_utc DESC
+         LIMIT 1
+      ) cur ON true
+     WHERE e.team_id = ${teamId}::uuid
+       AND e.deleted_at IS NULL
+       AND e.created_at <= ${hot}
+       AND (
+             cur.to_tier IS NULL OR cur.to_tier = 'HOT'
+          OR (cur.to_tier = 'WARM' AND e.created_at <= ${warm})
+          OR (cur.to_tier = 'COLD' AND e.created_at <= ${cold})
+       )
+     ORDER BY e.created_at ASC, e.id ASC
+     LIMIT ${limit}
+  `;
+}
+
+/**
  * Run a single-team auto-transition sweep.
  *
  * Returns the count of transitions that were requested (not all will
@@ -57,31 +122,9 @@ function isArchiveTier(value: string): value is ArchiveTier {
  * errors).
  */
 async function sweepTeam(teamId: string): Promise<number> {
-  // WORKSPACE-SCOPE CONVERGENCE — the canonical workspace population,
-  // resolved once for every query below. A strict `teamId` equality here
-  // omitted a personal workspace's legacy NULL-team rows, and reported the
-  // smaller number as if it were the whole population.
-  const scope = await workspaceEvidenceWhere(teamId, prisma);
-  // 1. Gather evidence rows that might need a tier downgrade.
-  const evidenceRows = await prisma.evidence.findMany({
-    where: { AND: [scope], deletedAt: null },
-    select: { id: true, createdAt: true },
-    take: MAX_PER_TEAM * 4, // over-fetch so we can skip already-at-tier rows
-  });
+  // Over-fetch so a failed or contended claim does not end the tick early.
+  const evidenceRows = await dueRecordsForTeam(teamId, MAX_PER_TEAM * 4);
   if (evidenceRows.length === 0) return 0;
-
-  // 2. Resolve the current tier for each evidence row via the last
-  //    ArchiveTierTransition.
-  const allTransitions = await prisma.archiveTierTransition.findMany({
-    where: { teamId, state: "COMPLETED" },
-    orderBy: { transitionedAtUtc: "desc" },
-    select: { evidenceId: true, toTier: true },
-  });
-  const latestByEvidence = new Map<string, ArchiveTier>();
-  for (const t of allTransitions) {
-    if (latestByEvidence.has(t.evidenceId)) continue;
-    if (isArchiveTier(t.toTier)) latestByEvidence.set(t.evidenceId, t.toTier);
-  }
 
   const now = Date.now();
   let scheduled = 0;
@@ -90,8 +133,9 @@ async function sweepTeam(teamId: string): Promise<number> {
   for (const ev of evidenceRows) {
     if (scheduled >= MAX_PER_TEAM) break;
 
-    const currentTier: ArchiveTier = latestByEvidence.get(ev.id) ?? "HOT";
-    const ageDays = (now - ev.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    const currentTier: ArchiveTier =
+      ev.current_tier && isArchiveTier(ev.current_tier) ? ev.current_tier : "HOT";
+    const ageDays = (now - ev.created_at.getTime()) / (1000 * 60 * 60 * 24);
 
     let targetTier: ArchiveTier | null = null;
 
@@ -113,11 +157,12 @@ async function sweepTeam(teamId: string): Promise<number> {
     //    the label itself. A record with no sealed version has nothing to tag, so
     //    no row is written for it rather than one that claims a tier.
     try {
-      const sealed = await prisma.evidence.findUnique({
-        where: { id: ev.id },
-        select: { storageBucket: true, storageKey: true, storageVersionId: true },
-      });
-      if (!sealed?.storageBucket || !sealed.storageKey || !sealed.storageVersionId) continue;
+      const sealed = {
+        storageBucket: ev.storage_bucket,
+        storageKey: ev.storage_key,
+        storageVersionId: ev.storage_version_id,
+      };
+      if (!sealed.storageBucket || !sealed.storageKey || !sealed.storageVersionId) continue;
 
       // THE CLAIM, durable before storage is touched: the row exists first, under
       // the evidence lock, so overlapping sweeps tag once and a crash leaves
