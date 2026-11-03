@@ -332,6 +332,17 @@ async function fetchWithAuthRetry(
  */
 const inFlightReads = new Map<string, Promise<unknown>>();
 
+/**
+ * A read that starts after a write must not join a read that started before it.
+ *
+ * Sharing an overlapping GET is safe only while nothing changed in between. The
+ * setup wizard saved "MFA for all members" and re-read the policy at once; that
+ * re-read could join a read still in flight from before the save, and so showed
+ * the old answer: "Saved", with no word that the session it came from is now
+ * refused. Every write moves the generation, and the generation is in the key.
+ */
+let writeGeneration = 0;
+
 function readKeyFor(
   url: string,
   init: RequestInit,
@@ -348,7 +359,7 @@ function readKeyFor(
   if (method !== "GET") return null;
   if (init.body != null) return null;
   if (init.signal) return null;
-  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}`;
+  return `${url}|auth:${opts?.auth !== false}|retry:${opts?.retryAuthOnce !== false}|gen:${writeGeneration}`;
 }
 
 function cloneResult(value: unknown): unknown {
@@ -374,7 +385,10 @@ export async function apiFetch(
     opts,
   );
 
-  if (!key) return runApiFetch(path, init, opts);
+  if (!key) {
+    if ((init.method ?? "GET").toUpperCase() !== "GET") writeGeneration += 1;
+    return runApiFetch(path, init, opts);
+  }
 
   const existing = inFlightReads.get(key);
   if (existing) return cloneResult(await existing);
