@@ -218,6 +218,21 @@ vi.mock("../src/services/search/evidence-search.service.js", () => ({
     };
   },
 }));
+/*
+ * THE PLAN INPUT TO THE POLICY (e73df15a7). The routes now ask the commercial
+ * authority whether the workspace's plan includes AI and pass the answer to
+ * `evaluateWorkspaceAiPolicy` as `planAllowed`. This file mocks that policy
+ * decision outright (H.policy), so the plan answer cannot change any outcome
+ * here; resolving it for real needs the whole commercial model (entitlements,
+ * storage add-ons, internal plan grants) this Prisma double does not carry, and
+ * left unmocked it threw inside the route and surfaced as unhandled rejections.
+ * The plan gate itself is proven against a real database in
+ * test/enterprise-contract-lifecycle.integration.test.ts.
+ */
+vi.mock("../src/services/billing-enforcement.service.js", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, workspaceIncludesAiOperations: async () => true };
+});
 vi.mock("../src/services/ai/workspace-ai-policy.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
