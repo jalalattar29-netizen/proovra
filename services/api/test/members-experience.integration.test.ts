@@ -255,12 +255,15 @@ describe("members experience — reach, capacity and counts (live PostgreSQL)", 
     it("past the bound every match is refused rather than any hidden row shown", async () => {
       const { searchDocumentReachWhere } = await import("../src/services/search/search-reach.js");
       const many = Array.from({ length: 20_001 }, () => ({ id: randomUUID() }));
-      // Only the hidden-id lists are faked. The workspace scope is resolved
-      // through the real `team` delegate, which `ReachClient` requires: the
-      // reach reads the workspace's kind before it lists anything.
-      const fake = {
+      // Only the hidden-id lists are faked, at the delegates that produce them:
+      // closed Cases from `case`, closed Evidence from `caseEvidenceLink` (the
+      // capacity rewrite reads links, not records). The workspace scope is
+      // resolved through the real `team` delegate. Every delegate `ReachClient`
+      // names is present, so the fake cannot fall behind the type again.
+      const fake: Record<keyof Parameters<typeof searchDocumentReachWhere>[0], unknown> = {
         case: { findMany: async () => many },
         evidence: { findMany: async () => [] },
+        caseEvidenceLink: { findMany: async () => [] },
         team: prisma.team,
       };
       expect(await searchDocumentReachWhere(fake as never, A().teamId, "u")).toEqual({ AND: [{ id: { in: [] } }] });
