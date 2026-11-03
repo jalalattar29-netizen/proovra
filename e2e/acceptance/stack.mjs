@@ -97,6 +97,10 @@ const env = buildLocalFixtureEnv({
           PLATFORM_MAINTENANCE_RECONCILER_ENABLED: "false",
         }
       : {}),
+    // Capacity runs compare pool ceilings; unset keeps the process default.
+    ...(process.env.ACCEPTANCE_DATABASE_POOL_MAX
+      ? { DATABASE_POOL_MAX: process.env.ACCEPTANCE_DATABASE_POOL_MAX }
+      : {}),
   },
 });
 
