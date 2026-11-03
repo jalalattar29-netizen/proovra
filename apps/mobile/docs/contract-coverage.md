@@ -120,7 +120,7 @@ top level of it.
 | OK | `parseOrgAuditPage` | `GET /v1/orgs/:id/audit-events` | events, organizationId, summary | events, nextCursor, summary |
 | OK | `parseClosureState` | `GET /v1/orgs/:id/closure` | blockers, confirmationPhrase, contractManaged, coolingOffDays, request | blockers, confirmationPhrase, coolingOffDays, request |
 | OK | `parseOrgPendingInviteTotal` | `GET /v1/orgs/:id/invites` | invites, organizationId, summary | summary |
-| OK | `parseOrgMembers` | `GET /v1/orgs/:id/members` | members, organizationId, summary | members |
+| OK | `parseOrgMembers` | `GET /v1/orgs/:id/members` | members, nextCursor, organizationId, summary | members |
 | OK | `parseOrgWorkspaces` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | teams, workspaces |
 | OK | `parseOrgWorkspacesCanSeeBilling` | `GET /v1/orgs/:id/workspaces` | callerCanSeeBilling, organizationId, summary, workspaces | callerCanSeeBilling |
 | OK | `parseRbacMatrix` | `GET /v1/platform/rbac/matrix` | categories, generatedAt, roles, version | categories, roles, version |
