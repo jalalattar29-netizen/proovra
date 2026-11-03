@@ -176,6 +176,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   REVIEW_ASSIGNEE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
   CASE_RENAME_DENIED: { disposition: "customer", where: "global" },
   CASE_ACCESS_TARGET_NOT_MEMBER: { disposition: "customer", where: "global" },
+  NOT_A_MEMBER: {
+    disposition: "generic",
+    why: "An automation rule naming a person outside the workspace. Saying more would confirm whether an id belongs to another tenant.",
+  },
   WORKSPACE_MEMBERSHIP_REQUIRED: { disposition: "customer", where: "global" },
   WORKSPACE_CONTEXT_REQUIRED: { disposition: "customer", where: "global" },
   /**
