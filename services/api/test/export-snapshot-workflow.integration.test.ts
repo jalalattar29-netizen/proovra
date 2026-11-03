@@ -38,8 +38,23 @@ describe("governance export snapshots operator workflow", () => {
   });
   it("paginates tied timestamps without duplicates and projects canonical creation authority", async () => {
     const a = harness.fixtures.teamA;
-    const rows = [await create("COMPLIANCE_BUNDLE"), await create("COMPLIANCE_BUNDLE"), await create("COMPLIANCE_BUNDLE")];
-    await prisma.governanceExportSnapshot.updateMany({ where: { id: { in: rows.map(row => row.id) } }, data: { createdAt: new Date("2026-01-01T00:00:00Z") } });
+    // Snapshots are append-only (20281109000100): an UPDATE of created_at is
+    // refused by the trigger, so the tie is written at insert. The rows copy a
+    // snapshot the route itself produced, so every column holds what the writer
+    // writes; only the id and the shared instant differ. Four rows: the route's
+    // own, newest, then three tied older ones, so the tie spans the page break.
+    const template = await prisma.governanceExportSnapshot.findUniqueOrThrow({ where: { id: (await create("COMPLIANCE_BUNDLE")).id } });
+    const { id: templateId, ...shape } = template;
+    const tied = new Date("2026-01-01T00:00:00Z");
+    const rows: Array<{ id: string }> = [{ id: templateId }];
+    for (let i = 0; i < 3; i += 1) {
+      rows.push(
+        await prisma.governanceExportSnapshot.create({
+          data: { ...shape, createdAt: tied } as never,
+          select: { id: true },
+        }),
+      );
+    }
     const query = "?teamId=" + a.teamId + "&snapshotKind=COMPLIANCE_BUNDLE&limit=2";
     const first = await request("GET", root + query, a.ownerToken);
     expect(first.statusCode).toBe(200);
@@ -48,7 +63,7 @@ describe("governance export snapshots operator workflow", () => {
     expect(first.json().nextCursor).toEqual(expect.any(String));
     const second = await request("GET", root + query + "&cursor=" + encodeURIComponent(first.json().nextCursor), a.ownerToken);
     expect(second.statusCode).toBe(200);
-    expect(second.json().snapshots).toHaveLength(1);
+    expect(second.json().snapshots).toHaveLength(2);
     expect(second.json().nextCursor).toBeNull();
     const changedFilter = await request("GET", root + "?teamId=" + a.teamId + "&snapshotKind=AUDIT_EXPORT&cursor=" + encodeURIComponent(first.json().nextCursor), a.ownerToken);
     expect(changedFilter.statusCode).toBe(400);
