@@ -331,7 +331,7 @@ function OrganizationDetailInner() {
     // filterable timeline + CSV export live on the canonical admin/audit tab.
     const [o, m, w, a, p] = await Promise.all([
       safeFetch<OrgResponse>(`/v1/orgs/${orgId}`),
-      safeFetch<MembersResponse>(`/v1/orgs/${orgId}/members?limit=200`),
+      safeFetch<MembersResponse>(`/v1/orgs/${orgId}/members`),
       safeFetch<WorkspacesResponse>(`/v1/orgs/${orgId}/workspaces`),
       safeFetch<AuditResponse>(`/v1/orgs/${orgId}/audit-events`),
       safeFetch<PendingInvitesResponse>(`/v1/orgs/${orgId}/invites`),
@@ -1299,7 +1299,46 @@ function OrgLifecycleControls({
 
   // ---- transfer ----
   const [targetUserId, setTargetUserId] = useState("");
-  const eligibleTargets = members.filter((m) => m.role !== "ORG_OWNER");
+  /*
+   * CAP-10 — the member list is paged, so the picker cannot hold every member.
+   * With no search it offers the page the organization page already read; a
+   * search asks the paged API (`q`) across the whole organization, so any
+   * member of an organization of any size can be chosen. The chosen member is
+   * kept even when a later search no longer lists them.
+   */
+  type MemberOption = MembersResponse["members"][number];
+  const [memberQuery, setMemberQuery] = useState("");
+  const [searchHits, setSearchHits] = useState<MemberOption[] | null>(null);
+  const [chosen, setChosen] = useState<MemberOption | null>(null);
+  useEffect(() => {
+    const q = memberQuery.trim();
+    if (!q) {
+      setSearchHits(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = (await apiFetch(
+            `/v1/orgs/${orgId}/members?q=${encodeURIComponent(q)}&limit=50`,
+          )) as { members: MemberOption[] };
+          if (live) setSearchHits(res.members);
+        } catch {
+          if (live) setSearchHits([]);
+        }
+      })();
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [memberQuery, orgId]);
+  const eligibleTargets = useMemo(() => {
+    const listed = (searchHits ?? members).filter((m) => m.role !== "ORG_OWNER");
+    return chosen && !listed.some((m) => m.userId === chosen.userId) ? [chosen, ...listed] : listed;
+  }, [searchHits, members, chosen]);
+  const hasOtherMembers = members.some((m) => m.role !== "ORG_OWNER") || memberQuery.trim() !== "";
 
   // ---- closure ----
   const [closure, setClosure] = useState<OrgClosureState | null>(null);
@@ -1467,20 +1506,39 @@ function OrgLifecycleControls({
           The new owner must already be a member. You become an admin; the
           organization is never left without an owner.
         </span>
-        {eligibleTargets.length === 0 ? (
+        {!hasOtherMembers ? (
           <p style={{ margin: "6px 0 0", color: "var(--ink-secondary, #475569)" }}>
             No other members yet — invite a member before transferring
             ownership.
           </p>
         ) : (
           <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <input
+              type="search"
+              value={memberQuery}
+              onChange={(e) => setMemberQuery(e.target.value)}
+              placeholder="Search members"
+              aria-label="Search members for the new owner"
+              data-control="transfer-ownership-search"
+              autoComplete="off"
+              style={{
+                fontSize: 13,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--border-default, rgba(15,23,42,0.15))",
+                minWidth: 200,
+              }}
+            />
             <AppListbox
               value={targetUserId}
               options={[
                 { value: "", label: "Select the new owner…" },
                 ...eligibleTargets.map((m) => ({ value: m.userId, label: m.displayName ?? m.email ?? m.userId })),
               ]}
-              onChange={(next) => setTargetUserId(next)}
+              onChange={(next) => {
+                setTargetUserId(next);
+                setChosen(eligibleTargets.find((m) => m.userId === next) ?? null);
+              }}
               ariaLabel={"New owner"}
               style={{ width: "auto", minWidth: 220, maxWidth: "100%" }}
               triggerProps={{ "data-control": "transfer-ownership-target" }}
