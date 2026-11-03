@@ -13,6 +13,7 @@ import {
   useWorkspaceContextSafety,
 } from "../../../../lib/platform-context";
 import { useToast } from "../../../../components/ui";
+import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { PageShell, PageHeader, PageSection } from "../../../../components/ui/PageShell";
 import { Card } from "../../../../components/ui/Card";
 import { Button } from "../../../../components/ui/Button";
@@ -130,6 +131,7 @@ function Shell() {
   // and resumes the EXACT create request with the challenge header.
   const teamId = useTeamId();
   const stepUp = useStepUpAction({ teamId });
+  const { askReason } = useConfirmAction();
 
   const [holds, setHolds] = useState<LegalHold[]>([]);
   const [busy, setBusy] = useState(false);
@@ -283,15 +285,14 @@ function Shell() {
     async (hold: LegalHold) => {
       setDenial(null);
       setReleaseError(null);
-      const note = window.prompt(
-        `Why are you releasing "${hold.name}"? This note is recorded in the record's custody history.`,
-        "",
-      );
+      const note = await askReason({
+        title: `Release "${hold.name}"?`,
+        description: "This note is recorded in the record's custody history.",
+        reasonLabel: "Why are you releasing this hold?",
+        confirmLabel: "Release hold",
+        testId: "legal-hold-release",
+      });
       if (note === null) return;
-      if (note.trim().length === 0) {
-        setReleaseError("A release note is required before a hold can be released.");
-        return;
-      }
       setReleasingId(hold.id);
       try {
         await stepUp.runStepUpAction(async (headers) =>
@@ -325,7 +326,7 @@ function Shell() {
         setReleasingId(null);
       }
     },
-    [refresh, stepUp, addToast],
+    [refresh, stepUp, addToast, askReason],
   );
 
   // GOV-011 — a hold under release approval takes two people. Asking changes
@@ -333,12 +334,14 @@ function Shell() {
   const requestRelease = useCallback(
     async (hold: LegalHold) => {
       setReleaseError(null);
-      const note = window.prompt(`Why should "${hold.name}" be released? A second person will see this.`, "");
+      const note = await askReason({
+        title: `Ask to release "${hold.name}"?`,
+        description: "A second person will see this and must approve it.",
+        reasonLabel: "Why should this hold be released?",
+        confirmLabel: "Request release",
+        testId: "legal-hold-release-request",
+      });
       if (note === null) return;
-      if (note.trim().length === 0) {
-        setReleaseError("Say why the hold should be released.");
-        return;
-      }
       setReleasingId(hold.id);
       try {
         await apiFetch(`/v1/lifecycle/legal-holds/${hold.id}/release-request`, {
@@ -354,7 +357,7 @@ function Shell() {
         setReleasingId(null);
       }
     },
-    [refresh, addToast],
+    [refresh, addToast, askReason],
   );
 
   const approveRelease = useCallback(

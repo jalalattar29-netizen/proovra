@@ -9,6 +9,7 @@ import { AppShellV2 } from "../../components/app-shell-v2/AppShellV2";
 import { ProovraChatWidget } from "../../components/ai/ProovraChatWidget";
 import { useAuth } from "../providers";
 import { PlatformContextProvider } from "../../lib/platform-context";
+import { isInvitationAcceptPath } from "../../lib/navigation/invitation-path";
 
 /**
  * Phase 32.8 Foundation — (app)/layout wraps every operator surface
@@ -124,6 +125,10 @@ export default function AppLayout({
     <PlatformContextProvider>
       {!authReady ? (
         <div className="min-h-screen bg-[#f3f5f7]" />
+      ) : !hasSession && isInvitationAcceptPath(pathname) ? (
+        <main data-signed-out-invitation className="min-h-screen" style={{ display: "flex", justifyContent: "center" }}>
+          {children}
+        </main>
       ) : (
       <AppShellV2 onLogout={handleLogout}>
         {/* Both slots carry STABLE DOMAIN KEYS, and the route child rides a

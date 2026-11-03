@@ -94,6 +94,7 @@ interface ControlCenterResponse {
           displayName: string;
           scope: string;
           retentionDays: number | null;
+          retentionYears?: number | null;
           immutable: boolean;
         }>;
       } | null;
@@ -408,7 +409,9 @@ function GovernanceControlCenter() {
                   <div style={{ fontWeight: 600 }}>{p.displayName}</div>
                   <div style={subtleText}>
                     {identifierLabel(p.scope)} ·{" "}
-                    {p.retentionDays === null
+                    {p.retentionYears != null
+                      ? `${p.retentionYears} year${p.retentionYears === 1 ? "" : "s"}`
+                      : p.retentionDays === null
                       ? "indefinite retention"
                       : `${p.retentionDays} day${p.retentionDays === 1 ? "" : "s"}`}
                     {p.immutable ? " · immutable" : ""}

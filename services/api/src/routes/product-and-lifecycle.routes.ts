@@ -73,6 +73,7 @@ import {
   listRetentionPolicies,
   releaseRetentionPolicy,
 } from "../services/lifecycle/retention-engine.service.js";
+import { readRetentionPosture } from "../services/governance-lifecycle/retention-posture.service.js";
 // PHASE 12B CLUSTER 8 — the /v1/lifecycle/legal-holds routes stay REGISTERED
 // (the Legal Holds product surface consumes them) but are now THIN ADAPTERS
 // over the ONE canonical Legal-Hold authority. Physical route deletion is
@@ -1307,8 +1308,12 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
       ) {
         return reply;
       }
-      const policies = await listRetentionPolicies({ teamId: ctx.teamId });
-      return reply.code(200).send({ policies });
+      const [policies, posture] = await Promise.all([
+        listRetentionPolicies({ teamId: ctx.teamId }),
+        readRetentionPosture([ctx.teamId]),
+      ]);
+      // The other table's policies bind records too: the page says they exist.
+      return reply.code(200).send({ policies, governancePolicyCount: posture.governancePolicyCount });
     },
   );
 

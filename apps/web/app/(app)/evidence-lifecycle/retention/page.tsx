@@ -81,6 +81,8 @@ interface UpcomingExpirations {
 interface RetentionPayload {
   policies: RetentionPolicy[] | null;
   policiesError: string | null;
+  /** Policies held in Governance → Retention, which bind records too. */
+  governancePolicyCount: number;
   expirations: UpcomingExpirations | null;
   expirationsError: string | null;
 }
@@ -161,6 +163,10 @@ async function loadRetention(): Promise<RetentionPayload> {
   }
   return {
     policies,
+    governancePolicyCount:
+      pRes.status === "fulfilled"
+        ? Number((pRes.value as { governancePolicyCount?: unknown } | null)?.governancePolicyCount ?? 0)
+        : 0,
     policiesError:
       policies !== null
         ? null
@@ -511,6 +517,12 @@ function Shell() {
           ) : null
         }
       >
+        {data && data.governancePolicyCount > 0 ? (
+          <p data-retention-other-table style={{ margin: "0 0 8px", fontSize: 13 }}>
+            {data.governancePolicyCount} more in force in{" "}
+            <a href="/governance/retention">Governance → Retention</a>.
+          </p>
+        ) : null}
         {releaseNotice ? (
           <p role="status" data-retention-release-notice style={{ margin: "0 0 8px", fontSize: 13 }}>
             {releaseNotice}

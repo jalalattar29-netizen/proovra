@@ -23,6 +23,7 @@
  *     `not_applicable` for personal workspaces.
  */
 
+import { readRetentionPosture } from "../governance-lifecycle/retention-posture.service.js";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { OTS_ANCHORING_RECORD_SELECT, resolveRecordOtsAnchoring } from "@proovra/shared";
@@ -2174,7 +2175,7 @@ async function runGovernancePosture(
       0,
     ),
     activePoliciesCount: probe(
-      () => prisma.evidenceRetentionPolicy.count({ where: { teamId, status: "ACTIVE" } }),
+      () => readRetentionPosture([teamId], prisma).then((p) => p.activePolicyCount),
       true,
       0,
     ),

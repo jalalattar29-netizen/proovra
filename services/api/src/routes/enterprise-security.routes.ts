@@ -24,6 +24,7 @@ import {
   orgAccessDenial,
 } from "../services/organization/org-access.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { getMfaPolicy } from "../services/identity-security/mfa-policy.service.js";
 import {
   resolveOrgPolicyByOrgId,
   applySecurityPolicyPatch,
@@ -294,6 +295,32 @@ function grantStatusWhere(status: "ACTIVE" | "REVOKED" | "EXPIRED" | undefined, 
   return {};
 }
 
+/**
+ * What the org-admin editor shows. `ResolvedSecurityPolicy` is the enforcement
+ * shape and carries no list, marker or note, so the editor painted every one of
+ * them as unset: enforced IP ranges read as empty, a saved note vanished on reload.
+ * These columns are configuration, returned only to this ORG_ADMIN+ surface.
+ */
+async function projectPolicyForAdmin<T extends object>(organizationId: string, policy: T) {
+  const row = await prisma.organizationSecurityPolicy.findUnique({
+    where: { organizationId },
+    select: {
+      securityMode: true,
+      mfaRequiredFlag: true,
+      allowedEmailDomains: true,
+      restrictedIpRanges: true,
+      reviewerSessionTimeoutSeconds: true,
+      contributorSessionTimeoutSeconds: true,
+      ssoReadyFlag: true,
+      scimReadyFlag: true,
+      notes: true,
+    },
+  });
+  if (!row) return policy;
+  const { securityMode, ...configuration } = row;
+  return { ...policy, ...configuration, highSecurityMode: securityMode === "HIGH_SECURITY" };
+}
+
 export async function enterpriseSecurityRoutes(app: FastifyInstance) {
   // ── §10.1 read policy (org-keyed) ────────────────────────────────────
   app.get("/v1/security-policy", { preHandler: requireAuth }, async (req: FastifyRequest, reply: FastifyReply) => {
@@ -308,7 +335,16 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       if (resolution.applicability !== "ORGANIZATION") {
         return reply.send({ applicability: "NOT_APPLICABLE", reason: resolution.reason, policy: null });
       }
-      return reply.send({ applicability: "ORGANIZATION", organizationId: resolution.organizationId, policy: resolution.policy });
+      // The MFA requirement in force. Sign-in reads the level, set from Security
+      // Center or the setup wizard; the legacy flag alone cannot express it.
+      const teamId = await orgCanonicalTeamId(q.organizationId);
+      const mfa = teamId ? await getMfaPolicy(teamId) : null;
+      return reply.send({
+        applicability: "ORGANIZATION",
+        organizationId: resolution.organizationId,
+        policy: await projectPolicyForAdmin(q.organizationId, resolution.policy),
+        mfaPolicyLevel: mfa?.level ?? "OFF",
+      });
     } catch (err) {
       if ((err as { code?: string }).code === "POLICY_NOT_PROVISIONED") {
         return reply.code(503).send({ error: { code: "POLICY_NOT_PROVISIONED" } });
@@ -332,7 +368,7 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     const { organizationId, expectedPolicyVersion, ...patch } = body;
     try {
       const policy = await applySecurityPolicyPatch({ organizationId, expectedPolicyVersion: expectedPolicyVersion ?? null, actorUserId: auth.actorUserId, patch, ipAddress: ip(req), userAgent: (req.headers["user-agent"] as string) ?? null });
-      return reply.send({ policy });
+      return reply.send({ policy: await projectPolicyForAdmin(organizationId, policy) });
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; details?: unknown };
       if (e.code === "POLICY_VERSION_CONFLICT") return reply.code(409).send({ error: { code: e.code, details: e.details } });
@@ -370,7 +406,10 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     if (!result.ok) {
       return reply.code(409).send({ error: { code: "HIGH_SECURITY_PREREQUISITES_UNMET", missing: result.missing } });
     }
-    return reply.send({ policy: result.policy, affectedSessionUserCount: result.affectedSessionUserCount });
+    return reply.send({
+      policy: await projectPolicyForAdmin(body.organizationId, result.policy),
+      affectedSessionUserCount: result.affectedSessionUserCount,
+    });
   });
 
   // ── §10.6 break-glass activate / revoke ───────────────────────────────

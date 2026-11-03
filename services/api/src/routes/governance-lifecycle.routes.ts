@@ -46,6 +46,7 @@ import { z } from "zod";
 import type { Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
+import { readRetentionPosture } from "../services/governance-lifecycle/retention-posture.service.js";
 import { destructionExecutionEnabled, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
@@ -308,7 +309,9 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         scope: query.scope,
         limit: query.limit,
       });
-      return reply.code(200).send({ policies });
+      // The other table's policies bind records too: the page says they exist.
+      const posture = await readRetentionPosture([query.teamId], prisma);
+      return reply.code(200).send({ policies, lifecycleTemplateCount: posture.lifecycleTemplateCount });
     },
   );
 
@@ -1224,9 +1227,7 @@ export async function handleLifecycleDashboardForTeam(
     countActiveDestructionReviews(query.teamId),
     countPendingDestructionByEvidence(query.teamId),
     countActivePolicyConflicts(query.teamId),
-    prisma.evidenceRetentionPolicy.count({
-      where: { teamId: query.teamId, status: "ACTIVE" },
-    }),
+    readRetentionPosture([query.teamId], prisma).then((p) => p.activePolicyCount),
     prisma.evidenceLegalHold.count({
       where: { teamId: query.teamId, status: "ACTIVE" },
     }),

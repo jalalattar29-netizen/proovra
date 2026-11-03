@@ -40,6 +40,11 @@ interface RetentionResponse {
     workspaceCount: number;
     sample: Array<{ id: string; name: string }>;
   };
+  /** Policies in force in the workspaces, in either policy table. */
+  workspacePolicies?: {
+    activePolicyCount: number;
+    workspacesWithPolicyCount: number;
+  };
 }
 
 type Loadable<T> =
@@ -130,8 +135,8 @@ function RetentionTab() {
             data-testid="retention-not-configured"
             framed
             compact
-            title="No retention policy configured"
-            purpose="No organization-level retention template is published. Workspaces fall back to their workspace-scoped retention policy. Publish a template from Evidence Lifecycle → Retention to set the default."
+            title="No organization-wide default"
+            purpose="No organization-level retention template is published. Workspaces follow their own retention policies. Publish a template from Evidence Lifecycle → Retention to set the default."
             action={
               <Link
                 href="/evidence-lifecycle/retention"
@@ -166,6 +171,15 @@ function RetentionTab() {
             </pre>
           </div>
         )}
+        {policy.kind === "ready" && policy.data.workspacePolicies ? (
+          <p data-testid="retention-workspace-policies" style={{ fontSize: 13, marginTop: 8 }}>
+            {policy.data.workspacePolicies.activePolicyCount} polic
+            {policy.data.workspacePolicies.activePolicyCount === 1 ? "y" : "ies"} in force across{" "}
+            {policy.data.workspacePolicies.workspacesWithPolicyCount} of{" "}
+            {policy.data.inheritance.workspaceCount} workspace
+            {policy.data.inheritance.workspaceCount === 1 ? "" : "s"}.
+          </p>
+        ) : null}
         {policy.kind === "ready" ? (
           <p style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
             Inherits to {policy.data.inheritance.workspaceCount} workspace

@@ -24,7 +24,9 @@
  *
  * HARD RULES honored:
  *   - Bulk invite creates ONLY OrganizationInvite / OrganizationMembership
- *     (via the same single-invite writes). NEVER evidence access.
+ *     (via the same single-invite writes), plus the same explicit workspace
+ *     assignments a single invite carries, which the accept transaction
+ *     grants. NEVER evidence access beyond what those workspaces hold.
  *   - No new migration. Org audit uses free-form eventType; this plugin
  *     adds ORG_BULK_INVITATION_STARTED / _COMPLETED.
  *   - Honesty: partial-success is truthful per-row; a truncation note is
@@ -108,14 +110,28 @@ const RowInput = z.object({
   role: z.enum(ORG_ROLES).optional(),
 });
 
+/** The single invite's assignment shape: every row of a batch gets the same access. */
+const WorkspaceAssignments = z
+  .array(
+    z.object({
+      teamId: z.string().uuid(),
+      role: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]),
+    }),
+  )
+  .max(20)
+  .optional();
+type WorkspaceAssignmentsValue = z.infer<typeof WorkspaceAssignments>;
+
 const BulkBody = z.object({
   defaultRole: z.enum(ORG_ROLES).optional(),
   rows: z.array(RowInput).min(0),
+  workspaceAssignments: WorkspaceAssignments,
 });
 
 const CsvBody = z.object({
   csv: z.string().max(200_000),
   defaultRole: z.enum(ORG_ROLES).optional(),
+  workspaceAssignments: WorkspaceAssignments,
 });
 
 const ResendBody = z
@@ -596,6 +612,7 @@ async function executeBatch(input: {
   actorUserId: string;
   planned: PlannedRow[];
   batchId: string;
+  workspaceAssignments: WorkspaceAssignmentsValue;
 }): Promise<Array<{ line: number | null; email: string; role: OrgRoleValue; outcome: ExecuteOutcome; reason: string | null; inviteId: string | null; token?: string; delivery?: OrgInviteDeliveryState | null }>> {
   const results: Array<{
     line: number | null;
@@ -685,6 +702,10 @@ async function executeBatch(input: {
             tokenHash,
             invitedByUserId: input.actorUserId,
             expiresAt: inviteExpiresAt(),
+            // The same column the single invite writes; accept grants it.
+            ...(input.workspaceAssignments && input.workspaceAssignments.length > 0
+              ? { workspaceAssignments: input.workspaceAssignments }
+              : {}),
           },
           select: { id: true, expiresAt: true },
         });
@@ -703,6 +724,7 @@ async function executeBatch(input: {
             expiresAt: invite.expiresAt.toISOString(),
             invitedByUserId: input.actorUserId,
             bulkBatchId: input.batchId,
+            workspaceAssignmentCount: input.workspaceAssignments?.length ?? 0,
           },
         });
         // Macro-Wave A2 — durable delivery outbox in the SAME per-row
@@ -779,6 +801,30 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     return { orgId, userId, role: access.role };
   }
 
+  /**
+   * The single-invite rule: every assigned workspace belongs to this organization
+   * and is not a personal space. Replies 400 and returns false otherwise, before
+   * any row is planned. Accept re-validates, because teams can move.
+   */
+  async function assignmentsValid(
+    orgId: string,
+    assignments: WorkspaceAssignmentsValue,
+    reply: FastifyReply,
+  ): Promise<boolean> {
+    if (!assignments || assignments.length === 0) return true;
+    const teamIds = assignments.map((a) => a.teamId);
+    const orgTeams = await prisma.team.findMany({
+      where: { id: { in: teamIds }, organizationId: orgId, isPersonal: false },
+      select: { id: true },
+    });
+    if (orgTeams.length === new Set(teamIds).size) return true;
+    reply.code(400).send({
+      message: "Every assigned workspace must belong to this organization.",
+      code: "invalid_workspace_assignment",
+    });
+    return false;
+  }
+
   /** Enforce the row cap; return the bounded slice + a truthful truncation note. */
   function boundRows<T>(rows: T[]): { rows: T[]; truncated: null | { received: number; accepted: number; note: string } } {
     if (rows.length <= BULK_INVITE_MAX_ROWS) return { rows, truncated: null };
@@ -800,6 +846,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     if (!ctx) return;
     const body = BulkBody.parse(req.body);
     const defaultRole: OrgRoleValue = body.defaultRole ?? "ORG_MEMBER";
+    if (!(await assignmentsValid(ctx.orgId, body.workspaceAssignments, reply))) return;
 
     const bounded = boundRows(
       body.rows.map((r, idx) => ({ line: idx + 1, email: r.email, role: r.role } as RawRow)),
@@ -830,6 +877,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     if (!ctx) return;
     const body = BulkBody.parse(req.body);
     const defaultRole: OrgRoleValue = body.defaultRole ?? "ORG_MEMBER";
+    if (!(await assignmentsValid(ctx.orgId, body.workspaceAssignments, reply))) return;
 
     const bounded = boundRows(
       body.rows.map((r, idx) => ({ line: idx + 1, email: r.email, role: r.role } as RawRow)),
@@ -851,7 +899,13 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       metadata: { batchId, totalRows: planned.length, eligibleRows: planned.filter((p) => p.outcome === "WOULD_INVITE").length },
     });
 
-    const results = await executeBatch({ orgId: ctx.orgId, actorUserId: ctx.userId, planned, batchId });
+    const results = await executeBatch({
+      orgId: ctx.orgId,
+      actorUserId: ctx.userId,
+      planned,
+      batchId,
+      workspaceAssignments: body.workspaceAssignments,
+    });
     const summary = summarize(results);
 
     await emitOrgAuditEvent(prisma, {
@@ -1003,6 +1057,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     // Body may be JSON {csv} or raw CSV text depending on content-type.
     let csvText: string;
     let defaultRole: OrgRoleValue = "ORG_MEMBER";
+    let workspaceAssignments: WorkspaceAssignmentsValue;
     // Content-type is validated: only application/json | text/csv |
     // application/csv are accepted. Arbitrary bodies are NOT treated as CSV.
     const ct = String(req.headers["content-type"] ?? "").toLowerCase();
@@ -1010,6 +1065,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       const body = CsvBody.parse(req.body);
       csvText = body.csv;
       if (body.defaultRole) defaultRole = body.defaultRole;
+      workspaceAssignments = body.workspaceAssignments;
     } else if (ct.includes("text/csv") || ct.includes("application/csv")) {
       // Raw CSV string body (parsed by the scoped content-type parser).
       csvText = typeof req.body === "string" ? req.body : String(req.body ?? "");
@@ -1024,6 +1080,8 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
         detail: "Use application/json {csv} or text/csv.",
       });
     }
+
+    if (!(await assignmentsValid(ctx.orgId, workspaceAssignments, reply))) return;
 
     const parsed = csvToRows(csvText);
     if (!parsed.ok) {
@@ -1061,7 +1119,13 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       targetId: ctx.orgId,
       metadata: { batchId, source: "csv", totalRows: planned.length, eligibleRows: wouldInviteCount },
     });
-    const results = await executeBatch({ orgId: ctx.orgId, actorUserId: ctx.userId, planned, batchId });
+    const results = await executeBatch({
+      orgId: ctx.orgId,
+      actorUserId: ctx.userId,
+      planned,
+      batchId,
+      workspaceAssignments,
+    });
     const summary = summarize(results);
     await emitOrgAuditEvent(prisma, {
       organizationId: ctx.orgId,
