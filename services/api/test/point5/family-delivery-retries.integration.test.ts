@@ -12,6 +12,8 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NOTIFICATION_RETRY_MAX_ATTEMPTS } from "@proovra/shared";
+
 import type { IntegrationHarness } from "../integration-harness.js";
 import { provenCase, recordSuiteProof } from "./family-coverage-manifest.js";
 
@@ -180,6 +182,56 @@ describe("POINT 5 FAMILY â€” delivery sweeps (live PostgreSQL 16)", () => {
     expect(sendsTo(recipient)).toHaveLength(0);
     expect((await row(id)).status).toBe("PENDING");
     provenCase("delivery.claim.active_not_stolen");
+  });
+
+  /** A row whose holder last touched it `ageMs` ago. `updatedAt` is set in SQL: Prisma overwrites it. */
+  async function heldSince(id: string, ageMs: number, retryCount = 0): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE notification_deliveries
+      SET status = 'PENDING', retry_count = ${retryCount}, next_attempt_at_utc = NULL,
+          updated_at = now() - make_interval(secs => ${ageMs / 1000})
+      WHERE id = ${id}::uuid`;
+  }
+
+  it("a claim a crash lost goes back to the schedule once, and the send keeps its key", async () => {
+    const { id, recipient } = await enqueued();
+    const key = ((await row(id)).metadata as Record<string, unknown>);
+    await heldSince(id, notifications.NOTIFICATION_CLAIM_LEASE_MS + 60_000);
+
+    const results = await Promise.all([sweep(), sweep(), sweep()]);
+    expect(results.reduce((n, r) => n + r.reclaimed, 0)).toBe(1);
+    expect(sendsTo(recipient)).toHaveLength(1);
+    expect(Object.values(key)).toContain(sendsTo(recipient)[0]!.idempotencyKey);
+
+    const after = await row(id);
+    expect(after.status).toBe("SENT");
+    expect(after.retryCount).toBe(1);
+    await sweep();
+    expect(sendsTo(recipient)).toHaveLength(1);
+    provenCase("delivery.reconciler.recovers_stranded_once");
+  });
+
+  it("a lease still running is not a lost claim", async () => {
+    const { id, recipient } = await enqueued();
+    await heldSince(id, notifications.NOTIFICATION_CLAIM_LEASE_MS - 60_000);
+    await sweep();
+    expect(sendsTo(recipient)).toHaveLength(0);
+    expect((await row(id)).status).toBe("PENDING");
+  });
+
+  it("a row that keeps losing its claim ends FAILED, not retried for ever", async () => {
+    const { id, recipient } = await enqueued();
+    await heldSince(
+      id,
+      notifications.NOTIFICATION_CLAIM_LEASE_MS + 60_000,
+      NOTIFICATION_RETRY_MAX_ATTEMPTS - 1,
+    );
+    await sweep();
+    expect(sendsTo(recipient)).toHaveLength(0);
+    const after = await row(id);
+    expect(after.status).toBe("FAILED");
+    expect(after.errorCode).toBe("claim_lease_expired");
+    expect(after.failedAtUtc).not.toBeNull();
   });
 
   it("a second sweep over a sent row does nothing", async () => {
