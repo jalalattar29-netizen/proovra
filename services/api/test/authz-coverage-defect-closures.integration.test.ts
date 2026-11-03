@@ -308,6 +308,23 @@ describe("coverage defect closures (live PostgreSQL)", () => {
       expect((await prisma.case.findUniqueOrThrow({ where: { id: row.id } })).teamId).toBe(mine.teamId);
     });
 
+    it("a provider run on text names only a record of this workspace", async () => {
+      await prisma.workspaceAiPolicy.upsert({
+        where: { teamId: mine.teamId },
+        create: { teamId: mine.teamId, contentIntelligenceEnabled: true, rawContentProcessingAllowed: true },
+        update: { contentIntelligenceEnabled: true, rawContentProcessingAllowed: true },
+      });
+      const theirs = (await rows(other).id("Evidence")) as string;
+      const own = (await rows(mine).id("Evidence")) as string;
+      const body = { provider: "LOCAL_ENTITY_EXTRACTION", operation: "EXTRACT_ENTITIES", text: "Jane Doe met John Roe in Paris." };
+      const refused = await kit.call("POST", `/v1/intelligence/evidence/${theirs}/run/text?teamId=${mine.teamId}`, mine.owner, body, hdr(mine));
+      expect(refused.statusCode, refused.body).toBe(404);
+      expect(await prisma.providerUsageEvent.count({ where: { evidenceId: theirs } as never })).toBe(0);
+      expect(await prisma.mediaIntelligenceRecord.count({ where: { evidenceId: theirs } })).toBe(0);
+      const done = await kit.call("POST", `/v1/intelligence/evidence/${own}/run/text?teamId=${mine.teamId}`, mine.owner, body, hdr(mine));
+      expect(done.statusCode, done.body).toBe(200);
+    });
+
     it("two tenants can each hold the same vendor, and the seed runs for both", async () => {
       for (const t of [mine, other]) {
         const seeded = await kit.call("POST", `/v1/trust/subprocessors/seed?teamId=${t.teamId}`, t.owner, {}, hdr(t));

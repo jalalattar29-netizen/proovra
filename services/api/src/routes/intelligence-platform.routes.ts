@@ -377,6 +377,20 @@ function decodeBase64(payload: string): Uint8Array {
  * An intelligence record is OCR, transcript or entity data from one evidence
  * record, so a record closed by a restricted case closes it too (AUTHZ-002).
  */
+/**
+ * A provider run writes records and a usage row naming the record. The text route
+ * took the record id as given, so a run in one workspace could name another
+ * tenant's record, or one on a case the caller is off. Both run routes now answer
+ * as for a missing record.
+ */
+async function evidenceRunRefused(ctx: { teamId: string; userId: string }, evidenceId: string): Promise<boolean> {
+  const row = await prisma.evidence.findFirst({
+    where: { id: evidenceId, teamId: ctx.teamId, deletedAt: null },
+    select: { id: true },
+  });
+  return !row || (await evidenceClosedTo(evidenceId, ctx.userId));
+}
+
 async function intelligenceRecordClosed(
   ctx: { teamId: string; userId: string },
   recordId: string,
@@ -460,6 +474,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
       const body = RunProviderByteSchema.parse(req.body);
+      if (await evidenceRunRefused(ctx, evidenceId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const bytes = body.bytesBase64 ? decodeBase64(body.bytesBase64) : null;
       // D62 — never analyse bytes that are not this evidence.
       const proof = await proveSuppliedEvidenceBytes({
@@ -523,6 +540,9 @@ export async function intelligencePlatformRoutes(app: FastifyInstance) {
         .object({ evidenceId: z.string().uuid() })
         .parse(req.params);
       const body = RunProviderTextSchema.parse(req.body);
+      if (await evidenceRunRefused(ctx, evidenceId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
       const res = await runProviderOperation({
         teamId: ctx.teamId,
         evidenceId,
