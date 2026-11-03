@@ -14,7 +14,7 @@
  *   - <FilterBar>            the flex container (wraps on narrow widths).
  *   - <FilterBar.Search>     token-styled search input with a leading
  *                            magnifier + optional clear button.
- *   - <FilterBar.Select>     token-styled native <select>.
+ *   - <FilterBar.Select>     the canonical AppListbox (no native select).
  *   - `actions` prop         right-aligned slot (e.g. an export Button).
  *
  * A11Y: Search input takes an accessible `label` (visually hidden) or

@@ -11,6 +11,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("../../lib/api", () => ({ apiFetch: mocks.fetch, ApiError: class ApiError extends Error {} }));
@@ -64,6 +65,18 @@ describe("DOM-03 — organization surfaces and workspace administration", () => 
     const header = link.closest("header")!;
     for (const a of Array.from(header.querySelectorAll("a"))) {
       expect(a.getAttribute("href") ?? "").not.toMatch(/collaboration|\/teams\b/i);
+    }
+  });
+
+  it("no organization surface names a role by its enum, or sends workspace administration to teams", () => {
+    const sources = [
+      "../../app/(app)/organizations/[id]/page.tsx",
+      "../../app/(app)/organizations/[id]/admin/overview/page.tsx",
+      "../../app/(app)/organizations/page.tsx",
+    ].map((rel) => readFileSync(new URL(rel, import.meta.url), "utf8"));
+    for (const src of sources) {
+      expect(src).not.toMatch(/Requires ORG_[A-Z_]+/);
+      expect(src).not.toMatch(/href="\/teams"[\s\S]{0,160}Workspace admin/);
     }
   });
 

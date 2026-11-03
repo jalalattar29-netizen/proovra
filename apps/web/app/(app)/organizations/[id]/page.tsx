@@ -539,12 +539,12 @@ function OrganizationDetailInner() {
               </Link>
               {org.kind === "ready" && (
                 <Link
-                  href="/teams"
+                  href="/workspaces"
                   data-action="cross-link-workspace-admin"
                   style={linkReset}
                 >
                   <Button variant="secondary" size="sm">
-                    Workspace admin →
+                    Workspace administration →
                   </Button>
                 </Link>
               )}
@@ -676,7 +676,7 @@ function OrganizationDetailInner() {
                 <strong>Bind a workspace.</strong> Workspaces are where
                 evidence and cases live. Create one in{" "}
                 <Link
-                  href="/teams"
+                  href="/workspaces"
                   data-action="onboarding-open-workspace-admin"
                 >
                   Workspace administration
@@ -733,7 +733,7 @@ function OrganizationDetailInner() {
           }
           footer={
             <Link
-              href="/teams"
+              href="/workspaces"
               data-action="overview-open-workspace-admin"
               style={tileLink}
             >
@@ -782,7 +782,7 @@ function OrganizationDetailInner() {
               : audit.kind === "ready"
                 ? "No events recorded yet."
                 : audit.kind === "error" && audit.status === 403
-                  ? "Requires ORG_AUDITOR or higher."
+                  ? "Only auditors, admins and owners can see the audit log."
                   : "Loading…"
           }
         />
@@ -987,12 +987,12 @@ function OrganizationDetailInner() {
             subtitle="Operational evidence, cases, and reviewer queues live inside each workspace. Org-level membership does not grant workspace access — that is workspace-scoped."
             right={
               <Link
-                href="/teams"
+                href="/workspaces"
                 data-action="workspaces-open-admin"
                 style={linkReset}
               >
                 <Button variant="secondary" size="sm">
-                  Workspace admin →
+                  Workspace administration →
                 </Button>
               </Link>
             }
@@ -1020,7 +1020,7 @@ function OrganizationDetailInner() {
                   purpose="Workspaces hold this organization’s evidence, cases, and reviewer queues. Bind one in Workspace administration to start capturing."
                   action={
                     <Link
-                      href="/teams"
+                      href="/workspaces"
                       data-action="workspaces-empty-open-admin"
                       style={linkReset}
                     >
@@ -1160,7 +1160,7 @@ function OrganizationDetailInner() {
                 : ""}
             </>
           ) : audit.kind === "error" && audit.status === 403 ? (
-            "Requires ORG_AUDITOR or higher."
+            "Only auditors, admins and owners can see the audit log."
           ) : (
             "Loading audit summary…"
           )}

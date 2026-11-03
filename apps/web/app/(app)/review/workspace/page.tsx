@@ -26,6 +26,7 @@
  */
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
+import { reviewerDenialMessage } from "@proovra/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -425,7 +426,7 @@ function ReviewerWorkspaceShell() {
         setValues(state.values);
         setUnfulfilled(new Set(state.coverage.unfulfilledFieldIds));
       } else {
-        setStatusBanner(`Coding refused: ${res.denial}`);
+        setStatusBanner(`Coding not saved. ${reviewerDenialMessage(res.denial)}`);
       }
     },
     // Coding writes are workspace-scoped; the callback must not keep writing
@@ -561,7 +562,7 @@ function ReviewerWorkspaceShell() {
           code: res.code,
         });
         setStatusBanner(
-          `Decision recorded but workflow not closed (${res.code}) — please retry.`,
+          "Decision recorded but workflow not closed — please retry.",
         );
         setLifecycleBusy(false);
         return;
@@ -688,7 +689,7 @@ function ReviewerWorkspaceShell() {
               denial: res.denial,
             },
           );
-          setStatusBanner(`Disagreement refused: ${res.denial}`);
+          setStatusBanner(`Disagreement not filed. ${reviewerDenialMessage(res.denial)}`);
         }
       } catch (err) {
         // eslint-disable-next-line no-console
