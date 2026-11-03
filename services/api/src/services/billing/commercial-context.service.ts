@@ -19,7 +19,7 @@
  * seat (they are denied access). Governance-only org members, external
  * reviewers (grant-based, never TeamMembers), and managed identities are
  * therefore never seats unless they hold an ACTIVE workspace membership.
- * `getWorkspaceUsage.teamMemberCount` already counts ACTIVE-only; this
+ * `getWorkspaceSeatUsage` (the seats of `getWorkspaceUsage`) counts ACTIVE-only; this
  * resolver surfaces that as the canonical seat figure.
  */
 
@@ -32,7 +32,7 @@ import {
   resolveWorkspaceScopeForUser,
   type WorkspaceScope,
 } from "../workspace-billing.service.js";
-import { getWorkspaceUsage } from "../workspace-usage.service.js";
+import { getWorkspaceSeatUsage } from "../workspace-usage.service.js";
 import { resolveEnterpriseContract } from "../organization/enterprise-contract.service.js";
 
 /**
@@ -275,7 +275,8 @@ async function resolveCommercialContextLegacy(params: {
     teamId: params.teamId ?? null,
   });
   const capabilities = getPlanCapabilities(scope.plan);
-  const usage = await getWorkspaceUsage(scope);
+  // Seats only: the envelope carries no storage figure (capacity, 2026-11-03).
+  const usage = await getWorkspaceSeatUsage(scope);
   const lifecycle = await resolvePaidLifecycle(scope);
 
   // Billing owner: team workspaces bill the team's billing owner; personal

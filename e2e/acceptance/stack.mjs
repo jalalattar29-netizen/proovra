@@ -106,6 +106,20 @@ const env = buildLocalFixtureEnv({
     E2E_AUTH_BYPASS_SECRET: "e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819",
     NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED: "true",
     NEXT_PUBLIC_STORAGE_ORIGIN: `http://localhost:${PORTS.minio}`,
+    // Capacity profiling attributes statements to one route at a time. The API's
+    // in-process sweeps share its pool, so they are measured on their own instead.
+    ...(process.env.ACCEPTANCE_QUIET_SWEEPS === "1"
+      ? {
+          OPERATIONS_RECONCILER_ENABLED: "false",
+          BILLING_ADDON_RETRY_ENABLED: "false",
+          BILLING_RECONCILER_ENABLED: "false",
+          PLATFORM_MAINTENANCE_RECONCILER_ENABLED: "false",
+        }
+      : {}),
+    // Capacity runs compare pool ceilings; unset keeps the process default.
+    ...(process.env.ACCEPTANCE_DATABASE_POOL_MAX
+      ? { DATABASE_POOL_MAX: process.env.ACCEPTANCE_DATABASE_POOL_MAX }
+      : {}),
   },
 });
 

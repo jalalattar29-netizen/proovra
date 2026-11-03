@@ -17,9 +17,12 @@
  *     persisted snapshot is the source of truth for the dashboard.
  */
 
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db.js";
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import { evidenceVisibleThroughCasesWhere } from "./case-visibility.js";
+import { closedEvidenceIdsIn } from "../access/record-reach.js";
 
 export type RiskLevel = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
@@ -121,6 +124,39 @@ export async function listCaseEvidenceIdsForViewer(input: {
     take: 500,
   });
   return links.map((r) => r.evidenceId);
+}
+
+/**
+ * `listCaseEvidenceIdsForViewer` for a page of cases in two statements
+ * (capacity, 2026-11-03). The matter queue called it once per case: fifty link
+ * reads per page. Same rule and the same bound: the records closed to the viewer
+ * through a restricted case are resolved once, and each case contributes at most
+ * 500 of its other linked records, in no particular order, as before.
+ */
+export async function listCaseEvidenceIdsForViewerByCase(input: {
+  caseIds: readonly string[];
+  viewerUserId: string;
+}): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>(input.caseIds.map((id) => [id, []]));
+  if (input.caseIds.length === 0) return out;
+  const closed = await closedEvidenceIdsIn(
+    { caseLinks: { some: { caseId: { in: [...input.caseIds] } } } },
+    input.viewerUserId,
+    prisma,
+  );
+  const rows = await prisma.$queryRaw<Array<{ case_id: string; evidence_id: string }>>(Prisma.sql`
+    SELECT c.id::text AS case_id, x.evidence_id::text AS evidence_id
+      FROM unnest(${[...input.caseIds]}::uuid[]) AS c(id)
+      CROSS JOIN LATERAL (
+        SELECT l.evidence_id
+          FROM case_evidence_links l
+         WHERE l.case_id = c.id
+           AND NOT (l.evidence_id = ANY(${closed}::uuid[]))
+         LIMIT 500
+      ) x
+  `);
+  for (const r of rows) out.get(r.case_id)?.push(r.evidence_id);
+  return out;
 }
 
 export type CaseRiskComputation = {

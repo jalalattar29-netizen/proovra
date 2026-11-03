@@ -30,7 +30,7 @@ vi.mock("../src/services/workspace-billing.service.js", () => ({
   resolveWorkspaceScopeForUser: async () => H.scope,
 }));
 vi.mock("../src/services/workspace-usage.service.js", () => ({
-  getWorkspaceUsage: async () => H.usage,
+  getWorkspaceSeatUsage: async () => H.usage,
 }));
 vi.mock("../src/services/organization/enterprise-contract.service.js", () => ({
   resolveEnterpriseContract: async () => H.contract,

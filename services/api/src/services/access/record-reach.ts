@@ -26,9 +26,55 @@ import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runt
 import { prisma as defaultPrisma } from "../../db.js";
 import { listAccessibleWorkspaces } from "./accessible-workspaces.js";
 import {
+  RESTRICTED_CASE_WHERE,
   caseVisibleToWhere,
   evidenceVisibleThroughCasesWhere,
 } from "../cases/case-visibility.js";
+
+/**
+ * CLOSED RECORDS, FOUND FROM THE CASES THAT CLOSE THEM (capacity, 2026-11-03).
+ *
+ * `NOT evidenceVisibleThroughCasesWhere` asks, for every record of the scope,
+ * whether one of its links reaches a restricted case the caller cannot see. On
+ * the capacity fixture that was one correlated probe per record: 1.7 s for a
+ * 300,000-record workspace, on every command center, search and summary, when
+ * the answer was "none". This asks the same question from the other end: the
+ * links whose case is restricted and closed to the caller, inside the scope.
+ * Same predicate, same rows; the planner starts from the few restricted cases
+ * instead of from every record.
+ */
+function closedThroughCaseLinkWhere(callerUserId: string | null): Prisma.CaseEvidenceLinkWhereInput {
+  return { case: { AND: [RESTRICTED_CASE_WHERE, { NOT: caseVisibleToWhere(callerUserId) }] } };
+}
+
+export async function closedEvidenceIdsIn(
+  scope: Prisma.EvidenceWhereInput,
+  callerUserId: string | null,
+  client: Pick<PrismaClient, "caseEvidenceLink">,
+): Promise<string[]> {
+  const links = await client.caseEvidenceLink.findMany({
+    where: { AND: [closedThroughCaseLinkWhere(callerUserId), { evidence: scope }] },
+    select: { evidenceId: true },
+    distinct: ["evidenceId"],
+  });
+  return links.map((l) => l.evidenceId);
+}
+
+/**
+ * Above this many closed records an id list stops being the cheaper filter, so
+ * the relation filter is used as before. Below it the list is exact.
+ */
+const CLOSED_ID_LIST_LIMIT = 2_000;
+
+/** The same narrowing as `evidenceVisibleThroughCasesWhere`, from a resolved list. */
+function visibleGivenClosedIds(
+  closedIds: readonly string[],
+  callerUserId: string | null,
+): Prisma.EvidenceWhereInput {
+  if (closedIds.length === 0) return {};
+  if (closedIds.length > CLOSED_ID_LIST_LIMIT) return evidenceVisibleThroughCasesWhere(callerUserId);
+  return { id: { notIn: [...closedIds] } };
+}
 
 /**
  * WHICH RECORDS OF ONE WORKSPACE ARE CLOSED TO THIS CALLER — the same rule,
@@ -46,7 +92,7 @@ export type HiddenRecordIds = {
   evidenceIds: string[];
 };
 
-type HiddenRecordClient = Pick<PrismaClient, "case" | "evidence" | "team">;
+type HiddenRecordClient = Pick<PrismaClient, "case" | "evidence" | "team" | "caseEvidenceLink">;
 
 export async function hiddenRecordIdsInWorkspace(
   workspaceId: string,
@@ -61,19 +107,16 @@ export async function hiddenRecordIdsInWorkspace(
     workspaceCaseWhere(workspaceId, scopeClient),
     workspaceEvidenceWhere(workspaceId, scopeClient),
   ]);
-  const [cases, evidence] = await Promise.all([
+  const [cases, evidenceIds] = await Promise.all([
     client.case.findMany({
       // NOT visible already implies restricted (caseVisibleToWhere admits
       // every unrestricted Case), by the canonical rule rather than the flag.
       where: { AND: [caseScope], NOT: caseVisibleToWhere(callerUserId) },
       select: { id: true },
     }),
-    client.evidence.findMany({
-      where: { AND: [evidenceScope], NOT: evidenceVisibleThroughCasesWhere(callerUserId) },
-      select: { id: true },
-    }),
+    closedEvidenceIdsIn(evidenceScope, callerUserId, client),
   ]);
-  return { caseIds: cases.map((c) => c.id), evidenceIds: evidence.map((e) => e.id) };
+  return { caseIds: cases.map((c) => c.id), evidenceIds };
 }
 
 /**
@@ -92,10 +135,14 @@ export async function viewerReachInWorkspace(
   callerUserId: string | null,
   client: HiddenRecordClient = defaultPrisma,
 ): Promise<ViewerReach> {
+  const hidden = await hiddenRecordIdsInWorkspace(workspaceId, callerUserId, client);
   return {
-    evidence: evidenceVisibleThroughCasesWhere(callerUserId),
+    // Every consumer ANDs this with this workspace's scope, which is the scope
+    // the list was resolved in, so the id list and the relation filter select
+    // the same records.
+    evidence: visibleGivenClosedIds(hidden.evidenceIds, callerUserId),
     cases: caseVisibleToWhere(callerUserId),
-    hidden: await hiddenRecordIdsInWorkspace(workspaceId, callerUserId, client),
+    hidden,
   };
 }
 
@@ -186,6 +233,25 @@ export function caseReachWhere(
     or.push({
       AND: [{ teamId: { in: [...accessibleWorkspaceIds] } }, caseVisibleToWhere(userId)],
     });
+  }
+  return { OR: or };
+}
+
+/**
+ * `evidenceReachWhere` with the restricted-case narrowing resolved first, for
+ * the reads that count or sort a whole workspace (the Evidence Library list and
+ * its summary). Same records; see `closedEvidenceIdsIn`.
+ */
+export async function resolvedEvidenceReachWhere(
+  userId: string,
+  accessibleWorkspaceIds: readonly string[],
+  client: Pick<PrismaClient, "caseEvidenceLink"> = defaultPrisma,
+): Promise<Prisma.EvidenceWhereInput> {
+  const or: Prisma.EvidenceWhereInput[] = [{ teamId: null, ownerUserId: userId }];
+  if (accessibleWorkspaceIds.length > 0) {
+    const inWorkspaces: Prisma.EvidenceWhereInput = { teamId: { in: [...accessibleWorkspaceIds] } };
+    const closed = await closedEvidenceIdsIn(inWorkspaces, userId, client);
+    or.push({ AND: [inWorkspaces, visibleGivenClosedIds(closed, userId)] });
   }
   return { OR: or };
 }

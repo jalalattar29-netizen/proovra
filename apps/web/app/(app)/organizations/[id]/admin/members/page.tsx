@@ -110,8 +110,11 @@ const MEMBER_STATUS_LABEL: Record<OrgMembershipStatus, string> = {
 
 interface MembersResponse {
   organizationId: string;
-  summary: { totalMembers: number };
+  /** Whole-organization counts, sent with every page (CAP-10). */
+  summary: { totalMembers: number; byRole?: Partial<Record<string, number>>; byStatus?: Partial<Record<string, number>> };
   members: MemberRow[];
+  /** The next page's cursor, or null on the last page. */
+  nextCursor?: string | null;
 }
 
 interface InviteRow {
@@ -272,6 +275,26 @@ function MembersTab() {
    * every transition). A section that has never loaded still shows its loading
    * state.
    */
+  // CAP-10 — the roster is paged by the API; Load more appends the next page.
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMore = useCallback(async () => {
+    if (!orgId || members.kind !== "ready" || !members.data.nextCursor) return;
+    setLoadingMore(true);
+    const next = await fetchOne<MembersResponse>(
+      `/v1/orgs/${orgId}/members?cursor=${encodeURIComponent(members.data.nextCursor)}`,
+    );
+    setLoadingMore(false);
+    if (next.kind !== "ready") return;
+    setMembers((prev) =>
+      prev.kind === "ready"
+        ? {
+            kind: "ready",
+            data: { ...next.data, members: [...prev.data.members, ...next.data.members] },
+          }
+        : prev,
+    );
+  }, [orgId, members, fetchOne]);
+
   const revalidate = useCallback(
     <T,>(prev: Loadable<T>): Loadable<T> =>
       prev.kind === "ready" ? prev : { kind: "loading" },
@@ -737,6 +760,22 @@ function MembersTab() {
                 </li>
               );
             })}
+            {members.data.nextCursor ? (
+              <li style={{ padding: "8px 0", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={subtleText}>
+                  Showing {members.data.members.length} of {members.data.summary.totalMembers} members
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="org-members-load-more"
+                  disabled={loadingMore}
+                  onClick={() => void loadMore()}
+                >
+                  {loadingMore ? "Loading…" : "Load more"}
+                </Button>
+              </li>
+            ) : null}
           </ul>
         )}
       </Card>

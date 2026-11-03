@@ -54,7 +54,7 @@ vi.mock("../src/services/workspace-billing.service.js", () => ({
   resolveWorkspaceScopeForUser: async () => H.scope,
 }));
 vi.mock("../src/services/workspace-usage.service.js", () => ({
-  getWorkspaceUsage: async () => ({ teamMemberCount: 0, seatLimit: 0, seatRemaining: 0 }),
+  getWorkspaceSeatUsage: async () => ({ teamMemberCount: 0, seatLimit: 0, seatRemaining: 0 }),
 }));
 vi.mock("../src/services/organization/enterprise-contract.service.js", () => ({
   resolveEnterpriseContract: async () => null,

@@ -120,6 +120,18 @@ import { requireIntegrationCronSecret } from "../middleware/cron-secret.js";
 
 const UuidParam = z.string().uuid();
 
+/** CAP-10 — the bounded query of `GET /v1/orgs/:id/members` (the shape of the workspace roster). */
+const ORG_MEMBER_PAGE_SIZE = 50;
+const ORG_MEMBER_PAGE_MAX = 200;
+const OrgMembersQuery = z.object({
+  q: z.string().max(200).optional(),
+  limit: z.string().max(12).optional(),
+  cursor: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().uuid().optional(),
+  ),
+});
+
 /**
  * Re-asked under the owners lock. The route's role check ran before the lock,
  * and an owner demoted while waiting must not go on to act as one (AUTHZ-008).
@@ -546,14 +558,60 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply.code(denial.status).send(denial.body);
       }
 
+      // CAP-10 (capacity, 2026-11-03) — ONE PAGE AT A TIME. This returned every
+      // membership of the organization in one response (1,500 rows, 556 kB on
+      // the capacity fixture). It now pages like `GET /v1/teams/:id/members`:
+      // `limit` (default 50, at most 200), `cursor` = the last membership id of
+      // the previous page (of THIS organization, else 400), `q` matches name or
+      // address. The counts the surfaces tally (by role, by status) come with
+      // every page in `summary`, over the whole organization. The full roster
+      // remains available as `GET /v1/orgs/:id/reports/members.csv`.
+      const pageQuery = OrgMembersQuery.safeParse(req.query ?? {});
+      if (!pageQuery.success) {
+        return reply.code(400).send({
+          error: { code: "INVALID_QUERY", message: "The member list filter is not valid.", requestId: req.id },
+        });
+      }
+      const limit = Math.min(
+        Math.max(Number.parseInt(pageQuery.data.limit ?? "", 10) || ORG_MEMBER_PAGE_SIZE, 1),
+        ORG_MEMBER_PAGE_MAX,
+      );
+      const cursor = pageQuery.data.cursor;
+      if (cursor) {
+        const cursorRow = await prisma.organizationMembership.findFirst({
+          where: { id: cursor, organizationId: orgId },
+          select: { id: true },
+        });
+        if (!cursorRow) {
+          return reply.code(400).send({
+            error: { code: "INVALID_CURSOR", message: "The member list cursor is not valid.", requestId: req.id },
+          });
+        }
+      }
+      const search = (pageQuery.data.q ?? "").trim();
+      const pageWhere: Prisma.OrganizationMembershipWhereInput = {
+        organizationId: orgId,
+        ...(search
+          ? {
+              user: {
+                OR: [
+                  { displayName: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                ],
+              },
+            }
+          : {}),
+      };
+
       // ARCH-004 — the ADMINISTRATION roster deliberately shows every
       // membership, including suspended and revoked ones: an administrator
       // cannot restore what the console will not show them. The status travels
       // with each row so the surface can render it, and nothing here grants
       // access — the leaf endpoints gate on `checkOrgAccess`, which is
       // ACTIVE-only.
-      const memberships = await prisma.organizationMembership.findMany({
-        where: { organizationId: orgId },
+      const [rows, byRole, byStatus, matching] = await Promise.all([
+        prisma.organizationMembership.findMany({
+        where: pageWhere,
         select: {
           id: true,
           userId: true,
@@ -567,13 +625,36 @@ export async function organizationsRoutes(app: FastifyInstance) {
           revocationReason: true,
           user: { select: { email: true, displayName: true } },
         },
-        orderBy: [{ role: "asc" }, { createdAt: "asc" }],
-      });
+        orderBy: [{ role: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+        prisma.organizationMembership.groupBy({
+          by: ["role"],
+          where: { organizationId: orgId },
+          _count: { _all: true },
+        }),
+        prisma.organizationMembership.groupBy({
+          by: ["status"],
+          where: { organizationId: orgId },
+          _count: { _all: true },
+        }),
+        search ? prisma.organizationMembership.count({ where: pageWhere }) : Promise.resolve(null),
+      ]);
+      const memberships = rows.slice(0, limit);
+      const nextCursor = rows.length > limit ? memberships[memberships.length - 1]!.id : null;
+      const totalMembers = byRole.reduce((n, r) => n + r._count._all, 0);
       const readsLifecycleReasons = listOrgAdminSurfaces(access.role).includes("members");
 
       return reply.code(200).send({
         organizationId: orgId,
-        summary: { totalMembers: memberships.length },
+        summary: {
+          totalMembers,
+          byRole: Object.fromEntries(byRole.map((r) => [r.role, r._count._all])),
+          byStatus: Object.fromEntries(byStatus.map((r) => [r.status, r._count._all])),
+          ...(matching !== null ? { matchingMembers: matching } : {}),
+        },
+        nextCursor,
         // PHASE 13 §1 — NEW-031. The query above selects the whole lifecycle
         // and the comment beside it says "the status travels with each row so
         // the surface can render it" — but the projection dropped all six

@@ -21,7 +21,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { hiddenRecordIdsInWorkspace } from "../access/record-reach.js";
 
-type ReachClient = Pick<PrismaClient, "case" | "evidence" | "team">;
+type ReachClient = Pick<PrismaClient, "case" | "evidence" | "team" | "caseEvidenceLink">;
 
 /** Below PostgreSQL's bind-parameter ceiling with room for the rest of the query. */
 export const SEARCH_REACH_EXCLUSION_LIMIT = 20_000;

@@ -19,6 +19,15 @@
  * per attempt, so attempts are capped too, and without the pause the same failing
  * rows would use that cap on every tick.
  *
+ * The walk reads only records that are DUE (capacity, 2026-11-03): one statement
+ * per page picks the records whose age has passed the threshold of their current
+ * tier, oldest first, with their sealed version. Walking every record of a
+ * 300,000-record workspace to find a hundred due ones was 750 pages and 1,500
+ * statements per tick per team; on the capacity fixture the earlier unordered
+ * shape took 699 s and 194,591 statements for one tick across 628 workspaces.
+ * Pages per team are bounded too, so a team whose due records are all claimed
+ * elsewhere cannot hold the tick.
+ *
  * Hard rules:
  *   - One team failure must never abort the remaining sweep.
  *   - A tier is recorded by tagging the exact sealed version, and only a tag
@@ -47,6 +56,8 @@ const MAX_PER_TEAM = 100;
 /** Every tag attempted in one tick, successful or not. */
 const MAX_ATTEMPTS_PER_TEAM = MAX_PER_TEAM * 4;
 const PAGE_SIZE = MAX_PER_TEAM * 4;
+/** Due-record pages read for one team in one tick. */
+const MAX_PAGES_PER_TEAM = 5;
 const FAILED_TAG_RETRY_MS = MS_PER_DAY;
 
 const TIER_RANK: Record<ArchiveTier, number> = {
@@ -56,13 +67,74 @@ const TIER_RANK: Record<ArchiveTier, number> = {
   DEEP_ARCHIVE: 3,
 };
 
-type EvidencePage = Array<{
+type DueRecord = {
   id: string;
   createdAt: Date;
-  storageBucket: string | null;
-  storageKey: string | null;
-  storageVersionId: string | null;
-}>;
+  /** The latest COMPLETED transition naming a known tier, or null (HOT). */
+  currentTier: string | null;
+  storageBucket: string;
+  storageKey: string;
+  storageVersionId: string;
+};
+
+/**
+ * One page of a team's due records after `after`, oldest first. A record is due
+ * when its age has passed the threshold of its current tier; one that failed a tag
+ * within FAILED_TAG_RETRY_MS, or has no sealed version, is not read.
+ *
+ * The sweep visits ORGANIZATION and OWNED workspaces only (`isPersonal: false`),
+ * whose canonical evidence scope is exactly `team_id = workspace`; that is
+ * asserted, not assumed, before the raw read.
+ */
+async function dueRecordsPage(
+  teamId: string,
+  after: { createdAt: Date; id: string } | null,
+): Promise<DueRecord[]> {
+  const now = Date.now();
+  const hot = new Date(now - HOT_TO_WARM_DAYS * MS_PER_DAY);
+  const warm = new Date(now - WARM_TO_COLD_CUMULATIVE_DAYS * MS_PER_DAY);
+  const cold = new Date(now - COLD_TO_DEEP_CUMULATIVE_DAYS * MS_PER_DAY);
+  const failedSince = new Date(now - FAILED_TAG_RETRY_MS);
+  const afterCreatedAt = after?.createdAt ?? new Date(0);
+  const afterId = after?.id ?? "00000000-0000-0000-0000-000000000000";
+  return prisma.$queryRaw<DueRecord[]>`
+    SELECT e.id::text AS "id", e.created_at AS "createdAt", cur.to_tier AS "currentTier",
+           e.storage_bucket AS "storageBucket", e.storage_key AS "storageKey",
+           e.storage_version_id AS "storageVersionId"
+      FROM evidence e
+      LEFT JOIN LATERAL (
+        SELECT t.to_tier
+          FROM archive_tier_transitions t
+         WHERE t.team_id = ${teamId}::uuid
+           AND t.evidence_id = e.id
+           AND t.state = 'COMPLETED'
+           AND t.to_tier IN ('HOT', 'WARM', 'COLD', 'DEEP_ARCHIVE')
+         ORDER BY t.transitioned_at_utc DESC
+         LIMIT 1
+      ) cur ON true
+     WHERE e.team_id = ${teamId}::uuid
+       AND e.deleted_at IS NULL
+       AND e.created_at <= ${hot}
+       AND e.storage_bucket IS NOT NULL
+       AND e.storage_key IS NOT NULL
+       AND e.storage_version_id IS NOT NULL
+       AND (e.created_at, e.id) > (${afterCreatedAt}, ${afterId}::uuid)
+       AND (
+             cur.to_tier IS NULL OR cur.to_tier = 'HOT'
+          OR (cur.to_tier = 'WARM' AND e.created_at <= ${warm})
+          OR (cur.to_tier = 'COLD' AND e.created_at <= ${cold})
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM archive_tier_transitions f
+          WHERE f.team_id = ${teamId}::uuid
+            AND f.evidence_id = e.id
+            AND f.state = 'FAILED'
+            AND f.transitioned_at_utc > ${failedSince}
+       )
+     ORDER BY e.created_at ASC, e.id ASC
+     LIMIT ${PAGE_SIZE}
+  `;
+}
 
 function isArchiveTier(value: string): value is ArchiveTier {
   return value === "HOT" || value === "WARM" || value === "COLD" || value === "DEEP_ARCHIVE";
@@ -81,81 +153,29 @@ async function sweepTeam(teamId: string): Promise<number> {
   // omitted a personal workspace's legacy NULL-team rows, and reported the
   // smaller number as if it were the whole population.
   const scope = await workspaceEvidenceWhere(teamId, prisma);
-  const dueBefore = new Date(Date.now() - HOT_TO_WARM_DAYS * MS_PER_DAY);
+  if (JSON.stringify(scope) !== JSON.stringify({ teamId })) {
+    throw new Error("archive tier sweep: a workspace whose scope is not its own team id");
+  }
   let scheduled = 0;
   let attempts = 0;
+  let pages = 0;
   let after: { createdAt: Date; id: string } | null = null;
 
-  while (scheduled < MAX_PER_TEAM && attempts < MAX_ATTEMPTS_PER_TEAM) {
-    // 1. The next page of records old enough for a first tier, oldest first. A
-    //    record with no sealed version has nothing to tag and is not read at all.
-    const position: { createdAt: Date; id: string } | null = after;
-    const page: EvidencePage = await prisma.evidence.findMany({
-      where: {
-        AND: [
-          scope,
-          ...(position
-            ? [
-                {
-                  OR: [
-                    { createdAt: { gt: position.createdAt } },
-                    { createdAt: position.createdAt, id: { gt: position.id } },
-                  ],
-                },
-              ]
-            : []),
-        ],
-        deletedAt: null,
-        createdAt: { lte: dueBefore },
-        storageBucket: { not: null },
-        storageKey: { not: null },
-        storageVersionId: { not: null },
-      },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: {
-        id: true,
-        createdAt: true,
-        storageBucket: true,
-        storageKey: true,
-        storageVersionId: true,
-      },
-      take: PAGE_SIZE,
-    });
+  while (scheduled < MAX_PER_TEAM && attempts < MAX_ATTEMPTS_PER_TEAM && pages < MAX_PAGES_PER_TEAM) {
+    // 1. The next page of DUE records, oldest first, each with its current tier.
+    const page = await dueRecordsPage(teamId, after);
+    pages += 1;
     if (page.length === 0) break;
     const last = page[page.length - 1]!;
     after = { createdAt: last.createdAt, id: last.id };
-
-    // 2. Resolve the current tier of each row in this page via its last
-    //    ArchiveTierTransition, and which of them failed recently.
-    const transitions = await prisma.archiveTierTransition.findMany({
-      where: {
-        teamId,
-        evidenceId: { in: page.map((row) => row.id) },
-        state: { in: ["COMPLETED", "FAILED"] },
-      },
-      orderBy: { transitionedAtUtc: "desc" },
-      select: { evidenceId: true, toTier: true, state: true, transitionedAtUtc: true },
-    });
-    const latestByEvidence = new Map<string, ArchiveTier>();
-    const recentlyFailed = new Set<string>();
-    const retryAfter = Date.now() - FAILED_TAG_RETRY_MS;
-    for (const t of transitions) {
-      if (t.state === "FAILED") {
-        if (t.transitionedAtUtc.getTime() > retryAfter) recentlyFailed.add(t.evidenceId);
-        continue;
-      }
-      if (latestByEvidence.has(t.evidenceId)) continue;
-      if (isArchiveTier(t.toTier)) latestByEvidence.set(t.evidenceId, t.toTier);
-    }
 
     const now = Date.now();
 
     // 3. For each evidence item, determine if a tier downgrade is due.
     for (const ev of page) {
       if (scheduled >= MAX_PER_TEAM || attempts >= MAX_ATTEMPTS_PER_TEAM) break;
-      if (recentlyFailed.has(ev.id)) continue;
-
-      const currentTier: ArchiveTier = latestByEvidence.get(ev.id) ?? "HOT";
+      const currentTier: ArchiveTier =
+        ev.currentTier && isArchiveTier(ev.currentTier) ? ev.currentTier : "HOT";
       const ageDays = (now - ev.createdAt.getTime()) / MS_PER_DAY;
 
       let targetTier: ArchiveTier | null = null;

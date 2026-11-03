@@ -273,6 +273,36 @@ describe("GOV-016 archive tiers on a versioned locked bucket (Postgres + MinIO)"
     expect(await prisma.archiveTierTransition.count({ where: { evidenceId: rec.id, state: "COMPLETED" } })).toBe(1);
   });
 
+  it("a due record behind four hundred records that are not due is still tiered", async () => {
+    // CAPACITY (2026-11-03): the sweep read 400 rows of the workspace in index
+    // order and judged only those, so a due record outside them waited forever.
+    const { organizationId } = await prisma.team.findUniqueOrThrow({
+      where: { id: A().teamId },
+      select: { organizationId: true },
+    });
+    const young = Array.from({ length: 401 }, (_, i) => ({
+      // Ids that sort before any random one, so they fill an id-ordered read.
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      type: "DOCUMENT",
+      status: "SIGNED",
+      teamId: A().teamId,
+      organizationId,
+      ownerUserId: A().ownerUserId,
+      createdAt: new Date(Date.now() - 2 * 86_400_000),
+    }));
+    await prisma.evidence.createMany({ data: young as never });
+    try {
+      const due = await sealedRecord(31);
+      await worker.runArchiveTierAutoTransitions({ trigger: "test" });
+      expect(
+        await prisma.archiveTierTransition.count({ where: { evidenceId: due.id, state: "COMPLETED", toTier: "WARM" } }),
+      ).toBe(1);
+      expect(await prisma.archiveTierTransition.count({ where: { evidenceId: { in: young.map((r) => r.id) } } })).toBe(0);
+    } finally {
+      await prisma.evidence.deleteMany({ where: { id: { in: young.map((r) => r.id) } } });
+    }
+  });
+
   it("a record with no sealed version gets no label", async () => {
     const team = await prisma.team.findUniqueOrThrow({
       where: { id: A().teamId },
