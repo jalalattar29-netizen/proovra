@@ -5,19 +5,19 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "926c8cd89bbc15244764115eac539d6ba86b4ef002c515b3b8cf9ddb1de3168f",
-  "consumerInventoryHash": "68b4449e7479a8dc3d68233c3dc690de5e625806287b5b6f32d820c8bb9bc53a",
+  "consumerInventoryHash": "695e41a08cabf22e7d868055947a11e8ded88b1df0592880c6b225a871c8263c",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1230,
     "ProductionRegisteredRoutes": 1229,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1012,
+    "ProductConsumedRoutes": 1010,
     "NonProductDispositionedRoutes": 203,
-    "UndisposedRoutes": 14,
+    "UndisposedRoutes": 16,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1012,
+    "ProductConsumerRoutes": 1010,
     "MachineOnlyConsumerRoutes": 7,
-    "NoConsumerRoutes": 211,
+    "NoConsumerRoutes": 213,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 37,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -56,15 +56,15 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1512,
-    "ReachableSensitiveMutations": 1488,
-    "ClassifiedSensitiveMutations": 1488,
+    "TerminalWriters": 1514,
+    "ReachableSensitiveMutations": 1489,
+    "ClassifiedSensitiveMutations": 1489,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
-    "NonRequestWriters": 24,
+    "NonRequestWriters": 25,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 6,
-    "DeadUnreachableWritersPending": 6,
+    "DeadUnreachableWriters": 7,
+    "DeadUnreachableWritersPending": 7,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 0,
     "AuthorizationAfterMutation": 0,
@@ -84,7 +84,7 @@
       "SSO_OIDC_SCIM_PROVISIONING": 58,
       "AUTOMATION_QUEUE_WEBHOOK": 117,
       "REPORT_EXPORT_REDACTION": 59,
-      "API_KEY_SECRET_OPERATIONAL_ADMIN": 128
+      "API_KEY_SECRET_OPERATIONAL_ADMIN": 130
     },
     "byNonRequestDisposition": {
       "REGISTERED_CLI": 7,
@@ -96,11 +96,11 @@
       "SEED": 0,
       "INJECTED_PORT_IMPLEMENTATION": 0,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 6
+      "DEAD_UNREACHABLE_WRITER": 7
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1324,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1325,
       "JOB_ATTRIBUTED_REACHABLE": 153,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 0,
-      "DEAD_UNREACHABLE": 6,
+      "DEAD_UNREACHABLE": 7,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11229,
-      "UNRESOLVED_IDENTIFIER": 1618
+      "METHOD_ON_VALUE": 11250,
+      "UNRESOLVED_IDENTIFIER": 1620
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -133,8 +133,8 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 14,
-      "PRODUCT_CONNECTED": 1017,
+      "UNDISPOSED": 16,
+      "PRODUCT_CONNECTED": 1015,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -242,10 +242,10 @@
   },
   "totalRoutes": 1230,
   "classificationCounts": {
-    "BACKEND_ONLY_UNWIRED": 14,
+    "BACKEND_ONLY_UNWIRED": 16,
     "COMPATIBILITY_TEMPORARY": 16,
     "INTERNAL_REQUIRED": 188,
-    "TARGET_COMPLETE": 1012
+    "TARGET_COMPLETE": 1010
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 404,
@@ -12652,10 +12652,10 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/promote",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:753",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -12664,10 +12664,10 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/retire",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:753",
+      "productConsumer": null,
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
-      "classification": "TARGET_COMPLETE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
     },
     {
@@ -12676,7 +12676,7 @@
       "method": "POST",
       "route": "/v1/operations/signers/:id/revoke",
       "registeringFile": "services/api/src/routes/operations-signers.routes.ts",
-      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:753",
+      "productConsumer": "apps/web/app/(app)/admin/platform/signers/page.tsx:772",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -27499,8 +27499,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.create@127",
-      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:127",
+      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.create@143",
+      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:143",
       "file": "packages/shared-runtime/src/signing/key-registry.ts",
       "enclosingDeclaration": "registerSigningKey",
       "kind": "DATABASE",
@@ -27529,8 +27529,38 @@
       "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
-      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.updateMany@363",
-      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:363",
+      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.updateMany@129",
+      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:129",
+      "file": "packages/shared-runtime/src/signing/key-registry.ts",
+      "enclosingDeclaration": "registerSigningKey",
+      "kind": "DATABASE",
+      "target": "signingKey",
+      "mutationKind": "updateMany",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
+    },
+    {
+      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.updateMany@468",
+      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:468",
       "file": "packages/shared-runtime/src/signing/key-registry.ts",
       "enclosingDeclaration": "revokeSigningKeyMaterial",
       "kind": "DATABASE",
@@ -27539,7 +27569,6 @@
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
       "insideTransaction": false,
       "entryRoutes": [
-        "POST /v1/operations/signers/:id/retire",
         "POST /v1/operations/signers/:id/revoke"
       ],
       "entryJobs": [],
@@ -30983,8 +31012,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@3822",
-      "terminalLocation": "services/api/src/routes/ops.routes.ts:3822",
+      "writerId": "services/api/src/routes/ops.routes.ts#bulkOperationalActionRun.update@3824",
+      "terminalLocation": "services/api/src/routes/ops.routes.ts:3824",
       "file": "services/api/src/routes/ops.routes.ts",
       "enclosingDeclaration": "opsRoutes",
       "kind": "DATABASE",
@@ -57451,8 +57480,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/verification-share.service.ts#evidence.updateMany@401",
-      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:401",
+      "writerId": "services/api/src/services/governance/verification-share.service.ts#evidence.updateMany@424",
+      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:424",
       "file": "services/api/src/services/governance/verification-share.service.ts",
       "enclosingDeclaration": "revokeLegacyVerifyLink",
       "kind": "DATABASE",
@@ -57484,8 +57513,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/verification-share.service.ts#verificationShareToken.updateMany@376",
-      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:376",
+      "writerId": "services/api/src/services/governance/verification-share.service.ts#verificationShareToken.updateMany@399",
+      "terminalLocation": "services/api/src/services/governance/verification-share.service.ts:399",
       "file": "services/api/src/services/governance/verification-share.service.ts",
       "enclosingDeclaration": "renewVerificationLink",
       "kind": "DATABASE",
@@ -86638,6 +86667,39 @@
       }
     },
     {
+      "writerId": "services/api/src/services/operations/signer-control-state.service.ts#signer_control_state.$queryRawUnsafe@303",
+      "terminalLocation": "services/api/src/services/operations/signer-control-state.service.ts:303",
+      "file": "services/api/src/services/operations/signer-control-state.service.ts",
+      "enclosingDeclaration": "declareSigningKeyCompromise",
+      "kind": "RAW_SQL",
+      "target": "signer_control_state",
+      "mutationKind": "$queryRawUnsafe",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/operations/signers/:id/revoke"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/operations-signers.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/operations/signer-control-state.service.ts#signerControlState.updateMany@229",
       "terminalLocation": "services/api/src/services/operations/signer-control-state.service.ts:229",
       "file": "services/api/src/services/operations/signer-control-state.service.ts",
@@ -86646,7 +86708,7 @@
       "target": "signerControlState",
       "mutationKind": "updateMany",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
-      "insideTransaction": true,
+      "insideTransaction": false,
       "entryRoutes": [
         "POST /v1/operations/signers/:id/retire",
         "POST /v1/operations/signers/:id/revoke"
@@ -86663,7 +86725,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
+        "transactionAuthority": "AUTOCOMMIT",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -106031,7 +106093,7 @@
       "method": "DELETE",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3563",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3565",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -107540,7 +107602,7 @@
       "method": "GET",
       "path": "/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:907",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:909",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "handler body -> handler: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)"
@@ -110329,7 +110391,7 @@
       "method": "GET",
       "path": "/v1/admin/platform/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:880",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:882",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -110513,7 +110575,7 @@
       "method": "GET",
       "path": "/v1/admin/runtime/schema-status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:989",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:991",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -118136,7 +118198,7 @@
       "method": "GET",
       "path": "/v1/evidence/:evidenceId/custody/attestations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:534",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:544",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -131000,7 +131062,7 @@
       "method": "GET",
       "path": "/v1/operations/custody-attestations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:417",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:427",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -131790,7 +131852,7 @@
       "method": "GET",
       "path": "/v1/operations/signers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:70",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:71",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -131851,7 +131913,7 @@
       "method": "GET",
       "path": "/v1/operations/signers/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:84",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:85",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -131912,7 +131974,7 @@
       "method": "GET",
       "path": "/v1/operations/signers/:id/audit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:152",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:153",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -131972,7 +132034,7 @@
       "method": "GET",
       "path": "/v1/operations/signers/:id/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:112",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:113",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -132031,7 +132093,7 @@
       "method": "GET",
       "path": "/v1/ops/alerts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:958",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:960",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -132074,7 +132136,7 @@
       "method": "GET",
       "path": "/v1/ops/assignable-operators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2400",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2402",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132143,7 +132205,7 @@
       "method": "GET",
       "path": "/v1/ops/bulk-actions/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3854",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3856",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132195,7 +132257,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3163",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3165",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132256,7 +132318,7 @@
       "method": "GET",
       "path": "/v1/ops/causality/chains/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3186",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3188",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132319,7 +132381,7 @@
       "method": "GET",
       "path": "/v1/ops/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:757",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:759",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolvePlatformAdmin -> services/api/src/services/platform-admin.service.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -132382,7 +132444,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1662",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1664",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132465,7 +132527,7 @@
       "method": "GET",
       "path": "/v1/ops/incident-groups/:groupKey/affected",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1842",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1844",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132537,7 +132599,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1461",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1463",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132646,7 +132708,7 @@
       "method": "GET",
       "path": "/v1/ops/incidents/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1892",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1894",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132742,7 +132804,7 @@
       "method": "GET",
       "path": "/v1/ops/media-intelligence/runs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3968",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3970",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -132797,7 +132859,7 @@
       "method": "GET",
       "path": "/v1/ops/metrics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:889",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:891",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -132849,7 +132911,7 @@
       "method": "GET",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3390",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3392",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -132965,7 +133027,7 @@
       "method": "GET",
       "path": "/v1/ops/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1099",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1101",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133073,7 +133135,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2693",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2695",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -133134,7 +133196,7 @@
       "method": "GET",
       "path": "/v1/ops/workflows/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2731",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2733",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -133882,7 +133944,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/operations/incidents",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1284",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1286",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -133959,7 +134021,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/operations/rollup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1174",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1176",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147185,7 +147247,7 @@
       "method": "PATCH",
       "path": "/v1/ops/saved-views/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3485",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3487",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -162474,7 +162536,7 @@
       "method": "POST",
       "path": "/v1/evidence/:evidenceId/custody/attestations/sign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:493",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:503",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -162505,6 +162567,7 @@
         "organizationSecurityPolicy",
         "securityEvent",
         "signerControlState",
+        "signingKey",
         "ssoConnection",
         "team",
         "teamMember",
@@ -178317,7 +178380,7 @@
       "method": "POST",
       "path": "/v1/operations/custody-attestations/:id/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:472",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:482",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -178379,7 +178442,7 @@
       "method": "POST",
       "path": "/v1/operations/custody-attestations/backfill",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:441",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:451",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -178422,6 +178485,7 @@
         "riskSignal",
         "securityEvent",
         "signerControlState",
+        "signingKey",
         "ssoConnection",
         "stepUpChallenge",
         "team",
@@ -178828,7 +178892,7 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:217",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:218",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -178888,7 +178952,7 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/promote",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:243",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:244",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -178898,23 +178962,14 @@
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 753,
-          "caller": "SignerDetailDrawer",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:753 (SignerDetailDrawer, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -178956,7 +179011,7 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/retire",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:322",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:324",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -178966,23 +179021,14 @@
         "ADMIN_GATED",
         "AUTHENTICATED"
       ],
-      "productConsumers": [
-        {
-          "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 753,
-          "caller": "SignerDetailDrawer",
-          "class": "WEB",
-          "primitive": "apiFetch",
-          "viaResolution": false
-        }
-      ],
+      "productConsumers": [],
       "nonProductConsumers": [],
-      "primaryDisposition": "PRODUCT_CONSUMED",
-      "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:753 (SignerDetailDrawer, WEB)",
-      "dispositionReason": "reached from a product surface",
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
       "replacement": null,
-      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "result": "UNDISPOSED",
       "primarySecurityFamily": "PLATFORM_ADMIN",
       "secondarySecurityFamilies": [],
       "authenticationAuthority": "MULTI_GATE",
@@ -178998,7 +179044,6 @@
         "riskSignal",
         "securityEvent",
         "signerControlState",
-        "signingKey",
         "ssoConnection",
         "stepUpChallenge",
         "team",
@@ -179007,7 +179052,6 @@
       ],
       "modelsWritten": [
         "signerControlState",
-        "signingKey",
         "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
@@ -179027,7 +179071,7 @@
       "method": "POST",
       "path": "/v1/operations/signers/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:368",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:370",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -179040,7 +179084,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/admin/platform/signers/page.tsx",
-          "line": 753,
+          "line": 772,
           "caller": "SignerDetailDrawer",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -179050,7 +179094,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:753 (SignerDetailDrawer, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/platform/signers/page.tsx:772 (SignerDetailDrawer, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -179098,7 +179142,7 @@
       "method": "POST",
       "path": "/v1/operations/signers/stage",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:179",
+      "registrationEvidence": "services/api/src/routes/operations-signers.routes.ts:180",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -179149,7 +179193,7 @@
       "method": "POST",
       "path": "/v1/ops/bulk-actions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3674",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3676",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179242,7 +179286,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/ack",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2258",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2260",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179335,7 +179379,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2431",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2433",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179412,7 +179456,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/remediate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2120",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2122",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179508,7 +179552,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2285",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2287",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179601,7 +179645,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2313",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2315",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179694,7 +179738,7 @@
       "method": "POST",
       "path": "/v1/ops/incidents/:id/unsuppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2351",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2353",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -179763,7 +179807,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/dlq/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4123",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4125",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -179822,7 +179866,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4098",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4100",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179878,7 +179922,7 @@
       "method": "POST",
       "path": "/v1/ops/media-intelligence/runs/:runId/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4038",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4040",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformOpsActor -> services/api/src/routes/require-platform-ops-actor.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -179937,7 +179981,7 @@
       "method": "POST",
       "path": "/v1/ops/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1031",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1033",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -179949,7 +179993,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:1031 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/ops.routes.ts:1033 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -180002,7 +180046,7 @@
       "method": "POST",
       "path": "/v1/ops/saved-views",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3408",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3410",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180174,7 +180218,7 @@
       "method": "POST",
       "path": "/v1/ops/upload-telemetry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4226",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:4228",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -180234,7 +180278,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/assign",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2789",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2791",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180326,7 +180370,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/escalate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2906",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2908",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180413,7 +180457,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/mitigation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2948",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2950",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180500,7 +180544,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3076",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3078",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180587,7 +180631,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2991",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2993",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180674,7 +180718,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/schedule-retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3118",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3120",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180761,7 +180805,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2864",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:2866",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180848,7 +180892,7 @@
       "method": "POST",
       "path": "/v1/ops/workflows/:id/suppress",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3034",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:3036",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsCapability -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -180935,7 +180979,7 @@
       "method": "POST",
       "path": "/v1/ops/workspace-reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1406",
+      "registrationEvidence": "services/api/src/routes/ops.routes.ts:1408",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOpsActor -> services/api/src/services/platform-context/workspace-capability.service.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
