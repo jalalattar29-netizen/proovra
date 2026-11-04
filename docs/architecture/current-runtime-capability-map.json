@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1516,
-    "ReachableSensitiveMutations": 1491,
-    "ClassifiedSensitiveMutations": 1491,
+    "TerminalWriters": 1518,
+    "ReachableSensitiveMutations": 1493,
+    "ClassifiedSensitiveMutations": 1493,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 25,
@@ -77,7 +77,7 @@
       "WORKSPACE": 74,
       "WORKSPACE_MEMBERSHIP_INVITATION": 67,
       "CASE": 92,
-      "EVIDENCE_CUSTODY_FINALIZATION": 354,
+      "EVIDENCE_CUSTODY_FINALIZATION": 356,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 100,
       "BILLING_SUBSCRIPTION_SEAT": 105,
@@ -101,7 +101,7 @@
     "MutationConservationHolds": true,
     "byWriterBucket": {
       "ROUTE_ATTRIBUTED_REACHABLE": 1327,
-      "JOB_ATTRIBUTED_REACHABLE": 153,
+      "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
       "STARTUP_OR_SCHEDULED": 22,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11253,
-      "UNRESOLVED_IDENTIFIER": 1620
+      "METHOD_ON_VALUE": 11270,
+      "UNRESOLVED_IDENTIFIER": 1622
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -18793,8 +18793,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts#media_intelligence_signals.$executeRawUnsafe@459",
-      "terminalLocation": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts:459",
+      "writerId": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts#media_intelligence_signals.$executeRawUnsafe@464",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts:464",
       "file": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts",
       "enclosingDeclaration": "runMediaIntelligenceAnalysis",
       "kind": "RAW_SQL",
@@ -19056,6 +19056,39 @@
     {
       "writerId": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts#media_intelligence_runs.$executeRawUnsafe@391",
       "terminalLocation": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:391",
+      "file": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
+      "enclosingDeclaration": "releaseRunForRetry",
+      "kind": "RAW_SQL",
+      "target": "media_intelligence_runs",
+      "mutationKind": "$executeRawUnsafe",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/combined-recording/combined-recording.handler.ts#processCombineScreenRecordingJob",
+        "SWEEP services/worker/src/media-intelligence.processor.ts#processMediaIntelligenceJob",
+        "SWEEP services/worker/src/screen-intelligence.handler.ts#processReconstructScreenJob"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts#media_intelligence_runs.$executeRawUnsafe@439",
+      "terminalLocation": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:439",
       "file": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
       "enclosingDeclaration": "dismissRun",
       "kind": "RAW_SQL",
@@ -100573,8 +100606,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts#immutableStorageCheck.create@158",
-      "terminalLocation": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts:158",
+      "writerId": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts#immutableStorageCheck.create@229",
+      "terminalLocation": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts:229",
       "file": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
       "enclosingDeclaration": "runImmutableStorageReconciliation",
       "kind": "DATABASE",
@@ -100607,8 +100640,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts#immutableStorageCheck.create@220",
-      "terminalLocation": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts:220",
+      "writerId": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts#immutableStorageCheck.create@306",
+      "terminalLocation": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts:306",
       "file": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
       "enclosingDeclaration": "runImmutableStorageReconciliation",
       "kind": "DATABASE",
@@ -100641,8 +100674,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.create@444",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:444",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.create@458",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:458",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -100693,8 +100726,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.updateMany@584",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:584",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncident.updateMany@599",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:599",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -100745,8 +100778,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@491",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:491",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@506",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:506",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -100797,8 +100830,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@625",
-      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:625",
+      "writerId": "services/worker/src/governance/incident-emitter.ts#operationalIncidentEvent.create@642",
+      "terminalLocation": "services/worker/src/governance/incident-emitter.ts:642",
       "file": "services/worker/src/governance/incident-emitter.ts",
       "enclosingDeclaration": "recordWorkerIncident",
       "kind": "DATABASE",
@@ -101654,8 +101687,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@535",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:535",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@578",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:578",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -101689,8 +101722,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@564",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:564",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@607",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:607",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -101724,8 +101757,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@584",
-      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:584",
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#evidencePartDerivedAsset.updateMany@627",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:627",
       "file": "services/worker/src/intelligence-run-reconciler.ts",
       "enclosingDeclaration": "reconcileStrandedDerivedAssets",
       "kind": "DATABASE",
@@ -101736,6 +101769,40 @@
       "entryRoutes": [],
       "entryJobs": [
         "SWEEP services/worker/src/intelligence-run-reconciler.ts#reconcileStrandedDerivedAssets",
+        "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler"
+      ],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1124#runIntelligenceRunReconciler",
+        "SCHEDULE services/worker/src/index.ts:1135#startIntelligenceRunReconcilerScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/intelligence-run-reconciler.ts#media_intelligence_runs.$queryRawUnsafe@437",
+      "terminalLocation": "services/worker/src/intelligence-run-reconciler.ts:437",
+      "file": "services/worker/src/intelligence-run-reconciler.ts",
+      "enclosingDeclaration": "settleAbandonedPendingRuns",
+      "kind": "RAW_SQL",
+      "target": "media_intelligence_runs",
+      "mutationKind": "$queryRawUnsafe",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [
         "SWEEP services/worker/src/intelligence-run-reconciler.ts#runIntelligenceRunReconciler"
       ],
       "entryModules": [],
@@ -101827,8 +101894,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@1135",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1135",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@1176",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1176",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processComputePerceptualHashesJob",
       "kind": "RAW_SQL",
@@ -101858,8 +101925,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@934",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:934",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_parts.$executeRawUnsafe@975",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:975",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processExtractTechnicalMetadataJob",
       "kind": "RAW_SQL",
@@ -101889,8 +101956,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$executeRawUnsafe@1434",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1434",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$executeRawUnsafe@1475",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1475",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processTextSimilarityPromotion",
       "kind": "RAW_SQL",
@@ -101920,8 +101987,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$queryRawUnsafe@1363",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1363",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence_similarities.$queryRawUnsafe@1404",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1404",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processTextSimilarityPromotion",
       "kind": "RAW_SQL",
@@ -101951,8 +102018,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence.$executeRawUnsafe@956",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:956",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#evidence.$executeRawUnsafe@997",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:997",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processExtractTechnicalMetadataJob",
       "kind": "RAW_SQL",
@@ -101982,8 +102049,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/media-intelligence.processor.ts#investigation_graph_edges.$queryRawUnsafe@1410",
-      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1410",
+      "writerId": "services/worker/src/media-intelligence.processor.ts#investigation_graph_edges.$queryRawUnsafe@1451",
+      "terminalLocation": "services/worker/src/media-intelligence.processor.ts:1451",
       "file": "services/worker/src/media-intelligence.processor.ts",
       "enclosingDeclaration": "processTextSimilarityPromotion",
       "kind": "RAW_SQL",
@@ -102112,8 +102179,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#EMAIL.deliverEmail@971",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:971",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#EMAIL.deliverEmail@1059",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:1059",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "sendAdminDigest",
       "kind": "EXTERNAL",
@@ -102145,8 +102212,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.create@542",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:542",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.create@554",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:554",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "acquireDigestClaim",
       "kind": "DATABASE",
@@ -102178,8 +102245,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@678",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:678",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@766",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:766",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102211,8 +102278,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@696",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:696",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryAdminDigestLog.update@784",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:784",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102244,8 +102311,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryDigestLog.create@375",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:375",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#mfaRecoveryDigestLog.create@387",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:387",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "runMfaRecoveryDigest",
       "kind": "DATABASE",
@@ -102277,8 +102344,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.create@552",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:552",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.create@564",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:564",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "acquireDigestClaim",
       "kind": "DATABASE",
@@ -102310,8 +102377,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@666",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:666",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@754",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:754",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102343,8 +102410,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@688",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:688",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@776",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:776",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102376,8 +102443,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@703",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:703",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@791",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:791",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102409,8 +102476,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@715",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:715",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@803",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:803",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102442,8 +102509,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@728",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:728",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.update@816",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:816",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "recordDigestOutcome",
       "kind": "DATABASE",
@@ -102475,8 +102542,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.updateMany@594",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:594",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#notificationDelivery.updateMany@606",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:606",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "acquireDigestClaim",
       "kind": "DATABASE",
@@ -102508,8 +102575,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@347",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:347",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@359",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:359",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "runMfaRecoveryDigest",
       "kind": "DATABASE",
@@ -102541,8 +102608,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@389",
-      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:389",
+      "writerId": "services/worker/src/mfa-recovery-digest.ts#securityEvent.create@401",
+      "terminalLocation": "services/worker/src/mfa-recovery-digest.ts:401",
       "file": "services/worker/src/mfa-recovery-digest.ts",
       "enclosingDeclaration": "runMfaRecoveryDigest",
       "kind": "DATABASE",
@@ -102574,8 +102641,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/mi-embed.processor.ts#semanticUsageDaily.upsert@286",
-      "terminalLocation": "services/worker/src/mi-embed.processor.ts:286",
+      "writerId": "services/worker/src/mi-embed.processor.ts#semanticUsageDaily.upsert@287",
+      "terminalLocation": "services/worker/src/mi-embed.processor.ts:287",
       "file": "services/worker/src/mi-embed.processor.ts",
       "enclosingDeclaration": "recordUsage",
       "kind": "DATABASE",
@@ -102618,7 +102685,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -102649,7 +102716,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -103166,8 +103233,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionActivity.create@178",
-      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:178",
+      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionActivity.create@225",
+      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:225",
       "file": "services/worker/src/redaction/redaction-derivative-writer.ts",
       "enclosingDeclaration": "emitActivity",
       "kind": "DATABASE",
@@ -103197,8 +103264,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@112",
-      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:112",
+      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@136",
+      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:136",
       "file": "services/worker/src/redaction/redaction-derivative-writer.ts",
       "enclosingDeclaration": "markDerivativeReadyWorker",
       "kind": "DATABASE",
@@ -103228,8 +103295,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@149",
-      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:149",
+      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@179",
+      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:179",
       "file": "services/worker/src/redaction/redaction-derivative-writer.ts",
       "enclosingDeclaration": "markDerivativeFailedWorker",
       "kind": "DATABASE",
@@ -103259,8 +103326,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@50",
-      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:50",
+      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@63",
+      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:63",
       "file": "services/worker/src/redaction/redaction-derivative-writer.ts",
       "enclosingDeclaration": "claimDerivativeForRender",
       "kind": "DATABASE",
@@ -103290,8 +103357,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@73",
-      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:73",
+      "writerId": "services/worker/src/redaction/redaction-derivative-writer.ts#redactionDerivative.updateMany@90",
+      "terminalLocation": "services/worker/src/redaction/redaction-derivative-writer.ts:90",
       "file": "services/worker/src/redaction/redaction-derivative-writer.ts",
       "enclosingDeclaration": "releaseDerivativeClaim",
       "kind": "DATABASE",
@@ -103676,8 +103743,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_ocr_text.$executeRawUnsafe@572",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:572",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_ocr_text.$executeRawUnsafe@580",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:580",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "processSearchIndexingJob",
       "kind": "RAW_SQL",
@@ -103707,8 +103774,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_transcript_segments.$executeRawUnsafe@582",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:582",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidence_transcript_segments.$executeRawUnsafe@590",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:590",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "processSearchIndexingJob",
       "kind": "RAW_SQL",
@@ -103738,8 +103805,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSearchDocument.deleteMany@432",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:432",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSearchDocument.deleteMany@440",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:440",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "deleteIndexRow",
       "kind": "DATABASE",
@@ -103800,8 +103867,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSemanticChunk.update@891",
-      "terminalLocation": "services/worker/src/search-indexing.processor.ts:891",
+      "writerId": "services/worker/src/search-indexing.processor.ts#evidenceSemanticChunk.update@899",
+      "terminalLocation": "services/worker/src/search-indexing.processor.ts:899",
       "file": "services/worker/src/search-indexing.processor.ts",
       "enclosingDeclaration": "backfillSemanticEmbeddings",
       "kind": "DATABASE",
@@ -103869,8 +103936,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@170",
-      "terminalLocation": "services/worker/src/telemetry.ts:170",
+      "writerId": "services/worker/src/telemetry.ts#queueTelemetrySnapshot.create@179",
+      "terminalLocation": "services/worker/src/telemetry.ts:179",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -103882,7 +103949,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -103900,8 +103967,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@203",
-      "terminalLocation": "services/worker/src/telemetry.ts:203",
+      "writerId": "services/worker/src/telemetry.ts#workerTelemetrySnapshot.create@212",
+      "terminalLocation": "services/worker/src/telemetry.ts:212",
       "file": "services/worker/src/telemetry.ts",
       "enclosingDeclaration": "sampleOnce",
       "kind": "DATABASE",
@@ -103913,7 +103980,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -104012,7 +104079,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -104043,7 +104110,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -104074,7 +104141,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -104105,7 +104172,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2731#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2734#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
