@@ -13,7 +13,7 @@
  *     PUBLISHED supersedes the prior PUBLISHED version.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   REDACTION_ARTIFACT_KINDS,
   isAllowedVersionTransition,
@@ -180,7 +180,16 @@ export type TransitionRedactionVersionInput = {
    * system, no new activity code.
    */
   stepUpChallengeId?: string | null;
+  /**
+   * PRO-094 — a write that must commit with the transition or not at all (the
+   * approval verdict that drives it). Runs inside the transition's transaction,
+   * after the state compare-and-swap has won.
+   */
+  withinTransition?: (tx: Prisma.TransactionClient) => Promise<void>;
 };
+
+/** The version's state moved between the read and the write. */
+class RedactionTransitionLost extends Error {}
 
 export type TransitionRedactionVersionResult =
   | { ok: true; from: RedactionVersionState; to: RedactionVersionState }
@@ -217,7 +226,23 @@ export async function transitionRedactionVersion(
     patch.rationale = input.rationale.slice(0, 600);
   }
 
-  await prisma.$transaction(async (tx) => {
+  const committed = await prisma.$transaction(async (tx) => {
+    /*
+     * PRO-094 (FEATURES-12) — COMPARE-AND-SWAP ON THE STATE THAT WAS CHECKED.
+     *
+     * The transition read the state, checked the edge, and then wrote the new
+     * state by id alone, so two verdicts on one IN_REVIEW version (APPROVE and
+     * REQUEST_CHANGES) both passed and the last writer won: the version ended
+     * in DRAFT with an APPROVE on record. The version row is now written first,
+     * on the condition that it is still in the state the edge was checked
+     * from; the loser changes nothing (its project update and its caller's
+     * approval row roll back with it) and is refused as an invalid transition.
+     */
+    const swapped = await tx.redactionVersion.updateMany({
+      where: { id: input.versionId, teamId: input.teamId, state: from },
+      data: patch,
+    });
+    if (swapped.count !== 1) throw new RedactionTransitionLost();
     if (input.toState === "PUBLISHED") {
       // Stamp the prior PUBLISHED version (if any) as SUPERSEDED.
       await tx.redactionVersion.updateMany({
@@ -253,11 +278,13 @@ export async function transitionRedactionVersion(
         data: { state: "REJECTED" },
       });
     }
-    await tx.redactionVersion.update({
-      where: { id: input.versionId },
-      data: patch,
-    });
+    if (input.withinTransition) await input.withinTransition(tx);
+    return true;
+  }).catch((err: unknown) => {
+    if (err instanceof RedactionTransitionLost) return false;
+    throw err;
   });
+  if (!committed) return { ok: false, denial: "INVALID_TRANSITION" };
 
   const code =
     input.toState === "IN_REVIEW"
