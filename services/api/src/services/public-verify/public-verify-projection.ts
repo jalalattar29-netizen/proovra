@@ -33,7 +33,10 @@ import {
   custodyEventLabel,
   WITHHELD_BY_DISCLOSURE_POLICY,
   genericItemLabel,
+  withholdIdentityRows,
+  withholdIdentitySignals,
   type PublicVerifyDisclosureFacts,
+  type VerificationMatrix,
   type PublicVerifyIdentifierKind,
   type VerificationDisclosurePolicy,
 } from "@proovra/shared";
@@ -523,6 +526,28 @@ export function projectPublicVerification(
 ): Obj {
   const d = disclosure;
   const out: Obj = pick(full, ALWAYS_KEYS);
+  /*
+   * REPORT-008 — ONE IDENTITY RULE FOR BOTH TIERS. Who submitted the record
+   * (account type, sign-in provider, organization establishment) leaves only
+   * when attribution is exposed, i.e. the owner chose to publish it. Otherwise
+   * the matrix rows and the trust decision's identity signal say "Not
+   * disclosed", exactly as the BASIC tier does and as `recordFacts.identity`
+   * already says WITHHELD; the page no longer contradicts itself.
+   */
+  if (!options.attributionExposed) {
+    if (isObj(out.verificationMatrix) && Array.isArray(out.verificationMatrix.rows)) {
+      out.verificationMatrix = withholdIdentityRows(out.verificationMatrix as unknown as VerificationMatrix);
+    }
+    if ("trustDecision" in out) out.trustDecision = withholdIdentitySignals(out.trustDecision);
+    if ("trustDecisionSnapshot" in out) out.trustDecisionSnapshot = withholdIdentitySignals(out.trustDecisionSnapshot);
+    // The issued report's stored decision, restated in the consistency section.
+    if (isObj(out.verificationSnapshot) && "trustDecisionSnapshot" in out.verificationSnapshot) {
+      out.verificationSnapshot = {
+        ...out.verificationSnapshot,
+        trustDecisionSnapshot: withholdIdentitySignals(out.verificationSnapshot.trustDecisionSnapshot),
+      };
+    }
+  }
   if (d.mode === "CONTENT_PREVIEW") Object.assign(out, pick(full, CONTENT_KEYS));
   if ("captureManifest" in out) out.captureManifest = projectCaptureManifest(out.captureManifest);
   out.technicalMetadata = d.mode === "CONTENT_PREVIEW" ? projectTechnicalMetadata(full.technicalMetadata, d) : null;

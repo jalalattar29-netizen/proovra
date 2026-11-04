@@ -136,6 +136,16 @@ export class EvidenceRequestError extends Error {
     this.name = "EvidenceRequestError";
     if (code === "assignee_not_workspace_member") this.statusCode = 400;
     if (code === "assignee_not_placed" || code === "assignee_not_eligible") this.statusCode = 422;
+    // PRO-045 (AUTHZ-09) — a case or record that is not in the caller's
+    // workspace answers exactly like a missing one (ET-SEC-33), on every
+    // caller: the integrations API maps by `statusCode`, and without one these
+    // reached the central handler as a 500 with a critical alert.
+    if (code === "case_not_in_workspace" || code === "evidence_not_in_workspace") this.statusCode = 404;
+    // The intake mint gate's refusals carry the statuses the internal routes
+    // already answer with (`evidence-requests.routes.ts` errorToReply).
+    if (code === "intake_not_included") this.statusCode = 409;
+    if (code === "commercial_lifecycle_restricted") this.statusCode = 402;
+    if (code === "intake_blocked_by_policy") this.statusCode = 403;
   }
 }
 

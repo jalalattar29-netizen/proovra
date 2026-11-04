@@ -173,6 +173,14 @@ export type StartSupportAccessInput = {
    * is a reviewable fact; a silently-absent approver is not.
    */
   customerApprovalUnavailableReason?: string | null;
+  /**
+   * PRO-043 — the staff actor's OWN workspace the start was authorized and
+   * step-up verified in. It is the authentication anchor, not a claim on the
+   * customer: the customer side of the grant is the verified approver or the
+   * audited exception. Recorded so the trail names both halves, as the entry
+   * audit (`recordSupportContextEntry`) already does.
+   */
+  anchorTeamId?: string | null;
   durationMs?: number;
   nowMs?: number;
 };
@@ -236,6 +244,7 @@ export async function startSupportAccess(
       grantId: row.id,
       accessLevel,
       approvedByUserId: input.approvedByUserId ?? null,
+      anchorTeamId: input.anchorTeamId ?? null,
       // OWN-2 — present ONLY when the grant was minted without a customer-side
       // approver, and it is the recorded justification for that. Kept in the
       // audit metadata rather than a new column: the grant row records what

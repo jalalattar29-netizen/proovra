@@ -104,9 +104,41 @@ export type VerificationShareRow = {
   maxUses: number | null;
   useCount: number;
   lastUsedAtUtc: Date | null;
+  /** REPORT-013 — hash of the view session that spent the most recent use. */
+  lastUseSessionHash?: string | null;
   /** (2026-10-18) An explicit grant: this reviewer link may hand out the original files. */
   allowOriginalDownload: boolean;
 };
+
+/**
+ * REPORT-013 — WHAT A "USE" IS. One viewing session: the verify page sends an
+ * opaque random id per browser tab, and loads from the session that spent the
+ * link's most recent use — a reload, "Check latest anchoring status" — spend no
+ * further use while the session is active (idle at most this long). Another
+ * session, or a request with no session id, spends a use as before. Revocation
+ * and expiry are never affected; only the use count is.
+ */
+export const VERIFICATION_SHARE_VIEW_SESSION_IDLE_MS = 30 * 60 * 1000;
+const VIEW_SESSION_SHAPE = /^[A-Za-z0-9_-]{16,128}$/;
+
+/** The stored form of a presented view session id, or null for none / malformed. */
+export function hashVerificationViewSession(presented: unknown): string | null {
+  if (typeof presented !== "string" || !VIEW_SESSION_SHAPE.test(presented)) return null;
+  return createHash("sha256").update(`verify-view-session:${presented}`, "utf8").digest("hex");
+}
+
+/** Does this request continue the session that spent the link's last use? */
+function continuesLastUseSession(
+  row: Pick<VerificationShareRow, "lastUseSessionHash" | "lastUsedAtUtc">,
+  sessionHash: string | null,
+  now: Date,
+): boolean {
+  if (!sessionHash || !row.lastUseSessionHash || !row.lastUsedAtUtc) return false;
+  if (now.getTime() - row.lastUsedAtUtc.getTime() > VERIFICATION_SHARE_VIEW_SESSION_IDLE_MS) return false;
+  const a = Buffer.from(row.lastUseSessionHash, "hex");
+  const b = Buffer.from(sessionHash, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export function verificationShareStateOf(
   row: Pick<VerificationShareRow, "revokedAtUtc" | "expiresAtUtc" | "maxUses" | "useCount">,
@@ -190,6 +222,8 @@ export async function resolveVerificationShareToken(
   client: ShareClient,
   presented: unknown,
   now: Date = new Date(),
+  /** REPORT-013 — the request's opaque view session id, when it sent one. */
+  viewSession?: unknown,
 ): Promise<ResolvedVerificationShare> {
   if (!isVerificationShareTokenShape(presented)) return { outcome: "UNKNOWN" };
   const tokenHash = hashVerificationShareToken(presented);
@@ -200,6 +234,11 @@ export async function resolveVerificationShareToken(
   const b = Buffer.from(tokenHash, "hex");
   if (a.length !== b.length || !timingSafeEqual(a, b)) return { outcome: "UNKNOWN" };
   const state = verificationShareStateOf(row, now);
+  // A link whose last use was spent by THIS viewing session is still open to
+  // that session (REPORT-013). Revoked and expired links are never reopened.
+  if (state === "EXHAUSTED" && continuesLastUseSession(row, hashVerificationViewSession(viewSession), now)) {
+    return { outcome: "ACTIVE", row };
+  }
   return state === "ACTIVE" ? { outcome: "ACTIVE", row } : { outcome: "GONE", state, row };
 }
 
@@ -207,19 +246,40 @@ export async function resolveVerificationShareToken(
  * Record one use: last-used time and the use count. With `maxUses` set, the
  * increment is conditional, so concurrent requests cannot take a link past its
  * limit — the loser gets `false` and the caller answers "gone".
+ *
+ * REPORT-013 — a request continuing the viewing session that spent the most
+ * recent use (same session id, inside the idle window) only refreshes the
+ * last-used time; the check and the refresh are one conditional statement, so
+ * it cannot race a revocation. Any other request spends a use and records its
+ * session as the one holding it.
  */
 export async function recordVerificationShareUse(
   client: ShareClient,
   row: Pick<VerificationShareRow, "id" | "maxUses">,
   now: Date = new Date(),
+  viewSession?: unknown,
 ): Promise<boolean> {
+  const sessionHash = hashVerificationViewSession(viewSession);
+  if (sessionHash) {
+    const continued = await client.verificationShareToken.updateMany({
+      where: {
+        id: row.id,
+        revokedAtUtc: null,
+        OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: now } }],
+        lastUseSessionHash: sessionHash,
+        lastUsedAtUtc: { gt: new Date(now.getTime() - VERIFICATION_SHARE_VIEW_SESSION_IDLE_MS) },
+      },
+      data: { lastUsedAtUtc: now },
+    });
+    if (continued.count === 1) return true;
+  }
   const used = await client.verificationShareToken.updateMany({
     where: {
       id: row.id,
       revokedAtUtc: null,
       ...(row.maxUses !== null ? { useCount: { lt: row.maxUses } } : {}),
     },
-    data: { useCount: { increment: 1 }, lastUsedAtUtc: now },
+    data: { useCount: { increment: 1 }, lastUsedAtUtc: now, lastUseSessionHash: sessionHash },
   });
   return used.count === 1;
 }

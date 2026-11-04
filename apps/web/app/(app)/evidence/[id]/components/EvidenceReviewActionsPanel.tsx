@@ -56,6 +56,8 @@ const REFUSAL_COPY: Readonly<Record<string, string>> = {
   duplicate_stage_decision:
     "A verdict for this review stage was recorded at the same moment by someone else.",
   same_reviewer_blocked: "The second review must be made by a different reviewer.",
+  adjudicator_not_independent:
+    "You decided one of the two reviews, so you cannot adjudicate them. Another owner or admin must.",
   note_required: "This decision needs a written reason.",
   rationale_required: "This decision needs a written reason.",
   STEP_UP_REQUIRED: "Confirm your identity to record this decision, then try again.",

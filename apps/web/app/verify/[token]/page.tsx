@@ -64,6 +64,7 @@ import { VerifyCaptureManifestSection, readPublicCaptureManifest } from "./Verif
 import { VerifyLocationStateSection, readVerifyLocationState } from "./VerifyLocationStateSection";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
+import { verifyViewSessionInit } from "./_verify-view-session";
 import { captureException } from "../../../lib/sentry";
 import {
   firstNonEmpty,
@@ -1021,7 +1022,8 @@ export default function VerifyPage() {
       const background = options.background === true;
       const manual = options.manual === true;
       try {
-        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`);
+        // REPORT-013 — one use of a use-limited link per viewing session.
+        const data = await apiFetch(`/public/verify/${encodeURIComponent(params.token)}`, verifyViewSessionInit());
         if (cancelled || !isMountedRef.current) return;
         setLinkNotice(null);
 

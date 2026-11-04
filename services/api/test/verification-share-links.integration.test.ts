@@ -321,6 +321,59 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     expect(listed.links.find((l: { id: string }) => l.id === limited.link.id)).toMatchObject({ state: "EXHAUSTED", useCount: 2, maxUses: 2 });
   });
 
+  /*
+   * REPORT-013 — a use was every page load, so a one-use link answered 410 on
+   * the recipient's own reload or "Check latest anchoring status". A use is now
+   * one viewing session (the page's opaque per-tab id).
+   */
+  it("REPORT-013: a one-use link survives its own session's reloads, refuses any other session, and never outlives revocation", async () => {
+    const A = h.fixtures.teamA;
+    const id = await signedRecord(A);
+    const once = await createLink(A, id, { audience: "One reviewer", maxUses: 1 });
+    const sessionA = `vs_${randomUUID().replace(/-/g, "")}`;
+    const sessionB = `vs_${randomUUID().replace(/-/g, "")}`;
+    const open = (session?: string) =>
+      h.app.inject({
+        method: "GET",
+        url: `/public/verify/${once.token}`,
+        remoteAddress: nextIp(),
+        ...(session ? { headers: { "x-proovra-verify-session": session } } : {}),
+      });
+
+    const first = await open(sessionA);
+    expect(first.statusCode, first.body).toBe(200);
+    // The same session reloads: no further use is spent.
+    for (let i = 0; i < 3; i += 1) {
+      const again = await open(sessionA);
+      expect(again.statusCode, again.body).toBe(200);
+    }
+    let row = await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: once.link.id } });
+    expect(row.useCount).toBe(1);
+    expect(row.lastUseSessionHash, "the session id itself is stored").not.toBe(sessionA);
+
+    // Another session, and a request with no session at all, are new uses: refused.
+    const other = await open(sessionB);
+    expect(other.statusCode).toBe(410);
+    expect(other.json().code).toBe("VERIFICATION_LINK_EXHAUSTED");
+    expect((await open()).statusCode).toBe(410);
+    row = await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: once.link.id } });
+    expect(row.useCount).toBe(1);
+
+    // Revocation ends the session's access too.
+    const revoked = await api("POST", `/v1/evidence/${id}/verify-links/${once.link.id}/revoke`, A.ownerToken);
+    expect(revoked.statusCode, revoked.body).toBe(200);
+    expect((await open(sessionA)).statusCode).toBe(410);
+
+    // An unlimited link records the session but counts each new session.
+    const open2 = await createLink(A, id, { audience: "Many" });
+    const view = (session: string) =>
+      h.app.inject({ method: "GET", url: `/public/verify/${open2.token}`, remoteAddress: nextIp(), headers: { "x-proovra-verify-session": session } });
+    expect((await view(sessionA)).statusCode).toBe(200);
+    expect((await view(sessionA)).statusCode).toBe(200);
+    expect((await view(sessionB)).statusCode).toBe(200);
+    expect((await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: open2.link.id } })).useCount).toBe(2);
+  });
+
   it("the legacy record-id link works only inside its bounded grace and only for a record holding its reference, says when it ends, and the owner can end it", async () => {
     const A = h.fixtures.teamA;
     const until = new Date(Date.now() + 90 * DAY);

@@ -197,10 +197,18 @@ function formatDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function resolveTrackUserId(
-  request: FastifyRequest,
-  bodyUserId: string | null | undefined
-): string | null {
+/**
+ * The user an intake event is attributed to: the subject of a VERIFIED bearer
+ * token, or nobody.
+ *
+ * PRO-082 (PLATFORM-05) — this used to fall back to the body's `userId` when
+ * there was no bearer or the bearer failed verification, so an anonymous
+ * caller could attribute events and sessions to any user and move the staff
+ * dashboard's active-user counts. Identity comes from authentication only; the
+ * body field is still accepted by the schema (older clients may send it) and
+ * is ignored.
+ */
+function resolveTrackUserId(request: FastifyRequest): string | null {
   // Phase P2.0 — prefer AWS Secrets Manager; env fallback preserved.
   const secret = getSecret("AUTH_JWT_SECRET");
 
@@ -217,7 +225,7 @@ function resolveTrackUserId(
     }
   }
 
-  return bodyUserId ?? null;
+  return null;
 }
 
 function parseDateRangeKey(raw: string | undefined): AdminDateRangeKey {
@@ -1344,7 +1352,7 @@ export default async function analyticsRoutes(app: FastifyInstance) {
           .send({ success: false, error: "Rate limit exceeded" });
       }
 
-      const resolvedUserId = resolveTrackUserId(request, body.userId ?? null);
+      const resolvedUserId = resolveTrackUserId(request);
 
       try {
         await writeAnalyticsEvent({

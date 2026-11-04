@@ -296,8 +296,9 @@ async function auditSeedCleanup(
 
 async function loadSeedRunAuditRow(
   seedRunId: string,
+  teamId: string,
   client: PrismaClient,
-): Promise<{ createdResourceIds: SeedCreatedResources; teamId: string | null; seededAt: Date } | null> {
+): Promise<{ createdResourceIds: SeedCreatedResources; teamId: string; seededAt: Date } | null> {
   // Find the most-recent run row for this seedRunId. We look up by
   // resourceId to leverage the existing index on AdminAuditLog.
   const row = await client.adminAuditLog.findFirst({
@@ -311,6 +312,11 @@ async function loadSeedRunAuditRow(
   if (!row) return null;
   const meta = row.metadata as Record<string, unknown> | null;
   if (!meta || typeof meta !== "object") return null;
+  // PRO-079 (PLATFORM-01) — a run belongs to the workspace it seeded. A run of
+  // another workspace answers exactly like a missing one: the caller was
+  // authorized in `teamId`, and nothing outside it is theirs to clean up.
+  const runTeamId = row.workspaceId ?? (typeof meta.teamId === "string" ? meta.teamId : null);
+  if (runTeamId !== teamId) return null;
   const createdResourceIds = meta.createdResourceIds as
     | Partial<SeedCreatedResources>
     | undefined;
@@ -331,7 +337,7 @@ async function loadSeedRunAuditRow(
           ? createdResourceIds.workloadSnapshotsCreated
           : 0,
     },
-    teamId: row.workspaceId ?? (typeof meta.teamId === "string" ? meta.teamId : null),
+    teamId: runTeamId,
     // The run row is written when the seed finished: anything later is not the seed's.
     seededAt: row.createdAt,
   };
@@ -339,13 +345,15 @@ async function loadSeedRunAuditRow(
 
 export async function cleanupSeedRun(input: {
   seedRunId: string;
+  /** The workspace the caller is authorized in; the run must be this one's. */
+  teamId: string;
   actorUserId: string;
   requestId?: string | null;
   client?: PrismaClient;
 }): Promise<SeedCleanupResult> {
   assertSeedingEnabled();
   const client = input.client ?? defaultPrisma;
-  const audit = await loadSeedRunAuditRow(input.seedRunId, client);
+  const audit = await loadSeedRunAuditRow(input.seedRunId, input.teamId, client);
   if (!audit) {
     const notFoundResult: SeedCleanupResult = {
       seedRunId: input.seedRunId,
@@ -360,10 +368,14 @@ export async function cleanupSeedRun(input: {
       kept: { workflows: 0 },
       notFound: true,
     };
-    await auditSeedCleanup(notFoundResult, input.actorUserId, input.requestId ?? null, null);
+    // Recorded against the caller's own workspace, never the run's.
+    await auditSeedCleanup(notFoundResult, input.actorUserId, input.requestId ?? null, input.teamId);
     return notFoundResult;
   }
   const ids = audit.createdResourceIds;
+  // PRO-079 — every delete below also carries the workspace, so an id list in
+  // a run row can never reach a row of another workspace.
+  const teamId = audit.teamId;
 
   // Delete in reverse-dependency order. Each delete restricts on the
   // exact ID set so unrelated records are untouchable.
@@ -378,6 +390,7 @@ export async function cleanupSeedRun(input: {
     ? await client.reviewEscalation.deleteMany({
         where: {
           id: { in: ids.escalationIds },
+          teamId,
           safeSummary: { startsWith: seedPrefix },
         },
       })
@@ -398,7 +411,14 @@ export async function cleanupSeedRun(input: {
       })
     : [];
   const keptIds = new Set(touched.map((t) => t.workflowId));
-  const removable = ids.workflowIds.filter((id) => !keptIds.has(id));
+  // Only this workspace's workflows are removable; events follow their workflow.
+  const ownWorkflows = ids.workflowIds.length
+    ? await client.evidenceReviewWorkflow.findMany({
+        where: { id: { in: ids.workflowIds }, teamId },
+        select: { id: true },
+      })
+    : [];
+  const removable = ownWorkflows.map((w) => w.id).filter((id) => !keptIds.has(id));
 
   // Workflow events cascade-delete with the workflow but we count them
   // separately for the operator's visibility.
@@ -410,7 +430,7 @@ export async function cleanupSeedRun(input: {
 
   const workflows = removable.length
     ? await client.evidenceReviewWorkflow.deleteMany({
-        where: { id: { in: removable } },
+        where: { id: { in: removable }, teamId },
       })
     : { count: 0 };
 
@@ -418,7 +438,7 @@ export async function cleanupSeedRun(input: {
   // run. The recordIncident path tagged metadata at create time.
   const incidents = ids.incidentIds.length
     ? await client.operationalIncident.deleteMany({
-        where: { id: { in: ids.incidentIds } },
+        where: { id: { in: ids.incidentIds }, teamId },
       })
     : { count: 0 };
 

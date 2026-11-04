@@ -706,6 +706,34 @@ export function withholdIdentityRows(matrix: VerificationMatrix): VerificationMa
   return { ...matrix, rows, summary: verificationMatrixSummary(rows) };
 }
 
+/**
+ * REPORT-008 — the same withholding for a trust decision (or a stored trust
+ * decision snapshot) on a surface that may not describe who submitted the
+ * record: the identity signal says "Not disclosed" and states nothing about the
+ * account. Every other signal, and the bounded summary (which never includes
+ * identity), is unchanged. Anything that is not a decision passes through.
+ */
+export function withholdIdentitySignals<T>(decision: T): T {
+  if (!decision || typeof decision !== "object" || Array.isArray(decision)) return decision;
+  const d = decision as Record<string, unknown>;
+  if (!Array.isArray(d.signals)) return decision;
+  const signals = (d.signals as unknown[]).map((s) =>
+    s && typeof s === "object" && (s as { key?: unknown }).key === "identity"
+      ? {
+          ...(s as Record<string, unknown>),
+          state: "NOT_APPLICABLE",
+          status: "not_applicable",
+          tone: "neutral",
+          measuredAtUtc: null,
+          summary: "Not disclosed on this verification page.",
+          detail: "Not disclosed on this verification page.",
+          qualifiers: [],
+        }
+      : s,
+  );
+  return { ...d, signals } as T;
+}
+
 /** Parse a matrix read back from a package, API response or snapshot. */
 export function parseVerificationMatrix(value: unknown): VerificationMatrix | null {
   if (!value || typeof value !== "object") return null;

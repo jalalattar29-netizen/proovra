@@ -95,6 +95,12 @@ function denialCopy(err: unknown, action: Action): string {
       ? "This membership is not active, so it cannot be suspended."
       : "This membership is not suspended, so there is nothing to restore.";
   }
+  if (code === "OWNERSHIP_TRANSFER_REQUIRED") {
+    return "This person owns a workspace of the organization. Transfer that workspace's ownership first.";
+  }
+  if (code === "WORKSPACE_SEAT_LIMIT_REACHED" || code === "COLLABORATION_TEAM_CAPACITY_REACHED") {
+    return "A workspace this person returns to has no seat or group place left. Free one, then restore again.";
+  }
   if (status === 409) {
     return "That change isn't allowed: you cannot change your own membership, and the last remaining owner cannot be suspended.";
   }
@@ -172,8 +178,8 @@ export function OrgMemberLifecycleControls({
         setReason("");
         setNotice(
           action === "suspend"
-            ? `${memberLabel} is suspended from organization administration and signed out. This does not suspend their access to workspaces: suspend them in each workspace too if that access should stop.`
-            : `${memberLabel} is active again.`,
+            ? `${memberLabel} is suspended and signed out. Their access to this organization's workspaces is paused too; their Personal Space is not affected.`
+            : `${memberLabel} is active again, with the workspace access the suspension paused.`,
         );
         await onChanged();
       } catch (err) {
@@ -326,8 +332,11 @@ export function OrgMemberLifecycleControls({
         >
           <p style={{ margin: 0, fontSize: 12.5, color: "var(--ink-secondary, #475569)" }}>
             Suspend <strong>{memberLabel}</strong>? Their organization access
-            stops immediately and their signed-in sessions are revoked. The
-            membership and its history are kept, and you can restore it later.
+            and their access to this organization&apos;s workspaces stop
+            immediately, and their signed-in sessions are revoked. Their
+            Personal Space is not affected. The membership and its history are
+            kept, and restoring it returns the workspace access this suspension
+            paused.
           </p>
           <label
             htmlFor={`suspend-reason-${membershipId}`}

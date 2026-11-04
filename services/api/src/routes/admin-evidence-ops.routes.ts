@@ -27,6 +27,7 @@ import { z } from "zod";
 
 import { createErrorResponse, ErrorCode } from "../errors.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
 import {
   EVIDENCE_HEALTH_COHORTS,
   buildEvidenceHealthCohorts,
@@ -173,6 +174,24 @@ export async function adminEvidenceOpsRoutes(app: FastifyInstance) {
         teamId: parsed.data.teamId,
         organizationId: parsed.data.organizationId,
       });
+
+      // PRO-081 (PLATFORM-04) / ADM-022 — resolving ONE named record (title,
+      // owner, workspace, customer) is a targeted cross-tenant read, so it is
+      // audited like the user, workspace and customer detail reads. A signal or
+      // cohort roster has no single subject and stays unaudited.
+      if (parsed.data.evidenceId) {
+        await emitPlatformAudit({
+          action: "admin.evidence_record_viewed",
+          outcome: "success",
+          sourceApp: "API",
+          actorUserId: req.user?.sub ?? null,
+          actorAuthority: "PLATFORM_ADMIN",
+          resourceType: "evidence",
+          resourceId: parsed.data.evidenceId,
+          correlationId: req.id,
+          metadata: { found: result.total > 0 },
+        }).catch(() => null);
+      }
 
       return reply.code(200).send(result);
     },

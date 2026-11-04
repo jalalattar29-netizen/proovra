@@ -200,6 +200,8 @@ export async function opsSeedRoutes(app: FastifyInstance) {
       try {
         const result = await cleanupSeedRun({
           seedRunId: params.seedRunId,
+          // PRO-079 — bound to the workspace the caller was authorized in.
+          teamId: q.teamId,
           actorUserId: actor.userId,
           requestId: req.id,
         });

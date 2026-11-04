@@ -39,7 +39,7 @@ discloses real capability — no marketing inflation.
 | Step-up infrastructure | **Production** | SMS code flow via Twilio Verify. STEP_UP_REQUIRED 401 + retry-once contract (Phase G3). |
 | Audit feed (security events) | **Production** | 320-type catalog, DB-backed. Bounded details JSON (4 KB). |
 | Discussion threads | **Production** | Phase 16 backend, Phase C2 UI. Workspace-scoped. |
-| Intake workflow | **Production** | Evidence requests, contributor portal, reviewer re-request. Phase C3. |
+| Intake workflow | **Production** | Evidence requests, contributor portal, reviewer re-request. Phase C3. Evidence requests are enabled by `EVIDENCE_REQUESTS_ENABLED=true` (the production compose default); setting it to anything else is the kill switch, and the routes then answer 503 `FEATURE_DISABLED` (RT-002). |
 | Search (evidence index) | **Production for index, demo for OCR-text search** | Search indexes evidence metadata + custody. OCR/transcript indexing is `INDEX_EXISTING_ONLY` — source tables empty (Honest-MI decision). |
 | Media-intelligence panel | **Production (bounded signal projection)** | Read-only deterministic heuristics. NEVER claims OCR/transcript extraction (Honest-MI decision). |
 | Reports browse page | **Production** | GovernedExportAction wraps both downloads (Phase G3.2). |

@@ -2669,6 +2669,10 @@ model VerificationShareToken {
   maxUses          Int?      @map("max_uses")
   useCount         Int       @default(0) @map("use_count")
   lastUsedAtUtc    DateTime? @map("last_used_at_utc") @db.Timestamptz(6)
+  /// REPORT-013 — SHA-256 (hex) of the opaque view session that spent the most
+  /// recent use. A reload from that session inside the idle window spends no
+  /// further use. The session id itself is never stored.
+  lastUseSessionHash String? @map("last_use_session_hash") @db.VarChar(64)
   /// An explicit grant: this reviewer link may hand out the ORIGINAL files
   /// (still subject to the export gate). Default false — no link downloads
   /// originals unless its creator said so; a pvr_ reference never does.

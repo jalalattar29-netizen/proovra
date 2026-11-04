@@ -88,6 +88,7 @@ export class ReviewDecisionAuthorityError extends Error {
       | "review_already_resolved"
       | "duplicate_stage_decision"
       | "same_reviewer_blocked"
+      | "adjudicator_not_independent"
       | "adjudicator_role_required"
       | "decision_kind_not_allowed"
       | "rationale_required"
@@ -375,6 +376,20 @@ export async function recordReviewDecision(
     // Adjudication requires caller-asserted OWNER/ADMIN authority.
     if (targetStage === "ADJUDICATION" && !input.actorIsAdjudicator) {
       throw new ReviewDecisionAuthorityError("adjudicator_role_required");
+    }
+    // WORKFLOW-018 — separation of duties at adjudication. An adjudicator
+    // resolves a disagreement between the first and second reviewers, so
+    // neither of them may resolve it: the same independence the second review
+    // has from the first (above), and the second person destruction requires.
+    if (targetStage === "ADJUDICATION") {
+      const own = rows.find(
+        (d) => (d.stage === "FIRST" || d.stage === "SECOND") && d.reviewerUserId === input.actorUserId,
+      );
+      if (own) {
+        throw new ReviewDecisionAuthorityError("adjudicator_not_independent", {
+          reviewedAtStage: own.stage,
+        });
+      }
     }
 
     // Kind constraints — UPHOLD_* / UNRESOLVED only at ADJUDICATION.

@@ -58,7 +58,14 @@ import {
   lockOrganizationOwnersTx,
   restoreOrganizationMembership,
   suspendOrganizationMembership,
+  type LifecycleOutcome,
 } from "../services/identity/org-membership-lifecycle.service.js";
+// PRO-039 / RT-020 — organization member suspension pauses workspace access.
+import {
+  RbacError,
+  restoreOrganizationWorkspaceAccessTx,
+  suspendOrganizationWorkspaceAccessTx,
+} from "../services/identity/rbac.service.js";
 // P2 domain remediation (2026-07-21) — canonical membership provisioning
 // (governance + explicit workspace assignments).
 import {
@@ -2046,25 +2053,73 @@ export async function organizationsRoutes(app: FastifyInstance) {
             ? { expectedGeneration: body.expectedGeneration }
             : {}),
         };
-        const decided = await prisma.$transaction(async (tx) => {
-          await lockOrganizationOwnersTx(tx, orgId);
-          if (target.role === "ORG_OWNER" && !(await callerIsLiveOwnerTx(tx, orgId, userId))) {
-            return { kind: "owner_required" as const };
+        // PRO-039 / RT-020 — an organization member suspension pauses the
+        // person's access to the organization's workspaces too (as SCIM
+        // deactivation and removal end it), and restore reinstates exactly the
+        // workspace memberships the suspension paused. Both legs commit in this
+        // transaction with the governance transition or not at all.
+        class RestoreRolledBack extends Error {
+          constructor(readonly outcome: Exclude<LifecycleOutcome, { ok: true }>) {
+            super("organization membership restore rolled back");
           }
-          // Suspending the last live owner would leave the Organization with
-          // nobody able to administer it — the same protection removal has.
-          if (action === "suspend" && target.role === "ORG_OWNER") {
-            const liveOwners = await tx.organizationMembership.count({
-              where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
-            });
-            if (liveOwners <= 1) return { kind: "last_owner" as const };
+        }
+        let decided:
+          | { kind: "owner_required" }
+          | { kind: "last_owner" }
+          | { kind: "workspace_owner" }
+          | { kind: "capacity"; code: string }
+          | { kind: "moved"; outcome: LifecycleOutcome; workspaces: number };
+        try {
+          decided = await prisma.$transaction(async (tx) => {
+            await lockOrganizationOwnersTx(tx, orgId);
+            if (target.role === "ORG_OWNER" && !(await callerIsLiveOwnerTx(tx, orgId, userId))) {
+              return { kind: "owner_required" as const };
+            }
+            // Suspending the last live owner would leave the Organization with
+            // nobody able to administer it — the same protection removal has.
+            if (action === "suspend" && target.role === "ORG_OWNER") {
+              const liveOwners = await tx.organizationMembership.count({
+                where: { organizationId: orgId, role: "ORG_OWNER", status: "ACTIVE" },
+              });
+              if (liveOwners <= 1) return { kind: "last_owner" as const };
+            }
+            // Suspension pauses workspace access, and a workspace owner's would
+            // leave that workspace with no live owner — removal's PROV-011 rule.
+            if (action === "suspend" && (await ownsLiveOrganizationWorkspaceTx(tx, orgId, target.userId))) {
+              return { kind: "workspace_owner" as const };
+            }
+            const scope = { organizationId: orgId, userId: target.userId, actorUserId: userId };
+            if (action === "suspend") {
+              // Governance transition FIRST: its audit row is written outside
+              // this transaction, and the workspace leg below takes the audit
+              // chain lock inside it (the SCIM deactivation ordering, B-N1).
+              const moved = await suspendOrganizationMembership({ ...transition, prisma: tx as never });
+              if (!moved.ok) return { kind: "moved" as const, outcome: moved, workspaces: 0 };
+              const paused = await suspendOrganizationWorkspaceAccessTx(tx as never, scope);
+              return { kind: "moved" as const, outcome: moved, workspaces: paused.suspended };
+            }
+            // Restore: the workspace reinstatement (seat checks) runs FIRST, so a
+            // refused seat rolls back before the governance transition writes
+            // its audit row; a refused transition rolls the reinstatement back.
+            const reinstated = await restoreOrganizationWorkspaceAccessTx(tx as never, scope);
+            const moved = await restoreOrganizationMembership({ ...transition, prisma: tx as never });
+            if (!moved.ok) throw new RestoreRolledBack(moved);
+            return { kind: "moved" as const, outcome: moved, workspaces: reinstated.restored };
+          });
+        } catch (err) {
+          if (err instanceof RestoreRolledBack) {
+            decided = { kind: "moved", outcome: err.outcome, workspaces: 0 };
+          } else if (
+            err instanceof RbacError &&
+            (err.code === "workspace_seat_limit_reached" ||
+              err.code === "collaboration_team_capacity_reached" ||
+              err.code === "workspace_seat_contention")
+          ) {
+            decided = { kind: "capacity", code: err.code };
+          } else {
+            throw err;
           }
-          const moved =
-            action === "suspend"
-              ? await suspendOrganizationMembership({ ...transition, prisma: tx as never })
-              : await restoreOrganizationMembership({ ...transition, prisma: tx as never });
-          return { kind: "moved" as const, outcome: moved };
-        });
+        }
         if (decided.kind === "owner_required") {
           return reply
             .code(403)
@@ -2074,6 +2129,22 @@ export async function organizationsRoutes(app: FastifyInstance) {
           return reply
             .code(409)
             .send({ message: "Cannot suspend the last ORG_OWNER." });
+        }
+        if (decided.kind === "workspace_owner") {
+          return reply.code(409).send({
+            error: { code: "OWNERSHIP_TRANSFER_REQUIRED" },
+            message:
+              "This person owns a workspace of the organization. Transfer ownership first.",
+          });
+        }
+        if (decided.kind === "capacity") {
+          return reply.code(409).send({
+            error: { code: decided.code.toUpperCase() },
+            message:
+              decided.code === "workspace_seat_contention"
+                ? "Another change to this workspace's seats is in progress. Try again."
+                : "A workspace this person returns to has no seat or group place left. Free one first.",
+          });
         }
         const outcome = decided.outcome;
 
@@ -2122,6 +2193,11 @@ export async function organizationsRoutes(app: FastifyInstance) {
           status: outcome.status,
           generation: outcome.generation,
           changed: outcome.changed,
+          // How many of the organization's workspaces this act paused or
+          // reinstated for the person (PRO-039 / RT-020).
+          ...(action === "suspend"
+            ? { workspacesSuspended: decided.workspaces }
+            : { workspacesRestored: decided.workspaces }),
         });
       };
 
