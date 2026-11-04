@@ -18,7 +18,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { bump } from "@proovra/shared-runtime";
 
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, resolveSessionCredential } from "../middleware/auth.js";
+import { isSessionRevoked } from "../services/identity-security/session-revocation.service.js";
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
 import {
@@ -174,13 +175,57 @@ async function authorizingProvenance(
     });
     teamId = user?.currentWorkspaceId ?? null;
   }
+  // PRO-024 (AUTH-18) — the authorizing session travels with the code. The
+  // credential was verified by requireAuth a moment ago; only its iat is read.
+  const credential = resolveSessionCredential(req);
+  let sessionIat: number | null = null;
+  if (credential) {
+    try {
+      const claims = JSON.parse(
+        Buffer.from(credential.token.split(".")[1] ?? "", "base64url").toString("utf8"),
+      ) as { iat?: unknown };
+      sessionIat = typeof claims.iat === "number" ? claims.iat : null;
+    } catch {
+      sessionIat = null;
+    }
+  }
+  if (!u?.sessionIdHash || sessionIat === null) return null;
   return {
     authMethod: method,
     authAt: typeof u?.authAt === "number" ? u.authAt : null,
     ssoConnId: typeof u?.ssoConnId === "string" ? u.ssoConnId : null,
     mfaAt: typeof u?.mfaAt === "number" ? u.mfaAt : null,
     teamId,
+    sessionIdHash: u.sessionIdHash,
+    sessionIat,
   };
+}
+
+/**
+ * PRO-024 (AUTH-18) — is the session that authorized this code still live?
+ * Sign-out, a password reset and revoke-all end it in the revocation registry
+ * (and its inventory row); a code it issued in the minute before must not still
+ * mint a capture token after that.
+ */
+async function authorizingSessionLive(
+  userId: string,
+  provenance: ExtensionAuthProvenance,
+): Promise<boolean> {
+  if (!provenance.sessionIdHash || provenance.sessionIat === null) return false;
+  if (
+    await isSessionRevoked({
+      userId,
+      sessionIdHash: provenance.sessionIdHash,
+      iat: provenance.sessionIat,
+    })
+  ) {
+    return false;
+  }
+  const row = await prisma.authenticatedSession.findFirst({
+    where: { userId, sessionIdHash: provenance.sessionIdHash },
+    select: { revokedAtUtc: true },
+  });
+  return !row?.revokedAtUtc;
 }
 
 /**
@@ -268,6 +313,10 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
           select: { id: true, provider: true, email: true },
         });
         if (!user) return reply.code(400).send({ error: "invalid_grant" });
+        if (!(await authorizingSessionLive(user.id, provenance))) {
+          bump("extension_oauth_failed_total");
+          return reply.code(400).send({ error: "invalid_grant" });
+        }
 
         const secret = getSecret("AUTH_JWT_SECRET");
         if (!secret)
