@@ -276,7 +276,9 @@ export async function processCombineScreenRecordingJob(
     return { ok: true, signalsEmitted: 0 };
   } catch (err) {
     if (err instanceof CombineStructural) return fail(`combine:${err.reason}`);
-    await mi.markRunFailed(runId, teamId, err instanceof Error ? err.message : "transient_failure", prisma, fence);
+    // WORKERS-06: transient, so the claim goes back to PENDING for the BullMQ
+    // retry; FAILED would make that retry a replay no-op.
+    await mi.releaseRunForRetry(runId, teamId, err instanceof Error ? err.message : "transient_failure", prisma, fence);
     logger.error(
       { requestId, jobId, runId, evidenceId, err: err instanceof Error ? err.message : "unknown" },
       "combined_recording.transient_failure",
