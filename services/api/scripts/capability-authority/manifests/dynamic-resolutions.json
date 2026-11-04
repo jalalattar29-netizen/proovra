@@ -43,13 +43,13 @@
       "reviewedAtUtc": "2026-10-07"
     },
     {
-      "site": "apps/web/components/contact-sales-form.tsx:70",
+      "site": "apps/web/components/contact-sales-form.tsx:64",
       "class": "LOCAL_NEXT_ROUTE",
-      "evidence": "apps/web/components/contact-sales-form.tsx:30 — `submitUrl = \"/api/contact-sales\"` is a defaulted prop naming a Next.js route handler in the web app.",
+      "evidence": "apps/web/components/contact-sales-form.tsx:27 — `submitUrl = \"/api/contact-sales\"` is a defaulted prop naming a Next.js route handler in the web app.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "apps/web/components/request-demo-form.tsx:185",
+      "site": "apps/web/components/request-demo-form.tsx:179",
       "class": "LOCAL_NEXT_ROUTE",
       "evidence": "Same shape as contact-sales-form: a defaulted `submitUrl` prop naming a Next.js route handler.",
       "reviewedAtUtc": "2026-08-15"
