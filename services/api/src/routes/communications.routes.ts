@@ -566,6 +566,8 @@ export async function communicationsRoutes(app: FastifyInstance) {
     teamId: z.string().uuid(),
     phone: z.string().min(3).max(32),
     code: z.string().min(3).max(16),
+    /** The attempt `verify/start` returned; still only one the caller started. */
+    verificationAttemptId: z.string().uuid().optional(),
   });
 
   app.post(
@@ -581,6 +583,9 @@ export async function communicationsRoutes(app: FastifyInstance) {
           phoneE164OrRaw: body.phone,
           code: body.code,
           initiatedByUserId: actor.userId,
+          verificationAttemptId: body.verificationAttemptId ?? null,
+          // PRO-087: only an attempt this caller started, never a step-up's.
+          callerScoped: { userId: actor.userId },
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
         });

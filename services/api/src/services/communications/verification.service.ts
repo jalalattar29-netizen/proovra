@@ -273,7 +273,26 @@ export type CheckVerificationInput = {
    * behaviour.
    */
   verificationAttemptId?: string | null;
+  /**
+   * PRO-087 (FEATURES-05) — the bare `/v1/communications/verify/check` route.
+   *
+   * Without a bound attempt the lookup took the newest STARTED attempt for the
+   * tenant and number, whoever started it and for whatever purpose. A step-up
+   * challenge (`step-up.service.ts`) starts its attempt on the same tenant and
+   * the colleague's own phone, so any co-member who knew that number could
+   * post five wrong codes and spend the colleague's step-up attempt — a
+   * targeted, repeatable denial of their privileged actions.
+   *
+   * A caller with no challenge of its own may only check an attempt IT started
+   * (`initiatedByUserId`), and never one a step-up challenge has claimed: those
+   * are answered through `/v1/identity-security/step-up/check`, which binds the
+   * attempt id (NEW-055). Required with `verificationAttemptId` absent or not.
+   */
+  callerScoped?: { userId: string };
 };
+
+/** How many of the caller's own open attempts a bare check considers. */
+const CALLER_SCOPED_CANDIDATES = 20;
 
 export type CheckVerificationResult = {
   attempt: prismaPkg.VerificationAttempt | null;
@@ -301,15 +320,39 @@ export async function checkVerification(
   // happens to share the recipient. The recipient and tenant predicates are
   // kept alongside it rather than replaced by it: an id supplied by a caller is
   // still checked against the tenant and number it must belong to.
-  const open = await client.verificationAttempt.findFirst({
-    where: {
-      teamId: input.teamId,
-      recipientHash,
-      status: prismaPkg.VerificationAttemptStatus.STARTED,
-      ...(input.verificationAttemptId ? { id: input.verificationAttemptId } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const where: prismaPkg.Prisma.VerificationAttemptWhereInput = {
+    teamId: input.teamId,
+    recipientHash,
+    status: prismaPkg.VerificationAttemptStatus.STARTED,
+    ...(input.verificationAttemptId ? { id: input.verificationAttemptId } : {}),
+    ...(input.callerScoped ? { initiatedByUserId: input.callerScoped.userId } : {}),
+  };
+  let open: prismaPkg.VerificationAttempt | null;
+  if (input.callerScoped) {
+    // PRO-087: the caller's own attempts only, minus any a step-up challenge
+    // owns. The challenge row is the only durable mark of that ownership.
+    const candidates = await client.verificationAttempt.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: CALLER_SCOPED_CANDIDATES,
+    });
+    const claimed = candidates.length
+      ? new Set(
+          (
+            await client.stepUpChallenge.findMany({
+              where: { verificationAttemptId: { in: candidates.map((c) => c.id) } },
+              select: { verificationAttemptId: true },
+            })
+          ).map((c) => c.verificationAttemptId),
+        )
+      : new Set<string | null>();
+    open = candidates.find((c) => !claimed.has(c.id)) ?? null;
+  } else {
+    open = await client.verificationAttempt.findFirst({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
+  }
   if (!open) {
     throw new VerificationError("verification_not_found");
   }
