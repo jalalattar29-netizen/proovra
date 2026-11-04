@@ -46,6 +46,9 @@ const CriterionInput = z.object({
   escalationGuidance: z.string().max(600).optional(),
 });
 
+/** The set changed after the caller loaded it (its `expectedUpdatedAt` lost). */
+class CriteriaDraftConflict extends Error {}
+
 export async function reviewerCriteriaRoutes(app: FastifyInstance) {
   app.get("/v1/reviewer-criteria", { preHandler: requireAuth }, async (req, reply) => {
     const q = z.object({ teamId: z.string().uuid() }).parse(req.query ?? {});
@@ -119,16 +122,21 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
     const latest = set.versions[0];
     if (!latest) return reply.code(400).send({ error: { code: "no_version" } });
     if (latest.publishedAt) return reply.code(409).send({ error: { code: "already_published" } });
-    const published = await prisma.$transaction([
-      prisma.reviewerCriteriaVersion.update({
-        where: { id: latest.id },
+    // PRO-090 — publish only a version that is still a draft (compare-and-swap
+    // on `publishedAt`), so a concurrent second publish cannot re-stamp it.
+    const published = await prisma.$transaction(async (tx) => {
+      const swapped = await tx.reviewerCriteriaVersion.updateMany({
+        where: { id: latest.id, publishedAt: null },
         data: { publishedAt: new Date(), publishedByUserId: ok.userId },
-      }),
-      prisma.reviewerCriteriaSet.update({
+      });
+      if (swapped.count !== 1) return null;
+      await tx.reviewerCriteriaSet.update({
         where: { id: setId },
         data: { status: "PUBLISHED", currentVersionId: latest.id },
-      }),
-    ]);
+      });
+      return [await tx.reviewerCriteriaVersion.findUniqueOrThrow({ where: { id: latest.id } })] as const;
+    });
+    if (!published) return reply.code(409).send({ error: { code: "already_published" } });
     await emitTenantAudit({
       action: "reviewer_criteria.published",
       outcome: "success",
@@ -179,19 +187,66 @@ export async function reviewerCriteriaRoutes(app: FastifyInstance) {
         },
       });
     }
-    await prisma.$transaction([
-      prisma.reviewerCriterion.deleteMany({ where: { criteriaVersionId: latest.id } }),
-      prisma.reviewerCriteriaVersion.update({
-        where: { id: latest.id },
+    /*
+     * PRO-090 (FEATURES-08) — THE IMMUTABILITY CHECK IS PART OF THE WRITE.
+     *
+     * `publishedAt` and `expectedUpdatedAt` were checked on the read above and
+     * the write then ran by id alone, so a save that read the draft before a
+     * concurrent publish committed rewrote the PUBLISHED version's title and
+     * criteria afterwards: the criteria reviewers and the Copilot work from
+     * changed with no new version. The version row is now claimed first, on the
+     * condition that it is still unpublished (a concurrent publish either
+     * commits before it, and this save matches nothing, or waits for it and
+     * publishes the saved draft); the set's concurrency token, when sent, is
+     * compared in the same transaction. A lost condition writes nothing.
+     */
+    const outcome = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.reviewerCriteriaVersion.updateMany({
+        where: { id: latest.id, publishedAt: null },
         data: {
-          ...(body.title ? { title: body.title } : {}),
+          // Always a column, so the claim is a real row write (and row lock).
+          title: body.title ?? latest.title,
           ...(body.instructions !== undefined ? { instructions: body.instructions } : {}),
-          criteria: { create: body.criteria.map((c) => ({ ...c, description: c.description ?? null, reviewGuidance: c.reviewGuidance ?? null, escalationGuidance: c.escalationGuidance ?? null })) },
         },
-      }),
+      });
+      if (claimed.count !== 1) return "published_immutable" as const;
       // Touch the set row so its @updatedAt advances — the concurrency token.
-      prisma.reviewerCriteriaSet.update({ where: { id: setId }, data: { status: set.status } }),
-    ]);
+      const touched = await tx.reviewerCriteriaSet.updateMany({
+        where: {
+          id: setId,
+          ...(body.expectedUpdatedAt ? { updatedAt: new Date(body.expectedUpdatedAt) } : {}),
+        },
+        data: { status: set.status },
+      });
+      if (touched.count !== 1) throw new CriteriaDraftConflict();
+      await tx.reviewerCriterion.deleteMany({ where: { criteriaVersionId: latest.id } });
+      await tx.reviewerCriterion.createMany({
+        data: body.criteria.map((c) => ({
+          ...c,
+          criteriaVersionId: latest.id,
+          description: c.description ?? null,
+          reviewGuidance: c.reviewGuidance ?? null,
+          escalationGuidance: c.escalationGuidance ?? null,
+        })),
+      });
+      return "saved" as const;
+    }).catch((err: unknown) => {
+      if (err instanceof CriteriaDraftConflict) return "draft_conflict" as const;
+      throw err;
+    });
+    if (outcome === "published_immutable") {
+      return reply.code(409).send({ error: { code: "published_immutable", reason: "Published versions are immutable. Duplicate as a new version instead." } });
+    }
+    if (outcome === "draft_conflict") {
+      const current = await prisma.reviewerCriteriaSet.findUnique({ where: { id: setId }, select: { updatedAt: true } });
+      return reply.code(409).send({
+        error: {
+          code: "draft_conflict",
+          reason: "This draft was changed by someone else since you loaded it.",
+          currentUpdatedAt: current?.updatedAt ?? null,
+        },
+      });
+    }
     await emitTenantAudit({
       action: "reviewer_criteria.draft_updated",
       outcome: "success",
