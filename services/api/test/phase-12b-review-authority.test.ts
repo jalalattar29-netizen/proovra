@@ -513,6 +513,48 @@ describe("canonical recordReviewDecision — second-review flow", () => {
     });
   });
 
+  it("WORKFLOW-018 — neither the first nor the second reviewer may adjudicate their own disagreement", async () => {
+    const seed = {
+      decisions: [
+        { stage: "FIRST" as const, decision: "APPROVE", reviewerUserId: ACTOR_A },
+        { stage: "SECOND" as const, decision: "REJECT", reviewerUserId: ACTOR_B },
+      ],
+    };
+    for (const [actor, stage] of [[ACTOR_A, "FIRST"], [ACTOR_B, "SECOND"]] as const) {
+      const db = makeDb(seed);
+      await expect(
+        recordReviewDecision(
+          {
+            workflowId: WORKFLOW_ID,
+            teamId: TEAM_ID,
+            actorUserId: actor,
+            decision: actor === ACTOR_A ? "UPHOLD_FIRST" : "UPHOLD_SECOND",
+            rationale: "My own review stands.",
+            actorIsAdjudicator: true,
+          },
+          db.prisma,
+        ),
+      ).rejects.toMatchObject({ code: "adjudicator_not_independent", details: { reviewedAtStage: stage } });
+      // Nothing written: no decision row, no projection move.
+      expect(db.state.decisions).toHaveLength(2);
+      expect(db.state.workflowUpdates).toHaveLength(0);
+    }
+    // Positive control: a third, independent adjudicator still resolves it.
+    const third = makeDb(seed);
+    const ok = await recordReviewDecision(
+      {
+        workflowId: WORKFLOW_ID,
+        teamId: TEAM_ID,
+        actorUserId: ACTOR_C,
+        decision: "UPHOLD_SECOND",
+        rationale: "Second review stands.",
+        actorIsAdjudicator: true,
+      },
+      third.prisma,
+    );
+    expect(ok.state).toBe("resolved");
+  });
+
   it("rejects adjudication-only kinds outside ADJUDICATION", async () => {
     const { prisma, state } = makeDb({});
     await expect(

@@ -560,6 +560,16 @@ function sendDecisionAuthorityError(
         },
       });
       return;
+    case "adjudicator_not_independent":
+      reply.code(409).send({
+        error: {
+          code: "adjudicator_not_independent",
+          reason:
+            "A reviewer who decided the FIRST or SECOND review cannot adjudicate it. Another owner or admin must.",
+          ...(err.details ?? {}),
+        },
+      });
+      return;
     case "duplicate_stage_decision":
       reply.code(409).send({
         error: {

@@ -1798,6 +1798,10 @@ function ReviewerDecisionLineagePanel({
         setSubmitError(
           "Same-reviewer guard fired — you submitted the FIRST decision; a different reviewer must submit the SECOND.",
         );
+      } else if (status === 409 && code === "adjudicator_not_independent") {
+        setSubmitError(
+          "You decided one of the two reviews, so you cannot adjudicate them. Another owner or admin must.",
+        );
       } else if (status === 403 && code === "adjudicator_role_required") {
         setSubmitError(
           "Adjudication requires team OWNER or ADMIN role on this workspace.",
