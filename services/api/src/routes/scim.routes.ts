@@ -139,6 +139,22 @@ export async function scimRoutes(app: FastifyInstance) {
     app.getDefaultJsonParser("error", "error"),
   );
 
+  // IDENT-015 — SCIM_ENABLED is the protocol surface's kill switch, as
+  // SAML_ENABLED is SAML's and SSO_CALLBACKS_ENABLED is OIDC's: on unless set
+  // to "false", read once at registration. Operators carried it believing
+  // `false` stopped SCIM while nothing read it. Off, every /v2/scim request is
+  // refused before its token is even looked at; the administration routes
+  // (token issue, rotation) live elsewhere and stay available.
+  const scimEnabled = process.env["SCIM_ENABLED"] !== "false";
+  if (!scimEnabled) {
+    app.addHook("onRequest", async (_req, reply) => {
+      return reply
+        .type("application/scim+json")
+        .code(503)
+        .send(scimError(503, "scim_disabled"));
+    });
+  }
+
   // POST /v2/scim/Users — create
   app.post(
     "/v2/scim/Users",
