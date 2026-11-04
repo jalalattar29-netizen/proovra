@@ -215,6 +215,44 @@ describe("projectPublicVerification — the allowlist", () => {
    * their raw values were dropped; the content size left a VERIFICATION_ONLY
    * page; identity labels left beside "withheld".
    */
+  /*
+   * REPORT-008 — the RICH tier sent account and organization identity rows in
+   * the matrix and the trust decision's identity signal beside
+   * recordFacts.identity "WITHHELD"; only BASIC withheld them.
+   */
+  it("REPORT-008: with attribution withheld, no identity statement leaves on the rich tier; with it exposed, it does", () => {
+    const f = facts();
+    f.verificationMatrix = {
+      rows: [
+        { key: "file_integrity", label: "File integrity", status: "VERIFIED", statement: "The file matches.", measuredAtUtc: null },
+        { key: "account_identity", label: "Account", status: "VERIFIED", statement: "Google account: signed in through Google when the record was created.", measuredAtUtc: "t" },
+        { key: "organization_verification", label: "Organization", status: "VERIFIED", statement: "Established when the record was created.", measuredAtUtc: "t" },
+      ],
+      summary: "x",
+    };
+    const identitySignal = { key: "identity", label: "Workspace identity", state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED", status: "partial", tone: "info", measuredAtUtc: "t", summary: "Authenticated workspace user identity recorded", detail: "Submitted by the authenticated workspace user through Google." };
+    const integritySignal = { key: "core_integrity", label: "Integrity", state: "PASSED", status: "passed", tone: "success", measuredAtUtc: "t", summary: "ok", detail: "ok" };
+    f.trustDecision = { summary: "s", signals: [integritySignal, identitySignal] };
+    f.verificationSnapshot = { source: "REPORT_SNAPSHOT", trustDecisionSnapshot: { summary: "s", signals: [identitySignal] } };
+
+    const withheld = projectPublicVerification(f, disclosure("CANONICAL_REFERENCE", CP), { attributionExposed: false });
+    const text = JSON.stringify(withheld);
+    expect(text).not.toMatch(/signed in through Google|Established when the record was created|through Google/);
+    const rows = (withheld.verificationMatrix as { rows: Array<{ key: string; status: string; statement: string }> }).rows;
+    expect(rows.find((r) => r.key === "account_identity")).toMatchObject({ status: "NOT_APPLICABLE", statement: "Not disclosed on this verification page." });
+    expect(rows.find((r) => r.key === "organization_verification")).toMatchObject({ status: "NOT_APPLICABLE" });
+    // Every non-identity fact is unchanged.
+    expect(rows.find((r) => r.key === "file_integrity")).toMatchObject({ status: "VERIFIED", statement: "The file matches." });
+    const signals = (withheld.trustDecision as { signals: Array<Record<string, unknown>> }).signals;
+    expect(signals.find((s) => s.key === "identity")).toMatchObject({ state: "NOT_APPLICABLE", detail: "Not disclosed on this verification page." });
+    expect(signals.find((s) => s.key === "core_integrity")).toEqual(integritySignal);
+
+    // Attribution exposed by the operator: the statements stand.
+    const exposed = JSON.stringify(projectPublicVerification(f, disclosure("CANONICAL_REFERENCE", CP), { attributionExposed: true }));
+    expect(exposed).toContain("signed in through Google");
+    expect(exposed).toContain("Established when the record was created");
+  });
+
   it("AUD-45: no view chronology label, no content size without content, no identity label while identity is withheld", () => {
     const f = facts();
     Object.assign(f.overview as Record<string, unknown>, {
