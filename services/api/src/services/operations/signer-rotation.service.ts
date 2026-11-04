@@ -37,6 +37,7 @@ import {
   withProovraSpan,
 } from "../../observability/otel.js";
 import {
+  buildSignerId,
   getCurrentActiveSigners,
   listAllSigners,
   listStagedSigners,
@@ -47,6 +48,7 @@ import {
 } from "./signer-registry.service.js";
 import {
   countRemainingUsableSigners,
+  declareSigningKeyCompromise,
   getSignerControlStates,
   getEffectiveSignerStatus,
   isTransitionAllowed,
@@ -571,12 +573,10 @@ async function runSignerLifecycleTransition(
     reason: input.reason,
     transitionSource: "admin_console",
     expectedStateVersion: input.expectedStateVersion,
-    // CRYPTO-001 — this row only stops new signing. Every verifier reads
-    // signing_keys.revoked_at, so "revoked" must reach it: without this a
-    // compromised key kept reading "Signature verified" on every record.
-    ...(to === "REVOKED" && target.keyId && Number.isInteger(Number(target.keyVersion))
-      ? { withdrawKey: { keyId: target.keyId, version: Number(target.keyVersion) } }
-      : {}),
+    // An AUTHORIZATION revoke stops this signer only. It does not reach
+    // signing_keys: the key material is not declared compromised, so the
+    // signatures it made stay verifiable and another purpose served by the
+    // same key keeps working. A compromise is `declareKeyCompromise`.
   });
 
   if (!outcome.ok) {
@@ -662,6 +662,7 @@ async function runSignerLifecycleTransition(
       previousStatus: outcome.from,
       newStatus: outcome.to,
       stateVersion: outcome.stateVersion,
+      ...(to === "REVOKED" ? { scope: "authorization" } : {}),
       reason: input.reason.trim().slice(0, 240),
     },
   });
@@ -698,6 +699,7 @@ async function runSignerLifecycleTransition(
     metadata: {
       signerId: input.signerId,
       stateVersion: outcome.stateVersion,
+      ...(to === "REVOKED" ? { scope: "authorization" } : {}),
       operatorReason: input.reason.trim().slice(0, 240),
     },
   }).catch(() => null);
@@ -707,6 +709,138 @@ async function runSignerLifecycleTransition(
     state: "changed",
     status: to,
     changedAtUtc: new Date().toISOString(),
+  };
+}
+
+/** Every signer id that names one of these key identities, for every purpose and real provider. */
+function signerIdsNamingIdentities(identities: ReadonlyArray<{ keyId: string; version: number }>): string[] {
+  const out: string[] = [];
+  for (const { keyId, version } of identities) {
+    for (const purpose of SIGNER_PURPOSES) {
+      for (const provider of ["aws_kms", "local_pem"] as const) {
+        out.push(buildSignerId(purpose, provider, keyId, String(version)));
+      }
+    }
+  }
+  return out;
+}
+
+export type KeyCompromiseResult =
+  | {
+      ok: true;
+      state: "changed" | "already";
+      status: "REVOKED";
+      scope: "key_compromise";
+      changedAtUtc: string;
+      /** False when the identity had no registered key: no signature of it verifies, and every signer naming it is withdrawn. */
+      keyMaterialResolved: boolean;
+      revokedKeyRows: number;
+      revokedSignerIds: string[];
+      keyRows: Array<{ keyId: string; version: number; purpose: string }>;
+    }
+  | {
+      ok: false;
+      code: "reason_required" | "signer_not_found" | "stale_state" | "key_identity_unknown";
+      message: string;
+    };
+
+/**
+ * KEY COMPROMISE (2026-11-04). The operator states that the key material behind
+ * this signer is compromised. Its scope is every use of that material — see
+ * `declareSigningKeyCompromise` — and it is allowed from any signer status.
+ */
+async function declareKeyCompromise(input: {
+  teamId: string;
+  actorUserId: string;
+  signerId: string;
+  reason: string;
+  expectedStateVersion?: number;
+}): Promise<KeyCompromiseResult> {
+  if ((input.reason ?? "").trim().length === 0) {
+    return { ok: false, code: "reason_required", message: "Operator reason required to declare a key compromised." };
+  }
+  const visible = await listAllSigners({ teamId: input.teamId });
+  const target = visible.find((s) => s.signerId === input.signerId);
+  if (!target) return { ok: false, code: "signer_not_found", message: "No configured signer with that id." };
+  const version = Number(target.keyVersion);
+  if (!target.keyId || !Number.isInteger(version) || version < 1) {
+    return {
+      ok: false,
+      code: "key_identity_unknown",
+      message: "This signer names no key identity, so no key material can be declared compromised. Revoke its authorization instead.",
+    };
+  }
+  const previousStatus = await getEffectiveSignerStatus(input.signerId);
+  const outcome = await declareSigningKeyCompromise({
+    signerId: input.signerId,
+    keyId: target.keyId,
+    version,
+    actorUserId: input.actorUserId,
+    reason: input.reason,
+    expectedStateVersion: input.expectedStateVersion,
+    signerIdsForIdentities: signerIdsNamingIdentities,
+  });
+  if (!outcome.ok) {
+    return {
+      ok: false,
+      code: "stale_state",
+      message: "This signer changed while the page was open. Reload and review the current state before acting.",
+    };
+  }
+  const audit = {
+    action: "operations.signer.revoked",
+    sourceApp: "API",
+    actorUserId: input.actorUserId,
+    actorAuthority: "PLATFORM_OPS",
+    workspaceId: input.teamId,
+    resourceType: "signer",
+    resourceId: input.signerId,
+    targetDisplay: `Signer ${input.signerId}`,
+    previousState: previousStatus,
+    requestedState: "REVOKED",
+    resultingState: "REVOKED",
+  } as const;
+  const metadata = {
+    signerId: input.signerId,
+    scope: "key_compromise",
+    keyMaterialResolved: outcome.fingerprints.length > 0,
+    fingerprintsSha256: outcome.fingerprints,
+    revokedKeyRows: outcome.revokedKeyRows,
+    revokedSignerIds: outcome.revokedSignerIds,
+    keyRows: outcome.keyRows,
+    operatorReason: input.reason.trim().slice(0, 240),
+  };
+  if (outcome.state === "already") {
+    await emitTenantAudit({ ...audit, outcome: "no_op", reasonCode: "ALREADY_IN_REQUESTED_STATE", metadata }).catch(() => null);
+  } else {
+    bump("signer_rotation_total");
+    safeEmitSecurityEvent({
+      teamId: input.teamId,
+      eventType: "signer_revoked",
+      severity: "HIGH",
+      details: {
+        actorUserId: input.actorUserId,
+        signerId: input.signerId,
+        previousStatus,
+        newStatus: "REVOKED",
+        scope: "key_compromise",
+        revokedSignerIds: outcome.revokedSignerIds,
+        revokedKeyRows: outcome.revokedKeyRows,
+        reason: input.reason.trim().slice(0, 240),
+      },
+    });
+    await emitTenantAudit({ ...audit, outcome: "success", reasonCode: "OPERATOR_DECLARED_KEY_COMPROMISE", metadata }).catch(() => null);
+  }
+  return {
+    ok: true,
+    state: outcome.state,
+    status: "REVOKED",
+    scope: "key_compromise",
+    changedAtUtc: new Date().toISOString(),
+    keyMaterialResolved: outcome.fingerprints.length > 0,
+    revokedKeyRows: outcome.revokedKeyRows,
+    revokedSignerIds: outcome.revokedSignerIds,
+    keyRows: outcome.keyRows,
   };
 }
 
@@ -720,13 +854,27 @@ export async function retireSigner(input: {
   return runSignerLifecycleTransition(input, "RETIRED");
 }
 
+/** The two revocations, each with its own scope. Neither is a default. */
+export const SIGNER_REVOCATION_SCOPES = ["authorization", "key_compromise"] as const;
+export type SignerRevocationScope = (typeof SIGNER_REVOCATION_SCOPES)[number];
+
+/**
+ * REVOKE, with an explicit scope (2026-11-04).
+ *   authorization   this signer (one purpose of one key identity) stops signing.
+ *                   The key material is not declared compromised: signatures it
+ *                   made stay verifiable, other purposes keep their keys.
+ *   key_compromise  the key material is compromised: every use of it is revoked,
+ *                   sealing included, and verification reports it.
+ */
 export async function revokeSigner(input: {
   teamId: string;
   actorUserId: string;
   signerId: string;
   reason: string;
+  scope: SignerRevocationScope;
   expectedStateVersion?: number;
-}): Promise<SignerLifecycleResult> {
+}): Promise<SignerLifecycleResult | KeyCompromiseResult> {
+  if (input.scope === "key_compromise") return declareKeyCompromise(input);
   return runSignerLifecycleTransition(input, "REVOKED");
 }
 

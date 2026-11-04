@@ -66,22 +66,58 @@ describe("Operational exposure and identity (live PostgreSQL)", () => {
     expect((await metrics()).statusCode).toBe(200);
   });
 
-  it("CRYPTO-004: a KMS identity missing from signing_keys, or revoked, is named; a registered one passes", async () => {
-    const { signerIdentityIssue } = await import("../src/services/operations/signer-identity-readiness.js");
+  it("CRYPTO-004: a KMS identity missing from signing_keys, revoked, or not the KMS key is named; the matching one passes", async () => {
+    const { signerIdentityIssue, KMS_PUBLIC_KEY_CACHE_TTL_MS } = await import("../src/services/operations/signer-identity-readiness.js");
+    const { generateKeyPairSync } = await import("node:crypto");
+    const spki = () => generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString();
+    const registeredPem = spki();
+    const otherPem = spki();
     const keyId = `kms-${randomUUID().slice(0, 8)}`;
-    const env = { SIGNER_PROVIDER: "aws_kms", SIGNING_KEY_ID: keyId, SIGNING_KEY_VERSION: "1" } as NodeJS.ProcessEnv;
-    expect(await signerIdentityIssue(prisma as never, env)).toBe("signer_identity_not_registered");
-    expect(await signerIdentityIssue(prisma as never, { ...env, SIGNER_PROVIDER: "aws-kms" })).toBe("signer_identity_not_registered");
-    expect(await signerIdentityIssue(prisma as never, { ...env, SIGNING_KEY_VERSION: "" })).toBe("signer_identity_not_configured");
+    const kmsKeyId = `alias/readiness-${randomUUID().slice(0, 8)}`;
+    // The stand-in for GetPublicKey: what KMS says the key behind KMS_KEY_ID is.
+    let kmsHolds: string | Error = registeredPem;
+    let kmsCalls = 0;
+    const readKmsPublicKeyPem = async (id: string) => {
+      kmsCalls += 1;
+      expect(id).toBe(kmsKeyId);
+      if (kmsHolds instanceof Error) throw kmsHolds;
+      return kmsHolds;
+    };
+    let nowMs = Date.now();
+    const issue = (env: NodeJS.ProcessEnv) => signerIdentityIssue(prisma as never, env, { readKmsPublicKeyPem, nowMs });
+    const env = { SIGNER_PROVIDER: "aws_kms", SIGNING_KEY_ID: keyId, SIGNING_KEY_VERSION: "1", KMS_KEY_ID: kmsKeyId } as NodeJS.ProcessEnv;
+    expect(await issue(env)).toBe("signer_identity_not_registered");
+    expect(await issue({ ...env, SIGNER_PROVIDER: "aws-kms" })).toBe("signer_identity_not_registered");
+    expect(await issue({ ...env, SIGNING_KEY_VERSION: "" })).toBe("signer_identity_not_configured");
+    expect(await issue({ ...env, KMS_KEY_ID: "" })).toBe("signer_identity_not_configured");
+
+    // KMS unreachable: the comparison cannot be made, so the instance is not ready.
     const row = await prisma.signingKey.create({
-      data: { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: "test" },
+      data: { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: registeredPem.trim() },
       select: { id: true },
     });
-    expect(await signerIdentityIssue(prisma as never, env)).toBeNull();
+    kmsHolds = new Error("kms unreachable");
+    expect(await issue(env)).toBe("signer_public_key_unavailable");
+    // The registered key IS the KMS key: ready. Positive control.
+    kmsHolds = registeredPem;
+    expect(await issue(env)).toBeNull();
+    // Cached: the next probes do not call KMS until the cache ages out.
+    const calls = kmsCalls;
+    kmsHolds = otherPem;
+    expect(await issue(env)).toBeNull();
+    expect(kmsCalls).toBe(calls);
+    // The key behind KMS_KEY_ID changed under the same identity: refused by name.
+    nowMs += KMS_PUBLIC_KEY_CACHE_TTL_MS + 1;
+    expect(await issue(env)).toBe("signer_identity_key_mismatch");
+    expect(kmsCalls).toBe(calls + 1);
+
+    kmsHolds = registeredPem;
+    nowMs += KMS_PUBLIC_KEY_CACHE_TTL_MS + 1;
+    expect(await issue(env)).toBeNull();
     await prisma.signingKey.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
-    expect(await signerIdentityIssue(prisma as never, env)).toBe("signer_identity_revoked");
+    expect(await issue(env)).toBe("signer_identity_revoked");
     // A local PEM registers itself on first use, so it is not refused here.
-    expect(await signerIdentityIssue(prisma as never, { SIGNER_PROVIDER: "local-pem" })).toBeNull();
+    expect(await issue({ SIGNER_PROVIDER: "local-pem" })).toBeNull();
   });
 
   it("OPS-015: the release record names the API's build and each live worker's, and says when they differ", async () => {

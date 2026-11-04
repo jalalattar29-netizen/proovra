@@ -27,6 +27,7 @@
 import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
+import { isKeyIdentityCompromised } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -213,6 +214,19 @@ async function signCustodyEventInner(
       ok: false,
       code: "signer_unavailable",
       message: "The custody-event signer has been retired or revoked.",
+    };
+  }
+  // A key whose material was declared compromised signs nothing, whatever the
+  // signer's own row says (the registry is what every verifier reads).
+  if (
+    signer.keyId &&
+    Number.isInteger(Number(signer.keyVersion)) &&
+    (await isKeyIdentityCompromised(client, { keyId: signer.keyId, version: Number(signer.keyVersion) }))
+  ) {
+    return {
+      ok: false,
+      code: "signer_unavailable",
+      message: "The custody-event signing key has been declared compromised.",
     };
   }
   const canonical = buildCanonicalPayload({

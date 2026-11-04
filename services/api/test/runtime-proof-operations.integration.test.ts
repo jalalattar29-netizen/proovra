@@ -506,8 +506,13 @@ describe("K8 operations — platform and workspace operations mutations (live Po
         method: "POST",
         url: `/v1/operations/signers/${encodeURIComponent(signerId)}/${action}`,
         token,
-        // The signer detail panel body: { teamId, reason }.
-        payload: { teamId: A.teamId, reason: `k8 ${action} rehearsal` },
+        // The signer detail panel body: { teamId, reason }, and for a revoke the
+        // scope the operator chose (this rehearsal withdraws the authorization).
+        payload: {
+          teamId: A.teamId,
+          reason: `k8 ${action} rehearsal`,
+          ...(action === "revoke" ? { scope: "authorization" } : {}),
+        },
         headers,
       });
 
@@ -640,6 +645,50 @@ describe("K8 operations — platform and workspace operations mutations (live Po
       expect((await prisma.signerControlState.findUniqueOrThrow({ where: { signerId } })).stateVersion).toBe(
         row.stateVersion,
       );
+    });
+
+    it("revoke key_compromise: platform authority and step-up are still required, the scope is never defaulted, and the material is revoked for every purpose", async () => {
+      const signerId = await stagedSigner();
+      const keyId = signerId.split(":")[2]!;
+      const { generateKeyPairSync } = await import("node:crypto");
+      const pem = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString().trim();
+      // The same key file published for two purposes under two identities.
+      await prisma.signingKey.create({ data: { keyId, version: 1, publicKeyPem: pem, purpose: "EVIDENCE_SIGNATURE" } as never });
+      await prisma.signingKey.create({ data: { keyId: `${keyId}-pkg`, version: 1, publicKeyPem: pem, purpose: "PACKAGE_SEAL" } as never });
+      const compromise = (token: string, headers?: Record<string, string>, scope: string | undefined = "key_compromise") =>
+        call({
+          method: "POST",
+          url: `/v1/operations/signers/${encodeURIComponent(signerId)}/revoke`,
+          token,
+          payload: { teamId: A.teamId, reason: "private key leaked", ...(scope ? { scope } : {}) },
+          headers,
+        });
+      const revokedRows = () => prisma.signingKey.count({ where: { keyId: { in: [keyId, `${keyId}-pkg`] }, revokedAt: { not: null } } });
+
+      const notPlatform = await compromise(A.adminToken);
+      expect(notPlatform.statusCode).toBe(403);
+      expect(json(notPlatform)).toEqual(PLATFORM_DENIAL);
+      const noStepUp = await compromise(operatorToken);
+      expect(noStepUp.statusCode, noStepUp.body).toBe(401);
+      expect(noStepUp.body).toContain("STEP_UP_REQUIRED");
+      const noScope = await compromise(operatorToken, undefined, "");
+      expect(noScope.statusCode).toBe(400);
+      expect(await revokedRows(), "nothing was revoked by a refused request").toBe(0);
+      expect(await prisma.signerControlState.findUnique({ where: { signerId } })).toBeNull();
+
+      const challengeId = await stepUp("SIGNER_REVOKE", "signer", signerId);
+      const res = await compromise(operatorToken, stepUpHeader(challengeId));
+      expect(res.statusCode, res.body).toBe(200);
+      expect(json(res).result).toMatchObject({ ok: true, state: "changed", status: "REVOKED", scope: "key_compromise", keyMaterialResolved: true, revokedKeyRows: 2 });
+      expect(await revokedRows()).toBe(2);
+      // Every signer naming either identity is withdrawn, the package seal's included.
+      const pkgSigner = `verification_package:local_pem:${keyId}-pkg:1`;
+      expect((json(res).result as { revokedSignerIds: string[] }).revokedSignerIds).toEqual(expect.arrayContaining([signerId, pkgSigner]));
+      expect((await prisma.signerControlState.findUniqueOrThrow({ where: { signerId: pkgSigner } })).status).toBe("REVOKED");
+      const audit = await prisma.adminAuditLog.findFirstOrThrow({
+        where: { action: "operations.signer.revoked", resourceId: signerId, outcome: "success" },
+      });
+      expect(audit).toMatchObject({ userId: operatorId, reasonCode: "OPERATOR_DECLARED_KEY_COMPROMISE", resultingState: "REVOKED" });
     });
   });
 

@@ -739,7 +739,9 @@ export async function opsRoutes(app: FastifyInstance) {
     }
     // CRYPTO-004 — a KMS signer cannot register itself, so an identity that is
     // not in signing_keys read ready and then failed every completion. The
-    // instance says so here, before it takes traffic. Bounded code only.
+    // instance says so here, before it takes traffic, and also when the key
+    // behind KMS_KEY_ID is not the registered key (GetPublicKey, cached).
+    // Bounded code only.
     if (process.env.NODE_ENV === "production") {
       const { signerIdentityIssue } = await import("../services/operations/signer-identity-readiness.js");
       const issue = await signerIdentityIssue(prisma);

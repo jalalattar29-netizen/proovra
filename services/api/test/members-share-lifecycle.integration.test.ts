@@ -170,6 +170,55 @@ describe("SEC-08 — share-link lifecycle (live PostgreSQL)", () => {
     expect(revokedRenew.json().code).toBe("VERIFICATION_LINK_NOT_RENEWABLE");
   });
 
+  it("PRO-055: renewing an expired link takes the create guards (active-link ceiling, shareable record)", async () => {
+    const rec = await signedRecord(A().teamId, A().ownerUserId, A().ownerUserId);
+    const url = `/v1/evidence/${rec.evidenceId}/verify-links`;
+    const renew = (linkId: string) =>
+      h.app.inject({ method: "POST", url: `${url}/${linkId}/renew`, headers: bearer(A().ownerToken), payload: { days: 7 } });
+    const activeOwnerLinks = async () =>
+      (await prisma.verificationShareToken.findMany({ where: { evidenceId: rec.evidenceId, purpose: "OWNER_SHARE", revokedAtUtc: null } }))
+        .filter((r) => r.expiresAtUtc !== null && r.expiresAtUtc.getTime() > Date.now()).length;
+
+    const expired = await ownerLink(rec.evidenceId, A().ownerUserId);
+    await prisma.verificationShareToken.update({ where: { id: expired.link.id }, data: { expiresAtUtc: new Date(Date.now() - DAY) } });
+    const live: string[] = [];
+    for (let i = 0; i < authority.VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS; i++) live.push((await ownerLink(rec.evidenceId, A().ownerUserId)).link.id);
+    expect(await activeOwnerLinks()).toBe(authority.VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS);
+
+    // Control: a create at the ceiling is refused.
+    const create = await h.app.inject({ method: "POST", url, headers: bearer(A().ownerToken), payload: { audience: "One more" } });
+    expect(create.statusCode).toBe(409);
+    expect(create.json().code).toBe("VERIFICATION_LINK_LIMIT_REACHED");
+    // The defect: reviving the expired link went to 26. It is refused the same way.
+    const revived = await renew(expired.link.id);
+    expect(revived.statusCode, revived.body).toBe(409);
+    expect(revived.json().code).toBe("VERIFICATION_LINK_LIMIT_REACHED");
+    expect(await activeOwnerLinks()).toBe(authority.VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS);
+    expect((await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: expired.link.id } })).expiresAtUtc!.getTime()).toBeLessThan(Date.now());
+    // An active link is still renewable at the ceiling: it adds no link.
+    expect((await renew(live[0]!)).statusCode).toBe(200);
+    // Below the ceiling the expired link renews.
+    await h.app.inject({ method: "POST", url: `${url}/${live[1]}/revoke`, headers: bearer(A().ownerToken), payload: {} });
+    const allowed = await renew(expired.link.id);
+    expect(allowed.statusCode, allowed.body).toBe(200);
+    expect(await activeOwnerLinks()).toBe(authority.VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS);
+
+    // A record that can no longer be shared renews nothing, as rotate refuses.
+    const trashed = await signedRecord(A().teamId, A().ownerUserId, A().ownerUserId);
+    const link = await ownerLink(trashed.evidenceId, A().ownerUserId);
+    await prisma.evidence.update({ where: { id: trashed.evidenceId }, data: { lifecycleState: "TRASHED" } as never });
+    const before = (await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: link.link.id } })).expiresAtUtc;
+    const refused = await h.app.inject({
+      method: "POST",
+      url: `/v1/evidence/${trashed.evidenceId}/verify-links/${link.link.id}/renew`,
+      headers: bearer(A().ownerToken),
+      payload: { days: 30 },
+    });
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect(refused.json().code).toBe("RECORD_NOT_SHAREABLE");
+    expect((await prisma.verificationShareToken.findUniqueOrThrow({ where: { id: link.link.id } })).expiresAtUtc).toEqual(before);
+  });
+
   it("removing the creator ends their owner links and external grants; the pvr_ and the issued report keep verifying", async () => {
     const creator = await person(A().teamId, "ADMIN");
     const rec = await signedRecord(A().teamId, A().ownerUserId, creator.id);

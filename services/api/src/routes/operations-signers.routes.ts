@@ -38,6 +38,7 @@ import {
   promoteStagedSigner,
   retireSigner,
   revokeSigner,
+  SIGNER_REVOCATION_SCOPES,
   stageSigner,
 } from "../services/operations/signer-rotation.service.js";
 import {
@@ -312,7 +313,8 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
       | "signer_not_found"
       | "transition_not_allowed"
       | "stale_state"
-      | "last_active_signer",
+      | "last_active_signer"
+      | "key_identity_unknown",
   ): number => {
     if (code === "signer_not_found") return 404;
     if (code === "reason_required") return 400;
@@ -376,6 +378,13 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           reason: z.string().min(1).max(240),
+          // WHAT is revoked, stated by the operator — never defaulted.
+          //   authorization   this signer stops signing; signatures it made
+          //                   stay verifiable and other purposes keep working.
+          //   key_compromise  the key material is compromised: every use of
+          //                   it is revoked (sealing included) and every
+          //                   verifier reports it.
+          scope: z.enum(SIGNER_REVOCATION_SCOPES),
           // The state the operator was looking at. When supplied, the
           // transition is a compare-and-set: a signer that moved while the
           // dialog was open is refused as stale rather than silently
@@ -400,6 +409,7 @@ export async function operationsSignersRoutes(app: FastifyInstance) {
         actorUserId: ctx.userId,
         signerId: params.id,
         reason: body.reason,
+        scope: body.scope,
         expectedStateVersion: body.expectedStateVersion,
       });
       if (!result.ok) {

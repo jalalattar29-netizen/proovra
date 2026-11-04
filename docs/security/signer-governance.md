@@ -49,6 +49,17 @@ This means:
 
 All four require a non-empty `reason` (bounded to 240 chars).
 
+### 4.1 Revocation has two scopes (2026-11-04)
+
+A signer is an AUTHORIZATION: one purpose (`report_pdf`, `verification_package`, `export_manifest`, `custody_event`) of one key identity (`keyId`, `keyVersion`). The key MATERIAL is the Ed25519 public key behind that identity, identified by its SPKI SHA-256, and one key file may serve several identities and purposes. `POST /v1/operations/signers/:id/revoke` takes a required `scope`:
+
+| `scope` | Writes | Effect |
+| --- | --- | --- |
+| `authorization` | `signer_control_state` for this signer only | This signer signs nothing again (API and worker boundaries). `signing_keys` is untouched: signatures already made still verify, and other purposes keep their keys even when they share the file. |
+| `key_compromise` | `signing_keys.revoked_at` on every row of the material (any key id, version, purpose), and `signer_control_state` = `REVOKED` for every signer naming one of those identities, in one transaction | Every use of the key is revoked, the package seal included. Verification (Public Verify, owner record, report, package record, custody attestations) reports the key as revoked. A later registration of the same material is born revoked. Allowed from any status, so a compromise found after an authorization revoke is still declared. |
+
+`signing_keys.revoked_at` therefore means one thing only: the material is compromised. A deployment should give each purpose its own key (`PACKAGE_SIGNING_KEY_ID`/`_VERSION` with `PACKAGE_SIGNING_PRIVATE_KEY_PATH`, or `PACKAGE_SIGNING_KMS_KEY_ID` in KMS mode), so that a compromise of one never stops another. Where purposes share a key, a compromise stops all of them by design.
+
 ## 5. Backend contract
 
 | Method | Path | Step-up |
@@ -61,7 +72,7 @@ All four require a non-empty `reason` (bounded to 240 chars).
 | POST | `/v1/operations/signers/:id/preview` | — |
 | POST | `/v1/operations/signers/:id/promote` | `SIGNER_PROMOTE` |
 | POST | `/v1/operations/signers/:id/retire` | `SIGNER_RETIRE` |
-| POST | `/v1/operations/signers/:id/revoke` | `SIGNER_REVOKE` |
+| POST | `/v1/operations/signers/:id/revoke` (`scope`: `authorization` \| `key_compromise`) | `SIGNER_REVOKE` |
 
 ## 6. KMS health probe
 

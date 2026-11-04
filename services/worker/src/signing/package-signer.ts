@@ -91,9 +91,19 @@ function spkiPem(der: Uint8Array): string {
   return `-----BEGIN PUBLIC KEY-----\n${lines.join("\n")}\n-----END PUBLIC KEY-----\n`;
 }
 
+/**
+ * The KMS key that seals packages. PACKAGE_SIGNING_KMS_KEY_ID gives the seal a
+ * key of its own (2026-11-04), so a compromise declared on the evidence key
+ * does not stop sealing and the reverse; unset, the seal shares KMS_KEY_ID as
+ * before. Its public identity is still bound by PACKAGE_SIGNING_KEY_ID/VERSION.
+ */
+export function packageKmsKeyId(): string {
+  return process.env.PACKAGE_SIGNING_KMS_KEY_ID?.trim() || required("KMS_KEY_ID");
+}
+
 async function kmsPublicKey(client: KMSClient): Promise<string> {
   const result = await client.send(
-    new GetPublicKeyCommand({ KeyId: required("KMS_KEY_ID") }),
+    new GetPublicKeyCommand({ KeyId: packageKmsKeyId() }),
   );
   if (!result.PublicKey) throw new Error("KMS did not return package signer public material");
   return spkiPem(result.PublicKey);
@@ -102,7 +112,7 @@ async function kmsPublicKey(client: KMSClient): Promise<string> {
 async function kmsSign(client: KMSClient, bytes: Buffer): Promise<Buffer> {
   const result = await client.send(
     new SignCommand({
-      KeyId: required("KMS_KEY_ID"),
+      KeyId: packageKmsKeyId(),
       Message: bytes,
       MessageType: "RAW",
       SigningAlgorithm: "ED25519_SHA_512",

@@ -355,6 +355,13 @@ export async function rotateVerificationLink(
  * sets its expiry to `days` from now (1..30). Only an owner link that has not
  * been revoked may be renewed; an expired one may be renewed by its record's
  * manager (the token is unchanged), a revoked one never.
+ *
+ * PRO-055 (REPORTS-01): an expired link that is renewed works again, so a
+ * renewal is an issuance and takes the guards create and rotate take: the
+ * record must still be shareable, and a link that comes back to life counts
+ * against the active-link ceiling, checked under the same per-record advisory
+ * lock create holds. Renewing a link that is already active adds no link and
+ * is not counted twice.
  */
 export async function renewVerificationLink(
   input: { record: RecordForShare; linkId: string; actorUserId: string; days: number },
@@ -364,7 +371,9 @@ export async function renewVerificationLink(
   if (!Number.isInteger(input.days) || input.days < 1 || input.days > VERIFICATION_LINK_MAX_EXPIRY_DAYS) {
     throw new VerificationShareError("link_lifetime_invalid", { maxDays: VERIFICATION_LINK_MAX_EXPIRY_DAYS });
   }
+  if (!recordIsShareable(input.record)) throw new VerificationShareError("record_not_shareable");
   return client.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`verification-share:${input.record.id}`}))`;
     const current = (await tx.verificationShareToken.findFirst({
       where: { id: input.linkId, evidenceId: input.record.id },
     })) as VerificationShareRow | null;
@@ -373,6 +382,20 @@ export async function renewVerificationLink(
       throw new VerificationShareError("link_not_renewable");
     }
     const expiresAtUtc = new Date(now.getTime() + input.days * 24 * 60 * 60 * 1000);
+    const revives =
+      verificationShareStateOf(current, now) !== "ACTIVE" &&
+      verificationShareStateOf({ ...current, expiresAtUtc }, now) === "ACTIVE";
+    if (revives) {
+      const others = (await tx.verificationShareToken.findMany({
+        where: { evidenceId: input.record.id, purpose: "OWNER_SHARE", revokedAtUtc: null, id: { not: current.id } },
+      })) as VerificationShareRow[];
+      const active = others.filter((r) => verificationShareStateOf(r, now) === "ACTIVE").length;
+      if (active >= VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS) {
+        throw new VerificationShareError("too_many_active_links", {
+          limit: VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS,
+        });
+      }
+    }
     const moved = await tx.verificationShareToken.updateMany({
       where: { id: current.id, revokedAtUtc: null },
       data: { expiresAtUtc },

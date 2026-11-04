@@ -712,7 +712,7 @@ function SignerDetailDrawer({
   }, [teamId, signerId, onError]);
 
   const runStepUpAction = useCallback(
-    async (action: "promote" | "retire" | "revoke") => {
+    async (action: "promote" | "retire" | "revoke" | "compromise") => {
       if (busy !== null) return;
       if (reason.trim().length === 0) {
         onError("Operator reason is required.");
@@ -721,8 +721,13 @@ function SignerDetailDrawer({
       /**
        * A signer lifecycle change decides which key signs the platform's
        * material from now on. Each leg is named for what it does to THIS
-       * signer before the step-up challenge starts; revoke, which cannot be
-       * undone, is typed.
+       * signer before the step-up challenge starts; the two revocations, which
+       * cannot be undone, are typed.
+       *
+       * "revoke" withdraws this signer's AUTHORIZATION only. "compromise"
+       * declares the KEY MATERIAL compromised: every use of it is revoked,
+       * package sealing included, and verification reports it. Both go to the
+       * revoke route with their scope stated; neither is a default.
        */
       const label = signer
         ? `${signer.signerId} (${signer.signerPurpose.replace(/_/g, " ")})`
@@ -733,35 +738,49 @@ function SignerDetailDrawer({
             ? "Promote this signer to active?"
             : action === "retire"
               ? "Retire this signer?"
-              : "Revoke this signer?",
+              : action === "revoke"
+                ? "Revoke this signer's authorization?"
+                : "Declare this signing key compromised?",
         description:
           action === "promote"
             ? `${label} becomes the active signer for its purpose. New material is signed with it from now on; the signer it replaces stops being used for new material.`
             : action === "retire"
               ? `${label} stops being used for new material. Material already signed with it is not changed.`
-              : `${label} is withdrawn immediately and cannot be used again. Material already signed with it is not changed. This cannot be undone.`,
+              : action === "revoke"
+                ? `${label} is withdrawn immediately for its purpose and cannot be used again. The key is not declared compromised: material already signed with it still verifies, and other purposes that use the same key keep working. This cannot be undone.`
+                : `The key behind ${label} is treated as compromised. Every use of that key is revoked — every signer and purpose that uses it, package sealing included — and every record and package signed with it will show its key as revoked. This cannot be undone.`,
         confirmLabel:
-          action === "promote" ? "Promote" : action === "retire" ? "Retire" : "Revoke signer",
-        tone: action === "revoke" ? "danger" : "warning",
+          action === "promote"
+            ? "Promote"
+            : action === "retire"
+              ? "Retire"
+              : action === "revoke"
+                ? "Revoke authorization"
+                : "Declare key compromised",
+        tone: action === "revoke" || action === "compromise" ? "danger" : "warning",
         ...(action === "revoke" ? { requireConfirmText: "REVOKE" } : {}),
+        ...(action === "compromise" ? { requireConfirmText: "COMPROMISED" } : {}),
         testId: `signer-${action}-confirm`,
       });
       if (!ok) return;
       setBusy(action);
       try {
+        const route: "promote" | "retire" | "revoke" = action === "compromise" ? "revoke" : action;
+        const scope =
+          action === "revoke" ? { scope: "authorization" } : action === "compromise" ? { scope: "key_compromise" } : {};
         const res = (await stepUp.runStepUpAction(async (headers) => {
           return await apiFetch(
-            `/v1/operations/signers/${encodeURIComponent(signerId)}/${action}`,
+            `/v1/operations/signers/${encodeURIComponent(signerId)}/${route}`,
             {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 ...(headers ?? {}),
               },
-              body: JSON.stringify({ teamId, reason: reason.trim() }),
+              body: JSON.stringify({ teamId, reason: reason.trim(), ...scope }),
             },
           );
-        })) as { result?: { state?: string; status?: string } } | undefined;
+        })) as { result?: { state?: string; status?: string; revokedSignerIds?: string[] } } | undefined;
 
         // "Recorded" was the old copy, and it was the honest word for what the
         // old backend did: it recorded an event and changed nothing. Now the
@@ -770,12 +789,16 @@ function SignerDetailDrawer({
         const state = res?.result?.state;
         onSuccess(
           state === "already"
-            ? `No change — this signer is already ${String(res?.result?.status ?? "").toLowerCase()}.`
-            : action === "revoke"
-              ? "Signer revoked. It can no longer sign new material."
-              : action === "retire"
-                ? "Signer retired. It will not be selected for new material."
-                : "Signer promoted.",
+            ? action === "compromise"
+              ? "No change — this key is already declared compromised."
+              : `No change — this signer is already ${String(res?.result?.status ?? "").toLowerCase()}.`
+            : action === "compromise"
+              ? `Key declared compromised. ${res?.result?.revokedSignerIds?.length ?? 0} signer(s) withdrawn; every use of the key is revoked.`
+              : action === "revoke"
+                ? "Signer authorization revoked. It can no longer sign new material."
+                : action === "retire"
+                  ? "Signer retired. It will not be selected for new material."
+                  : "Signer promoted.",
         );
         setReason("");
       } catch (err) {
@@ -985,7 +1008,14 @@ function SignerDetailDrawer({
               onClick={() => runStepUpAction("revoke")}
               data-testid="signer-revoke"
             >
-              Revoke (step-up)
+              Revoke authorization (step-up)
+            </Button>
+            <Button variant="destructive" size="sm"
+              disabled={busy !== null}
+              onClick={() => runStepUpAction("compromise")}
+              data-testid="signer-compromise"
+            >
+              Declare key compromised (step-up)
             </Button>
           </div>
         </div>

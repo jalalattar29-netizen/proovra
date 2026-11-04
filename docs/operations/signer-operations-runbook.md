@@ -25,12 +25,24 @@
 2. Check whether that signer appears in `/operations/signers` (possibly with `retired` or `revoked` status).
 3. Confirm the public material is still published. If not, this is an operator error during rotation — restore the public material from the KMS console.
 
+### Two revocations, two scopes (2026-11-04)
+The console offers two irreversible actions. Choose by what is true, not by what keeps signing working.
+
+| Action | Scope | What it changes |
+| --- | --- | --- |
+| **Revoke authorization (step-up)**, typed `REVOKE` | this signer only: one purpose of one key identity | `signer_control_state` → `REVOKED`. That signer signs nothing again. `signing_keys` is not touched: everything it signed still verifies, and other purposes that use the same key file (for example the package seal) keep working. |
+| **Declare key compromised (step-up)**, typed `COMPROMISED` | the key material (its SPKI SHA-256) | Every `signing_keys` row of that material is revoked, under any key id, version or purpose, the package seal included. Every signer that names one of those identities is withdrawn, for every purpose. Public Verify, the owner record, reports, package records and custody-attestation checks report the key as revoked. The same material registered later is born revoked. Allowed even after an authorization revoke. |
+
+Both use the `SIGNER_REVOKE` step-up and platform operations authority. The API refuses a revoke that does not state `scope` (`authorization` or `key_compromise`).
+
+A deployment should give each purpose its own key (`PACKAGE_SIGNING_PRIVATE_KEY_PATH` / `PACKAGE_SIGNING_KEY_ID` for the package seal, `PACKAGE_SIGNING_KMS_KEY_ID` in KMS mode), so that a compromise of one key never stops another purpose. When purposes share one key, a compromise stops all of them, by design.
+
 ### "Compromised KMS key"
-1. **Immediately**: `/operations/signers` → inspect the active signer for the affected purpose → **Revoke (step-up)** with a clear reason.
+1. **Immediately**: `/operations/signers` → inspect a signer that uses the key → **Declare key compromised (step-up)** with a clear reason. The result lists every signer it withdrew.
 2. Stage a new signer with rotated KMS material.
 3. Preview rotation. Confirm `compatibility=compatible` or `algorithm_change` is acceptable.
 4. Promote (step-up).
-5. Roll api + worker with new env. Verify health probe returns `healthy`.
+5. Roll api + worker with new env and a NEW key identity (`SIGNING_KEY_ID` / `SIGNING_KEY_VERSION`, and the package pair). Verify health probe returns `healthy`.
 6. The compromised signer's attestations remain auditable; their `verified` status is preserved as-of the verification time, but new verifications now report `signer_unavailable` because the key is revoked.
 
 ## 3. Custody attestation operations

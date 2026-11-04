@@ -69,7 +69,7 @@ describe("signer revocation and attestation truth (live PostgreSQL 16)", () => {
     return (body.verificationMatrix.rows as Array<{ key: string; status: string; statement?: string; label?: string }>).find((r) => /signature/.test(r.key));
   };
 
-  it("CRYPTO-001: revoking a signer reaches the registry for every purpose of the key, and verification says so", async () => {
+  it("CRYPTO-001: declaring a signer's key compromised reaches the registry for every purpose of the key, and verification says so", async () => {
     const { listAllSigners } = await import("../src/services/operations/signer-registry.service.js");
     const { revokeSigner } = await import("../src/services/operations/signer-rotation.service.js");
     // A key of this test's own: signing_keys is append-only, so nothing is cleaned up.
@@ -92,7 +92,7 @@ describe("signer revocation and attestation truth (live PostgreSQL 16)", () => {
     const before = await matrixRow(record.verificationRef);
     expect(before?.status, "positive control: trusted before revocation").toBe((await matrixRow(control.verificationRef))?.status);
 
-    const res = await revokeSigner({ teamId: A().teamId, actorUserId: A().ownerUserId, signerId: target!.signerId, reason: "Key material compromised" });
+    const res = await revokeSigner({ teamId: A().teamId, actorUserId: A().ownerUserId, signerId: target!.signerId, reason: "Key material compromised", scope: "key_compromise" });
     expect(res, JSON.stringify(res)).toMatchObject({ ok: true });
 
     const rows = await prisma.signingKey.findMany({ where: { keyId, version }, select: { purpose: true, revokedAt: true } });
@@ -106,7 +106,7 @@ describe("signer revocation and attestation truth (live PostgreSQL 16)", () => {
 
     // A second click keeps the first revocation time.
     const stamped = rows[0]!.revokedAt!.toISOString();
-    await revokeSigner({ teamId: A().teamId, actorUserId: A().ownerUserId, signerId: target!.signerId, reason: "Again" });
+    await revokeSigner({ teamId: A().teamId, actorUserId: A().ownerUserId, signerId: target!.signerId, reason: "Again", scope: "key_compromise" });
     const again = await prisma.signingKey.findFirstOrThrow({ where: { keyId, version, purpose: rows[0]!.purpose } });
     expect(again.revokedAt!.toISOString()).toBe(stamped);
   });
