@@ -174,6 +174,21 @@ export async function adminContactSalesRoutes(app: FastifyInstance) {
           .send(createErrorResponse(ErrorCode.NOT_FOUND, "Not found"));
       }
 
+      // PRO-081 (PLATFORM-04) / ADM-022 — reading ONE named lead's full row is
+      // audited, as the demo-request detail already is. The list is a roster
+      // and stays unaudited by ADM-022's own wording.
+      await emitPlatformAudit({
+        action: "admin.contact_sales.view",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: req.user?.sub ?? null,
+        actorAuthority: "PLATFORM_ADMIN",
+        resourceType: "contact_sales_request",
+        resourceId: row.id,
+        correlationId: req.id,
+        metadata: { contactSalesRequestId: row.id, status: row.status },
+      }).catch(() => null);
+
       return reply.send({ ok: true, data: row });
     }
   );

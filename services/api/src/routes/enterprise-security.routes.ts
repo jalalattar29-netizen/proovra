@@ -521,6 +521,19 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     // customer org admin could mint a support grant over their own Organization
     // and then enter support context with it.
     if (!(await requirePlatformStaff(req, reply))) return;
+    /*
+     * PRO-043 (AUTHZ-07) — WHAT `teamId` IS HERE.
+     *
+     * `teamId` is the staff actor's OWN workspace: the console sends the
+     * workspace the staff member is signed in to, and it anchors the
+     * capability check and the step-up ceremony below, exactly as on /enter
+     * and /v1/break-glass/activate. Platform staff are not members of their
+     * customers' workspaces, so it cannot be a workspace of the target
+     * Organization without making support impossible. It is not the customer
+     * authority: that is the verified customer approver, or the bounded and
+     * audited OWN-2 exception. The start audit now records the anchor beside
+     * the target, so the trail states both halves of the authorization.
+     */
     const auth = await authorizeOrFail(req, reply, { teamId: body.teamId, permission: "identity.org_policy.manage" });
     if (!auth) return;
     // The grant states a real scope: a workspace of the named Organization, not
@@ -598,7 +611,7 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
       });
     }
     try {
-      const grant = await startSupportAccess({ supportUserId: auth.actorUserId, organizationId: body.organizationId, teamId: body.scopeTeamId ?? null, reason: body.reason, accessLevel: body.accessLevel, approvedByUserId: body.approvedByUserId ?? null, customerApprovalUnavailableReason: body.customerApprovalUnavailableReason ?? null });
+      const grant = await startSupportAccess({ supportUserId: auth.actorUserId, organizationId: body.organizationId, teamId: body.scopeTeamId ?? null, reason: body.reason, accessLevel: body.accessLevel, approvedByUserId: body.approvedByUserId ?? null, customerApprovalUnavailableReason: body.customerApprovalUnavailableReason ?? null, anchorTeamId: body.teamId });
       return reply.send({ grant: { id: grant.id, accessLevel: grant.accessLevel, expiresAtUtc: grant.expiresAtUtc } });
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; message?: string };
