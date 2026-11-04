@@ -1,5 +1,5 @@
 /**
- * Phase 16 — mi-embed worker processor.
+ * Phase 16 â€” mi-embed worker processor.
  *
  * Consumes `mi-embed` jobs and writes vectors into the pgvector
  * `embedding_vector` column on `evidence_semantic_chunks`. Each job
@@ -12,7 +12,7 @@
  *     be written by this processor.
  *   - Budget aware: `canEmbedMore` is consulted BEFORE issuing the
  *     provider call. Hitting the daily cap or monthly EUR budget
- *     completes the job gracefully (NOT a failure — chunks stay
+ *     completes the job gracefully (NOT a failure â€” chunks stay
  *     keyword-searchable and the next safety-net pass will retry
  *     when the cap resets).
  *   - NEVER logs raw chunk text. Bounded counts + ids + reasons.
@@ -30,6 +30,7 @@ import type { Job } from "bullmq";
 import { JOB_NAMES } from "@proovra/shared";
 
 import { decodeCanonicalJob } from "./canonical-job.js";
+import { withCronLock } from "./cron-lock.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { workspaceContractWithheld } from "./workspace-billing.js";
@@ -49,10 +50,10 @@ let cachedProvider: ProviderHandle | null | undefined;
  * semantics + dispatch to the openai SDK when configured.
  *
  * Mirrors the API factory rules exactly:
- *   - SEMANTIC_SEARCH_ENABLED !== "true" → null (no work happens)
- *   - provider=local-deterministic → in-process hash provider
- *   - provider=openai + outbound + api key → real OpenAI client
- *   - else → null
+ *   - SEMANTIC_SEARCH_ENABLED !== "true" â†’ null (no work happens)
+ *   - provider=local-deterministic â†’ in-process hash provider
+ *   - provider=openai + outbound + api key â†’ real OpenAI client
+ *   - else â†’ null
  */
 async function resolveProvider(): Promise<ProviderHandle | null> {
   if (cachedProvider !== undefined) return cachedProvider;
@@ -183,7 +184,7 @@ function makeLocalDeterministicProvider(dimensions: number): ProviderHandle {
 }
 
 // --------------------------------------------------------------------------
-// Daily-cap helpers — kept inline in the worker (mirrors the API service
+// Daily-cap helpers â€” kept inline in the worker (mirrors the API service
 // without cross-package import). The DB schema is the source of truth.
 // --------------------------------------------------------------------------
 
@@ -348,20 +349,20 @@ function vectorLiteral(vec: Float32Array): string {
 // --------------------------------------------------------------------------
 
 /**
- * PHASE 12 — POINT 5.
+ * PHASE 12 â€” POINT 5.
  *
  * The old payload was `{ teamId, chunkIds[<=200], reason }`, and both of its
  * first two fields were wrong to trust:
  *
  *   * `teamId` scoped every query in this processor. A tampered value would
  *     have pointed the AI-policy lookup, the budget gate, the chunk read and
- *     the vector write at another workspace — and the budget gate in
+ *     the vector write at another workspace â€” and the budget gate in
  *     particular is a SPEND control, so the tenant charged would have been
  *     whichever one the message named.
  *
  *   * `chunkIds` was a snapshot taken at enqueue time. Chunks embedded between
  *     enqueue and execution were re-embedded, spending provider budget on work
- *     already done — a real defect, not just a hardening concern.
+ *     already done â€” a real defect, not just a hardening concern.
  *
  * Both are now derived. The command names ONE anchor chunk; the workspace comes
  * from that chunk's row; the batch is selected here from chunks that are
@@ -391,7 +392,7 @@ export async function processMiEmbedJob(
   }
   const teamId = anchor.teamId;
 
-  // Phase P3 — canonical Workspace AI policy enforcement IN THE WORKER.
+  // Phase P3 â€” canonical Workspace AI policy enforcement IN THE WORKER.
   // Env flags alone are not sufficient: the workspace must have semantic
   // search + embeddings enabled in its AI policy. Read failure (table not
   // migrated) skips enforcement; a missing row means the safe defaults
@@ -403,7 +404,7 @@ export async function processMiEmbedJob(
     });
     const allowed = policyRow
       ? policyRow.aiEnabled && policyRow.semanticSearchEnabled && policyRow.embeddingsAllowed
-      : false; // table exists, no row → safe defaults (semantic off)
+      : false; // table exists, no row â†’ safe defaults (semantic off)
     if (!allowed) {
       logger.info(
         { requestId, jobId: job.id ?? null, teamId },
@@ -412,7 +413,7 @@ export async function processMiEmbedJob(
       return;
     }
   } catch {
-    /* policy table not migrated in this environment — env gates still apply */
+    /* policy table not migrated in this environment â€” env gates still apply */
   }
 
   if (await workspaceContractWithheld(teamId)) {
@@ -423,12 +424,12 @@ export async function processMiEmbedJob(
     return;
   }
 
-  // PHASE 12 — POINT 5, STEP 7: the vector objects must actually EXIST.
+  // PHASE 12 â€” POINT 5, STEP 7: the vector objects must actually EXIST.
   //
   // Everything below selects on `embedding_vector IS NULL` and writes a
   // `vector` value. On a database where the pgvector extension was absent when
-  // the chain replayed, that column does not exist — the migration that adds it
-  // is guarded for portability — and every job here throws on a missing column.
+  // the chain replayed, that column does not exist â€” the migration that adds it
+  // is guarded for portability â€” and every job here throws on a missing column.
   // Thrown means BullMQ retries with backoff, forever, because no amount of
   // retrying installs an extension. That is the retry loop Point 5 forbids.
   //
@@ -446,7 +447,7 @@ export async function processMiEmbedJob(
 
   const provider = await resolveProvider();
   if (!provider) {
-    // Provider not configured — chunks remain keyword-only. Drain
+    // Provider not configured â€” chunks remain keyword-only. Drain
     // the queue cleanly rather than failing.
     logger.info(
       { requestId, jobId: job.id ?? null, teamId, reason },
@@ -455,6 +456,45 @@ export async function processMiEmbedJob(
     return;
   }
 
+  // WORKERS-08 â€” THE CLAIM. Two jobs for the same workspace (different
+  // anchors, so BullMQ does not deduplicate them; or two replicas) used to
+  // select the same NULL-vector chunks, both call the provider, and both
+  // record usage, so the spend and the budget meter counted every chunk
+  // twice. One holder per workspace now selects, embeds and writes; a job
+  // that finds the workspace held steps aside, because the holder is
+  // embedding those same chunks and the stranded-chunk reconciler re-enqueues
+  // anything still owed afterwards. An unreadable lock is transient: the job
+  // throws so BullMQ retries, rather than embedding unlocked.
+  const locked = await withCronLock(
+    `mi-embed:workspace:${teamId}`,
+    () => embedOwedChunks({ requestId, jobId: job.id ?? null, teamId, anchorId: anchor.id, reason, provider }),
+    MI_EMBED_WORKSPACE_LOCK_TTL_MS,
+  );
+  if (!locked.ran) {
+    if (locked.reason === "lock_unavailable") {
+      throw new Error("mi_embed_workspace_lock_unavailable");
+    }
+    logger.info(
+      { requestId, jobId: job.id ?? null, teamId, reason },
+      "mi_embed.workspace_in_progress_completed",
+    );
+  }
+}
+
+/** Long enough for a 200-chunk batch; renewed by the lock while it runs. */
+const MI_EMBED_WORKSPACE_LOCK_TTL_MS = 5 * 60 * 1000;
+
+async function embedOwedChunks(input: {
+  requestId: string;
+  jobId: string | null;
+  teamId: string;
+  anchorId: string;
+  reason: string | null;
+  provider: ProviderHandle;
+}): Promise<void> {
+  const { requestId, teamId, reason, provider } = input;
+  const job = { id: input.jobId };
+  const anchor = { id: input.anchorId };
   // The batch is CHOSEN here, from current state, rather than read off the
   // wire. The anchor leads: it and up to 199 other chunks in the same
   // workspace that still have no vector. A chunk embedded since enqueue is
@@ -501,7 +541,7 @@ export async function processMiEmbedJob(
   try {
     vectors = await provider.embedBatch(chunks.map((c) => c.chunk_text));
   } catch (err) {
-    // Provider configuration / fatal error — let BullMQ retry.
+    // Provider configuration / fatal error â€” let BullMQ retry.
     logger.error(
       {
         requestId,
@@ -527,7 +567,10 @@ export async function processMiEmbedJob(
     }
     try {
       const lit = vectorLiteral(vec);
-      await prisma.$executeRaw`
+      // Conditional on the chunk still owing its vector, and usage recorded
+      // only for a row this job actually wrote (WORKERS-08): the meter counts
+      // embeddings stored, never a chunk another writer already filled.
+      const written = await prisma.$executeRaw`
         UPDATE evidence_semantic_chunks
            SET embedding_vector     = ${lit}::vector,
                embedding_provider   = ${provider.name},
@@ -535,7 +578,9 @@ export async function processMiEmbedJob(
                embedding_dimensions = ${provider.dimensions}::int
          WHERE id = ${c.id}::uuid
            AND team_id = ${teamId}::uuid
+           AND embedding_vector IS NULL
       `;
+      if (written !== 1) continue;
       await recordUsage(teamId, estimateTokens(c.chunk_text.length));
       succeeded += 1;
     } catch (err) {
