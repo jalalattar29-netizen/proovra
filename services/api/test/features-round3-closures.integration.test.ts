@@ -174,7 +174,7 @@ describe("features round 3 closures (live PostgreSQL)", () => {
     const phone = "+12025550177";
     const alias = recorder.recipientAliasForPhone(phone);
     const lastCode = () =>
-      (recorder.recordedMessages() as Array<{ recipientAlias?: string; code?: string }>)
+      (recorder.recordedMessages() as ReadonlyArray<{ recipientAlias?: string; code?: string }>)
         .filter((m) => m.recipientAlias === alias && m.code)
         .at(-1)?.code ?? null;
     const st = await req("POST", "/v1/identity-security/contact-factors/enroll/start", victim.token, {
@@ -222,7 +222,7 @@ describe("features round 3 closures (live PostgreSQL)", () => {
     const ownAlias = recorder.recipientAliasForPhone(own);
     const s2 = await req("POST", "/v1/communications/verify/start", A.memberToken, { teamId: A.teamId, channel: "SMS", phone: own });
     expect(s2.statusCode, s2.body).toBe(200);
-    const ownCode = (recorder.recordedMessages() as Array<{ recipientAlias?: string; code?: string }>)
+    const ownCode = (recorder.recordedMessages() as ReadonlyArray<{ recipientAlias?: string; code?: string }>)
       .filter((m) => m.recipientAlias === ownAlias && m.code)
       .at(-1)?.code;
     const other = await req("POST", "/v1/communications/verify/check", A.viewerToken, { teamId: A.teamId, phone: own, code: ownCode });
