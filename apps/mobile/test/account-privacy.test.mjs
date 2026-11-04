@@ -37,7 +37,7 @@ test("the paths are the canonical identity endpoints", () => {
 });
 
 test("an expired package is not offered, not offered-and-failing", () => {
-  const base = { id: "r1", status: "COMPLETED", downloadCount: 0 };
+  const base = { id: "r1", status: "READY", downloadCount: 0 };
   assert.equal(
     A.isExportDownloadable({ ...base, expiresAtIso: "2026-09-23T00:00:00.000Z" }, NOW),
     true,
@@ -50,28 +50,28 @@ test("an expired package is not offered, not offered-and-failing", () => {
   assert.equal(A.isExportDownloadable({ ...base, expiresAtIso: null }, NOW), true);
   // And a package that never completed is never downloadable.
   assert.equal(
-    A.isExportDownloadable({ ...base, status: "PENDING", expiresAtIso: null }, NOW),
+    A.isExportDownloadable({ ...base, status: "REQUESTED", expiresAtIso: null }, NOW),
     false,
   );
 });
 
-test("an expired export reads as Expired, not as Completed", () => {
+test("an expired export reads as Expired, not as Ready", () => {
   const expired = {
     id: "r1",
-    status: "COMPLETED",
+    status: "READY",
     expiresAtIso: "2026-09-21T00:00:00.000Z",
     downloadCount: 0,
   };
   assert.equal(A.exportStatusLabel(expired, NOW), "Expired");
   assert.equal(
     A.exportStatusLabel({ ...expired, expiresAtIso: "2026-09-23T00:00:00.000Z" }, NOW),
-    "Completed",
+    "Ready to download",
   );
 });
 
 test("a request already in flight is recognised so a second is not offered", () => {
   const list = A.parseDataExports({
-    requests: [{ id: "r1", status: "PROCESSING" }, { id: "r2", status: "COMPLETED" }],
+    requests: [{ id: "r1", status: "PROCESSING" }, { id: "r2", status: "EXPIRED" }],
   });
   assert.equal(A.hasExportInFlight(list), true);
   assert.equal(A.hasExportInFlight(list.filter((r) => r.id === "r2")), false);
@@ -124,7 +124,7 @@ test("LIFE-13 — consequences come from the server and are shown, never treated
 });
 
 test("an active closure is told apart from a finished one", () => {
-  assert.equal(A.isClosureActive({ status: "PENDING" }), true);
+  assert.equal(A.isClosureActive({ status: "REQUESTED" }), true);
   assert.equal(A.isClosureActive({ status: "COOLING_OFF" }), true);
   assert.equal(A.isClosureActive({ status: "CANCELLED" }), false);
   assert.equal(A.isClosureActive({ status: "COMPLETED" }), false);
@@ -135,7 +135,7 @@ test("a pending closure says when, not just that it is pending", () => {
   const view = A.parseClosure({
     request: {
       id: "c1",
-      status: "PENDING",
+      status: "COOLING_OFF",
       coolingOffEndsAtUtc: "2026-09-25T12:00:00.000Z",
     },
     blockers: [],
@@ -143,7 +143,7 @@ test("a pending closure says when, not just that it is pending", () => {
   assert.match(A.closureCountdown(view, NOW), /closes in 3 days unless you cancel/);
 
   const ended = A.parseClosure({
-    request: { id: "c1", status: "PENDING", coolingOffEndsAtUtc: "2026-09-21T12:00:00.000Z" },
+    request: { id: "c1", status: "COOLING_OFF", coolingOffEndsAtUtc: "2026-09-21T12:00:00.000Z" },
   });
   assert.match(A.closureCountdown(ended, NOW), /cooling-off period has ended/);
 
@@ -154,5 +154,57 @@ test("a pending closure says when, not just that it is pending", () => {
 test("a cancelled closure reads as the good outcome it is", () => {
   assert.equal(A.closureStatusTone("CANCELLED"), "verified");
   assert.equal(A.closureStatusTone("COMPLETED"), "risk");
-  assert.equal(A.closureStatusTone("PENDING"), "pending");
+  assert.equal(A.closureStatusTone("COOLING_OFF"), "pending");
+});
+
+/* ------------------------------------------- PRO-114 / MOBILE-02 contracts */
+
+test("PRO-114: the closure body uses the route's field `confirmation`, never `confirmationPhrase`", () => {
+  const plain = A.buildClosureRequestBody("  close my account ", "", null);
+  assert.deepEqual(plain, { confirmation: "close my account" });
+  assert.equal("confirmationPhrase" in plain, false);
+  const full = A.buildClosureRequestBody("close my account", " moving on ", { method: "password", currentPassword: "pw" });
+  assert.deepEqual(full, {
+    confirmation: "close my account",
+    reason: "moving on",
+    stepUp: { method: "password", currentPassword: "pw" },
+  });
+});
+
+test("PRO-114: export request and download carry only the step-up proof, and download is a POST", () => {
+  assert.deepEqual(A.buildExportStepUpBody(null), {});
+  assert.deepEqual(A.buildExportStepUpBody({ method: "mfa", code: "123456" }), { stepUp: { method: "mfa", code: "123456" } });
+  assert.equal(A.EXPORT_DOWNLOAD_METHOD, "POST");
+  assert.equal(A.exportPackageFilename("8a0f-1"), "proovra-account-export-8a0f-1.json");
+});
+
+test("PRO-114: the server's export statuses — READY downloads, REQUESTED/PROCESSING/READY block a second request", () => {
+  const list = A.parseDataExports({
+    requests: [
+      { id: "a", status: "READY", expiresAtUtc: "2026-09-23T00:00:00.000Z" },
+      { id: "b", status: "FAILED" },
+    ],
+  });
+  assert.equal(A.isExportDownloadable(list[0], NOW), true);
+  assert.equal(A.isExportDownloadable(list[1], NOW), false);
+  assert.equal(A.hasExportInFlight(list), true, "a READY export is the server's active request");
+  assert.equal(A.hasExportInFlight(A.parseDataExports({ requests: [{ id: "r", status: "REQUESTED" }] })), true);
+  assert.equal(A.hasExportInFlight([list[1]]), false);
+  assert.equal(A.exportStatusLabel(A.parseDataExports({ requests: [{ id: "r", status: "REQUESTED" }] })[0], NOW), "Requested — queued for generation");
+});
+
+test("PRO-114: a BLOCKED closure request is open and cancellable; PROCESSING is open but past cancelling", () => {
+  assert.equal(A.isClosureActive({ status: "BLOCKED" }), true);
+  assert.equal(A.isClosureCancellable({ status: "BLOCKED" }), true);
+  assert.equal(A.isClosureActive({ status: "PROCESSING" }), true);
+  assert.equal(A.isClosureCancellable({ status: "PROCESSING" }), false);
+  assert.equal(A.closureStatusLabel("COOLING_OFF"), "Scheduled — cancellation window open");
+});
+
+test("PRO-114: closure refusals map to the web's words", () => {
+  const err = (code, message) => ({ code, body: { error: { code, message } } });
+  assert.equal(A.closureRequestFailure(err("closure_blocked")).reload, true);
+  assert.equal(A.closureRequestFailure(err("confirmation_mismatch", 'Type "close my account" to confirm.')).message, 'Type "close my account" to confirm.');
+  assert.equal(A.closureRequestFailure(err("closure_request_active")).message, "An account closure request is already open.");
+  assert.equal(A.closureRequestFailure(err("SOMETHING_ELSE")), null);
 });
