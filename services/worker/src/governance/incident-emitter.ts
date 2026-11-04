@@ -130,6 +130,19 @@ export type RecordWorkerIncidentInput = RecordWorkerIncidentText & {
   metadata?: Record<string, unknown> | null;
 };
 
+/**
+ * WORKERS-02 — the runbook a source's incidents carry, where a reader keys on
+ * it. The package eligibility gate, the governance snapshot and the reviewer
+ * queue all find an open immutable-drift incident by
+ * `runbookSlug = "immutable-drift"` (packages/shared governance-package-
+ * eligibility.ts), and this writer never wrote one, so a drift incident could
+ * never block a package. Derived from the source here, once, so no caller can
+ * forget it.
+ */
+const RUNBOOK_SLUG_BY_SOURCE: Partial<Record<string, string>> = {
+  "storage.immutable_drift": "immutable-drift",
+};
+
 const SEVERITY_RANK: Record<RecordWorkerIncidentInput["severity"], number> = {
   INFO: 0,
   WARNING: 1,
@@ -345,6 +358,7 @@ export async function recordWorkerIncident(
     return null;
   }
   const fingerprint = clipString(input.fingerprint, FINGERPRINT_MAX);
+  const runbookSlug = RUNBOOK_SLUG_BY_SOURCE[String(input.sourceId)] ?? null;
   // A message whose params do not satisfy its code is written WITHOUT a code
   // under the source's own label: the observation is kept, and no reader
   // renders a half-filled sentence.
@@ -465,6 +479,7 @@ export async function recordWorkerIncident(
           messageParams,
           relatedEvidenceId: input.relatedEvidenceId ?? null,
           relatedJobId: input.relatedJobId?.slice(0, 128) ?? null,
+          runbookSlug,
           openedBySystem: true,
         },
         });
@@ -585,6 +600,8 @@ export async function recordWorkerIncident(
       where: { id: existing.id, status: existing.status },
       data: {
         lastSeenAtUtc: observedAt,
+        // A row opened before the slug was written gains it on re-fire.
+        ...(runbookSlug ? { runbookSlug } : {}),
         ...(stateReobservation ? {} : { occurrenceCount: { increment: 1 } }),
         // The words and their code are refreshed together, so a row written
         // before codes existed is stamped by its next observation and the

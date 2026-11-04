@@ -25,10 +25,10 @@
  *   - The worker NEVER mutates evidence state on its own. It is a
  *     read-only verifier with side effects in `immutable_storage_checks`,
  *     `operational_incidents`, and `governance_notifications`.
- *   - The storage probe is mocked here at the integration boundary
- *     — the real S3 head-object call lives in `services/worker/src/storage.ts`
- *     and is gated by env. When the probe is unavailable, we record
- *     `STORAGE_UNAVAILABLE` rather than synthesizing a spurious drift.
+ *   - The default probe HEADs the record's sealed version through
+ *     `services/worker/src/storage.ts` (WORKERS-02); tests pass their own.
+ *     When the probe is unavailable, we record `STORAGE_UNAVAILABLE` rather
+ *     than synthesizing a spurious drift.
  */
 
 import * as prismaPkg from "@prisma/client";
@@ -38,6 +38,7 @@ import { prisma } from "../db.js";
 import { runGovernanceReconciliation } from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 import { recordWorkerIncident } from "./incident-emitter.js";
+import { headObject, isObjectLockEnabled } from "../storage.js";
 
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;
@@ -72,15 +73,67 @@ export type StorageProbe = (
 ) => Promise<StorageProbeResult>;
 
 /**
- * Default probe — placeholder for the real S3 head-object integration.
- * Returns "unavailable" so the worker records the check without
- * synthesizing drift. Replace via `options.probeStorage` in tests, or
- * wire the real S3 call here once the storage env is configured.
+ * WORKERS-02 — THE REAL PROBE: a HEAD of the record's SEALED version.
+ *
+ * The default used to answer "unavailable" unconditionally and the scheduler
+ * passed no other, so in production the drift worker never detected drift.
+ * It now reads the Object Lock state the store reports for the exact version
+ * the record was sealed at (never "latest at the key"). A record with no
+ * stored object or no sealed version is reported unavailable with that
+ * reason, not as drift. With Object Lock disabled for the deployment there is
+ * no lock to compare and the probe says so.
  */
-const defaultProbe: StorageProbe = async () => ({
-  available: false,
-  reason: "storage_probe_not_configured",
-});
+export const s3SealedVersionProbe: StorageProbe = async (evidenceId) => {
+  if (!isObjectLockEnabled()) {
+    return { available: false, reason: "object_lock_disabled" };
+  }
+  const ev = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { storageBucket: true, storageKey: true, storageVersionId: true },
+  });
+  if (!ev?.storageBucket || !ev.storageKey) {
+    return { available: false, reason: "no_stored_object" };
+  }
+  if (!ev.storageVersionId) {
+    return { available: false, reason: "no_sealed_version" };
+  }
+  const head = await headObject({
+    bucket: ev.storageBucket,
+    key: ev.storageKey,
+    versionId: ev.storageVersionId,
+  });
+  return {
+    available: true,
+    retainUntilUtc: head.objectLockRetainUntilDate ?? null,
+    legalHoldActive: head.objectLockLegalHoldStatus === "ON",
+    complianceMode: head.objectLockMode ?? null,
+  };
+};
+
+const defaultProbe: StorageProbe = s3SealedVersionProbe;
+
+/**
+ * WORKERS-02 — where the previous run stopped. The candidate scan was
+ * `id asc, take N` with no cursor, so every run re-checked the same lowest
+ * ids and the rest of the population was never checked. Each run records the
+ * last id it reached in its own run row (`metadata.cursorEvidenceId`); the
+ * next run of the same scope continues after it and wraps to the start when
+ * it reaches the end. The run table is small and indexed on
+ * (team, kind, started), so the cursor costs one indexed read.
+ */
+async function lastCheckedEvidenceId(teamId: string | null): Promise<string | null> {
+  const last = await prisma.governanceReconciliationRun.findFirst({
+    where: {
+      teamId,
+      kind: prismaPkg.GovernanceReconciliationKind.IMMUTABLE_STORAGE,
+      status: { not: prismaPkg.GovernanceReconciliationStatus.RUNNING },
+    },
+    orderBy: { startedAtUtc: "desc" },
+    select: { metadata: true },
+  });
+  const meta = last?.metadata as { cursorEvidenceId?: unknown } | null | undefined;
+  return typeof meta?.cursorEvidenceId === "string" ? meta.cursorEvidenceId : null;
+}
 
 export async function runImmutableStorageReconciliation(
   options: ImmutableStorageReconciliationOptions = {},
@@ -104,25 +157,43 @@ export async function runImmutableStorageReconciliation(
       // Pull evidence rows that should have immutable storage state
       // (retentionUntilUtc set OR a legal hold attached OR an immutable
       // policy version bound).
+      const population = {
+        ...(options.teamId ? { teamId: options.teamId } : { teamId: { not: null } }),
+        deletedAt: null,
+        OR: [
+          { retentionUntilUtc: { not: null } },
+          { legalHolds: { some: { status: "ACTIVE" as const } } },
+          { retentionPolicyVersionId: { not: null } },
+          { storageObjectLockRetainUntilUtc: { not: null } },
+        ],
+      };
+      const candidateSelect = {
+        id: true,
+        teamId: true,
+        retentionUntilUtc: true,
+        retentionPolicyVersionId: true,
+        storageObjectLockMode: true,
+        storageObjectLockRetainUntilUtc: true,
+        storageObjectLockLegalHoldStatus: true,
+      } as const;
+      const cursor = await lastCheckedEvidenceId(options.teamId ?? null);
       const candidates = await prisma.evidence.findMany({
-        where: {
-          ...(options.teamId ? { teamId: options.teamId } : { teamId: { not: null } }),
-          deletedAt: null,
-          OR: [
-            { retentionUntilUtc: { not: null } },
-            { legalHolds: { some: { status: "ACTIVE" } } },
-            { retentionPolicyVersionId: { not: null } },
-          ],
-        },
-        select: {
-          id: true,
-          teamId: true,
-          retentionUntilUtc: true,
-          retentionPolicyVersionId: true,
-        },
+        where: cursor ? { AND: [population, { id: { gt: cursor } }] } : population,
+        select: candidateSelect,
         orderBy: { id: "asc" },
         take: batchSize,
       });
+      if (cursor && candidates.length < batchSize) {
+        // Reached the end of the id range: wrap to the start.
+        const seen = new Set(candidates.map((c) => c.id));
+        const wrapped = await prisma.evidence.findMany({
+          where: { AND: [population, { id: { lte: cursor } }] },
+          select: candidateSelect,
+          orderBy: { id: "asc" },
+          take: batchSize - candidates.length,
+        });
+        for (const w of wrapped) if (!seen.has(w.id)) candidates.push(w);
+      }
       ctx.reportProgress({ scanned: candidates.length });
 
       for (const ev of candidates) {
@@ -169,33 +240,48 @@ export async function runImmutableStorageReconciliation(
             continue;
           }
 
-          // Outcome resolution.
+          // Outcome resolution — WORKERS-02: against the lock the record
+          // RECORDS it placed on its sealed version, not against the
+          // application's own retention and holds. The product deliberately
+          // does not mirror a legal hold into a native S3 hold
+          // (services/api/src/storage.ts, applyObjectRetention), and the seal
+          // lock is the record's resolved eight-year horizon, not the policy's
+          // retention date (evidence-complete.service.ts). Comparing those
+          // application facts with the store would report drift on every held
+          // or policy-retained record and block its packages. Drift is the
+          // store disagreeing with what was written to it.
           const dbHoldActive = Boolean(directHold);
+          const recordedRetainUntil = ev.storageObjectLockRetainUntilUtc;
+          const recordedHoldActive = ev.storageObjectLockLegalHoldStatus === "ON";
           const storageHoldActive = probeResult.legalHoldActive;
           let outcome: prismaPkg.ImmutableStorageCheckOutcome =
             prismaPkg.ImmutableStorageCheckOutcome.OK;
           let driftSummary: string | null = null;
 
-          if (dbHoldActive !== storageHoldActive) {
+          if (recordedHoldActive !== storageHoldActive) {
             outcome = prismaPkg.ImmutableStorageCheckOutcome.LEGAL_HOLD_MISMATCH;
-            driftSummary = `legal_hold_active db=${dbHoldActive} storage=${storageHoldActive}`;
-          } else if (
-            ev.retentionUntilUtc &&
-            !probeResult.retainUntilUtc
-          ) {
+            driftSummary = `native_legal_hold recorded=${recordedHoldActive} storage=${storageHoldActive}`;
+          } else if (recordedRetainUntil && !probeResult.retainUntilUtc) {
             outcome = prismaPkg.ImmutableStorageCheckOutcome.MISSING_LOCK;
-            driftSummary = "db_has_retention_storage_has_no_lock";
+            driftSummary = "recorded_lock_storage_has_no_lock";
           } else if (
-            ev.retentionUntilUtc &&
+            recordedRetainUntil &&
             probeResult.retainUntilUtc &&
             Math.abs(
-              ev.retentionUntilUtc.getTime() -
+              recordedRetainUntil.getTime() -
                 probeResult.retainUntilUtc.getTime(),
             ) >
               60 * 60 * 1000
           ) {
             outcome = prismaPkg.ImmutableStorageCheckOutcome.RETENTION_MISMATCH;
-            driftSummary = `retention_mismatch db=${ev.retentionUntilUtc.toISOString()} storage=${probeResult.retainUntilUtc.toISOString()}`;
+            driftSummary = `retention_mismatch recorded=${recordedRetainUntil.toISOString()} storage=${probeResult.retainUntilUtc.toISOString()}`;
+          } else if (
+            recordedRetainUntil &&
+            ev.storageObjectLockMode === "COMPLIANCE" &&
+            probeResult.complianceMode !== "COMPLIANCE"
+          ) {
+            outcome = prismaPkg.ImmutableStorageCheckOutcome.COMPLIANCE_MODE_MISMATCH;
+            driftSummary = `compliance_mode_mismatch recorded=COMPLIANCE storage=${probeResult.complianceMode ?? "null"}`;
           } else if (
             immutable &&
             probeResult.complianceMode !== "COMPLIANCE" &&
@@ -259,6 +345,10 @@ export async function runImmutableStorageReconciliation(
         }
       }
 
+      // The last id this run checked in walk order (a wrapped id when it
+      // wrapped), so the next run continues right after it.
+      const reached = candidates.length > 0 ? candidates[candidates.length - 1]!.id : null;
+      if (reached) ctx.setMetadata("cursorEvidenceId", reached);
       ctx.setMetadata("okCount", ok);
       ctx.setMetadata("driftCount", drift);
       ctx.setMetadata("unavailableCount", unavailable);
