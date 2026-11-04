@@ -198,6 +198,14 @@ const InviteBody = z.object({
     )
     .max(20)
     .optional(),
+  /** Required when `role` is ORG_OWNER (PRO-097), as for an ownership transfer. */
+  stepUp: z
+    .object({
+      method: z.enum(["password", "mfa"]).optional(),
+      currentPassword: z.string().optional(),
+      code: z.string().optional(),
+    })
+    .optional(),
 });
 
 const RoleChangeBody = z.object({
@@ -1002,6 +1010,30 @@ export async function organizationsRoutes(app: FastifyInstance) {
         return reply
           .code(403)
           .send({ message: "Cannot invite at a role greater than your own." });
+      }
+
+      /*
+       * PRO-097 (FEATURES-15) — AN ORG_OWNER INVITE HANDS OVER OWNERSHIP, SO IT
+       * IS RE-AUTHENTICATED LIKE A TRANSFER.
+       *
+       * Ownership transfer is step-up-gated (`org_ownership_transfer`), yet an
+       * owner could mint an ORG_OWNER invite to any address with a session
+       * alone, and its acceptance made a second active owner: full control of
+       * the organization handed to an address, without the proof the product
+       * requires to hand over ownership. The invite now asks the inviting
+       * owner for the same account step-up, under its own action.
+       */
+      if (inviteRole === "ORG_OWNER") {
+        const stepUp = await verifyAccountStepUp({
+          req,
+          reply,
+          userId,
+          action: "org_owner_invite",
+          proof: body.stepUp,
+        });
+        if (!stepUp.ok) {
+          return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+        }
       }
 
       // P2 domain remediation (2026-07-21) — every assigned workspace must

@@ -49,6 +49,12 @@ import {
   ORG_ROLE_LABEL,
   type OrgRole,
 } from "../_lib/orgRoles";
+import {
+  StepUpVerify,
+  extractStepUp,
+  type StepUpMethods,
+  type StepUpProof,
+} from "../../../../security-center/components/PersonalSecuritySections";
 
 // ---------------------------------------------------------------------------
 // Wire types — mirror organizations-bulk-invite.routes.ts.
@@ -259,23 +265,29 @@ function BulkInviteTab() {
     }
   }, [orgId, buildBody, workspaceAssignments, addToast]);
 
-  const runSend = useCallback(async () => {
+  // PRO-097 — a batch that invites anyone as ORG_OWNER asks the inviting owner
+  // to prove it is them (STEP_UP_REQUIRED with this account's methods).
+  const [sendStepUp, setSendStepUp] = useState<null | { methods: StepUpMethods; message: string }>(null);
+
+  const runSend = useCallback(async (proof?: StepUpProof) => {
     setBusy("send");
     setError(null);
     try {
       const body = buildBody();
+      const stepUp = proof ? { stepUp: proof } : {};
       const data =
         body.mode === "csv"
           ? ((await apiFetch(`/v1/orgs/${orgId}/invites/csv`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ csv: body.csv, defaultRole: body.defaultRole, workspaceAssignments }),
+              body: JSON.stringify({ csv: body.csv, defaultRole: body.defaultRole, workspaceAssignments, ...stepUp }),
             })) as ExecuteResponse)
           : ((await apiFetch(`/v1/orgs/${orgId}/invites/bulk`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ rows: body.rows, defaultRole: body.defaultRole, workspaceAssignments }),
+              body: JSON.stringify({ rows: body.rows, defaultRole: body.defaultRole, workspaceAssignments, ...stepUp }),
             })) as ExecuteResponse);
+      setSendStepUp(null);
       setResult(data);
       setPreview(null);
       const invited = data.summary.INVITED ?? 0;
@@ -284,6 +296,11 @@ function BulkInviteTab() {
         "success",
       );
     } catch (err) {
+      const su = extractStepUp(err);
+      if (su) {
+        setSendStepUp(su);
+        return;
+      }
       const safe = toSafeUserError(err, { message: "Failed to send invites." });
       setError(safe.message);
       notifyApiError(addToast, err, { message: "Failed to send invites." });
@@ -520,6 +537,17 @@ function BulkInviteTab() {
               Send invites
             </Button>
           </div>
+
+          {sendStepUp ? (
+            <StepUpVerify
+              title="Confirm inviting new organization owners."
+              methods={sendStepUp.methods}
+              initialError={sendStepUp.message}
+              busy={busy === "send"}
+              onSubmit={(proof) => void runSend(proof)}
+              onCancel={() => setSendStepUp(null)}
+            />
+          ) : null}
 
           {error ? (
             <div
