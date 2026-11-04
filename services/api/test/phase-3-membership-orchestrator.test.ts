@@ -276,7 +276,10 @@ const RESIDUAL_WRITERS: Record<string, number> = {
   "membership-provisioning.service.ts": 99,
   // +1 (2026-10-25, members audit LIFE-15): leaveWorkspace — the governed
   // self-revocation, same state machine and last-administrator guard.
-  "rbac.service.ts": 6,
+  // +1 (2026-11-04, PRO-039 / RT-020): restoreOrganizationWorkspaceAccessTx —
+  // the organization-restore leg, marker-matched SUSPENDED → ACTIVE behind the
+  // same seat and group capacity check restoreMember uses.
+  "rbac.service.ts": 7,
 };
 
 describe("Phase 3 — no unregistered direct membership writes", () => {
