@@ -10,6 +10,7 @@
  *   ET-SEC-25 — the API-key path checked key validity only, so a SUSPENDED
  *     organization kept ingesting through its keys.
  */
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -144,6 +145,32 @@ describe("integrations API actor, plan gate and organization lifecycle (live Pos
     const res = await post("/v1/integrations/api/intake-links", viewerKey, linkBody(7));
     expect(res.statusCode, res.body).toBe(403);
     expect(await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } })).toBe(before);
+  });
+
+  // PRO-045 (AUTHZ-09): a foreign or unknown case / record id reached the
+  // central handler as a 500 with a critical alert, and a foreign id (500) told
+  // apart from a malformed one (400).
+  it("PRO-045: a foreign or unknown case or record id is a bounded 404, and nothing is written", async () => {
+    const A = h.fixtures.teamA;
+    const B = h.fixtures.teamB;
+    const own = await post("/v1/integrations/api/evidence-requests", keyA, { ...requestBody("own case"), caseId: A.caseId });
+    expect(own.statusCode, own.body).toBe(201);
+
+    const before = await prisma.evidenceRequest.count();
+    const probes = [
+      { caseId: B.caseId, code: "case_not_in_workspace" },
+      { caseId: randomUUID(), code: "case_not_in_workspace" },
+      { evidenceId: B.evidenceId, code: "evidence_not_in_workspace" },
+      { evidenceId: randomUUID(), code: "evidence_not_in_workspace" },
+    ];
+    for (const { code, ...ref } of probes) {
+      const res = await post("/v1/integrations/api/evidence-requests", keyA, { ...requestBody("probe"), ...ref });
+      expect(res.statusCode, `${JSON.stringify(ref)}: ${res.body}`).toBe(404);
+      expect(JSON.parse(res.body).error.code).toBe(code);
+    }
+    // A foreign id and an unknown id answer identically, and no row was created.
+    expect(await prisma.evidenceRequest.count()).toBe(before);
+    expect(await prisma.evidenceRequest.count({ where: { teamId: B.teamId, title: "probe" } })).toBe(0);
   });
 
   it("ET-INT-10: neither integration route passes the credential id as a user", () => {
