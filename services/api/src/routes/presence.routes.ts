@@ -36,6 +36,7 @@ import {
   listViewersAsyncViaSelector as listViewers,
   recordHeartbeatViaSelector as recordHeartbeat,
 } from "../services/presence/presence-selector.js";
+import { presenceResourceClosedTo } from "../services/presence/presence-reach.js";
 
 const HeartbeatBody = z.object({
   teamId: z.string().uuid(),
@@ -79,6 +80,11 @@ export async function presenceRoutes(app: FastifyInstance) {
       });
       if (!authz) return;
       const userId = authz.actorUserId;
+      // PRO-046 — a record a restricted case closes to the caller gives the same
+      // 404 here as everywhere else: no heartbeat, no viewer list.
+      if (await presenceResourceClosedTo(body.resourceKind, body.resourceId, userId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
       // Capture a bounded display name. Falls back to the user id
       // suffix when no displayName is set so the indicator never
@@ -132,6 +138,9 @@ export async function presenceRoutes(app: FastifyInstance) {
       });
       if (!authz) return;
       const userId = authz.actorUserId;
+      if (await presenceResourceClosedTo(query.resourceKind, query.resourceId, userId)) {
+        return reply.code(404).send({ error: { code: "not_found" } });
+      }
 
       const viewers = await listViewers({
         teamId: query.teamId,

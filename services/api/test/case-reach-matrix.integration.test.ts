@@ -860,6 +860,184 @@ describe("restricted-case reach matrix (live PostgreSQL)", () => {
     });
   });
 
+  // PRO-046 — the three surfaces the November 3 retest still reproduced.
+  describe("AUTHZ-002: presence follows the record (PRO-046)", () => {
+    const beat = (who: Person, resourceKind: string, resourceId: string) =>
+      post("/v1/me/presence/heartbeat", who, { teamId: A().teamId, resourceKind, resourceId });
+    const here = (who: Person, resourceKind: string, resourceId: string) =>
+      get(`/v1/me/presence/here?${teamQ()}&resourceKind=${resourceKind}&resourceId=${resourceId}`, who);
+
+    it("off-list actors get 404 on a closed record and case, and never see who is there", async () => {
+      expect((await beat(listed, "evidence", hiddenId)).statusCode).toBe(200);
+      expect((await beat(listed, "matter", restrictedCaseId)).statusCode).toBe(200);
+      expect((await beat(listed, "discussion_thread", threadId)).statusCode).toBe(200);
+      for (const who of [off, offViewer, offAdmin]) {
+        for (const [kind, id] of [
+          ["evidence", hiddenId],
+          ["matter", restrictedCaseId],
+          ["discussion_thread", threadId],
+        ] as const) {
+          const read = await here(who, kind, id);
+          expect(read.statusCode, `${kind} ${read.body}`).toBe(404);
+          expect(read.body).not.toContain(listed.id);
+          const wrote = await beat(who, kind, id);
+          expect(wrote.statusCode, `${kind} ${wrote.body}`).toBe(404);
+        }
+      }
+      // The refused heartbeats were not recorded: the listed member sees nobody.
+      const mine = await here(listed, "evidence", hiddenId);
+      expect(mine.statusCode, mine.body).toBe(200);
+      expect(mine.body).not.toContain(offAdmin.id);
+    });
+
+    it("positive control: on an open record everyone sees the listed member", async () => {
+      expect((await beat(listed, "evidence", visibleId)).statusCode).toBe(200);
+      const theirs = await here(offAdmin, "evidence", visibleId);
+      expect(theirs.statusCode, theirs.body).toBe(200);
+      expect(theirs.body).toContain(listed.id);
+    });
+  });
+
+  describe("AUTHZ-002: workflow instances follow their case and records (PRO-046)", () => {
+    let boundId: string;
+    let mappedId: string;
+    let openId: string;
+
+    beforeAll(async () => {
+      const instance = (data: Record<string, unknown>) =>
+        prisma.evidenceWorkflowInstance.create({
+          data: { teamId: A().teamId, intakeMode: "INTERNAL", actorRole: "MEMBER", status: "IN_REVIEW", ...data } as never,
+          select: { id: true },
+        });
+      boundId = (await instance({ caseId: restrictedCaseId })).id;
+      mappedId = (await instance({ caseId: openCaseId })).id;
+      await prisma.evidenceWorkflowInstanceEvidence.create({
+        data: { workflowInstanceId: mappedId, evidenceId: hiddenId } as never,
+      });
+      openId = (await instance({ caseId: openCaseId })).id;
+    });
+
+    it("GET, timeline, export policy and waive are 404 off the list; the list omits them", async () => {
+      for (const who of [off, offViewer, offAdmin]) {
+        for (const id of [boundId, mappedId]) {
+          for (const suffix of ["", "/timeline", "/export-policy"]) {
+            const r = await get(`/v1/workflows/instances/${id}${suffix}?${teamQ()}`, who);
+            expect(r.statusCode, `${suffix} ${r.body}`).toBe(404);
+            expect(r.body).not.toContain(hiddenId);
+          }
+        }
+        const list = await get(`/v1/workflows/instances?${teamQ()}`, who);
+        expect(list.statusCode, list.body).toBe(200);
+        expect(list.body).not.toContain(boundId);
+        expect(list.body).not.toContain(mappedId);
+        expect(list.body).toContain(openId);
+      }
+      const waive = await post(`/v1/workflows/instances/${mappedId}/steps/any/waive`, offAdmin, {
+        teamId: A().teamId,
+        reason: "reach probe",
+      });
+      expect(waive.statusCode, waive.body).toBe(404);
+    });
+
+    it("positive control: the listed member reads both, with the mapped record", async () => {
+      for (const id of [boundId, mappedId]) {
+        const r = await get(`/v1/workflows/instances/${id}?${teamQ()}`, listed);
+        expect(r.statusCode, r.body).toBe(200);
+      }
+      expect((await get(`/v1/workflows/instances/${mappedId}?${teamQ()}`, listed)).body).toContain(hiddenId);
+      const list = await get(`/v1/workflows/instances?${teamQ()}`, listed);
+      expect(list.body).toContain(boundId);
+    });
+  });
+
+  describe("AUTHZ-002: collaboration comments follow their target (PRO-046)", () => {
+    let groupId: string;
+    const SENTINEL = `sentinel-comment-${randomUUID().slice(0, 8)}`;
+
+    beforeAll(async () => {
+      groupId = (
+        await prisma.collaborationTeam.create({
+          data: { workspaceId: A().teamId, name: `group-${tag()}`, createdByUserId: A().ownerUserId } as never,
+          select: { id: true },
+        })
+      ).id;
+      for (const who of [listed, off, offAdmin]) {
+        await prisma.collaborationTeamMember.create({
+          data: { teamId: groupId, userId: who.id, status: "ACTIVE" } as never,
+        });
+      }
+    });
+
+    it("the listed member comments on the restricted case; off-list members cannot read or add to it", async () => {
+      const mine = await post(`/v1/collaboration-teams/${groupId}/comments`, listed, {
+        targetType: "CASE",
+        targetId: restrictedCaseId,
+        body: SENTINEL,
+      });
+      expect(mine.statusCode, mine.body).toBe(201);
+      const onRecord = await post(`/v1/collaboration-teams/${groupId}/comments`, listed, {
+        targetType: "EVIDENCE",
+        targetId: hiddenId,
+        body: `${SENTINEL} record`,
+      });
+      expect(onRecord.statusCode, onRecord.body).toBe(201);
+
+      for (const who of [off, offAdmin]) {
+        for (const q of [`?targetType=CASE&targetId=${restrictedCaseId}`, `?targetType=EVIDENCE&targetId=${hiddenId}`, ""]) {
+          const r = await get(`/v1/collaboration-teams/${groupId}/comments${q}`, who);
+          expect(r.statusCode, r.body).toBe(200);
+          expect(r.body).not.toContain(SENTINEL);
+        }
+        const before = await prisma.collaborationTeamComment.count({ where: { teamId: groupId } });
+        for (const [targetType, targetId] of [["CASE", restrictedCaseId], ["EVIDENCE", hiddenId]] as const) {
+          const added = await post(`/v1/collaboration-teams/${groupId}/comments`, who, {
+            targetType,
+            targetId,
+            body: "should not land",
+          });
+          expect(added.statusCode, added.body).toBe(404);
+        }
+        expect(await prisma.collaborationTeamComment.count({ where: { teamId: groupId } })).toBe(before);
+      }
+
+      // Positive controls: the listed member reads both; an open target stays open.
+      const listedRead = await get(`/v1/collaboration-teams/${groupId}/comments`, listed);
+      expect(listedRead.body).toContain(SENTINEL);
+      const open = await post(`/v1/collaboration-teams/${groupId}/comments`, offAdmin, {
+        targetType: "CASE",
+        targetId: openCaseId,
+        body: "open case note",
+      });
+      expect(open.statusCode, open.body).toBe(201);
+    });
+  });
+
+  describe("PRO-047: an intake link cannot be attached to a case its creator cannot see", () => {
+    const linkBody = (caseId: string) => ({
+      teamId: A().teamId,
+      workflowTemplateSlug: "general-evidence-record",
+      intakeMode: "EXTERNAL_ONE_TIME",
+      caseId,
+      expiresAtUtc: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    });
+
+    it("off-list ADMIN gets 404 and no link is stored; the case owner and an open case get 201", async () => {
+      process.env.WORKFLOW_INTAKE_LINKS_ENABLED = "true";
+      process.env.WORKFLOW_INTAKE_TOKEN_SECRET ??= "integration-only-intake-secret-0123456789abcdef";
+      const before = await prisma.workflowIntakeLink.count({ where: { caseId: restrictedCaseId } });
+      const refused = await post("/v1/workflow/intake-links", offAdmin, linkBody(restrictedCaseId));
+      expect(refused.statusCode, refused.body).toBe(404);
+      expect(await prisma.workflowIntakeLink.count({ where: { caseId: restrictedCaseId } })).toBe(before);
+
+      const open = await post("/v1/workflow/intake-links", offAdmin, linkBody(openCaseId));
+      expect(open.statusCode, open.body).toBe(201);
+      const owner = { id: A().ownerUserId, token: A().ownerToken };
+      const mine = await post("/v1/workflow/intake-links", owner, linkBody(restrictedCaseId));
+      expect(mine.statusCode, mine.body).toBe(201);
+      expect(await prisma.workflowIntakeLink.count({ where: { caseId: restrictedCaseId } })).toBe(before + 1);
+    });
+  });
+
   describe("AUTHZ-002: machine paths see only unrestricted records (AZ-R04)", () => {
     it("the record rule with no caller closes a restricted record and leaves an open one", async () => {
       expect(await reachModule.evidenceClosedTo(hiddenId, null)).toBe(true);

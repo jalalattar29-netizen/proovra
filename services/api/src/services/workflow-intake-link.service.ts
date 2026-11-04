@@ -41,6 +41,7 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../db.js";
+import { caseVisibleToWhere } from "./cases/case-visibility.js";
 import { indexIntakeLinkBestEffort } from "./search/evidence-indexing.service.js";
 import {
   INTAKE_SEARCH_NEEDLE_MAX,
@@ -226,9 +227,13 @@ export async function createWorkflowIntakeLink(
 
   // ET-SEC-33 — a caller-supplied caseId must be a case of THIS workspace. It
   // was stored unvalidated (no FK), so a link could name another tenant's case.
+  // PRO-047 — and one the creator can see: a restricted case admits only its
+  // owner, its access list and granted teams (`case-visibility.ts`), so an
+  // off-list member gets the same 404 the case itself gives them, exactly as
+  // evidence-request create does.
   if (input.caseId) {
     const owned = await client.case.findFirst({
-      where: { id: input.caseId, teamId: input.teamId },
+      where: { id: input.caseId, teamId: input.teamId, AND: [caseVisibleToWhere(ctx.actorUserId)] },
       select: { id: true },
     });
     if (!owned) throw new WorkflowIntakeLinkError("case_not_in_workspace");
