@@ -126,6 +126,19 @@ async function authenticateScim(
 const ParamsUserId = z.object({ id: z.string().uuid() });
 
 export async function scimRoutes(app: FastifyInstance) {
+  // PRO-012 (AUTH-06) — RFC 7644 §3.1 names `application/scim+json` as the
+  // protocol's media type, and IdPs send their writes with it. No parser was
+  // registered for it, so every such write (a deprovisioning PATCH included)
+  // answered 415 while the session it meant to end stayed live. It is parsed
+  // with Fastify's own JSON parser and the same prototype-poisoning refusals.
+  // Registered inside this plugin, so it applies to the SCIM protocol surface
+  // only; `application/json` keeps working unchanged.
+  app.addContentTypeParser(
+    "application/scim+json",
+    { parseAs: "string" },
+    app.getDefaultJsonParser("error", "error"),
+  );
+
   // POST /v2/scim/Users — create
   app.post(
     "/v2/scim/Users",
@@ -275,6 +288,13 @@ export async function scimRoutes(app: FastifyInstance) {
         }
       } else if (plan.active === true) {
         const result = await scimReactivateUser(ctx, id);
+        if (result.heldByAdministrator) {
+          // PRO-013 — never a silent success: the membership stays suspended.
+          return reply
+            .type("application/scim+json")
+            .code(409)
+            .send(scimError(409, "membership_suspended_by_administrator"));
+        }
         if (result.seatRefused) {
           const status = result.seatRefused === "seat_contention" ? 503 : 409;
           return reply

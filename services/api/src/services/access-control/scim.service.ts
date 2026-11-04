@@ -930,6 +930,7 @@ export async function scimCreateUser(
   // mapping binds — read-compare-write, not read-then-hope.
   // ---------------------------------------------------------------------------
   const UNSAFE_LINK = "__SCIM_UNSAFE_ACCOUNT_LINK__";
+  const UNPROVEN_DOMAIN = "__SCIM_UNPROVEN_DOMAIN__";
   let user: { id: string; createdAt: Date; updatedAt: Date };
   try {
     user = await withSeatClaimRetry(() => client.$transaction(async (tx) => {
@@ -953,6 +954,18 @@ export async function scimCreateUser(
           throw new Error(`${UNSAFE_LINK}:${link.reason}`);
         }
       } else {
+        // IDENT-013 / PRO-025 — a directory creates an account only for an
+        // address in a domain its Organization has proved (DNS-verified here,
+        // claimed by no other Organization): the same rule as linking an
+        // existing account. An Organization naming any address used to get a
+        // row it kept signing in to, ahead of that address's real owner.
+        const creation = await evaluateExistingAccountLink(
+          { teamId: ctx.teamId, email },
+          txc,
+        );
+        if (!creation.ok) {
+          throw new Error(`${UNPROVEN_DOMAIN}:${creation.reason}`);
+        }
         resolved = await txc.user.create({
           data: {
             email: email.toLowerCase(),
@@ -1026,6 +1039,19 @@ export async function scimCreateUser(
     }));
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
+    if (message.startsWith(UNPROVEN_DOMAIN)) {
+      bump("scim_account_link_denied_total");
+      safeEmitSecurityEvent({
+        teamId: ctx.teamId,
+        eventType: "scim_account_link_denied",
+        severity: "WARNING",
+        details: {
+          reason: `unproven_domain:${message.slice(UNPROVEN_DOMAIN.length + 1)}`,
+          externalId,
+        },
+      });
+      return { ok: false as const, status: 409, detail: "email_domain_not_verified" };
+    }
     if (message.startsWith(UNSAFE_LINK)) {
       bump("scim_account_link_denied_total");
       safeEmitSecurityEvent({
@@ -1248,6 +1274,21 @@ export async function scimDeactivateUser(
     select: { id: true },
   });
   if (!known) return { ok: false };
+  /*
+   * PRO-014 (AUTH-08) — A DIRECTORY DEPROVISIONS ONLY THE PEOPLE IT MANAGES.
+   *
+   * Any member of the Organization used to be reachable by id: GET answered
+   * 404 (no directory link), yet DELETE suspended the member everywhere and
+   * ended their sessions. The directory's reach is now the one its reads
+   * already have — a person this Organization's directory or IdP linked (the
+   * link may be one this directory already ended: a repeated DELETE stays
+   * harmless). Anyone else is 404, exactly as GET says.
+   */
+  const managed = await client.externalIdentityMapping.findFirst({
+    where: { organizationId: ctx.organizationId, userId },
+    select: { id: true },
+  });
+  if (!managed) return { ok: false };
   // PHASE 12B — the membership suspension and the directory-mapping unlink are
   // ONE atomic deprovisioning outcome. Previously they were two top-level
   // writes, so a failure between them left a SUSPENDED member still linked (or
@@ -1393,13 +1434,42 @@ export async function scimReactivateUser(
   ctx: ScimCreateUserContext,
   userId: string,
   client: PrismaClient = defaultPrisma,
-): Promise<{ ok: boolean; notFound?: boolean; seatRefused?: "seat_limit_reached" | "seat_contention" }> {
+): Promise<{
+  ok: boolean;
+  notFound?: boolean;
+  /** PRO-013 — an administrator suspended or revoked the membership. */
+  heldByAdministrator?: boolean;
+  seatRefused?: "seat_limit_reached" | "seat_contention";
+}> {
   const member = await client.teamMember.findUnique({
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });
   if (!member) return { ok: false, notFound: true };
   // IDENT-010 — a directory cannot reopen a closed account.
   if (await isAccountClosed(userId, client)) return { ok: false, notFound: true };
+  // PRO-014 (AUTH-08) — nor reach a person it does not manage (see deactivation).
+  const managed = await client.externalIdentityMapping.findFirst({
+    where: { organizationId: ctx.organizationId, userId },
+    select: { id: true },
+  });
+  if (!managed) return { ok: false, notFound: true };
+  /*
+   * PRO-013 (AUTH-07) — A DIRECTORY UNDOES ITS OWN SUSPENSION, NOTHING ELSE.
+   *
+   * The sibling and governance legs below already restore only what the
+   * directory suspended (marker-matched); the token's own workspace did not,
+   * so `active: true` reinstated a member an administrator had suspended with
+   * a step-up. That membership is now reinstated only when the directory ended
+   * it: suspended with the directory's marker, or revoked with no human actor
+   * (the legacy directory shape). An administrator's suspension or revocation
+   * stands, and the push is refused so the IdP is not told it succeeded.
+   */
+  const directoryEnded =
+    member.status === "ACTIVE" ||
+    (member.status === "SUSPENDED" &&
+      member.suspensionReason === SCIM_DEACTIVATION_WORKSPACE_MARKER) ||
+    (member.status === "REVOKED" && member.revokedByUserId === null);
+  if (!directoryEnded) return { ok: false, heldByAdministrator: true };
 
   try {
 

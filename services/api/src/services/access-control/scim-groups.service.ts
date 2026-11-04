@@ -456,6 +456,15 @@ export async function scimPatchGroup(
           typeof op.value === "string" &&
           (SCIM_GROUP_MAPPED_ROLES as ReadonlyArray<string>).includes(op.value)
         ) {
+          const following = await txc.scimGroupWorkspaceProjection.findMany({
+            where: {
+              scimGroupId: row.id,
+              status: "ACTIVE",
+              mappedRole: row.mappedRole,
+              workspace: { closedAtUtc: null },
+            },
+            select: { workspaceId: true },
+          });
           await txc.scimGroup.update({ where: { id: row.id }, data: { mappedRole: op.value } });
           // The group's default role follows; projections that carried the
           // old default carry the new one (a projection given its own role by
@@ -464,6 +473,15 @@ export async function scimPatchGroup(
             where: { scimGroupId: row.id, status: "ACTIVE", mappedRole: row.mappedRole },
             data: { mappedRole: op.value },
           });
+          // PRO-030 (AUTH-24) — and so does the role the group GRANTED. The
+          // projection used to change while every member it had made ADMIN
+          // stayed ADMIN, outside the group's listing (which reads the new
+          // role), where neither the directory nor a later removal could reach
+          // them. Members whose current role is this group's own grant move
+          // with it; a role anyone else gave since is left alone.
+          for (const pr of following) {
+            await realignGroupGrantedRoles(txc, row, pr.workspaceId, row.mappedRole, op.value);
+          }
           continue;
         }
         if (op.op === "add" && path.startsWith("members")) {
@@ -646,27 +664,79 @@ function extractMemberUserIds(value: unknown): string[] {
 }
 
 /**
- * Is this user an identity of the group's Organization? A directory may only
- * name users it provisioned (a live SCIM link in the Organization) or users
- * who already belong to one of the Organization's Workspaces. Anyone else —
- * including a user of ANOTHER Organization — is unresolvable (DOM-13 isolation).
+ * PRO-030 (AUTH-24) — move the members whose CURRENT role is this group's own
+ * grant in `workspaceId` from `fromRole` to `toRole`. "Its own grant" is the
+ * provenance record: the member's most recent live grant is this group's (or a
+ * duplicate merged into it) and granted `fromRole`. A member an administrator
+ * (or another source) has given a role since is not touched; an OWNER never is.
+ */
+async function realignGroupGrantedRoles(
+  client: PrismaClient,
+  group: DbGroup,
+  workspaceId: string,
+  fromRole: string,
+  toRole: string,
+): Promise<void> {
+  if (fromRole === toRole) return;
+  const refs = await groupProvenanceRefs(group, client);
+  const granted = await client.membershipGrant.findMany({
+    where: { externalRef: { in: refs }, revokedAtUtc: null, teamMemberId: { not: null } },
+    select: { teamMemberId: true },
+    distinct: ["teamMemberId"],
+  });
+  const grantedIds = granted.map((g) => g.teamMemberId).filter((id): id is string => Boolean(id));
+  if (grantedIds.length === 0) return;
+  const candidates = await client.teamMember.findMany({
+    where: {
+      id: { in: grantedIds },
+      teamId: workspaceId,
+      status: "ACTIVE",
+      role: fromRole as TeamRole,
+    },
+    select: { id: true, role: true },
+  });
+  for (const member of candidates) {
+    if (member.role === "OWNER") continue;
+    const latest = await client.membershipGrant.findFirst({
+      where: { teamMemberId: member.id, revokedAtUtc: null },
+      orderBy: { createdAt: "desc" },
+      select: { externalRef: true, grantedRole: true },
+    });
+    if (!latest?.externalRef || !refs.includes(latest.externalRef)) continue;
+    if (latest.grantedRole !== fromRole) continue;
+    await applyDirectoryRoleChange(client, {
+      teamMemberId: member.id,
+      currentRole: member.role,
+      desiredRole: toRole,
+      source: "IDP_GROUP",
+      externalRef: `scim-group:${group.id}`,
+      allowPrivilegedChange: true,
+    });
+  }
+}
+
+/**
+ * Is this user an identity the group's Organization's DIRECTORY manages?
+ *
+ * PRO-030 (AUTH-24) — a group may name only people the directory or the
+ * Organization's IdP linked (a live link in the Organization). It used to also
+ * accept anyone holding a membership in one of the Organization's Workspaces,
+ * so a group mapped to ADMIN promoted members the directory had never
+ * provisioned and cannot see (its user reads answer 404 for them). That is the
+ * same reach deactivation now has (PRO-014). Anyone else — a manually invited
+ * member, or a user of ANOTHER Organization — is unresolvable, and the whole
+ * operation rolls back with an explicit error (DOM-13 isolation).
  */
 async function isOrganizationIdentity(
   organizationId: string,
   userId: string,
   client: PrismaClient,
 ): Promise<boolean> {
-  const [link, member] = await Promise.all([
-    client.externalIdentityMapping.findFirst({
-      where: { organizationId, userId, unlinkedAtUtc: null },
-      select: { id: true },
-    }),
-    client.teamMember.findFirst({
-      where: { userId, team: { organizationId } },
-      select: { id: true },
-    }),
-  ]);
-  return Boolean(link || member);
+  const link = await client.externalIdentityMapping.findFirst({
+    where: { organizationId, userId, unlinkedAtUtc: null },
+    select: { id: true },
+  });
+  return Boolean(link);
 }
 
 /**
