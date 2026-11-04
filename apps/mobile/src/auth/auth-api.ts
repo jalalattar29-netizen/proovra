@@ -19,6 +19,7 @@ import {
   parseTotpEnrollment,
   type TotpEnrollment,
 } from "../product/account-security";
+import { SSO_DISCOVER_PATH, SSO_EXCHANGE_PATH, parseSsoDiscovery } from "./sso-native";
 
 export interface AuthUser {
   id: string;
@@ -202,6 +203,20 @@ export async function oauthGoogle(idToken: string): Promise<LoginResult> {
 
 export async function oauthApple(idToken: string): Promise<LoginResult> {
   return signInExchange("/v1/auth/apple", { method: "POST", body: JSON.stringify({ idToken }) });
+}
+
+/* ------------------------------------------------------- Enterprise SSO */
+
+/** MOBILE-002 — the Organization sign-in route for this address, or null (sso-native.ts). */
+export async function discoverSso(email: string): Promise<string | null> {
+  return parseSsoDiscovery(
+    await publicFetch(SSO_DISCOVER_PATH, { method: "POST", body: JSON.stringify({ email }) }),
+  );
+}
+
+/** MOBILE-002 — redeem the single-use code from proovra://sso/complete with this attempt's verifier. */
+export async function exchangeNativeSso(code: string, codeVerifier: string): Promise<LoginResult> {
+  return signInExchange(SSO_EXCHANGE_PATH, { method: "POST", body: JSON.stringify({ code, codeVerifier }) });
 }
 
 /* -------------------------------------------------------------- session */

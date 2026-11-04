@@ -233,7 +233,7 @@ const AUTHENTICATED_STACK_SCREENS = [
 ];
 /** Pre-auth, public-token and full-screen capture flows: the web renders these outside AppShellV2 too. */
 const UNSHELLED_SCREENS = [
-  "auth", "register", "forgot-password", "reset-password", "verify-email", "mfa", "mfa-recovery-verify",
+  "auth", "register", "forgot-password", "reset-password", "verify-email", "mfa", "mfa-recovery-verify", "sso-complete",
   "legal-acceptance", "legal/index", "legal/[slug]", "intake/[token]", "intake/capture", "invite/[token]",
   "org-invite/[token]", "portal/index", "portal/[token]", "portal/accept/[grantId]", "portal/work/[workflowId]",
   "capture", "continuous-capture", "screen-capture", "support", "step-up/complete",

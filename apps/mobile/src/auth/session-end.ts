@@ -40,14 +40,15 @@ export function requiresOrganizationSso(reason: unknown): boolean {
 }
 
 /**
- * The app has no single sign-on entry (MOBILE-002), so this says so rather than
- * sending the person round a sign-in that will be refused again.
+ * MOBILE-002 — the app signs SSO members in through their Organization's own
+ * single sign-on (src/auth/sso-native.ts), so the refusal points there instead
+ * of round a password sign-in that will be refused again.
  */
 export const ORGANIZATION_SSO_NOTICE =
-  "This organization requires its single sign-on, which the PROOVRA app does not offer. Sign in through your organization in a web browser.";
+  "This organization requires its single sign-on. Sign in again with your work email and “Sign in with your organization (SSO)”.";
 
 export const ORGANIZATION_SSO_SIGN_IN_NOTE =
-  "Does your organization use single sign-on? This app does not offer it yet. Sign in through your organization in a web browser.";
+  "Does your organization use single sign-on? Enter your work email above, then sign in with your organization.";
 
 /**
  * A switch refused by the target organization's rules, in words the member can

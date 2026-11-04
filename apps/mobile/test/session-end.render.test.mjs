@@ -121,7 +121,7 @@ test("MOBILE-002: mandatory SSO says what to do instead of looping through sign-
   routes["/v1/probe"] = () =>
     reply(401, { error: { code: "UNAUTHORIZED", details: { reason: "reauthentication_required", policy: "mandatory_sso_required" } } });
   await probe();
-  await expectEnded(r, "requires its single sign-on, which the PROOVRA app does not offer");
+  await expectEnded(r, "requires its single sign-on. Sign in again with your work email");
 });
 
 test("a dead token found at boot reports its reason too", async () => {

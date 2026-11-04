@@ -129,11 +129,16 @@ export const uploadAsync = async (...a) => (typeof globalThis.__UPLOAD_ASYNC__ =
 export const CryptoDigestAlgorithm = { SHA256: "SHA-256" };
 export const digest = async (_alg, data) =>
   memFs() ? globalThis.crypto.subtle.digest("SHA-256", data) : new ArrayBuffer(32);
-// A REAL SHA-256 (hex), so a test can assert the exact hash the server will see.
-export const digestStringAsync = async (_alg, text) => {
+// A REAL SHA-256, so a test can assert the exact hash the server will see:
+// hex by default, standard base64 when asked (expo-crypto's CryptoEncoding).
+export const CryptoEncoding = { HEX: "hex", BASE64: "base64" };
+export const digestStringAsync = async (_alg, text, options) => {
   const buf = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(text)));
+  if (options?.encoding === "base64") return Buffer.from(buf).toString("base64");
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 };
+// Real random bytes: a PKCE verifier must not be predictable even in a test.
+export const getRandomBytes = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n));
 let uuidSeq = 0;
 export const randomUUID = () => `00000000-0000-4000-8000-${String(++uuidSeq).padStart(12, "0")}`;
 
@@ -271,6 +276,16 @@ export const openBrowserAsync = async (url) => {
 
 export const dismissBrowser = async () => {};
 export const dismissAuthSession = () => {};
+// expo-web-browser's auth session (system browser that returns on a redirect
+// URL). A test scripts the browser with globalThis.__AUTH_SESSION__ =
+// async (url, returnUrl) => ({ type: "success", url } | { type: "cancel" });
+// unset, the person closes it.
+export const openAuthSessionAsync = async (url, returnUrl) => {
+  calls.openURL.push(url);
+  return typeof globalThis.__AUTH_SESSION__ === "function"
+    ? globalThis.__AUTH_SESSION__(url, returnUrl)
+    : { type: "dismiss" };
+};
 
 // ── @sentry/react-native ────────────────────────────────────────────────────
 // A recording fake so a test can drive the app's REAL Sentry wiring

@@ -18,7 +18,7 @@ import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import type { OAuthMode } from "./use-oauth";
 import { takePendingRoute } from "../deep-link/pending-intent";
 
-export type LoginMode = OAuthMode | "email";
+export type LoginMode = OAuthMode | "email" | "sso";
 
 export interface CompleteLoginOptions {
   /**
