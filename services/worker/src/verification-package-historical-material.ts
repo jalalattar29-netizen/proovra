@@ -163,13 +163,16 @@ export async function buildHistoricalVerificationMaterial(input: {
 
         // ET-PKG-11 — PER PURPOSE. The package signer prefers
         // PACKAGE_SIGNING_PUBLIC_KEY_PATH, so a distinct package key was
-        // described with the evidence key's material. KMS: both signers use
-        // KMS_KEY_ID, so one extraction serves both.
+        // described with the evidence key's material. KMS: the package signer
+        // prefers PACKAGE_SIGNING_KMS_KEY_ID (2026-11-04); when it is unset both
+        // signers use KMS_KEY_ID and one extraction serves both.
         const extracted = await extractPublicMaterial(provider, ["SIGNING_PUBLIC_KEY_PATH"]);
         const packageExtracted =
           provider === "local_pem"
             ? await extractPublicMaterial(provider, ["PACKAGE_SIGNING_PUBLIC_KEY_PATH", "SIGNING_PUBLIC_KEY_PATH"])
-            : extracted;
+            : provider === "aws_kms" && envValue("PACKAGE_SIGNING_KMS_KEY_ID")
+              ? await extractPublicMaterial(provider, [], ["PACKAGE_SIGNING_KMS_KEY_ID"])
+              : extracted;
 
         const evidKeyId = envValue("SIGNING_KEY_ID");
         const evidKeyVersion = envValue("SIGNING_KEY_VERSION");
@@ -301,6 +304,8 @@ async function extractPublicMaterial(
   provider: SignerProvider,
   /** local_pem only: the public-key path env names, first set wins. */
   publicKeyPathEnv: readonly string[],
+  /** aws_kms only: the KMS key env names, first set wins. */
+  kmsKeyEnv: readonly string[] = ["KMS_KEY_ID"],
 ): Promise<Extracted> {
   if (provider === "disabled") {
     return {
@@ -341,7 +346,7 @@ async function extractPublicMaterial(
     }
   }
   // aws_kms
-  const keyId = envValue("KMS_KEY_ID");
+  const keyId = kmsKeyEnv.map(envValue).find((v): v is string => v !== null) ?? null;
   if (!keyId) {
     return {
       publicKeyPem: null,

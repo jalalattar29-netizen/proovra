@@ -121,8 +121,24 @@ export async function registerSigningKey(
           "rotate by registering a new SIGNING_KEY_VERSION.",
       );
     }
+    // A compromise declared while this row was being registered elsewhere
+    // reaches it now: the material is revoked, so this row is too.
+    if (!existing.revokedAt) {
+      const compromisedAt = await keyMaterialCompromisedAt(client, fingerprint);
+      if (compromisedAt) {
+        await client.signingKey.updateMany({
+          where: { keyId: input.keyId, version: input.version, purpose: input.purpose, revokedAt: null },
+          data: { revokedAt: compromisedAt },
+        });
+        return { outcome: "unchanged", publicKeySha256: fingerprint, revokedAt: compromisedAt };
+      }
+    }
     return { outcome: "unchanged", publicKeySha256: fingerprint, revokedAt: existing.revokedAt };
   }
+  // Compromised material stays compromised under a new identity or purpose: the
+  // row is born revoked, with the compromise's own time, so it neither signs
+  // nor verifies.
+  const compromisedAt = await keyMaterialCompromisedAt(client, fingerprint);
   try {
     await client.signingKey.create({
       data: {
@@ -132,6 +148,7 @@ export async function registerSigningKey(
         algorithm: SIGNING_KEY_ALGORITHM,
         fingerprintSha256: fingerprint,
         publicKeyPem: input.publicKeyPem.trim(),
+        ...(compromisedAt ? { revokedAt: compromisedAt } : {}),
       },
     });
   } catch (err) {
@@ -146,7 +163,7 @@ export async function registerSigningKey(
     }
     return { outcome: "unchanged", publicKeySha256: fingerprint, revokedAt: raced.revokedAt };
   }
-  return { outcome: "created", publicKeySha256: fingerprint, revokedAt: null };
+  return { outcome: "created", publicKeySha256: fingerprint, revokedAt: compromisedAt };
 }
 
 /**
@@ -343,27 +360,119 @@ export async function describePublicSigningKey(
   };
 }
 
+/*
+ * =============================================================================
+ * KEY MATERIAL VERSUS AUTHORIZATION (2026-11-04)
+ * =============================================================================
+ * `signing_keys.revoked_at` states one thing: the KEY MATERIAL (its SPKI
+ * SHA-256) is no longer trusted. It is written only by a declared compromise,
+ * never by withdrawing one signer's authorization (that is
+ * `signer_control_state`, which stops new signing for one purpose and leaves
+ * every signature already made verifiable). A compromise is of the key, not of
+ * a row: every row holding the same material is revoked, under any key id,
+ * version or purpose, and a row registered for that material later is born
+ * revoked. Matching is by fingerprint, so PEM whitespace never splits a key.
+ */
+
+type FingerprintRow = { keyId: string; version: number; purpose: string; publicKeyPem: string; fingerprintSha256: string | null; revokedAt: Date | null };
+
+function rowFingerprint(row: Pick<FingerprintRow, "publicKeyPem" | "fingerprintSha256">): string | null {
+  if (row.fingerprintSha256) return row.fingerprintSha256.toLowerCase();
+  try {
+    return publicKeySpkiSha256(row.publicKeyPem);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * WITHDRAW A KEY (CRYPTO-001). Writes revoked_at on every registered row of this
- * key material: one key is published under each purpose it serves, and a
- * compromise is of the key, not of one purpose. A row already revoked keeps its
- * time. Returns how many rows this call revoked.
+ * Every registry row holding this key material. Rows registered before
+ * fingerprints were recorded (NULL column) are matched by computing theirs.
+ */
+async function rowsOfKeyMaterial(client: RegistryClient, fingerprint: string): Promise<FingerprintRow[]> {
+  const select = { keyId: true, version: true, purpose: true, publicKeyPem: true, fingerprintSha256: true, revokedAt: true } as const;
+  const [recorded, legacy] = await Promise.all([
+    client.signingKey.findMany({ where: { fingerprintSha256: fingerprint }, select }),
+    client.signingKey.findMany({ where: { fingerprintSha256: null }, select }),
+  ]);
+  return [...recorded, ...legacy.filter((r) => rowFingerprint(r) === fingerprint)];
+}
+
+/** When this key material was declared compromised (the earliest), or null. */
+export async function keyMaterialCompromisedAt(client: RegistryClient, fingerprint: string): Promise<Date | null> {
+  const times = (await rowsOfKeyMaterial(client, fingerprint.toLowerCase()))
+    .map((r) => r.revokedAt)
+    .filter((t): t is Date => t instanceof Date)
+    .sort((a, b) => a.getTime() - b.getTime());
+  return times[0] ?? null;
+}
+
+/**
+ * Is the material behind this key identity compromised? True when any row of
+ * (keyId, version), under any purpose, is revoked, or when its material is
+ * revoked under another identity. An identity with no row is not compromised
+ * as far as the registry knows (it has signed nothing verifiable).
+ */
+export async function isKeyIdentityCompromised(
+  client: RegistryClient,
+  input: { keyId: string; version: number },
+): Promise<boolean> {
+  const rows = await client.signingKey.findMany({
+    where: { keyId: input.keyId, version: input.version },
+    select: { publicKeyPem: true, fingerprintSha256: true, revokedAt: true },
+  });
+  if (rows.some((r) => r.revokedAt)) return true;
+  for (const fp of new Set(rows.map(rowFingerprint).filter((f): f is string => !!f))) {
+    if (await keyMaterialCompromisedAt(client, fp)) return true;
+  }
+  return false;
+}
+
+export type KeyCompromiseResult = {
+  /** The key material (SPKI SHA-256) the identity resolved to. Empty: none registered. */
+  fingerprints: string[];
+  /** Rows this call revoked (a row already revoked keeps its time). */
+  revokedRows: number;
+  /** Every (keyId, version) holding that material, the named identity included. */
+  identities: Array<{ keyId: string; version: number }>;
+  /** Every registry row of that material, by identity and purpose. */
+  rows: Array<{ keyId: string; version: number; purpose: string }>;
+};
+
+/**
+ * DECLARE KEY MATERIAL COMPROMISED (CRYPTO-001, scoped 2026-11-04). Resolves the
+ * material of (keyId, version) from its registry rows, then writes revoked_at on
+ * every row of that material under any identity and purpose. Returns what it
+ * reached, so the caller can withdraw every signer that names one of those
+ * identities in the same transaction.
  */
 export async function revokeSigningKeyMaterial(
   client: RegistryClient,
   input: { keyId: string; version: number; at?: Date },
-): Promise<number> {
-  const rows = await client.signingKey.findMany({
+): Promise<KeyCompromiseResult> {
+  const own = await client.signingKey.findMany({
     where: { keyId: input.keyId, version: input.version },
-    select: { publicKeyPem: true },
+    select: { publicKeyPem: true, fingerprintSha256: true },
   });
+  const fingerprints = [...new Set(own.map(rowFingerprint).filter((f): f is string => !!f))].sort();
   const at = input.at ?? new Date();
-  let revoked = 0;
-  for (const publicKeyPem of new Set(rows.map((r) => r.publicKeyPem))) {
-    const done = await client.signingKey.updateMany({ where: { publicKeyPem, revokedAt: null }, data: { revokedAt: at } });
-    revoked += done.count;
+  const identities = new Map<string, { keyId: string; version: number }>();
+  identities.set(`${input.keyId}\u0000${input.version}`, { keyId: input.keyId, version: input.version });
+  const rows: KeyCompromiseResult["rows"] = [];
+  let revokedRows = 0;
+  for (const fp of fingerprints) {
+    for (const row of await rowsOfKeyMaterial(client, fp)) {
+      identities.set(`${row.keyId}\u0000${row.version}`, { keyId: row.keyId, version: row.version });
+      rows.push({ keyId: row.keyId, version: row.version, purpose: row.purpose });
+      if (row.revokedAt) continue;
+      const done = await client.signingKey.updateMany({
+        where: { keyId: row.keyId, version: row.version, purpose: row.purpose, revokedAt: null },
+        data: { revokedAt: at },
+      });
+      revokedRows += done.count;
+    }
   }
-  return revoked;
+  return { fingerprints, revokedRows, identities: [...identities.values()], rows };
 }
 
 /**

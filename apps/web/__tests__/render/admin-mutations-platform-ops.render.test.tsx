@@ -529,6 +529,31 @@ describe("Signers — promote / retire / revoke lifecycle", () => {
     expect(JSON.parse(revokes[0].body as string)).toEqual({
       teamId: WS,
       reason: "key material exposed",
+      scope: "authorization",
+    });
+  });
+
+  it("POST /v1/operations/signers/:id/revoke (key_compromise) — a separate typed action naming every use of the key", async () => {
+    await mountSigners();
+    await openStagedDrawer("private key leaked");
+    await click(screen.getByTestId("signer-compromise"));
+    const dialog = modal("signer-compromise-confirm");
+    expect(dialog).not.toBeNull();
+    expect(dialog!.getAttribute("data-confirm-action-tone")).toBe("danger");
+    expect(descriptionOf(dialog!)).toContain("package sealing included");
+    const submit = dialog!.querySelector("[data-confirm-action-submit]") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    // The authorization word does not unlock the compromise.
+    await submitModal("signer-compromise-confirm", "REVOKE");
+    expect(posts(`/v1/operations/signers/${STAGED_ID}/revoke`)).toHaveLength(0);
+
+    await submitModal("signer-compromise-confirm", "COMPROMISED");
+    const revokes = posts(`/v1/operations/signers/${STAGED_ID}/revoke`);
+    expect(revokes).toHaveLength(1);
+    expect(JSON.parse(revokes[0].body as string)).toEqual({
+      teamId: WS,
+      reason: "private key leaked",
+      scope: "key_compromise",
     });
   });
 

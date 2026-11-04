@@ -199,11 +199,6 @@ export async function transitionSignerControlState(input: {
   transitionSource?: string;
   /** When supplied, the caller's view of the row it intends to replace. */
   expectedStateVersion?: number;
-  /**
-   * CRYPTO-001 — written in the transition's transaction, when it applies. A
-   * revoked signer and the registry every verifier reads cannot disagree.
-   */
-  withdrawKey?: { keyId: string; version: number };
 }): Promise<TransitionOutcome> {
   const current = await prisma.signerControlState.findUnique({
     where: { signerId: input.signerId },
@@ -225,23 +220,23 @@ export async function transitionSignerControlState(input: {
 
   // Compare-and-set. `updateMany` matches on the version we read, so a
   // concurrent winner leaves us with count 0 rather than a second "success".
-  const res = await prisma.$transaction(async (tx) => {
-    const moved = await tx.signerControlState.updateMany({
-      where: { signerId: input.signerId, stateVersion: current.stateVersion },
-      data: {
-        status: input.to,
-        stateVersion: current.stateVersion + 1,
-        statusChangedAtUtc: new Date(),
-        actorUserId: input.actorUserId,
-        reason: input.reason.trim().slice(0, 400),
-        transitionSource: (input.transitionSource ?? "admin_console").slice(0, 64),
-        updatedAtUtc: new Date(),
-      },
-    });
-    if (moved.count === 1 && input.withdrawKey) {
-      await revokeSigningKeyMaterial(tx as never, input.withdrawKey);
-    }
-    return moved;
+  //
+  // This is an AUTHORIZATION transition: it decides whether this one signer
+  // (one purpose of one key identity) may sign from now on. It never touches
+  // `signing_keys` — signatures already made stay verifiable, and another
+  // purpose served by the same key material keeps working. A compromised key is
+  // `declareSigningKeyCompromise`, below.
+  const res = await prisma.signerControlState.updateMany({
+    where: { signerId: input.signerId, stateVersion: current.stateVersion },
+    data: {
+      status: input.to,
+      stateVersion: current.stateVersion + 1,
+      statusChangedAtUtc: new Date(),
+      actorUserId: input.actorUserId,
+      reason: input.reason.trim().slice(0, 400),
+      transitionSource: (input.transitionSource ?? "admin_console").slice(0, 64),
+      updatedAtUtc: new Date(),
+    },
   });
   if (res.count === 0) return { ok: false, code: "stale_state" };
 
@@ -252,6 +247,88 @@ export async function transitionSignerControlState(input: {
     to: input.to,
     stateVersion: current.stateVersion + 1,
   };
+}
+
+export type KeyCompromiseOutcome =
+  | {
+      ok: true;
+      state: "changed" | "already";
+      /** The key material reached (SPKI SHA-256). Empty: the identity had no registered key. */
+      fingerprints: string[];
+      revokedKeyRows: number;
+      /** Every signer withdrawn by this call (the named one included, when it changed). */
+      revokedSignerIds: string[];
+      keyIdentities: Array<{ keyId: string; version: number }>;
+      keyRows: Array<{ keyId: string; version: number; purpose: string }>;
+    }
+  | { ok: false; code: "stale_state" };
+
+/**
+ * DECLARE A SIGNING KEY COMPROMISED (CRYPTO-001, scoped 2026-11-04).
+ *
+ * The scope is the KEY MATERIAL, not one signer. In one transaction:
+ *   1. every `signing_keys` row of the material behind (keyId, version) is
+ *      revoked — under any key id, version or purpose, the package seal
+ *      included — so every verifier reports those signatures as made by a
+ *      revoked key, and a later registration of that material is born revoked;
+ *   2. every signer that names one of the key identities holding that material
+ *      is withdrawn (REVOKED), for every purpose and provider, so nothing signs
+ *      with it again — including a signer that was already withdrawn for one
+ *      purpose only.
+ *
+ * Allowed from any status: an authorization revoked yesterday does not stop a
+ * compromise being declared today. A repeat changes nothing and says so.
+ */
+export async function declareSigningKeyCompromise(input: {
+  signerId: string;
+  keyId: string;
+  version: number;
+  actorUserId: string | null;
+  reason: string;
+  expectedStateVersion?: number;
+  /** Every signer id that names one of these key identities. */
+  signerIdsForIdentities: (identities: ReadonlyArray<{ keyId: string; version: number }>) => string[];
+}): Promise<KeyCompromiseOutcome> {
+  const reason = input.reason.trim().slice(0, 400);
+  return prisma.$transaction(async (tx) => {
+    // One compromise at a time, so two declarations cannot interleave their
+    // cascades. The lock is released with the transaction.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('signing-key-compromise'))`;
+    if (input.expectedStateVersion !== undefined) {
+      const current = await tx.signerControlState.findUnique({ where: { signerId: input.signerId } });
+      if ((current?.stateVersion ?? 0) !== input.expectedStateVersion) return { ok: false as const, code: "stale_state" as const };
+    }
+    const material = await revokeSigningKeyMaterial(tx as never, { keyId: input.keyId, version: input.version });
+    const signerIds = [...new Set([input.signerId, ...input.signerIdsForIdentities(material.identities)])];
+    const changed = await tx.$queryRawUnsafe<Array<{ signer_id: string }>>(
+      `INSERT INTO "signer_control_state"
+         ("signer_id", "status", "state_version", "status_changed_at_utc", "actor_user_id", "reason", "transition_source", "updated_at_utc")
+       SELECT s, 'REVOKED', 2, NOW(), $2::uuid, $3, 'key_compromise', NOW() FROM UNNEST($1::text[]) AS s
+       ON CONFLICT ("signer_id") DO UPDATE SET
+         "status" = 'REVOKED',
+         "state_version" = "signer_control_state"."state_version" + 1,
+         "status_changed_at_utc" = NOW(),
+         "actor_user_id" = EXCLUDED."actor_user_id",
+         "reason" = EXCLUDED."reason",
+         "transition_source" = 'key_compromise',
+         "updated_at_utc" = NOW()
+       WHERE "signer_control_state"."status" <> 'REVOKED'
+       RETURNING "signer_id"`,
+      signerIds,
+      input.actorUserId,
+      reason,
+    );
+    const revokedSignerIds = changed.map((r) => r.signer_id).sort();
+    return {
+      ok: true as const,
+      state: material.revokedRows > 0 || revokedSignerIds.length > 0 ? ("changed" as const) : ("already" as const),
+      fingerprints: material.fingerprints,
+      revokedKeyRows: material.revokedRows,
+      revokedSignerIds,
+      keyIdentities: material.identities,
+      keyRows: material.rows,
+    };
+  });
 }
 
 /**

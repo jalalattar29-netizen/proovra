@@ -196,6 +196,8 @@ services:
       SIGNER_PROVIDER: ${SIGNER_PROVIDER:?SIGNER_PROVIDER must be aws-kms or local-pem}
       AWS_REGION: ${AWS_REGION:-eu-north-1}
       KMS_KEY_ID: ${KMS_KEY_ID:-}
+      # Optional: a KMS key of the package seal's own; unset, it shares KMS_KEY_ID.
+      PACKAGE_SIGNING_KMS_KEY_ID: ${PACKAGE_SIGNING_KMS_KEY_ID:-}
       SIGNING_KEY_ID: ${SIGNING_KEY_ID:?SIGNING_KEY_ID is required}
       SIGNING_KEY_VERSION: ${SIGNING_KEY_VERSION:?SIGNING_KEY_VERSION is required}
       SIGNING_PRIVATE_KEY_PATH: ${SIGNING_PRIVATE_KEY_PATH:-}

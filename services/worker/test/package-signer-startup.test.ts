@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  packageKmsKeyId,
   signPackageManifestDigest,
   validatePackageSignerAtStartup,
 } from "../src/signing/package-signer.js";
@@ -26,6 +27,8 @@ const KEYS = [
   "SIGNING_PUBLIC_KEY_PATH",
   "PACKAGE_SIGNING_PRIVATE_KEY_PATH",
   "PACKAGE_SIGNING_PUBLIC_KEY_PATH",
+  "KMS_KEY_ID",
+  "PACKAGE_SIGNING_KMS_KEY_ID",
 ] as const;
 const original = new Map(KEYS.map((key) => [key, process.env[key]]));
 
@@ -124,5 +127,16 @@ describe("package signer startup boundary", () => {
     await expect(validatePackageSignerAtStartup()).rejects.toThrow(
       "private and public keys do not match",
     );
+  });
+
+  it("KMS: the seal uses a key of its own when PACKAGE_SIGNING_KMS_KEY_ID is set, else KMS_KEY_ID", () => {
+    process.env.KMS_KEY_ID = "alias/evidence";
+    delete process.env.PACKAGE_SIGNING_KMS_KEY_ID;
+    expect(packageKmsKeyId()).toBe("alias/evidence");
+    process.env.PACKAGE_SIGNING_KMS_KEY_ID = " alias/package-seal ";
+    expect(packageKmsKeyId()).toBe("alias/package-seal");
+    delete process.env.KMS_KEY_ID;
+    delete process.env.PACKAGE_SIGNING_KMS_KEY_ID;
+    expect(() => packageKmsKeyId()).toThrow("KMS_KEY_ID");
   });
 });

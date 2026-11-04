@@ -194,6 +194,8 @@ export function getCurrentActiveSigners(): ReadonlyArray<SignerRecord> {
     },
     {
       ...base,
+      // The package seal may hold a KMS key of its own (2026-11-04).
+      kmsKeyArn: provider === "aws_kms" ? envValue("PACKAGE_SIGNING_KMS_KEY_ID") ?? kmsArn : null,
       signerId: buildSignerId(
         "verification_package",
         provider,
