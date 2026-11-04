@@ -45,6 +45,14 @@
           {
             "/": "/auth/mfa-recovery/*",
             "comment": "MFA recovery verification"
+          },
+          {
+            "/": "/evidence/*",
+            "comment": "Evidence record links (MOBILE-006). The app authorizes them on the server (POST /v1/deep-link/resolve) before opening"
+          },
+          {
+            "/": "/cases/*",
+            "comment": "Case links (MOBILE-006), authorized on the server like evidence"
           }
         ]
       }

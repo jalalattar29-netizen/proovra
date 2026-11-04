@@ -270,6 +270,26 @@
               "scheme": "https",
               "host": "proovra.com",
               "pathPrefix": "/auth/mfa-recovery"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/evidence/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.proovra.com",
+              "pathPrefix": "/cases/"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/evidence/"
+            },
+            {
+              "scheme": "https",
+              "host": "proovra.com",
+              "pathPrefix": "/cases/"
             }
           ],
           "category": [
