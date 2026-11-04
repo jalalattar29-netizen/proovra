@@ -504,32 +504,65 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
         message: "Withdrawing or reinstating a verification page needs an owner or administrator.",
       });
       if (!actorUserId) return reply;
+      /*
+       * PRO-088 (FEATURES-06) — withdrawing and reinstating a verification
+       * page are the two actions the step-up catalog lists as ALWAYS requiring
+       * a fresh step-up (`ACTIONS_FORCING_MFA`: PUBLIC_VERIFY_SUSPEND and
+       * PUBLIC_VERIFY_RESTORE), and nothing asked for either. An administrator
+       * could put back a page the owner had taken down for a legal request with
+       * nothing but a session. Each direction now asks for its own purpose,
+       * bound to this record, before anything is read or written. A record with
+       * no workspace (Personal legacy) has no workspace challenge to answer, as
+       * on the disclosure route.
+       */
+      const owner = await prisma.evidence.findUnique({ where: { id }, select: { teamId: true } });
+      if (!owner) return reply.code(404).send(NOT_FOUND);
+      if (owner.teamId) {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: owner.teamId,
+          userId: actorUserId,
+          purpose: target === "WITHDRAWN" ? "PUBLIC_VERIFY_SUSPEND" : "PUBLIC_VERIFY_RESTORE",
+          resourceKind: "evidence",
+          resourceId: id,
+        });
+        if (gate.sent) return reply;
+      }
       const result = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
         const row = await tx.evidence.findUnique({
           where: { id },
-          select: { teamId: true, verificationAccessState: true },
+          select: { teamId: true, verificationAccessState: true, verificationAccessReason: true },
         });
         if (!row) return null;
-        if (row.verificationAccessState === target) return { changed: false, teamId: row.teamId };
+        if (row.verificationAccessState === target) return { changed: false, teamId: row.teamId, withdrawalReason: null };
         const now = new Date();
+        // PRO-088: reinstating keeps the reason the page was withdrawn for. It
+        // is the record of what was reversed (the page projection shows it only
+        // while the page is withdrawn), and the reinstatement's custody event
+        // and audit row name it.
+        const withdrawalReason = target === "WITHDRAWN" ? (body?.reason ?? null) : row.verificationAccessReason ?? null;
         await tx.evidence.update({
           where: { id },
           data: {
             verificationAccessState: target,
             verificationAccessChangedAtUtc: now,
             verificationAccessChangedByUserId: actorUserId,
-            verificationAccessReason: body?.reason ?? null,
+            verificationAccessReason: withdrawalReason,
           },
         });
         await appendCustodyEventTx(tx, {
           evidenceId: id,
           eventType: target === "WITHDRAWN" ? "VERIFICATION_ACCESS_WITHDRAWN" : "VERIFICATION_ACCESS_REINSTATED",
           atUtc: now,
-          payload: { reason: body?.reason ?? null, changedByUserId: actorUserId },
+          payload:
+            target === "WITHDRAWN"
+              ? { reason: withdrawalReason, changedByUserId: actorUserId }
+              : { reason: null, reversedWithdrawalReason: withdrawalReason, changedByUserId: actorUserId },
           ip: req.ip,
         });
-        return { changed: true, teamId: row.teamId };
+        return { changed: true, teamId: row.teamId, withdrawalReason };
       });
       if (!result) return reply.code(404).send(NOT_FOUND);
       if (result.changed) {
@@ -538,7 +571,10 @@ export async function evidenceRetentionVerificationRoutes(app: FastifyInstance) 
           teamId: result.teamId ?? null,
           evidenceId: id,
           action: target === "WITHDRAWN" ? "verification.access_withdrawn" : "verification.access_reinstated",
-          metadata: { reason: body?.reason ?? null },
+          metadata:
+            target === "WITHDRAWN"
+              ? { reason: result.withdrawalReason }
+              : { reason: null, reversedWithdrawalReason: result.withdrawalReason },
         });
       }
       return reply.code(200).send({ state: target, changed: result.changed });

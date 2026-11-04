@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { readZipEntries } from "./point5/_zip-entries.js";
+import { createStepUpCeremony } from "./support/step-up-ceremony.js";
 
 const seam = vi.hoisted(() => ({ renders: [] as Array<{ verifyUrl: string | null; version: number | null }> }));
 
@@ -88,16 +89,32 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
   }, 120_000);
 
   const A = () => h.fixtures.teamA;
-  const call = (method: "GET" | "POST" | "DELETE", url: string, token: string | null, payload?: unknown) =>
+  const call = (
+    method: "GET" | "POST" | "DELETE",
+    url: string,
+    token: string | null,
+    payload?: unknown,
+    extraHeaders: Record<string, string> = {},
+  ) =>
     h.app.inject({
       method,
       url,
       headers: {
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...(payload !== undefined ? { "content-type": "application/json" } : {}),
+        ...extraHeaders,
       },
       ...(payload !== undefined ? { payload: JSON.stringify(payload) } : {}),
     });
+  /** PRO-088 — withdraw / reinstate answer to their own step-up purposes. */
+  let ceremony: ReturnType<typeof createStepUpCeremony> | null = null;
+  const accessStepUp = (token: string, userId: string, evidenceId: string, purpose: "PUBLIC_VERIFY_SUSPEND" | "PUBLIC_VERIFY_RESTORE") => {
+    ceremony ??= createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => h.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
+    return ceremony.approvedHeader({ token, userId, teamId: A().teamId, purpose, resourceKind: "evidence", resourceId: evidenceId });
+  };
   const publicVerify = (segment: string) => call("GET", `/public/verify/${encodeURIComponent(segment)}`, null);
 
   async function runReportJobs(evidenceId: string): Promise<void> {
@@ -288,14 +305,33 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     const outsider = await call("POST", `/v1/evidence/${evidenceId}/verification-access/withdraw`, h.fixtures.teamB.ownerToken, { reason: "LEGAL_REQUEST" });
     expect(outsider.statusCode, "no IDOR across workspaces").toBe(404);
 
-    const ok = await call("POST", `/v1/evidence/${evidenceId}/verification-access/withdraw`, A().adminToken, { reason: "PRIVACY_REQUEST" });
+    // PRO-088 — a session alone does not withdraw the page; the step-up does.
+    const unproved = await call("POST", `/v1/evidence/${evidenceId}/verification-access/withdraw`, A().adminToken, { reason: "PRIVACY_REQUEST" });
+    expect(unproved.statusCode).toBe(401);
+    const ok = await call(
+      "POST",
+      `/v1/evidence/${evidenceId}/verification-access/withdraw`,
+      A().adminToken,
+      { reason: "PRIVACY_REQUEST" },
+      await accessStepUp(A().adminToken, A().adminUserId, evidenceId, "PUBLIC_VERIFY_SUSPEND"),
+    );
     expect(ok.statusCode).toBe(200);
     const withdrawn = await publicVerify(ref);
     expect(withdrawn.statusCode).toBe(410);
     expect(withdrawn.json()).toMatchObject({ code: "VERIFICATION_RECORD_WITHDRAWN", canonicalVerification: { reference: ref, status: "WITHDRAWN" } });
     expect(await prisma.custodyEvent.count({ where: { evidenceId, eventType: "VERIFICATION_ACCESS_WITHDRAWN" } })).toBe(1);
 
-    expect((await call("POST", `/v1/evidence/${evidenceId}/verification-access/reinstate`, A().ownerToken, {})).statusCode).toBe(200);
+    expect(
+      (
+        await call(
+          "POST",
+          `/v1/evidence/${evidenceId}/verification-access/reinstate`,
+          A().ownerToken,
+          {},
+          await accessStepUp(A().ownerToken, A().ownerUserId, evidenceId, "PUBLIC_VERIFY_RESTORE"),
+        )
+      ).statusCode,
+    ).toBe(200);
     expect((await publicVerify(ref)).statusCode).toBe(200);
     expect(await prisma.custodyEvent.count({ where: { evidenceId, eventType: "VERIFICATION_ACCESS_REINSTATED" } })).toBe(1);
     expect((await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId } })).verificationRef).toBe(ref);
