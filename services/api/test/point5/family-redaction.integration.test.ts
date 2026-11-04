@@ -429,19 +429,21 @@ describe("POINT 5 FAMILY — redaction (live PostgreSQL 16)", () => {
   it("ET-Q-04: a transient failure gives the claim back so the retry can render", async () => {
     const writer = await import("../../../worker/src/redaction/redaction-derivative-writer.js");
     const id = await seedDerivative({ teamId: own.teamId, fixture: own, state: "QUEUED" });
-    expect(await writer.claimDerivativeForRender(id)).toMatchObject({ claimed: true });
-    expect(await writer.releaseDerivativeClaim(id)).toBe(true);
+    const first = await writer.claimDerivativeForRender(id);
+    expect(first).toMatchObject({ claimed: true });
+    if (!first.claimed) throw new Error("unreachable");
+    expect(await writer.releaseDerivativeClaim(id, first.claimedAt)).toBe(true);
     const row = await prisma.redactionDerivative.findUniqueOrThrow({ where: { id }, select: { state: true } });
     expect(row.state).toBe("QUEUED");
     // …and the retry claims it again.
     expect(await writer.claimDerivativeForRender(id)).toMatchObject({ claimed: true });
     // A terminal row is never released.
     const done = await seedDerivative({ teamId: own.teamId, fixture: own, state: "READY" });
-    expect(await writer.releaseDerivativeClaim(done)).toBe(false);
+    expect(await writer.releaseDerivativeClaim(done, new Date())).toBe(false);
     // The processor's transient branch releases before rethrowing.
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(new URL("../../../worker/src/redaction/redaction-derivative.processor.ts", import.meta.url), "utf8");
-    expect(src).toMatch(/await releaseDerivativeClaim\(derivativeId\);\s*throw err;/);
+    expect(src).toMatch(/await releaseDerivativeClaim\(derivativeId, claimedAt\);\s*throw err;/);
   });
 
   it("the reconciler never reopens a terminal derivative", async () => {

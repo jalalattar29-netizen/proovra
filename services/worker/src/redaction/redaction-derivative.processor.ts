@@ -36,6 +36,7 @@ import { logger } from "../logger.js";
 import { getObjectRange, putObjectBuffer } from "../storage.js";
 import {
   claimDerivativeForRender,
+  derivedProductionRefusal,
   REDACTION_RENDER_LEASE_MS,
   releaseDerivativeClaim,
   markDerivativeFailedWorker,
@@ -109,9 +110,12 @@ export async function processRedactionDerivativeJob(
     logger.info({ derivativeId, reason: claim.reason }, "redaction_derivative.claim_skipped");
     return;
   }
-  const { teamId } = claim;
+  const { teamId, claimedAt } = claim;
+  // WORKERS-05: every write below carries THIS claim, so a worker whose
+  // lease was taken over can neither release, fail nor complete the render
+  // of the worker that replaced it.
   const fail = (reason: string, preview?: string) =>
-    markDerivativeFailedWorker({ derivativeId, teamId, failureReason: reason, errorPreview: preview });
+    markDerivativeFailedWorker({ derivativeId, teamId, failureReason: reason, errorPreview: preview, claimedAt });
 
   try {
     // ── reload ALL authoritative truth from persistence ────────────────────
@@ -189,6 +193,14 @@ export async function processRedactionDerivativeJob(
       await fail("source_object_missing");
       return;
     }
+    // WORKERS-11 — a record that has left service (trashed, destruction-bound,
+    // destroyed) gains no new derived bytes: refused before its original is
+    // read, again before the output is stored, and again at the READY write.
+    const refusedBeforeRender = await derivedProductionRefusal(version.project.evidenceId);
+    if (refusedBeforeRender) {
+      await fail(refusedBeforeRender);
+      return;
+    }
 
     // ── fetch + verify the source (transient store errors THROW for retry) ─
     const source = await getObjectRange({
@@ -234,6 +246,11 @@ export async function processRedactionDerivativeJob(
     }
 
     // ── store to a DISTINCT prefix (never the original key) ───────────────
+    const refusedBeforeStore = await derivedProductionRefusal(version.project.evidenceId);
+    if (refusedBeforeStore) {
+      await fail(refusedBeforeStore);
+      return;
+    }
     const outKey = `${REDACTION_S3_PREFIX}/${teamId}/${version.id}/${outSha.slice(0, 16)}.${extension}`;
     await putObjectBuffer({
       lock: await artifactLockFor(version.project.evidenceId),
@@ -253,9 +270,13 @@ export async function processRedactionDerivativeJob(
       fileSha256: outSha,
       contentType,
       renderEngine: REDACTION_RENDER_ENGINE,
+      claimedAt,
     });
     if (!done.ok) {
       logger.warn({ derivativeId, reason: done.reason }, "redaction_derivative.ready_rejected");
+      // The record left service mid-render: the row is settled FAILED with
+      // that reason rather than left RENDERING for the lease reconciler.
+      if (done.reason.startsWith("evidence_ineligible:")) await fail(done.reason);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -264,7 +285,7 @@ export async function processRedactionDerivativeJob(
     if (/ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|5\d\d|SlowDown|InternalError/i.test(msg)) {
       // ET-Q-04 — give the claim back first, or the retry finds RENDERING,
       // loses the claim and completes as a no-op, stranding the row.
-      await releaseDerivativeClaim(derivativeId);
+      await releaseDerivativeClaim(derivativeId, claimedAt);
       throw err;
     }
     await fail("renderer_failed", msg.slice(0, 300));
