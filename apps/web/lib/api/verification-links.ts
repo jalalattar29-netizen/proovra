@@ -245,19 +245,30 @@ export function changeVerificationDisclosure(
   }) as Promise<{ changed: boolean; disclosure: VerificationDisclosure }>;
 }
 
+/**
+ * Withdraw / reinstate the verification page. Both answer 401 STEP_UP_REQUIRED
+ * (PUBLIC_VERIFY_SUSPEND / PUBLIC_VERIFY_RESTORE) until `headers` carries a
+ * fresh step-up proof; the client retries through the shared step-up flow.
+ */
 export function withdrawVerificationAccess(
   evidenceId: string,
   reason: VerificationWithdrawalReason,
+  headers?: Record<string, string>,
 ): Promise<{ state: string; changed: boolean }> {
   return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access/withdraw`, {
     method: "POST",
+    headers: json(headers),
     body: JSON.stringify({ reason }),
   }) as Promise<{ state: string; changed: boolean }>;
 }
 
-export function reinstateVerificationAccess(evidenceId: string): Promise<{ state: string; changed: boolean }> {
+export function reinstateVerificationAccess(
+  evidenceId: string,
+  headers?: Record<string, string>,
+): Promise<{ state: string; changed: boolean }> {
   return apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/verification-access/reinstate`, {
     method: "POST",
+    headers: json(headers),
     body: JSON.stringify({}),
   }) as Promise<{ state: string; changed: boolean }>;
 }

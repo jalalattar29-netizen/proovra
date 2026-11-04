@@ -61,6 +61,27 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
     });
   const publicVerify = (segment: string) => call("GET", `/public/verify/${encodeURIComponent(segment)}`, null);
 
+  // The owner's authenticator, enrolled by the disclosure-authority block's
+  // beforeAll; the access-state block reuses it for withdraw / reinstate
+  // (PRO-088: each direction answers to its own step-up purpose).
+  const secret = { value: null as Buffer | null };
+  let totp: typeof import("../src/services/security/mfa-totp.js");
+  async function stepUp(purpose = "PUBLIC_VERIFY_PUBLISH"): Promise<string> {
+    await prisma.mfaFactor.updateMany({ where: { userId: A().ownerUserId, kind: "TOTP" }, data: { lastUsedAt: null } });
+    const started = await call("POST", "/v1/identity-security/step-up/start", A().ownerToken, {
+      teamId: A().teamId,
+      purpose,
+      resourceKind: "evidence",
+      resourceId: record.id,
+    });
+    expect(started.statusCode, started.body).toBe(200);
+    const challengeId = (started.json().challenge as { id: string }).id;
+    const code = totp.computeTotpCode(secret.value!, totp.timeStep(Math.floor(Date.now() / 1000)));
+    const checked = await call("POST", "/v1/identity-security/step-up/check", A().ownerToken, { teamId: A().teamId, challengeId, code });
+    expect(checked.statusCode, checked.body).toBe(200);
+    return challengeId;
+  }
+
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
@@ -339,9 +360,6 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
   // toggle, reviewer shares, access states and where the writes happen.
   // ---------------------------------------------------------------------------
   describe("contract — the owner's disclosure authority", () => {
-    const secret = { value: null as Buffer | null };
-    let totp: typeof import("../src/services/security/mfa-totp.js");
-
     beforeAll(async () => {
       totp = await import("../src/services/security/mfa-totp.js");
       const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
@@ -364,21 +382,6 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
       });
     });
 
-    async function stepUp(purpose = "PUBLIC_VERIFY_PUBLISH"): Promise<string> {
-      await prisma.mfaFactor.updateMany({ where: { userId: A().ownerUserId, kind: "TOTP" }, data: { lastUsedAt: null } });
-      const started = await call("POST", "/v1/identity-security/step-up/start", A().ownerToken, {
-        teamId: A().teamId,
-        purpose,
-        resourceKind: "evidence",
-        resourceId: record.id,
-      });
-      expect(started.statusCode, started.body).toBe(200);
-      const challengeId = (started.json().challenge as { id: string }).id;
-      const code = totp.computeTotpCode(secret.value!, totp.timeStep(Math.floor(Date.now() / 1000)));
-      const checked = await call("POST", "/v1/identity-security/step-up/check", A().ownerToken, { teamId: A().teamId, challengeId, code });
-      expect(checked.statusCode, checked.body).toBe(200);
-      return challengeId;
-    }
     const policyOf = () =>
       prisma.evidence.findUniqueOrThrow({
         where: { id: record.id },
@@ -585,7 +588,13 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
         data: { legacyVerifyUuidUntilUtc: new Date(Date.now() + 86_400_000) },
       });
       expect((await publicVerify(record.id)).statusCode).toBe(200);
-      const withdrawn = await call("POST", `/v1/evidence/${record.id}/verification-access/withdraw`, A().ownerToken, { reason: "PRIVACY_REQUEST" });
+      const withdrawn = await call(
+        "POST",
+        `/v1/evidence/${record.id}/verification-access/withdraw`,
+        A().ownerToken,
+        { reason: "PRIVACY_REQUEST" },
+        await stepUp("PUBLIC_VERIFY_SUSPEND"),
+      );
       expect(withdrawn.statusCode, withdrawn.body).toBe(200);
       await new Promise((r) => setTimeout(r, 300));
       const before = {
@@ -607,7 +616,13 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
           .integrityRecheckRequestedAtUtc?.toISOString() ?? null,
       ).toBe(before.recheck?.toISOString() ?? null);
       // A disclosure change never reinstates access.
-      const reinstate = await call("POST", `/v1/evidence/${record.id}/verification-access/reinstate`, A().ownerToken, {});
+      const reinstate = await call(
+        "POST",
+        `/v1/evidence/${record.id}/verification-access/reinstate`,
+        A().ownerToken,
+        {},
+        await stepUp("PUBLIC_VERIFY_RESTORE"),
+      );
       expect(reinstate.statusCode).toBe(200);
       expect((await publicVerify(record.ref)).statusCode).toBe(200);
     });

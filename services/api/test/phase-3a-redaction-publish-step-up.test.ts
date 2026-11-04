@@ -267,7 +267,8 @@ describe("Phase 3A — original evidence safety (publish never touches the origi
     // Isolate the transition body and confirm it mutates only redaction
     // tables. There is no prisma.evidence.update / .delete anywhere in the
     // publish path, so no evidence hash / storageKey is rewritten.
-    expect(SVC_PROJECT).toMatch(/tx\.redactionVersion\.update\(/);
+    // PRO-094: the version row is written as a compare-and-swap on its state.
+    expect(SVC_PROJECT).toMatch(/tx\.redactionVersion\.updateMany\(\{\s*where: \{ id: input\.versionId, teamId: input\.teamId, state: from \}/);
     expect(SVC_PROJECT).toMatch(/tx\.redactionProject\.update\(/);
     expect(SVC_PROJECT).not.toMatch(/prisma\.evidence\.(update|delete|upsert)/);
     expect(SVC_PROJECT).not.toMatch(/tx\.evidence\.(update|delete|upsert)/);

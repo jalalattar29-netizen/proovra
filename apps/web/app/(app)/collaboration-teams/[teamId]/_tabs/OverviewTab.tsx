@@ -534,6 +534,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "team.assignment.complete": "Mark assigned work complete",
   "team.assignment.cancel": "Remove work from this team",
   "team.activity.read": "See the team's activity history",
+  "team.comment.post": "Write in the team's discussion and mention people",
 };
 
 /**
@@ -588,6 +589,7 @@ const PERMISSION_GROUPS: { title: string; match: (p: string) => boolean }[] = [
   },
   { title: "Members", match: (p) => p.startsWith("team.member.") },
   { title: "Work", match: (p) => p.startsWith("team.assignment.") },
+  { title: "Discussion", match: (p) => p.startsWith("team.comment.") },
   {
     title: "Invitations, audit and access",
     match: (p) =>

@@ -630,6 +630,9 @@ const PURPOSE_LABEL: Record<string, string> = {
   PASSKEY_REMOVE: "Remove a passkey or security key",
   ORG_SECURITY_POLICY_UPDATE: "Change the organization security policy",
   WORKSPACE_IDENTITY_UPDATE: "Change the workspace legal contact or logo",
+  PUBLIC_VERIFY_PUBLISH: "Show more on the verification page",
+  PUBLIC_VERIFY_SUSPEND: "Withdraw the verification page",
+  PUBLIC_VERIFY_RESTORE: "Reinstate the verification page",
 };
 
 export function StepUpModal({

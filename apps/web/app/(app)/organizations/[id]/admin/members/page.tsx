@@ -62,6 +62,12 @@ import {
   canManageMembers,
   type OrgRole,
 } from "../_lib/orgRoles";
+import {
+  StepUpVerify,
+  extractStepUp,
+  type StepUpMethods,
+  type StepUpProof,
+} from "../../../../security-center/components/PersonalSecuritySections";
 
 /**
  * PV-DIS-003 — a role above the caller's own is not offered as if it could be
@@ -327,7 +333,11 @@ function MembersTab() {
   const callerRole = org.kind === "ready" ? org.data.callerRole : null;
   const canMutate = callerRole !== null && canManageMembers(callerRole);
 
-  const sendInvite = useCallback(async () => {
+  // PRO-097 — an ORG_OWNER invite asks the inviting owner to prove it is them
+  // (the server answers STEP_UP_REQUIRED with the methods this account has).
+  const [inviteStepUp, setInviteStepUp] = useState<null | { methods: StepUpMethods; message: string }>(null);
+
+  const sendInvite = useCallback(async (proof?: StepUpProof) => {
     const email = inviteEmail.trim();
     if (!email) {
       setInviteFormError("Email is required.");
@@ -344,12 +354,19 @@ function MembersTab() {
           email,
           role: inviteRole,
           ...inviteWorkspaceAssignments(primaryWorkspace?.workspaceId ?? null, inviteAccess),
+          ...(proof ? { stepUp: proof } : {}),
         }),
       })) as { token: string };
+      setInviteStepUp(null);
       setIssuedInviteToken(data.token);
       setInviteEmail("");
       await refresh();
     } catch (err) {
+      const su = extractStepUp(err);
+      if (su) {
+        setInviteStepUp(su);
+        return;
+      }
       setInviteFormError(
         toSafeUserError(err, { message: "Failed to send invite." }).message,
       );
@@ -606,6 +623,16 @@ function MembersTab() {
             </p>
           </form>
         )}
+        {inviteStepUp ? (
+          <StepUpVerify
+            title="Confirm inviting a new organization owner."
+            methods={inviteStepUp.methods}
+            initialError={inviteStepUp.message}
+            busy={inviteFormBusy}
+            onSubmit={(proof) => void sendInvite(proof)}
+            onCancel={() => setInviteStepUp(null)}
+          />
+        ) : null}
         {inviteFormError ? (
           <div role="alert" data-state="error" style={errorBox}>
             {inviteFormError}

@@ -291,11 +291,17 @@ export function ManageVerificationPagePanel({
     if (!ok) return;
     setBusy("access");
     try {
-      await withdrawVerificationAccess(evidenceId, reason);
+      // Withdrawing asks for a fresh step-up (PUBLIC_VERIFY_SUSPEND); the
+      // shared flow prompts and retries with the proof.
+      await stepUp.runStepUpAction((headers) => withdrawVerificationAccess(evidenceId, reason, headers));
       await load({ keepDraft: true });
       onChanged?.();
       addToast("Verification page withdrawn", "success");
     } catch (err) {
+      if ((err as ErrLike | null)?.code === "STEP_UP_CANCEL") {
+        addToast("Not withdrawn. Withdrawing the page needs you to confirm your identity.", "error");
+        return;
+      }
       notifyApiError(addToast, err, { message: "The verification page could not be withdrawn." });
     } finally {
       setBusy(null);
@@ -305,11 +311,16 @@ export function ManageVerificationPagePanel({
   const reinstate = async () => {
     setBusy("access");
     try {
-      await reinstateVerificationAccess(evidenceId);
+      // Reinstating asks for a fresh step-up (PUBLIC_VERIFY_RESTORE).
+      await stepUp.runStepUpAction((headers) => reinstateVerificationAccess(evidenceId, headers));
       await load({ keepDraft: true });
       onChanged?.();
       addToast("Verification page reinstated", "success");
     } catch (err) {
+      if ((err as ErrLike | null)?.code === "STEP_UP_CANCEL") {
+        addToast("Not reinstated. Reinstating the page needs you to confirm your identity.", "error");
+        return;
+      }
       notifyApiError(addToast, err, { message: "The verification page could not be reinstated." });
     } finally {
       setBusy(null);

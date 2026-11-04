@@ -312,16 +312,32 @@ describe("SEC-08 — share-link lifecycle (live PostgreSQL)", () => {
 
   it("the pvr_ changes only through the canonical lifecycle: withdraw, then reinstate", async () => {
     const rec = await signedRecord(A().teamId, A().ownerUserId, A().ownerUserId);
+    // PRO-088 — each direction answers to its own step-up purpose.
+    const accessProof = (purpose: "PUBLIC_VERIFY_SUSPEND" | "PUBLIC_VERIFY_RESTORE") =>
+      stepUp.approvedHeader({
+        token: A().ownerToken,
+        userId: A().ownerUserId,
+        teamId: A().teamId,
+        purpose,
+        resourceKind: "evidence",
+        resourceId: rec.evidenceId,
+      });
     const withdraw = await h.app.inject({
       method: "POST",
       url: `/v1/evidence/${rec.evidenceId}/verification-access/withdraw`,
-      headers: bearer(A().ownerToken),
+      headers: { ...bearer(A().ownerToken), ...(await accessProof("PUBLIC_VERIFY_SUSPEND")) },
       payload: { reason: "LEGAL_REQUEST" },
     });
     expect(withdraw.statusCode, withdraw.body).toBe(200);
     const withdrawn = await publicVerify(rec.ref);
     expect(JSON.stringify(withdrawn.json())).toContain("WITHDRAWN");
-    await h.app.inject({ method: "POST", url: `/v1/evidence/${rec.evidenceId}/verification-access/reinstate`, headers: bearer(A().ownerToken), payload: {} });
+    const reinstated = await h.app.inject({
+      method: "POST",
+      url: `/v1/evidence/${rec.evidenceId}/verification-access/reinstate`,
+      headers: { ...bearer(A().ownerToken), ...(await accessProof("PUBLIC_VERIFY_RESTORE")) },
+      payload: {},
+    });
+    expect(reinstated.statusCode, reinstated.body).toBe(200);
     const back = await publicVerify(rec.ref);
     expect(back.statusCode).not.toBe(410);
     expect(JSON.stringify(back.json())).not.toContain("WITHDRAWN");

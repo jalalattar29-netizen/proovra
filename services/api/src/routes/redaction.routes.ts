@@ -418,6 +418,35 @@ async function gate(
     reply.code(403).send({ denial: res.denial });
     return false;
   }
+  /*
+   * PRO-089 (FEATURES-07) — FEATURE_REDACTION is asserted on EVERY write.
+   *
+   * It was checked once, when a project was opened, and an engine error there
+   * was swallowed. A workspace that lost the entitlement kept authoring
+   * versions, running detection (which can call the cloud providers) and
+   * publishing derivatives on every project it had already opened. Reads stay
+   * open after a downgrade, as for evidence itself (runbook 13: existing
+   * material remains readable; new work gates on the current plan), and so
+   * does quarantining a derivative, which only withdraws one. A failure of the
+   * entitlement engine propagates: the write does not run.
+   */
+  const method = reply.request.method;
+  const isWrite = method !== "GET" && method !== "HEAD";
+  const isProtectiveWithdrawal = /\/v1\/redaction\/derivatives\/[^/]+\/quarantine$/.test(
+    reply.request.routeOptions?.url ?? "",
+  );
+  if (isWrite && !isProtectiveWithdrawal) {
+    const entitled = await assertFeatureEntitlement({
+      prisma,
+      teamId: ctx.teamId,
+      key: "FEATURE_REDACTION",
+      actorUserId: ctx.userId,
+    });
+    if (!entitled.ok) {
+      reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_REDACTION" });
+      return false;
+    }
+  }
   // The record behind a project, version, region, detection, derivative or
   // track id answers to the case rule, after the capability, so a caller without
   // the capability learns nothing either way.
@@ -562,11 +591,7 @@ export async function redactionRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const ctx = await resolveWorkspace(req, reply);
       if (!ctx) return reply;
-      // I6 — FEATURE_REDACTION gate (minimal coverage, one rep mutation).
-      try {
-        const feOk = await assertFeatureEntitlement({ prisma, teamId: ctx.teamId, key: "FEATURE_REDACTION", actorUserId: ctx.userId });
-        if (!feOk.ok) return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", entitlement: "FEATURE_REDACTION" });
-      } catch { /* engine failure must not break route */ }
+      // FEATURE_REDACTION is asserted by `gate` on every write (PRO-089).
       if (!(await gate(reply, ctx, "redaction.region.author"))) return reply;
       const body = OpenProjectBody.parse(req.body);
       // A record closed to the caller answers as one that is not there.

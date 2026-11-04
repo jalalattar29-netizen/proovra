@@ -155,6 +155,14 @@ vi.mock("../src/db.js", () => ({
         Object.assign(set, data, { updatedAt: bumped });
         return { ...set };
       },
+      updateMany: async ({ where, data }: { where: { id: string; updatedAt?: Date }; data: Record<string, unknown> }) => {
+        // The draft save's concurrency token, compared in the write (PRO-090).
+        const set = H.sets.get(where.id);
+        if (!set || (where.updatedAt && where.updatedAt.getTime() !== set.updatedAt.getTime())) return { count: 0 };
+        const bumped = new Date(Math.max(Date.now(), set.updatedAt.getTime() + 1));
+        Object.assign(set, data, { updatedAt: bumped });
+        return { count: 1 };
+      },
     },
     reviewerCriteriaVersion: {
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -165,13 +173,25 @@ vi.mock("../src/db.js", () => ({
         if (criteria?.create) v.criteria.push(...criteria.create.map((c) => ({ ...c })));
         return { ...v };
       },
-      updateMany: async ({ where, data }: { where: { criteriaSetId: string; publishedAt?: unknown }; data: Record<string, unknown> }) => {
-        for (const v of versionsOfSet(where.criteriaSetId)) {
+      updateMany: async ({ where, data }: { where: { id?: string; criteriaSetId?: string; publishedAt?: unknown }; data: Record<string, unknown> }) => {
+        // By id with `publishedAt: null` — the draft-save and publish compare-and-swap (PRO-090).
+        if (where.id) {
+          const v = H.versions.get(where.id);
+          if (!v || (where.publishedAt === null && v.publishedAt)) return { count: 0 };
+          Object.assign(v, data);
+          return { count: 1 };
+        }
+        for (const v of versionsOfSet(where.criteriaSetId!)) {
           if (where.publishedAt && !v.publishedAt) continue;
           if (v.retiredAt) continue;
           Object.assign(H.versions.get(v.id)!, data);
         }
         return { count: 1 };
+      },
+      findUniqueOrThrow: async ({ where }: { where: { id: string } }) => {
+        const v = H.versions.get(where.id);
+        if (!v) throw new Error("not found");
+        return { ...v };
       },
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const vId = H.nextId("v");
@@ -192,8 +212,19 @@ vi.mock("../src/db.js", () => ({
         if (v) v.criteria = [];
         return { count: 1 };
       },
+      createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
+        for (const row of data) {
+          const { criteriaVersionId, ...c } = row;
+          H.versions.get(criteriaVersionId as string)?.criteria.push({ ...c });
+        }
+        return { count: data.length };
+      },
     },
-    $transaction: async (ops: Array<Promise<unknown>>) => Promise.all(ops),
+    // Both forms: an array of operations, or an interactive callback that runs
+    // against this same double (the draft save and publish use the callback).
+    async $transaction(this: unknown, arg: Array<Promise<unknown>> | ((tx: unknown) => Promise<unknown>)) {
+      return typeof arg === "function" ? arg(this) : Promise.all(arg);
+    },
   },
 }));
 // Nothing here is closed by a restricted case; the rule itself runs against

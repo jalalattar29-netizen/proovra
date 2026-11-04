@@ -27,6 +27,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { triggerEscalationCreated } from "../automation/automation-triggers.js";
 
 import type {
+  Prisma,
   PrismaClient,
   ReviewEscalation as DbEscalation,
 } from "@prisma/client";
@@ -617,6 +618,41 @@ function assertTransition(
   }
 }
 
+/**
+ * PRO-092 (FEATURES-10) — EVERY MOVE IS A COMPARE-AND-SWAP ON THE STATUS IT
+ * WAS CHECKED FROM.
+ *
+ * Each transition read the row, asserted it open and the edge allowed, and
+ * then updated by id alone. A resolve and a suppress that both read OPEN both
+ * wrote: the row ended RESOLVED (or SUPPRESSED) with both `resolvedAtUtc` and
+ * `suppressedAtUtc` set, and both moves were audited. The write now carries
+ * the status that was read; a move that lost the race changes nothing and is
+ * refused with the status it found (409), exactly as a sequential retry is.
+ */
+async function swapEscalationStatus(
+  client: PrismaClient | Prisma.TransactionClient,
+  row: DbEscalation,
+  to: ReviewEscalationStatus,
+  data: Prisma.ReviewEscalationUncheckedUpdateManyInput,
+): Promise<DbEscalation> {
+  const swapped = await client.reviewEscalation.updateMany({
+    where: { id: row.id, teamId: row.teamId, status: row.status },
+    data,
+  });
+  if (swapped.count !== 1) {
+    const now = await client.reviewEscalation.findUnique({
+      where: { id: row.id },
+      select: { status: true },
+    });
+    const current = (now?.status ?? row.status) as ReviewEscalationStatus;
+    if (isTerminalReviewEscalationStatus(current)) {
+      throw new EscalationEngineError("REVIEW_ESCALATION_TERMINAL");
+    }
+    throw new EscalationEngineError("REVIEW_INVALID_TRANSITION", { from: current, to });
+  }
+  return client.reviewEscalation.findUniqueOrThrow({ where: { id: row.id } });
+}
+
 export async function acknowledgeEscalation(
   input: TransitionContext,
   client: PrismaClient = defaultPrisma,
@@ -624,13 +660,10 @@ export async function acknowledgeEscalation(
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "ACKNOWLEDGED");
   const now = new Date();
-  const updated = await client.reviewEscalation.update({
-    where: { id: row.id },
-    data: {
-      status: "ACKNOWLEDGED",
-      acknowledgedAtUtc: now,
-      acknowledgedByUserId: input.actorUserId,
-    },
+  const updated = await swapEscalationStatus(client, row, "ACKNOWLEDGED", {
+    status: "ACKNOWLEDGED",
+    acknowledgedAtUtc: now,
+    acknowledgedByUserId: input.actorUserId,
   });
   bump("reviewer_escalation_acknowledged_total");
   safeEmitSecurityEvent({
@@ -656,12 +689,9 @@ export async function reassignEscalation(
       assigneeUserId: input.newAssigneeUserId,
       evidenceId: row.evidenceId ?? null,
     });
-    return tx.reviewEscalation.update({
-      where: { id: row.id },
-      data: {
-        status: "REASSIGNED",
-        assignedToUserId: input.newAssigneeUserId,
-      },
+    return swapEscalationStatus(tx, row, "REASSIGNED", {
+      status: "REASSIGNED",
+      assignedToUserId: input.newAssigneeUserId,
     });
   });
   safeEmitSecurityEvent({
@@ -692,14 +722,11 @@ export async function resolveEscalation(
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "RESOLVED");
   const now = new Date();
-  const updated = await client.reviewEscalation.update({
-    where: { id: row.id },
-    data: {
-      status: "RESOLVED",
-      resolvedAtUtc: now,
-      resolvedByUserId: input.actorUserId,
-      resolutionNote: sanitiseNote(input.resolutionNote),
-    },
+  const updated = await swapEscalationStatus(client, row, "RESOLVED", {
+    status: "RESOLVED",
+    resolvedAtUtc: now,
+    resolvedByUserId: input.actorUserId,
+    resolutionNote: sanitiseNote(input.resolutionNote),
   });
   // Clear the workflow's active-escalation pointer if it still points
   // at this escalation.
@@ -743,13 +770,10 @@ export async function suppressEscalation(
   const row = await loadAndAssertOpen(input, client);
   assertTransition(row.status as ReviewEscalationStatus, "SUPPRESSED");
   const now = new Date();
-  const updated = await client.reviewEscalation.update({
-    where: { id: row.id },
-    data: {
-      status: "SUPPRESSED",
-      suppressedAtUtc: now,
-      suppressionReason: sanitiseNote(input.suppressionReason),
-    },
+  const updated = await swapEscalationStatus(client, row, "SUPPRESSED", {
+    status: "SUPPRESSED",
+    suppressedAtUtc: now,
+    suppressionReason: sanitiseNote(input.suppressionReason),
   });
   await client.evidenceReviewWorkflow.updateMany({
     where: { id: row.workflowId, activeEscalationId: row.id },

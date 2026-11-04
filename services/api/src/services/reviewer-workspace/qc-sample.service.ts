@@ -179,16 +179,20 @@ export async function assignSample(input: {
       if (err instanceof AssigneeEligibilityError) return err.reason;
       throw err;
     }
-    await tx.qcSample.update({
-      where: { id: row.id },
+    // PRO-091: an assignment cannot land on a sample whose verdict was
+    // rendered between the read above and this write.
+    const assigned = await tx.qcSample.updateMany({
+      where: { id: row.id, state: { in: ["SAMPLED", "ASSIGNED"] } },
       data: {
         qcReviewerUserId: input.qcReviewerUserId,
         state: "ASSIGNED",
         assignedAtUtc: new Date(),
       },
     });
+    if (assigned.count !== 1) return "VERDICT_RENDERED" as const;
     return null;
   });
+  if (refusal === "VERDICT_RENDERED") return deny("QC_VERDICT_INVALID");
   if (refusal) {
     return {
       ok: false,
@@ -245,8 +249,18 @@ export async function renderQcVerdict(input: {
   });
   if (!row) return deny("QC_SAMPLE_NOT_FOUND");
   if (row.qcReviewerUserId !== input.actorUserId) return deny("NOT_PERMITTED");
-  await prisma.qcSample.update({
-    where: { id: row.id },
+  /*
+   * PRO-091 (FEATURES-09) — A RENDERED VERDICT IS FINAL.
+   *
+   * The update ran with no state condition, so the QC reviewer could render
+   * again and flip a PASS to FAIL (or back) after the fact, rewriting the QC
+   * accuracy figures and the trail. `assignSample` already refuses a sample
+   * past ASSIGNED; the verdict now does too, as a compare-and-swap so two
+   * concurrent verdicts cannot both land.
+   */
+  if (row.state !== "ASSIGNED") return deny("QC_VERDICT_INVALID");
+  const rendered = await prisma.qcSample.updateMany({
+    where: { id: row.id, teamId: input.teamId, state: "ASSIGNED", qcReviewerUserId: input.actorUserId },
     data: {
       state: "VERDICT_RENDERED",
       verdict: input.verdict,
@@ -255,6 +269,7 @@ export async function renderQcVerdict(input: {
       renderedAtUtc: new Date(),
     },
   });
+  if (rendered.count !== 1) return deny("QC_VERDICT_INVALID");
   // Phase 4 — best-effort audit emission. Bounded metadata: only IDs
   // and the bounded verdict + failureReason enums. Raw rationale
   // bodies are intentionally NOT included (could leak sensitive

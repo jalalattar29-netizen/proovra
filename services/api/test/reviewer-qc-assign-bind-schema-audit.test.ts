@@ -28,7 +28,7 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
 
 type AnyFn = ReturnType<typeof vi.fn>;
 const prismaStub = {
-  qcSample: { findFirst: vi.fn(), update: vi.fn() },
+  qcSample: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   teamMember: { findFirst: vi.fn() },
   codingSchema: { findFirst: vi.fn(), update: vi.fn() },
   evidenceReviewWorkflow: { findFirst: vi.fn(), update: vi.fn() },
@@ -124,7 +124,7 @@ describe("assignSample", () => {
     expect(prismaStub.evidenceReviewWorkflow.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: WORKFLOW, teamId: TEAM } }),
     );
-    expect(prismaStub.qcSample.update).not.toHaveBeenCalled();
+    expect(prismaStub.qcSample.updateMany).not.toHaveBeenCalled();
     expect(emitTenantAuditMock).not.toHaveBeenCalled();
   });
 
@@ -133,13 +133,14 @@ describe("assignSample", () => {
       id: SAMPLE, state: "ASSIGNED", workflowId: WORKFLOW, qcReviewerUserId: "prev-user",
     });
     prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: EVIDENCE });
-    prismaStub.qcSample.update.mockResolvedValueOnce({});
+    // PRO-091: the assignment is a compare-and-swap on a pending state.
+    prismaStub.qcSample.updateMany.mockResolvedValueOnce({ count: 1 });
     const res = await qc.assignSample({
       teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER, actorUserId: ACTOR,
     });
     expect(res).toEqual({ ok: true });
     expect(assertWorkAssigneeEligibleMock).toHaveBeenCalledTimes(1);
-    expect(prismaStub.qcSample.update).toHaveBeenCalledWith(
+    expect(prismaStub.qcSample.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ qcReviewerUserId: REVIEWER, state: "ASSIGNED" }),
       }),
@@ -164,7 +165,7 @@ describe("assignSample", () => {
     const res = await qc.assignSample({ teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER });
     expect(res).toEqual({ ok: false, denial: "QC_VERDICT_INVALID" });
     expect(assertWorkAssigneeEligibleMock).not.toHaveBeenCalled();
-    expect(prismaStub.qcSample.update).not.toHaveBeenCalled();
+    expect(prismaStub.qcSample.updateMany).not.toHaveBeenCalled();
   });
 });
 

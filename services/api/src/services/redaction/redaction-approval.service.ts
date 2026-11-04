@@ -15,7 +15,7 @@
  *     enforced server-side here, never UI-only.
  */
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   REDACTION_APPROVAL_VERDICTS,
   type RedactionApprovalVerdict,
@@ -74,16 +74,64 @@ export async function recordRedactionApproval(
     return { ok: false, denial: "NOT_PERMITTED" };
   }
 
-  const created = await prisma.redactionApproval.create({
-    data: {
+  /*
+   * PRO-094 (FEATURES-12) — THE VERDICT AND THE TRANSITION IT DRIVES COMMIT
+   * TOGETHER, OR NEITHER DOES.
+   *
+   * The approval row was inserted first and the transition's result ignored,
+   * so two concurrent verdicts on one IN_REVIEW version both recorded an
+   * approval and the later transition overwrote the earlier: rows
+   * [REQUEST_CHANGES, APPROVE], version in DRAFT. The row is now written inside
+   * the transition's transaction, after its state compare-and-swap; the losing
+   * verdict writes nothing and is refused (INVALID_TRANSITION, 409). DEFER
+   * moves no state, so it holds the version row IN_REVIEW for its insert.
+   */
+  const toState =
+    input.verdict === "APPROVE"
+      ? ("APPROVED" as const)
+      : input.verdict === "REJECT"
+        ? ("REJECTED" as const)
+        : input.verdict === "REQUEST_CHANGES"
+          ? ("DRAFT" as const)
+          : null;
+  let created: { id: string } | null = null;
+  const insertApproval = async (tx: Prisma.TransactionClient) => {
+    created = await tx.redactionApproval.create({
+      data: {
+        teamId: input.teamId,
+        versionId: input.versionId,
+        verdict: input.verdict,
+        rationale: input.rationale?.slice(0, 600) ?? null,
+        approverUserId: input.approverUserId,
+      },
+      select: { id: true },
+    });
+  };
+  if (toState) {
+    const moved = await transitionRedactionVersion({
+      prisma,
       teamId: input.teamId,
       versionId: input.versionId,
-      verdict: input.verdict,
-      rationale: input.rationale?.slice(0, 600) ?? null,
-      approverUserId: input.approverUserId,
-    },
-    select: { id: true },
-  });
+      toState,
+      actorUserId: input.approverUserId,
+      rationale: input.rationale ?? null,
+      withinTransition: insertApproval,
+    });
+    if (!moved.ok) return { ok: false, denial: moved.denial };
+  } else {
+    const held = await prisma.$transaction(async (tx) => {
+      const still = await tx.redactionVersion.updateMany({
+        where: { id: input.versionId, teamId: input.teamId, state: "IN_REVIEW" },
+        data: { state: "IN_REVIEW" },
+      });
+      if (still.count !== 1) return false;
+      await insertApproval(tx);
+      return true;
+    });
+    if (!held) return { ok: false, denial: "INVALID_TRANSITION" };
+  }
+  const approval = created as { id: string } | null;
+  if (!approval) return { ok: false, denial: "INVALID_TRANSITION" };
   const code =
     input.verdict === "APPROVE"
       ? "APPROVAL_GRANTED"
@@ -100,42 +148,12 @@ export async function recordRedactionApproval(
     code,
     actorUserId: input.approverUserId,
     payload: {
-      approvalId: created.id,
+      approvalId: approval.id,
       verdict: input.verdict,
       rationalePreview: input.rationale?.slice(0, 80) ?? null,
     },
   });
-
-  // Drive the bounded state machine.
-  if (input.verdict === "APPROVE") {
-    await transitionRedactionVersion({
-      prisma,
-      teamId: input.teamId,
-      versionId: input.versionId,
-      toState: "APPROVED",
-      actorUserId: input.approverUserId,
-      rationale: input.rationale ?? null,
-    });
-  } else if (input.verdict === "REJECT") {
-    await transitionRedactionVersion({
-      prisma,
-      teamId: input.teamId,
-      versionId: input.versionId,
-      toState: "REJECTED",
-      actorUserId: input.approverUserId,
-      rationale: input.rationale ?? null,
-    });
-  } else if (input.verdict === "REQUEST_CHANGES") {
-    await transitionRedactionVersion({
-      prisma,
-      teamId: input.teamId,
-      versionId: input.versionId,
-      toState: "DRAFT",
-      actorUserId: input.approverUserId,
-      rationale: input.rationale ?? null,
-    });
-  }
-  return { ok: true, approvalId: created.id };
+  return { ok: true, approvalId: approval.id };
 }
 
 export async function listApprovalsForVersion(input: {

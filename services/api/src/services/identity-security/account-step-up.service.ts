@@ -85,6 +85,9 @@ export type AccountStepUpAction =
   // authorization (ORG_OWNER) is enforced separately by the route; the
   // step-up here proves the OWNER'S OWN recent authentication.
   | "org_ownership_transfer"
+  // PRO-097 — inviting someone as ORG_OWNER (single or bulk invite) makes
+  // them a co-owner on acceptance, so it is proved like a transfer.
+  | "org_owner_invite"
   | "org_closure_request"
   // Lifecycle Phase 7 — workspace closure (workspace-owner-only route;
   // step-up proves the owner's own recent authentication).

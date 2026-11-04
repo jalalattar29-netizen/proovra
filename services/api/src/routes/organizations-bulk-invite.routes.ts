@@ -60,6 +60,7 @@ import {
 } from "../services/organization/org-access.js";
 import type { OrgRole } from "../services/organization/organization-resolver.service.js";
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";
+import { verifyAccountStepUp } from "../services/identity-security/account-step-up.service.js";
 // Macro-Wave A2 — durable invite delivery: outbox row committed in the
 // SAME per-row transaction as the invite, inline first email attempt
 // after commit, worker-driven rotation retries for stranded rows. The
@@ -122,16 +123,27 @@ const WorkspaceAssignments = z
   .optional();
 type WorkspaceAssignmentsValue = z.infer<typeof WorkspaceAssignments>;
 
+/** The account step-up proof an ORG_OWNER row requires (PRO-097). */
+const StepUpProof = z
+  .object({
+    method: z.enum(["password", "mfa"]).optional(),
+    currentPassword: z.string().optional(),
+    code: z.string().optional(),
+  })
+  .optional();
+
 const BulkBody = z.object({
   defaultRole: z.enum(ORG_ROLES).optional(),
   rows: z.array(RowInput).min(0),
   workspaceAssignments: WorkspaceAssignments,
+  stepUp: StepUpProof,
 });
 
 const CsvBody = z.object({
   csv: z.string().max(200_000),
   defaultRole: z.enum(ORG_ROLES).optional(),
   workspaceAssignments: WorkspaceAssignments,
+  stepUp: StepUpProof,
 });
 
 const ResendBody = z
@@ -825,6 +837,29 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     return false;
   }
 
+  /**
+   * PRO-097 (FEATURES-15) — a batch that would invite anyone as ORG_OWNER is
+   * re-authenticated like an ownership transfer (the single-invite route asks
+   * the same proof). The plan decides which rows would be written, so a batch
+   * whose owner rows are all refused for another reason asks nothing. The dry
+   * run creates nothing and asks nothing. Replies and returns false when the
+   * proof is missing or wrong; no row is written.
+   */
+  async function ownerRowsProved(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    userId: string,
+    planned: ReadonlyArray<PlannedRow>,
+    proof: z.infer<typeof StepUpProof>,
+  ): Promise<boolean> {
+    const invitesOwner = planned.some((p) => p.outcome === "WOULD_INVITE" && p.role === "ORG_OWNER");
+    if (!invitesOwner) return true;
+    const stepUp = await verifyAccountStepUp({ req, reply, userId, action: "org_owner_invite", proof });
+    if (stepUp.ok) return true;
+    reply.code(stepUp.denial.status).send(stepUp.denial.body);
+    return false;
+  }
+
   /** Enforce the row cap; return the bounded slice + a truthful truncation note. */
   function boundRows<T>(rows: T[]): { rows: T[]; truncated: null | { received: number; accepted: number; note: string } } {
     if (rows.length <= BULK_INVITE_MAX_ROWS) return { rows, truncated: null };
@@ -888,6 +923,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       defaultRole,
       rows: bounded.rows,
     });
+    if (!(await ownerRowsProved(req, reply, ctx.userId, planned, body.stepUp))) return;
 
     const batchId = randomUUID();
     await emitOrgAuditEvent(prisma, {
@@ -1058,6 +1094,8 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
     let csvText: string;
     let defaultRole: OrgRoleValue = "ORG_MEMBER";
     let workspaceAssignments: WorkspaceAssignmentsValue;
+    // A raw text/csv body carries no proof, so ORG_OWNER rows need the JSON form.
+    let stepUpProof: z.infer<typeof StepUpProof>;
     // Content-type is validated: only application/json | text/csv |
     // application/csv are accepted. Arbitrary bodies are NOT treated as CSV.
     const ct = String(req.headers["content-type"] ?? "").toLowerCase();
@@ -1066,6 +1104,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
       csvText = body.csv;
       if (body.defaultRole) defaultRole = body.defaultRole;
       workspaceAssignments = body.workspaceAssignments;
+      stepUpProof = body.stepUp;
     } else if (ct.includes("text/csv") || ct.includes("application/csv")) {
       // Raw CSV string body (parsed by the scoped content-type parser).
       csvText = typeof req.body === "string" ? req.body : String(req.body ?? "");
@@ -1109,6 +1148,7 @@ export async function organizationsBulkInviteRoutes(app: FastifyInstance) {
         rows: planned,
       });
     }
+    if (!(await ownerRowsProved(req, reply, ctx.userId, planned, stepUpProof))) return;
 
     const batchId = randomUUID();
     await emitOrgAuditEvent(prisma, {

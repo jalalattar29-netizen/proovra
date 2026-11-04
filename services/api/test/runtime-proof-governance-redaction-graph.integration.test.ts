@@ -546,8 +546,26 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
     beforeAll(async () => {
       const { teamA: a } = h.fixtures;
       evidenceId = (await createEvidence(a.teamId, a.ownerUserId, "PHOTO")).id;
-      // Opening the project is not in this cluster and is entitlement-gated;
-      // the row is the one openRedactionProject writes.
+      // Every redaction write is entitlement-gated (PRO-089): the workspace is
+      // granted FEATURE_REDACTION through the entitlement authority, as an
+      // operator grant would. The gate itself is proven in
+      // features-round3-closures.integration.test.ts.
+      // Both tenants are entitled, so the "another tenant" controls below keep
+      // proving the tenant binding (VERSION_NOT_FOUND), not the plan gate.
+      const { upsertEntitlementGrant } = await import("../src/services/packaging/entitlement.service.js");
+      for (const t of [a, h.fixtures.teamB]) {
+        await upsertEntitlementGrant({
+          prisma: prisma as never,
+          teamId: t.teamId,
+          key: "FEATURE_REDACTION",
+          kind: "FEATURE",
+          value: true,
+          source: "CUSTOM",
+          grantedByUserId: t.ownerUserId,
+        } as never);
+      }
+      // Opening the project is not in this cluster; the row is the one
+      // openRedactionProject writes.
       projectId = (await prisma.redactionProject.create({
         data: { teamId: a.teamId, evidenceId, artifactKind: "IMAGE", createdByUserId: a.ownerUserId },
         select: { id: true },

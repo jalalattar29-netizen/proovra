@@ -98,37 +98,38 @@ export async function writeCodingValue(
   );
   if (valError) return deny(valError);
 
-  const existing = await prisma.codingValue.findUnique({
+  /*
+   * PRO-099 (FEATURES-17) — ONE WRITE ON THE UNIQUE KEY.
+   *
+   * A read on (workflow, field) followed by a create let two concurrent first
+   * writes both see "absent"; the second create hit the unique constraint and
+   * surfaced as an unmapped P2002, a 500 that lost that reviewer's value. The
+   * write is now an upsert on the same key, which the database resolves as
+   * one statement (INSERT … ON CONFLICT … DO UPDATE): both writers succeed and
+   * the later one is the stored value, exactly as two sequential writes are.
+   */
+  const saved = await prisma.codingValue.upsert({
     where: {
       coding_value_workflow_field_uniq: {
         workflowId: input.workflowId,
         fieldId: input.fieldId,
       },
     },
+    create: {
+      teamId: input.teamId,
+      workflowId: input.workflowId,
+      fieldId: input.fieldId,
+      value: input.value as never,
+      authorUserId: input.authorUserId,
+      rationale: input.rationale ?? null,
+    },
+    update: {
+      value: input.value as never,
+      authorUserId: input.authorUserId,
+      rationale: input.rationale ?? null,
+    },
     select: { id: true },
   });
-
-  const saved = existing
-    ? await prisma.codingValue.update({
-        where: { id: existing.id },
-        data: {
-          value: input.value as never,
-          authorUserId: input.authorUserId,
-          rationale: input.rationale ?? null,
-        },
-        select: { id: true },
-      })
-    : await prisma.codingValue.create({
-        data: {
-          teamId: input.teamId,
-          workflowId: input.workflowId,
-          fieldId: input.fieldId,
-          value: input.value as never,
-          authorUserId: input.authorUserId,
-          rationale: input.rationale ?? null,
-        },
-        select: { id: true },
-      });
 
   return { ok: true, codingValueId: saved.id };
 }

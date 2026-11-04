@@ -71,7 +71,7 @@ export default function CollaborationTeamDetailScreen() {
   const [entitlement, setEntitlement] = useState<CollaborationEntitlement | null>(null);
   const [adding, setAdding] = useState(false);
   // The server's comment-moderation authority + whether the viewer is here by workspace governance only.
-  const [discussionAccess, setDiscussionAccess] = useState({ canModerate: false, viaWorkspaceGovernance: false });
+  const [discussionAccess, setDiscussionAccess] = useState({ canModerate: false, canComment: false, viaWorkspaceGovernance: false });
   const [assigning, setAssigning] = useState(false);
   const [workRevision, setWorkRevision] = useState(0);
 
@@ -210,7 +210,7 @@ export default function CollaborationTeamDetailScreen() {
         /collaboration-teams/:teamId/collaboration route now lands.
       */}
       {/* The group's conversation is its COMMENTS (web DiscussionTab), not the evidence thread system. */}
-      <TeamDiscussion teamId={String(id)} canModerate={discussionAccess.canModerate} viaWorkspaceGovernance={discussionAccess.viaWorkspaceGovernance} archived={t.status === "ARCHIVED"} />
+      <TeamDiscussion teamId={String(id)} canModerate={discussionAccess.canModerate} canComment={discussionAccess.canComment} viaWorkspaceGovernance={discussionAccess.viaWorkspaceGovernance} archived={t.status === "ARCHIVED"} />
 
       {/* The group's operational assignments — every filter server-side. */}
       {/* Create assignment: the web's canAssign — a live group, a workspace whose

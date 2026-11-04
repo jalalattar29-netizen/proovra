@@ -1061,10 +1061,16 @@ export function parseTeamComments(payload: unknown): TeamCommentPage {
 }
 
 /** The server's comment-moderation authority and whether the viewer is here only by workspace governance. */
-export function parseTeamDiscussionAccess(data: unknown): { canModerate: boolean; viaWorkspaceGovernance: boolean } {
+export function parseTeamDiscussionAccess(data: unknown): {
+  canModerate: boolean;
+  /** PRO-096 — the group role may write in the discussion (server-projected; absent = no). */
+  canComment: boolean;
+  viaWorkspaceGovernance: boolean;
+} {
   const env = o(data);
   return {
     canModerate: o(o(env["team"])["viewerCapabilities"])["canModerateComments"] === true,
+    canComment: o(o(env["team"])["viewerCapabilities"])["canComment"] === true,
     viaWorkspaceGovernance: env["viaWorkspaceGovernance"] === true,
   };
 }

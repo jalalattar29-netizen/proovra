@@ -1277,6 +1277,11 @@ export async function getCollaborationTeamDetail(
     // revokeGuest were removed with their retired routes, 2026-09-17.)
     viewerCapabilities: {
       canModerateComments: isCollaborationTeamModerator(viewer.role),
+      // PRO-096 — the predicate the comment writers enforce.
+      canComment: collaborationTeamRoleHasPermission(
+        viewer.role as CollaborationTeamRole,
+        "team.comment.post",
+      ),
       canManageGuests: collaborationTeamRoleHasPermission(
         viewer.role as CollaborationTeamRole,
         "team.member.invite",

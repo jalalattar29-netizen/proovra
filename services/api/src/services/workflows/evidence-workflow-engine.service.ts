@@ -28,6 +28,8 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import {
+  isTerminalWorkflowInstanceStatus,
+  isTerminalWorkflowStepStatus,
   type WorkflowErrorCode,
   type WorkflowInstanceStatus,
   type WorkflowStepInstanceStatus,
@@ -68,12 +70,30 @@ export async function waiveStep(
 ): Promise<prismaPkg.EvidenceWorkflowStepInstance> {
   const instance = await loadInstance(client, input.teamId, input.workflowInstanceId);
   guardNotLegalHold(instance);
+  /*
+   * PRO-095 (FEATURES-13) — A WAIVER IS A WAY TO FINISH AN OPEN STEP, NOT TO
+   * REWRITE A FINISHED ONE.
+   *
+   * There was no state guard: a step-up'd ADMIN could waive a SATISFIED step
+   * on an APPROVED instance, which replaced who completed it and when. The
+   * shared lifecycle makes APPROVED and CANCELLED terminal instances with no
+   * outgoing transitions, and SATISFIED, WAIVED and FAILED terminal steps
+   * (`packages/shared/src/workflow-instance.ts`). Both are now refused, and the
+   * write is a compare-and-swap on the status that was read, so a concurrent
+   * completion cannot be overwritten either.
+   */
+  if (isTerminalWorkflowInstanceStatus(instance.status as WorkflowInstanceStatus)) {
+    throw new WorkflowEngineError("WORKFLOW_INVALID_TRANSITION");
+  }
   const step = await client.evidenceWorkflowStepInstance.findFirst({
     where: { workflowInstanceId: instance.id, stepKey: input.stepKey },
   });
   if (!step) throw new WorkflowEngineError("WORKFLOW_STEP_NOT_FOUND");
-  const updated = await client.evidenceWorkflowStepInstance.update({
-    where: { id: step.id },
+  if (isTerminalWorkflowStepStatus(step.status as WorkflowStepInstanceStatus)) {
+    throw new WorkflowEngineError("WORKFLOW_INVALID_TRANSITION");
+  }
+  const swapped = await client.evidenceWorkflowStepInstance.updateMany({
+    where: { id: step.id, status: step.status },
     data: {
       status: "WAIVED",
       waiverReason: input.reason.slice(0, 400),
@@ -81,6 +101,8 @@ export async function waiveStep(
       completedAtUtc: new Date(),
     },
   });
+  if (swapped.count !== 1) throw new WorkflowEngineError("WORKFLOW_INVALID_TRANSITION");
+  const updated = await client.evidenceWorkflowStepInstance.findUniqueOrThrow({ where: { id: step.id } });
   bump("workflow_step_waived_total");
   safeEmitSecurityEvent({
     teamId: input.teamId,
