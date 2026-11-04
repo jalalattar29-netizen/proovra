@@ -1238,6 +1238,25 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       // caller ACTIVELY administers.
       const actorUserId = (req as FastifyRequest & { user?: { sub?: string } })
         .user?.sub as string;
+      /*
+       * PRO-017 (AUTH-11) — ingesting metadata REPLACES the primary IdP signing
+       * certificate, which decides whose signatures mint sessions for every
+       * user of this connection. That is the same identity trust change as
+       * PUT/DELETE certificate-next (D10), and it was the one writer of the
+       * trust anchor left without the step-up: a stolen operator session could
+       * swap in its own certificate and then sign in as anyone in the org. The
+       * same purpose, the same binding to this connection.
+       */
+      const stepUp = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: authz.teamId,
+        userId: actorUserId,
+        purpose: "EXTERNAL_IDENTITY_LINK",
+        resourceKind: "sso_connection",
+        resourceId: connectionId,
+      });
+      if (stepUp.sent) return;
       const conn = { id: connectionId, teamId: authz.teamId };
 
       let parsed;
@@ -1257,6 +1276,10 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       // R8.2.2 — parse cert expiry (X.509 NotAfter) from the extracted cert.
       // This allows the admin UI and test-connection to surface expiry warnings.
       const certNotAfter = parseCertExpiry(parsed.certificate);
+      const previous = await prisma.ssoConnection.findUnique({
+        where: { id: conn.id },
+        select: { samlCertFingerprint: true },
+      });
 
       await prisma.ssoConnection.update({
         where: { id: conn.id },
@@ -1294,6 +1317,23 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           actorUserId,
         },
       });
+      // A changed primary certificate is a trust-anchor rotation, recorded as
+      // one exactly as the certificate-next promotion records it.
+      if (previous?.samlCertFingerprint !== parsed.certFingerprint) {
+        bump("saml_certificate_rotation_total");
+        safeEmitSecurityEvent({
+          teamId: conn.teamId,
+          eventType: "saml_certificate_rotated",
+          severity: "INFO",
+          details: {
+            connectionId: conn.id,
+            actorUserId,
+            previousCertFingerprint: previous?.samlCertFingerprint ?? null,
+            certFingerprint: parsed.certFingerprint,
+            action: "primary_cert_replaced_by_metadata",
+          },
+        });
+      }
 
       return reply.code(200).send({
         ok: true,

@@ -204,6 +204,12 @@ const H = vi.hoisted(() => {
       rec(`db.${name}.findUnique`, a);
       return pick(table(name).find((x) => matchWhere(x, a.where)), a.select);
     },
+    findUniqueOrThrow: async (a: Row = {}) => {
+      rec(`db.${name}.findUniqueOrThrow`, a);
+      const row = table(name).find((x) => matchWhere(x, a.where));
+      if (!row) throw new Error(`${name}: row not found`);
+      return pick(row, a.select);
+    },
     count: async (a: Row = {}) => {
       rec(`db.${name}.count`, a);
       return table(name).filter((x) => matchWhere(x, a.where)).length;
@@ -381,6 +387,19 @@ vi.mock("../src/services/identity-security/account-step-up.service.js", () => ({
             message: "Confirm it's you to continue.",
           },
         },
+      },
+    };
+  },
+  // PRO-015 — the factor-enrolment gate, recorded under its own name so a
+  // case can tell it from the account step-up it delegates to.
+  verifyFactorEnrollmentStepUp: async (i: { userId: string }) => {
+    H.rec("verifyFactorEnrollmentStepUp", { userId: i.userId });
+    if (H.accountStepUpOk) return { ok: true };
+    return {
+      ok: false,
+      denial: {
+        status: 401,
+        body: { error: { code: "STEP_UP_REQUIRED", methods: ["password"], message: "Confirm it's you to continue." } },
       },
     };
   },
@@ -1788,6 +1807,18 @@ describe("MFA enrolment and factor lifecycle", () => {
     expect(callInput("beginTotpEnrollment")).toMatchObject({ userId: ACTOR, label: "Work phone" });
     // The account name is resolved server-side from the caller's own record.
     expect(callInput("beginTotpEnrollment").accountName).toBe("actor@example.com");
+    expect(callInput("verifyFactorEnrollmentStepUp")).toMatchObject({ userId: ACTOR });
+  });
+
+  it("PRO-015: enroll/start refused by the factor-enrolment step-up → 401 and nothing is enrolled", async () => {
+    H.accountStepUpOk = false;
+    const res = await app.inject({
+      method: "POST", url: "/v1/identity/mfa/enroll/start",
+      payload: { label: "Work phone" },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.body).error.code).toBe("STEP_UP_REQUIRED");
+    expect(called("beginTotpEnrollment")).toHaveLength(0);
   });
 
   /*

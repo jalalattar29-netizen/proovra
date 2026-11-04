@@ -44,6 +44,7 @@ import { issueEnrolledToken } from "../services/auth/mfa-enrollment-session.js";
 import { trustedClientIp } from "../middleware/client-ip.js";
 import {
   verifyAccountStepUp,
+  verifyFactorEnrollmentStepUp,
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
@@ -109,6 +110,15 @@ const EnrollStartBody = z
   .object({
     label: z.string().min(1).max(60).optional(),
     kind: z.literal("TOTP").optional(),
+    // PRO-015 — the account step-up proof, required once a factor exists.
+    stepUp: z
+      .object({
+        method: z.enum(["password", "mfa"]).optional(),
+        currentPassword: z.string().max(1024).optional(),
+        code: z.string().max(16).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -162,7 +172,7 @@ export async function mfaRoutes(app: FastifyInstance) {
   app.post(
     "/v1/identity/mfa/enroll/start",
     { preHandler: requireAuth },
-    async (req: FastifyRequest) => {
+    async (req: FastifyRequest, reply: FastifyReply) => {
       const userId = getAuthUserId(req);
       if (!userId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const raw = (req.body ?? {}) as Record<string, unknown>;
@@ -175,6 +185,19 @@ export async function mfaRoutes(app: FastifyInstance) {
         });
       }
       const body = EnrollStartBody.parse(raw);
+      // PRO-015 (AUTH-09) — this enrolment ends in ten recovery codes, and an
+      // added authenticator answers workspace step-ups. Once the account holds
+      // a factor, adding one is stepped up exactly like regenerating codes.
+      const stepUp = await verifyFactorEnrollmentStepUp({
+        req,
+        reply,
+        userId,
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        reply.code(stepUp.denial.status);
+        return stepUp.denial.body;
+      }
       const accountName = await readAccountName(userId);
       const result = await beginTotpEnrollment({
         userId,

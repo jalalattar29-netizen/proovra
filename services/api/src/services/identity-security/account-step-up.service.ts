@@ -35,6 +35,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { getAuthSessionId } from "../../auth.js";
 import { prisma } from "../../db.js";
+import { MFA_ENROLLMENT_SCOPE } from "../auth/extension-scope.js";
 import { verifyPassword } from "../email-password-auth.service.js";
 import { verifyActiveTotp } from "../security/mfa.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
@@ -98,7 +99,10 @@ export type AccountStepUpAction =
   // would then satisfy the strongest workspace step-up) nor strip the
   // holder's own.
   | "passkey_register"
-  | "passkey_remove";
+  | "passkey_remove"
+  // PRO-015 (AUTH-09) — adding an authenticator app or a phone to an account
+  // that already holds a factor. See `verifyFactorEnrollmentStepUp`.
+  | "mfa_factor_enroll";
 
 type StepUpDenial = {
   status: 401 | 429;
@@ -277,4 +281,48 @@ export async function verifyAccountStepUp(input: {
     401,
     "Confirm it's you to continue with this security change.",
   );
+}
+
+/**
+ * PRO-015 (AUTH-09) — ADDING A FACTOR IS A SECURITY CHANGE ONCE ONE EXISTS.
+ *
+ * Every factor enrolment route (authenticator app, SMS/WhatsApp contact
+ * factor) asked only for a session. A stolen session could therefore add the
+ * attacker's own phone or authenticator — and the authenticator enrolment
+ * also mints ten recovery codes — and that new factor then answered the
+ * workspace step-ups that guard administrative actions. A second factor the
+ * first factor's holder can choose is not a second factor
+ * (verified-contact-factor.service.ts).
+ *
+ * The rule, the same one regenerating recovery codes and removing a factor
+ * already follow: once the account holds an ACTIVE factor of any kind, adding
+ * another needs the account step-up (password, current authenticator code, or
+ * for an OAuth-only account a fresh sign-in).
+ *
+ * Two cases need nothing more:
+ *  - an account with NO active factor: there is nothing for a thief to
+ *    out-rank, and it is how every account gets its first factor;
+ *  - the sign-in enrolment token (`mfa.enroll` scope): it is minted only by a
+ *    primary sign-in that just succeeded and lives 15 minutes, so it already
+ *    is the fresh re-authentication this gate asks for.
+ */
+export async function verifyFactorEnrollmentStepUp(input: {
+  req: FastifyRequest;
+  reply: FastifyReply;
+  userId: string;
+  proof: AccountStepUpProof | null | undefined;
+}): Promise<{ ok: true } | { ok: false; denial: StepUpDenial }> {
+  if (input.req.user?.tokenScope === MFA_ENROLLMENT_SCOPE) return { ok: true };
+  const held = await prisma.mfaFactor.findFirst({
+    where: { userId: input.userId, status: "ACTIVE", revokedAt: null },
+    select: { id: true },
+  });
+  if (!held) return { ok: true };
+  return verifyAccountStepUp({
+    req: input.req,
+    reply: input.reply,
+    userId: input.userId,
+    action: "mfa_factor_enroll",
+    proof: input.proof,
+  });
 }
