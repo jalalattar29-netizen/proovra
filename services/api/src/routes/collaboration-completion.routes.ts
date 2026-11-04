@@ -145,12 +145,25 @@ export async function collaborationCompletionRoutes(app: FastifyInstance) {
         };
         try {
           const q = (req.query as Record<string, string | undefined>) ?? {};
+          // PRO-096: a non-numeric limit reached Prisma as NaN (a 500); it is
+          // a bad request. A target id is a uuid or nothing.
+          const limit = q.limit === undefined ? undefined : Number(q.limit);
+          if (limit !== undefined && !Number.isInteger(limit)) {
+            return reply.code(400).send({
+              error: { code: "invalid_query", message: "limit must be a whole number.", requestId: req.id ?? null },
+            });
+          }
+          if (q.targetId !== undefined && !z.string().uuid().safeParse(q.targetId).success) {
+            return reply.code(400).send({
+              error: { code: "invalid_query", message: "targetId must be a record id.", requestId: req.id ?? null },
+            });
+          }
           const res = await listComments({
             teamId: req.params.teamId,
             actorUserId: ctx.userId,
             targetType: q.targetType ?? null,
             targetId: q.targetId ?? null,
-            limit: q.limit ? parseInt(q.limit, 10) : undefined,
+            limit,
           });
           return reply.send(res);
         } catch (err) {

@@ -223,7 +223,15 @@ export type CollaborationTeamPermission =
   | "team.assignment.reassign"
   | "team.assignment.complete"
   | "team.assignment.cancel"
-  | "team.activity.read";
+  | "team.activity.read"
+  /**
+   * PRO-096 — post, edit or delete one's own comments in the group's
+   * discussion and mention people in it (`@team` / `@lead` included). The
+   * roles above say who participates: LEAD, ADMIN and MEMBER ("participate,
+   * accept assignments, comment, mention"); VIEWER is read-only and EXTERNAL is
+   * a bounded read-only collaborator.
+   */
+  | "team.comment.post";
 
 const ROLE_PERMISSIONS: Record<
   CollaborationTeamRole,
@@ -245,6 +253,7 @@ const ROLE_PERMISSIONS: Record<
     "team.assignment.complete",
     "team.assignment.cancel",
     "team.activity.read",
+    "team.comment.post",
   ],
   ADMIN: [
     "team.read",
@@ -259,11 +268,13 @@ const ROLE_PERMISSIONS: Record<
     "team.assignment.complete",
     "team.assignment.cancel",
     "team.activity.read",
+    "team.comment.post",
   ],
   MEMBER: [
     "team.read",
     "team.assignment.complete",
     "team.activity.read",
+    "team.comment.post",
   ],
   VIEWER: ["team.read", "team.activity.read"],
   EXTERNAL: ["team.read"],

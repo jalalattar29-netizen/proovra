@@ -26,11 +26,14 @@ import { ProovraButton, ProovraCard, ProovraFormField, ProovraInput, ProovraSect
 export function TeamDiscussion({
   teamId,
   canModerate,
+  canComment,
   viaWorkspaceGovernance,
   archived = false,
 }: {
   teamId: string;
   canModerate: boolean;
+  /** PRO-096 — the server-projected group permission to write here (VIEWER / EXTERNAL read only). */
+  canComment: boolean;
   viaWorkspaceGovernance: boolean;
   /** An archived team's discussion is a read-only record (the server refuses writes). */
   archived?: boolean;
@@ -131,6 +134,10 @@ export function TeamDiscussion({
           <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="team-discussion-archived">
             This team is archived. Its discussion is kept as a read-only record.
           </ProovraText>
+        ) : !canComment ? (
+          <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="team-discussion-read-only">
+            Your role in this team can read its discussion but not write in it.
+          </ProovraText>
         ) : (
         <ProovraCard>
           <View style={{ gap: theme.space.s2 }}>
@@ -170,7 +177,7 @@ export function TeamDiscussion({
                 ) : (
                   <ProovraText variant="bodySm">{c.body}</ProovraText>
                 )}
-                {!isEditing && !archived && (mine || canModerate) ? (
+                {!isEditing && !archived && canComment && (mine || canModerate) ? (
                   <View style={{ flexDirection: "row", gap: theme.space.s2 }}>
                     <ProovraButton label="Edit" accessibilityLabel={`Edit comment ${c.id}`} variant="ghost" fullWidth={false} onPress={() => setEditing({ id: c.id, draft: c.body })} />
                     <ProovraButton label="Delete" accessibilityLabel={`Delete comment ${c.id}`} variant="ghost" fullWidth={false} onPress={() => remove(c)} />

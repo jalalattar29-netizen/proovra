@@ -79,6 +79,9 @@ function DiscussionPanel({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const writable = team.status === "ACTIVE";
+  // PRO-096 — the server-projected group role permission the comment writers
+  // enforce; a read-only role (VIEWER, EXTERNAL) reads the discussion only.
+  const canComment = team.viewerCapabilities?.canComment === true;
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -139,6 +142,10 @@ function DiscussionPanel({
         {!writable ? (
           <p className="app-table__muted" data-testid="comment-archived-notice" style={{ marginBottom: "1.25rem" }}>
             This team is archived. Its discussion is kept as a read-only record.
+          </p>
+        ) : !canComment ? (
+          <p className="app-table__muted" data-testid="comment-read-only-notice" style={{ marginBottom: "1.25rem" }}>
+            Your role in this team can read its discussion but not write in it.
           </p>
         ) : (
           <form
@@ -225,7 +232,7 @@ function DiscussionPanel({
                 directory={directory}
                 teamId={team.id}
                 canModerate={team.viewerCapabilities?.canModerateComments === true}
-                writable={writable}
+                writable={writable && canComment}
                 onRefresh={refresh}
                 onError={onError}
               />

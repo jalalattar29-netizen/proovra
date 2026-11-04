@@ -43,7 +43,10 @@ import {
   type CollaborationTeamUserDirectoryEntry,
 } from "@proovra/shared";
 
+import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
 import { prisma as defaultPrisma } from "../../db.js";
+import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
   CollaborationTeamError,
   isCollaborationTeamModerator,
@@ -196,6 +199,96 @@ function validateCommentTarget(t: string | null | undefined): CollaborationTeamC
   return t as CollaborationTeamCommentTarget;
 }
 
+/**
+ * PRO-096 (FEATURES-14) — WRITING IN A GROUP'S DISCUSSION IS A GROUP ROLE.
+ *
+ * Comment writes checked only an ACTIVE group membership, so a group VIEWER —
+ * "read-only" in the shared role catalog — could post, edit and delete
+ * comments and broadcast `@team` to every member. They now need
+ * `team.comment.post` (LEAD, ADMIN, MEMBER), on top of the workspace
+ * permission the route already asks for.
+ */
+function assertMayComment(role: CollaborationTeamRole): void {
+  if (!collaborationTeamRoleHasPermission(role, "team.comment.post")) {
+    throw new CollaborationTeamError(
+      "team_forbidden",
+      "Your role in this group can read its discussion but not write in it.",
+      403,
+    );
+  }
+}
+
+/**
+ * PRO-096 — A COMMENT'S TARGET IS RESOLVED, NOT STORED AS TYPED.
+ *
+ * `targetId` was written unchecked, so a comment could be filed against another
+ * tenant's case or a restricted case the author cannot open, and then read back
+ * by that id. The target must now be a record of THIS group's workspace that
+ * the author can reach by the canonical case rule; anything else answers as a
+ * target that does not exist. A TEAM comment names the group itself or
+ * nothing.
+ */
+async function resolveCommentTarget(
+  client: PrismaClient,
+  args: {
+    teamId: string;
+    workspaceId: string;
+    actorUserId: string;
+    targetType: CollaborationTeamCommentTarget;
+    targetId: string | null;
+  },
+): Promise<string | null> {
+  const missing = () =>
+    new CollaborationTeamError("team_not_found", "The comment's target was not found.", 404);
+  if (args.targetType === "TEAM") {
+    if (args.targetId && args.targetId !== args.teamId) throw missing();
+    return args.targetId ?? null;
+  }
+  if (!args.targetId) {
+    throw new CollaborationTeamError(
+      "team_invalid",
+      `A ${args.targetType} comment names the record it is about.`,
+      400,
+    );
+  }
+  let found = 0;
+  if (args.targetType === "CASE") {
+    found = await client.case.count({
+      where: {
+        AND: [
+          { id: args.targetId },
+          await workspaceCaseWhere(args.workspaceId, client),
+          caseVisibleToWhere(args.actorUserId),
+        ],
+      },
+    });
+  } else if (args.targetType === "EVIDENCE") {
+    found = await client.evidence.count({
+      where: {
+        AND: [
+          { id: args.targetId },
+          await workspaceEvidenceWhere(args.workspaceId, client),
+          evidenceVisibleThroughCasesWhere(args.actorUserId),
+        ],
+      },
+    });
+  } else if (args.targetType === "REVIEW") {
+    found = await client.evidenceReviewWorkflow.count({
+      where: {
+        id: args.targetId,
+        teamId: args.workspaceId,
+        evidence: evidenceVisibleThroughCasesWhere(args.actorUserId),
+      },
+    });
+  } else if (args.targetType === "ASSIGNMENT") {
+    found = await client.collaborationTeamAssignment.count({
+      where: { id: args.targetId, teamId: args.teamId },
+    });
+  }
+  if (found !== 1) throw missing();
+  return args.targetId;
+}
+
 /** A route's success audit, run inside the comment mutation's transaction. */
 export type CommentAudit<R> = (db: PrismaClient, result: R) => Promise<void>;
 
@@ -214,12 +307,20 @@ export async function createComment(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<{ id: string; mentionCount: number; notificationCount: number }> {
-  const { team } = await requireMemberRole(
+  const { team, role } = await requireMemberRole(
     client,
     input.teamId,
     input.actorUserId,
   );
+  assertMayComment(role);
   const targetType = validateCommentTarget(input.targetType);
+  const targetId = await resolveCommentTarget(client, {
+    teamId: input.teamId,
+    workspaceId: team.workspaceId,
+    actorUserId: input.actorUserId,
+    targetType,
+    targetId: input.targetId ?? null,
+  });
   const sanitised = sanitiseCollaborationTeamCommentBody(input.body);
   if (!sanitised.ok)
     throw new CollaborationTeamError("team_invalid", sanitised.reason, 400);
@@ -341,7 +442,7 @@ export async function createComment(
         workspaceId: team.workspaceId,
         authorUserId: input.actorUserId,
         targetType,
-        targetId: input.targetId ?? null,
+        targetId,
         body: sanitised.body,
         status: "ACTIVE",
       },
@@ -428,7 +529,7 @@ export async function createComment(
       targetId: comment.id,
       metadata: {
         targetType,
-        targetId: input.targetId ?? null,
+        targetId,
         mentionCount: mentionRows.length,
         notifiedCount: notificationCount,
       },
@@ -543,6 +644,7 @@ export async function editComment(
     input.teamId,
     input.actorUserId,
   );
+  assertMayComment(role);
   const comment = await client.collaborationTeamComment.findUnique({
     where: { id: input.commentId },
     select: { id: true, teamId: true, authorUserId: true, status: true },
@@ -594,6 +696,7 @@ export async function deleteComment(
     input.teamId,
     input.actorUserId,
   );
+  assertMayComment(role);
   const comment = await client.collaborationTeamComment.findUnique({
     where: { id: input.commentId },
     select: { id: true, teamId: true, authorUserId: true, status: true },

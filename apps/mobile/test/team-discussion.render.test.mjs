@@ -13,7 +13,7 @@ let Screen;
 let requests = [];
 let routes = {};
 const TEAM = (over = {}, env = {}) => ({
-  team: { id: "t1", name: "Claims", status: "ACTIVE", viewerRole: "LEAD", activeMemberCount: 2, pendingInviteCount: 0, members: [], invites: [], ...over },
+  team: { id: "t1", name: "Claims", status: "ACTIVE", viewerRole: "MEMBER", viewerCapabilities: { canModerateComments: false, canComment: true }, activeMemberCount: 2, pendingInviteCount: 0, members: [], invites: [], ...over },
   ...env,
 });
 const COMMENTS = {
@@ -73,8 +73,17 @@ test("posting sends a TEAM comment; a non-moderator cannot edit someone else's",
   assert.deepEqual(post.body, { targetType: "TEAM", body: "Chasing the invoice." });
 });
 
+test("PRO-096: a read-only group role reads the discussion and is offered no composer, edit or delete", async () => {
+  routes["/v1/collaboration-teams/t1"] = () => TEAM({ viewerRole: "VIEWER", viewerCapabilities: { canModerateComments: false, canComment: false } });
+  const r = await render();
+  assert.ok(r.hasText("Photos are in."), "the discussion was not readable");
+  assert.ok(r.hasText("Your role in this team can read its discussion but not write in it."));
+  assert.equal(r.byLabel("Post comment").length, 0, "a read-only role was offered the composer");
+  assert.equal(r.byLabel("Edit comment c2").length, 0);
+});
+
 test("a moderator may edit and delete; a governance-only viewer is told why there is no conversation", async () => {
-  routes["/v1/collaboration-teams/t1"] = () => TEAM({ viewerCapabilities: { canModerateComments: true } });
+  routes["/v1/collaboration-teams/t1"] = () => TEAM({ viewerRole: "LEAD", viewerCapabilities: { canModerateComments: true, canComment: true } });
   let r = await render();
   assert.equal(r.byLabel("Delete comment c1").length, 1);
   assert.equal(r.byLabel("Edit comment c2").length, 1);

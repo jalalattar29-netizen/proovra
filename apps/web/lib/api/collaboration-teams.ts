@@ -109,6 +109,8 @@ export type CollaborationTeamDetail = {
    */
   viewerCapabilities?: {
     canModerateComments: boolean;
+    /** PRO-096 — may write in the discussion (`team.comment.post`). */
+    canComment?: boolean;
     canManageGuests: boolean;
     canManageAccessReviews: boolean;
   };
