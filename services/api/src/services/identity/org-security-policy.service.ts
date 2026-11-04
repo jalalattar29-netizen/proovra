@@ -617,6 +617,9 @@ export async function evaluateOrgContextForSession(
 // PHASE 10 §10.4 — HIGH-SECURITY readiness + ATOMIC activation.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Page size for reading an organization's managed identities to the end. */
+const MANAGED_IDENTITY_PAGE = 500;
+
 /**
  * Assemble the high-security prerequisites from real persisted signals. Reads
  * only; conservative/fail-closed where a signal is absent. `client` may be a
@@ -639,26 +642,36 @@ export async function assembleHighSecurityReadiness(
     resolveEnterpriseContract(organizationId, client),
   ]);
 
-  // Unresolved personal custody: MANAGED users owning personal (teamId-null)
-  // evidence in this org. Managed identities must not have personal custody
-  // seized — its presence BLOCKS activation (fail closed).
-  let unresolvedPersonalCustodyUserIds: string[] = [];
+  // Unresolved personal custody: identities MANAGED BY THIS ORGANIZATION owning
+  // personal (teamId-null) evidence. Managed identities must not have personal
+  // custody seized — its presence BLOCKS activation (fail closed).
+  //
+  // PRO-003: the managed set is the identities whose `managingOrganizationId` is
+  // this organization (the binding `setManagedIdentity` writes), never every
+  // managed identity on the platform, and it is read to the end in pages, so
+  // readiness and the activation transaction see the same complete set.
+  const unresolvedPersonalCustodyUserIds: string[] = [];
   if (organizationId) {
-    const managed = await client.user.findMany({
-      where: { identityMode: "MANAGED_ENTERPRISE" },
-      select: { id: true },
-      take: 500,
-    });
-    const managedIds = managed.map((u) => u.id);
-    if (managedIds.length > 0) {
+    let cursor: string | undefined;
+    for (;;) {
+      const managed = await client.user.findMany({
+        where: { identityMode: "MANAGED_ENTERPRISE", managingOrganizationId: organizationId },
+        select: { id: true },
+        orderBy: { id: "asc" },
+        take: MANAGED_IDENTITY_PAGE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+      if (managed.length === 0) break;
       const custody = await client.evidence.findMany({
-        where: { teamId: null, ownerUserId: { in: managedIds } },
+        where: { teamId: null, ownerUserId: { in: managed.map((u) => u.id) } },
         select: { ownerUserId: true },
         distinct: ["ownerUserId"],
-        take: 50,
       });
-      unresolvedPersonalCustodyUserIds = custody.map((e) => e.ownerUserId);
+      for (const row of custody) unresolvedPersonalCustodyUserIds.push(row.ownerUserId);
+      if (managed.length < MANAGED_IDENTITY_PAGE) break;
+      cursor = managed[managed.length - 1].id;
     }
+    unresolvedPersonalCustodyUserIds.sort();
   }
 
   return {
