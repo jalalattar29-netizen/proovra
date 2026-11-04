@@ -27,6 +27,8 @@ class LocalIdp {
   base = "";
   subject = "subject-1";
   email = "person@example.test";
+  /** PRO-025 — the id_token's `email_verified`; undefined leaves the claim out. */
+  emailVerified: boolean | undefined = undefined;
   privateKey!: CryptoKey;
   jwk!: JWK;
   pending: Authorization | null = null;
@@ -80,7 +82,10 @@ class LocalIdp {
         return this.json(res, { error: "invalid_grant" }, 400);
       }
       const now = Math.floor(Date.now() / 1000);
-      const idToken = await new SignJWT({ nonce: this.pending.nonce })
+      const idToken = await new SignJWT({
+        nonce: this.pending.nonce,
+        ...(this.emailVerified === undefined ? {} : { email_verified: this.emailVerified }),
+      })
         .setProtectedHeader({ alg: "RS256", kid: "k1" })
         .setIssuer(this.base)
         .setAudience(CLIENT_ID)
@@ -113,8 +118,33 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
       60 * 60,
     );
 
+  /**
+   * IDENT-013 / PRO-025 — JIT creates an account only in a domain the
+   * Organization has proved, so each connection gets its own verified domain and
+   * the stand-in asserts an address in it.
+   */
+  async function verifiedDomain(org: OrganizationTenant): Promise<string> {
+    const domain = `${randomUUID().slice(0, 8)}.oidc-verified.example`;
+    await prisma.organizationDomain.create({
+      data: {
+        organizationId: org.organizationId,
+        domain,
+        verifiedAt: new Date(),
+        verificationToken: randomUUID(),
+        createdByUserId: org.owner.userId,
+      } as never,
+    });
+    return domain;
+  }
+
   /** A connection created the way the console does it, pointed at the stand-in. */
-  async function activeConnection(org: OrganizationTenant, secret: string | null = CLIENT_SECRET) {
+  async function activeConnection(
+    org: OrganizationTenant,
+    secret: string | null = CLIENT_SECRET,
+    opts: { verified?: boolean } = {},
+  ) {
+    const domain = opts.verified === false ? `${randomUUID().slice(0, 8)}.unproven.example` : await verifiedDomain(org);
+    idp.email = `person-${randomUUID().slice(0, 8)}@${domain}`;
     const created = await sso.createSsoConnection({
       teamId: org.workspaceId,
       provider: "GENERIC_OIDC",
@@ -122,7 +152,7 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
       issuerUrl: "https://placeholder.example.test/.well-known/openid-configuration",
       clientId: CLIENT_ID,
       clientSecret: secret ?? "secret-to-be-removed",
-      allowedEmailDomains: ["example.test"],
+      allowedEmailDomains: [domain],
       jitDefaultRole: "MEMBER",
       actorUserId: org.owner.userId,
     } as never);
@@ -204,7 +234,36 @@ describe("OIDC sign-in against a local stand-in provider (live PostgreSQL)", () 
     idp.subject = `subject-${randomUUID()}`;
     idp.email = `person-${randomUUID().slice(0, 8)}@example.test`;
     idp.pending = null;
+    idp.emailVerified = undefined;
     idp.tokenCalls.length = 0;
+  });
+
+  it("PRO-025 / IDENT-013: JIT creates no account for an address the Organization has not proved, nor one the IdP calls unverified", async () => {
+    // Unproven domain: the connection allows it, but the Organization never proved it.
+    const org = await seedOrganizationTenant(deps, {});
+    const id = await activeConnection(org, CLIENT_SECRET, { verified: false });
+    const first = await initiate(id);
+    const refused = await callback(first.state, first.cookie);
+    expect(String(refused.headers.location)).toContain("sso_error=");
+    expect(setCookie(refused)).not.toContain("proovra_session=");
+    expect(await prisma.user.count({ where: { email: idp.email } })).toBe(0);
+
+    // Proven domain, but the IdP says the address is unverified.
+    const org2 = await seedOrganizationTenant(deps, {});
+    const id2 = await activeConnection(org2);
+    idp.emailVerified = false;
+    const second = await initiate(id2);
+    const unverified = await callback(second.state, second.cookie);
+    expect(String(unverified.headers.location)).toContain("sso_error=");
+    expect(setCookie(unverified)).not.toContain("proovra_session=");
+    expect(await prisma.user.count({ where: { email: idp.email } })).toBe(0);
+
+    // Control: the same proven connection with a verified address provisions.
+    idp.emailVerified = true;
+    const third = await initiate(id2, "/home");
+    const ok = await callback(third.state, third.cookie);
+    expect(String(ok.headers.location)).toBe("https://web.example.test/home");
+    expect(await prisma.user.count({ where: { email: idp.email } })).toBe(1);
   });
 
   it("stores the secret sealed, and a sign-in completes through it", async () => {

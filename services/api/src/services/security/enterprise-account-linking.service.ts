@@ -20,9 +20,11 @@
  *         two tenants both "owning" a domain is an unresolved conflict
  *         and must fail closed until an operator resolves it).
  *
- *   Creating a BRAND-NEW User via JIT is not gated here (no takeover
- *   surface — the new row has no prior credentials or data); it remains
- *   governed by the connection's JIT policy + domain gates.
+ *   IDENT-013 / PRO-025 (2026-11-04) — creating a BRAND-NEW User through
+ *   OIDC JIT, SAML JIT or SCIM is held to the SAME rule: a new row for an
+ *   address the Organization has not proved was a pre-account takeover (the
+ *   Organization kept signing in to it ahead of the address's real owner).
+ *   Each creation site calls this function before it creates the row.
  *
  * Every decision (allow and deny) is observable: callers emit the
  * security event; this service returns a bounded reason code and never

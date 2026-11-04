@@ -535,6 +535,28 @@ export async function handleSamlAssertion(
           reason: "account_closed",
         });
       }
+    } else {
+      // IDENT-013 / PRO-025 — a new account only for an address in a domain
+      // this connection's Organization has proved (the rule linking an existing
+      // account already applies). See the OIDC JIT path in sso.service.ts.
+      const creation = await evaluateExistingAccountLink({ teamId, email }, client);
+      if (!creation.ok) {
+        bump("saml_jit_denied_total");
+        safeEmitSecurityEvent({
+          teamId,
+          eventType: "saml_jit_denied",
+          severity: "WARNING",
+          details: {
+            connectionId,
+            reason: `unproven_domain:${creation.reason}`,
+            nameIdHash: assertion.nameIdHash,
+          },
+        });
+        throw new SamlMappingError("SAML_JIT_DISABLED", {
+          connectionId,
+          reason: `unproven_domain:${creation.reason}`,
+        });
+      }
     }
 
     // ONE OUTCOME (IDENT-005) — user, mapping and membership commit together
