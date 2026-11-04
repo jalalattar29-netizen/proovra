@@ -5,6 +5,7 @@ import { AuthProvider } from "@prisma/client";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
 import { ensureEntitlement } from "./billing.service.js";
 import { error as logError } from "../utils/logger.js";
+import { closedAccountProviderId } from "./identity/account-closed.js";
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -350,6 +351,10 @@ export async function createPasswordResetTokenForEmail(emailRaw: string) {
 
   if (!user) return null;
 
+  // PRO-011 (AUTH-05) — a closed account keeps its address until anonymisation,
+  // which a legal hold can defer; it is not reopened through a reset.
+  if (user.providerUserId === closedAccountProviderId(user.id)) return null;
+
   if (await isUnprovenDirectoryAccount(user)) return null;
 
   const rawToken = randomBytes(32).toString("hex");
@@ -418,49 +423,83 @@ export async function resetPasswordWithToken(params: {
 
   const newHash = hashPassword(params.newPassword);
 
-  const owner = await prisma.user.findUnique({
-    where: { id: rec.userId },
-    select: { email: true, emailVerifiedAt: true },
-  });
+  /*
+   * PRO-004 — ONE TOKEN, ONE PASSWORD.
+   *
+   * The token used to be read as unused above and then marked used by id in a
+   * later batch, so two confirms of one link could both pass the read and both
+   * write: each was told success, the second-dispatched password won, and the
+   * caller whose password lost could no longer sign in. The claim is now the
+   * first write of the transaction that sets the password, guarded on the same
+   * conditions the read checked (unused, unexpired). Postgres serialises the two
+   * UPDATEs on the row: the loser re-evaluates `used_at IS NULL` after the
+   * winner commits, matches nothing, and its transaction rolls back without
+   * writing — it gets the same refusal as a used link. The route revokes
+   * sessions and step-ups only for the winner, so that happens once.
+   *
+   * PRO-011 (AUTH-05) — and a closed account is not reopened: closure retires
+   * outstanding links in its access phase, and the password write is guarded on
+   * the account not being closed, so a link issued before closure (or racing
+   * it) finds nothing to write and refuses.
+   */
+  const outcome = await prisma.$transaction(async (tx) => {
+    const claim = await tx.passwordResetToken.updateMany({
+      where: { id: rec.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    if (claim.count === 0) return "invalid_or_expired" as const;
 
-  // PROV-001 — the link came out of the mailbox and the password is new, so
-  // this one act proves both together. It also retires any password a stranger
-  // set on this address, which is why a reset is the way back for someone who
-  // finds an account they never opened: it verifies the address and ends the
-  // verification links still waiting on the old password.
-  await prisma.$transaction([
-    prisma.user.update({
-      where: {
-        id: rec.userId
-      },
+    const owner = await tx.user.findUnique({
+      where: { id: rec.userId },
+      select: { email: true, emailVerifiedAt: true, providerUserId: true },
+    });
+    if (!owner || owner.providerUserId === closedAccountProviderId(rec.userId)) {
+      throw new ResetRefused("invalid_or_expired");
+    }
+
+    // PROV-001 — the link came out of the mailbox and the password is new, so
+    // this one act proves both together. It also retires any password a stranger
+    // set on this address, which is why a reset is the way back for someone who
+    // finds an account they never opened: it verifies the address and ends the
+    // verification links still waiting on the old password.
+    const written = await tx.user.updateMany({
+      where: { id: rec.userId, providerUserId: { not: closedAccountProviderId(rec.userId) } },
       data: {
         passwordHash: newHash,
         provider: AuthProvider.EMAIL,
-        providerUserId: owner?.email ?? undefined,
-        emailVerifiedAt: owner?.emailVerifiedAt ?? now,
+        providerUserId: owner.email ?? undefined,
+        emailVerifiedAt: owner.emailVerifiedAt ?? now,
         credentialProvenAtUtc: now,
-      }
-    }),
+      },
+    });
+    if (written.count === 0) throw new ResetRefused("invalid_or_expired");
 
-    prisma.emailVerificationToken.updateMany({
+    await tx.emailVerificationToken.updateMany({
       where: { userId: rec.userId, usedAt: null },
       data: { usedAt: now },
-    }),
+    });
+    return "ok" as const;
+  }).catch((err: unknown) => {
+    // A refusal found after the claim rolls the claim back with everything else.
+    if (err instanceof ResetRefused) return err.reason;
+    throw err;
+  });
 
-    prisma.passwordResetToken.update({
-      where: {
-        id: rec.id
-      },
-      data: {
-        usedAt: now
-      }
-    })
-  ]);
+  if (outcome !== "ok") {
+    return { ok: false as const, reason: outcome };
+  }
 
   return {
     ok: true as const,
     userId: rec.userId
   };
+}
+
+/** A reset refused inside its transaction, after the token claim. */
+class ResetRefused extends Error {
+  constructor(readonly reason: "invalid_or_expired") {
+    super(reason);
+  }
 }
 
 // ============================================================
