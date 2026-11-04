@@ -81,7 +81,8 @@ describe("Phase 12 — removed routes stay removed", () => {
     );
     expect(writer).toMatch(/claimDerivativeForRender/);
     expect(writer).toMatch(/state: "QUEUED" \}/); // atomic claim precondition
-    expect(writer).toMatch(/state: "RENDERING" \}/); // atomic completion precondition
+    // Atomic completion precondition, fenced to the claim (WORKERS-05).
+    expect(writer).toMatch(/state: "RENDERING", renderStartedAt: input\.claimedAt \}/);
   });
   it("the legacy upsertOrgSecurityPolicy writer symbol stays deleted", () => {
     const svc = readFileSync(

@@ -61,6 +61,7 @@ describe("round 3 worker remediation (live PostgreSQL 16)", () => {
     gate: typeof import("../../worker/src/governance/package-eligibility-gate.js");
     immutable: typeof import("../../worker/src/governance/immutable-storage-reconciliation.worker.js");
     storage: typeof import("../../worker/src/storage.js");
+    telemetry: typeof import("../../worker/src/telemetry.js");
   };
   let archive: typeof import("../src/services/lifecycle/archive-tier.service.js");
   let tracker: typeof import("@proovra/shared-runtime/media-intelligence");
@@ -117,6 +118,7 @@ describe("round 3 worker remediation (live PostgreSQL 16)", () => {
       gate: await import("../../worker/src/governance/package-eligibility-gate.js"),
       immutable: await import("../../worker/src/governance/immutable-storage-reconciliation.worker.js"),
       storage: await import("../../worker/src/storage.js"),
+      telemetry: await import("../../worker/src/telemetry.js"),
     };
     archive = await import("../src/services/lifecycle/archive-tier.service.js");
     tracker = await import("@proovra/shared-runtime/media-intelligence");
@@ -132,6 +134,31 @@ describe("round 3 worker remediation (live PostgreSQL 16)", () => {
   afterAll(async () => {
     await harness?.cleanup();
   }, 180_000);
+
+  // ---------------------------------------------------------------------------
+  it("WORKERS-14: a worker's lease identity is never the bare pid", async () => {
+    const { resolveWorkerId } = worker.telemetry;
+    const saved = { WORKER_ID: process.env.WORKER_ID, HOSTNAME: process.env.HOSTNAME };
+    try {
+      process.env.WORKER_ID = "replica-a";
+      expect(resolveWorkerId()).toBe("replica-a");
+      delete process.env.WORKER_ID;
+      process.env.HOSTNAME = "pod-7f9c";
+      expect(resolveWorkerId()).toBe(`pod-7f9c-${process.pid}`);
+      delete process.env.HOSTNAME;
+      // PID 1 in every exec-form container: the pid alone would be "worker-1"
+      // for every replica. The per-process suffix keeps them apart and is
+      // stable for this process's lifetime.
+      const id = resolveWorkerId();
+      expect(id).toMatch(new RegExp(`^worker-${process.pid}-[0-9a-f]{8}$`));
+      expect(resolveWorkerId()).toBe(id);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
 
   // ---------------------------------------------------------------------------
   it("WORKERS-09: a worker-written search document carries the current projection version", async () => {
