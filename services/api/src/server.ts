@@ -669,6 +669,10 @@ allowedHeaders: [
   // URL, so it never reaches logs or Referer. The server re-binds it to the
   // validated link, its open state and the same browser before trusting it.
   "x-proovra-intake-session",
+  // REPORT-013 — the public verify page's opaque per-tab view session, so a
+  // reload does not spend another use of a use-limited reviewer link. It grants
+  // nothing by itself; the share authority hashes it and compares.
+  "x-proovra-verify-session",
 ],
     origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
     // AUD-32 (2026-10-20) — the browser may READ the contract version (a

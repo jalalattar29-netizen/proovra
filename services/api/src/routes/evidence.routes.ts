@@ -14116,6 +14116,14 @@ action: "evidence.certification_requested",
      * share open without it, each with the projection decided below.
      */
     const presented = String((req.params as ParamsId).id ?? "");
+    /*
+     * REPORT-013 — the verify page's opaque per-tab view session id. It is not
+     * a credential and grants nothing on its own: it only lets the session that
+     * spent a use-limited link's latest use reload without spending another.
+     * Shape-checked and hashed by the share authority; never stored or logged.
+     */
+    const rawViewSession = req.headers["x-proovra-verify-session"];
+    const verifyViewSession = Array.isArray(rawViewSession) ? rawViewSession[0] : rawViewSession;
     let shareLink: VerificationShareRow | null = null;
     /**
      * CANONICAL VERIFICATION IDENTITY (owner decision 2026-10-14). A `pvr_`
@@ -14165,7 +14173,8 @@ action: "evidence.certification_requested",
       identifierKind = "CANONICAL_REFERENCE";
       id = row.id;
     } else if (isVerificationShareTokenShape(presented)) {
-      const resolved = await resolveVerificationShareToken(prisma, presented);
+      // REPORT-013 — the page's opaque per-tab view session: a use is one session.
+      const resolved = await resolveVerificationShareToken(prisma, presented, new Date(), verifyViewSession);
       if (resolved.outcome === "UNKNOWN") {
         return reply.code(404).send({ message: "Evidence not found" });
       }
@@ -16073,7 +16082,7 @@ const body =
  * about the link is its kind and when it stops working — never its audience or
  * who made it.
  */
-if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt))) {
+if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt, verifyViewSession))) {
   return reply.code(410).send(verificationLinkGoneBody("EXHAUSTED"));
 }
 const originalUrlsIssued = Array.isArray((body.evidenceContent as { items?: unknown[] } | undefined)?.items)
