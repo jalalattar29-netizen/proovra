@@ -288,6 +288,14 @@ vi.mock("../src/services/billing-enforcement.service.js", async (importOriginal)
   workspaceIncludesReviewCapability: async () => true,
 }));
 
+// PRO-089 — every redaction write now asserts FEATURE_REDACTION. The plan
+// gate has its own live-PostgreSQL proof (features-round3-closures.integration),
+// so the workspace here is entitled, as the capability above is.
+vi.mock("../src/services/packaging/entitlement.service.js", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  assertFeatureEntitlement: async () => ({ ok: true }),
+}));
+
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
   requireStepUpForSensitiveAction: async (input: {
     purpose: string;
