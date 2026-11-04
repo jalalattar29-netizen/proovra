@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { resendVerification, verifyEmail } from "../../src/auth/auth-api";
+import { useAuth } from "../../src/auth-context";
+import { resendVerification, revokeSessionToken, verifyEmail } from "../../src/auth/auth-api";
 import { useCompleteLogin } from "../../src/auth/use-auth-flow";
 import { theme } from "../../src/theme/theme";
 import { ProovraScreen, ProovraCard, ProovraButton, ProovraSection, ProovraLoadingState, ProovraText, ProovraFormField, ProovraInput } from "../../src/ui";
@@ -16,8 +17,33 @@ import { ProovraScreen, ProovraCard, ProovraButton, ProovraSection, ProovraLoadi
  * or "Retry needed". The resend is held for a minute after each attempt, as on
  * the web.
  */
-type State = "verifying" | "password" | "success" | "missing-token" | "invalid" | "resend-sent" | "resend-error";
+type State =
+  | "verifying"
+  | "password"
+  | "success"
+  | "switch"
+  | "missing-token"
+  | "invalid"
+  | "resend-sent"
+  | "resend-error";
 type Session = Awaited<ReturnType<typeof verifyEmail>>;
+
+/**
+ * PRO-113 / MOBILE-01 — a verification link signs in the account it belongs
+ * to. On a device already signed in to a DIFFERENT account (or one this screen
+ * cannot prove is the same), that is an account switch, and it is asked, never
+ * assumed: the link may have been sent by someone else. Switching ends the
+ * current account as sign-out does (useCompleteLogin → endSessionReplacedBy);
+ * staying revokes the session the link just created.
+ */
+function needsSwitchQuestion(
+  currentToken: string | null,
+  currentUserId: string | null,
+  linkUserId: string | null,
+): boolean {
+  if (!currentToken) return false;
+  return !currentUserId || !linkUserId || currentUserId !== linkUserId;
+}
 
 const RESEND_HOLD_MS = 60_000;
 /** The web shows "Email verified" for this long before continuing (verify-email/page.tsx:141). */
@@ -26,6 +52,8 @@ const SUCCESS_HOLD_MS = 1_200;
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const completeLogin = useCompleteLogin();
+  const { token: currentToken, user: currentUser, authReady } = useAuth();
+  const [stayBusy, setStayBusy] = useState(false);
   const params = useLocalSearchParams<{ token?: string }>();
   const token = typeof params.token === "string" ? params.token : "";
   const [state, setState] = useState<State>("verifying");
@@ -54,6 +82,11 @@ export default function VerifyEmailScreen() {
     async (withPassword?: string) => {
       try {
         session.current = await verifyEmail(token, withPassword);
+        if (needsSwitchQuestion(currentToken, currentUser?.id ?? null, session.current.user?.id ?? null)) {
+          // No timer: nothing continues until the person answers.
+          setState("switch");
+          return;
+        }
         setState("success");
         timers.current.push(setTimeout(continueToApp, SUCCESS_HOLD_MS));
       } catch (err) {
@@ -68,10 +101,24 @@ export default function VerifyEmailScreen() {
         }
       }
     },
-    [token, continueToApp],
+    [token, continueToApp, currentToken, currentUser],
   );
 
+  // Stay signed in: the session the link created is revoked, the current one
+  // is untouched. The email address is verified either way.
+  const staySignedIn = useCallback(async () => {
+    const s = session.current;
+    setStayBusy(true);
+    if (s?.token) await revokeSessionToken(s.token);
+    session.current = null;
+    setStayBusy(false);
+    router.replace("/(tabs)");
+  }, [router]);
+
   useEffect(() => {
+    // The decision above reads who is signed in, so the link is not used before
+    // the stored session has been restored (the same wait DeepLinkGate makes).
+    if (!authReady) return;
     if (fired.current) return;
     fired.current = true;
     if (!token) {
@@ -80,7 +127,7 @@ export default function VerifyEmailScreen() {
       return;
     }
     void submit();
-  }, [token, submit]);
+  }, [token, submit, authReady]);
 
   const submitPassword = async () => {
     if (passwordBusy || !password) return;
@@ -153,6 +200,19 @@ export default function VerifyEmailScreen() {
                 Your account has been successfully verified. You’ll land in your PROOVRA workspace in a moment.
               </ProovraText>
               <ProovraButton label="Continue to PROOVRA" onPress={continueToApp} />
+            </View>
+          ) : state === "switch" ? (
+            <View style={styles.stack} testID="verify-switch-account">
+              <ProovraText variant="label" weight="semibold" color={theme.color.status.verified.fg}>Email verified</ProovraText>
+              <ProovraText variant="h3" weight="semibold">Switch account?</ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                {`This device is signed in as ${currentUser?.email ?? "another account"}. The link you opened belongs to ${session.current?.user?.email ?? "a different account"}.`}
+              </ProovraText>
+              <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                Switching signs the current account out on this device, ends any capture in progress and removes what it left here. If you did not expect this link, stay signed in.
+              </ProovraText>
+              <ProovraButton label="Switch to this account" variant="secondary" disabled={stayBusy} onPress={continueToApp} />
+              <ProovraButton label="Stay signed in" loading={stayBusy} onPress={() => void staySignedIn()} />
             </View>
           ) : state === "missing-token" ? (
             <View style={styles.stack} testID="verify-missing-token">

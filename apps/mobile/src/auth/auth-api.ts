@@ -219,6 +219,19 @@ export async function logout(): Promise<void> {
   }
 }
 
+/**
+ * Revoke ONE session by its own token, without touching the device's current
+ * session (PRO-113: the session a verification link created when the person
+ * chose to stay signed in). Best effort, like logout.
+ */
+export async function revokeSessionToken(token: string): Promise<void> {
+  try {
+    await publicFetch("/v1/auth/logout", { method: "POST" }, { bearer: token });
+  } catch {
+    // The session expires on its own; nothing on the device depends on it.
+  }
+}
+
 /* -------------------------------------------------------------- legal */
 
 export interface LegalStatus {
