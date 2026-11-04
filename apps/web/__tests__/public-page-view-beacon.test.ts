@@ -46,7 +46,6 @@ const ALLOWED_PUBLIC_PATHS = [
   "/register",
   "/reset-password",
   "/request-demo",
-  "/request-demo/success",
   "/contact-sales",
   "/legal/privacy",
   "/legal/terms",

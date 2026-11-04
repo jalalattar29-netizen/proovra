@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Input, useToast } from "./ui";
 import { PremiumSelect } from "./request-demo-form";
 import {
@@ -20,20 +19,15 @@ import { EnterpriseSuccessModal } from "./marketing/EnterpriseSuccessModal";
 
 type ContactSalesFormProps = {
   submitUrl?: string;
-  redirectOnSuccess?: boolean;
-  successUrl?: string;
   submitButtonLabel?: string;
   onSubmitted?: (result: unknown) => void;
 };
 
 export function ContactSalesForm({
   submitUrl = "/api/contact-sales",
-  redirectOnSuccess = false, // success modal is the default UX now
-  successUrl = SALES_ASSETS.requestDemoSuccessUrl,
   submitButtonLabel = "Contact sales",
   onSubmitted,
 }: ContactSalesFormProps) {
-  const router = useRouter();
   const { addToast } = useToast();
 
   const [form, setForm] = useState<ContactSalesFormValues>(
@@ -88,11 +82,6 @@ export function ContactSalesForm({
       setErrors({});
 
       onSubmitted?.(data);
-
-      if (redirectOnSuccess) {
-        router.push(successUrl);
-        return;
-      }
 
       setSuccessOpen(true);
     } catch {

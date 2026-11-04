@@ -4,7 +4,6 @@ export type SalesAssetConfig = {
   methodologyUrl: string;
   pricingUrl: string;
   requestDemoUrl: string;
-  requestDemoSuccessUrl: string;
   contactSalesUrl: string;
   bookingUrl: string | null;
   expectedResponseWindowText: string;
@@ -17,7 +16,6 @@ export const SALES_ASSETS: SalesAssetConfig = {
   methodologyUrl: "/legal/verification-methodology",
   pricingUrl: "/pricing",
   requestDemoUrl: "/request-demo",
-  requestDemoSuccessUrl: "/request-demo/success",
   contactSalesUrl: "/contact-sales",
   bookingUrl: process.env.NEXT_PUBLIC_BOOKING_URL?.trim() || null,
   expectedResponseWindowText: "within 1 business day",
@@ -48,7 +46,6 @@ export function getAbsoluteSalesAssets() {
     methodologyUrl: absoluteWebUrl(SALES_ASSETS.methodologyUrl),
     pricingUrl: absoluteWebUrl(SALES_ASSETS.pricingUrl),
     requestDemoUrl: absoluteWebUrl(SALES_ASSETS.requestDemoUrl),
-    requestDemoSuccessUrl: absoluteWebUrl(SALES_ASSETS.requestDemoSuccessUrl),
     contactSalesUrl: absoluteWebUrl(SALES_ASSETS.contactSalesUrl),
     bookingUrl: SALES_ASSETS.bookingUrl
       ? absoluteWebUrl(SALES_ASSETS.bookingUrl)

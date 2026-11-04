@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { Input, useToast } from "./ui";
 import {
@@ -128,8 +127,6 @@ export function PremiumSelect({
 
 type RequestDemoFormProps = {
   submitUrl?: string;
-  redirectOnSuccess?: boolean;
-  successUrl?: string;
   submitButtonLabel?: string;
   sourcePath?: string;
   onSubmitted?: (result: unknown) => void;
@@ -137,13 +134,10 @@ type RequestDemoFormProps = {
 
 export function RequestDemoForm({
   submitUrl = "/api/request-demo",
-  redirectOnSuccess = false, // success modal is the default UX now
-  successUrl = SALES_ASSETS.requestDemoSuccessUrl,
   submitButtonLabel = "Submit demo request",
   sourcePath = "/request-demo",
   onSubmitted,
 }: RequestDemoFormProps) {
-  const router = useRouter();
   const { addToast } = useToast();
 
   const [form, setForm] = useState<RequestDemoFormValues>(
@@ -206,12 +200,6 @@ export function RequestDemoForm({
 
       onSubmitted?.(data);
 
-      if (redirectOnSuccess) {
-        router.push(successUrl);
-        return;
-      }
-
-      // Default: show the in-place success modal instead of redirecting.
       setSuccessOpen(true);
     } catch {
       addToast(
