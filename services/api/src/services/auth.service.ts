@@ -376,6 +376,21 @@ export async function exchangeAppleCodeForIdToken(code: string): Promise<string>
 // Historical guest-owned Evidence custody now lives in the evidence domain as a
 // non-interactive helper: evidence-legacy-custody.ts.
 
+/**
+ * PRO-010 (AUTH-04) — the legacy (provider, subject) pair of an account whose
+ * identity was unlinked. It keeps the users unique pair satisfied and can never
+ * equal a provider subject, so that identity no longer resolves to the account.
+ */
+const DETACHED_SUBJECT_PREFIX = "unlinked:";
+
+export function detachedLegacySubject(linkId: string): string {
+  return `${DETACHED_SUBJECT_PREFIX}${linkId}`;
+}
+
+export function isDetachedLegacySubject(providerUserId: string | null | undefined): boolean {
+  return typeof providerUserId === "string" && providerUserId.startsWith(DETACHED_SUBJECT_PREFIX);
+}
+
 export async function upsertUser(profile: AuthProfile) {
   return upsertUserWithEmailLink(profile);
 }
@@ -394,6 +409,33 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       },
     },
   });
+
+  // PRO-010 (AUTH-04) — an identity its account UNLINKED does not sign in
+  // there through the account's own pair. Unlink now detaches the pair; an
+  // account unlinked before that still carries it next to a REVOKED link, and
+  // is detached here, the first time the identity is presented again.
+  if (user) {
+    const pairLink = await prisma.userIdentityLink.findUnique({
+      where: {
+        user_identity_links_provider_subject_uniq: {
+          provider: profile.provider,
+          providerSubjectId: profile.providerUserId,
+        },
+      },
+      select: { id: true, status: true },
+    });
+    if (pairLink && pairLink.status !== "ACTIVE") {
+      await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          provider: profile.provider,
+          providerUserId: profile.providerUserId,
+        },
+        data: { providerUserId: detachedLegacySubject(pairLink.id) },
+      });
+      user = null;
+    }
+  }
 
   // Lifecycle Phase 3 — linked login methods. When the legacy
   // (provider, providerUserId) pair resolves no native account, an ACTIVE
@@ -509,32 +551,38 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
   // so a previously revoked link re-binds to the account that just
   // signed in with it. Best-effort: an inventory write never blocks
   // authentication.
+  //
+  // PRO-009 (AUTH-03) — the write never takes an ACTIVE link of ANOTHER
+  // account: it re-binds only this account's own row or a REVOKED one.
   if (isOAuthProvider && user) {
-    await prisma.userIdentityLink
-      .upsert({
+    const signedInUserId = user.id;
+    await (async () => {
+      const freshened = await prisma.userIdentityLink.updateMany({
         where: {
-          user_identity_links_provider_subject_uniq: {
-            provider: profile.provider,
-            providerSubjectId: profile.providerUserId,
-          },
+          provider: profile.provider,
+          providerSubjectId: profile.providerUserId,
+          OR: [{ userId: signedInUserId }, { status: "REVOKED" }],
         },
-        update: {
-          userId: user.id,
+        data: {
+          userId: signedInUserId,
           status: "ACTIVE",
           revokedAtUtc: null,
           lastUsedAtUtc: now,
         },
-        create: {
-          userId: user.id,
+      });
+      if (freshened.count > 0) return;
+      await prisma.userIdentityLink.create({
+        data: {
+          userId: signedInUserId,
           provider: profile.provider,
           providerSubjectId: profile.providerUserId,
           normalizedEmail: profile.email?.toLowerCase() ?? null,
-          providerEmailVerified: true,
+          providerEmailVerified: providerVouchesForEmail,
           status: "ACTIVE",
           lastUsedAtUtc: now,
         },
-      })
-      .catch(() => null);
+      });
+    })().catch(() => null);
   }
 
   // UC-COM-004 — the ONE initial-entitlement writer (serialised per user).
