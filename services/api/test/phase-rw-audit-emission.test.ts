@@ -51,13 +51,13 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
 // Minimal prisma stub — each test sets up the methods it needs.
 type AnyFn = ReturnType<typeof vi.fn>;
 const prismaStub: {
-  qcSample: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
+  qcSample: { findFirst: AnyFn; create: AnyFn; update: AnyFn; updateMany: AnyFn };
   workflowReviewDecision: { findFirst: AnyFn };
   reviewerDisagreement: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
   codingSchema: { findFirst: AnyFn; create: AnyFn; update: AnyFn };
   evidenceReviewWorkflow: { findFirst: AnyFn };
 } = {
-  qcSample: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  qcSample: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   workflowReviewDecision: { findFirst: vi.fn() },
   reviewerDisagreement: {
     findFirst: vi.fn(),
@@ -191,7 +191,8 @@ describe("Phase 4 — qc-sample.service audit emission", () => {
       state: "ASSIGNED",
       qcReviewerUserId: ACTOR_ID,
     });
-    prismaStub.qcSample.update.mockResolvedValueOnce({});
+    // PRO-091: the verdict is a compare-and-swap on ASSIGNED.
+    prismaStub.qcSample.updateMany.mockResolvedValueOnce({ count: 1 });
 
     const rationale =
       "This is the reviewer's private QC commentary that must never leak into the audit chain.";
@@ -230,7 +231,8 @@ describe("Phase 4 — qc-sample.service audit emission", () => {
       state: "ASSIGNED",
       qcReviewerUserId: ACTOR_ID,
     });
-    prismaStub.qcSample.update.mockResolvedValueOnce({});
+    // PRO-091: the verdict is a compare-and-swap on ASSIGNED.
+    prismaStub.qcSample.updateMany.mockResolvedValueOnce({ count: 1 });
     emitTenantAuditMock.mockRejectedValueOnce(new Error("audit chain down"));
 
     const result = await qcMod.renderQcVerdict({
@@ -241,7 +243,7 @@ describe("Phase 4 — qc-sample.service audit emission", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(prismaStub.qcSample.update).toHaveBeenCalledTimes(1);
+    expect(prismaStub.qcSample.updateMany).toHaveBeenCalledTimes(1);
   });
 });
 
