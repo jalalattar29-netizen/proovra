@@ -2728,10 +2728,10 @@ initSecretsAuthority(logger)
     // Phase 32.8C+++++ — Durable queue + worker telemetry snapshots.
     // Failure-tolerant; never blocks job processing.
     try {
-      telemetrySampler = startTelemetrySampler({
-        intervalMs: 60_000,
-        workerId: `worker-${process.pid}`,
-      });
+      // WORKERS-14: no explicit id. `worker-${pid}` overrode WORKER_ID and
+      // HOSTNAME and made every PID-1 container replica the same "worker-1",
+      // so one lease row stood for the whole fleet.
+      telemetrySampler = startTelemetrySampler({ intervalMs: 60_000 });
     } catch (err) {
       logger.warn({ err }, "telemetry.sampler_start_failed");
     }

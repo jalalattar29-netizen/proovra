@@ -13,6 +13,7 @@
  *   - Sampling interval is bounded (default 60s; min 15s; max 600s).
  */
 
+import { randomUUID } from "node:crypto";
 import type { Queue } from "bullmq";
 import { prisma } from "./db.js";
 import { resolveBuildRevision } from "./build-revision.js";
@@ -109,15 +110,23 @@ export type TelemetrySampler = {
  * bounded (15s–600s) so a mistyped value cannot silently stop the heartbeat or
  * hammer the database.
  */
-function resolveWorkerId(explicit?: string): string {
+export function resolveWorkerId(explicit?: string): string {
   if (explicit) return explicit.slice(0, 120);
   const fromEnv = process.env.WORKER_ID?.trim();
   if (fromEnv) return fromEnv.slice(0, 120);
-  const host = process.env.HOSTNAME?.trim() || "worker";
   // The pid keeps two instances on one host distinct, which is precisely the
   // case where a shared id would hide a dead one.
-  return `${host}-${process.pid}`.slice(0, 120);
+  const host = process.env.HOSTNAME?.trim();
+  if (host) return `${host}-${process.pid}`.slice(0, 120);
+  // WORKERS-14: with no hostname the pid alone is not an identity. Every
+  // exec-form container runs node as PID 1, so N replicas would all be
+  // "worker-1" and share one lease row. A per-process random suffix keeps
+  // them apart; it is fixed for the life of this process.
+  return `worker-${process.pid}-${PROCESS_INSTANCE_SUFFIX}`.slice(0, 120);
 }
+
+const PROCESS_INSTANCE_SUFFIX = randomUUID().slice(0, 8);
+
 
 export function startTelemetrySampler(opts?: {
   intervalMs?: number;
