@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 
 import { apiFetch, getAuthToken } from "../../../src/api";
 import { toSafeUserError } from "../../../src/errors/safe-error";
@@ -44,10 +45,13 @@ import {
   grantedWorkspaceName,
   orgInviteFailureMessage,
   orgInviteLanding,
+  orgSetupWebUrl,
+  ORG_SETUP_ON_WEB_COPY,
   parseOrgInviteAccept,
   type OrgInviteAccepted,
 } from "../../../src/product/org-invite";
 import { SWITCH_WORKSPACE_PATH, buildSwitchWorkspaceBody } from "../../../src/product/spaces";
+import { webOrigin } from "../../../src/product/intake-create";
 
 type Phase = "checking" | "ready" | "accepting" | "accepted" | "error";
 
@@ -108,11 +112,13 @@ export default function OrgInviteAcceptScreen() {
   // A governance-only accept (no grants) lands on the organization after a
   // moment, as the web does (:106-121). With grants the member chooses.
   const landing = result ? orgInviteLanding(result) : null;
+  // MOBILE-012 — an owed Enterprise setup is said, not skipped by an auto-landing.
+  const setupUrl = result ? orgSetupWebUrl(result, webOrigin()) : null;
   useEffect(() => {
-    if (phase !== "accepted" || !result || result.assignedWorkspaceIds.length > 0 || !landing) return;
+    if (phase !== "accepted" || !result || result.assignedWorkspaceIds.length > 0 || !landing || setupUrl) return;
     const t = setTimeout(() => router.replace(landing as never), REDIRECT_MS);
     return () => clearTimeout(t);
-  }, [phase, result, landing, router]);
+  }, [phase, result, landing, setupUrl, router]);
 
   const openWorkspace = async (workspaceId: string) => {
     try {
@@ -160,6 +166,15 @@ export default function OrgInviteAcceptScreen() {
           {phase === "accepted" && result ? (
             <View style={[styles.panel, styles.panelOk]} accessibilityLiveRegion="polite" testID="org-invite-accepted">
               <ProovraText variant="body" weight="semibold">{acceptedHeadline(result)}</ProovraText>
+              {setupUrl ? (
+                <View testID="org-invite-setup-on-web" style={styles.actions}>
+                  <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{ORG_SETUP_ON_WEB_COPY}</ProovraText>
+                  <ProovraButton
+                    label="Continue setup in the web app"
+                    onPress={() => void WebBrowser.openBrowserAsync(setupUrl)}
+                  />
+                </View>
+              ) : null}
               {/* An explicit, per-workspace switch (web :244-268) — never automatic. */}
               {result.assignedWorkspaceIds.map((wsId) => (
                 <ProovraButton

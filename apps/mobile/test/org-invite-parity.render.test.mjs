@@ -15,7 +15,7 @@ const h = React.createElement;
 let M;
 let accept;
 before(async () => {
-  M = await loadModule("app/(stack)/org-invite/[token].tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs", "src/api.ts"]);
+  M = await loadModule("app/(stack)/org-invite/[token].tsx", ["test/support/providers.tsx", "test/support/expo-stub.mjs", "src/api.ts", "src/product/org-invite.ts"]);
 });
 beforeEach(async () => {
   globalThis.__EXPO_PARAMS__ = { token: "oinv_1" };
@@ -95,3 +95,19 @@ for (const [status, message, words] of [
     assert.equal(M.calls.replace.at(-1), "/(tabs)");
   });
 }
+
+test("MOBILE-012: a new Enterprise owner is told the setup waits in the web app, and is not auto-landed past it", async () => {
+  process.env.EXPO_PUBLIC_WEB_BASE = "https://www.proovra.com";
+  accept = () => ({ status: 200, body: { organizationId: "o1", role: "ORG_OWNER", assignedWorkspaceIds: [], setupRedirect: "/organizations/o1/setup" } });
+  const r = await render();
+  await r.press("Accept invite");
+  await settle();
+  assert.equal(r.byTestId("org-invite-setup-on-web").length, 1);
+  assert.ok(r.hasText("You are now an org owner of the organization."));
+  assert.ok(!r.hasText("Redirecting…"));
+  await act(async () => { await new Promise((x) => setTimeout(x, 1600)); });
+  assert.equal(M.calls.replace.length, 0, "the owner was landed past the owed setup");
+  await r.press("Continue setup in the web app");
+  assert.equal(M.calls.openURL.at(-1), "https://www.proovra.com/organizations/o1/setup");
+  assert.equal(M.orgSetupWebUrl({ setupRedirect: "https://evil.example/x" }, "https://www.proovra.com"), null, "only the server's setup route is opened");
+});
