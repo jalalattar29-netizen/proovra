@@ -718,8 +718,11 @@ export async function authRoutes(app: FastifyInstance) {
       userAgent: readUserAgent(req),
       metadata: { loginMethod },
     });
+    // PRO-008 (AUTH-02) — the pending token carries the PRIMARY ceremony this
+    // sign-in actually used, exactly as the enrolment token above does; a
+    // Google or Apple sign-in is never recorded as a password one.
     const pendingToken = signMfaPendingToken(
-      jwtPayloadFromUser(user, "PASSWORD"),
+      jwtPayloadFromUser(user, loginMethod === "email_password" ? "PASSWORD" : "SOCIAL_OAUTH"),
       jwtSecret as string,
       challenge.jti,
     );
@@ -1706,7 +1709,11 @@ export async function authRoutes(app: FastifyInstance) {
             email: user.email,
             platformRole: user.platformRole,
           },
-          ssoProvenance?.authMethod ?? "PASSWORD",
+          // PRO-008 (AUTH-02) — a social primary stays SOCIAL_OAUTH through the
+          // second factor. Only the two non-SSO values gateLoginWithMfa signs
+          // are read; anything else is the password ceremony, as before.
+          ssoProvenance?.authMethod ??
+            (pendingPayload.authMethod === "SOCIAL_OAUTH" ? "SOCIAL_OAUTH" : "PASSWORD"),
         ),
         ...(ssoProvenance
           ? { authAt: ssoProvenance.authAt, ssoConnId: ssoProvenance.ssoConnId }
