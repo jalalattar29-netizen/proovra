@@ -294,6 +294,33 @@ export function canResendIntakeLink(rawToken: string | null | undefined): boolea
   return typeof rawToken === "string" && rawToken.length >= 8;
 }
 
+/**
+ * PRO-117 / MOBILE-05 — ONE idempotency key per (link, channel) for as long as
+ * a send to it is unconfirmed. A retry after a timeout or a lost reply re-uses
+ * the key, so the server's dedup (workflow-intake-links.routes.ts send route)
+ * returns the message it already queued instead of making a second provider
+ * call. A key is retired only when its send is CONFIRMED: a deliberate later
+ * resend is a new message and gets a new key. Minting a key per tap made every
+ * retry a fresh e-mail.
+ */
+export function createIntakeSendKeys(linkId: string, nonce: () => string) {
+  const keys = new Map<IntakeSendChannel, string>();
+  return {
+    keyFor(channel: IntakeSendChannel): string {
+      let key = keys.get(channel);
+      if (!key) {
+        // Bounded by the route's schema (z.string().min(1).max(120)).
+        key = `send:${linkId}:${channel}:${nonce()}`.slice(0, 120);
+        keys.set(channel, key);
+      }
+      return key;
+    },
+    confirmed(channel: IntakeSendChannel): void {
+      keys.delete(channel);
+    },
+  };
+}
+
 export function buildIntakeSendBody(input: {
   channel: IntakeSendChannel;
   rawToken: string;

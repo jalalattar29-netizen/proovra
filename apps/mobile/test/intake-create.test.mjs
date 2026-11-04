@@ -163,3 +163,45 @@ test("a step with errors does not advance, and names the problem", async () => {
   assert.ok(r.hasText("Enter the recipient's email address."));
   assert.ok(r.hasText("step 2 of 4"));
 });
+
+/* ------------------------------------------------- PRO-117 / MOBILE-05 ---- */
+
+test("PRO-117: a retried send re-uses its idempotency key; only a confirmed send retires it", async () => {
+  const I = await loadModule("src/product/intake-links.ts");
+  let n = 0;
+  const keys = I.createIntakeSendKeys("link-1", () => `n${++n}`);
+  const first = keys.keyFor("EMAIL");
+  assert.equal(keys.keyFor("EMAIL"), first, "a retry minted a new key");
+  assert.notEqual(keys.keyFor("SMS"), first, "two channels share one key");
+  keys.confirmed("EMAIL");
+  assert.notEqual(keys.keyFor("EMAIL"), first, "a deliberate resend after a confirmed send must be a new message");
+  assert.ok(first.length <= 120, "the route's schema caps the key at 120");
+});
+
+test("PRO-117: on the created link, a send whose reply was lost is retried with the SAME key", async () => {
+  let sends = 0;
+  handlers["POST /v1/workflow/intake-links"] = () => ({
+    status: 201,
+    body: { link: { id: "link-1", hasRecipientEmail: true, hasRecipientPhone: false }, rawToken: "tok_abc", delivery: { method: "MANUAL", status: "skipped" } },
+  });
+  // The first reply is lost (a gateway timeout after the server queued it); the retry answers.
+  handlers["POST /v1/workflow/intake-links/link-1/send"] = () => (++sends === 1 ? { status: 504, body: { message: "Gateway Timeout" } } : { status: 200, body: { communicationMessageId: "m1" } });
+  const r = await renderComponent(h(S.TestProviders, null, h(S.default, {})));
+  for (let i = 0; i < 4; i += 1) await settle();
+  await r.press("Continue");
+  await r.type("Recipient email", "witness@example.com");
+  await r.press("Continue");
+  await r.press("Continue");
+  await r.press("Create and send");
+  for (let i = 0; i < 3; i += 1) await settle();
+  await r.press("Send by email");
+  for (let i = 0; i < 3; i += 1) await settle();
+  await r.press("Send by email");
+  for (let i = 0; i < 3; i += 1) await settle();
+  await r.press("Send by email");
+  for (let i = 0; i < 3; i += 1) await settle();
+  const keys = requests.filter((q) => q.method === "POST" && q.path === "/v1/workflow/intake-links/link-1/send").map((q) => q.body.idempotencyKey);
+  assert.equal(keys.length, 3);
+  assert.equal(keys[1], keys[0], "the retry after a lost reply carried a new key, so the server sends the e-mail twice");
+  assert.notEqual(keys[2], keys[1], "after a confirmed send, a deliberate resend is a new message");
+});

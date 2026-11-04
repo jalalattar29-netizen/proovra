@@ -67,7 +67,7 @@ import {
   type WizardErrors,
   type WizardState,
 } from "../../src/product/intake-create";
-import { buildIntakeSendBody, buildIntakeSendPath } from "../../src/product/intake-links";
+import { buildIntakeSendBody, buildIntakeSendPath, createIntakeSendKeys } from "../../src/product/intake-links";
 import { theme } from "../../src/theme/theme";
 import {
   ProovraBadge,
@@ -625,16 +625,22 @@ function Review({
 function CreatedView({ created, url, onDone }: { created: CreatedIntakeLink; url: string; onDone: () => void }) {
   const [sending, setSending] = useState<"EMAIL" | "SMS" | null>(null);
   const [sendMessage, setSendMessage] = useState<string | null>(null);
+  // PRO-117 — one key per channel until that send is confirmed, for the screen's life.
+  const sendKeys = useRef(createIntakeSendKeys(created.linkId, () => Crypto.randomUUID())).current;
 
   const send = async (channel: "EMAIL" | "SMS") => {
+    if (sending) return;
     setSending(channel);
     setSendMessage(null);
     try {
       await apiFetch(buildIntakeSendPath(created.linkId), {
         method: "POST",
-        // Native sends an idempotency key on this call; the web does not (spec).
-        body: JSON.stringify(buildIntakeSendBody({ channel, rawToken: created.rawToken, intakeUrl: url, idempotencyKey: `send:${Crypto.randomUUID()}` })),
+        // A retry re-sends the SAME key, so a send whose reply was lost is not sent twice.
+        body: JSON.stringify(
+          buildIntakeSendBody({ channel, rawToken: created.rawToken, intakeUrl: url, idempotencyKey: sendKeys.keyFor(channel) }),
+        ),
       });
+      sendKeys.confirmed(channel);
       setSendMessage(`Queued for ${CHANNEL_LABEL[channel]} delivery. Track it under Delivery history.`);
     } catch (err) {
       const code = (err as { code?: string })?.code ?? null;
