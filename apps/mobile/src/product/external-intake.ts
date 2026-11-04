@@ -182,12 +182,62 @@ function parseIntakeCompletion(v: unknown): IntakeCompletion | null {
 export interface IntakeSessionView {
   id: string;
   status: string;
+  /** Set once consent was recorded on this session — a resumed session skips the step. */
+  consentAcceptedAtIso: string | null;
+}
+
+/** A file the server already holds for a resumed session (listResumableIntakeParts). */
+export interface ResumedIntakePart {
+  id: string;
+  partIndex: number;
+  originalFileName: string | null;
+  mimeType: string | null;
+  checklistStepId: string | null;
+  sizeBytes: number | null;
+  /** False when the part was declared but its bytes never reached storage. */
+  stored: boolean;
 }
 
 export interface ValidatedIntake {
   template: IntakeTemplate;
   session: IntakeSessionView | null;
   request: IntakeRequestView | null;
+  /** The server resumed the session this device presented (UC-WEB-003 / PRO-115). */
+  resumed: boolean;
+  parts: ResumedIntakePart[];
+}
+
+/**
+ * PRO-115 / MOBILE-03 — the header a reopen presents its own open session in
+ * (external-intake.routes.ts GET /v1/external-intake/:token). Never a query
+ * parameter: the web sends it the same way (intake/[token]/page.tsx).
+ */
+export const INTAKE_SESSION_HEADER = "x-proovra-intake-session";
+
+/** The validate request's headers: the session to resume, when this device holds one. */
+export function intakeResumeHeaders(sessionId: string | null): Record<string, string> {
+  return sessionId ? { [INTAKE_SESSION_HEADER]: sessionId } : {};
+}
+
+function parseResumedParts(v: unknown): ResumedIntakePart[] {
+  return rows(v)
+    .map(obj)
+    .filter((p) => str(p.id) && typeof p.partIndex === "number")
+    .map((p) => ({
+      id: str(p.id) as string,
+      partIndex: p.partIndex as number,
+      originalFileName: str(p.originalFileName),
+      mimeType: str(p.mimeType),
+      checklistStepId: str(p.checklistStepId),
+      sizeBytes: typeof p.sizeBytes === "number" ? p.sizeBytes : null,
+      stored: p.stored === true,
+    }))
+    .sort((a, b) => a.partIndex - b.partIndex);
+}
+
+/** The next free part index after the parts a session already holds. */
+export function nextIntakePartIndex(heldIndexes: readonly number[]): number {
+  return heldIndexes.length === 0 ? 0 : Math.max(...heldIndexes) + 1;
 }
 
 export function parseValidatedIntake(payload: unknown): ValidatedIntake | null {
@@ -228,7 +278,15 @@ export function parseValidatedIntake(payload: unknown): ValidatedIntake | null {
         })
         .filter((s): s is IntakeStep => s !== null),
     },
-    session: sessionId ? { id: sessionId, status: str(session.status) ?? "OPEN" } : null,
+    session: sessionId
+      ? {
+          id: sessionId,
+          status: str(session.status) ?? "OPEN",
+          consentAcceptedAtIso: str(session.consentAcceptedAtUtc),
+        }
+      : null,
+    resumed: d.resumed === true,
+    parts: d.resumed === true ? parseResumedParts(d.parts) : [],
     request:
       Object.keys(request).length === 0
         ? null

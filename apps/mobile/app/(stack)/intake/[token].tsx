@@ -22,6 +22,7 @@ import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { publicFetch } from "../../../src/api";
+import { heldIntakeSession, holdIntakeSession, releaseIntakeSession } from "../../../src/intake/intake-resume";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
 import {
@@ -51,6 +52,7 @@ import {
   intakeFailureTitle,
   intakeDisclosure,
   intakeItemMetaLine,
+  intakeResumeHeaders,
   parseValidatedIntake,
   type IntakeFailure,
   type ValidatedIntake,
@@ -80,11 +82,25 @@ export default function IntakeScreen() {
       return;
     }
     try {
+      // PRO-115 — a reopen presents this device's own open session, so the
+      // server resumes it instead of opening another (the web's UC-WEB-003).
       const intake = parseValidatedIntake(
-        await publicFetch(buildIntakeValidatePath(token), { method: "GET" }),
+        await publicFetch(buildIntakeValidatePath(token), {
+          method: "GET",
+          headers: intakeResumeHeaders(heldIntakeSession(token)),
+        }),
       );
       if (!intake) {
+        releaseIntakeSession(token);
         setPhase({ kind: "failed", failure: "INVALID" });
+        return;
+      }
+      if (intake.session) holdIntakeSession(token, intake.session.id, intake.parts);
+      else releaseIntakeSession(token);
+      // A resumed session that already recorded consent goes straight back to
+      // its files; consent is recorded once, not re-asked.
+      if (intake.resumed && intake.session?.consentAcceptedAtIso) {
+        setPhase({ kind: "ready", intake });
         return;
       }
       // An anonymous link still offers a pseudonym; a named one asks for a
@@ -92,6 +108,7 @@ export default function IntakeScreen() {
       // recorded against whoever is giving it.
       setPhase({ kind: "identity", intake });
     } catch (err) {
+      releaseIntakeSession(token);
       setPhase({ kind: "failed", failure: classifyIntakeFailure(err) });
     }
   }, [token]);
@@ -330,6 +347,13 @@ export default function IntakeScreen() {
                 ))}
               </View>
             )}
+            {phase.intake.resumed && phase.intake.parts.length > 0 ? (
+              <View testID="intake-resumed-parts">
+                <ProovraText variant="label" color={theme.color.ink.secondary}>
+                  {`Welcome back. ${phase.intake.parts.length} file${phase.intake.parts.length === 1 ? " is" : "s are"} already part of this submission.`}
+                </ProovraText>
+              </View>
+            ) : null}
             <ProovraButton
               label="Add files"
               onPress={() =>

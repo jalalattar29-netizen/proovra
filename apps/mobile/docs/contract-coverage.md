@@ -98,7 +98,7 @@ top level of it.
 | OK | `parseVerificationAccess` | `GET /v1/evidence/:id/verification-access` | canChangeDisclosure, canWithdraw, disclosure, issuedAtUtc, reference, refusalReason, sta… | reference, status, verifyPath |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, disclosureProfile, evidenceId, generatedAtUtc, latestAvailablePackageVersi… | url |
 | OK | `parseRetentionArchive` | `GET /v1/evidence/retention-archive` | items, nextCursor | items, nextCursor |
-| OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, request, session |
+| OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, parts, request, resumed, session |
 | OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
 | OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |
 | OK | `parseRecoveryDetail` | `GET /v1/identity/mfa-admin/recovery-requests/detail/:requestId` | detail, error | detail, emailResendCount, emailVerified, expiresAt, id, status |
