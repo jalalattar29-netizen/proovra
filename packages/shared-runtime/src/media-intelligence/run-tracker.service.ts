@@ -363,6 +363,54 @@ export async function markRunFailed(
 }
 
 /**
+ * WORKERS-06 — hand a claim back after a TRANSIENT failure, so the retry can
+ * actually run.
+ *
+ * A handler that threw "so BullMQ retries" used to write FAILED first. The
+ * processor treats FAILED as a finished run (a replayed delivery must not
+ * re-charge the workspace), so the retry it had just asked for found FAILED
+ * and stopped: one storage blip failed the run for good. And a handler that
+ * threw without writing anything left the row PROCESSING under a live lease,
+ * so the retry was refused for the length of the lease.
+ *
+ * The run goes back to PENDING with the bounded reason and no lease. The
+ * attempt counter is NOT reset: `markRunProcessing` still refuses at
+ * MAX_RETRIES, so transient failures stay bounded, and the stranded-run
+ * reconciler serves a PENDING row whose BullMQ retries ran out. Fenced like
+ * every terminal write: only the current claim holder may release.
+ */
+export async function releaseRunForRetry(
+  runId: string,
+  teamId: string,
+  errorSummary: string,
+  client: PrismaClient = getRegisteredPrisma(),
+  /** The value `markRunProcessing` returned for THIS claim. */
+  fence?: number,
+): Promise<{ ok: boolean }> {
+  try {
+    const affected = await client.$executeRawUnsafe(
+      `UPDATE "media_intelligence_runs"
+         SET "status" = 'PENDING',
+             "started_at_utc" = NULL,
+             "last_error" = $3,
+             "updated_at_utc" = NOW()
+         WHERE "id" = $1 AND "team_id" = $2 AND "status" = 'PROCESSING'
+           AND ($4::int IS NULL OR "attempt_count" = $4::int)`,
+      runId,
+      teamId,
+      `transient:${errorSummary}`
+        .replace(/[\n\r\t]/g, " ")
+        .replace(/https?:\/\/[^\s]+/g, "")
+        .slice(0, 240),
+      fence ?? null,
+    );
+    return { ok: affected !== 0 };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
  * Operator-initiated dismissal. Stops the retry ladder for runs
  * that have been determined to be permanently failed (e.g.
  * unsupported file type).

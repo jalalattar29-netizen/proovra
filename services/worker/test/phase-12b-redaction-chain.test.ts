@@ -22,6 +22,7 @@ const DB = vi.hoisted(() => ({
   activities: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   strandedRows: [] as Array<{ id: string }>,
+  lifecycle: { deleted_at: null, status: "SIGNED", lifecycle_state: "ACTIVE" } as Record<string, unknown>,
 }));
 
 vi.mock("../src/db.js", () => ({
@@ -45,7 +46,12 @@ vi.mock("../src/db.js", () => ({
               : Array.isArray((wantIn as { in?: string[] })?.in)
                 ? ((wantIn as { in: string[] }).in as string[]).includes(st as string)
                 : false;
-          const lease = where.renderStartedAt as { lt?: Date } | undefined;
+          const lease = where.renderStartedAt as { lt?: Date } | Date | undefined;
+          // WORKERS-05: the claim token — an exact renderStartedAt match.
+          if (lease instanceof Date) {
+            const at = DB.derivative?.renderStartedAt as Date | null | undefined;
+            return stateOk && at instanceof Date && at.getTime() === lease.getTime();
+          }
           if (lease?.lt) {
             const at = DB.derivative?.renderStartedAt as Date | null | undefined;
             return stateOk && at instanceof Date && at < lease.lt;
@@ -62,6 +68,8 @@ vi.mock("../src/db.js", () => ({
       },
     },
     evidence: { findFirst: async () => DB.evidence },
+    // The derived-production lifecycle rule reads the record's state raw.
+    $queryRawUnsafe: async () => [DB.lifecycle],
     redactionVersion: { findUnique: async () => ({ projectId: "proj-1" }) },
     redactionRegion: { findMany: async () => DB.regions },
     redactionActivity: {
@@ -111,7 +119,11 @@ beforeEach(() => {
   DB.activities = [];
   DB.updates = [];
   DB.strandedRows = [];
+  DB.lifecycle = { deleted_at: null, status: "SIGNED", lifecycle_state: "ACTIVE" };
 });
+
+/** The instant a seeded RENDERING row's claim stamped (the WORKERS-05 token). */
+const CLAIMED_AT = new Date("2026-11-04T10:00:00.000Z");
 
 describe("PHASE 12B — claim + completion writer (the ONE authority)", () => {
   it("claims QUEUED→RENDERING exactly once; a replay loses the race", async () => {
@@ -125,11 +137,12 @@ describe("PHASE 12B — claim + completion writer (the ONE authority)", () => {
   });
 
   it("READY only from RENDERING — a stale/double completion is rejected with zero mutation", async () => {
-    seedDerivative("RENDERING");
+    seedDerivative("RENDERING", { renderStartedAt: CLAIMED_AT });
     const ok = await markDerivativeReadyWorker({
       derivativeId: "d-1", teamId: "team-1", storageBucket: "bkt",
       storageKey: "redactions/team-1/v-1/abc.png", byteSize: 10,
       fileSha256: "a".repeat(64), contentType: "image/png", renderEngine: "redaction-render-v1",
+      claimedAt: CLAIMED_AT,
     });
     expect(ok.ok).toBe(true);
     expect(DB.derivative?.state).toBe("READY");
@@ -138,6 +151,7 @@ describe("PHASE 12B — claim + completion writer (the ONE authority)", () => {
       derivativeId: "d-1", teamId: "team-1", storageBucket: "bkt",
       storageKey: "redactions/team-1/v-1/other.png", byteSize: 11,
       fileSha256: "b".repeat(64), contentType: "image/png", renderEngine: "redaction-render-v1",
+      claimedAt: CLAIMED_AT,
     });
     expect(replay.ok).toBe(false);
     expect((replay as { reason?: string }).reason).toBe("stale_transition");
@@ -145,12 +159,12 @@ describe("PHASE 12B — claim + completion writer (the ONE authority)", () => {
   });
 
   it("REFUSES a derivative pointing at the ORIGINAL Evidence object (immutability)", async () => {
-    seedDerivative("RENDERING");
+    seedDerivative("RENDERING", { renderStartedAt: CLAIMED_AT });
     const res = await markDerivativeReadyWorker({
       derivativeId: "d-1", teamId: "team-1", storageBucket: "bkt",
       storageKey: "orig/key", // the original!
       byteSize: 10, fileSha256: "a".repeat(64), contentType: "image/png",
-      renderEngine: "redaction-render-v1",
+      renderEngine: "redaction-render-v1", claimedAt: CLAIMED_AT,
     });
     expect(res.ok).toBe(false);
     expect((res as { reason?: string }).reason).toBe("original_object_collision");
@@ -167,6 +181,45 @@ describe("PHASE 12B — claim + completion writer (the ONE authority)", () => {
     expect(DB.derivative?.state).toBe("FAILED");
     expect((DB.derivative?.failureReason as string).length).toBeLessThanOrEqual(120);
     expect((DB.derivative?.lastErrorPreview as string).length).toBeLessThanOrEqual(400);
+  });
+
+  it("WORKERS-05: a superseded claim can neither complete, fail nor release the live render", async () => {
+    const stale = new Date("2026-11-04T09:00:00.000Z");
+    seedDerivative("RENDERING", { renderStartedAt: CLAIMED_AT });
+    const ready = await markDerivativeReadyWorker({
+      derivativeId: "d-1", teamId: "team-1", storageBucket: "bkt",
+      storageKey: "redactions/team-1/v-1/abc.png", byteSize: 10,
+      fileSha256: "a".repeat(64), contentType: "image/png", renderEngine: "redaction-render-v1",
+      claimedAt: stale,
+    });
+    expect(ready).toEqual({ ok: false, reason: "stale_transition" });
+    const failed = await markDerivativeFailedWorker({
+      derivativeId: "d-1", teamId: "team-1", failureReason: "late", claimedAt: stale,
+    });
+    expect(failed).toEqual({ ok: false, reason: "stale_transition" });
+    // Without a claim, only a QUEUED row may be failed — never a RENDERING one.
+    expect((await markDerivativeFailedWorker({ derivativeId: "d-1", teamId: "team-1", failureReason: "x" })).ok).toBe(false);
+    expect(DB.derivative?.state).toBe("RENDERING");
+    expect(DB.updates).toHaveLength(0);
+    // The current holder still can.
+    expect((await markDerivativeFailedWorker({ derivativeId: "d-1", teamId: "team-1", failureReason: "real", claimedAt: CLAIMED_AT })).ok).toBe(true);
+    expect(DB.derivative?.state).toBe("FAILED");
+  });
+
+  it("WORKERS-11: READY is refused for a record that left service", async () => {
+    for (const lifecycle_state of ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"]) {
+      seedDerivative("RENDERING", { renderStartedAt: CLAIMED_AT });
+      DB.lifecycle = { deleted_at: null, status: "SIGNED", lifecycle_state };
+      const res = await markDerivativeReadyWorker({
+        derivativeId: "d-1", teamId: "team-1", storageBucket: "bkt",
+        storageKey: "redactions/team-1/v-1/abc.png", byteSize: 10,
+        fileSha256: "a".repeat(64), contentType: "image/png", renderEngine: "redaction-render-v1",
+        claimedAt: CLAIMED_AT,
+      });
+      expect(res.ok).toBe(false);
+      expect((res as { reason: string }).reason).toMatch(/^evidence_ineligible:evidence_(trashed|pending_destruction|destroyed)$/);
+      expect(DB.derivative?.state).toBe("RENDERING");
+    }
   });
 });
 

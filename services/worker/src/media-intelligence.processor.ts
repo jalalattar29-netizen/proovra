@@ -50,6 +50,10 @@ import {
   type MediaIntelligenceJobKind,
 } from "@proovra/shared";
 
+import {
+  evidenceInWorkspaceSql,
+  resolveEvidenceWorkspaceId,
+} from "@proovra/shared-runtime";
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -218,7 +222,37 @@ async function settleRunAround(
       err && typeof err === "object" && "code" in err && typeof (err as { code?: unknown }).code === "string"
         ? String((err as { code: string }).code).slice(0, 64)
         : "handler_failed";
-    await tracker.markRunFailed(runId, teamId, code, prisma, proc.fence);
+    // WORKERS-06: a thrown handler is a TRANSIENT failure and is rethrown so
+    // BullMQ retries. Writing FAILED here made that retry a replay no-op
+    // (FAILED is a finished run below), so the run was failed for good after
+    // one blip. The claim is handed back as PENDING instead; the attempt
+    // ceiling in markRunProcessing still bounds the retries.
+    await tracker.releaseRunForRetry(runId, teamId, code, prisma, proc.fence);
+    throw err;
+  }
+}
+
+/**
+ * WORKERS-06 — the OCR and transcript branches delegate to the API over HTTP,
+ * and that client THROWS on 5xx, network errors and timeouts so BullMQ backs
+ * off and retries. Nothing settled the run on that path: it stayed PROCESSING
+ * under its live lease, the retry was refused by the lease and returned
+ * success, and recovery waited for the reconciler. This hands the claim back
+ * before rethrowing.
+ */
+async function withTransientRelease<T>(
+  runId: string | null,
+  teamId: string,
+  fence: number | undefined,
+  work: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await work();
+  } catch (err) {
+    if (runId && fence !== undefined) {
+      const tracker = await import("@proovra/shared-runtime/media-intelligence");
+      await tracker.releaseRunForRetry(runId, teamId, "extract_transient_failure", prisma, fence);
+    }
     throw err;
   }
 }
@@ -273,9 +307,16 @@ export async function processMediaIntelligenceJob(
   // of its bytes.
   const evidence = await prisma.evidence.findFirst({
     where: { id: run.evidenceId, deletedAt: null },
-    select: { id: true, teamId: true },
+    select: { id: true, teamId: true, ownerUserId: true },
   });
-  if (!evidence || evidence.teamId !== run.teamId) {
+  // WORKERS-07: the record's WORKSPACE, not its raw team_id. A Personal
+  // record stored with team_id NULL belongs to its owner's personal
+  // workspace, which is where the API binds its run (UC-DER-010); comparing
+  // the raw column refused every such run as "evidence_unavailable".
+  const evidenceWorkspaceId = evidence
+    ? await resolveEvidenceWorkspaceId(evidence, prisma)
+    : null;
+  if (!evidence || evidenceWorkspaceId !== run.teamId) {
     logger.warn(
       { requestId, jobId: job.id, runId: run.id },
       "media_intelligence.evidence_scope_mismatch",
@@ -636,7 +677,7 @@ async function processExtractExifJob(
             p."size_bytes"
        FROM "evidence_parts" p
        JOIN "evidence" e ON e."id" = p."evidence_id"
-       WHERE e."team_id" = $1
+       WHERE ${evidenceInWorkspaceSql("e", "$1")}
          AND e."id" = $2
          ${evidencePartId ? `AND p."id" = $3` : ""}`,
     ...(evidencePartId
@@ -868,7 +909,7 @@ async function processExtractTechnicalMetadataJob(
               p."mime_type", p."size_bytes"
          FROM "evidence_parts" p
          JOIN "evidence" e ON e."id" = p."evidence_id"
-         WHERE e."team_id" = $1
+         WHERE ${evidenceInWorkspaceSql("e", "$1")}
            AND e."id" = $2
            ${evidencePartId ? `AND p."id" = $3` : ""}`,
       ...(evidencePartId
@@ -1040,7 +1081,7 @@ async function processComputePerceptualHashesJob(
       `SELECT p."id", p."storage_bucket", p."storage_key", p."storage_version_id", p."mime_type"
          FROM "evidence_parts" p
          JOIN "evidence" e ON e."id" = p."evidence_id"
-         WHERE e."team_id" = $1
+         WHERE ${evidenceInWorkspaceSql("e", "$1")}
            AND e."id" = $2
            AND p."mime_type" ILIKE 'image/%'
            ${evidencePartId ? `AND p."id" = $3` : ""}`,
@@ -1648,12 +1689,14 @@ async function processExtractOcrAzureJob(
   //
   // The worker NEVER logs the raw extracted text — the API response
   // intentionally returns only counts + bounded error preview.
-  const result = await callInternalMediaIntelligenceExtract({
-    teamId,
-    evidenceId,
-    kind: "ocr_azure",
-    runId,
-  });
+  const result = await withTransientRelease(runId, teamId, runFence, () =>
+    callInternalMediaIntelligenceExtract({
+      teamId,
+      evidenceId,
+      kind: "ocr_azure",
+      runId,
+    }),
+  );
 
   if (result.success) {
     // Enqueue downstream search-indexing + auto-chunker safety-net.
@@ -1806,12 +1849,14 @@ async function processExtractTranscriptDeepgramJob(
   // fire on its side) and mirrors transcript text into
   // EvidenceExtractedText via runExtractionInline. Raw text never
   // crosses the wire — only counts + bounded error.
-  const result = await callInternalMediaIntelligenceExtract({
-    teamId,
-    evidenceId,
-    kind: "transcript_deepgram",
-    runId,
-  });
+  const result = await withTransientRelease(runId, teamId, runFence, () =>
+    callInternalMediaIntelligenceExtract({
+      teamId,
+      evidenceId,
+      kind: "transcript_deepgram",
+      runId,
+    }),
+  );
 
   if (result.success) {
     try {

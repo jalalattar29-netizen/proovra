@@ -43,6 +43,8 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { getRegisteredPrisma } from "../prisma-registry.js";
+import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
+import { evidenceInWorkspaceSql } from "./derived-production-eligibility.js";
 import { bump } from "../ops/metrics.service.js";
 import { listExifSummariesForEvidence } from "./exif-summary.service.js";
 import { computeExifVsServerGapSeconds } from "./exif-extractor.service.js";
@@ -92,6 +94,7 @@ export async function runMediaIntelligenceAnalysis(
       select: {
         id: true,
         teamId: true,
+        ownerUserId: true,
         uploadedAtUtc: true,
         capturedAtUtc: true,
         deviceTimeIso: true,
@@ -109,7 +112,9 @@ export async function runMediaIntelligenceAnalysis(
         signalsByType: {},
       };
     }
-    if (evidence.teamId !== input.teamId) {
+    // WORKERS-07: the record's workspace, not its raw team_id (a Personal
+    // record stored with team_id NULL belongs to its owner's personal space).
+    if ((await resolveEvidenceWorkspaceId(evidence, client)) !== input.teamId) {
       bump("media_intelligence_job_failed_total");
       return {
         ok: false,
@@ -659,7 +664,7 @@ async function findDuplicateHashCount(
       `SELECT COUNT(*)::int AS "n"
          FROM "evidence_parts" ep
          JOIN "evidence" e ON e."id" = ep."evidence_id"
-         WHERE e."team_id" = $1
+         WHERE ${evidenceInWorkspaceSql("e", "$1")}
            AND ep."sha256" = $2
            AND ep."id" <> $3`,
       teamId,
@@ -692,7 +697,7 @@ async function findSimilarFilenameSizeCount(
       `SELECT COUNT(*)::int AS "n"
          FROM "evidence_parts" ep
          JOIN "evidence" e ON e."id" = ep."evidence_id"
-         WHERE e."team_id" = $1
+         WHERE ${evidenceInWorkspaceSql("e", "$1")}
            AND ep."original_file_name" = $2
            AND ep."size_bytes" = $3
            AND ep."id" <> $4

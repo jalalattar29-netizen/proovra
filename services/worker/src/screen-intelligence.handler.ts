@@ -339,9 +339,12 @@ export async function processReconstructScreenJob(
     );
     return { ok: true, signalsEmitted: result.blockCount };
   } catch (err) {
-    // Transient (storage/DB) — mark FAILED for operator visibility and rethrow
-    // so BullMQ retries with backoff. The fence protects the terminal write.
-    await mi.markRunFailed(
+    // Transient (storage/DB) — hand the claim back (PENDING, reason recorded
+    // for operator visibility) and rethrow so BullMQ retries with backoff.
+    // WORKERS-06: writing FAILED here made the retry a replay no-op, because
+    // the processor treats FAILED as a finished run. The fence protects the
+    // write; the attempt ceiling still bounds the retries.
+    await mi.releaseRunForRetry(
       runId,
       teamId,
       err instanceof Error ? err.message : "transient_failure",

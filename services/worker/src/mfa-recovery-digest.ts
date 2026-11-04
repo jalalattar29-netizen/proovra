@@ -242,17 +242,29 @@ export async function runMfaRecoveryDigest(
     }
 
     // 4. Per-admin processing — bounded per tick.
-    const adminIds = [...teamsByAdmin.keys()].slice(0, MAX_ADMINS_PER_TICK);
+    //
+    // WORKERS-10: the bound is on DIGESTS ATTEMPTED, not on the candidate
+    // list. Slicing an unordered list to 100 before suppression and before
+    // the per-day claim meant the same first 100 were picked every tick: once
+    // they were delivered, the second tick attempted nobody and every admin
+    // past the hundredth was never told. The candidates are now ordered
+    // deterministically, admins whose day is already settled are dropped
+    // BEFORE the cap (one query, not one per admin), and the loop stops only
+    // when MAX_ADMINS_PER_TICK digests have actually been attempted.
+    const adminIds = await orderAdminsOwedToday(
+      [...teamsByAdmin.keys()],
+      sentDate,
+      now,
+    );
+    const prefsByAdmin = await loadDigestPreferences(adminIds);
 
     for (const adminUserId of adminIds) {
+      if (adminsAttempted >= MAX_ADMINS_PER_TICK) break;
       const bucket = teamsByAdmin.get(adminUserId);
       if (!bucket) continue;
 
-      // 4a. Load this admin's preferences.
-      const prefs = await prisma.mfaAdminDigestPreference.findMany({
-        where: { userId: adminUserId },
-        select: { teamId: true, digestEnabled: true, suppressUntil: true },
-      });
+      // 4a. This admin's preferences (loaded for every candidate at once).
+      const prefs = prefsByAdmin.get(adminUserId) ?? [];
 
       // 4b. Build the per-admin team summary list, filtered by
       //     preferences. Drop teams where the admin is suppressed.
@@ -623,6 +635,82 @@ async function acquireDigestClaim(input: {
   if (leased.count !== 1) return { kind: "unavailable" };
 
   return { kind: "leased", logId, deliveryId, idempotencyKey };
+}
+
+/** Postgres bind-parameter headroom for the `IN (...)` lists below. */
+const ADMIN_LOOKUP_CHUNK = 1000;
+
+function chunked<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * WORKERS-10 — the admins still owed today's digest, in a stable order.
+ *
+ * Owed means: no claim row for today yet, or a claim row whose attempt record
+ * is leasable right now (exactly the predicate `acquireDigestClaim` leases
+ * on). An admin whose day is delivered, failed, skipped or in flight is not
+ * owed and must not occupy one of the tick's slots. Admins with no claim yet
+ * come first (sorted by id), then recoverable claims (sorted by id), so the
+ * order is the same on every replica and every tick.
+ *
+ * This is a pre-filter only. The claim inside `acquireDigestClaim` stays the
+ * authority, so a race between this read and the claim can only make the tick
+ * attempt fewer, never send twice.
+ */
+async function orderAdminsOwedToday(
+  candidates: string[],
+  sentDate: string,
+  now: Date,
+): Promise<string[]> {
+  const claimed = new Set<string>();
+  const recoverable = new Set<string>();
+  for (const ids of chunked(candidates, ADMIN_LOOKUP_CHUNK)) {
+    const logs = await prisma.mfaRecoveryAdminDigestLog.findMany({
+      where: { userId: { in: ids }, sentDate },
+      select: { userId: true },
+    });
+    for (const l of logs) claimed.add(l.userId);
+    const claimedIds = ids.filter((id) => claimed.has(id));
+    if (claimedIds.length === 0) continue;
+    const open = await prisma.notificationDelivery.findMany({
+      where: {
+        eventType: MFA_DIGEST_EVENT_TYPE,
+        recipientUserId: { in: claimedIds },
+        status: { in: ["PENDING", "RETRY_SCHEDULED"] },
+        nextAttemptAtUtc: { lte: now },
+        metadata: { path: ["digestSentDate"], equals: sentDate },
+      },
+      select: { recipientUserId: true },
+    });
+    for (const d of open) if (d.recipientUserId) recoverable.add(d.recipientUserId);
+  }
+  const sorted = [...candidates].sort();
+  return [
+    ...sorted.filter((id) => !claimed.has(id)),
+    ...sorted.filter((id) => recoverable.has(id)),
+  ];
+}
+
+async function loadDigestPreferences(adminIds: string[]) {
+  const byAdmin = new Map<
+    string,
+    Array<{ teamId: string | null; digestEnabled: boolean; suppressUntil: Date | null }>
+  >();
+  for (const ids of chunked(adminIds, ADMIN_LOOKUP_CHUNK)) {
+    const rows = await prisma.mfaAdminDigestPreference.findMany({
+      where: { userId: { in: ids } },
+      select: { userId: true, teamId: true, digestEnabled: true, suppressUntil: true },
+    });
+    for (const r of rows) {
+      const list = byAdmin.get(r.userId) ?? [];
+      list.push({ teamId: r.teamId, digestEnabled: r.digestEnabled, suppressUntil: r.suppressUntil });
+      byAdmin.set(r.userId, list);
+    }
+  }
+  return byAdmin;
 }
 
 /** The attempt record for one claim row, if this state machine wrote one. */

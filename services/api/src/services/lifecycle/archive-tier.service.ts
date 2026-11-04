@@ -578,6 +578,7 @@ export async function listArchiveTransitions(input: {
     transitionedAtUtc: r.transitionedAtUtc.toISOString(),
     reason: r.reason,
     costEstimateUsdMicros: Number(r.costEstimateUsdMicros),
+    state: r.state,
   }));
 }
 
@@ -614,8 +615,12 @@ export async function projectArchiveCostsByTier(input: {
   });
   if (evidenceRows.length === 0) return buckets;
 
+  // WORKERS-04 — the tier a record is IN is the target of its latest
+  // COMPLETED transition. A PENDING or FAILED row names a tier the object has
+  // not reached (a failed tag leaves it where it was), so counting it moved
+  // the record's cost into a tier it was never stored in.
   const allTransitions = await prisma.archiveTierTransition.findMany({
-    where: { teamId: input.teamId },
+    where: { teamId: input.teamId, state: "COMPLETED" },
     orderBy: { transitionedAtUtc: "desc" },
     select: { evidenceId: true, toTier: true },
   });
@@ -673,8 +678,12 @@ export async function scheduleAutoTransitions(input: {
   });
   if (evidenceRows.length === 0) return { scheduled: 0 };
 
+  // WORKERS-04 — the tier a record is IN is the target of its latest
+  // COMPLETED transition. A PENDING or FAILED row names a tier the object has
+  // not reached (a failed tag leaves it where it was), so counting it moved
+  // the record's cost into a tier it was never stored in.
   const allTransitions = await prisma.archiveTierTransition.findMany({
-    where: { teamId: input.teamId },
+    where: { teamId: input.teamId, state: "COMPLETED" },
     orderBy: { transitionedAtUtc: "desc" },
     select: { evidenceId: true, toTier: true },
   });

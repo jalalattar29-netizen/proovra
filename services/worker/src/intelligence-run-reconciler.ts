@@ -230,15 +230,21 @@ export async function runIntelligenceRunReconciler(
     // (a restored record is served by the next tick) and the eligibility test
     // is in SQL so such runs cannot crowd eligible ones out of the batch.
     const pendingCutoff = new Date(Date.now() - PENDING_STRANDED_MS);
+    // WORKERS-13: a PENDING run past the recovery ceiling can never be
+    // claimed again (markRunProcessing refuses at the ceiling), so it is
+    // SETTLED — FAILED for an operator, as step 1 settles an exhausted
+    // PROCESSING run — instead of being counted and left PENDING, where it
+    // sat at the head of the oldest-first page on every tick and crowded the
+    // genuinely stranded runs out of it.
+    result.abandonedForOperator += await settleAbandonedPendingRuns({
+      cutoff: pendingCutoff,
+      limit: batchSize,
+    });
     const stranded = await selectStrandedRuns({ cutoff: pendingCutoff, limit: batchSize });
 
     if (stranded.length > 0) {
       const { enqueueMediaIntelligenceRunById } = await import("./queue.js");
       for (const run of stranded) {
-        if (run.attemptCount >= MAX_RECOVERY_ATTEMPTS) {
-          result.abandonedForOperator += 1;
-          continue;
-        }
         try {
           const outcome = await enqueueMediaIntelligenceRunById(run.id);
           if (outcome.enqueued) result.strandedReEnqueued += 1;
@@ -398,6 +404,7 @@ export async function selectStrandedRuns(input: {
        LEFT JOIN "evidence" e ON e."id" = r."evidence_id"
       WHERE r."status" = 'PENDING'
         AND r."updated_at_utc" < $1
+        AND r."attempt_count" < ${MAX_RECOVERY_ATTEMPTS}
         AND (
           e."id" IS NULL
           OR (e."deleted_at" IS NULL
@@ -414,6 +421,42 @@ export async function selectStrandedRuns(input: {
     evidenceId: r.evidence_id,
     attemptCount: Number(r.attempt_count),
   }));
+}
+
+/**
+ * WORKERS-13 — settle PENDING runs that have spent the recovery ceiling.
+ *
+ * Conditional on the row still being PENDING past the ceiling, so a run a
+ * worker claims in between is untouched. Oldest first and bounded, like the
+ * page it clears. Returns how many rows moved.
+ */
+export async function settleAbandonedPendingRuns(input: {
+  cutoff: Date;
+  limit: number;
+}): Promise<number> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `UPDATE "media_intelligence_runs"
+        SET "status" = 'FAILED',
+            "last_error" = 'recovery_attempts_exhausted',
+            "completed_at_utc" = NOW(),
+            "updated_at_utc" = NOW()
+      WHERE "id" IN (
+        SELECT "id" FROM "media_intelligence_runs"
+         WHERE "status" = 'PENDING'
+           AND "updated_at_utc" < $1
+           AND "attempt_count" >= $2
+         ORDER BY "updated_at_utc" ASC
+         LIMIT $3
+         FOR UPDATE SKIP LOCKED
+      )
+        AND "status" = 'PENDING'
+        AND "attempt_count" >= $2
+      RETURNING "id"`,
+    input.cutoff,
+    MAX_RECOVERY_ATTEMPTS,
+    input.limit,
+  )) as Array<{ id: string }>;
+  return rows.length;
 }
 
 /**

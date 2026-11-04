@@ -381,6 +381,10 @@ async function persistProjection(
       claimRef: projection.claimRef,
       matterRef: projection.matterRef,
       sourceUpdatedAtUtc: projection.sourceUpdatedAtUtc,
+      // WORKERS-09: the build that produced this body, exactly as the API
+      // writer stamps it. Without it every worker-written row reads as
+      // version 1 and the reindex treats it as stale forever.
+      projectionVersion: projection.projectionVersion,
       indexedAtUtc: now,
     },
     update: {
@@ -410,6 +414,10 @@ async function persistProjection(
       claimRef: projection.claimRef,
       matterRef: projection.matterRef,
       sourceUpdatedAtUtc: projection.sourceUpdatedAtUtc,
+      // WORKERS-09: the build that produced this body, exactly as the API
+      // writer stamps it. Without it every worker-written row reads as
+      // version 1 and the reindex treats it as stale forever.
+      projectionVersion: projection.projectionVersion,
       indexedAtUtc: now,
     },
   });
