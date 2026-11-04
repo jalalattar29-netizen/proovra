@@ -128,6 +128,13 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { bump } from "../services/ops/metrics.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import {
+  isNativeCodeChallenge,
+  isNativeSsoState,
+  issueNativeSsoCode,
+  nativeSsoErrorUrl,
+  recordNativeSsoChallenge,
+} from "../services/access-control/sso-native-handoff.service.js";
 // PHASE 11 — canonical safe-destination helper + internal URL builder.
 // Used ONLY to validate/compose the post-login destination string; the
 // issuer/audience/nonce/RelayState/signed-state protections above are
@@ -397,8 +404,16 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         .parse(req.params);
 
       const q = z
-        .object({ redirectAfter: z.string().max(400).optional() })
+        .object({
+          redirectAfter: z.string().max(400).optional(),
+          // MOBILE-002 — the native app's sign-in: its PKCE challenge (S256).
+          native: z.literal("1").optional(),
+          codeChallenge: z.string().max(64).optional(),
+        })
         .parse(req.query ?? {});
+      if (q.native && !isNativeCodeChallenge(q.codeChallenge)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "codeChallenge must be an S256 challenge." } });
+      }
 
       // IDENT-014 — public, and each call writes a ledger row.
       const rl = await enforceRateLimit({
@@ -481,6 +496,9 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
 
         if (!persist.ok) {
           return bounceToSamlError(reply, "saml_state_persist_failed");
+        }
+        if (q.native && q.codeChallenge) {
+          await recordNativeSsoChallenge(prisma, { stateRaw: relayState, codeChallenge: q.codeChallenge });
         }
         setSsoBrowserBinding(req, reply, relayState);
 
@@ -584,10 +602,18 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(302).redirect(target);
       }
 
+      // MOBILE-002 — an attempt the native app started reports every outcome
+      // back to the app (proovra://sso/complete), never to the web sign-in page.
+      const native = await isNativeSsoState(prisma, relayStateRaw);
+      const samlFail = (reason: string, redirectAfter?: string | null) =>
+        native
+          ? reply.code(302).redirect(nativeSsoErrorUrl(reason))
+          : bounceToSamlError(reply, reason, redirectAfter);
+
       // IDENT-014 — an assertion in a browser that did not start this sign-in is
       // login CSRF. Refused before the RelayState is spent.
       if (!ssoBrowserBindingMatches(req, relayStateRaw)) {
-        return bounceToSamlError(reply, "saml_browser_mismatch");
+        return samlFail("saml_browser_mismatch");
       }
 
       const consume = await consumeCallbackAttempt(
@@ -597,7 +623,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
       if (!consume.ok) {
         // Expired or replayed — security event already emitted by hardening service
         bump("saml_relay_state_invalid_total");
-        return bounceToSamlError(reply, `saml_${consume.reason.toLowerCase()}`);
+        return samlFail(`saml_${consume.reason.toLowerCase()}`);
       }
       // TypeScript narrows consume to { ok: true; attempt: DbAttempt } here
       const attempt = consume.attempt;
@@ -636,9 +662,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           { attemptId: attempt.id, reason: "connection_unavailable" },
           prisma,
         );
-        return bounceToSamlError(
-          reply,
-          "saml_connection_unavailable",
+        return samlFail("saml_connection_unavailable",
           attempt.redirectAfter,
         );
       }
@@ -648,9 +672,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           { attemptId: attempt.id, reason: "cert_not_configured" },
           prisma,
         );
-        return bounceToSamlError(
-          reply,
-          "saml_not_configured",
+        return samlFail("saml_not_configured",
           attempt.redirectAfter,
         );
       }
@@ -783,6 +805,27 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           data: { lastUsedAtUtc: new Date() },
         });
         await noteSsoSuccess(conn.id, prisma);
+
+        // MOBILE-002 — the assertion is verified and mapped. A native attempt
+        // hands the verified identity to the app under a single-use code; the
+        // app's exchange (POST /v1/auth/sso/native/exchange) runs the MFA gate,
+        // the session record and completeSsoSession. No cookie is set here.
+        if (native) {
+          const target = await issueNativeSsoCode(prisma, {
+            stateRaw: relayStateRaw,
+            identity: {
+              userId: result.userId,
+              email: result.email ?? null,
+              teamId: conn.teamId,
+              ssoConnectionId: conn.id,
+              authMethod: "SAML",
+              idpContext: assertion.authnContextClassRef ?? null,
+              idpAuthAt: assertion.authnInstant ?? null,
+            },
+          });
+          clearSsoBrowserBinding(reply);
+          return reply.code(302).redirect(target ?? nativeSsoErrorUrl("sso_native_handoff_invalid"));
+        }
 
         // ---------------------------------------------------------------
         // Step 7: Resolve MFA enforcement (same path as OIDC).
@@ -984,7 +1027,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           prisma,
         );
         if (!completion.allowed) {
-          return bounceToSamlError(reply, completion.reason, attempt.redirectAfter);
+          return samlFail(completion.reason, attempt.redirectAfter);
         }
 
         bump("saml_login_succeeded_total");
@@ -1060,7 +1103,7 @@ export async function samlAuthRoutes(app: FastifyInstance): Promise<void> {
           },
         });
 
-        return bounceToSamlError(reply, reason, attempt.redirectAfter);
+        return samlFail(reason, attempt.redirectAfter);
       }
     },
   );

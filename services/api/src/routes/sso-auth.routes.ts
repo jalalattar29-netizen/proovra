@@ -29,6 +29,7 @@
  */
 
 import {
+  MFA_ENROLLMENT_TTL_SECONDS,
   setMfaEnrollmentCookie,
   signMfaEnrollmentToken,
 } from "../services/auth/mfa-enrollment-session.js";
@@ -105,6 +106,15 @@ import {
   completeOidcIdpStepUp,
   isStepUpIdpState,
 } from "../services/identity-security/step-up-idp-flow.js";
+import {
+  isNativeCodeChallenge,
+  isNativeCodeVerifier,
+  isNativeSsoState,
+  issueNativeSsoCode,
+  nativeSsoErrorUrl,
+  recordNativeSsoChallenge,
+  redeemNativeSsoCode,
+} from "../services/access-control/sso-native-handoff.service.js";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -415,6 +425,155 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
   });
 
   // -------------------------------------------------------------------------
+  // MOBILE-002 — POST /v1/auth/sso/native/exchange { code, codeVerifier }
+  //
+  // The native app's last leg of an SSO sign-in (OIDC or SAML). The code is
+  // spent once and only with the verifier whose challenge was recorded before
+  // the IdP leg; then the SAME post-IdP steps as the browser callback run — the
+  // MFA gate, the session record and completeSsoSession — and the answer has
+  // the shape every other sign-in answers with.
+  // -------------------------------------------------------------------------
+  app.post("/v1/auth/sso/native/exchange", async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!callbacksEnabled) {
+      return reply.code(503).send({ error: { code: "sso_disabled" } });
+    }
+    const rl = await enforceRateLimit({
+      key: `sso:native-exchange:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+      max: SSO_LOGIN_RATE_LIMIT_PER_MIN,
+      windowSec: 60,
+    });
+    if (!rl.allowed) return reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+
+    const body = z
+      .object({ code: z.string().min(16).max(128), codeVerifier: z.string().min(43).max(128) })
+      .safeParse(req.body ?? {});
+    if (!body.success || !isNativeCodeVerifier(body.data.codeVerifier)) {
+      return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "code and codeVerifier are required." } });
+    }
+    const redeemed = await redeemNativeSsoCode(prisma, body.data);
+    if (!redeemed.ok) {
+      req.log.warn({ reason: redeemed.reason }, "sso.native_exchange_refused");
+      // One answer for every refusal: a probe learns nothing about the code.
+      return reply.code(400).send({ error: { code: "SSO_NATIVE_CODE_INVALID", message: "This sign-in has expired. Start again." } });
+    }
+    const id = redeemed.identity;
+    const loginMethod = id.authMethod === "SAML" ? "sso_saml" : "sso_oidc";
+
+    let decision: Awaited<ReturnType<typeof resolveLoginMfaEnforcement>>;
+    try {
+      decision = await resolveLoginMfaEnforcement({ userId: id.userId });
+    } catch {
+      // The browser callback fails open on a transient orchestrator error; so does this.
+      decision = { outcome: "NOT_REQUIRED", activeFactorCount: 0, policyTeamId: null, policyLevel: null };
+    }
+    const provenance = {
+      sub: id.userId,
+      provider: "EMAIL",
+      email: id.email,
+      authMethod: id.authMethod,
+      authAt: Math.floor(Date.now() / 1000),
+      ssoConnId: id.ssoConnectionId,
+    } as const;
+    const user = { id: id.userId, email: id.email, provider: "EMAIL" };
+
+    if (decision.outcome === "ENROLLMENT_REQUIRED") {
+      safeEmitSecurityEvent(
+        {
+          teamId: decision.policyTeamId,
+          eventType: "mfa_enrollment_required",
+          severity: "WARNING",
+          details: { actorUserId: id.userId, loginMethod, policyLevel: decision.policyLevel },
+        },
+        prisma,
+      );
+      // The enrolment refusal every native sign-in already understands (auth.routes.ts gateLoginWithMfa).
+      return reply.code(403).send({
+        mfaRequired: true,
+        mfaEnrollmentRequired: true,
+        code: "MFA_ENROLLMENT_REQUIRED",
+        mfaEnrollmentToken: signMfaEnrollmentToken(provenance, jwtSecret),
+        mfaEnrollmentExpiresInSeconds: MFA_ENROLLMENT_TTL_SECONDS,
+        reason: "org_policy_requires_mfa",
+        message: "Your organization requires multi-factor authentication. Please enroll an authenticator to continue.",
+        user,
+      });
+    }
+    if (decision.outcome === "MFA_REQUIRED") {
+      const challenge = await createMfaPendingChallenge({
+        userId: id.userId,
+        purpose: "LOGIN",
+        ipAddress: req.ip ?? null,
+        userAgent: uaPreview(req),
+        metadata: { loginMethod, client: "native" },
+      });
+      const mfaPendingToken = signMfaPendingToken(
+        {
+          ...provenance,
+          ...(id.idpContext ? { idpCtx: id.idpContext } : {}),
+          ...(id.idpAuthAt ? { idpAuthAt: Math.floor(id.idpAuthAt.getTime() / 1000) } : {}),
+        },
+        jwtSecret,
+        challenge.jti,
+      );
+      return reply.code(200).send({
+        mfaRequired: true,
+        mfaPendingToken,
+        mfaPendingExpiresInSeconds: MFA_PENDING_TTL_SECONDS,
+        user,
+      });
+    }
+
+    const ttlSeconds = 60 * 60 * 24 * 30;
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const token = signJwt({ ...provenance, authAt: issuedAt }, jwtSecret, ttlSeconds);
+    const { sid, exp } = mintedSessionClaims(token);
+    const session = await recordAuthenticatedSession(
+      {
+        userId: id.userId,
+        teamId: id.teamId,
+        sid,
+        iat: issuedAt,
+        exp,
+        ssoConnectionId: id.ssoConnectionId,
+        ipPreview: ipPreview(req),
+        uaPreview: uaPreview(req),
+        deviceIdHash: deviceIdHash(req),
+        authMethod: id.authMethod,
+        authnContext: id.idpContext,
+        idpAuthAtUtc: id.idpAuthAt,
+      },
+      prisma,
+    );
+    // IDENT-011 — the same completion the browser callback runs; a refusal leaves no session.
+    const completion = await completeSsoSession(
+      {
+        userId: id.userId,
+        teamId: id.teamId,
+        ssoConnectionId: id.ssoConnectionId,
+        source: id.authMethod,
+        sessionId: session.id,
+        sid,
+      },
+      prisma,
+    );
+    if (!completion.allowed) {
+      return reply.code(403).send({ error: { code: "SSO_SIGN_IN_REFUSED", reason: completion.reason, message: "Your organization did not allow this sign-in." } });
+    }
+    void emitTenantAudit({
+      action: id.authMethod === "SAML" ? "auth.saml_login_succeeded" : "auth.sso_login_succeeded",
+      outcome: "success",
+      sourceApp: "SSO",
+      actorUserId: id.userId,
+      workspaceId: id.teamId,
+      resourceType: "user_auth",
+      resourceId: id.userId,
+      correlationId: req.id,
+      metadata: { loginMethod, client: "native", connectionId: id.ssoConnectionId, userAgent: uaPreview(req) },
+    }).catch(() => null);
+    return reply.code(200).send({ token, user });
+  });
+
+  // -------------------------------------------------------------------------
   // GET /v1/auth/sso/:connectionId/initiate
   // -------------------------------------------------------------------------
   app.get(
@@ -429,8 +588,14 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
       const q = z
         .object({
           redirectAfter: z.string().max(400).optional(),
+          // MOBILE-002 — the native app's sign-in: its PKCE challenge (S256).
+          native: z.literal("1").optional(),
+          codeChallenge: z.string().max(64).optional(),
         })
         .parse(req.query ?? {});
+      if (q.native && !isNativeCodeChallenge(q.codeChallenge)) {
+        return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "codeChallenge must be an S256 challenge." } });
+      }
 
       // IDENT-014 — public, and each call writes a row and may reach the IdP.
       const rl = await enforceRateLimit({
@@ -478,6 +643,9 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         );
         if (!persist.ok) {
           return bounceToAuthError(reply, "sso_state_persist_failed");
+        }
+        if (q.native && q.codeChallenge) {
+          await recordNativeSsoChallenge(prisma, { stateRaw: state, codeChallenge: q.codeChallenge });
         }
 
         setSsoBrowserBinding(req, reply, state);
@@ -531,14 +699,23 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
         return reply.code(302).redirect(target);
       }
 
+      // MOBILE-002 — an attempt the native app started reports every outcome
+      // back to the app (proovra://sso/complete), never to the web sign-in page
+      // its system browser would otherwise be left on.
+      const native = await isNativeSsoState(prisma, q.state);
+      const fail = (reason: string, redirectAfter?: string | null) =>
+        native
+          ? reply.code(302).redirect(nativeSsoErrorUrl(reason))
+          : bounceToAuthError(reply, reason, redirectAfter);
+
       if (q.error || !q.code) {
-        return bounceToAuthError(reply, `idp_${q.error ?? "no_code"}`);
+        return fail(`idp_${q.error ?? "no_code"}`);
       }
 
       // IDENT-014 — a callback in a browser that did not start this sign-in is
       // login CSRF. Refused before the state is spent.
       if (!ssoBrowserBindingMatches(req, q.state)) {
-        return bounceToAuthError(reply, "sso_browser_mismatch");
+        return fail("sso_browser_mismatch");
       }
 
       // Consume the persistent state row first — this is replay-safe.
@@ -553,7 +730,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             : consume.reason === "EXPIRED"
               ? "sso_state_expired"
               : "sso_state_invalid";
-        return bounceToAuthError(reply, reason);
+        return fail(reason);
       }
 
       const attempt = consume.attempt;
@@ -563,7 +740,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           { attemptId: attempt.id, reason: "connection_missing" },
           prisma,
         );
-        return bounceToAuthError(reply, "sso_connection_unavailable");
+        return fail("sso_connection_unavailable");
       }
 
       // Run the Phase 26 callback handler — it does the OIDC exchange,
@@ -579,6 +756,27 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
         await noteSsoSuccess(conn.id, prisma);
+
+        // MOBILE-002 — the IdP answer is verified. A native attempt hands the
+        // verified identity to the app under a single-use code; the app's
+        // exchange runs the MFA gate, the session record and completeSsoSession
+        // below's equivalent (sso-native-exchange). No cookie is set here.
+        if (native) {
+          const target = await issueNativeSsoCode(prisma, {
+            stateRaw: q.state,
+            identity: {
+              userId: result.user.id,
+              email: result.user.email ?? null,
+              teamId: result.teamId,
+              ssoConnectionId: result.connectionId,
+              authMethod: "OIDC",
+              idpContext: result.idp.acr ?? null,
+              idpAuthAt: result.idp.authTime ?? null,
+            },
+          });
+          clearSsoBrowserBinding(reply);
+          return reply.code(302).redirect(target ?? nativeSsoErrorUrl("sso_native_handoff_invalid"));
+        }
 
         // PHASE R8.1.2/R8.1.3 — second-factor gate for SSO. R8.1.3
         // consults `resolveLoginMfaEnforcement` so org policy is
@@ -846,8 +1044,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
           prisma,
         );
         if (err instanceof SsoServiceError) {
-          return bounceToAuthError(
-            reply,
+          return fail(
             err.code === "SSO_SEAT_LIMIT_REACHED"
               ? "seat_limit_reached"
               : err.code === "SSO_SEAT_CONTENTION"
@@ -856,7 +1053,7 @@ export async function ssoAuthRoutes(app: FastifyInstance) {
             attempt.redirectAfter,
           );
         }
-        return bounceToAuthError(reply, "sso_callback_failed");
+        return fail("sso_callback_failed");
       }
     },
   );

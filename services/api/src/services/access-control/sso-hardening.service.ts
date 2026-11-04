@@ -548,6 +548,9 @@ export async function sweepStaleCallbackAttempts(
   if (swept > 0) {
     void batch; // keep parameter referenced for future paging support
   }
+  // MOBILE-002 — the native hand-off rows age out with the attempts they belong
+  // to: a row past its expiry and the cutoff can no longer be redeemed.
+  await client.ssoNativeHandoff.deleteMany({ where: { expiresAtUtc: { lt: cutoff } } });
   return { swept };
 }
 

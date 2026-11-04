@@ -1524,6 +1524,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281111000200_capacity_case_links_team_evidence_idx",
       // REPORT-006: the publication intent records the object digest. EXPAND.
       "20281113000100_artifact_publication_intent_digest",
+      // MOBILE-002: the native app's SSO hand-off (PKCE challenge, single-use code). EXPAND.
+      "20281118070000_sso_native_handoffs",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

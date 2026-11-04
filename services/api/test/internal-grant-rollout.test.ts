@@ -181,6 +181,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281111000200_capacity_case_links_team_evidence_idx",
       // REPORT-006: the publication intent records the object digest. EXPAND.
       "20281113000100_artifact_publication_intent_digest",
+      // MOBILE-002: the native app's SSO hand-off (PKCE challenge, single-use code). EXPAND.
+      "20281118070000_sso_native_handoffs",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });
