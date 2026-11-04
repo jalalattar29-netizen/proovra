@@ -48,10 +48,13 @@ services:
         condition: service_healthy
     environment:
       PORT: "8080"
-      # RT-002 — stated, so the deployed configuration says which way this is. The
-      # routes answer 503 FEATURE_DISABLED until it is true. Whether it ships is an
-      # open founder decision; false is what production has been running.
-      EVIDENCE_REQUESTS_ENABLED: ${EVIDENCE_REQUESTS_ENABLED:-false}
+      # RT-002 — Evidence Requests is a Production capability
+      # (docs/operations/platform-maturity-runbook.md, "Intake workflow"), so the
+      # deployed configuration enables it. The variable stays as the kill switch:
+      # set EVIDENCE_REQUESTS_ENABLED=false to make the routes answer 503
+      # FEATURE_DISABLED (the web panels then show the feature as not enabled).
+      # Plan entitlement is still enforced per workspace by the intake gate.
+      EVIDENCE_REQUESTS_ENABLED: ${EVIDENCE_REQUESTS_ENABLED:-true}
       # NOTE: AUTH_JWT_SECRET is sourced from the env_file (and, in
       # production, may be backed by AWS Secrets Manager via P2.0).
       # We no longer pass it explicitly here so it does not appear in
