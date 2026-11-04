@@ -362,6 +362,12 @@ export type ArchiveTransitionProjection = {
   transitionedAtUtc: string;
   reason?: string | null;
   costEstimateUsdMicros: number;
+  /**
+   * WORKERS-04: PENDING / COMPLETED / FAILED. Only a COMPLETED transition
+   * moved the object; a list that omitted the state reported a tier the
+   * object never reached.
+   */
+  state?: string;
 };
 
 // -----------------------------------------------------------------------------
