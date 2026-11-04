@@ -112,7 +112,13 @@ export function MarketingLanguageSwitcher({
                   active ? "font-semibold text-[#0B1F5E]" : "font-medium text-[#334155]"
                 }`}
               >
-                <span>{l.name}</span>
+                <span className="flex flex-col items-start">
+                  <span>{l.name}</span>
+                  {/* MOBILE-009 — only English is complete; the others are said to be partial. */}
+                  {l.code !== "en" ? (
+                    <span className="text-[11px] font-normal text-[#64748B]">Partial translation</span>
+                  ) : null}
+                </span>
                 <span
                   className={`text-[12px] font-semibold ${
                     active ? "text-[#0B1F5E]" : "text-[#94A3B8]"
@@ -123,6 +129,9 @@ export function MarketingLanguageSwitcher({
               </button>
             );
           })}
+          <p className="px-3 pb-1.5 pt-2 text-[11px] leading-snug text-[#64748B]" data-language-scope>
+            Parts of PROOVRA, including reports and legal documents, are in English only.
+          </p>
         </div>
       ) : null}
     </div>

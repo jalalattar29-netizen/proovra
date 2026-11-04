@@ -55,6 +55,8 @@ shadow on `app-*` controls. Never remove focus without replacing it.
 | `--app-ink-secondary` | `#667085` | Descriptions, metadata |
 | `--app-ink-placeholder` | `#98A2B3` | Placeholder and disabled text only |
 
+The browser chrome colour (`<meta name="theme-color">` in `app/layout.tsx` and `theme_color` in `public/manifest.webmanifest`) is `#FFFFFF`, the card surface, on every page and in the installed app alike (MOBILE-014).
+
 ---
 
 ## 2. Semantic colour contract
