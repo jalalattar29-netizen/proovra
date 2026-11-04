@@ -66,7 +66,7 @@ import {
 
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -368,11 +368,17 @@ export async function runTrashGraceReconciliation(
   // run neither read nor move the shared cursor.
   const useCursor = !options.teamId && !dryRun;
   const cursor = useCursor ? await readSweepCursor(TRASH_GRACE_CURSOR_KEY) : null;
+  // PRO-110 / WORKERS-12 — a team-scoped run covers the workspace's records by
+  // the canonical scope, never a bare teamId: a Personal Space's records may be
+  // stored with team_id NULL, and a bare filter silently left them out.
+  const workspaceScope = options.teamId
+    ? await workspaceEvidenceWhere(options.teamId, prisma)
+    : null;
   const rows = await prisma.evidence.findMany({
     where: {
       lifecycleState: "TRASHED",
       deleteScheduledForUtc: { lte: now },
-      ...(options.teamId ? { teamId: options.teamId } : {}),
+      ...(workspaceScope ? { AND: [workspaceScope] } : {}),
       ...(cursor
         ? {
             OR: [
@@ -403,7 +409,7 @@ export async function runTrashGraceReconciliation(
   const archivedRows = await prisma.evidence.findMany({
     where: {
       lifecycleState: "RETENTION_ARCHIVED",
-      ...(options.teamId ? { teamId: options.teamId } : {}),
+      ...(workspaceScope ? { AND: [workspaceScope] } : {}),
       OR: [
         { purgeEligibleAtUtc: null },
         { purgeEligibleAtUtc: { lte: now } },

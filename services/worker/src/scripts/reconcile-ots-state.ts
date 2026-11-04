@@ -48,6 +48,7 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 
 import { appendCustodyEventTx } from "../custody-events.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { ensureOtsAnchoredReportVersion } from "../ots-anchored-version.js";
 import { resolveOtsBitcoinVerifierConfig } from "../ots-bitcoin-config.js";
@@ -250,11 +251,14 @@ export async function main(argv: string[] = process.argv.slice(2), deps: OtsBitc
   }
 
   let cursor = args.after;
+  // PRO-110 / WORKERS-12 — `--team-id` selects the workspace by the canonical
+  // scope, never a bare teamId, so a Personal Space's team_id NULL records are
+  // included.
   const baseWhere: Prisma.EvidenceWhereInput = {
     deletedAt: null,
     otsProofBase64: { not: null },
     ...(args.evidenceId ? { id: args.evidenceId } : {}),
-    ...(args.teamId ? { teamId: args.teamId } : {}),
+    ...(args.teamId ? { AND: [await workspaceEvidenceWhere(args.teamId, prisma)] } : {}),
   };
   while (summary.scanned < args.maxRows) {
     const take = Math.min(args.batchSize, args.maxRows - summary.scanned);

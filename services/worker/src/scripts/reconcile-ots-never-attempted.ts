@@ -66,6 +66,7 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { enqueueOtsUpgradeJob } from "../queue.js";
 
@@ -121,12 +122,14 @@ function parseArgs(argv: string[]): Args {
  * finalize transaction, so its presence is the honest test — stronger than a
  * status label, because it is the input itself.
  */
-function finalizedScope(args: Args): Prisma.EvidenceWhereInput {
+async function finalizedScope(args: Args): Promise<Prisma.EvidenceWhereInput> {
+  // PRO-110 / WORKERS-12 — the canonical workspace scope, never a bare teamId,
+  // so a Personal Space's team_id NULL records are included.
   return {
     deletedAt: null,
     fingerprintCanonicalJson: { not: null },
     ...(args.evidenceId ? { id: args.evidenceId } : {}),
-    ...(args.teamId ? { teamId: args.teamId } : {}),
+    ...(args.teamId ? { AND: [await workspaceEvidenceWhere(args.teamId, prisma)] } : {}),
   };
 }
 
@@ -151,7 +154,7 @@ const CATEGORIES = {
 
 export async function main(argv: string[] = process.argv.slice(2)) {
   const args = parseArgs(argv);
-  const scope = finalizedScope(args);
+  const scope = await finalizedScope(args);
 
   const counts: Record<string, number> = {};
   for (const [name, where] of Object.entries(CATEGORIES)) {
