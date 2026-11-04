@@ -92,10 +92,57 @@ describe("AUD-39 operational seed (live PostgreSQL 16)", () => {
     const human = await prisma.evidenceReviewWorkflowEvent.create({
       data: { workflowId: touched!, evidenceId: wf.evidenceId, actorUserId: A.adminUserId, eventType: "REVIEW_STARTED", createdAt: new Date(Date.now() + 1000) },
     });
-    const result = await seed.cleanupSeedRun({ seedRunId: run.seedRunId, actorUserId: A.ownerUserId });
+    const result = await seed.cleanupSeedRun({ seedRunId: run.seedRunId, teamId: A.teamId, actorUserId: A.ownerUserId });
     expect(result.kept.workflows).toBe(1);
     expect(await prisma.evidenceReviewWorkflow.findUnique({ where: { id: touched! } })).not.toBeNull();
     expect(await prisma.evidenceReviewWorkflowEvent.findUnique({ where: { id: human.id } })).not.toBeNull();
     expect(await prisma.evidenceReviewWorkflow.findUnique({ where: { id: untouched! } })).toBeNull();
+  });
+
+  it("PRO-079 — an admin of workspace A cannot clean up workspace B's seed run; B's own admin can", async () => {
+    const A = h.fixtures.teamA;
+    const B = h.fixtures.teamB;
+    process.env.OPERATIONAL_SEEDING_TEAM_IDS = `${A.teamId},${B.teamId}`;
+    try {
+      const run = await seed.runOperationalSeed({ teamId: B.teamId, scenario: "sla_breach", count: 1, dryRun: false, actorUserId: B.ownerUserId });
+      const counts = async () => ({
+        workflows: await prisma.evidenceReviewWorkflow.count({ where: { id: { in: run.created.workflowIds } } }),
+        escalations: await prisma.reviewEscalation.count({ where: { id: { in: run.created.escalationIds } } }),
+        incidents: await prisma.operationalIncident.count({ where: { id: { in: run.created.incidentIds } } }),
+      });
+      const seededRows = await counts();
+      expect(seededRows.workflows).toBeGreaterThan(0);
+
+      const del = (token: string, teamId: string) =>
+        h.app.inject({
+          method: "DELETE",
+          url: `/v1/ops/seed/reviewer-ops/${run.seedRunId}?teamId=${teamId}`,
+          headers: { authorization: `Bearer ${token}`, "x-operational-seed-secret": SECRET },
+        });
+
+      // Attack: authorized in A (with the secret), naming B's run.
+      const attack = await del(A.ownerToken, A.teamId);
+      expect(attack.statusCode, attack.body).toBe(200);
+      expect(JSON.parse(attack.body)).toMatchObject({ notFound: true, deleted: { workflows: 0, escalations: 0, incidents: 0 } });
+      await h.handlersSettled();
+      expect(await counts(), "a foreign workspace's seed rows were deleted").toEqual(seededRows);
+      // The refused attempt is recorded against the caller's own workspace.
+      const attackAudit = await prisma.adminAuditLog.findFirst({
+        where: { action: { contains: "seed" }, resourceId: run.seedRunId, userId: A.ownerUserId },
+        orderBy: { createdAt: "desc" },
+        select: { workspaceId: true },
+      });
+      expect(attackAudit?.workspaceId).toBe(A.teamId);
+
+      // Positive control: B's owner, authorized in B, cleans up B's run.
+      const own = await del(B.ownerToken, B.teamId);
+      expect(own.statusCode, own.body).toBe(200);
+      expect(JSON.parse(own.body).notFound).toBe(false);
+      const after = await counts();
+      expect(after.workflows).toBe(0);
+      expect(after.incidents).toBe(0);
+    } finally {
+      process.env.OPERATIONAL_SEEDING_TEAM_IDS = A.teamId;
+    }
   });
 });
