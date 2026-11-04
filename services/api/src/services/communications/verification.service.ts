@@ -320,9 +320,27 @@ export async function checkVerification(
     });
     throw new VerificationError("verification_expired");
   }
-  if (open.checkAttemptCount >= MAX_CHECK_ATTEMPTS) {
-    await client.verificationAttempt.update({
-      where: { id: open.id },
+  /*
+   * PRO-028 (AUTH-22) — THE ATTEMPT IS COUNTED BEFORE THE CODE IS CHECKED.
+   *
+   * The count used to be read here and written back as `read + 1` after the
+   * provider answered, so eight concurrent wrong codes all read the same count
+   * and the limit of five never tripped: the right code was then still
+   * accepted. Each check now RESERVES its slot with one conditional increment
+   * (`checkAttemptCount < MAX` on a STARTED row). A check that cannot reserve
+   * a slot is refused without reaching the provider, and the attempt is spent.
+   */
+  const reserved = await client.verificationAttempt.updateMany({
+    where: {
+      id: open.id,
+      status: prismaPkg.VerificationAttemptStatus.STARTED,
+      checkAttemptCount: { lt: MAX_CHECK_ATTEMPTS },
+    },
+    data: { checkAttemptCount: { increment: 1 } },
+  });
+  if (reserved.count !== 1) {
+    await client.verificationAttempt.updateMany({
+      where: { id: open.id, status: prismaPkg.VerificationAttemptStatus.STARTED },
       data: { status: prismaPkg.VerificationAttemptStatus.DENIED },
     });
     throw new VerificationError("verification_check_exhausted");
@@ -333,18 +351,28 @@ export async function checkVerification(
     code: input.code,
     providerVerificationSid: open.providerVerificationSid,
   });
-  const incremented = await client.verificationAttempt.update({
+  const incremented = await client.verificationAttempt.findUniqueOrThrow({
     where: { id: open.id },
-    data: { checkAttemptCount: open.checkAttemptCount + 1 },
   });
 
-  if (result.ok) {
-    const approved = await client.verificationAttempt.update({
-      where: { id: incremented.id },
-      data: {
-        status: prismaPkg.VerificationAttemptStatus.APPROVED,
-        approvedAtUtc: new Date(),
-      },
+  // An approval is only ever written onto a still-STARTED attempt: a
+  // concurrent check that spent or approved it first wins, and this one is a
+  // denial.
+  const approvedNow =
+    result.ok &&
+    (
+      await client.verificationAttempt.updateMany({
+        where: { id: open.id, status: prismaPkg.VerificationAttemptStatus.STARTED },
+        data: {
+          status: prismaPkg.VerificationAttemptStatus.APPROVED,
+          approvedAtUtc: new Date(),
+        },
+      })
+    ).count === 1;
+
+  if (approvedNow) {
+    const approved = await client.verificationAttempt.findUniqueOrThrow({
+      where: { id: open.id },
     });
     safeEmitSecurityEvent(
       {
@@ -376,6 +404,7 @@ export async function checkVerification(
   // Denied path. We deliberately return a generic result — never echo
   // back which reason (wrong code vs expired vs unknown) so the route
   // cannot become an oracle for code guessing.
+  const denialReason = result.ok ? "attempt_already_resolved" : result.reason;
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,
@@ -384,7 +413,7 @@ export async function checkVerification(
       details: {
         channel: open.channel,
         recipientHash,
-        reason: result.reason,
+        reason: denialReason,
       },
     },
     client,
@@ -392,7 +421,7 @@ export async function checkVerification(
   await emitTenantAudit({
     action: "communications.verify.check.denied",
     outcome: "denied",
-    denialReason: result.reason,
+    denialReason,
     sourceApp: "API",
     actorUserId: input.initiatedByUserId ?? null,
     workspaceId: input.teamId,

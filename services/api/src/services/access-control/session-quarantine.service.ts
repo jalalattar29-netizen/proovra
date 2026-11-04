@@ -163,11 +163,19 @@ export async function releaseQuarantine(
     note?: string | null;
   },
   client: PrismaClient = defaultPrisma,
-): Promise<boolean> {
+): Promise<boolean | "self_release_forbidden"> {
   const row = await client.authenticatedSession.findFirst({
     where: { id: input.sessionId, ...(await sessionsOfWorkspaceWhere(input.teamId, client)) },
   });
   if (!row || !row.quarantinedAtUtc) return false;
+  /*
+   * PRO-023 (AUTH-17) — a quarantine is a decision ABOUT a person's session;
+   * that person cannot be the one to reverse it, from that session or from
+   * any other. Release is another operator's call (or the scheduled window's).
+   */
+  if (input.actorUserId !== null && input.actorUserId === row.userId) {
+    return "self_release_forbidden";
+  }
   await client.authenticatedSession.update({
     where: { id: row.id },
     data: {

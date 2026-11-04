@@ -40,7 +40,48 @@ import { safeEmitSecurityEvent } from "./security-event.service.js";
 export type MfaAdminScopeFailure =
   | "admin_not_in_team"
   | "admin_not_admin"
-  | "target_not_in_team";
+  | "target_not_in_team"
+  // PRO-022 (AUTH-16) — see `assertActorOutranksMfaTarget`.
+  | "rank_insufficient";
+
+/**
+ * PRO-022 (AUTH-16) — WHOSE FACTORS AN ADMINISTRATOR MAY REMOVE.
+ *
+ * A factor belongs to the ACCOUNT, not to the workspace the admin acts from,
+ * so removing it lowers the person's protection everywhere they act. These
+ * routes asked only whether the actor was OWNER/ADMIN and the target a member,
+ * so a workspace ADMIN could wipe the OWNER's MFA.
+ *
+ * The rule is the members-management rank (rbac.service.ts ROLE-04): OWNER >
+ * ADMIN > MEMBER > VIEWER, and the actor must STRICTLY outrank the target in
+ * the workspace the action is taken from. So an ADMIN manages the factors of
+ * MEMBERs and VIEWERs, never of the OWNER or another ADMIN. An administrator
+ * acting on their OWN factors is not a rank question (the route's step-up
+ * proves it is them) and stays allowed.
+ *
+ * Deliberately NOT extended to the target's roles in other workspaces: any
+ * person can own a workspace of their own, so such a rule would let a member
+ * put themself beyond their organization's forced re-enrolment — the
+ * defensive use of this control after a compromise.
+ */
+const MFA_ADMIN_RANK: Record<string, number> = { OWNER: 4, ADMIN: 3, MEMBER: 2, VIEWER: 1 };
+
+export async function assertActorOutranksMfaTarget(input: ScopeCheckInput): Promise<"rank_insufficient" | null> {
+  if (input.actorUserId === input.targetUserId) return null;
+  const [actor, target] = await Promise.all([
+    prisma.teamMember.findFirst({
+      where: { teamId: input.teamId, userId: input.actorUserId, status: "ACTIVE" },
+      select: { role: true },
+    }),
+    prisma.teamMember.findFirst({
+      where: { teamId: input.teamId, userId: input.targetUserId, status: "ACTIVE" },
+      select: { role: true },
+    }),
+  ]);
+  const actorRank = actor ? MFA_ADMIN_RANK[actor.role] ?? 0 : 0;
+  const targetRank = target ? MFA_ADMIN_RANK[target.role] ?? 0 : 0;
+  return actorRank > targetRank ? null : "rank_insufficient";
+}
 
 interface ScopeCheckInput {
   teamId: string;
@@ -187,7 +228,7 @@ export interface RevokeUserFactorResult {
 export async function revokeUserFactor(
   input: RevokeUserFactorInput,
 ): Promise<RevokeUserFactorResult> {
-  const guard = await assertAdminCanAct(input);
+  const guard = (await assertAdminCanAct(input)) ?? (await assertActorOutranksMfaTarget(input));
   if (guard) return { ok: false, reason: guard };
   const factor = await prisma.mfaFactor.findUnique({
     where: { id: input.factorId },
@@ -260,7 +301,7 @@ export interface RequireReenrollmentResult {
 export async function requireUserReenrollment(
   input: RequireReenrollmentInput,
 ): Promise<RequireReenrollmentResult> {
-  const guard = await assertAdminCanAct(input);
+  const guard = (await assertAdminCanAct(input)) ?? (await assertActorOutranksMfaTarget(input));
   if (guard) return { ok: false, reason: guard };
   const result = await prisma.mfaFactor.updateMany({
     where: { userId: input.targetUserId, status: "ACTIVE" },
