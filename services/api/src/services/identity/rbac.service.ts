@@ -52,6 +52,7 @@ import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import {
   recordMembershipGrant,
   revokeAllMembershipGrants,
+  suspendWorkspaceMembership,
 } from "./membership-provisioning.service.js";
 // When a membership ENDS (revoked or left), its standing reach ends with it in
 // the same transaction (members audit MEM-01 / ACC-08). Suspension keeps it —
@@ -643,6 +644,91 @@ export async function restoreMember(
   });
   await settleLifecycleNotice(client, noticeId, input.noticeSink);
   return updated;
+}
+
+/**
+ * PRO-039 / RT-020 — the marker an organization member suspension writes on
+ * the workspace memberships it suspends, so the restore reinstates exactly
+ * those and never a membership a workspace administrator suspended on purpose.
+ */
+export const ORG_MEMBER_SUSPENSION_WORKSPACE_MARKER = "organization member suspension";
+
+/**
+ * PRO-039 / RT-020 — an organization member suspension also pauses that
+ * person's access to every workspace the organization owns.
+ *
+ * SCIM deactivation and administrator removal already end workspace access
+ * across the organization; a manual suspension left the workspace memberships
+ * ACTIVE, so a fresh login read records again. Each ACTIVE membership on the
+ * organization's non-personal workspaces goes through the canonical
+ * `suspendWorkspaceMembership` (work released, outward share grants ended,
+ * pointers repaired), with a marker so restore can undo exactly this act.
+ * The Personal Space and other organizations' workspaces are untouched.
+ */
+export async function suspendOrganizationWorkspaceAccessTx(
+  tx: PrismaClient,
+  input: { organizationId: string; userId: string; actorUserId: string },
+): Promise<{ suspended: number }> {
+  const rows = await tx.teamMember.findMany({
+    where: {
+      userId: input.userId,
+      status: prismaPkg.TeamMemberStatus.ACTIVE,
+      team: { organizationId: input.organizationId, isPersonal: false },
+    },
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+  for (const row of rows) {
+    await suspendWorkspaceMembership(tx as never, {
+      teamMemberId: row.id,
+      actorUserId: input.actorUserId,
+      reason: ORG_MEMBER_SUSPENSION_WORKSPACE_MARKER,
+    });
+  }
+  return { suspended: rows.length };
+}
+
+/**
+ * PRO-039 / RT-020 — the reversible half: reinstate exactly the workspace
+ * memberships the organization member suspension paused (marker-matched).
+ * A reinstatement is a join, so each one asks for its seat and its
+ * Collaboration Team positions like `restoreMember` does; a refusal throws
+ * `RbacError` and the caller's transaction rolls the whole restore back.
+ */
+export async function restoreOrganizationWorkspaceAccessTx(
+  tx: PrismaClient,
+  input: { organizationId: string; userId: string; actorUserId: string },
+): Promise<{ restored: number }> {
+  const rows = await tx.teamMember.findMany({
+    where: {
+      userId: input.userId,
+      status: prismaPkg.TeamMemberStatus.SUSPENDED,
+      suspensionReason: ORG_MEMBER_SUSPENSION_WORKSPACE_MARKER,
+      team: { organizationId: input.organizationId, isPersonal: false, closedAtUtc: null },
+    },
+    select: { id: true, teamId: true, role: true },
+    orderBy: { id: "asc" },
+  });
+  for (const row of rows) {
+    await assertReinstatementFitsCapacityTx(tx, row.teamId, input.userId);
+    await tx.teamMember.update({
+      where: { id: row.id },
+      data: {
+        status: prismaPkg.TeamMemberStatus.ACTIVE,
+        suspendedAtUtc: null,
+        suspendedByUserId: null,
+        suspensionReason: null,
+      },
+    });
+    await recordMembershipGrant(tx as never, {
+      teamMemberId: row.id,
+      source: "MANUAL",
+      intent: "MEMBER_REACTIVATION",
+      grantedByUserId: input.actorUserId,
+      grantedRole: row.role,
+    });
+  }
+  return { restored: rows.length };
 }
 
 /**
