@@ -1160,11 +1160,27 @@ describe("12. Webhook signing + delivery", () => {
   it("createWebhookEndpoint inserts row with 32-byte secret", async () => {
     let capturedSecret: string | undefined;
     const prisma = makePrismaStub({
+      // PRO-062 — the create admits against the endpoint ceiling by live
+      // count: a grant of 10 with no endpoints yet.
+      entitlementGrant: {
+        findUnique: async () => ({
+          id: "g-limit",
+          key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+          kind: "LIMIT",
+          valueBool: null,
+          valueNumber: BigInt(10),
+          source: "OPERATOR",
+          productLine: null,
+          grantedAtUtc: new Date(),
+          expiresAtUtc: null,
+        }),
+      },
       lifecycleWebhookEndpoint: {
         create: async (args: { data: Record<string, unknown>; select: unknown }) => {
           capturedSecret = args.data.secret as string;
           return { id: "ep-1", ...args.data, createdAt: new Date(), deactivatedAtUtc: null };
         },
+        count: async () => 0,
         findFirst: async () => null,
         findMany: async () => [],
         update: async () => ({}),
@@ -1236,19 +1252,17 @@ describe("13. Webhook delivery state machine", () => {
       },
     });
 
-    // Patch globalThis.fetch to simulate 200
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = async () =>
-      ({ status: 200, text: async () => "ok" }) as Response;
+    // The shared outbound transport is the test seam (PRO-061).
     try {
       const result = await deliverWebhookDelivery({
         prisma: prisma as never,
         deliveryId: "del-1",
+        send: async () => ({ kind: "response", status: 200, responseBytes: 2 }),
       });
       expect(result.ok).toBe(true);
       expect(updatedState).toBe("DELIVERED");
     } finally {
-      globalThis.fetch = origFetch;
+      // nothing to restore: no global was patched
     }
   });
 
@@ -1274,19 +1288,17 @@ describe("13. Webhook delivery state machine", () => {
         findFirst: async () => null,
       },
     });
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = async () =>
-      ({ status: 500, text: async () => "error" }) as Response;
     try {
       const result = await deliverWebhookDelivery({
         prisma: prisma as never,
         deliveryId: "del-2",
+        send: async () => ({ kind: "response", status: 500, responseBytes: 5 }),
       });
       expect(result.ok).toBe(false);
       expect(updatedState).toBe("RETRYING");
       expect(result.nextRetryAtUtc).toBeInstanceOf(Date);
     } finally {
-      globalThis.fetch = origFetch;
+      // nothing to restore: no global was patched
     }
   });
 
@@ -1312,18 +1324,16 @@ describe("13. Webhook delivery state machine", () => {
         findFirst: async () => null,
       },
     });
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = async () =>
-      ({ status: 500, text: async () => "error" }) as Response;
     try {
       const result = await deliverWebhookDelivery({
         prisma: prisma as never,
         deliveryId: "del-3",
+        send: async () => ({ kind: "response", status: 500, responseBytes: 5 }),
       });
       expect(result.ok).toBe(false);
       expect(updatedState).toBe("DEAD_LETTERED");
     } finally {
-      globalThis.fetch = origFetch;
+      // nothing to restore: no global was patched
     }
   });
 });

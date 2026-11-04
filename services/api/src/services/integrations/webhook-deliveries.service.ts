@@ -274,7 +274,9 @@ export function projectWebhookDeliveryDetail(d: DbDelivery): {
     attemptCount: d.attemptCount,
     nextAttemptAtUtc: d.nextAttemptAtUtc?.toISOString() ?? null,
     responseStatus: d.responseStatus,
-    responseBodyPreview: truncate(d.responseBodyPreview, 2000),
+    // PRO-061 / PRO-067 — never the receiver's body; rows written before
+    // the fix may still hold one.
+    responseBodyPreview: null,
     errorMessage: truncate(d.errorMessage, 400),
     sentAtUtc: d.sentAtUtc?.toISOString() ?? null,
     failedAtUtc: d.failedAtUtc?.toISOString() ?? null,

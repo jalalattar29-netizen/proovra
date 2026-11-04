@@ -573,6 +573,15 @@ export async function assertQuotaEntitlement(input: {
   | { ok: false; denial: "QUOTA_EXCEEDED"; limit: number; consumed: number }
 > {
   const prisma = input.prisma ?? defaultPrisma;
+  // PRO-062 / BILLING-03 — a LIMIT is a ceiling on things that exist now, not a
+  // meter. Reading `entitlement_usage` for one compared the limit with a row
+  // nothing writes, so INTEGRATION_WEBHOOK_ENDPOINTS_MAX could never trip.
+  // LIMIT keys are answered by `assertLimitEntitlementTx` (a live count under
+  // a lock, inside the writer's transaction); asking this function is a
+  // programming error, refused loudly rather than answered with a zero.
+  if (classifyKind(input.key) === "LIMIT") {
+    throw new Error(`entitlement_limit_key_not_a_meter:${input.key}`);
+  }
   const projection = await resolveEntitlement({
     prisma,
     teamId: input.teamId,
@@ -606,6 +615,58 @@ export async function assertQuotaEntitlement(input: {
 }
 
 // ===========================================================================
+// assertLimitEntitlementTx — LIMIT keys, by live count (PRO-062)
+// ===========================================================================
+
+type LimitTx = Pick<PrismaClient, "$executeRaw" | "lifecycleWebhookEndpoint">;
+
+/**
+ * What each LIMIT key counts. A key with no counter cannot be enforced, so it
+ * is refused (fail closed) rather than compared with nothing.
+ */
+const LIMIT_LIVE_COUNTERS: Partial<
+  Record<EntitlementKey, (tx: LimitTx, teamId: string) => Promise<number>>
+> = {
+  // The lifecycle webhook endpoints the dispatcher would send to.
+  INTEGRATION_WEBHOOK_ENDPOINTS_MAX: (tx, teamId) =>
+    tx.lifecycleWebhookEndpoint.count({ where: { teamId, state: "ACTIVE" } }),
+};
+
+/**
+ * Admit `requested` more of a LIMIT-shaped thing, inside the caller's
+ * transaction, BEFORE the caller writes it. The per-(workspace, key) advisory
+ * lock serialises concurrent creates, so N concurrent requests at limit - 1
+ * admit exactly one; the count is of rows that exist, so deactivating one
+ * frees its place.
+ */
+export async function assertLimitEntitlementTx(input: {
+  tx: LimitTx;
+  prisma?: PrismaClient;
+  teamId: string;
+  key: EntitlementKey;
+  requested: number;
+}): Promise<{ ok: true; limit: number; current: number } | { ok: false; limit: number; current: number }> {
+  if (classifyKind(input.key) !== "LIMIT") {
+    throw new Error(`entitlement_key_not_a_limit:${input.key}`);
+  }
+  const counter = LIMIT_LIVE_COUNTERS[input.key];
+  if (!counter) {
+    throw new Error(`entitlement_limit_without_counter:${input.key}`);
+  }
+  await input.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement-limit:${input.key}:${input.teamId}`}))`;
+  const projection = await resolveEntitlement({
+    prisma: input.prisma ?? defaultPrisma,
+    teamId: input.teamId,
+    key: input.key,
+  });
+  const limit = typeof projection.value === "number" ? projection.value : 0;
+  const current = await counter(input.tx, input.teamId);
+  const requested = Math.max(0, Math.floor(input.requested));
+  if (current + requested > limit) return { ok: false, limit, current };
+  return { ok: true, limit, current };
+}
+
+// ===========================================================================
 // recordEntitlementUsage — REMOVED (2026-09-07)
 // ===========================================================================
 //
@@ -622,10 +683,10 @@ export async function assertQuotaEntitlement(input: {
 // ever recorded consumption, before this change or after it. They read a
 // counter nothing wrote, so they could not trip. Removing the unused writer
 // does not cause that; it stops the mechanism looking wired. Two of the three
-// are LIMIT-shaped (a live count, not a meter) and are unaffected; the
-// monthly export-package meter is a real gap, recorded as a backlog line
-// rather than closed here, because wiring a new meter is product work and
-// not this change.
+// are LIMIT-shaped; this note used to call them "a live count, not a meter"
+// and "unaffected", but no code counted anything (PRO-062). They are now
+// answered by `assertLimitEntitlementTx`, by live count; the monthly
+// export-package meter has its own writer (below).
 
 // ===========================================================================
 // recordExportPackageUsage

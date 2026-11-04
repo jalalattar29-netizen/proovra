@@ -26,6 +26,11 @@
       "import": "./dist/telemetry-scrub.js",
       "default": "./dist/telemetry-scrub.js"
     },
+    "./outbound-url-policy": {
+      "types": "./dist/outbound-url-policy.d.ts",
+      "import": "./dist/outbound-url-policy.js",
+      "default": "./dist/outbound-url-policy.js"
+    },
     "./legal": {
       "types": "./dist/legal.d.ts",
       "import": "./dist/legal.js",

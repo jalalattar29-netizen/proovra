@@ -244,7 +244,10 @@ function projectIntegrationDelivery(d: {
     attemptCount: d.attemptCount,
     nextAttemptAtUtc: d.nextAttemptAtUtc?.toISOString() ?? null,
     responseStatus: d.responseStatus,
-    responseBodyPreview: d.responseBodyPreview,
+    // PRO-061 / PRO-067 — the receiver's body is never shown to the tenant
+    // (a destination can be made to answer with what it reached); rows
+    // written before the fix may still hold one, so it is dropped here.
+    responseBodyPreview: null,
     errorMessage: d.errorMessage,
     sentAtUtc: d.sentAtUtc?.toISOString() ?? null,
     failedAtUtc: d.failedAtUtc?.toISOString() ?? null,

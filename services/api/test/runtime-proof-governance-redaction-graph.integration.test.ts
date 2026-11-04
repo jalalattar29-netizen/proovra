@@ -202,9 +202,28 @@ describe("Batch K6 — governance, redaction, graph and automation (live Postgre
       const plainHttp = await call({ method: "POST", url: "/v1/automation/webhooks", token: a.ownerToken, payload: { ...payload, url: "http://hooks.example.com/x" } });
       expect(plainHttp.statusCode).toBe(400);
       expect(plainHttp.json().error).toEqual({ code: "url_rejected", reason: "non_https_scheme" });
+      // WEBHOOK-STEPUP — registering a destination now asks for a step-up,
+      // like an integration webhook: without one, nothing is written.
+      const noStepUp = await call({ method: "POST", url: "/v1/automation/webhooks", token: a.ownerToken, payload });
+      expect(noStepUp.statusCode, noStepUp.body).toBe(401);
+      expect(noStepUp.json().error.code).toBe("STEP_UP_REQUIRED");
       expect(await prisma.automationWebhookDestination.count({ where: { teamId: a.teamId } })).toBe(0);
 
-      const created = await call({ method: "POST", url: "/v1/automation/webhooks", token: a.ownerToken, payload });
+      const challenge = await stepUp({
+        token: a.ownerToken,
+        userId: a.ownerUserId,
+        teamId: a.teamId,
+        purpose: "INTEGRATION_WEBHOOK_CREATE",
+        resourceKind: "team",
+        resourceId: a.teamId,
+      });
+      const created = await call({
+        method: "POST",
+        url: "/v1/automation/webhooks",
+        token: a.ownerToken,
+        payload,
+        headers: { [STEP]: challenge },
+      });
       expect(created.statusCode, created.body).toBe(201);
       const body = created.json();
       expect(body.enabled).toBe(false);

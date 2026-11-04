@@ -36,6 +36,10 @@ import {
   classifyWebhookHttpError,
   webhookRetryDelaySeconds,
 } from "@proovra/shared";
+import {
+  checkOutboundUrlStatic,
+  sendOutboundRequest,
+} from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../db.js";
 // Phase O1.4 — bounded webhook-dispatch span. Attributes are
@@ -49,6 +53,7 @@ import { isIntegrationsFeatureEnabled } from "./api-keys.service.js";
 import {
   clearExpiredPreviousWebhookSecret,
   decryptWebhookSecret,
+  integrationWebhookOutboundPolicy,
   recordWebhookEndpointFailure,
   recordWebhookEndpointSuccess,
   signWebhookPayload,
@@ -72,20 +77,23 @@ export type WebhookHttpClient = (req: {
 }) => Promise<WebhookHttpResponse>;
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const RESPONSE_BODY_PREVIEW_LIMIT = 2_000;
 const RESPONSE_BODY_HARD_LIMIT = 64 * 1024;
 
 /**
- * Phase 11 — SSRF hardening for outbound webhook delivery.
+ * PRO-067 / BILLING-08 — the default transport is the shared outbound send.
  *
- * Defaults:
- *   - `redirect: "manual"` so 3xx responses do not silently follow
- *     to a different host (the receiver could otherwise redirect us
- *     to localhost / metadata IPs).
- *   - Response body capped at 64 KiB before we touch the buffer;
- *     the on-record preview is then trimmed to 2 KiB.
- *   - Already enforced upstream: HTTPS-only, no private-network
- *     hosts, no credentials in the URL (see `validateWebhookUrl`).
+ *   - The URL is checked again at every send (`attemptDeliveryInner` does so
+ *     before any client, injected or not, is called), so an endpoint stored
+ *     before a rule existed — `https://localhost./` was accepted until now —
+ *     is refused instead of delivered.
+ *   - The hostname is resolved inside the connection and every answer is
+ *     checked, so the address checked is the address connected to; a DNS
+ *     answer that changes after create (rebinding) cannot reach a private,
+ *     loopback or metadata address.
+ *   - Redirects are never followed; a 3xx is recorded as `redirect_blocked`.
+ *   - The receiver's body is not kept or shown to the tenant: the delivery
+ *     records the status only (the 2 KiB preview used to be stored and was
+ *     returned by the deliveries route).
  */
 const defaultHttpClient: WebhookHttpClient = async ({
   url,
@@ -93,73 +101,40 @@ const defaultHttpClient: WebhookHttpClient = async ({
   headers,
   timeoutMs,
 }) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: controller.signal,
-      redirect: "manual",
-    });
-    if (res.status >= 300 && res.status < 400) {
-      // Refuse to follow redirects. Common SSRF attack vector: an
-      // attacker-controlled webhook URL replies 302 to an internal
-      // host. We treat 3xx as a permanent classify-as-error.
-      return {
-        status: res.status,
-        bodyPreview: null,
-        errorMessage: "redirect_blocked",
-      };
-    }
-    let text = "";
-    try {
-      const reader = res.body?.getReader();
-      if (reader) {
-        let received = 0;
-        const chunks: Uint8Array[] = [];
-        while (received < RESPONSE_BODY_HARD_LIMIT) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (value) {
-            const remaining = RESPONSE_BODY_HARD_LIMIT - received;
-            chunks.push(
-              value.length <= remaining ? value : value.subarray(0, remaining),
-            );
-            received += value.length;
-          }
-        }
-        try {
-          await reader.cancel();
-        } catch {
-          /* ignore */
-        }
-        const joined = Buffer.concat(chunks.map((c) => Buffer.from(c)));
-        text = joined.toString("utf8");
-      } else {
-        text = await res.text();
-      }
-    } catch {
-      text = "";
-    }
+  const result = await sendOutboundRequest({
+    url,
+    method: "POST",
+    headers,
+    body,
+    timeoutMs,
+    policy: integrationWebhookOutboundPolicy(),
+    maxResponseBytes: RESPONSE_BODY_HARD_LIMIT,
+  });
+  if (result.kind === "refused") {
     return {
-      status: res.status,
-      bodyPreview: text.slice(0, RESPONSE_BODY_PREVIEW_LIMIT),
-      errorMessage:
-        res.status >= 200 && res.status < 300
-          ? null
-          : `HTTP ${res.status}`,
+      status: null,
+      bodyPreview: null,
+      errorMessage: `destination_refused:${result.reason}`,
     };
-  } catch (err) {
-    const msg =
-      err && typeof err === "object" && "message" in err
-        ? String((err as { message: unknown }).message)
-        : String(err);
-    return { status: null, bodyPreview: null, errorMessage: msg };
-  } finally {
-    clearTimeout(timer);
   }
+  if (result.kind === "error") {
+    return { status: null, bodyPreview: null, errorMessage: result.code };
+  }
+  if (result.status >= 300 && result.status < 400) {
+    return {
+      status: result.status,
+      bodyPreview: null,
+      errorMessage: "redirect_blocked",
+    };
+  }
+  return {
+    status: result.status,
+    bodyPreview: null,
+    errorMessage:
+      result.status >= 200 && result.status < 300
+        ? null
+        : `HTTP ${result.status}`,
+  };
 };
 
 let httpClient: WebhookHttpClient = defaultHttpClient;
@@ -426,6 +401,31 @@ async function attemptDeliveryInner(
 ): Promise<"delivered" | "transient" | "permanent"> {
   const nextAttemptCount = row.attemptCount + 1;
 
+  // PRO-067 — the destination is checked again at every send, before any
+  // transport is called. An endpoint stored before the shared policy existed
+  // (`https://localhost./`, `https://0.0.0.1/`) is refused here, permanently,
+  // and nothing is sent.
+  const destination = checkOutboundUrlStatic(
+    endpoint.url,
+    integrationWebhookOutboundPolicy(),
+  );
+  if (!destination.ok || destination.url.protocol !== "https:") {
+    await client.integrationWebhookDelivery
+      .update({
+        where: { id: row.id },
+        data: {
+          status: "FAILED",
+          attemptCount: nextAttemptCount,
+          errorMessage: `destination_refused:${destination.ok ? "non_https_scheme" : destination.reason}`,
+          failedAtUtc: new Date(),
+          nextAttemptAtUtc: null,
+        },
+      })
+      .catch(() => null);
+    await recordWebhookEndpointFailure(endpoint.id, client);
+    return "permanent";
+  }
+
   const rawSecret = decryptWebhookSecret(endpoint.secretCiphertext);
   if (!rawSecret) {
     await client.integrationWebhookDelivery
@@ -537,7 +537,7 @@ async function attemptDeliveryInner(
           status: "SENT",
           attemptCount: nextAttemptCount,
           responseStatus: resp.status,
-          responseBodyPreview: resp.bodyPreview,
+          responseBodyPreview: null, // PRO-067: never the receiver's body
           errorMessage: null,
           sentAtUtc: new Date(),
           nextAttemptAtUtc: null,
@@ -563,7 +563,7 @@ async function attemptDeliveryInner(
           status: "FAILED",
           attemptCount: nextAttemptCount,
           responseStatus: resp.status,
-          responseBodyPreview: resp.bodyPreview,
+          responseBodyPreview: null, // PRO-067: never the receiver's body
           errorMessage: resp.errorMessage,
           failedAtUtc: new Date(),
           nextAttemptAtUtc: null,
@@ -583,7 +583,7 @@ async function attemptDeliveryInner(
         status: "RETRY_SCHEDULED",
         attemptCount: nextAttemptCount,
         responseStatus: resp.status,
-        responseBodyPreview: resp.bodyPreview,
+        responseBodyPreview: null, // PRO-067: never the receiver's body
         errorMessage: resp.errorMessage,
         nextAttemptAtUtc: new Date(Date.now() + delaySec * 1000),
         responseDurationMs: durationMs,

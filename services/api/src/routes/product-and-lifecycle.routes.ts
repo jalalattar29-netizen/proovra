@@ -63,6 +63,7 @@ import {
   completeChainTransfer,
 } from "../services/exchange/chain-transfer.service.js";
 import {
+  WebhookEndpointLimitError,
   createWebhookEndpoint,
   deactivateWebhookEndpoint,
   listWebhookEndpoints,
@@ -1095,31 +1096,46 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
         return reply.code(403).send({ denial: "ENTITLEMENT_REQUIRED", key: "FEATURE_WEBHOOKS" });
       }
 
-      // Limit gate
-      const limitOk = await assertQuotaEntitlement({
-        teamId: ctx.teamId,
-        key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
-        requested: 1,
-      });
-      if (!limitOk.ok) {
-        return reply.code(429).send({
-          denial: "LIMIT_EXCEEDED",
-          key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
-        });
-      }
-
       const body = z
         .object({
           url: z.string().url().max(2000),
           subscribedEvents: z.array(z.string().min(1).max(80)).min(1),
         })
         .parse(req.body);
-      const res = await createWebhookEndpoint({
+
+      // WEBHOOK-STEPUP — a lifecycle endpoint is a new signed outbound
+      // destination, the same act integration webhooks gate on
+      // INTEGRATION_WEBHOOK_CREATE.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
         teamId: ctx.teamId,
-        url: body.url,
-        subscribedEvents: body.subscribedEvents as ReadonlyArray<WebhookEventKind>,
-        createdByUserId: ctx.userId,
+        userId: ctx.userId,
+        purpose: "INTEGRATION_WEBHOOK_CREATE",
+        resourceKind: "team",
+        resourceId: ctx.teamId,
       });
+      if (gate.sent) return reply;
+
+      // Limit gate (PRO-062): enforced inside the create, by live count under
+      // a lock, so it holds under concurrency.
+      let res: Awaited<ReturnType<typeof createWebhookEndpoint>>;
+      try {
+        res = await createWebhookEndpoint({
+          teamId: ctx.teamId,
+          url: body.url,
+          subscribedEvents: body.subscribedEvents as ReadonlyArray<WebhookEventKind>,
+          createdByUserId: ctx.userId,
+        });
+      } catch (err) {
+        if (err instanceof WebhookEndpointLimitError) {
+          return reply.code(429).send({
+            denial: "LIMIT_EXCEEDED",
+            key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+          });
+        }
+        throw err;
+      }
       // secret is ONLY returned in this response
       return reply.code(201).send({
         endpointId: res.endpointId,
@@ -1232,7 +1248,6 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           state: true,
           attemptCount: true,
           responseStatus: true,
-          responseBodyPreview: true,
           enqueuedAtUtc: true,
           lastAttemptAtUtc: true,
           deliveredAtUtc: true,
@@ -1248,7 +1263,10 @@ export async function productAndLifecycleRoutes(app: FastifyInstance) {
           state: r.state,
           attemptCount: r.attemptCount,
           responseStatus: r.responseStatus,
-          responseBodyExcerpt: r.responseBodyPreview,
+          // PRO-061 — the receiver's body is never echoed to the tenant: a
+          // destination could be made to answer with what the worker reached.
+          // Rows written before the fix may still hold one; it is not read.
+          responseBodyExcerpt: null,
           enqueuedAtUtc: r.enqueuedAtUtc.toISOString(),
           lastAttemptAtUtc: r.lastAttemptAtUtc?.toISOString() ?? null,
           deliveredAtUtc: r.deliveredAtUtc?.toISOString() ?? null,

@@ -16,6 +16,11 @@
  */
 
 import { SWEEP_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
+import {
+  LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
+  checkOutboundUrlStatic,
+  sendOutboundRequest,
+} from "@proovra/shared-runtime/outbound";
 import { createHmac } from "node:crypto";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -96,7 +101,8 @@ const DELIVERY_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS_BEFORE_DEAD_LETTER = 8;
 const BACKOFF_BASE_SECONDS = 30;
 const BACKOFF_CAP_SECONDS = 60 * 60; // 1 hour
-const RESPONSE_PREVIEW_MAX_CHARS = 500;
+/** Response bytes read (then discarded) before the connection is dropped. */
+const RESPONSE_DRAIN_MAX_BYTES = 4 * 1024;
 const PAYLOAD_SIZE_LIMIT_BYTES = 64 * 1024; // 64 KB
 
 // ---------------------------------------------------------------------------
@@ -114,16 +120,15 @@ function signPayload(secretBase64: string, body: string): string {
   return createHmac("sha256", key).update(body, "utf8").digest("hex");
 }
 
-function truncatePreview(s: string): string {
-  return s.length <= RESPONSE_PREVIEW_MAX_CHARS
-    ? s
-    : s.slice(0, RESPONSE_PREVIEW_MAX_CHARS);
-}
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Test seam. When a test injects one, the dispatcher still applies the
+ * outbound policy to the endpoint URL before calling it; only the network
+ * half (resolution inside the connection) is the injected function's.
+ */
 export type HttpFetcher = (
   url: string,
   init: {
@@ -134,8 +139,62 @@ export type HttpFetcher = (
   },
 ) => Promise<{ status: number; text: () => Promise<string> }>;
 
-const defaultFetcher: HttpFetcher = (url, init) =>
-  fetch(url, init) as Promise<{ status: number; text: () => Promise<string> }>;
+type Attempt =
+  | { kind: "response"; status: number }
+  | { kind: "network_error" }
+  | { kind: "refused"; reason: string };
+
+/**
+ * PRO-061 / BILLING-02 — the production send is the shared outbound
+ * transport. It used to be plain `fetch`, which followed redirects (so a
+ * public endpoint could bounce the worker to the metadata service) and whose
+ * body was stored and shown to the tenant. The shared send resolves the name
+ * inside the connection and refuses any loopback, private, link-local or
+ * metadata answer, so the address checked is the address connected to; it
+ * never follows a redirect; and only the status is kept.
+ */
+async function sendViaSharedTransport(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<Attempt> {
+  const result = await sendOutboundRequest({
+    url,
+    method: "POST",
+    headers,
+    body,
+    timeoutMs: DELIVERY_TIMEOUT_MS,
+    policy: LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
+    maxResponseBytes: RESPONSE_DRAIN_MAX_BYTES,
+  });
+  if (result.kind === "refused") return { kind: "refused", reason: result.reason };
+  if (result.kind === "error") return { kind: "network_error" };
+  return { kind: "response", status: result.status };
+}
+
+async function sendViaInjectedFetcher(
+  fetcher: HttpFetcher,
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<Attempt> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+  try {
+    const res = await fetcher(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: controller.signal,
+    });
+    // The body is never read: it is not stored and not shown (PRO-061).
+    return { kind: "response", status: res.status };
+  } catch {
+    return { kind: "network_error" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Emit lifecycle event — writes to IntelligenceActivityEvent (canonical
@@ -280,7 +339,7 @@ function endpointFindUnique(id: string): Promise<EndpointRow | null> {
 
 async function dispatchOne(
   deliveryId: string,
-  fetcher: HttpFetcher,
+  fetcher: HttpFetcher | undefined,
 ): Promise<void> {
   const delivery = await deliveryFindUnique(deliveryId);
 
@@ -299,6 +358,33 @@ async function dispatchOne(
       where: { id: deliveryId },
       data: { state: "FAILED", lastAttemptAtUtc: new Date() },
     }).catch(() => null);
+    return;
+  }
+
+  // PRO-061 — the stored URL is checked against the shared policy at every
+  // send. An endpoint written before the policy existed (loopback, private,
+  // metadata, `localhost.`) is refused permanently and nothing is sent.
+  const destination = checkOutboundUrlStatic(
+    endpoint.url,
+    LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
+  );
+  if (!destination.ok || destination.url.protocol !== "https:") {
+    logger.warn(
+      {
+        deliveryId,
+        reason: destination.ok ? "non_https_scheme" : destination.reason,
+      },
+      "webhook.dispatcher.destination_refused",
+    );
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: { state: "FAILED", lastAttemptAtUtc: new Date() },
+    }).catch(() => null);
+    await emitLifecycleEvent({
+      teamId: delivery.teamId,
+      deliveryId,
+      code: "WEBHOOK_FAILED",
+    });
     return;
   }
 
@@ -347,43 +433,52 @@ async function dispatchOne(
     return;
   }
 
-  let responseStatus: number | null = null;
-  let responseBodyExcerpt: string | null = null;
-  let networkError = false;
+  const headers = {
+    "content-type": "application/json",
+    "x-proovra-signature": signature,
+    "x-proovra-delivery-id": delivery.id,
+    "x-proovra-event-kind": delivery.eventKind,
+  };
+  const attempt = fetcher
+    ? await sendViaInjectedFetcher(fetcher, endpoint.url, headers, canonical)
+    : await sendViaSharedTransport(endpoint.url, headers, canonical);
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
-  try {
-    const res = await fetcher(endpoint.url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-proovra-signature": signature,
-        "x-proovra-delivery-id": delivery.id,
-        "x-proovra-event-kind": delivery.eventKind,
+  if (attempt.kind === "refused") {
+    // Resolution answered a refused address (or the policy refused the URL):
+    // nothing was sent, and the same name will answer the same way.
+    logger.warn(
+      { deliveryId, reason: attempt.reason },
+      "webhook.dispatcher.destination_refused",
+    );
+    await webhookDeliveryUpdate({
+      where: { id: deliveryId },
+      data: {
+        state: "FAILED",
+        attemptCount: nextAttemptCount,
+        lastAttemptAtUtc: new Date(),
+        responseStatus: null,
+        responseBodyPreview: null,
       },
-      body: canonical,
-      signal: controller.signal,
+    }).catch(() => null);
+    await emitLifecycleEvent({
+      teamId: delivery.teamId,
+      deliveryId,
+      code: "WEBHOOK_FAILED",
     });
-    responseStatus = res.status;
-    try {
-      const text = await res.text();
-      responseBodyExcerpt = truncatePreview(text);
-    } catch {
-      responseBodyExcerpt = null;
-    }
-  } catch {
-    networkError = true;
-  } finally {
-    clearTimeout(timer);
+    return;
   }
+  const responseStatus: number | null =
+    attempt.kind === "response" ? attempt.status : null;
+  const networkError = attempt.kind === "network_error";
 
   const now = new Date();
   const baseUpdate = {
     attemptCount: nextAttemptCount,
     lastAttemptAtUtc: now,
     responseStatus,
-    responseBodyPreview: responseBodyExcerpt,
+    // PRO-061 — the receiver's body is never stored (it was returned to the
+    // tenant by the deliveries route).
+    responseBodyPreview: null,
   };
 
   const success =
@@ -414,11 +509,12 @@ async function dispatchOne(
     return;
   }
 
-  // Hard 4xx failure (not 429) — do not retry.
+  // Hard 3xx/4xx failure (not 429) — do not retry. A redirect is not
+  // followed (PRO-061) and is the receiver's definite answer.
   if (
     !isRetryable &&
     responseStatus !== null &&
-    responseStatus >= 400 &&
+    responseStatus >= 300 &&
     responseStatus < 500
   ) {
     await webhookDeliveryUpdate({
@@ -485,7 +581,7 @@ async function dispatchOne(
 export async function runWebhookDispatcherTick(options?: {
   fetcher?: HttpFetcher;
 }): Promise<void> {
-  const fetcher = options?.fetcher ?? defaultFetcher;
+  const fetcher = options?.fetcher;
 
   const now = new Date();
 

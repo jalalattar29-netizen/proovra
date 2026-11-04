@@ -160,7 +160,9 @@ describe("webhook delivery detail projection — privacy", () => {
       createdAt: NOW,
       updatedAt: NOW,
     });
-    expect(projected.responseBodyPreview?.length).toBeLessThanOrEqual(2001);
+    // PRO-067 — the receiver's body is never returned, however long; a row
+    // written before the fix that still holds one projects null.
+    expect(projected.responseBodyPreview).toBeNull();
     expect(projected.errorMessage?.length).toBeLessThanOrEqual(401);
   });
 });

@@ -23,6 +23,20 @@ vi.mock("../../components/ui/ConfirmActionModal", () => ({
 vi.mock("../../components/navigation/PageRouteGate", () => ({
   PageRouteGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+// WEBHOOK-STEPUP — the page now owns a step-up control for endpoint creation.
+// Deactivation (this file's subject) does not use it; the control itself is
+// covered by its own suites, so it is substituted at its module boundary.
+vi.mock("../../lib/platform-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/platform-context")>()),
+  useTeamId: () => "33333333-3333-4333-8333-333333333333",
+}));
+vi.mock("../../components/identity-security/StepUpModal", () => ({
+  StepUpModal: () => null,
+  isStepUpCancelled: () => false,
+  useStepUpAction: () => ({
+    runStepUpAction: <T,>(fn: (h?: Record<string, string>) => Promise<T>) => fn(undefined),
+  }),
+}));
 
 import WebhooksPage from "../../app/(app)/evidence-lifecycle/webhooks/page";
 

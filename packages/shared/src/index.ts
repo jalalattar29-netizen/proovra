@@ -2856,3 +2856,6 @@ export * from "./screen-recording-combine.js";
 
 // 2026-10-29 — wire contract D: user evidence items vs technical artifacts.
 export * from "./evidence-artifact-projection.js";
+
+// PRO-061 / PRO-064 / PRO-067 — the one outbound URL policy (pure part).
+export * from "./outbound-url-policy.js";
