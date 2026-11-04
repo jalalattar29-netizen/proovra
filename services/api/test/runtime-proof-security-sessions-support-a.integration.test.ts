@@ -607,6 +607,49 @@ describe("K2 security (A) — identity administration, verification, step-up (li
       expect(audit).toMatchObject({ userId: adminUserId, workspaceId: teamId, outcome: "success" });
     });
 
+    it("COMMS-VIEWER-SMS — a viewer or member cannot text a number through the workspace provider", async () => {
+      const { viewerToken, memberToken, teamId } = harness.fixtures.teamA;
+      const other = `+1415556${String(Math.floor(1000 + Math.random() * 8999))}`;
+      for (const token of [viewerToken, memberToken]) {
+        const res = await call({
+          method: "POST",
+          url: "/v1/communications/verify/start",
+          token,
+          payload: { teamId, channel: "SMS", phone: other, purpose: "OTP" },
+        });
+        expect(res.statusCode, res.body).toBe(403);
+      }
+      expect(
+        await prisma.verificationAttempt.count({ where: { teamId, recipientHash: hashRecipientPhone(other) } }),
+      ).toBe(0);
+      // Nothing reached the provider for that number.
+      expect(() => recordedCode(other)).toThrow(/no verification code was recorded/);
+    });
+
+    it("PRO-086 — the per-recipient hourly limit trips on the sixth start (successful starts are counted)", async () => {
+      const { adminToken, teamId } = harness.fixtures.teamA;
+      const target = `+1415557${String(Math.floor(1000 + Math.random() * 8999))}`;
+      const statuses: string[] = [];
+      for (let i = 0; i < 7; i += 1) {
+        const res = await call({
+          method: "POST",
+          url: "/v1/communications/verify/start",
+          token: adminToken,
+          payload: { teamId, channel: "SMS", phone: target, purpose: "OTP" },
+        });
+        expect(res.statusCode, res.body).toBe(200);
+        statuses.push((json(res) as { status: string }).status);
+      }
+      expect(statuses).toEqual(["started", "started", "started", "started", "started", "rate_limited", "rate_limited"]);
+      const rows = await prisma.verificationAttempt.findMany({
+        where: { teamId, recipientHash: hashRecipientPhone(target) },
+        select: { status: true, errorCode: true },
+      });
+      // Five sends, two refusals; the refusals did not reach the provider.
+      expect(rows.filter((r) => r.errorCode === null)).toHaveLength(5);
+      expect(rows.filter((r) => r.errorCode === "rate_limited")).toHaveLength(2);
+    });
+
     it("POST /v1/communications/preferences — opting a contact IN before it is verified is refused and writes nothing; a viewer is refused", async () => {
       const { adminToken, viewerToken, teamId } = harness.fixtures.teamA;
       const payload = { teamId, target: { kind: "contact", phone }, smsOptOut: false, preferredChannel: "SMS" };

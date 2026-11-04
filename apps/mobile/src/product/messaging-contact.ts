@@ -149,6 +149,7 @@ export const MESSAGING_COPY = {
   savedOut: "This contact will no longer be messaged on that channel.",
   notVerified: "This contact has not completed verification, so messaging cannot be enabled for it yet.",
   forbidden: "You do not have permission to change communication preferences in this workspace.",
+  verifyForbidden: "Only a workspace owner or administrator can verify a messaging contact in this workspace.",
   saveFailed: "The preference could not be saved.",
 } as const;
 
@@ -158,12 +159,15 @@ export function startFailure(err: unknown, safe: Safe): string {
   const st = statusOf(err);
   if (st === 400) return MESSAGING_COPY.invalidPhone;
   if (st === 503) return MESSAGING_COPY.startDisabled;
+  // COMMS-VIEWER-SMS — verifying a contact is an administrator action.
+  if (st === 403 || st === 404) return MESSAGING_COPY.verifyForbidden;
   return safe(err, MESSAGING_COPY.startFailed);
 }
 export function checkFailure(err: unknown, safe: Safe): string {
   const st = statusOf(err);
   if (st === 400) return MESSAGING_COPY.denied;
   if (st === 503) return MESSAGING_COPY.checkDisabled;
+  if (st === 403 || st === 404) return MESSAGING_COPY.verifyForbidden;
   return safe(err, MESSAGING_COPY.checkFailed);
 }
 export function preferenceFailure(err: unknown, safe: Safe): string {

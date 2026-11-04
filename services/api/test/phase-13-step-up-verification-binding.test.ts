@@ -143,12 +143,16 @@ describe("PHASE 13 NEW-056 — the rate limiter does not count its own refusals"
 
     const where = seen.counts.at(0);
     expect(where, "the limiter never counted anything").toBeTruthy();
+    // PRO-086 — the exclusion must keep rows whose errorCode is NULL (every
+    // successful start): `NOT { errorCode: "rate_limited" }` dropped them in
+    // SQL. The real NULL behaviour is driven against PostgreSQL in
+    // verification-rate-limit.integration.test.ts.
     expect(
-      where?.NOT,
-      "the window count has no exclusion, so the limiter's own refusals are " +
-        "counted and a tripped limit extends itself by another hour on every " +
-        "further attempt",
-    ).toEqual({ errorCode: "rate_limited" });
+      where?.OR,
+      "the window count must exclude only the limiter's own refusals and keep " +
+        "successful starts (errorCode NULL)",
+    ).toEqual([{ errorCode: null }, { errorCode: { not: "rate_limited" } }]);
+    expect(where?.NOT).toBeUndefined();
   });
 
   it("still counts genuine starts — the exclusion is narrow", async () => {

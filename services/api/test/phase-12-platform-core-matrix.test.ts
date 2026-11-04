@@ -1117,8 +1117,11 @@ describe("PLATFORM_CORE §3 — workspace communications", () => {
       headers: JSON_HEADERS,
       payload: { teamId: TEAM_A, target: { kind: "user", userId: MEMBER_USER }, smsOptOut: true },
     });
+    // COMMS-VIEWER-SMS — verify/start texts a number through the workspace
+    // provider and exists only to enable a contact preference, so it asks for
+    // the preference writer's capability, not identity.member.read.
     expect(H.authorize.seen).toEqual([
-      { teamId: TEAM_A, permission: "identity.member.read" },
+      { teamId: TEAM_A, permission: "identity.org_policy.manage" },
       { teamId: TEAM_A, permission: "identity.org_policy.manage" },
     ]);
   });

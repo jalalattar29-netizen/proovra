@@ -51,6 +51,9 @@ import { formatUserDateTime } from "../../lib/date";
 
 type Channel = "SMS" | "WHATSAPP";
 
+const VERIFY_FORBIDDEN =
+  "Only a workspace owner or administrator can verify a messaging contact in this workspace.";
+
 const CHANNEL_LABEL: Record<Channel, string> = {
   SMS: "Text message (SMS)",
   WHATSAPP: "WhatsApp",
@@ -177,6 +180,11 @@ export function ContactChannelVerificationCard({
         );
         return;
       }
+      // COMMS-VIEWER-SMS — verifying a contact is an administrator action.
+      if (status === 403 || status === 404) {
+        setError(VERIFY_FORBIDDEN);
+        return;
+      }
       setError(
         toSafeUserError(err, {
           message: "The verification code could not be sent.",
@@ -233,6 +241,10 @@ export function ContactChannelVerificationCard({
         setError(
           "Message verification is not enabled for this environment yet.",
         );
+        return;
+      }
+      if (status === 403 || status === 404) {
+        setError(VERIFY_FORBIDDEN);
         return;
       }
       setError(

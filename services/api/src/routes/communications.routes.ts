@@ -539,7 +539,13 @@ export async function communicationsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = VerifyStartBody.parse(req.body ?? {});
-      const actor = await requireCommunicationsActor(req, reply, body.teamId, "identity.member.read");
+      // COMMS-VIEWER-SMS — a verification text goes out through the workspace's
+      // messaging provider to any number typed in, and its only product use is
+      // to enable a contact preference, which needs identity.org_policy.manage
+      // (POST /v1/communications/preferences). Starting and checking it now ask
+      // for the same capability; it used to be identity.member.read, so any
+      // VIEWER could text any number.
+      const actor = await requireCommunicationsActor(req, reply, body.teamId, "identity.org_policy.manage");
       if (!actor) return;
       try {
         const result = await startVerification({
@@ -573,7 +579,13 @@ export async function communicationsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = VerifyCheckBody.parse(req.body ?? {});
-      const actor = await requireCommunicationsActor(req, reply, body.teamId, "identity.member.read");
+      // COMMS-VIEWER-SMS — a verification text goes out through the workspace's
+      // messaging provider to any number typed in, and its only product use is
+      // to enable a contact preference, which needs identity.org_policy.manage
+      // (POST /v1/communications/preferences). Starting and checking it now ask
+      // for the same capability; it used to be identity.member.read, so any
+      // VIEWER could text any number.
+      const actor = await requireCommunicationsActor(req, reply, body.teamId, "identity.org_policy.manage");
       if (!actor) return;
       try {
         const result = await checkVerification({
