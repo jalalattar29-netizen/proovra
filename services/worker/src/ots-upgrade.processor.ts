@@ -771,9 +771,9 @@ async function restampAfterBudgetExhaustion(evidenceId: string, jobId: string | 
     const restamp = await restampExhaustedOtsProof({ evidenceId, jobId, trigger: "ots_budget_exhausted" });
     if (!restamp.restamped) return false;
     bump("ots_restamped_total");
-    if (restamp.needsUpgrade) {
-      await enqueueOtsUpgradeJob(evidenceId, { delayMs: 60 * 60 * 1000, traceId: "ots_restamp", selfJobId: jobId ?? undefined });
-    }
+    // The re-stamped proof is PENDING with no job: the OTS reconciler's
+    // pending sweep schedules its upgrade ladder like any other pending proof,
+    // so this processor keeps its two follow-up enqueue sites.
     logger.warn(withJobContext({ jobId, evidenceId, status: "restamped" }), "ots.upgrade.restamped_after_budget");
     return true;
   } catch (err) {

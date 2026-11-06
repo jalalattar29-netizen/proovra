@@ -56,10 +56,10 @@ describe("CRYPTO-006, 007 — one word per fact", () => {
 });
 
 describe("CRYPTO-008 — an unavailable verifier backs off", () => {
-  it("hourly at first, then every six hours, then daily, and it never gives up", () => {
+  it("hourly at first, then every six hours, then the record's own follow-ups park (the sweep re-enqueues when the verifier answers)", () => {
     expect(nextOtsChainCheckDelayMs(anchored("UNAVAILABLE", HOUR), NOW)).toBe(HOUR);
     expect(nextOtsChainCheckDelayMs(anchored("UNAVAILABLE", 2 * 24 * HOUR), NOW)).toBe(6 * HOUR);
-    expect(nextOtsChainCheckDelayMs(anchored("UNAVAILABLE", 90 * 24 * HOUR), NOW)).toBe(24 * HOUR);
+    expect(nextOtsChainCheckDelayMs(anchored("UNAVAILABLE", 90 * 24 * HOUR), NOW)).toBeNull();
   });
 
   it("an outage appends nothing to a record's custody", () => {

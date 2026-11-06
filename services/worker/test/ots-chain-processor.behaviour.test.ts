@@ -323,8 +323,9 @@ describe("an ANCHORED proof checked against the Bitcoin chain (verifier enabled)
     expect(h.row).toMatchObject({ otsChainVerificationStatus: "UNAVAILABLE", otsChainFailureCode: "BTC_RPC_TIMEOUT", otsStatus: "ANCHORED" });
     expect(h.custody, "CRYPTO-008: an outage is not a custody event").toHaveLength(0);
     expect(h.versionDecisions).toEqual([]);
-    // CRYPTO-008: a node outage backs off to a daily recheck.
-    expect(h.enqueued.map((e) => e.options.delayMs)).toEqual([24 * HOUR]);
+    // CRYPTO-008: past a week of age a record's own follow-ups park during an
+    // outage; the readiness-gated reconciler sweep re-enqueues the owed check.
+    expect(h.enqueued).toEqual([]);
   });
 
   it("a stale concurrent job (chain columns changed between read and write) writes nothing, records nothing, asks no version", async () => {
