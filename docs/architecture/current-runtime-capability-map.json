@@ -4,22 +4,22 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "259db5d5a4f9718359df9a46ca1b1d3d56829eb7ecd09e3cd4eef102920486f2",
-  "consumerInventoryHash": "5c81dfa8d998fc0a7974516d76bc2cf8e2b2f238b8e621fab4af2533690b83cc",
+  "routeInventoryHash": "10c806df17534b184f2a490dd5f86429cebbb764dba7346058f59f8ac46b2019",
+  "consumerInventoryHash": "e5023750a0f7d8e05c85e53995d190b5b65e6d17af01fb7a8e5eabd6d26de2c9",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
-    "RegisteredRoutes": 1231,
-    "ProductionRegisteredRoutes": 1230,
+    "RegisteredRoutes": 1232,
+    "ProductionRegisteredRoutes": 1231,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1011,
+    "ProductConsumedRoutes": 1012,
     "NonProductDispositionedRoutes": 203,
     "UndisposedRoutes": 16,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1011,
+    "ProductConsumerRoutes": 1012,
     "MachineOnlyConsumerRoutes": 7,
     "NoConsumerRoutes": 213,
     "AuthorizationUnresolved": 0,
-    "PublicUnguardedRoutes": 38,
+    "PublicUnguardedRoutes": 39,
     "DynamicUnresolvedRouteRegistrations": 0,
     "DynamicUnresolvedConsumers": 0,
     "UnreviewedOriginConsumers": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1531,
-    "ReachableSensitiveMutations": 1506,
-    "ClassifiedSensitiveMutations": 1506,
+    "TerminalWriters": 1542,
+    "ReachableSensitiveMutations": 1517,
+    "ClassifiedSensitiveMutations": 1517,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 25,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 237,
+      "ACCOUNT_SESSION_SECURITY": 248,
       "ORGANIZATION": 32,
       "ORGANIZATION_MEMBERSHIP": 30,
       "WORKSPACE": 74,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1340,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1351,
       "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11324,
-      "UNRESOLVED_IDENTIFIER": 1629
+      "METHOD_ON_VALUE": 11336,
+      "UNRESOLVED_IDENTIFIER": 1632
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 16,
-      "PRODUCT_CONNECTED": 1016,
+      "PRODUCT_CONNECTED": 1017,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -146,10 +146,10 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1229,
+    "TenantBindingResolved": 1230,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
-      "PUBLIC_DATA": 32,
+      "PUBLIC_DATA": 33,
       "GLOBAL_USER_SELF": 57,
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 710,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1229,
+    "ClassifiedSecurityRoutes": 1230,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -175,8 +175,8 @@
         "tagged": 9
       },
       "PUBLIC_WRITE": {
-        "primary": 23,
-        "tagged": 23
+        "primary": 24,
+        "tagged": 24
       },
       "SESSION_AUTHENTICATED": {
         "primary": 417,
@@ -240,16 +240,16 @@
       }
     }
   },
-  "totalRoutes": 1231,
+  "totalRoutes": 1232,
   "classificationCounts": {
     "BACKEND_ONLY_UNWIRED": 16,
     "COMPATIBILITY_TEMPORARY": 16,
     "INTERNAL_REQUIRED": 188,
-    "TARGET_COMPLETE": 1011
+    "TARGET_COMPLETE": 1012
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 404,
-    "BEHAVIORAL_SERVICE_ONLY": 17,
+    "BEHAVIORAL_SERVICE_ONLY": 18,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
     "UNPROVEN": 294
   },
@@ -258,7 +258,7 @@
     "EVIDENCE_OPERATIONS": 279,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 505,
+    "PLATFORM_CORE": 506,
     "TRUST_ADMINISTRATION": 140
   },
   "capabilities": [
@@ -7012,7 +7012,7 @@
       "method": "GET",
       "route": "/v1/users/legal-status",
       "registeringFile": "services/api/src/routes/users.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:259",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:276",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8308,7 +8308,7 @@
       "method": "POST",
       "route": "/v1/auth/apple",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:205",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:222",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8368,7 +8368,7 @@
       "method": "POST",
       "route": "/v1/auth/google",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:201",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:218",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8380,7 +8380,7 @@
       "method": "POST",
       "route": "/v1/auth/logout",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:231",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:248",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8409,6 +8409,18 @@
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "POST:/v1/auth/oauth/nonce",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/auth/oauth/nonce",
+      "registeringFile": "services/api/src/routes/identity-links.routes.ts",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:208",
+      "machineConsumer": null,
+      "authorization": "PUBLIC_UNGUARDED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
     },
     {
       "capabilityId": "POST:/v1/auth/password-reset/confirm",
@@ -8476,7 +8488,7 @@
       "method": "POST",
       "route": "/v1/auth/sso/discover",
       "registeringFile": "services/api/src/routes/sso-auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:213",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:230",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -8488,7 +8500,7 @@
       "method": "POST",
       "route": "/v1/auth/sso/native/exchange",
       "registeringFile": "services/api/src/routes/sso-auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:219",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:236",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -14668,7 +14680,7 @@
       "method": "POST",
       "route": "/v1/users/legal-acceptance",
       "registeringFile": "services/api/src/routes/users.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:285",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:302",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -30323,15 +30335,15 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#user.update@334",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:334",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#user.updateMany@505",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:505",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
       "target": "user",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/identity/password"
       ],
@@ -30347,7 +30359,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -30356,15 +30368,15 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.update@394",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:394",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#user.updateMany@608",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:608",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "identityLinksRoutes",
       "kind": "DATABASE",
-      "target": "userIdentityLink",
-      "mutationKind": "update",
+      "target": "user",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "DELETE /v1/identity/links/:id"
       ],
@@ -30380,7 +30392,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -30389,13 +30401,13 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.upsert@189",
-      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:189",
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.create@254",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:254",
       "file": "services/api/src/routes/identity-links.routes.ts",
       "enclosingDeclaration": "linkProviderIdentity",
       "kind": "DATABASE",
       "target": "userIdentityLink",
-      "mutationKind": "upsert",
+      "mutationKind": "create",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": false,
       "entryRoutes": [
@@ -30415,6 +30427,106 @@
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
         "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.update@604",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:604",
+      "file": "services/api/src/routes/identity-links.routes.ts",
+      "enclosingDeclaration": "identityLinksRoutes",
+      "kind": "DATABASE",
+      "target": "userIdentityLink",
+      "mutationKind": "update",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "DELETE /v1/identity/links/:id"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.updateMany@238",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:238",
+      "file": "services/api/src/routes/identity-links.routes.ts",
+      "enclosingDeclaration": "linkProviderIdentity",
+      "kind": "DATABASE",
+      "target": "userIdentityLink",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity/links/apple",
+        "POST /v1/identity/links/google"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/routes/identity-links.routes.ts#userIdentityLink.upsert@485",
+      "terminalLocation": "services/api/src/routes/identity-links.routes.ts:485",
+      "file": "services/api/src/routes/identity-links.routes.ts",
+      "enclosingDeclaration": "identityLinksRoutes",
+      "kind": "DATABASE",
+      "target": "userIdentityLink",
+      "mutationKind": "upsert",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/password"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -33833,8 +33945,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroup.update@459",
-      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:459",
+      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroup.update@468",
+      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:468",
       "file": "services/api/src/services/access-control/scim-groups.service.ts",
       "enclosingDeclaration": "scimPatchGroup",
       "kind": "DATABASE",
@@ -33866,8 +33978,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroup.update@567",
-      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:567",
+      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroup.update@585",
+      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:585",
       "file": "services/api/src/services/access-control/scim-groups.service.ts",
       "enclosingDeclaration": "scimDeleteGroup",
       "kind": "DATABASE",
@@ -33932,8 +34044,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.create@922",
-      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:922",
+      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.create@992",
+      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:992",
       "file": "services/api/src/services/access-control/scim-groups.service.ts",
       "enclosingDeclaration": "addScimGroupProjection",
       "kind": "DATABASE",
@@ -33965,8 +34077,43 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.updateMany@463",
-      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:463",
+      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.updateMany@1043",
+      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:1043",
+      "file": "services/api/src/services/access-control/scim-groups.service.ts",
+      "enclosingDeclaration": "archiveScimGroupProjection",
+      "kind": "DATABASE",
+      "target": "scimGroupWorkspaceProjection",
+      "mutationKind": "updateMany",
+      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "DELETE /v1/admin/identity/scim/groups/projections/:id",
+        "DELETE /v2/scim/Groups/:id"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/scim-admin.routes.ts",
+        "MODULE services/api/src/routes/scim.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.updateMany@472",
+      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:472",
       "file": "services/api/src/services/access-control/scim-groups.service.ts",
       "enclosingDeclaration": "scimPatchGroup",
       "kind": "DATABASE",
@@ -33998,8 +34145,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.updateMany@571",
-      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:571",
+      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.updateMany@589",
+      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:589",
       "file": "services/api/src/services/access-control/scim-groups.service.ts",
       "enclosingDeclaration": "scimDeleteGroup",
       "kind": "DATABASE",
@@ -34017,41 +34164,6 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/access-control/scim-groups.service.ts#scimGroupWorkspaceProjection.updateMany@973",
-      "terminalLocation": "services/api/src/services/access-control/scim-groups.service.ts:973",
-      "file": "services/api/src/services/access-control/scim-groups.service.ts",
-      "enclosingDeclaration": "archiveScimGroupProjection",
-      "kind": "DATABASE",
-      "target": "scimGroupWorkspaceProjection",
-      "mutationKind": "updateMany",
-      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "DELETE /v1/admin/identity/scim/groups/projections/:id",
-        "DELETE /v2/scim/Groups/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/scim-admin.routes.ts",
-        "MODULE services/api/src/routes/scim.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -34165,8 +34277,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@970",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:970",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.create@983",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:983",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -34198,8 +34310,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1515",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1515",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1587",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1587",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimReactivateUser",
       "kind": "DATABASE",
@@ -34231,8 +34343,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1613",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1613",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.update@1685",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1685",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimUpdateUserAttributes",
       "kind": "DATABASE",
@@ -34264,8 +34376,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1320",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1320",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#externalIdentityMapping.updateMany@1361",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1361",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -34472,8 +34584,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@956",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:956",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.create@969",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:969",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimCreateUser",
       "kind": "DATABASE",
@@ -34505,8 +34617,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1350",
-      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1350",
+      "writerId": "services/api/src/services/access-control/scim.service.ts#user.updateMany@1391",
+      "terminalLocation": "services/api/src/services/access-control/scim.service.ts:1391",
       "file": "services/api/src/services/access-control/scim.service.ts",
       "enclosingDeclaration": "scimDeactivateUser",
       "kind": "DATABASE",
@@ -35380,8 +35492,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/sso.service.ts#externalIdentityMapping.create@1360",
-      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1360",
+      "writerId": "services/api/src/services/access-control/sso.service.ts#externalIdentityMapping.create@1413",
+      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1413",
       "file": "services/api/src/services/access-control/sso.service.ts",
       "enclosingDeclaration": "handleOidcCallback",
       "kind": "DATABASE",
@@ -35446,8 +35558,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/sso.service.ts#ssoConnection.update@1427",
-      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1427",
+      "writerId": "services/api/src/services/access-control/sso.service.ts#ssoConnection.update@1480",
+      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1480",
       "file": "services/api/src/services/access-control/sso.service.ts",
       "enclosingDeclaration": "handleOidcCallback",
       "kind": "DATABASE",
@@ -35545,8 +35657,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/sso.service.ts#user.create@1345",
-      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1345",
+      "writerId": "services/api/src/services/access-control/sso.service.ts#user.create@1398",
+      "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1398",
       "file": "services/api/src/services/access-control/sso.service.ts",
       "enclosingDeclaration": "handleOidcCallback",
       "kind": "DATABASE",
@@ -40394,8 +40506,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth.service.ts#user.create@465",
-      "terminalLocation": "services/api/src/services/auth.service.ts:465",
+      "writerId": "services/api/src/services/auth.service.ts#user.create@539",
+      "terminalLocation": "services/api/src/services/auth.service.ts:539",
       "file": "services/api/src/services/auth.service.ts",
       "enclosingDeclaration": "upsertUserWithEmailLink",
       "kind": "DATABASE",
@@ -40428,8 +40540,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth.service.ts#user.update@443",
-      "terminalLocation": "services/api/src/services/auth.service.ts:443",
+      "writerId": "services/api/src/services/auth.service.ts#user.update@517",
+      "terminalLocation": "services/api/src/services/auth.service.ts:517",
       "file": "services/api/src/services/auth.service.ts",
       "enclosingDeclaration": "upsertUserWithEmailLink",
       "kind": "DATABASE",
@@ -40462,8 +40574,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth.service.ts#user.update@478",
-      "terminalLocation": "services/api/src/services/auth.service.ts:478",
+      "writerId": "services/api/src/services/auth.service.ts#user.update@552",
+      "terminalLocation": "services/api/src/services/auth.service.ts:552",
       "file": "services/api/src/services/auth.service.ts",
       "enclosingDeclaration": "upsertUserWithEmailLink",
       "kind": "DATABASE",
@@ -40496,8 +40608,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth.service.ts#user.update@568",
-      "terminalLocation": "services/api/src/services/auth.service.ts:568",
+      "writerId": "services/api/src/services/auth.service.ts#user.update@648",
+      "terminalLocation": "services/api/src/services/auth.service.ts:648",
       "file": "services/api/src/services/auth.service.ts",
       "enclosingDeclaration": "upsertUserWithEmailLink",
       "kind": "DATABASE",
@@ -40530,13 +40642,47 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth.service.ts#userIdentityLink.upsert@513",
-      "terminalLocation": "services/api/src/services/auth.service.ts:513",
+      "writerId": "services/api/src/services/auth.service.ts#user.updateMany@460",
+      "terminalLocation": "services/api/src/services/auth.service.ts:460",
+      "file": "services/api/src/services/auth.service.ts",
+      "enclosingDeclaration": "upsertUserWithEmailLink",
+      "kind": "DATABASE",
+      "target": "user",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/apple",
+        "POST /v1/auth/google"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/auth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth.service.ts#userIdentityLink.create@606",
+      "terminalLocation": "services/api/src/services/auth.service.ts:606",
       "file": "services/api/src/services/auth.service.ts",
       "enclosingDeclaration": "upsertUserWithEmailLink",
       "kind": "DATABASE",
       "target": "userIdentityLink",
-      "mutationKind": "upsert",
+      "mutationKind": "create",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": false,
       "entryRoutes": [
@@ -40564,8 +40710,42 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth/extension-oauth.service.ts#extensionAuthCode.create@199",
-      "terminalLocation": "services/api/src/services/auth/extension-oauth.service.ts:199",
+      "writerId": "services/api/src/services/auth.service.ts#userIdentityLink.updateMany@592",
+      "terminalLocation": "services/api/src/services/auth.service.ts:592",
+      "file": "services/api/src/services/auth.service.ts",
+      "enclosingDeclaration": "upsertUserWithEmailLink",
+      "kind": "DATABASE",
+      "target": "userIdentityLink",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/apple",
+        "POST /v1/auth/google"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/auth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/extension-oauth.service.ts#extensionAuthCode.create@208",
+      "terminalLocation": "services/api/src/services/auth/extension-oauth.service.ts:208",
       "file": "services/api/src/services/auth/extension-oauth.service.ts",
       "enclosingDeclaration": "createExtensionAuthCode",
       "kind": "DATABASE",
@@ -40597,8 +40777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/auth/extension-oauth.service.ts#extensionAuthCode.updateMany@234",
-      "terminalLocation": "services/api/src/services/auth/extension-oauth.service.ts:234",
+      "writerId": "services/api/src/services/auth/extension-oauth.service.ts#extensionAuthCode.updateMany@243",
+      "terminalLocation": "services/api/src/services/auth/extension-oauth.service.ts:243",
       "file": "services/api/src/services/auth/extension-oauth.service.ts",
       "enclosingDeclaration": "exchangeExtensionAuthCode",
       "kind": "DATABASE",
@@ -40616,6 +40796,146 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/social-sign-in-nonce.service.ts#socialSignInNonce.create@127",
+      "terminalLocation": "services/api/src/services/auth/social-sign-in-nonce.service.ts:127",
+      "file": "services/api/src/services/auth/social-sign-in-nonce.service.ts",
+      "enclosingDeclaration": "bindIdTokenToAttempt",
+      "kind": "DATABASE",
+      "target": "socialSignInNonce",
+      "mutationKind": "create",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/apple",
+        "POST /v1/auth/google",
+        "POST /v1/identity/links/apple",
+        "POST /v1/identity/links/google"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/auth.routes.ts",
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/social-sign-in-nonce.service.ts#socialSignInNonce.create@79",
+      "terminalLocation": "services/api/src/services/auth/social-sign-in-nonce.service.ts:79",
+      "file": "services/api/src/services/auth/social-sign-in-nonce.service.ts",
+      "enclosingDeclaration": "issueSocialSignInNonce",
+      "kind": "DATABASE",
+      "target": "socialSignInNonce",
+      "mutationKind": "create",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/oauth/nonce"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NONE",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/social-sign-in-nonce.service.ts#socialSignInNonce.deleteMany@83",
+      "terminalLocation": "services/api/src/services/auth/social-sign-in-nonce.service.ts:83",
+      "file": "services/api/src/services/auth/social-sign-in-nonce.service.ts",
+      "enclosingDeclaration": "issueSocialSignInNonce",
+      "kind": "DATABASE",
+      "target": "socialSignInNonce",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/oauth/nonce"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NONE",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/auth/social-sign-in-nonce.service.ts#socialSignInNonce.updateMany@108",
+      "terminalLocation": "services/api/src/services/auth/social-sign-in-nonce.service.ts:108",
+      "file": "services/api/src/services/auth/social-sign-in-nonce.service.ts",
+      "enclosingDeclaration": "bindIdTokenToAttempt",
+      "kind": "DATABASE",
+      "target": "socialSignInNonce",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/apple",
+        "POST /v1/auth/google",
+        "POST /v1/identity/links/apple",
+        "POST /v1/identity/links/google"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/auth.routes.ts",
+        "MODULE services/api/src/routes/identity-links.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+MEMBERSHIP_LOOKUP",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -51355,8 +51675,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.create@494",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:494",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.create@533",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:533",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "createEmailVerificationToken",
       "kind": "DATABASE",
@@ -51389,8 +51709,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.update@572",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:572",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.update@611",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:611",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "consumeEmailVerificationToken",
       "kind": "DATABASE",
@@ -51422,8 +51742,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.updateMany@445",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:445",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.updateMany@477",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:477",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "resetPasswordWithToken",
       "kind": "DATABASE",
@@ -51455,8 +51775,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.updateMany@487",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:487",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#emailVerificationToken.updateMany@526",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:526",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "createEmailVerificationToken",
       "kind": "DATABASE",
@@ -51489,8 +51809,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.create@361",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:361",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.create@366",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:366",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "createPasswordResetTokenForEmail",
       "kind": "DATABASE",
@@ -51522,13 +51842,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.update@450",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:450",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#passwordResetToken.updateMany@446",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:446",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "resetPasswordWithToken",
       "kind": "DATABASE",
       "target": "passwordResetToken",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": true,
       "entryRoutes": [
@@ -51555,8 +51875,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.create@154",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:154",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.create@155",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:155",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "registerWithEmailPassword",
       "kind": "DATABASE",
@@ -51588,8 +51908,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@197",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:197",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@198",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:198",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "registerWithEmailPassword",
       "kind": "DATABASE",
@@ -51621,8 +51941,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@308",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:308",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@309",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:309",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "changePasswordForUser",
       "kind": "DATABASE",
@@ -51654,13 +51974,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.update@432",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:432",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.updateMany@465",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:465",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "resetPasswordWithToken",
       "kind": "DATABASE",
       "target": "user",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": true,
       "entryRoutes": [
@@ -51687,8 +52007,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/email-password-auth.service.ts#user.updateMany@576",
-      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:576",
+      "writerId": "services/api/src/services/email-password-auth.service.ts#user.updateMany@615",
+      "terminalLocation": "services/api/src/services/email-password-auth.service.ts:615",
       "file": "services/api/src/services/email-password-auth.service.ts",
       "enclosingDeclaration": "consumeEmailVerificationToken",
       "kind": "DATABASE",
@@ -59774,8 +60094,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.update@340",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:340",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.update@351",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:351",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -59809,8 +60129,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@378",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:378",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@389",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:389",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "recordAccountClosureWaiting",
       "kind": "DATABASE",
@@ -59844,8 +60164,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@422",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:422",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@433",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:433",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "recordAccountClosureOutcome",
       "kind": "DATABASE",
@@ -59879,8 +60199,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@484",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:484",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@495",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:495",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "processAccountClosures",
       "kind": "DATABASE",
@@ -59914,8 +60234,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@507",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:507",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountClosureRequest.updateMany@518",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:518",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "processAccountClosures",
       "kind": "DATABASE",
@@ -59949,8 +60269,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountDataExportRequest.updateMany@321",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:321",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#accountDataExportRequest.updateMany@332",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:332",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60054,6 +60374,41 @@
       }
     },
     {
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#emailVerificationToken.updateMany@292",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:292",
+      "file": "services/api/src/services/identity/account-closure.service.ts",
+      "enclosingDeclaration": "executeAccountClosure",
+      "kind": "DATABASE",
+      "target": "emailVerificationToken",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/run-digests"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/identity/account-closure.service.ts#externalIdentityMapping.updateMany@281",
       "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:281",
       "file": "services/api/src/services/identity/account-closure.service.ts",
@@ -60062,6 +60417,41 @@
       "target": "externalIdentityMapping",
       "mutationKind": "updateMany",
       "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/run-digests"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#passwordResetToken.updateMany@288",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:288",
+      "file": "services/api/src/services/identity/account-closure.service.ts",
+      "enclosingDeclaration": "executeAccountClosure",
+      "kind": "DATABASE",
+      "target": "passwordResetToken",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/internal/lifecycle/run",
@@ -60124,8 +60514,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@285",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:285",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@296",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:296",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -60159,8 +60549,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@327",
-      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:327",
+      "writerId": "services/api/src/services/identity/account-closure.service.ts#user.update@338",
+      "terminalLocation": "services/api/src/services/identity/account-closure.service.ts:338",
       "file": "services/api/src/services/identity/account-closure.service.ts",
       "enclosingDeclaration": "executeAccountClosure",
       "kind": "DATABASE",
@@ -95710,8 +96100,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#externalIdentityMapping.create@563",
-      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:563",
+      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#externalIdentityMapping.create@585",
+      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:585",
       "file": "services/api/src/services/security/saml-user-mapping.service.ts",
       "enclosingDeclaration": "handleSamlAssertion",
       "kind": "DATABASE",
@@ -95776,8 +96166,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#user.create@548",
-      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:548",
+      "writerId": "services/api/src/services/security/saml-user-mapping.service.ts#user.create@570",
+      "terminalLocation": "services/api/src/services/security/saml-user-mapping.service.ts:570",
       "file": "services/api/src/services/security/saml-user-mapping.service.ts",
       "enclosingDeclaration": "handleSamlAssertion",
       "kind": "DATABASE",
@@ -107111,7 +107501,7 @@
       "method": "DELETE",
       "path": "/v1/identity/links/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:349",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:547",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -107130,7 +107520,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 874,
+          "line": 879,
           "caller": "LoginMethodsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107140,7 +107530,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:215 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:874 (LoginMethodsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:215 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:879 (LoginMethodsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -107163,6 +107553,7 @@
         "adminAuditLog",
         "mfaFactor",
         "securityEvent",
+        "user",
         "userIdentityLink"
       ],
       "tenantBindingResolved": true,
@@ -107205,7 +107596,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1231,
+          "line": 1236,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107213,7 +107604,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1311,
+          "line": 1316,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -107223,7 +107614,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:221 (SecuritySettingsScreen, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:233 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1231 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:221 (SecuritySettingsScreen, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:233 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1236 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -108570,7 +108961,7 @@
       "method": "DELETE",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:427",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:463",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -108582,7 +108973,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:427 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:463 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -108635,7 +109026,7 @@
       "method": "DELETE",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:302",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:338",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -108647,7 +109038,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:302 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:338 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -108668,6 +109059,7 @@
         "entitlement",
         "evidenceRequest",
         "evidenceReviewWorkflow",
+        "externalIdentityMapping",
         "operationalIncident",
         "operationalWorkflow",
         "organization",
@@ -113016,7 +113408,7 @@
       "method": "GET",
       "path": "/v1/auth/email/availability",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1076",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1112",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -113033,7 +113425,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 361,
+          "line": 363,
           "caller": "RegisterPageContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113043,7 +113435,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/register.tsx:112 (RegisterScreen, MOBILE); apps/web/app/register/page.tsx:361 (RegisterPageContent, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/register.tsx:112 (RegisterScreen, MOBILE); apps/web/app/register/page.tsx:363 (RegisterPageContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113072,7 +113464,7 @@
       "method": "GET",
       "path": "/v1/auth/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1922",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1962",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -113091,7 +113483,7 @@
         },
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 225,
+          "line": 242,
           "caller": "fetchMe",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -113115,7 +113507,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 365,
+          "line": 366,
           "caller": "handleAuth",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -113133,7 +113525,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth-context.tsx:106 (AuthProvider, MOBILE); apps/mobile/src/auth/auth-api.ts:225 (fetchMe, MOBILE); apps/web/app/auth/callback/ui/page.tsx:250 (AppleCallbackPage, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth-context.tsx:106 (AuthProvider, MOBILE); apps/mobile/src/auth/auth-api.ts:242 (fetchMe, MOBILE); apps/web/app/auth/callback/ui/page.tsx:250 (AppleCallbackPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -113268,7 +113660,7 @@
       "method": "GET",
       "path": "/v1/auth/session-light",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1968",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:2008",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -126726,7 +127118,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1998,
+          "line": 2003,
           "caller": "SecurityEventsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -126736,7 +127128,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:128 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1998 (SecurityEventsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:128 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:2003 (SecurityEventsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127235,7 +127627,7 @@
       "method": "GET",
       "path": "/v1/identity/links",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:225",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:320",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -132234,7 +132626,7 @@
       "method": "GET",
       "path": "/v1/oauth/extension/authorize",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:211",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:256",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "extensionSignInRedirect -> services/api/src/routes/extension-oauth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -145038,7 +145430,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 259,
+          "line": 276,
           "caller": "getLegalStatus",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -145072,7 +145464,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:259 (getLegalStatus, MOBILE); apps/mobile/src/ui/legal-records.tsx:49 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:91 (LegalAcceptanceStatusCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:276 (getLegalStatus, MOBILE); apps/mobile/src/ui/legal-records.tsx:49 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:91 (LegalAcceptanceStatusCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -146022,7 +146414,7 @@
       "method": "GET",
       "path": "/v2/scim/Groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:377",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:413",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -146034,7 +146426,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:377 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:413 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -146086,7 +146478,7 @@
       "method": "GET",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:359",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:395",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -146098,7 +146490,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:359 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:395 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -146148,7 +146540,7 @@
       "method": "GET",
       "path": "/v2/scim/Users",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:175",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:204",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -146160,7 +146552,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:175 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:204 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -146211,7 +146603,7 @@
       "method": "GET",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:157",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:186",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -146223,7 +146615,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:157 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:186 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -149486,7 +149878,7 @@
       "method": "PATCH",
       "path": "/v2/scim/Groups/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:395",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:431",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -149498,7 +149890,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:395 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:431 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -149546,8 +149938,8 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/access-control/scim-groups.service.ts: scimGroupWorkspaceProjection.findMany — no tenant or self predicate",
         "services/api/src/services/access-control/scim-groups.service.ts: scimGroup.findMany — no tenant or self predicate",
+        "services/api/src/services/access-control/scim-groups.service.ts: scimGroupWorkspaceProjection.findMany — no tenant or self predicate",
         "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
@@ -149563,7 +149955,7 @@
       "method": "PATCH",
       "path": "/v2/scim/Users/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:200",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:229",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -149575,7 +149967,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:200 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:229 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -153131,7 +153523,7 @@
       "method": "POST",
       "path": "/v1/auth/apple",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:866",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:886",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153142,7 +153534,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 205,
+          "line": 222,
           "caller": "oauthApple",
           "class": "MOBILE",
           "primitive": "signInExchange",
@@ -153150,7 +153542,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 593,
+          "line": 617,
           "caller": "startApple",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -153158,7 +153550,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 730,
+          "line": 752,
           "caller": "startApple",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -153168,7 +153560,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:205 (oauthApple, MOBILE); apps/web/app/login/page.tsx:593 (startApple, WEB); apps/web/app/register/page.tsx:730 (startApple, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:222 (oauthApple, MOBILE); apps/web/app/login/page.tsx:617 (startApple, WEB); apps/web/app/register/page.tsx:752 (startApple, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153204,6 +153596,7 @@
         "organization",
         "organizationMembership",
         "securityEvent",
+        "socialSignInNonce",
         "team",
         "teamMember",
         "user",
@@ -153230,7 +153623,7 @@
       "method": "POST",
       "path": "/v1/auth/email/login",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1102",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1138",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153249,7 +153642,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 626,
+          "line": 650,
           "caller": "onEmailLogin",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -153259,7 +153652,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:84 (emailLogin, MOBILE); apps/web/app/login/page.tsx:626 (onEmailLogin, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:84 (emailLogin, MOBILE); apps/web/app/login/page.tsx:650 (onEmailLogin, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153306,7 +153699,7 @@
       "method": "POST",
       "path": "/v1/auth/email/register",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:961",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:997",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -153323,7 +153716,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 817,
+          "line": 839,
           "caller": "onEmailRegister",
           "class": "WEB",
           "primitive": "handleAuth",
@@ -153333,7 +153726,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:100 (registerAccount, MOBILE); apps/web/app/register/page.tsx:817 (onEmailRegister, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:100 (registerAccount, MOBILE); apps/web/app/register/page.tsx:839 (onEmailRegister, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153387,7 +153780,7 @@
       "method": "POST",
       "path": "/v1/auth/email/resend-verification",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1451",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1487",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -153412,7 +153805,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 999,
+          "line": 1023,
           "caller": "LoginPageContent",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153420,7 +153813,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 748,
+          "line": 770,
           "caller": "onResendVerification",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153430,7 +153823,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:116 (resendVerification, MOBILE); apps/web/app/auth/verify-email/page.tsx:197 (onResend, WEB); apps/web/app/login/page.tsx:999 (LoginPageContent, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:116 (resendVerification, MOBILE); apps/web/app/auth/verify-email/page.tsx:197 (onResend, WEB); apps/web/app/login/page.tsx:1023 (LoginPageContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153464,7 +153857,7 @@
       "method": "POST",
       "path": "/v1/auth/email/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1375",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1411",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153535,7 +153928,7 @@
       "method": "POST",
       "path": "/v1/auth/google",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:768",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:772",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153546,7 +153939,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 201,
+          "line": 218,
           "caller": "oauthGoogle",
           "class": "MOBILE",
           "primitive": "signInExchange",
@@ -153564,7 +153957,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:201 (oauthGoogle, MOBILE); apps/web/app/auth/callback/ui/page.tsx:175 (AppleCallbackPage, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:218 (oauthGoogle, MOBILE); apps/web/app/auth/callback/ui/page.tsx:175 (AppleCallbackPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153600,6 +153993,7 @@
         "organization",
         "organizationMembership",
         "securityEvent",
+        "socialSignInNonce",
         "team",
         "teamMember",
         "user",
@@ -153626,7 +154020,7 @@
       "method": "POST",
       "path": "/v1/auth/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1845",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1885",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "resolveSessionCredential -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153637,7 +154031,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 231,
+          "line": 248,
           "caller": "logout",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -153645,7 +154039,7 @@
         },
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 244,
+          "line": 261,
           "caller": "revokeSessionToken",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -153663,7 +154057,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:231 (logout, MOBILE); apps/mobile/src/auth/auth-api.ts:244 (revokeSessionToken, MOBILE); apps/web/app/(app)/layout.tsx:77 (handleLogout, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:248 (logout, MOBILE); apps/mobile/src/auth/auth-api.ts:261 (revokeSessionToken, MOBILE); apps/web/app/(app)/layout.tsx:77 (handleLogout, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153702,7 +154096,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/enrollment/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1762",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1802",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -153790,7 +154184,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1499",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1535",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153877,11 +154271,67 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "POST /v1/auth/oauth/nonce",
+      "method": "POST",
+      "path": "/v1/auth/oauth/nonce",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:290",
+      "authorizationClass": "PUBLIC_UNGUARDED",
+      "authorizationEvidence": [
+        "no preHandler and no in-handler guard call was found"
+      ],
+      "gates": [],
+      "productConsumers": [
+        {
+          "file": "apps/mobile/src/auth/auth-api.ts",
+          "line": 208,
+          "caller": "fetchOAuthNonce",
+          "class": "MOBILE",
+          "primitive": "publicFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/web/lib/oauth.ts",
+          "line": 30,
+          "caller": "fetchSocialSignInNonce",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:208 (fetchOAuthNonce, MOBILE); apps/web/lib/oauth.ts:30 (fetchSocialSignInNonce, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PUBLIC_WRITE",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "PUBLIC_UNGUARDED",
+      "authorizationAuthority": "PUBLIC_UNGUARDED",
+      "dataScope": "PUBLIC_DATA",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [],
+      "modelsWritten": [
+        "socialSignInNonce"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "POST /v1/auth/password-reset/confirm",
       "method": "POST",
       "path": "/v1/auth/password-reset/confirm",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1328",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1364",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -153952,7 +154402,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1240",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1276",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -154269,7 +154719,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 213,
+          "line": 230,
           "caller": "discoverSso",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -154277,7 +154727,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 235,
+          "line": 236,
           "caller": "startSingleSignOn",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -154287,7 +154737,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:213 (discoverSso, MOBILE); apps/web/app/login/page.tsx:235 (startSingleSignOn, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:230 (discoverSso, MOBILE); apps/web/app/login/page.tsx:236 (startSingleSignOn, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -154328,7 +154778,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 219,
+          "line": 236,
           "caller": "exchangeNativeSso",
           "class": "MOBILE",
           "primitive": "signInExchange",
@@ -154338,7 +154788,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:219 (exchangeNativeSso, MOBILE)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:236 (exchangeNativeSso, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -166457,7 +166907,7 @@
         },
         {
           "file": "apps/web/app/login/page.tsx",
-          "line": 374,
+          "line": 375,
           "caller": "handleAuth",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -166465,7 +166915,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 542,
+          "line": 544,
           "caller": "handleAuth",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -166475,7 +166925,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/auth/verify-email/page.tsx:139 (VerifyEmailPageContent, WEB); apps/web/app/login/page.tsx:374 (handleAuth, WEB); apps/web/app/register/page.tsx:542 (handleAuth, WEB)",
+      "dispositionEvidence": "apps/web/app/auth/verify-email/page.tsx:139 (VerifyEmailPageContent, WEB); apps/web/app/login/page.tsx:375 (handleAuth, WEB); apps/web/app/register/page.tsx:544 (handleAuth, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171862,7 +172312,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1714,
+          "line": 1719,
           "caller": "ActiveSessionsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -171872,7 +172322,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:202 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1714 (ActiveSessionsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:202 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1719 (ActiveSessionsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171932,7 +172382,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1668,
+          "line": 1673,
           "caller": "ActiveSessionsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -171942,7 +172392,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:208 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1668 (ActiveSessionsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:208 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1673 (ActiveSessionsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173394,7 +173844,7 @@
       "method": "POST",
       "path": "/v1/identity/links/apple",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:282",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:388",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173446,6 +173896,7 @@
         "adminAuditLog",
         "mfaFactor",
         "securityEvent",
+        "socialSignInNonce",
         "userIdentityLink"
       ],
       "tenantBindingResolved": true,
@@ -173461,7 +173912,7 @@
       "method": "POST",
       "path": "/v1/identity/links/google",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:271",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:377",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173513,6 +173964,7 @@
         "adminAuditLog",
         "mfaFactor",
         "securityEvent",
+        "socialSignInNonce",
         "userIdentityLink"
       ],
       "tenantBindingResolved": true,
@@ -174675,7 +175127,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1158,
+          "line": 1163,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174693,7 +175145,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:158 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:168 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1158 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:158 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:168 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1163 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -174754,7 +175206,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1192,
+          "line": 1197,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174772,7 +175224,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:177 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:202 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1192 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:177 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:202 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1197 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -174826,7 +175278,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1259,
+          "line": 1264,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -174836,7 +175288,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:229 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1259 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:229 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1264 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175132,7 +175584,7 @@
       "method": "POST",
       "path": "/v1/identity/password",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:300",
+      "registrationEvidence": "services/api/src/routes/identity-links.routes.ts:406",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -175151,7 +175603,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 836,
+          "line": 841,
           "caller": "LoginMethodsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175161,7 +175613,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:281 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:836 (LoginMethodsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:281 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:841 (LoginMethodsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175184,7 +175636,8 @@
         "mfaFactor",
         "securityEvent",
         "stepUpChallenge",
-        "user"
+        "user",
+        "userIdentityLink"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
@@ -177557,6 +178010,7 @@
         "collaborationTeamActivity",
         "collaborationTeamMember",
         "discussionThread",
+        "emailVerificationToken",
         "enterpriseContract",
         "evidenceRequest",
         "evidenceRequestEvent",
@@ -177574,6 +178028,7 @@
         "organizationAuditEvent",
         "organizationClosureRequest",
         "organizationMembership",
+        "passwordResetToken",
         "qcSample",
         "reviewEscalation",
         "reviewerDisagreement",
@@ -179776,6 +180231,7 @@
         "caseAssignment",
         "collaborationTeamActivity",
         "collaborationTeamMember",
+        "emailVerificationToken",
         "enterpriseContract",
         "externalIdentityMapping",
         "externalReviewGrant",
@@ -179787,6 +180243,7 @@
         "organizationAuditEvent",
         "organizationClosureRequest",
         "organizationMembership",
+        "passwordResetToken",
         "revokedSession",
         "scimGroup",
         "scimGroupWorkspaceProjection",
@@ -179907,7 +180364,7 @@
       "method": "POST",
       "path": "/v1/oauth/extension/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:367",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:416",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179958,7 +180415,7 @@
       "method": "POST",
       "path": "/v1/oauth/extension/token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:251",
+      "registrationEvidence": "services/api/src/routes/extension-oauth.routes.ts:296",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -179983,7 +180440,9 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "authenticatedSession",
         "extensionAuthCode",
+        "revokedSession",
         "user"
       ],
       "modelsWritten": [
@@ -194065,7 +194524,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 285,
+          "line": 302,
           "caller": "recordLegalAcceptance",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -194105,7 +194564,7 @@
         },
         {
           "file": "apps/web/app/register/page.tsx",
-          "line": 420,
+          "line": 422,
           "caller": "recordRequiredLegalAcceptances",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -194123,7 +194582,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:285 (recordLegalAcceptance, MOBILE); apps/mobile/src/ui/legal-records.tsx:73 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:122 (LegalAcceptanceStatusCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:302 (recordLegalAcceptance, MOBILE); apps/mobile/src/ui/legal-records.tsx:73 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:122 (LegalAcceptanceStatusCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -195123,7 +195582,7 @@
       "method": "POST",
       "path": "/v2/scim/Groups",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:332",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:368",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -195135,7 +195594,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:332 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:368 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
@@ -195200,7 +195659,7 @@
       "method": "POST",
       "path": "/v2/scim/Users",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/scim.routes.ts:130",
+      "registrationEvidence": "services/api/src/routes/scim.routes.ts:159",
       "authorizationClass": "SCIM_BEARER",
       "authorizationEvidence": [
         "handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)"
@@ -195212,7 +195671,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "SCIM_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:130 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
+      "dispositionEvidence": "services/api/src/routes/scim.routes.ts:159 — handler body -> handler: reaches the SCIM personal-access-token authority (RFC 7644 bearer) (authenticateScim)",
       "dispositionReason": "authenticated by a SCIM personal access token (RFC 7644 bearer); the client is the customer's identity provider",
       "replacement": null,
       "result": "DISPOSED_SCIM_ENTRYPOINT",
