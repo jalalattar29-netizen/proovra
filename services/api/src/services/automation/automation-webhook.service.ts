@@ -33,10 +33,18 @@ import {
   checkOutboundUrlResolved,
   checkOutboundUrlStatic,
   sendOutboundRequest,
-  systemResolver,
   type OutboundResolver,
   type OutboundUrlPolicy,
 } from "@proovra/shared-runtime/outbound";
+import { lookup as dnsLookup } from "node:dns/promises";
+
+/**
+ * This service's name resolution, through `node:dns/promises` as it always
+ * was (callers and tests that answer DNS in-process keep working). Every
+ * answer is classified by the shared outbound policy.
+ */
+const apiResolver: OutboundResolver = (hostname) =>
+  dnsLookup(hostname, { all: true, verbatim: true });
 
 import { getSecret } from "../../config/runtime-secrets.js";
 
@@ -532,7 +540,7 @@ export function validateDestinationUrlStatic(input: string): UrlValidationResult
  */
 export async function validateDestinationUrlWithDns(
   input: string,
-  resolver: OutboundResolver = systemResolver,
+  resolver: OutboundResolver = apiResolver,
 ): Promise<UrlValidationResult> {
   const staticResult = validateDestinationUrlStatic(input);
   if (!staticResult.ok) return staticResult;
@@ -707,7 +715,7 @@ export async function deliverWebhookOnce(input: {
     body: input.body,
     timeoutMs: input.timeoutMs ?? WEBHOOK_TIMEOUT_MS,
     policy: policyFor(input.url),
-    resolver: input.resolver,
+    resolver: input.resolver ?? apiResolver,
     maxResponseBytes: 4 * 1024,
   });
   if (result.kind === "refused") {

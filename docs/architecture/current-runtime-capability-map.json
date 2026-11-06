@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "926c8cd89bbc15244764115eac539d6ba86b4ef002c515b3b8cf9ddb1de3168f",
-  "consumerInventoryHash": "68b4449e7479a8dc3d68233c3dc690de5e625806287b5b6f32d820c8bb9bc53a",
+  "consumerInventoryHash": "adf136ff70ad89e3c280568b3788f39883b54003518706638a901b62239536b0",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1230,
@@ -22,10 +22,10 @@
     "PublicUnguardedRoutes": 37,
     "DynamicUnresolvedRouteRegistrations": 0,
     "DynamicUnresolvedConsumers": 0,
-    "UnreviewedOriginConsumers": 0,
+    "UnreviewedOriginConsumers": 1,
     "AmbiguousConsumerSites": 0,
     "UnmatchedConsumerCalls": 0,
-    "ClassificationConflicts": 0,
+    "ClassificationConflicts": 3,
     "WrongOriginConsumers": 0,
     "byDisposition": {
       "MACHINE_CONSUMER": 3,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1512,
-    "ReachableSensitiveMutations": 1488,
-    "ClassifiedSensitiveMutations": 1488,
+    "TerminalWriters": 1513,
+    "ReachableSensitiveMutations": 1489,
+    "ClassifiedSensitiveMutations": 1489,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 24,
@@ -80,9 +80,9 @@
       "EVIDENCE_CUSTODY_FINALIZATION": 354,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 99,
-      "BILLING_SUBSCRIPTION_SEAT": 105,
+      "BILLING_SUBSCRIPTION_SEAT": 104,
       "SSO_OIDC_SCIM_PROVISIONING": 58,
-      "AUTOMATION_QUEUE_WEBHOOK": 117,
+      "AUTOMATION_QUEUE_WEBHOOK": 119,
       "REPORT_EXPORT_REDACTION": 59,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 128
     },
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1324,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1325,
       "JOB_ATTRIBUTED_REACHABLE": 153,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11229,
-      "UNRESOLVED_IDENTIFIER": 1618
+      "METHOD_ON_VALUE": 11233,
+      "UNRESOLVED_IDENTIFIER": 1617
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -1780,7 +1780,7 @@
       "method": "GET",
       "route": "/v1/automation/webhooks",
       "registeringFile": "services/api/src/routes/automation-webhooks.routes.ts",
-      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:215",
+      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:228",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4336,7 +4336,7 @@
       "method": "GET",
       "route": "/v1/integrations/webhooks/endpoints",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:141",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:149",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -4348,7 +4348,7 @@
       "method": "GET",
       "route": "/v1/integrations/webhooks/lifecycle-deliveries",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:142",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:150",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7288,7 +7288,7 @@
       "method": "PATCH",
       "route": "/v1/automation/webhooks/:id",
       "registeringFile": "services/api/src/routes/automation-webhooks.routes.ts",
-      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:538",
+      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:567",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8536,7 +8536,7 @@
       "method": "POST",
       "route": "/v1/automation/webhooks",
       "registeringFile": "services/api/src/routes/automation-webhooks.routes.ts",
-      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:414",
+      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:435",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8548,7 +8548,7 @@
       "method": "POST",
       "route": "/v1/automation/webhooks/:id/disable",
       "registeringFile": "services/api/src/routes/automation-webhooks.routes.ts",
-      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:87",
+      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:96",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8560,7 +8560,7 @@
       "method": "POST",
       "route": "/v1/automation/webhooks/:id/enable",
       "registeringFile": "services/api/src/routes/automation-webhooks.routes.ts",
-      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:87",
+      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:96",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -8572,7 +8572,7 @@
       "method": "POST",
       "route": "/v1/automation/webhooks/:id/rotate-secret",
       "registeringFile": "services/api/src/routes/automation-webhooks.routes.ts",
-      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:327",
+      "productConsumer": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:344",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12028,7 +12028,7 @@
       "method": "POST",
       "route": "/v1/integrations/webhooks/endpoints",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:249",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:260",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12040,7 +12040,7 @@
       "method": "POST",
       "route": "/v1/integrations/webhooks/endpoints/:id/deactivate",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:199",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:207",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -12052,7 +12052,7 @@
       "method": "POST",
       "route": "/v1/integrations/webhooks/lifecycle-deliveries/:id/replay",
       "registeringFile": "services/api/src/routes/product-and-lifecycle.routes.ts",
-      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:233",
+      "productConsumer": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:241",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15023,9 +15023,34 @@
       "evidenceLevel": "UNPROVEN"
     }
   ],
-  "problems": [],
+  "problems": [
+    {
+      "kind": "STALE_DYNAMIC_RESOLUTION",
+      "site": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:360",
+      "why": "the analyzer now resolves this call site (or it has moved); the exemption is dead and must be removed"
+    },
+    {
+      "kind": "STALE_DYNAMIC_RESOLUTION",
+      "site": "services/api/src/services/integrations/webhook-dispatcher.ts:99",
+      "why": "the analyzer now resolves this call site (or it has moved); the exemption is dead and must be removed"
+    },
+    {
+      "kind": "STALE_DYNAMIC_RESOLUTION",
+      "site": "services/api/src/services/automation/automation-delivery-runtime.service.ts:395",
+      "why": "the analyzer now resolves this call site (or it has moved); the exemption is dead and must be removed"
+    }
+  ],
   "dynamicUnresolvedConsumers": [],
-  "unreviewedOriginConsumers": [],
+  "unreviewedOriginConsumers": [
+    {
+      "file": "packages/shared-runtime/src/outbound/outbound-url-policy.ts",
+      "line": 259,
+      "caller": "requestPinned",
+      "originExpression": "url.pathname",
+      "path": "<interp>",
+      "text": "transport.request( { protocol: url.protocol, hostname: connectAddress, port: url.port || u"
+    }
+  ],
   "ambiguousConsumerSites": [],
   "unmatchedConsumerCalls": [],
   "dynamicUnresolvedRouteRegistrations": [],
@@ -28286,8 +28311,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.create@271",
-      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:271",
+      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.create@286",
+      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:286",
       "file": "services/api/src/routes/automation-webhooks.routes.ts",
       "enclosingDeclaration": "automationWebhooksRoutes",
       "kind": "DATABASE",
@@ -28319,8 +28344,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.update@359",
-      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:359",
+      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.update@387",
+      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:387",
       "file": "services/api/src/routes/automation-webhooks.routes.ts",
       "enclosingDeclaration": "automationWebhooksRoutes",
       "kind": "DATABASE",
@@ -28352,8 +28377,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.update@405",
-      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:405",
+      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.update@448",
+      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:448",
       "file": "services/api/src/routes/automation-webhooks.routes.ts",
       "enclosingDeclaration": "transitionEnabled",
       "kind": "DATABASE",
@@ -28386,8 +28411,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.update@512",
-      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:512",
+      "writerId": "services/api/src/routes/automation-webhooks.routes.ts#automationWebhookDestination.update@568",
+      "terminalLocation": "services/api/src/routes/automation-webhooks.routes.ts:568",
       "file": "services/api/src/routes/automation-webhooks.routes.ts",
       "enclosingDeclaration": "automationWebhooksRoutes",
       "kind": "DATABASE",
@@ -29050,8 +29075,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/communications.routes.ts#communicationMessage.updateMany@763",
-      "terminalLocation": "services/api/src/routes/communications.routes.ts:763",
+      "writerId": "services/api/src/routes/communications.routes.ts#communicationMessage.updateMany@775",
+      "terminalLocation": "services/api/src/routes/communications.routes.ts:775",
       "file": "services/api/src/routes/communications.routes.ts",
       "enclosingDeclaration": "handleTwilioWebhook",
       "kind": "DATABASE",
@@ -31710,8 +31735,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/product-and-lifecycle.routes.ts#lifecycleWebhookDelivery.update@1276",
-      "terminalLocation": "services/api/src/routes/product-and-lifecycle.routes.ts:1276",
+      "writerId": "services/api/src/routes/product-and-lifecycle.routes.ts#lifecycleWebhookDelivery.update@1294",
+      "terminalLocation": "services/api/src/routes/product-and-lifecycle.routes.ts:1294",
       "file": "services/api/src/routes/product-and-lifecycle.routes.ts",
       "enclosingDeclaration": "productAndLifecycleRoutes",
       "kind": "DATABASE",
@@ -41317,45 +41342,6 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1387",
-      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1387",
-      "file": "services/api/src/services/billing-enforcement.service.ts",
-      "enclosingDeclaration": "recordWorkspaceAiOperation",
-      "kind": "DATABASE",
-      "target": "entitlementUsage",
-      "mutationKind": "upsert",
-      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/ai/capture/analyze-session",
-        "POST /v1/ai/chat",
-        "POST /v1/intelligence/evidence/:evidenceId/run/bytes",
-        "POST /v1/intelligence/evidence/:evidenceId/run/text",
-        "POST /v1/internal/media-intelligence/extract"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/ai.routes.ts",
-        "MODULE services/api/src/routes/intelligence-platform.routes.ts",
-        "MODULE services/api/src/routes/internal-media-intelligence-extract.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
       "writerId": "services/api/src/services/billing.service.ts#entitlement.create@169",
       "terminalLocation": "services/api/src/services/billing.service.ts:169",
       "file": "services/api/src/services/billing.service.ts",
@@ -49466,8 +49452,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@108",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:108",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@114",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:114",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "startVerification",
       "kind": "DATABASE",
@@ -49503,8 +49489,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@139",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:139",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@145",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:145",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "startVerification",
       "kind": "DATABASE",
@@ -49540,8 +49526,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@172",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:172",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@178",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:178",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "startVerification",
       "kind": "DATABASE",
@@ -49577,8 +49563,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@201",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:201",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.create@207",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:207",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "startVerification",
       "kind": "DATABASE",
@@ -49614,8 +49600,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@317",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:317",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@323",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:323",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "checkVerification",
       "kind": "DATABASE",
@@ -49651,45 +49637,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@324",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:324",
-      "file": "services/api/src/services/communications/verification.service.ts",
-      "enclosingDeclaration": "checkVerification",
-      "kind": "DATABASE",
-      "target": "verificationAttempt",
-      "mutationKind": "update",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/communications/verify/check",
-        "POST /v1/identity-security/contact-factors/enroll/verify",
-        "POST /v1/identity-security/step-up/check"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/communications.routes.ts",
-        "MODULE services/api/src/routes/identity-security-contact-factors.routes.ts",
-        "MODULE services/api/src/routes/identity-security.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@336",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:336",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@330",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:330",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "checkVerification",
       "kind": "DATABASE",
@@ -49727,6 +49676,43 @@
     {
       "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@342",
       "terminalLocation": "services/api/src/services/communications/verification.service.ts:342",
+      "file": "services/api/src/services/communications/verification.service.ts",
+      "enclosingDeclaration": "checkVerification",
+      "kind": "DATABASE",
+      "target": "verificationAttempt",
+      "mutationKind": "update",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/communications/verify/check",
+        "POST /v1/identity-security/contact-factors/enroll/verify",
+        "POST /v1/identity-security/step-up/check"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/communications.routes.ts",
+        "MODULE services/api/src/routes/identity-security-contact-factors.routes.ts",
+        "MODULE services/api/src/routes/identity-security.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@348",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:348",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "checkVerification",
       "kind": "DATABASE",
@@ -55602,8 +55588,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewCampaign.create@130",
-      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:130",
+      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewCampaign.create@160",
+      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:160",
       "file": "services/api/src/services/governance/access-review.service.ts",
       "enclosingDeclaration": "createCampaign",
       "kind": "DATABASE",
@@ -55635,8 +55621,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewCampaign.update@169",
-      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:169",
+      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewCampaign.update@199",
+      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:199",
       "file": "services/api/src/services/governance/access-review.service.ts",
       "enclosingDeclaration": "openCampaign",
       "kind": "DATABASE",
@@ -55668,8 +55654,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewCampaign.update@187",
-      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:187",
+      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewCampaign.update@217",
+      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:217",
       "file": "services/api/src/services/governance/access-review.service.ts",
       "enclosingDeclaration": "closeCampaign",
       "kind": "DATABASE",
@@ -55701,8 +55687,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewItem.createMany@146",
-      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:146",
+      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewItem.createMany@176",
+      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:176",
       "file": "services/api/src/services/governance/access-review.service.ts",
       "enclosingDeclaration": "createCampaign",
       "kind": "DATABASE",
@@ -55734,8 +55720,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewItem.updateMany@308",
-      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:308",
+      "writerId": "services/api/src/services/governance/access-review.service.ts#accessReviewItem.updateMany@338",
+      "terminalLocation": "services/api/src/services/governance/access-review.service.ts:338",
       "file": "services/api/src/services/governance/access-review.service.ts",
       "enclosingDeclaration": "recordItemDecision",
       "kind": "DATABASE",
@@ -55767,8 +55753,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.create@86",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:86",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.create@101",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:101",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "inviteCrossOrgReview",
       "kind": "DATABASE",
@@ -55800,8 +55786,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@238",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:238",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@253",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:253",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "acceptCrossOrgReview",
       "kind": "DATABASE",
@@ -55833,8 +55819,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@268",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:268",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@283",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:283",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "declineCrossOrgReview",
       "kind": "DATABASE",
@@ -55866,8 +55852,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@326",
-      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:326",
+      "writerId": "services/api/src/services/governance/cross-org-review.service.ts#crossOrgReviewGrant.update@341",
+      "terminalLocation": "services/api/src/services/governance/cross-org-review.service.ts:341",
       "file": "services/api/src/services/governance/cross-org-review.service.ts",
       "enclosingDeclaration": "revokeCrossOrgReview",
       "kind": "DATABASE",
@@ -58131,6 +58117,7 @@
         "GET /v1/admin/identity/scim/managed-membership",
         "PATCH /v1/admin/orgs/:id/contract",
         "PATCH /v1/admin/orgs/:id/plan",
+        "PATCH /v1/automation/webhooks/:id",
         "PATCH /v1/governance/retention-policies/:id",
         "PATCH /v1/identity/capabilities/:id",
         "PATCH /v1/identity/delegated-admin/:id",
@@ -58162,6 +58149,10 @@
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/admin/orgs/:id/terminate",
         "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/automation/webhooks",
+        "POST /v1/automation/webhooks/:id/disable",
+        "POST /v1/automation/webhooks/:id/enable",
+        "POST /v1/automation/webhooks/:id/rotate-secret",
         "POST /v1/break-glass/activate",
         "POST /v1/cases/:id/siu-export",
         "POST /v1/cases/:id/siu-profile/reveal-pii",
@@ -58211,6 +58202,7 @@
         "POST /v1/integrations/webhooks/:id/disable",
         "POST /v1/integrations/webhooks/:id/rotate-secret",
         "POST /v1/integrations/webhooks/:id/test",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/lifecycle/destruction/requests/:id/approve",
         "POST /v1/lifecycle/destruction/requests/:id/execute",
         "POST /v1/lifecycle/legal-holds",
@@ -58270,6 +58262,7 @@
         "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/automation-webhooks.routes.ts",
         "MODULE services/api/src/routes/cases.routes.ts",
         "MODULE services/api/src/routes/collaboration-teams.routes.ts",
         "MODULE services/api/src/routes/enterprise-security.routes.ts",
@@ -58443,6 +58436,7 @@
         "GET /v1/admin/identity/scim/managed-membership",
         "PATCH /v1/admin/orgs/:id/contract",
         "PATCH /v1/admin/orgs/:id/plan",
+        "PATCH /v1/automation/webhooks/:id",
         "PATCH /v1/governance/retention-policies/:id",
         "PATCH /v1/identity/capabilities/:id",
         "PATCH /v1/identity/delegated-admin/:id",
@@ -58474,6 +58468,10 @@
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/admin/orgs/:id/terminate",
         "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/automation/webhooks",
+        "POST /v1/automation/webhooks/:id/disable",
+        "POST /v1/automation/webhooks/:id/enable",
+        "POST /v1/automation/webhooks/:id/rotate-secret",
         "POST /v1/break-glass/activate",
         "POST /v1/cases/:id/siu-export",
         "POST /v1/cases/:id/siu-profile/reveal-pii",
@@ -58523,6 +58521,7 @@
         "POST /v1/integrations/webhooks/:id/disable",
         "POST /v1/integrations/webhooks/:id/rotate-secret",
         "POST /v1/integrations/webhooks/:id/test",
+        "POST /v1/integrations/webhooks/endpoints",
         "POST /v1/lifecycle/destruction/requests/:id/approve",
         "POST /v1/lifecycle/destruction/requests/:id/execute",
         "POST /v1/lifecycle/legal-holds",
@@ -58582,6 +58581,7 @@
         "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/automation-webhooks.routes.ts",
         "MODULE services/api/src/routes/cases.routes.ts",
         "MODULE services/api/src/routes/collaboration-teams.routes.ts",
         "MODULE services/api/src/routes/enterprise-security.routes.ts",
@@ -62430,8 +62430,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-dispatcher.ts#integrationWebhookDelivery.create@306",
-      "terminalLocation": "services/api/src/services/integrations/webhook-dispatcher.ts:306",
+      "writerId": "services/api/src/services/integrations/webhook-dispatcher.ts#integrationWebhookDelivery.create@281",
+      "terminalLocation": "services/api/src/services/integrations/webhook-dispatcher.ts:281",
       "file": "services/api/src/services/integrations/webhook-dispatcher.ts",
       "enclosingDeclaration": "dispatchTestEventToEndpoint",
       "kind": "DATABASE",
@@ -62463,8 +62463,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhook-dispatcher.ts#integrationWebhookDelivery.create@367",
-      "terminalLocation": "services/api/src/services/integrations/webhook-dispatcher.ts:367",
+      "writerId": "services/api/src/services/integrations/webhook-dispatcher.ts#integrationWebhookDelivery.create@342",
+      "terminalLocation": "services/api/src/services/integrations/webhook-dispatcher.ts:342",
       "file": "services/api/src/services/integrations/webhook-dispatcher.ts",
       "enclosingDeclaration": "emitWebhookEvent",
       "kind": "DATABASE",
@@ -62536,6 +62536,109 @@
         "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
         "MODULE services/api/src/routes/integrations-api.routes.ts",
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts",
+        "MODULE services/api/src/routes/ops-seed.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts",
+        "MODULE services/api/src/routes/reviewer-workspace.routes.ts",
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/integrations/webhook-dispatcher.ts#integrationWebhookDelivery.update@413",
+      "terminalLocation": "services/api/src/services/integrations/webhook-dispatcher.ts:413",
+      "file": "services/api/src/services/integrations/webhook-dispatcher.ts",
+      "enclosingDeclaration": "attemptDeliveryInner",
+      "kind": "DATABASE",
+      "target": "integrationWebhookDelivery",
+      "mutationKind": "update",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "DELETE /v1/teams/:id/members/:memberId",
+        "PATCH /v1/teams/:id/members/:memberId",
+        "POST /v1/admin/orgs/:id/terminate",
+        "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/evidence",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence",
+        "POST /v1/evidence-requests",
+        "POST /v1/evidence-requests/:id/cancel",
+        "POST /v1/evidence-requests/:id/close",
+        "POST /v1/evidence-requests/:id/deliveries/:deliveryId/retry",
+        "POST /v1/evidence-requests/:id/needs-more-info",
+        "POST /v1/evidence-requests/:id/send",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/parts",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/governance/case-legal-holds",
+        "POST /v1/governance/legal-holds",
+        "POST /v1/identity/access-reviews/:id/decision",
+        "POST /v1/identity/members/:id/restore",
+        "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/role",
+        "POST /v1/identity/members/:id/suspend",
+        "POST /v1/integrations/api/evidence-requests",
+        "POST /v1/integrations/process-webhook-retries",
+        "POST /v1/integrations/webhook-deliveries/:id/retry",
+        "POST /v1/integrations/webhooks/:id/test",
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/lifecycle/archive/transition",
+        "POST /v1/lifecycle/destruction/requests",
+        "POST /v1/lifecycle/destruction/requests/:id/approve",
+        "POST /v1/lifecycle/destruction/requests/:id/execute",
+        "POST /v1/lifecycle/destruction/requests/:id/reject",
+        "POST /v1/lifecycle/legal-holds",
+        "POST /v1/notifications/deliveries/:id/resend",
+        "POST /v1/notifications/process-retries",
+        "POST /v1/notifications/run-digests",
+        "POST /v1/notifications/run-reminders",
+        "POST /v1/ops/seed/reviewer-ops",
+        "POST /v1/review-operations/bulk",
+        "POST /v1/review-operations/evidence/:evidenceId/decision",
+        "POST /v1/review-operations/reconcile-slas",
+        "POST /v1/reviewer-ops/reconcile",
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/assign",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reassign",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/bulk",
+        "POST /v1/reviewer-ops/workspace/:workflowId/decisions",
+        "POST /v1/reviewer/bulk/assign",
+        "POST /v1/teams/:id/transfer-ownership"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence-requests.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
+        "MODULE services/api/src/routes/identity.routes.ts",
+        "MODULE services/api/src/routes/integrations-api.routes.ts",
+        "MODULE services/api/src/routes/integrations.routes.ts",
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/ops-seed.routes.ts",
@@ -63040,8 +63143,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.create@253",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:253",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.create@279",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:279",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "createWebhookEndpoint",
       "kind": "DATABASE",
@@ -63073,8 +63176,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@325",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:325",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@351",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:351",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "updateWebhookEndpoint",
       "kind": "DATABASE",
@@ -63106,8 +63209,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@430",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:430",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@456",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:456",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "rotateWebhookSecret",
       "kind": "DATABASE",
@@ -63139,8 +63242,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@465",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:465",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@491",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:491",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "clearExpiredPreviousWebhookSecret",
       "kind": "DATABASE",
@@ -63242,8 +63345,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@489",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:489",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@515",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:515",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "disableWebhookEndpoint",
       "kind": "DATABASE",
@@ -63275,8 +63378,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@507",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:507",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@533",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:533",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "recordWebhookEndpointSuccess",
       "kind": "DATABASE",
@@ -63378,8 +63481,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@523",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:523",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@549",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:549",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "recordWebhookEndpointFailure",
       "kind": "DATABASE",
@@ -63481,8 +63584,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@534",
-      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:534",
+      "writerId": "services/api/src/services/integrations/webhooks.service.ts#webhookEndpoint.update@560",
+      "terminalLocation": "services/api/src/services/integrations/webhooks.service.ts:560",
       "file": "services/api/src/services/integrations/webhooks.service.ts",
       "enclosingDeclaration": "recordWebhookEndpointFailure",
       "kind": "DATABASE",
@@ -63958,8 +64061,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/intelligence/media-intelligence.service.ts#mediaIntelligenceEntity.create@167",
-      "terminalLocation": "services/api/src/services/intelligence/media-intelligence.service.ts:167",
+      "writerId": "services/api/src/services/intelligence/media-intelligence.service.ts#mediaIntelligenceEntity.create@168",
+      "terminalLocation": "services/api/src/services/intelligence/media-intelligence.service.ts:168",
       "file": "services/api/src/services/intelligence/media-intelligence.service.ts",
       "enclosingDeclaration": "ingestProviderResult",
       "kind": "DATABASE",
@@ -63994,8 +64097,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/intelligence/media-intelligence.service.ts#mediaIntelligenceRecord.upsert@126",
-      "terminalLocation": "services/api/src/services/intelligence/media-intelligence.service.ts:126",
+      "writerId": "services/api/src/services/intelligence/media-intelligence.service.ts#mediaIntelligenceRecord.upsert@127",
+      "terminalLocation": "services/api/src/services/intelligence/media-intelligence.service.ts:127",
       "file": "services/api/src/services/intelligence/media-intelligence.service.ts",
       "enclosingDeclaration": "ingestProviderResult",
       "kind": "DATABASE",
@@ -88454,8 +88557,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementGrant.upsert@669",
-      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:669",
+      "writerId": "services/api/src/services/packaging/entitlement.service.ts#entitlementGrant.upsert@730",
+      "terminalLocation": "services/api/src/services/packaging/entitlement.service.ts:730",
       "file": "services/api/src/services/packaging/entitlement.service.ts",
       "enclosingDeclaration": "upsertEntitlementGrant",
       "kind": "DATABASE",
@@ -88488,8 +88591,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.create@288",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:288",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.create@327",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:327",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "emitWebhookEvent",
       "kind": "DATABASE",
@@ -88532,8 +88635,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@339",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:339",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@380",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:380",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "deliverWebhookDelivery",
       "kind": "DATABASE",
@@ -88576,8 +88679,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@414",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:414",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@419",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:419",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "deliverWebhookDelivery",
       "kind": "DATABASE",
@@ -88620,8 +88723,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@428",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:428",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@468",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:468",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "deliverWebhookDelivery",
       "kind": "DATABASE",
@@ -88664,8 +88767,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@439",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:439",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@482",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:482",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "deliverWebhookDelivery",
       "kind": "DATABASE",
@@ -88708,8 +88811,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@460",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:460",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@493",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:493",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "deliverWebhookDelivery",
       "kind": "DATABASE",
@@ -88752,15 +88855,59 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookEndpoint.create@143",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:143",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookDelivery.update@514",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:514",
+      "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
+      "enclosingDeclaration": "deliverWebhookDelivery",
+      "kind": "DATABASE",
+      "target": "lifecycleWebhookDelivery",
+      "mutationKind": "update",
+      "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/exchange/chain-transfers",
+        "POST /v1/exchange/chain-transfers/:id/accept",
+        "POST /v1/exchange/deliveries/:id/download",
+        "POST /v1/exchange/packages",
+        "POST /v1/exchange/packages/:id/sign-url",
+        "POST /v1/governance/case-legal-holds",
+        "POST /v1/governance/case-legal-holds/:id/release",
+        "POST /v1/governance/legal-holds",
+        "POST /v1/governance/legal-holds/:id/release",
+        "POST /v1/lifecycle/legal-holds",
+        "POST /v1/lifecycle/legal-holds/:id/release"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/governance.routes.ts",
+        "MODULE services/api/src/routes/product-and-lifecycle.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "conditional_state_claim+provider_idempotency_key",
+        "retrySemantics": "EXTERNAL_DELIVERY",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookEndpoint.create@170",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:170",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "createWebhookEndpoint",
       "kind": "DATABASE",
       "target": "lifecycleWebhookEndpoint",
       "mutationKind": "create",
       "primaryFamily": "AUTOMATION_QUEUE_WEBHOOK",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/exchange/chain-transfers",
         "POST /v1/exchange/chain-transfers/:id/accept",
@@ -88788,7 +88935,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "conditional_state_claim+provider_idempotency_key",
         "retrySemantics": "EXTERNAL_DELIVERY",
@@ -88797,8 +88944,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookEndpoint.updateMany@185",
-      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:185",
+      "writerId": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts#lifecycleWebhookEndpoint.updateMany@224",
+      "terminalLocation": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:224",
       "file": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts",
       "enclosingDeclaration": "deactivateWebhookEndpoint",
       "kind": "DATABASE",
@@ -103791,8 +103938,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/webhook-dispatcher.ts#intelligenceActivityEvent.create@162",
-      "terminalLocation": "services/worker/src/webhook-dispatcher.ts:162",
+      "writerId": "services/worker/src/webhook-dispatcher.ts#intelligenceActivityEvent.create@221",
+      "terminalLocation": "services/worker/src/webhook-dispatcher.ts:221",
       "file": "services/worker/src/webhook-dispatcher.ts",
       "enclosingDeclaration": "activityEventCreate",
       "kind": "DATABASE",
@@ -111069,7 +111216,7 @@
       "method": "GET",
       "path": "/v1/ai/availability",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai.routes.ts:335",
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:336",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -112497,7 +112644,7 @@
       "method": "GET",
       "path": "/v1/automation/webhook-deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:542",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:598",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -112553,7 +112700,7 @@
       "method": "GET",
       "path": "/v1/automation/webhooks",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:191",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:192",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -112566,7 +112713,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx",
-          "line": 215,
+          "line": 228,
           "caller": "DestinationsWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -112576,7 +112723,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:215 (DestinationsWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:228 (DestinationsWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -121003,7 +121150,7 @@
       "method": "GET",
       "path": "/v1/exchange/chain-transfers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:877",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:878",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -121072,7 +121219,7 @@
       "method": "GET",
       "path": "/v1/exchange/packages",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:370",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:371",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -121142,7 +121289,7 @@
       "method": "GET",
       "path": "/v1/exchange/packages/:packageId/deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:676",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:677",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -126986,7 +127133,7 @@
       "method": "GET",
       "path": "/v1/integrations/api-keys",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:262",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:265",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127051,7 +127198,7 @@
       "method": "GET",
       "path": "/v1/integrations/api-keys/:id/usage",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:621",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:624",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127323,7 +127470,7 @@
       "method": "GET",
       "path": "/v1/integrations/diagnostics",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1277",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1280",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127387,7 +127534,7 @@
       "method": "GET",
       "path": "/v1/integrations/health",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1318",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1321",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127463,7 +127610,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhook-deliveries/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1120",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1123",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127528,7 +127675,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:662",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:665",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127593,7 +127740,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/:id/deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1072",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1075",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127659,7 +127806,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1161",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1177",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127724,7 +127871,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/endpoints",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1054",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1055",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127737,7 +127884,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
-          "line": 141,
+          "line": 149,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127747,7 +127894,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:141 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:149 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127794,7 +127941,7 @@
       "method": "GET",
       "path": "/v1/integrations/webhooks/lifecycle-deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1208",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1224",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127807,7 +127954,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
-          "line": 142,
+          "line": 150,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127817,7 +127964,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:142 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:150 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -129381,7 +129528,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/archive/costs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1823",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1841",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129448,7 +129595,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/archive/transitions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1766",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1784",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129518,7 +129665,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/dashboard",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2139",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2157",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129609,7 +129756,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/eligible-approvers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1879",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1897",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129679,7 +129826,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1848",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1866",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129753,7 +129900,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2068",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2086",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129811,7 +129958,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/destruction/requests/:id/certificate.json",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2097",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2115",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129868,7 +130015,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1409",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1427",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -129938,7 +130085,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/retention/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1295",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1313",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -130020,7 +130167,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/retention/upcoming-expirations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1382",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1400",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -130086,7 +130233,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/verification-package/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2247",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2265",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -130159,7 +130306,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2278",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2296",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -130223,7 +130370,7 @@
       "method": "GET",
       "path": "/v1/lifecycle/violations/counts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2318",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2336",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -134796,7 +134943,7 @@
       "method": "GET",
       "path": "/v1/packaging/entitlements",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:195",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:196",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145235,7 +145382,7 @@
       "method": "PATCH",
       "path": "/v1/automation/webhooks/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:320",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:335",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -145248,8 +145395,8 @@
       "productConsumers": [
         {
           "file": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx",
-          "line": 538,
-          "caller": "DestinationsWorkspace",
+          "line": 567,
+          "caller": "patch",
           "class": "WEB",
           "primitive": "apiFetch",
           "viaResolution": false
@@ -145258,7 +145405,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:538 (DestinationsWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:567 (patch, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145273,15 +145420,21 @@
       "modelsRead": [
         "authenticatedSession",
         "automationWebhookDestination",
+        "externalIdentityMapping",
+        "mfaFactor",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember"
       ],
       "modelsWritten": [
         "automationWebhookDestination",
-        "securityEvent"
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -145290,6 +145443,7 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -147109,7 +147263,7 @@
       "method": "PATCH",
       "path": "/v1/integrations/api-keys/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:529",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:532",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -150987,7 +151141,7 @@
       "method": "POST",
       "path": "/v1/ai/capture/analyze-session",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai.routes.ts:643",
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:653",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151052,8 +151206,7 @@
         "aiUsageDaily",
         "aiUsageEvent",
         "aiUsageMonthly",
-        "entitlement",
-        "entitlementUsage"
+        "entitlement"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -151175,7 +151328,7 @@
       "method": "POST",
       "path": "/v1/ai/chat",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/ai.routes.ts:367",
+      "registrationEvidence": "services/api/src/routes/ai.routes.ts:368",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -151241,7 +151394,6 @@
         "aiUsageEvent",
         "aiUsageMonthly",
         "entitlement",
-        "entitlementUsage",
         "securityEvent"
       ],
       "tenantBindingResolved": true,
@@ -153150,7 +153302,7 @@
       "method": "POST",
       "path": "/v1/automation/webhooks",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:224",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:225",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -153163,7 +153315,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx",
-          "line": 414,
+          "line": 435,
           "caller": "DestinationsWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153173,7 +153325,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:414 (DestinationsWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:435 (DestinationsWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153188,22 +153340,29 @@
       "modelsRead": [
         "authenticatedSession",
         "automationWebhookDestination",
+        "externalIdentityMapping",
+        "mfaFactor",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember"
       ],
       "modelsWritten": [
         "automationWebhookDestination",
-        "securityEvent"
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/middleware/authorize.ts: the canonical authorization evaluator (ACTIVE membership + tenant + capability)",
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
-        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -153218,7 +153377,7 @@
       "method": "POST",
       "path": "/v1/automation/webhooks/:id/disable",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:478",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:521",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -153231,7 +153390,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx",
-          "line": 87,
+          "line": 96,
           "caller": "switchDestination",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153241,7 +153400,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:87 (switchDestination, WEB)",
+      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:96 (switchDestination, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153256,14 +153415,20 @@
       "modelsRead": [
         "authenticatedSession",
         "automationWebhookDestination",
+        "externalIdentityMapping",
+        "mfaFactor",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember"
       ],
       "modelsWritten": [
-        "automationWebhookDestination"
+        "automationWebhookDestination",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -153272,6 +153437,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -153285,7 +153451,7 @@
       "method": "POST",
       "path": "/v1/automation/webhooks/:id/enable",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:473",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:516",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -153298,7 +153464,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx",
-          "line": 87,
+          "line": 96,
           "caller": "switchDestination",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153308,7 +153474,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:87 (switchDestination, WEB)",
+      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:96 (switchDestination, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153323,14 +153489,20 @@
       "modelsRead": [
         "authenticatedSession",
         "automationWebhookDestination",
+        "externalIdentityMapping",
+        "mfaFactor",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember"
       ],
       "modelsWritten": [
-        "automationWebhookDestination"
+        "automationWebhookDestination",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -153339,6 +153511,7 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -153352,7 +153525,7 @@
       "method": "POST",
       "path": "/v1/automation/webhooks/:id/rotate-secret",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:493",
+      "registrationEvidence": "services/api/src/routes/automation-webhooks.routes.ts:536",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireTeamCapability -> services/api/src/routes/automation-webhooks.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -153365,7 +153538,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx",
-          "line": 327,
+          "line": 344,
           "caller": "rotate",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153375,7 +153548,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:327 (rotate, WEB)",
+      "dispositionEvidence": "apps/web/components/automation/AutomationWebhookDestinationsPanel.tsx:344 (rotate, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153390,15 +153563,21 @@
       "modelsRead": [
         "authenticatedSession",
         "automationWebhookDestination",
+        "externalIdentityMapping",
+        "mfaFactor",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember"
       ],
       "modelsWritten": [
         "automationWebhookDestination",
-        "securityEvent"
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -153407,6 +153586,7 @@
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/automation-webhooks.routes.ts: automationWebhookDestination.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -160741,7 +160921,7 @@
         },
         {
           "file": "apps/web/components/notifications/ContactChannelVerificationCard.tsx",
-          "line": 270,
+          "line": 282,
           "caller": "ContactChannelVerificationCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -160751,7 +160931,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/messaging-contact-section.tsx:136 (save, MOBILE); apps/web/components/notifications/ContactChannelVerificationCard.tsx:270 (ContactChannelVerificationCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/messaging-contact-section.tsx:136 (save, MOBILE); apps/web/components/notifications/ContactChannelVerificationCard.tsx:282 (ContactChannelVerificationCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160798,7 +160978,7 @@
       "method": "POST",
       "path": "/v1/communications/process-retries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/communications.routes.ts:608",
+      "registrationEvidence": "services/api/src/routes/communications.routes.ts:620",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -160810,7 +160990,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/communications.routes.ts:608 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/communications.routes.ts:620 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -160859,7 +161039,7 @@
       "method": "POST",
       "path": "/v1/communications/verify/check",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/communications.routes.ts:571",
+      "registrationEvidence": "services/api/src/routes/communications.routes.ts:577",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireCommunicationsActor -> services/api/src/routes/communications.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -160880,7 +161060,7 @@
         },
         {
           "file": "apps/web/components/notifications/ContactChannelVerificationCard.tsx",
-          "line": 197,
+          "line": 205,
           "caller": "ContactChannelVerificationCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -160890,7 +161070,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/messaging-contact-section.tsx:109 (check, MOBILE); apps/web/components/notifications/ContactChannelVerificationCard.tsx:197 (ContactChannelVerificationCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/messaging-contact-section.tsx:109 (check, MOBILE); apps/web/components/notifications/ContactChannelVerificationCard.tsx:205 (ContactChannelVerificationCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -160955,7 +161135,7 @@
         },
         {
           "file": "apps/web/components/notifications/ContactChannelVerificationCard.tsx",
-          "line": 138,
+          "line": 141,
           "caller": "ContactChannelVerificationCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -160965,7 +161145,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/messaging-contact-section.tsx:80 (start, MOBILE); apps/web/components/notifications/ContactChannelVerificationCard.tsx:138 (ContactChannelVerificationCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/messaging-contact-section.tsx:80 (start, MOBILE); apps/web/components/notifications/ContactChannelVerificationCard.tsx:141 (ContactChannelVerificationCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -161013,7 +161193,7 @@
       "method": "POST",
       "path": "/v1/communications/webhooks/twilio/inbound",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/communications.routes.ts:658",
+      "registrationEvidence": "services/api/src/routes/communications.routes.ts:670",
       "authorizationClass": "WEBHOOK_SIGNATURE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/communications.routes.ts: reaches an inbound provider signature verifier (verifyWebhookSignature)"
@@ -161025,7 +161205,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "WEBHOOK_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/communications.routes.ts:658 — handler body -> services/api/src/routes/communications.routes.ts: reaches an inbound provider signature verifier (verifyWebhookSignature)",
+      "dispositionEvidence": "services/api/src/routes/communications.routes.ts:670 — handler body -> services/api/src/routes/communications.routes.ts: reaches an inbound provider signature verifier (verifyWebhookSignature)",
       "dispositionReason": "authenticated by an inbound provider signature verifier; the caller is the provider",
       "replacement": null,
       "result": "DISPOSED_WEBHOOK_ENTRYPOINT",
@@ -161066,7 +161246,7 @@
       "method": "POST",
       "path": "/v1/communications/webhooks/twilio/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/communications.routes.ts:651",
+      "registrationEvidence": "services/api/src/routes/communications.routes.ts:663",
       "authorizationClass": "WEBHOOK_SIGNATURE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/communications.routes.ts: reaches an inbound provider signature verifier (verifyWebhookSignature)"
@@ -161078,7 +161258,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "WEBHOOK_ENTRYPOINT",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/communications.routes.ts:651 — handler body -> services/api/src/routes/communications.routes.ts: reaches an inbound provider signature verifier (verifyWebhookSignature)",
+      "dispositionEvidence": "services/api/src/routes/communications.routes.ts:663 — handler body -> services/api/src/routes/communications.routes.ts: reaches an inbound provider signature verifier (verifyWebhookSignature)",
       "dispositionReason": "authenticated by an inbound provider signature verifier; the caller is the provider",
       "replacement": null,
       "result": "DISPOSED_WEBHOOK_ENTRYPOINT",
@@ -165043,7 +165223,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:904",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:905",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165118,7 +165298,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:960",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:961",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165193,7 +165373,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1026",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1027",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165269,7 +165449,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:982",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:983",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165344,7 +165524,7 @@
       "method": "POST",
       "path": "/v1/exchange/chain-transfers/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1006",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1007",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165419,7 +165599,7 @@
       "method": "POST",
       "path": "/v1/exchange/deliveries/:id/download",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:792",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:793",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165493,7 +165673,7 @@
       "method": "POST",
       "path": "/v1/exchange/packages",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:425",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:426",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165567,7 +165747,7 @@
       "method": "POST",
       "path": "/v1/exchange/packages/:id/build",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:494",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:495",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165643,7 +165823,7 @@
       "method": "POST",
       "path": "/v1/exchange/packages/:id/deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:718",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:719",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165723,7 +165903,7 @@
       "method": "POST",
       "path": "/v1/exchange/packages/:id/ready",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:592",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:593",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -165762,7 +165942,7 @@
       "method": "POST",
       "path": "/v1/exchange/packages/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:839",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:840",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -165835,7 +166015,7 @@
       "method": "POST",
       "path": "/v1/exchange/packages/:id/sign-url",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:606",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:607",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -166208,7 +166388,6 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "captureSession",
         "custodyEvent",
         "entitlement",
@@ -166241,7 +166420,6 @@
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
-        "adminAuditLog",
         "captureSession",
         "captureSessionEvent",
         "custodyEvent",
@@ -167194,6 +167372,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "department",
         "departmentMembership",
         "enterpriseContract",
         "entitlement",
@@ -173747,7 +173926,7 @@
       "method": "POST",
       "path": "/v1/integrations/api-keys",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:287",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:290",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -173823,7 +174002,7 @@
       "method": "POST",
       "path": "/v1/integrations/api-keys/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:362",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:365",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -173899,7 +174078,7 @@
       "method": "POST",
       "path": "/v1/integrations/api-keys/:id/rotate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:431",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:434",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -174442,7 +174621,7 @@
       "method": "POST",
       "path": "/v1/integrations/process-secret-cleanup",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1390",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1393",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -174454,7 +174633,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/integrations.routes.ts:1390 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/integrations.routes.ts:1393 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -174494,7 +174673,7 @@
       "method": "POST",
       "path": "/v1/integrations/process-webhook-retries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1337",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1340",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -174506,7 +174685,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/integrations.routes.ts:1337 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/integrations.routes.ts:1340 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -174537,9 +174716,9 @@
         "services/api/src/services/integrations/webhook-retry-processor.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate"
+        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
+        "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -174552,7 +174731,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhook-deliveries/:id/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1209",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1212",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -174624,7 +174803,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhook-deliveries/:id/retry",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1141",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1144",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -174710,7 +174889,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:687",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:690",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -174784,7 +174963,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/:id/disable",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:918",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:921",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -174858,7 +175037,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/:id/rotate-secret",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:837",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:840",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -174935,7 +175114,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/:id/test",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:988",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:991",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -175017,7 +175196,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/cleanup-deliveries",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1358",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:1361",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -175029,7 +175208,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/integrations.routes.ts:1358 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/integrations.routes.ts:1361 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -175066,7 +175245,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/endpoints",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1082",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1083",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -175079,7 +175258,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
-          "line": 249,
+          "line": 260,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175089,7 +175268,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:249 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:260 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175104,10 +175283,13 @@
       "modelsRead": [
         "authenticatedSession",
         "entitlementGrant",
-        "entitlementUsage",
+        "externalIdentityMapping",
+        "mfaFactor",
         "organizationSecurityPolicy",
         "revokedSession",
+        "riskSignal",
         "ssoConnection",
+        "stepUpChallenge",
         "supportAccessGrant",
         "team",
         "teamMember",
@@ -175115,12 +175297,14 @@
       ],
       "modelsWritten": [
         "intelligenceActivityEvent",
-        "lifecycleWebhookEndpoint"
+        "lifecycleWebhookEndpoint",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -175138,7 +175322,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/endpoints/:id/deactivate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1131",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1147",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -175151,7 +175335,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
-          "line": 199,
+          "line": 207,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175161,7 +175345,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:199 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:207 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175207,7 +175391,7 @@
       "method": "POST",
       "path": "/v1/integrations/webhooks/lifecycle-deliveries/:id/replay",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1262",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1280",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -175220,7 +175404,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx",
-          "line": 233,
+          "line": 241,
           "caller": "Shell",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -175230,7 +175414,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:233 (Shell, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/evidence-lifecycle/webhooks/page.tsx:241 (Shell, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -175539,7 +175723,6 @@
         "workspaceAiPolicy"
       ],
       "modelsWritten": [
-        "entitlementUsage",
         "governancePolicyAudit",
         "intelligenceActivityEvent",
         "mediaIntelligenceEntity",
@@ -175625,7 +175808,6 @@
         "workspaceAiPolicy"
       ],
       "modelsWritten": [
-        "entitlementUsage",
         "governancePolicyAudit",
         "intelligenceActivityEvent",
         "mediaIntelligenceEntity",
@@ -175995,7 +176177,6 @@
         "workspaceAiPolicy"
       ],
       "modelsWritten": [
-        "entitlementUsage",
         "evidenceExtractedText",
         "evidenceIntelligenceJob",
         "governancePolicyAudit",
@@ -176177,7 +176358,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/archive/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1794",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1812",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176257,7 +176438,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1899",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1917",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176344,7 +176525,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1944",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1962",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176432,7 +176613,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/execute",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2022",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2040",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176568,7 +176749,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/destruction/requests/:id/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1990",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:2008",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176649,7 +176830,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1459",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1477",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176754,7 +176935,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1591",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1609",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176838,7 +177019,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release-approval",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1715",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1733",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176915,7 +177096,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/legal-holds/:id/release-request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1676",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1694",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -176987,7 +177168,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/retention/policies",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1320",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1338",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -177074,7 +177255,7 @@
       "method": "POST",
       "path": "/v1/lifecycle/retention/policies/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1360",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:1378",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveWorkspace -> services/api/src/routes/redaction.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -177993,10 +178174,10 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.findUnique — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate",
+        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.update — no tenant or self predicate",
         "services/api/src/services/integrations/webhooks.service.ts: webhookEndpoint.update — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
@@ -182579,7 +182760,7 @@
       "method": "POST",
       "path": "/v1/packaging/entitlements/apply-product-line",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:259",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:260",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -182642,7 +182823,7 @@
       "method": "POST",
       "path": "/v1/packaging/entitlements/grant",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:313",
+      "registrationEvidence": "services/api/src/routes/product-and-lifecycle.routes.ts:314",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -193757,7 +193938,7 @@
       "method": "PUT",
       "path": "/v1/integrations/webhooks/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:755",
+      "registrationEvidence": "services/api/src/routes/integrations.routes.ts:758",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",

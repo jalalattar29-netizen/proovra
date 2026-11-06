@@ -231,6 +231,13 @@
       "originBinding": "base = the API origin the worker is configured with",
       "evidence": "runApiDeliverySweepTick: the worker's one caller of this API's cron routes; each path comes from API_DELIVERY_SWEEPS.",
       "reviewedAtUtc": "2026-11-02"
+    },
+    {
+      "site": "packages/shared-runtime/src/outbound/outbound-url-policy.ts:259",
+      "verdict": "EXTERNAL",
+      "originBinding": "url = a customer-registered webhook destination, checked by the shared outbound policy and connected to its pinned literal address",
+      "evidence": "The one outbound webhook transport (PRO-061/064/067): lifecycle, automation and integration webhook deliveries to customer endpoints. It replaced the three fetch call sites that dynamic-resolutions.json classified EXTERNAL_DESTINATION (webhook-platform.service.ts:360, integrations/webhook-dispatcher.ts:99, automation-delivery-runtime.service.ts:395). Never this API.",
+      "reviewedAtUtc": "2026-11-06"
     }
   ]
 }

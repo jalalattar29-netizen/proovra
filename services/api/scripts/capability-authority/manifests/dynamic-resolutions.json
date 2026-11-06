@@ -79,24 +79,6 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/packaging/webhooks/webhook-platform.service.ts:360",
-      "class": "EXTERNAL_DESTINATION",
-      "evidence": "fetch(delivery.endpoint.url) — delivery to a customer-registered webhook endpoint.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/integrations/webhook-dispatcher.ts:99",
-      "class": "EXTERNAL_DESTINATION",
-      "evidence": "defaultHttpClient — the integration webhook dispatcher's outbound POST to a customer endpoint.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
-      "site": "services/api/src/services/automation/automation-delivery-runtime.service.ts:395",
-      "class": "EXTERNAL_DESTINATION",
-      "evidence": "deliverWebhookOnce({ url: destination.url }) — automation delivery to a customer-configured destination.",
-      "reviewedAtUtc": "2026-08-15"
-    },
-    {
       "site": "services/api/src/services/alerts/webhook-provider.ts:85",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(this.url) — the operational alert webhook provider posting to the configured alert sink.",
