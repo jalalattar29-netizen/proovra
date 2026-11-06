@@ -244,7 +244,11 @@ export function AppListbox<T extends string = string>({
         closeMenu();
         break;
       case "Tab":
-        closeMenu(false);
+        // The popup is portaled to the end of <body>, so a Tab from it would
+        // land wherever the document ends, not after the control. Focus goes
+        // back to the trigger first and the browser's own Tab then moves on
+        // from there, forwards or (with Shift) backwards (PRO-006).
+        closeMenu(true);
         break;
       default:
         break;
@@ -333,6 +337,14 @@ export function AppListbox<T extends string = string>({
           }
           className="app-listbox__popup"
           onKeyDown={onListKeyDown}
+          onBlur={(event) => {
+            // Focus left the list by any other route (a script, a click that
+            // moved focus, the window losing focus): the menu closes, so no
+            // key press is ever read by a list the person is not in (PRO-006).
+            const next = event.relatedTarget as Node | null;
+            if (next && (popupRef.current?.contains(next) || triggerRef.current?.contains(next))) return;
+            closeOnOutside();
+          }}
           ref={(el) => {
             popupRef.current = el;
             // Move focus into the list so keyboard nav is captured.

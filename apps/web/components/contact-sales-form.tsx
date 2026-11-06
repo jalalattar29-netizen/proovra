@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Input, useToast } from "./ui";
-import { PremiumSelect } from "./request-demo-form";
+import { LeadFieldLabel, PremiumSelect } from "./request-demo-form";
 import {
   CONTACT_SALES_DEFAULTS,
   CONTACT_SALES_TEAM_SIZE_OPTIONS,
@@ -105,10 +105,10 @@ export function ContactSalesForm({
     <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Full name <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel htmlFor="cs-fullName" required>Full name</LeadFieldLabel>
           <Input
+            id="cs-fullName"
+            aria-required="true"
             value={form.fullName}
             onChange={(v) => set("fullName", v)}
             error={errors.fullName}
@@ -117,10 +117,10 @@ export function ContactSalesForm({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Work email <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel htmlFor="cs-workEmail" required>Work email</LeadFieldLabel>
           <Input
+            id="cs-workEmail"
+            aria-required="true"
             value={form.workEmail}
             onChange={(v) => set("workEmail", v)}
             error={errors.workEmail}
@@ -133,10 +133,10 @@ export function ContactSalesForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Organization <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel htmlFor="cs-organization" required>Organization</LeadFieldLabel>
           <Input
+            id="cs-organization"
+            aria-required="true"
             value={form.organization ?? ""}
             onChange={(v) => set("organization", v)}
             error={errors.organization}
@@ -145,10 +145,9 @@ export function ContactSalesForm({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Job title
-          </label>
+          <LeadFieldLabel htmlFor="cs-jobTitle">Job title</LeadFieldLabel>
           <Input
+            id="cs-jobTitle"
             value={form.jobTitle ?? ""}
             onChange={(v) => set("jobTitle", v)}
             placeholder="Director of Operations"
@@ -159,10 +158,9 @@ export function ContactSalesForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Country
-          </label>
+          <LeadFieldLabel htmlFor="cs-country">Country</LeadFieldLabel>
           <Input
+            id="cs-country"
             value={form.country ?? ""}
             onChange={(v) => set("country", v)}
             placeholder="Germany"
@@ -170,10 +168,9 @@ export function ContactSalesForm({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Team size
-          </label>
+          <LeadFieldLabel id="cs-teamSize-label">Team size</LeadFieldLabel>
           <PremiumSelect
+            labelId="cs-teamSize-label"
             value={form.teamSize ?? ""}
             onChange={(v) => set("teamSize", v)}
             options={teamSizeOptions}
@@ -184,10 +181,10 @@ export function ContactSalesForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Primary topic <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel id="cs-discussionTopic-label" required>Primary topic</LeadFieldLabel>
           <PremiumSelect
+            labelId="cs-discussionTopic-label"
+            required
             value={form.discussionTopic ?? ""}
             onChange={(v) => set("discussionTopic", v)}
             options={topicOptions}
@@ -198,10 +195,10 @@ export function ContactSalesForm({
           ) : null}
         </div>
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            What stage are you in? <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel id="cs-stage-label" required>What stage are you in?</LeadFieldLabel>
           <PremiumSelect
+            labelId="cs-stage-label"
+            required
             value={form.stage ?? ""}
             onChange={(v) => set("stage", v)}
             options={stageOptions}
@@ -215,10 +212,9 @@ export function ContactSalesForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Expected deployment timeline
-          </label>
+          <LeadFieldLabel id="cs-deploymentTimeline-label">Expected deployment timeline</LeadFieldLabel>
           <PremiumSelect
+            labelId="cs-deploymentTimeline-label"
             value={form.deploymentTimeline ?? ""}
             onChange={(v) => set("deploymentTimeline", v)}
             options={timelineOptions}
@@ -226,10 +222,9 @@ export function ContactSalesForm({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Estimated users
-          </label>
+          <LeadFieldLabel id="cs-estimatedUsers-label">Estimated users</LeadFieldLabel>
           <PremiumSelect
+            labelId="cs-estimatedUsers-label"
             value={form.estimatedUsers ?? ""}
             onChange={(v) => set("estimatedUsers", v)}
             options={usersOptions}
@@ -239,10 +234,10 @@ export function ContactSalesForm({
       </div>
 
       <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-          Current challenge <span className="text-[#F97316]">*</span>
-        </label>
+        <LeadFieldLabel htmlFor="cs-currentChallenge" required>Current challenge</LeadFieldLabel>
         <textarea
+          id="cs-currentChallenge"
+          aria-required="true"
           value={form.currentChallenge}
           onChange={(e) => set("currentChallenge", e.target.value)}
           placeholder="Describe the challenge you are trying to solve, such as evidence intake from external parties, review bottlenecks, governance requirements, deployment planning, procurement review, integrations, audit readiness, or legal hold needs."
@@ -256,10 +251,9 @@ export function ContactSalesForm({
       </div>
 
       <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-          Security, governance, or procurement notes
-        </label>
+        <LeadFieldLabel htmlFor="cs-additionalDetails">Security, governance, or procurement notes</LeadFieldLabel>
         <textarea
+          id="cs-additionalDetails"
           value={form.additionalDetails ?? ""}
           onChange={(e) => set("additionalDetails", e.target.value)}
           placeholder="Share any security, governance, retention, legal hold, SSO/SCIM, procurement, contract, timeline, or stakeholder requirements we should know before responding."
