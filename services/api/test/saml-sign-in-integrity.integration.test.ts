@@ -22,6 +22,7 @@ import {
   seedOrganizationTenant,
   seedPersonalTenant,
   seedUser,
+  verifyOrganizationDomain,
   type FixtureDeps,
   type OrganizationTenant,
 } from "./point7/product-fixtures.js";
@@ -47,10 +48,18 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
       60 * 60,
     );
 
+  /**
+   * IDENT-013 / PRO-025 — SAML JIT creates an account only in a domain the
+   * Organization verified. Every connection's Organization gets one, and the
+   * test that follows asserts addresses in it.
+   */
+  let currentDomain = "example.test";
+
   async function connection(
     org: OrganizationTenant,
     extra: Record<string, unknown> = {},
   ): Promise<string> {
+    currentDomain = await verifyOrganizationDomain(deps, org.organizationId, org.owner.userId);
     const row = await prisma.ssoConnection.create({
       data: {
         teamId: org.workspaceId,
@@ -135,7 +144,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("a successful sign-in lands on the web host, using the ACS the boot guard validates", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const email = `new-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `new-${randomUUID().slice(0, 8)}@${currentDomain}`;
     const res = await signIn(conn, email);
     expect(res.statusCode, res.body).toBe(302);
     expect(res.headers.location).toBe(`${WEB}/home`);
@@ -146,7 +155,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("RT-015: a new SAML account owes acceptance until it accepts", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const email = `legal-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `legal-${randomUUID().slice(0, 8)}@${currentDomain}`;
     const res = await signIn(conn, email);
     const raw = res.headers["set-cookie"];
     const session = (Array.isArray(raw) ? raw : [String(raw)])
@@ -206,7 +215,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
     const { requestId, relayState, cookie } = await startSignIn(conn);
-    const email = `csrf-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `csrf-${randomUUID().slice(0, 8)}@${currentDomain}`;
     const response = buildSignedSamlResponse({ inResponseTo: requestId, nameId: email });
 
     const elsewhere = await postAcs(response, relayState, "");
@@ -257,8 +266,20 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("IDENT-009: moving part of a signed subject into CDATA does not truncate it", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const victim = `victim-${randomUUID().slice(0, 8)}@example.test`;
+    const victim = `victim-${randomUUID().slice(0, 8)}@${currentDomain}`;
     const signedSubject = `${victim}.evil.example`;
+    // IDENT-013 — the signed subject is provisioned only in a verified domain,
+    // so the Organization holds that one too; what is asserted below is which
+    // address the assertion reads as, not whether it may be created.
+    await prisma.organizationDomain.create({
+      data: {
+        organizationId: org.organizationId,
+        domain: `${currentDomain}.evil.example`,
+        verifiedAt: new Date(),
+        verificationToken: randomUUID(),
+        createdByUserId: org.owner.userId,
+      } as never,
+    });
 
     const firstSignIn = await signIn(conn, victim);
     expect(firstSignIn.headers.location).toBe(`${WEB}/home`);
@@ -283,7 +304,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("IDENT-010: closure ends the mapping, and an IdP cannot sign the account back in", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const email = `closing-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `closing-${randomUUID().slice(0, 8)}@${currentDomain}`;
     expect((await signIn(conn, email)).headers.location).toBe(`${WEB}/home`);
     const user = await prisma.user.findFirstOrThrow({ where: { email }, select: { id: true } });
     const before = await prisma.authenticatedSession.count({ where: { userId: user.id } });
@@ -305,7 +326,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("IDENT-010: a mapping left linked by an older closure refuses too", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const email = `legacy-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `legacy-${randomUUID().slice(0, 8)}@${currentDomain}`;
     await signIn(conn, email);
     const user = await prisma.user.findFirstOrThrow({ where: { email }, select: { id: true } });
     await prisma.user.update({ where: { id: user.id }, data: { providerUserId: `closed:${user.id}` } });
@@ -389,7 +410,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("IDENT-011: the concurrent-session limit holds through the MFA step", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const email = `limit-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `limit-${randomUUID().slice(0, 8)}@${currentDomain}`;
     expect((await signIn(conn, email)).headers.location).toBe(`${WEB}/home`);
     const user = await prisma.user.findFirstOrThrow({ where: { email }, select: { id: true } });
     const secretBytes = await factorFor(user.id);
@@ -489,7 +510,7 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
   it("IDENT-011: the concurrent-session limit holds through enrolment, with no credential issued", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const conn = await connection(org);
-    const email = `enrol-limit-${randomUUID().slice(0, 8)}@example.test`;
+    const email = `enrol-limit-${randomUUID().slice(0, 8)}@${currentDomain}`;
     expect((await signIn(conn, email)).headers.location).toBe(`${WEB}/home`);
     const user = await prisma.user.findFirstOrThrow({ where: { email }, select: { id: true } });
     await prisma.organizationSecurityPolicy.update({

@@ -58,8 +58,6 @@ import { intelligencePlatformRoutes } from "./routes/intelligence-platform.route
 import { trustAndGovernanceRoutes } from "./routes/trust-and-governance.routes.js";
 import { bootstrapObjectLockVerification } from "./bootstrap/object-lock-verification.js";
 import { authRoutes } from "./routes/auth.routes.js";
-// PRO-034 — the Google/Apple sign-in nonce (POST /v1/auth/oauth/nonce).
-import { socialSignInNonceRoutes } from "./routes/social-sign-in-nonce.routes.js";
 import { extensionOAuthRoutes } from "./routes/extension-oauth.routes.js";
 import { teamsRoutes } from "./routes/teams.routes.js";
 import { collaborationTeamsRoutes } from "./routes/collaboration-teams.routes.js";
@@ -1298,7 +1296,6 @@ allowedHeaders: [
   // was never what made it fire early enough; the Fastify lifecycle was.
 
   await app.register(authRoutes);
-  await app.register(socialSignInNonceRoutes);
   await app.register(extensionOAuthRoutes);
   await app.register(usersRoutes);
   await app.register(platformContextRoutes);

@@ -49,9 +49,6 @@ export function useOAuth(opts: {
       .then(setGoogleNonce)
       .catch(() => setGoogleNonce(null));
   }, []);
-  useEffect(() => {
-    refreshGoogleNonce();
-  }, [refreshGoogleNonce]);
 
   // Google native sign-in needs PLATFORM-SPECIFIC client ids (A1). Passing these
   // lets expo-auth-session derive the correct native redirect (iOS uses the
@@ -94,6 +91,10 @@ export function useOAuth(opts: {
         ? androidClientId
         : webClientId;
   const googleConfigured = typeof platformClientId === "string" && platformClientId.length > 0;
+  // Only a build that can offer Google asks the API for a Google nonce.
+  useEffect(() => {
+    if (googleConfigured) refreshGoogleNonce();
+  }, [googleConfigured, refreshGoogleNonce]);
 
   // Never sent anywhere: `promptGoogle` returns OAUTH_GOOGLE_UNCONFIGURED
   // before any request is built. It exists only so the provider's invariant

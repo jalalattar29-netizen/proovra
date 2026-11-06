@@ -8,6 +8,11 @@
  *                                             account (step-up; NOT recovery)
  *   DELETE /v1/identity/links/:id           — unlink a method (step-up +
  *                                             last-usable-method protection)
+ *   POST   /v1/auth/oauth/nonce             — PRO-034: the nonce a Google or
+ *                                             Apple ceremony signs into its
+ *                                             id_token, for ONE sign-in or link
+ *                                             attempt (public, rate-limited;
+ *                                             no account or tenant yet)
  *
  * Security model:
  *   - PERSONAL methods only (password / Google / Apple). Organization
@@ -62,7 +67,13 @@ import {
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
-import { bindIdTokenToAttempt } from "../services/auth/social-sign-in-nonce.service.js";
+import {
+  bindIdTokenToAttempt,
+  issueSocialSignInNonce,
+  SOCIAL_NONCE_TTL_SECONDS,
+} from "../services/auth/social-sign-in-nonce.service.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 
 const LinkBody = z.object({
@@ -270,6 +281,39 @@ async function linkProviderIdentity(
 }
 
 export async function identityLinksRoutes(app: FastifyInstance) {
+  // ---------------------------------------------------------------------
+  // POST /v1/auth/oauth/nonce — PRO-034 (AUTH-28). Issued before the
+  // provider prompt; the sign-in (/v1/auth/google|apple) or the link below
+  // that presents the resulting id_token consumes it once. Public, so
+  // rate-limited per trusted client address like the other public auth routes.
+  // ---------------------------------------------------------------------
+  app.post("/v1/auth/oauth/nonce", async (req: FastifyRequest, reply: FastifyReply) => {
+    const rl = await enforceRateLimit({
+      key: `auth:oauth-nonce:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+      bound: "global",
+      max: 30,
+      windowSec: 60,
+    });
+    if (!rl.allowed) {
+      return reply
+        .code(429)
+        .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
+        .send({ error: { code: "RATE_LIMITED", message: "Too many requests. Try again shortly." } });
+    }
+    const parsed = z.object({ provider: z.enum(["google", "apple"]) }).safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: { code: "INVALID_REQUEST", message: "provider must be google or apple." } });
+    }
+    const issued = await issueSocialSignInNonce(
+      req,
+      reply,
+      parsed.data.provider === "google" ? "GOOGLE" : "APPLE",
+    );
+    return reply.code(200).send({ nonce: issued.nonce, expiresInSeconds: SOCIAL_NONCE_TTL_SECONDS });
+  });
+
   // ---------------------------------------------------------------------
   // GET /v1/identity/links — the account's login methods.
   // ---------------------------------------------------------------------

@@ -31,6 +31,8 @@ beforeEach(() => {
       return { status: 200, body: { ok: false, requiresReacceptance: true, missingPolicies: ["terms", "privacy", "cookies"], acceptedVersions: {}, requiredVersions: REQUIRED } };
     if (path === "/v1/users/legal-acceptance") return { status: 200, body: { ok: true } };
     if (path === "/v1/auth/email/resend-verification") return { status: 200, body: { ok: true } };
+    // PRO-034 — every Google/Apple attempt first asks the API for a nonce.
+    if (path === "/v1/auth/oauth/nonce") return { status: 200, body: { nonce: "stub-nonce", expiresInSeconds: 600 } };
     return { status: 200, body: {} };
   };
   globalThis.fetch = async (url, init = {}) => {

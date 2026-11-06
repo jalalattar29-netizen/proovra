@@ -431,6 +431,30 @@ export async function seedOrganizationTenant(
   };
 }
 
+/**
+ * IDENT-013 / PRO-025 — an IdP or directory creates an account only for an
+ * address in a domain its Organization has DNS-verified (and no other
+ * Organization claims). Gives the Organization its own verified domain, as the
+ * domain-verification flow leaves it, and returns it for the fixture's emails.
+ */
+export async function verifyOrganizationDomain(
+  deps: FixtureDeps,
+  organizationId: string,
+  createdByUserId: string,
+): Promise<string> {
+  const domain = `${deps.tag}-${randomUUID().slice(0, 8)}.verified.example`.toLowerCase();
+  await deps.prisma.organizationDomain.create({
+    data: {
+      organizationId,
+      domain,
+      verificationToken: randomUUID(),
+      verifiedAt: new Date(),
+      createdByUserId,
+    },
+  });
+  return domain;
+}
+
 // ===========================================================================
 // Durable side-effect fingerprint
 // ===========================================================================

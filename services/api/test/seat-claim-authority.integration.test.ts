@@ -92,7 +92,9 @@ describe("the seat claim (live PostgreSQL)", () => {
       where: { organizationId: t.organizationId },
       data: { status: "ACTIVE", seatCount },
     });
-    return { orgId: t.organizationId, workspaceId: t.workspaceId, owner: t.owner };
+    // IDENT-013 — directory and IdP accounts are created only in a verified domain.
+    const domain = await fixtures.verifyOrganizationDomain(deps(), t.organizationId, t.owner.userId);
+    return { orgId: t.organizationId, workspaceId: t.workspaceId, owner: t.owner, domain };
   }
 
   async function seat(workspaceId: string, count: number) {
@@ -168,13 +170,13 @@ describe("the seat claim (live PostgreSQL)", () => {
     const o = await organization(2);
     await seat(o.workspaceId, 1);
 
-    const first = `jit-${tag()}@example.test`;
+    const first = `jit-${tag()}@${o.domain}`;
     const subject = `sub-${tag()}`;
     const admitted = await samlLogin(o, first, subject);
     expect(admitted.isNewlyProvisioned).toBe(true);
     expect(await used(o.workspaceId, o.owner.userId)).toBe(2);
 
-    const refusedEmail = `jit-${tag()}@example.test`;
+    const refusedEmail = `jit-${tag()}@${o.domain}`;
     await expect(samlLogin(o, refusedEmail)).rejects.toMatchObject({ code: "SAML_SEAT_LIMIT_REACHED" });
     expect(await used(o.workspaceId, o.owner.userId)).toBe(2);
     expect(await prisma.user.count({ where: { email: refusedEmail } })).toBe(0);
@@ -259,12 +261,12 @@ describe("the seat claim (live PostgreSQL)", () => {
 
     try {
       const sub = `oidc-${tag()}`;
-      const email = `oidc-${tag()}@example.test`;
+      const email = `oidc-${tag()}@${o.domain}`;
       const first = await login(sub, email);
       expect(first.user.isNewlyProvisioned).toBe(true);
       expect(await used(o.workspaceId, o.owner.userId)).toBe(1);
 
-      const refused = `oidc-${tag()}@example.test`;
+      const refused = `oidc-${tag()}@${o.domain}`;
       await expect(login(`oidc-${tag()}`, refused)).rejects.toMatchObject({ code: "SSO_SEAT_LIMIT_REACHED" });
       expect(await prisma.user.count({ where: { email: refused } })).toBe(0);
       expect(await prisma.externalIdentityMapping.count({ where: { externalEmail: refused } })).toBe(0);
@@ -282,7 +284,7 @@ describe("the seat claim (live PostgreSQL)", () => {
     await seat(o.workspaceId, 2);
     const ctx = await directory(o);
 
-    const emails = Array.from({ length: 6 }, () => `scim-${tag()}@example.test`);
+    const emails = Array.from({ length: 6 }, () => `scim-${tag()}@${o.domain}`);
     const results = await Promise.all(emails.map((email) => pushUser(ctx, email)));
 
     const ok = results.filter((r) => r.ok);
@@ -299,7 +301,7 @@ describe("the seat claim (live PostgreSQL)", () => {
     await seat(o.workspaceId, 1);
     const ctx = await directory(o);
 
-    const inviteEmail = `race-${tag()}@example.test`;
+    const inviteEmail = `race-${tag()}@${o.domain}`;
     const invitee = await prisma.user.create({
       data: { email: inviteEmail, provider: "EMAIL", providerUserId: inviteEmail, emailVerifiedAt: new Date() },
       select: { id: true },
@@ -311,11 +313,11 @@ describe("the seat claim (live PostgreSQL)", () => {
 
     const outcomes = await Promise.allSettled([
       invitations.acceptWorkspaceInvitation({ rawToken: invited.rawToken, actorUserId: invitee.id }, prisma),
-      pushUser(ctx, `race-${tag()}@example.test`).then((r) => {
+      pushUser(ctx, `race-${tag()}@${o.domain}`).then((r) => {
         if (!r.ok) throw Object.assign(new Error(r.detail), { code: r.detail });
         return r;
       }),
-      samlLogin(o, `race-${tag()}@example.test`),
+      samlLogin(o, `race-${tag()}@${o.domain}`),
     ]);
 
     expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
@@ -327,14 +329,14 @@ describe("the seat claim (live PostgreSQL)", () => {
     const [member] = await seat(o.workspaceId, 1);
     const ctx = await directory(o);
 
-    const full = await pushUser(ctx, `dec-${tag()}@example.test`);
+    const full = await pushUser(ctx, `dec-${tag()}@${o.domain}`);
     expect(full).toMatchObject({ ok: false, detail: "seat_limit_reached" });
 
     await prisma.teamMember.updateMany({
       where: { teamId: o.workspaceId, userId: member },
       data: { status: "SUSPENDED", suspendedAtUtc: new Date(), suspensionReason: "admin" },
     });
-    const replacement = await pushUser(ctx, `dec-${tag()}@example.test`);
+    const replacement = await pushUser(ctx, `dec-${tag()}@${o.domain}`);
     expect(replacement.ok, JSON.stringify(replacement)).toBe(true);
     expect(await used(o.workspaceId, o.owner.userId)).toBe(1);
 
@@ -349,7 +351,7 @@ describe("the seat claim (live PostgreSQL)", () => {
   it("SCIM reactivation at a full workspace is refused typed, and the person stays suspended", async () => {
     const o = await organization(1);
     const ctx = await directory(o);
-    const pushed = await pushUser(ctx, `react-${tag()}@example.test`);
+    const pushed = await pushUser(ctx, `react-${tag()}@${o.domain}`);
     expect(pushed.ok).toBe(true);
     const userId = (pushed as { user: { id: string } }).user.id;
     await scim.scimDeactivateUser(ctx, userId, prisma);
@@ -402,7 +404,7 @@ describe("the seat claim (live PostgreSQL)", () => {
     expect(state).toMatchObject({ featureIncluded: false, limit: 0 });
 
     const ctx = await directory(o);
-    await expect(pushUser(ctx, `none-${tag()}@example.test`)).resolves.toMatchObject({
+    await expect(pushUser(ctx, `none-${tag()}@${o.domain}`)).resolves.toMatchObject({
       ok: false,
       detail: "seat_limit_reached",
     });
@@ -415,8 +417,8 @@ describe("the seat claim (live PostgreSQL)", () => {
   it("a stated contract of one seat admits exactly one: zero is not the same as one", async () => {
     const o = await organization(1);
     const ctx = await directory(o);
-    expect((await pushUser(ctx, `one-${tag()}@example.test`)).ok).toBe(true);
-    expect(await pushUser(ctx, `one-${tag()}@example.test`)).toMatchObject({ ok: false });
+    expect((await pushUser(ctx, `one-${tag()}@${o.domain}`)).ok).toBe(true);
+    expect(await pushUser(ctx, `one-${tag()}@${o.domain}`)).toMatchObject({ ok: false });
   });
 
   it("a self-serve plan keeps its answer: no workspace-wide ceiling on TEAM, nobody on FREE", async () => {
@@ -465,7 +467,7 @@ describe("the seat claim (live PostgreSQL)", () => {
     const o = await organization(1);
     await seat(o.workspaceId, 1);
     const ctx = await directory(o);
-    const outsider = `grp-${tag()}@example.test`;
+    const outsider = `grp-${tag()}@${o.domain}`;
     const user = await prisma.user.create({
       data: { email: outsider, provider: "EMAIL", providerUserId: outsider },
       select: { id: true },

@@ -26,7 +26,9 @@ beforeEach(async () => {
   links = { passwordConfigured: true, usableMethods: 2, links: [{ id: "lk-g", provider: "GOOGLE", linkedAtUtc: "2026-01-02T03:04:05.000Z" }] };
   routes = {
     ...authenticatedRoutes(),
-    "/v1/identity/links/apple": (method, body) => ({ status: 200, body: {} }),
+    // PRO-034 — every Apple attempt first asks the API for a nonce.
+    "/v1/auth/oauth/nonce": () => ({ status: 200, body: { nonce: "stub-nonce", expiresInSeconds: 600 } }),
+    "/v1/identity/links/apple": () => ({ status: 200, body: {} }),
     "/v1/identity/links/lk-g": () => ({ status: 200, body: {} }),
     "/v1/identity/links": () => ({ status: 200, body: links }),
     "/v1/identity/mfa/factors": () => ({ status: 200, body: { hasMfa: false, factors: [], recoveryCodesRemaining: 0 } }),
@@ -53,7 +55,8 @@ const render = async () => {
   await settle();
   return r;
 };
-const writes = () => requests.filter((q) => q.method !== "GET");
+// The nonce request is not a write to the account; it is asserted on its own.
+const writes = () => requests.filter((q) => q.method !== "GET" && q.path !== "/v1/auth/oauth/nonce");
 
 test("Apple is offered when not linked; connecting posts the ID token and is NOT a new sign-in", async () => {
   const r = await render();
@@ -63,7 +66,12 @@ test("Apple is offered when not linked; connecting posts the ID token and is NOT
   const post = writes()[0];
   assert.equal(post.path, "/v1/identity/links/apple");
   assert.deepEqual(post.body, { idToken: "stub-token" });
-  assert.ok(!requests.some((q) => q.path.startsWith("/v1/auth/oauth")), "the token was exchanged for a session instead of linked");
+  assert.ok(
+    !requests.some((q) => q.path === "/v1/auth/apple" || q.path === "/v1/auth/google"),
+    "the token was exchanged for a session instead of linked",
+  );
+  // PRO-034 — the attempt asked for its nonce before Apple was prompted.
+  assert.deepEqual(requests.find((q) => q.path === "/v1/auth/oauth/nonce")?.body, { provider: "apple" });
   assert.ok(r.hasText("Apple connected."));
 });
 
