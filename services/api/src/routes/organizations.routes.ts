@@ -216,6 +216,14 @@ const InviteBody = z.object({
 
 const RoleChangeBody = z.object({
   role: OrgRoleSchema,
+  /** Required when promoting to ORG_OWNER (PRO-097 follow-up), as for an owner invite. */
+  stepUp: z
+    .object({
+      method: z.enum(["password", "mfa"]).optional(),
+      currentPassword: z.string().optional(),
+      code: z.string().optional(),
+    })
+    .optional(),
 });
 
 const ORG_ROLE_PRECEDENCE: Record<OrgRoleValue, number> = {
@@ -1711,6 +1719,30 @@ export async function organizationsRoutes(app: FastifyInstance) {
       if (access.kind !== "ok") {
         const denial = orgAccessDenial(access);
         return reply.code(denial.status).send(denial.body);
+      }
+
+      /*
+       * PRO-097 follow-up — PROMOTING A MEMBER TO ORG_OWNER HANDS OVER
+       * OWNERSHIP, SO IT IS RE-AUTHENTICATED LIKE AN OWNER INVITE AND A
+       * TRANSFER.
+       *
+       * The invite (`org_owner_invite`) and the transfer
+       * (`org_ownership_transfer`) both ask the owner for an account step-up;
+       * this route made a second active owner with a session alone. Only an
+       * owner can reach the promotion (the role rule below refuses anyone
+       * else with 403 before any write), so only an owner is asked.
+       */
+      if (newRole === "ORG_OWNER" && access.role === "ORG_OWNER") {
+        const stepUp = await verifyAccountStepUp({
+          req,
+          reply,
+          userId,
+          action: "org_owner_promote",
+          proof: body.stepUp,
+        });
+        if (!stepUp.ok) {
+          return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+        }
       }
 
       const result = await prisma.$transaction(async (tx) => {

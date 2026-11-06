@@ -375,8 +375,14 @@ function MembersTab() {
     }
   }, [inviteEmail, inviteRole, inviteAccess, primaryWorkspace, orgId, refresh]);
 
+  // PRO-097 follow-up — promoting a member to ORG_OWNER asks the owner to prove
+  // it is them, as an ORG_OWNER invite and an ownership transfer do.
+  const [roleStepUp, setRoleStepUp] = useState<
+    null | { membershipId: string; newRole: OrgRole; methods: StepUpMethods; message: string }
+  >(null);
+
   const changeRole = useCallback(
-    async (m: MemberRow, newRole: OrgRole) => {
+    async (m: MemberRow, newRole: OrgRole, proof?: StepUpProof) => {
       if (m.role === newRole) return;
       setMemberBusy((s) => ({ ...s, [m.membershipId]: true }));
       setMemberError((s) => ({ ...s, [m.membershipId]: "" }));
@@ -384,10 +390,16 @@ function MembersTab() {
         await apiFetch(`/v1/orgs/${orgId}/members/${m.membershipId}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ role: newRole }),
+          body: JSON.stringify({ role: newRole, ...(proof ? { stepUp: proof } : {}) }),
         });
+        setRoleStepUp(null);
         await refresh();
       } catch (err) {
+        const su = extractStepUp(err);
+        if (su) {
+          setRoleStepUp({ membershipId: m.membershipId, newRole, ...su });
+          return;
+        }
         const message = toSafeUserError(err, {
           message: "Failed to change role.",
         }).message;
@@ -707,6 +719,16 @@ function MembersTab() {
                       <div role="alert" style={{ marginTop: 4, fontSize: 12, color: "var(--status-risk-fg, #991b1b)" }}>
                         {err}
                       </div>
+                    ) : null}
+                    {roleStepUp && roleStepUp.membershipId === m.membershipId ? (
+                      <StepUpVerify
+                        title="Confirm making this member an organization owner."
+                        methods={roleStepUp.methods}
+                        initialError={roleStepUp.message}
+                        busy={busy}
+                        onSubmit={(proof) => void changeRole(m, roleStepUp.newRole, proof)}
+                        onCancel={() => setRoleStepUp(null)}
+                      />
                     ) : null}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

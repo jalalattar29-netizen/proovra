@@ -71,6 +71,7 @@ const PUBLIC_INTAKE = "apps/web/app/intake/[token]/page.tsx";
 const REGISTER = "apps/web/app/register/page.tsx";
 const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 const MANAGE_VERIFICATION_PAGE = "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx";
+const QC_REVIEW = "apps/web/app/(app)/review/qc/page.tsx";
 const SSO_CONNECTIONS = "apps/web/app/(app)/security-center/sso/_sections/IdentityProvidersSection.tsx";
 // MOBILE-002 — the native SSO handoff is answered by the mobile app, not the web.
 const NATIVE_SSO = "apps/mobile/src/auth/use-sso-sign-in.ts";
@@ -159,6 +160,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   },
   REVIEW_PERMISSION_DENIED: { disposition: "customer", where: "global" },
   REVIEW_ACTOR_BLOCKED: { disposition: "customer", where: "global" },
+  /**
+   * A-FEAT-7 — the QC reviewer decided the sampled review (409). Customer-
+   * correctable: choose, or ask for, a reviewer who did not decide it.
+   */
+  QC_REVIEWER_NOT_INDEPENDENT: { disposition: "customer", where: QC_REVIEW },
   /**
    * The reviewer-ops plan gate (2026-10-24): a 403 naming the capability the
    * workspace's plan does not include. The caller is a proven member, so

@@ -306,7 +306,11 @@ function QcWorkspace({ teamId }: { teamId: string }) {
           setFailOpenSampleId(null);
           await refresh();
         } else {
-          setBanner(`Verdict refused: ${identifierLabel(res.denial)}`);
+          setBanner(
+            res.denial === "QC_REVIEWER_NOT_INDEPENDENT"
+              ? "You decided the sampled review, so you cannot quality-check it. Another reviewer must record the verdict."
+              : `Verdict refused: ${identifierLabel(res.denial)}`,
+          );
         }
       } finally {
         if (alive.current) setBusySampleId(null);
@@ -344,7 +348,9 @@ function QcWorkspace({ teamId }: { teamId: string }) {
             sampleId: sample.id,
             tone: "alert",
             text:
-              code === "QC_VERDICT_INVALID"
+              code === "QC_REVIEWER_NOT_INDEPENDENT"
+                ? "That person decided the sampled review, so they cannot quality-check it. Choose someone who did not decide it."
+                : code === "QC_VERDICT_INVALID"
                 ? "This sample already has a verdict, so it can no longer be assigned. The list has been refreshed."
                 : code === "QC_SAMPLE_NOT_FOUND"
                   ? "This sample no longer exists in this workspace. The list has been refreshed."
