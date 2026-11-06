@@ -15,7 +15,7 @@ import { prisma } from "./db.js";
 import { enqueueOtsUpgradeJob } from "./queue.js";
 import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
 import { ensureOtsAnchoredReportVersion } from "./ots-anchored-version.js";
-import { ensureEvidenceOtsInitialized } from "./ots-lifecycle.js";
+import { ensureEvidenceOtsInitialized, restampOtsAfterBudgetExhaustion } from "./ots-lifecycle.js";
 import {
   OTS_ROW_SNAPSHOT_SELECT,
   applyOtsTransition,
@@ -595,8 +595,30 @@ async function commitOtsTransition(input: {
       withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "global_budget_exhausted" }),
       "ots.upgrade.budget_exhausted",
     );
-    // Budget exhaustion is TERMINAL: no further upgrade attempts. CRITICAL so
-    // /v1/me/inbox lifts it to P1.
+    // CRYPTO-005 / OPS-016 — the same digest is stamped again, once, with the
+    // superseded proof kept on the custody event, and the upgrade ladder starts
+    // over. Only when that is not possible (already re-stamped, the stamp did not
+    // come back pending, or a writer raced) is exhaustion terminal.
+    try {
+      const restamp = await restampOtsAfterBudgetExhaustion({ evidenceId, jobId: job.id ?? null, trigger: "ots_budget_exhausted" });
+      if (restamp.restamped) {
+        bump("ots_restamped_total");
+        if (restamp.needsUpgrade) {
+          await enqueueOtsUpgradeJob(evidenceId, { delayMs: 60 * 60 * 1000, traceId: "ots_restamp", selfJobId: job.id });
+        }
+        logger.warn(
+          { ...withJobContext({ jobId: job.id, evidenceId, status: "restamped" }), ordinal: restamp.ordinal },
+          "ots.upgrade.restamped_after_budget",
+        );
+        return;
+      }
+    } catch (err) {
+      // A transient stamp failure: the record stays FAILED and the incident below
+      // names it; the reconcile script or an operator can re-run the re-stamp.
+      logger.warn({ err, evidenceId }, "ots.upgrade.restamp_failed");
+    }
+    // Budget exhaustion is TERMINAL past the re-stamp: no further upgrade
+    // attempts. CRITICAL so /v1/me/inbox lifts it to P1.
     try {
       await recordWorkerIncident({
         sourceId: "evidence_integrity.ots_budget_exhausted",

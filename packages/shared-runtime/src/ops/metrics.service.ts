@@ -665,6 +665,8 @@ export const COUNTER_NAMES = [
   "ots_calendar_failure_total",
   "ots_proof_integrity_failed_total",
   "ots_budget_exhausted_total",
+  // CRYPTO-005 — a proof that missed its budget, stamped again.
+  "ots_restamped_total",
   // Independent Bitcoin-chain verification outcomes (one per material change).
   "ots_chain_verified_total",
   "ots_chain_confirmations_pending_total",
