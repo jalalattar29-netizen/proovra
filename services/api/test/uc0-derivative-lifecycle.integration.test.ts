@@ -508,7 +508,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     // Explicit teardown so a record one A2 test leaves behind is not swept by
     // the next (the reconciler is workspace-wide, not id-scoped).
     async function hardDelete(evidenceId: string) {
-      await prisma.evidenceLegalHold.deleteMany({ where: { evidenceId } });
+      await prisma.evidenceLegalHold.updateMany({ where: { evidenceId }, data: { status: "RELEASED", releasedAtUtc: new Date() } });
       await prisma.evidencePartDerivedAsset.deleteMany({ where: { evidenceId } });
       await prisma.evidenceOcrText.deleteMany({ where: { evidenceId } });
       await prisma.evidenceTranscriptSegment.deleteMany({ where: { evidenceId } });

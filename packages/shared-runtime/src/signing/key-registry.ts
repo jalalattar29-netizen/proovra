@@ -41,7 +41,13 @@ export {
 } from "@proovra/shared";
 
 /** What a registered key may verify. Closed vocabulary (DB CHECK). */
-export const SIGNING_KEY_PURPOSES = ["EVIDENCE_SIGNATURE", "PACKAGE_SEAL"] as const;
+/**
+ * GOV-009 (2026-11-04) — DESTRUCTION_CERTIFICATE: the public key a customer
+ * verifies a destruction certificate's Ed25519 signature with. Same rule as
+ * PACKAGE_SEAL: the same material may be published under it as its own row,
+ * and a row of another purpose is never accepted for it.
+ */
+export const SIGNING_KEY_PURPOSES = ["EVIDENCE_SIGNATURE", "PACKAGE_SEAL", "DESTRUCTION_CERTIFICATE"] as const;
 export type SigningKeyPurpose = (typeof SIGNING_KEY_PURPOSES)[number];
 
 /** The only algorithm the registry verifies (DB CHECK). */

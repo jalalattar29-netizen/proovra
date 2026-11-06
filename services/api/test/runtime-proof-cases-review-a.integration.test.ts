@@ -406,7 +406,7 @@ describe("K4-A — cases and external portal (live PostgreSQL 16)", () => {
         expect(owner.json().denial).toBe("LEGAL_HOLD_BLOCKED");
         expect(await prisma.case.count({ where: { id: c.id } })).toBe(1);
       } finally {
-        await prisma.evidenceLegalHold.delete({ where: { id: hold.id } });
+        await prisma.evidenceLegalHold.update({ where: { id: hold.id }, data: { status: "RELEASED", releasedAtUtc: new Date() } }) /* GOV-009: holds are released, never deleted */;
       }
     });
   });
