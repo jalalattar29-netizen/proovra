@@ -51,9 +51,12 @@ test.describe("evidence flow @critical", () => {
 
       // 2. Declare the original as part 0 and upload to that part's own
       // presigned URL (the path every product channel uses).
-      const putUrl = await authorizeOriginalPart(session.api, created.id, { mimeType: "text/plain" });
-      expect(putUrl).toContain("X-Amz-Signature=");
       const body = `playwright e2e ${Date.now()}\n`;
+      const putUrl = await authorizeOriginalPart(session.api, created.id, {
+        mimeType: "text/plain",
+        sizeBytes: Buffer.byteLength(body),
+      });
+      expect(putUrl).toContain("X-Amz-Signature=");
       const expectedSha = createHash("sha256").update(body).digest("hex");
 
       const putRes = await fetch(putUrl, {

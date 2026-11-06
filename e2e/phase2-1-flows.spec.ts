@@ -68,9 +68,10 @@ test.describe("Phase 2.1 — workflow completion @critical", () => {
         data: { type: "PHOTO", mimeType: "text/plain" },
       });
       const c = (await create.json()) as { id: string };
-      await fetch(await authorizeOriginalPart(session.api, c.id, { mimeType: "text/plain" }), {
+      const aiBody = "ai-test\n";
+      await fetch(await authorizeOriginalPart(session.api, c.id, { mimeType: "text/plain", sizeBytes: Buffer.byteLength(aiBody) }), {
         method: "PUT",
-        body: "ai-test\n",
+        body: aiBody,
         headers: { "Content-Type": "text/plain" },
       });
       await session.api.post(`/v1/evidence/${c.id}/complete`, { data: {} });
@@ -121,9 +122,10 @@ test.describe("Phase 2.1 — workflow completion @critical", () => {
           data: { type: "PHOTO", mimeType: "text/plain" },
         });
         const j = (await r.json()) as { id: string };
-        await fetch(await authorizeOriginalPart(owner.api, j.id, { mimeType: "text/plain" }), {
+        const labelBody = `${label}\n`;
+        await fetch(await authorizeOriginalPart(owner.api, j.id, { mimeType: "text/plain", sizeBytes: Buffer.byteLength(labelBody) }), {
           method: "PUT",
-          body: `${label}\n`,
+          body: labelBody,
           headers: { "Content-Type": "text/plain" },
         });
         await owner.api.post(`/v1/evidence/${j.id}/complete`, { data: {} });

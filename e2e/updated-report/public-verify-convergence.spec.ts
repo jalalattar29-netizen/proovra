@@ -120,7 +120,7 @@ async function createMultipart(api: APIRequestContext): Promise<string> {
     const sha = createHash("sha256").update(bytes).digest("base64");
     const md5 = createHash("md5").update(bytes).digest("base64");
     const part = await api.post(`/v1/evidence/${id}/parts`, {
-      data: { partIndex: i, mimeType: "text/plain", originalFileName: `${name}.txt`, checksumSha256Base64: sha, contentMd5Base64: md5 },
+      data: { partIndex: i, mimeType: "text/plain", originalFileName: `${name}.txt`, checksumSha256Base64: sha, contentMd5Base64: md5, sizeBytes: Buffer.byteLength(bytes) },
     });
     expect(part.ok(), await part.text()).toBe(true);
     const put = await signedRequest("PUT", ((await part.json()) as { upload: { putUrl: string } }).upload.putUrl, bytes, {

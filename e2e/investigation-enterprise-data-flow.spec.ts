@@ -153,7 +153,10 @@ async function uploadAndFinalizeEvidence(opts: {
     `create evidence: ${await createRes.text()}`,
   ).toBe(true);
   const created = (await createRes.json()) as { id: string };
-  const putUrl = await authorizeOriginalPart(opts.api, created.id, { mimeType: "text/plain" });
+  const putUrl = await authorizeOriginalPart(opts.api, created.id, {
+    mimeType: "text/plain",
+    sizeBytes: Buffer.byteLength(opts.body),
+  });
   const expectedSha = createHash("sha256").update(opts.body).digest("hex");
   const putRes = await fetch(putUrl, {
     method: "PUT",

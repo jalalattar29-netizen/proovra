@@ -112,7 +112,7 @@ export async function createFinalizedEvidence(
   expect(created.ok(), await created.text()).toBe(true);
   const id = ((await created.json()) as { id: string }).id;
   const partRes = await api.post(`/v1/evidence/${id}/parts`, {
-    data: { partIndex: 0, mimeType, originalFileName: fileName, checksumSha256Base64: sha, contentMd5Base64: md5 },
+    data: { partIndex: 0, mimeType, originalFileName: fileName, checksumSha256Base64: sha, contentMd5Base64: md5, sizeBytes: Buffer.byteLength(bytes) },
   });
   expect(partRes.ok(), await partRes.text()).toBe(true);
   const part = (await partRes.json()) as { upload: { putUrl: string } };

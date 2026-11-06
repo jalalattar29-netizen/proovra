@@ -46,11 +46,15 @@ async function signedEvidence(session: Awaited<ReturnType<typeof createGuestSess
     );
   }
   const c = (await create.json()) as { id: string };
-  const putUrl = await authorizeOriginalPart(session.api, c.id, { mimeType: "text/plain" });
+  const privacyBody = `verify-privacy ${Date.now()}\n`;
+  const putUrl = await authorizeOriginalPart(session.api, c.id, {
+    mimeType: "text/plain",
+    sizeBytes: Buffer.byteLength(privacyBody),
+  });
 
   const putRes = await fetch(putUrl, {
     method: "PUT",
-    body: `verify-privacy ${Date.now()}\n`,
+    body: privacyBody,
     headers: { "Content-Type": "text/plain" },
   });
   if (!putRes.ok) {

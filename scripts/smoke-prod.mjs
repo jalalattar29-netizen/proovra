@@ -54,6 +54,8 @@ async function main() {
       mimeType: "text/plain",
       originalFileName: "proovra-smoke.txt",
       checksumSha256Base64,
+      // PRO-051 — the declared size is signed as the upload's Content-Length.
+      sizeBytes: uploadBody.length,
     }),
   });
 

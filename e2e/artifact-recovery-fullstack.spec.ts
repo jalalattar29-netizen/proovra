@@ -122,7 +122,7 @@ test.describe("artifact recovery — the real stack", () => {
     expect(created.ok(), await created.text()).toBe(true);
     evidenceId = ((await created.json()) as { id: string }).id;
     const partRes = await A.api.post(`/v1/evidence/${evidenceId}/parts`, {
-      data: { partIndex: 0, mimeType: "text/plain", originalFileName: "note.txt", checksumSha256Base64: sha, contentMd5Base64: md5 },
+      data: { partIndex: 0, mimeType: "text/plain", originalFileName: "note.txt", checksumSha256Base64: sha, contentMd5Base64: md5, sizeBytes: Buffer.byteLength(bytes) },
     });
     expect(partRes.ok(), await partRes.text()).toBe(true);
     const part = (await partRes.json()) as { upload: { putUrl: string } };

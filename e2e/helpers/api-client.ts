@@ -405,10 +405,18 @@ export function provisionEnterpriseOrg(
 export async function authorizeOriginalPart(
   api: APIRequestContext,
   evidenceId: string,
-  opts: { mimeType: string; originalFileName?: string },
+  // PRO-051 — every part declares its size; the API signs it into the URL as
+  // the upload's Content-Length, so `sizeBytes` must be the exact byte length
+  // of what the caller then PUTs.
+  opts: { mimeType: string; sizeBytes: number; originalFileName?: string },
 ): Promise<string> {
   const res = await api.post(`/v1/evidence/${evidenceId}/parts`, {
-    data: { partIndex: 0, mimeType: opts.mimeType, originalFileName: opts.originalFileName ?? "original.txt" },
+    data: {
+      partIndex: 0,
+      mimeType: opts.mimeType,
+      sizeBytes: opts.sizeBytes,
+      originalFileName: opts.originalFileName ?? "original.txt",
+    },
   });
   if (!res.ok()) {
     throw new Error(`POST /v1/evidence/${evidenceId}/parts failed (HTTP ${res.status()}): ${await res.text()}`);
