@@ -287,6 +287,9 @@ test("the registry does not describe codes the API no longer emits", () => {
     // ET-SEC-14 — the output policy's refusal codes, answered by the report
     // regeneration route as `code: governance.code`.
     ["REPORT_BLOCKED_BY_POLICY", "services/api/src/services/governance.service.ts"],
+    // A-FEAT-7 — the QC independence refusal, answered by the QC routes as
+    // `denial: res.denial` (409).
+    ["QC_REVIEWER_NOT_INDEPENDENT", "services/api/src/services/reviewer-workspace/qc-sample.service.ts"],
     [
       "DERIVATIVE_DOWNLOAD_NOT_PERMITTED",
       "services/api/src/services/evidence/artifact-download-gate.service.ts",

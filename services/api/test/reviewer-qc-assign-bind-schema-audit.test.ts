@@ -29,6 +29,7 @@ vi.mock("../src/services/audit/tenant-audit.service.js", () => ({
 type AnyFn = ReturnType<typeof vi.fn>;
 const prismaStub = {
   qcSample: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  workflowReviewDecision: { findFirst: vi.fn(), count: vi.fn() },
   teamMember: { findFirst: vi.fn() },
   codingSchema: { findFirst: vi.fn(), update: vi.fn() },
   evidenceReviewWorkflow: { findFirst: vi.fn(), update: vi.fn() },
@@ -166,6 +167,23 @@ describe("assignSample", () => {
     expect(res).toEqual({ ok: false, denial: "QC_VERDICT_INVALID" });
     expect(assertWorkAssigneeEligibleMock).not.toHaveBeenCalled();
     expect(prismaStub.qcSample.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("A-FEAT-7: refuses the reviewer who decided the sampled round, and writes nothing", async () => {
+    prismaStub.qcSample.findFirst.mockResolvedValueOnce({
+      id: SAMPLE, state: "SAMPLED", workflowId: WORKFLOW, qcReviewerUserId: null,
+    });
+    prismaStub.evidenceReviewWorkflow.findFirst.mockResolvedValueOnce({ evidenceId: EVIDENCE });
+    prismaStub.workflowReviewDecision.findFirst.mockResolvedValueOnce({ round: 2 });
+    prismaStub.workflowReviewDecision.count.mockResolvedValueOnce(1);
+    const res = await qc.assignSample({ teamId: TEAM, sampleId: SAMPLE, qcReviewerUserId: REVIEWER, actorUserId: ACTOR });
+    expect(res).toEqual({ ok: false, denial: "QC_REVIEWER_NOT_INDEPENDENT" });
+    // The latest round is the one asked about, for this reviewer.
+    expect(prismaStub.workflowReviewDecision.count).toHaveBeenCalledWith({
+      where: { workflowId: WORKFLOW, teamId: TEAM, round: 2, reviewerUserId: REVIEWER },
+    });
+    expect(prismaStub.qcSample.updateMany).not.toHaveBeenCalled();
+    expect(emitTenantAuditMock).not.toHaveBeenCalled();
   });
 });
 

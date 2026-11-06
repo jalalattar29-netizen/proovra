@@ -334,6 +334,12 @@ export const REVIEWER_DENIAL_REASONS = [
   "DISAGREEMENT_SELF_FILE",
   "QC_SAMPLE_NOT_FOUND",
   "QC_VERDICT_INVALID",
+  /**
+   * A-FEAT-7 — the QC reviewer decided the sampled review. QC checks a
+   * decision, so its maker cannot check it; the same separation the
+   * adjudicator has from both reviews (WORKFLOW-018).
+   */
+  "QC_REVIEWER_NOT_INDEPENDENT",
   "RATE_LIMITED",
   "POLICY_REJECTED",
 ] as const;
@@ -361,6 +367,8 @@ const REVIEWER_DENIAL_MESSAGES: Readonly<Record<ReviewerDenialReason, string>> =
   DISAGREEMENT_SELF_FILE: "You cannot file a disagreement against your own decision.",
   QC_SAMPLE_NOT_FOUND: "This quality-check sample no longer exists.",
   QC_VERDICT_INVALID: "That quality-check verdict is not allowed here.",
+  QC_REVIEWER_NOT_INDEPENDENT:
+    "A reviewer who decided this review cannot quality-check it. Choose someone who did not decide it.",
   RATE_LIMITED: "Too many attempts. Wait a moment and try again.",
   POLICY_REJECTED: "Your workspace's review policy does not allow this.",
 };

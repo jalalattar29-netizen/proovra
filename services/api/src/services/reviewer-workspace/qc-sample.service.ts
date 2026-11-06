@@ -122,6 +122,38 @@ export async function sampleClosedWorkflow(input: {
   return { sampleId: row.id };
 }
 
+/**
+ * A-FEAT-7 — QC INDEPENDENCE. Did this user record a decision in the round
+ * the sample checks (the workflow's latest decision round)?
+ *
+ * QC grades a review decision, so the person who made it cannot grade it: the
+ * same separation of duties the decision authority applies to the second
+ * review (same_reviewer_blocked) and to adjudication (WORKFLOW-018,
+ * adjudicator_not_independent). As there, no workspace kind is exempt: a
+ * workspace with no second eligible person leaves the sample pending rather
+ * than letting a reviewer pass their own decision.
+ */
+async function decidedSampledRound(
+  prisma: Pick<PrismaClient, "workflowReviewDecision">,
+  input: { teamId: string; workflowId: string; userId: string },
+): Promise<boolean> {
+  const latest = await prisma.workflowReviewDecision.findFirst({
+    where: { workflowId: input.workflowId, teamId: input.teamId },
+    orderBy: { round: "desc" },
+    select: { round: true },
+  });
+  if (!latest) return false;
+  const own = await prisma.workflowReviewDecision.count({
+    where: {
+      workflowId: input.workflowId,
+      teamId: input.teamId,
+      round: latest.round,
+      reviewerUserId: input.userId,
+    },
+  });
+  return own > 0;
+}
+
 export async function assignSample(input: {
   prisma?: PrismaClient;
   teamId: string;
@@ -163,6 +195,15 @@ export async function assignSample(input: {
     select: { evidenceId: true },
   });
   if (!workflow) return deny("WORKFLOW_NOT_FOUND");
+  if (
+    await decidedSampledRound(prisma, {
+      teamId: input.teamId,
+      workflowId: row.workflowId,
+      userId: input.qcReviewerUserId,
+    })
+  ) {
+    return deny("QC_REVIEWER_NOT_INDEPENDENT");
+  }
   const refusal = await withinAssignmentWrite(prisma, async (tx) => {
     try {
       await assertWorkAssigneeEligible(
@@ -245,10 +286,21 @@ export async function renderQcVerdict(input: {
   }
   const row = await prisma.qcSample.findFirst({
     where: { id: input.sampleId, teamId: input.teamId },
-    select: { id: true, state: true, qcReviewerUserId: true },
+    select: { id: true, state: true, qcReviewerUserId: true, workflowId: true },
   });
   if (!row) return deny("QC_SAMPLE_NOT_FOUND");
   if (row.qcReviewerUserId !== input.actorUserId) return deny("NOT_PERMITTED");
+  // A-FEAT-7 — also at the verdict, so a sample assigned before the rule (or
+  // to someone who decided a later round) cannot be graded by its decider.
+  if (
+    await decidedSampledRound(prisma, {
+      teamId: input.teamId,
+      workflowId: row.workflowId,
+      userId: input.actorUserId,
+    })
+  ) {
+    return deny("QC_REVIEWER_NOT_INDEPENDENT");
+  }
   /*
    * PRO-091 (FEATURES-09) — A RENDERED VERDICT IS FINAL.
    *
