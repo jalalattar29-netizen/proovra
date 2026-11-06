@@ -294,8 +294,10 @@ describe("§1 — 9-path managed-identity matrix", () => {
       const refusalIdx = src.indexOf("if (!completion.allowed)");
       expect(refusalIdx).toBeGreaterThan(src.indexOf("completeSsoSession("));
       expect(src.indexOf("setSessionCookie(req, reply, token)", refusalIdx)).toBeGreaterThan(refusalIdx);
-      expect(src).toMatch(/if \(!completion\.allowed\) \{\s*return bounceTo\w+\(reply, completion\.reason/);
+      // MOBILE-002: SAML refuses through samlFail (browser branch: bounceToSamlError).
+      expect(src).toMatch(/if \(!completion\.allowed\) \{\s*return (?:bounceTo\w+\(reply, |samlFail\()completion\.reason/);
     }
+    expect(SAML).toMatch(/const samlFail = [\s\S]{0,200}?: bounceToSamlError\(reply, reason, redirectAfter\)/);
   });
   it("9. managed invitation → binds via DOMAIN evidence (verified domain), atomic with acceptance", () => {
     expect(INVITE).toMatch(/managedIdentityRequired/);

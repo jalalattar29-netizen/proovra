@@ -119,7 +119,10 @@ describe("§2.1 — SAML return establishes org context before returning workspa
     expect(completeIdx).toBeLessThan(cookieIdx); // context/limit before returning session
     // §2.1 — denial bounces; the completion has already deleted the orphan row.
     expect(SAML).toMatch(/if \(!completion\.allowed\)/);
-    expect(SAML).toMatch(/bounceToSamlError\(reply, completion\.reason/);
+    // MOBILE-002: the ACS refuses through samlFail, whose browser branch is
+    // the same bounce (the native branch redirects to the app's error URL).
+    expect(SAML).toMatch(/return samlFail\(completion\.reason/);
+    expect(SAML).toMatch(/const samlFail = [\s\S]{0,200}?: bounceToSamlError\(reply, reason, redirectAfter\)/);
   });
 
   it("preserves SAML provenance + original authAt (no reset at establishment)", () => {

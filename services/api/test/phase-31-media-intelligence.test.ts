@@ -404,10 +404,15 @@ describe("Phase 31 — analyzer source contract", () => {
   });
 
   it("every Evidence/EvidencePart read is team-anchored (anti cross-workspace)", () => {
-    // The analyzer guards on `evidence.teamId !== input.teamId`
+    // The analyzer guards on the record's WORKSPACE against input.teamId
+    // (WORKERS-07: a Personal record stored with team_id NULL belongs to its
+    // owner's personal space, so the raw column is not what is compared)
     // and the DUPLICATE_HASH_MATCH query filters by team_id.
-    expect(src).toMatch(/evidence\.teamId !== input\.teamId/);
-    expect(src).toMatch(/e\."team_id" = \$1/);
+    expect(src).toMatch(/\(await resolveEvidenceWorkspaceId\(evidence, client\)\) !== input\.teamId/);
+    // WORKERS-07: the duplicate scan is scoped through the shared workspace
+    // predicate (team_id, or the owner's Personal space for a NULL team).
+    expect(src).toMatch(/WHERE \$\{evidenceInWorkspaceSql\("e", "\$1"\)\}/);
+    expect(src).not.toMatch(/WHERE e\."team_id" = \$1/);
   });
 
   it("NEVER projects raw GPS / private notes / legal notes into safe_summary or detailsJson", () => {
