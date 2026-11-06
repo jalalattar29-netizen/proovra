@@ -2608,8 +2608,8 @@
     "phase": "P11",
     "name": "cleanup deletes work a reviewer did after the seed",
     "file": "services/api/src/services/ops/operational-seed.service.ts",
-    "find": "  const removable = ids.workflowIds.filter((id) => !keptIds.has(id));",
-    "replace": "  const removable = ids.workflowIds;",
+    "find": "  const removable = ownWorkflows.map((w) => w.id).filter((id) => !keptIds.has(id));",
+    "replace": "  const removable = ownWorkflows.map((w) => w.id);",
     "tests": [
       {
         "cwd": "services/api",
