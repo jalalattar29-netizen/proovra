@@ -210,8 +210,31 @@ const PREFERENCE_STORAGE_KEY_PREFIXES = [
   "capture-readiness-dismissed:",
   "capture-workflow-guidance-dismissed:",
   "capture-suggestions-dismissed:",
+  // The pre-canonical recent-searches key; the page migrates and deletes it
+  // on read, but a device that never reopened search may still hold one.
   "proovra:search:recent:",
 ] as const;
+
+/**
+ * Preferences stored under the canonical tenant namespace
+ * (`proovra:tenant:<workspaceId>:<baseKey>`, see tenantStorageKey). The
+ * workspace id sits in the middle, so a prefix cannot match them.
+ *
+ * PRO-074: recent searches moved here in WEB-002 while this purge still
+ * listed only the old `proovra:search:recent:` prefix, so withdrawing
+ * "preferences" consent left every workspace's recent searches behind.
+ */
+export const PREFERENCE_TENANT_BASE_KEYS = ["search:recent"] as const;
+const TENANT_NAMESPACE = "proovra:tenant:";
+
+function isTenantPreferenceKey(key: string): boolean {
+  if (!key.startsWith(TENANT_NAMESPACE)) return false;
+  const rest = key.slice(TENANT_NAMESPACE.length);
+  const sep = rest.indexOf(":");
+  if (sep <= 0) return false;
+  const base = rest.slice(sep + 1);
+  return (PREFERENCE_TENANT_BASE_KEYS as ReadonlyArray<string>).includes(base);
+}
 
 const ANALYTICS_STORAGE_KEYS = ["visitor_id"] as const;
 const ANALYTICS_SESSION_STORAGE_KEYS = ["session_id"] as const;
@@ -220,6 +243,7 @@ function removeMatchingKeys(
   store: Storage,
   exact: ReadonlyArray<string>,
   prefixes: ReadonlyArray<string> = [],
+  matches: (key: string) => boolean = () => false,
 ): void {
   for (const key of exact) {
     try {
@@ -229,13 +253,11 @@ function removeMatchingKeys(
     }
   }
 
-  if (prefixes.length === 0) return;
-
   const toRemove: string[] = [];
   for (let i = 0; i < store.length; i += 1) {
     const k = store.key(i);
     if (!k) continue;
-    if (prefixes.some((prefix) => k.startsWith(prefix))) {
+    if (prefixes.some((prefix) => k.startsWith(prefix)) || matches(k)) {
       toRemove.push(k);
     }
   }
@@ -275,6 +297,7 @@ export function clearNonEssentialStorage(
         window.localStorage,
         PREFERENCE_STORAGE_KEYS,
         PREFERENCE_STORAGE_KEY_PREFIXES,
+        isTenantPreferenceKey,
       );
       // The locale is ALSO mirrored into a cookie, so the server can render
       // the correct text direction in the HTML rather than leaving an Arabic

@@ -247,18 +247,26 @@ test("Recent searches use a per-workspace localStorage key and cap at 10 entries
   // — is unchanged and asserted below, now against the canonical helper. A
   // one-time migration off the legacy key is also pinned, so an existing
   // user keeps their history AND the stray key stops surviving purges.
+  //
+  // PRO-074 (2026-11-06). The storage logic moved, unchanged in key and cap,
+  // into lib/search/recent-searches.ts, which adds the "preferences" consent
+  // gate. The page reads and writes only through it; the same properties are
+  // pinned against that module.
+  const RECENT = src("apps/web/lib/search/recent-searches.ts");
+  assert.match(RECENT, /return tenantStorageKey\(workspaceId, "search:recent"\);/);
   assert.match(
-    SEARCH_PAGE,
-    /const recentKey = tenantStorageKey\(teamId \?\? null, "search:recent"\);/,
-  );
-  assert.match(
-    SEARCH_PAGE,
-    /import \{ tenantStorageKey \} from "\.\.\/\.\.\/\.\.\/lib\/platform-context\/tenantStorage";/,
+    RECENT,
+    /import \{ tenantStorageKey \} from "\.\.\/platform-context\/tenantStorage";/,
   );
   // Legacy-key migration: read once, rewrite canonically, then remove.
-  assert.match(SEARCH_PAGE, /const legacyRecentKey = `proovra:search:recent:\$\{teamId\}`;/);
-  assert.match(SEARCH_PAGE, /window\.localStorage\.removeItem\(legacyRecentKey\)/);
-  assert.match(SEARCH_PAGE, /\.slice\(0, 10\)/);
+  assert.match(RECENT, /return `proovra:search:recent:\$\{workspaceId\}`;/);
+  assert.match(RECENT, /store\.removeItem\(legacy\)/);
+  assert.match(RECENT, /export const RECENT_SEARCHES_LIMIT = 10;/);
+  assert.match(RECENT, /\.slice\(0, RECENT_SEARCHES_LIMIT\)/);
+  // The page goes through the authority, and nowhere else.
+  assert.match(SEARCH_PAGE, /readRecentSearches\(teamId \?\? null\)/);
+  assert.match(SEARCH_PAGE, /writeRecentSearches\(teamId \?\? null, next\)/);
+  assert.doesNotMatch(SEARCH_PAGE, /"search:recent"|localStorage\.(get|set)Item\(recent/);
 });
 
 test("submitQuery pushes the trimmed query onto recents", () => {

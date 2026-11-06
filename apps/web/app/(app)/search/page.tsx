@@ -32,6 +32,12 @@ import {
 // PHASE 12 REMEDIATION — WEB-002 (2026-08-06). The ONE tenant-storage
 // namespace authority; see the recent-searches block below.
 import { tenantStorageKey } from "../../../lib/platform-context/tenantStorage";
+import { getCookieConsentEventName, hasPreferencesConsent } from "../../../lib/consent";
+import {
+  clearRecentSearches,
+  readRecentSearches,
+  writeRecentSearches,
+} from "../../../lib/search/recent-searches";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // REDESIGN/SEARCH — the console owns its presentation layer. `search.css`
 // carries the route anatomy (header, form, filter rail, result list,
@@ -1133,37 +1139,23 @@ function SearchInner() {
   // migration is handled in the load effect below: the legacy entry is read
   // once, rewritten under the canonical key, and removed — so an existing
   // user keeps their history AND the stray key stops surviving purges.
-  const recentKey = tenantStorageKey(teamId ?? null, "search:recent");
-  const legacyRecentKey = `proovra:search:recent:${teamId}`;
   const [recent, setRecent] = useState<string[]>([]);
+  // PRO-074: recent searches are a "preferences" item. lib/search/recent-
+  // searches is the one authority: without that consent nothing is written
+  // to the device, and withdrawing it forgets them here too (the stored copy
+  // is purged by clearNonEssentialStorage).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      let raw = window.localStorage.getItem(recentKey);
-      if (raw === null) {
-        // One-time migration off the pre-canonical namespace.
-        const legacy = window.localStorage.getItem(legacyRecentKey);
-        if (legacy !== null) {
-          window.localStorage.setItem(recentKey, legacy);
-          window.localStorage.removeItem(legacyRecentKey);
-          raw = legacy;
-        }
-      } else {
-        // Canonical value already present — drop any stale legacy twin so it
-        // cannot outlive a tenant purge.
-        window.localStorage.removeItem(legacyRecentKey);
-      }
-      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-      if (
-        Array.isArray(parsed) &&
-        parsed.every((v): v is string => typeof v === "string")
-      ) {
-        setRecent(parsed.slice(0, 10));
-      }
-    } catch {
-      /* localStorage may be disabled; fall back to no recents */
-    }
-  }, [recentKey, legacyRecentKey]);
+    const onConsent = () => {
+      if (!hasPreferencesConsent()) setRecent([]);
+    };
+    const name = getCookieConsentEventName();
+    window.addEventListener(name, onConsent);
+    return () => window.removeEventListener(name, onConsent);
+  }, []);
+  useEffect(() => {
+    setRecent(readRecentSearches(teamId ?? null));
+  }, [teamId]);
   const pushRecent = useCallback(
     (q: string) => {
       if (typeof window === "undefined") return;
@@ -1171,13 +1163,9 @@ function SearchInner() {
       if (trimmed.length === 0) return;
       const next = [trimmed, ...recent.filter((r) => r !== trimmed)].slice(0, 10);
       setRecent(next);
-      try {
-        window.localStorage.setItem(recentKey, JSON.stringify(next));
-      } catch {
-        /* non-fatal */
-      }
+      writeRecentSearches(teamId ?? null, next);
     },
-    [recent, recentKey],
+    [recent, teamId],
   );
   /**
    * Remove ONE entry, at the same authority as `pushRecent` and
@@ -1196,28 +1184,17 @@ function SearchInner() {
     (q: string) => {
       setRecent((prev) => {
         const next = prev.filter((r) => r !== q);
-        if (typeof window !== "undefined") {
-          try {
-            window.localStorage.setItem(recentKey, JSON.stringify(next));
-          } catch {
-            /* non-fatal */
-          }
-        }
+        writeRecentSearches(teamId ?? null, next);
         return next;
       });
     },
-    [recentKey],
+    [teamId],
   );
 
   const clearRecent = useCallback(() => {
     setRecent([]);
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.removeItem(recentKey);
-    } catch {
-      /* non-fatal */
-    }
-  }, [recentKey]);
+    clearRecentSearches(teamId ?? null);
+  }, [teamId]);
 
   const submitQuery = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
