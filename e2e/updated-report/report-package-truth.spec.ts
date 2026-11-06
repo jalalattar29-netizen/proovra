@@ -470,7 +470,12 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   const pkgSignals = (v3Full!.json("canonical-record.json") as { materials: { trustDecision: { decision: { signals: Array<Record<string, unknown>> } } } })
     .materials.trustDecision.decision.signals;
   const states = (s: Array<Record<string, unknown>>) => Object.fromEntries(s.map((x) => [String(x.key), String(x.state)]));
-  expect(states(pvSignals)).toEqual(states(pkgSignals));
+  // REPORT-008 / RPT-R08: with attribution not exposed, the public page states
+  // identity as withheld and nothing else, so its identity signal is not
+  // disclosed; every other signal matches the package.
+  const withoutIdentity = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== "identity"));
+  expect(withoutIdentity(states(pvSignals))).toEqual(withoutIdentity(states(pkgSignals)));
+  expect(states(pvSignals).identity).toBe("NOT_APPLICABLE");
   const pvMatrix = pv.body.verificationMatrix as { rows: MatrixRow[]; summary: string };
   const surfaceRows = ["package_signature", "package_completeness", "public_verify_publication"];
   expect(statuses(pvMatrix.rows, surfaceRows)).toEqual(statuses(matrixRows(v3Full!), surfaceRows));
@@ -487,9 +492,9 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   expect(JSON.stringify(pv.body)).not.toMatch(/"(?:points|maxPoints|score|maxScore|scoreLabel|verdictLabel|relianceLevel|confidenceLabel)"\s*:/);
   expect(pv.body.trustDecision).not.toHaveProperty("verdict");
   const overview = JSON.stringify(pv.body);
-  expect(overview).toContain("Authenticated email account");
-  // AUD-45 (2026-10-20): a reviewer link whose identity is WITHHELD states it as
-  // withheld — the workspace kind is part of that identity and is not sent.
+  // AUD-45 (2026-10-20), REPORT-008: a reviewer link whose identity is WITHHELD
+  // states it as withheld and nothing else: no account type, no workspace kind.
+  expect(overview).not.toContain("Authenticated email account");
   expect((pv.body.recordFacts as { identity?: { disclosure?: string } }).identity?.disclosure).toBe("WITHHELD");
   expect(overview).not.toContain("Personal workspace");
   expect(overview).not.toMatch(/OAuth-backed|"Organization account"/);

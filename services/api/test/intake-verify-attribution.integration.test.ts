@@ -121,11 +121,31 @@ describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)
     expect(res.body).not.toContain("creator@");
   });
 
-  it("an ordinary upload keeps its account attribution", async () => {
+  // REPORT-008 / RPT-R08: with attribution not exposed, identity is stated as
+  // withheld and nothing else, on the RICH tier as on BASIC. The operator
+  // opt-in (PUBLIC_VERIFY_EXPOSE_ATTRIBUTION=true) brings the account
+  // attribution back; the contributor label never applies to an ordinary upload.
+  it("an ordinary upload states no account type while attribution is withheld", async () => {
     const res = await verify(await signedRecord("PROOVRA_WEB_UPLOAD"));
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json().tier).toBe("RICH");
-    expect(res.body).toContain("Google account");
+    expect(res.json().recordFacts?.identity?.disclosure).toBe("WITHHELD");
+    expect(res.body).not.toContain("Google account");
     expect(res.body).not.toContain(INTAKE_SUBMITTED_BY_LABEL);
+  });
+
+  it("an ordinary upload keeps its account attribution when the operator exposes attribution", async () => {
+    const previous = process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION;
+    process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION = "true";
+    try {
+      const res = await verify(await signedRecord("PROOVRA_WEB_UPLOAD"));
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().tier).toBe("RICH");
+      expect(res.body).toContain("Google account");
+      expect(res.body).not.toContain(INTAKE_SUBMITTED_BY_LABEL);
+    } finally {
+      if (previous === undefined) delete process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION;
+      else process.env.PUBLIC_VERIFY_EXPOSE_ATTRIBUTION = previous;
+    }
   });
 });
