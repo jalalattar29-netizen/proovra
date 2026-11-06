@@ -73,8 +73,10 @@ describe("PRO-078: a refused upload gives its FREE slot back (Postgres, real HTT
     return res.json().id as string;
   }
 
-  const exe = { mimeType: "application/x-msdownload", originalFileName: "invoice.exe" };
-  const pdf = { mimeType: "application/pdf", originalFileName: "invoice.pdf" };
+  // PRO-051 (evidence batch): every part declares its size, so these parts reach
+  // the file-type check rather than stopping at UPLOAD_SIZE_REQUIRED.
+  const exe = { mimeType: "application/x-msdownload", originalFileName: "invoice.exe", sizeBytes: 2048 };
+  const pdf = { mimeType: "application/pdf", originalFileName: "invoice.pdf", sizeBytes: 2048 };
 
   it("an empty record whose file is refused is released at once, with a custody event", async () => {
     const t = await seedPersonalTenant(deps, "FREE");
