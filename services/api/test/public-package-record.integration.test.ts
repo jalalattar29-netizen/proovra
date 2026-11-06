@@ -103,7 +103,10 @@ describe("public package record (live PostgreSQL 16)", () => {
     return { evidenceId: ev.id, full1, ext1, full2, reserved, issuance1 };
   }
 
-  const get = (url: string) => harness.app.inject({ method: "GET", url, headers: { "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 200) + 1}` } });
+  // Each read is its own client by its socket address: a forwarded-for header
+  // is not trusted by the canonical client resolver, so it would put every
+  // read (and every other file sharing the CI Redis) in the 127.0.0.1 budget.
+  const get = (url: string) => harness.app.inject({ method: "GET", url, remoteAddress: `198.51.100.${Math.floor(Math.random() * 200) + 1}` });
 
   it("each profile is its own record: issued together, superseded per profile, bound to its PACKAGE_SEAL key", async () => {
     const f = await fixture();
@@ -348,11 +351,11 @@ describe("public package record (live PostgreSQL 16)", () => {
     const { clearAllRateLimitBuckets } = await import("../src/services/rate-limit.js");
     await clearAllRateLimitBuckets();
     try {
-      const client = { "x-forwarded-for": `203.0.113.${Math.floor(Math.random() * 200) + 1}` };
+      const remoteAddress = `203.0.113.${Math.floor(Math.random() * 200) + 1}`;
       const id = randomUUID();
       const statuses: number[] = [];
       for (const url of [`/public/verify/${id}`, `/public/verification-packages/${id}`, `/public/verification-packages/${id}`]) {
-        statuses.push((await harness.app.inject({ method: "GET", url, headers: client })).statusCode);
+        statuses.push((await harness.app.inject({ method: "GET", url, remoteAddress })).statusCode);
       }
       // Two answers, then the SAME client's budget is spent across both reads.
       expect(statuses.slice(0, 2).every((s) => s === 404)).toBe(true);

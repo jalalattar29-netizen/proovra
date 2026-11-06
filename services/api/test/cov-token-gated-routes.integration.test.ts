@@ -185,7 +185,12 @@ describe("token-gated GET routes (live PostgreSQL, MinIO)", () => {
       expect(req.statusCode, req.body).toBe(200);
       expect(req.json().evidenceRequest.id).toBe(requestA);
       await h.handlersSettled();
-      expect(await prisma.apiCredentialUsageLog.count({ where: { apiCredentialId: keyA.id } })).toBeGreaterThanOrEqual(3);
+      // The usage row is written fire-and-forget after the reply
+      // (safeRecordApiCredentialUsage), outside the handlers the harness
+      // tracks, so the count is awaited rather than read once.
+      await expect
+        .poll(() => prisma.apiCredentialUsageLog.count({ where: { apiCredentialId: keyA.id } }), { timeout: 10_000 })
+        .toBeGreaterThanOrEqual(3);
     });
 
     it("the same key against the other tenant's real rows answers as if they did not exist", async () => {

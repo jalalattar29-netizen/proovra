@@ -146,6 +146,12 @@ describe("F-39 — the committed signing fixture outside development / test", ()
           calls.push("create");
           return {};
         },
+        // The registry reads compromise markers for the material (signing
+        // batch: a compromise is of the key, not of one identity).
+        findMany: async () => {
+          calls.push("findMany");
+          return [];
+        },
       },
     };
     withEnv(STAGING);
