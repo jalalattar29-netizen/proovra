@@ -40,6 +40,15 @@ describe("round 3 governance follow-up (live PostgreSQL 16)", () => {
   const A = () => h.fixtures.teamA;
   const B = () => h.fixtures.teamB;
 
+  /** GOV-012 is OPT-IN: the owner's workspace setting, written as the policy writer does. */
+  async function setHoldDisclosure(teamId: string, mode: "BLOCK" | "ALLOW_AUTHENTICATED_RECORDED") {
+    await prisma.workspaceGovernancePolicy.upsert({
+      where: { teamId },
+      create: { teamId, legalHoldDisclosure: mode, version: 1 },
+      update: { legalHoldDisclosure: mode },
+    });
+  }
+
   async function record(teamId: string, ownerUserId: string, extra: Record<string, unknown> = {}) {
     const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true } });
     return prisma.evidence.create({
@@ -151,8 +160,37 @@ describe("round 3 governance follow-up (live PostgreSQL 16)", () => {
   });
 
   // ---------------------------------------------------------------------------
-  describe("GOV-012 a hold preserves", () => {
-    it("a held record is released to the workspace with the hold on its custody event, and refused to the public", async () => {
+  describe("GOV-012 release under hold is an owner opt-in", () => {
+    it("by default a hold still blocks every byte release (control)", async () => {
+      await setHoldDisclosure(A().teamId, "BLOCK");
+      const own = await record(A().teamId, A().ownerUserId);
+      await prisma.evidenceLegalHold.create({
+        data: { teamId: A().teamId, scope: "EVIDENCE", evidenceId: own.id, status: "ACTIVE", title: "rem3 default hold", placedByUserId: A().ownerUserId },
+      });
+      expect(await exportGate.checkExportEligibility({ teamId: A().teamId, evidenceId: own.id })).toMatchObject({ outcome: "BLOCKED_BY_HOLD" });
+      // A workspace with no policy row at all is BLOCK too.
+      await prisma.workspaceGovernancePolicy.deleteMany({ where: { teamId: B().teamId } });
+      const theirs = await record(B().teamId, B().ownerUserId);
+      await prisma.evidenceLegalHold.create({
+        data: { teamId: B().teamId, scope: "EVIDENCE", evidenceId: theirs.id, status: "ACTIVE", title: "rem3 b hold", placedByUserId: B().ownerUserId },
+      });
+      expect((await exportGate.checkExportEligibility({ teamId: B().teamId, evidenceId: theirs.id })).outcome).toBe("BLOCKED_BY_HOLD");
+    });
+
+    it("only the workspace owner may change the setting (policy manager refused)", async () => {
+      const res = await h.app.inject({
+        method: "PUT",
+        url: "/v1/governance/policy",
+        headers: { authorization: `Bearer ${A().adminToken}`, "content-type": "application/json", "x-team-id": A().teamId },
+        payload: JSON.stringify({ expectedVersion: 0, legalHoldDisclosure: "ALLOW_AUTHENTICATED_RECORDED" }),
+      });
+      expect(res.statusCode).not.toBe(200);
+      const row = await prisma.workspaceGovernancePolicy.findUnique({ where: { teamId: A().teamId }, select: { legalHoldDisclosure: true } });
+      expect(row?.legalHoldDisclosure ?? "BLOCK").toBe("BLOCK");
+    });
+
+    it("opted in: a held record is released to the workspace with the hold on its custody event, and refused to the public", async () => {
+      await setHoldDisclosure(A().teamId, "ALLOW_AUTHENTICATED_RECORDED");
       const own = await record(A().teamId, A().ownerUserId);
       const hold = await prisma.evidenceLegalHold.create({
         data: { teamId: A().teamId, scope: "EVIDENCE", evidenceId: own.id, status: "ACTIVE", title: "rem3 hold", placedByUserId: A().ownerUserId },
@@ -180,6 +218,7 @@ describe("round 3 governance follow-up (live PostgreSQL 16)", () => {
       // Another workspace's record is never found through this workspace.
       const theirs = await record(B().teamId, B().ownerUserId);
       expect((await exportGate.checkExportEligibility({ teamId: A().teamId, evidenceId: theirs.id })).outcome).toBe("BLOCKED_BY_POLICY");
+      await setHoldDisclosure(A().teamId, "BLOCK");
     });
   });
 
@@ -222,8 +261,15 @@ describe("round 3 governance follow-up (live PostgreSQL 16)", () => {
       expect(entry!.objects[0]).toMatchObject({ versionId: "v-sealed-1", sha256: "a".repeat(64) });
       // The other organization's record is not in it.
       expect(pkg.manifest.records.some((r) => r.evidenceId === foreign.id)).toBe(false);
-      // Links are bound to the sealed version and recorded on custody.
-      const page = await orgExport.issueOrganizationExportLinks({ manifest: pkg.manifest, exportId: req.id, actorUserId: A().ownerUserId, offset: 0 });
+      // Under the default (BLOCK) the held record is listed as withheld, with no link.
+      expect(pkg.withheldByLegalHold).toEqual([{ evidenceId: held.id, workspaceId: A().teamId, reason: "WITHHELD_BY_LEGAL_HOLD" }]);
+      const blocked = await orgExport.issueOrganizationExportLinks({ manifest: pkg.manifest, exportId: req.id, actorUserId: A().ownerUserId, offset: 0, client: prisma as never });
+      expect(blocked.links.some((l) => l.evidenceId === held.id)).toBe(false);
+      expect(blocked.withheldByLegalHold.map((w) => w.evidenceId)).toContain(held.id);
+      // Opted in: links are bound to the sealed version and recorded on custody.
+      await setHoldDisclosure(A().teamId, "ALLOW_AUTHENTICATED_RECORDED");
+      const page = await orgExport.issueOrganizationExportLinks({ manifest: pkg.manifest, exportId: req.id, actorUserId: A().ownerUserId, offset: 0, client: prisma as never });
+      await setHoldDisclosure(A().teamId, "BLOCK");
       const link = page.links.find((l) => l.evidenceId === held.id)!;
       expect(link.url).toContain("versionId=v-sealed-1");
       const custody = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId: held.id, eventType: "DOWNLOAD_AUTHORIZED" }, orderBy: { atUtc: "desc" } });

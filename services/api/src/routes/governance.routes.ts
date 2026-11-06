@@ -233,6 +233,8 @@ export async function governanceRoutes(app: FastifyInstance) {
           // Phase 14 — governance approval flags.
           requirePublicationApproval: z.boolean().optional(),
           requireLegalHoldReleaseApproval: z.boolean().optional(),
+          // GOV-012 — owner only (checked below), step-up as for every change.
+          legalHoldDisclosure: z.enum(["BLOCK", "ALLOW_AUTHENTICATED_RECORDED"]).optional(),
         })
         // No unknown keys: a client that still sends `teamId` gets a 400
         // instead of quietly having it ignored (or, worse, honoured).
@@ -246,6 +248,25 @@ export async function governanceRoutes(app: FastifyInstance) {
         "governance.policy.manage",
       );
       if (!ok) return;
+
+      // GATE 1b — GOV-012: whether a held record's bytes may leave custody is
+      // the workspace OWNER's decision, not any policy manager's.
+      if (body.legalHoldDisclosure !== undefined) {
+        const owner = await prisma.teamMember.findFirst({
+          where: { teamId: ok.teamId, userId: ok.actorUserId, status: "ACTIVE", role: "OWNER" },
+          select: { id: true },
+        });
+        const team = await prisma.team.findUnique({ where: { id: ok.teamId }, select: { ownerUserId: true } });
+        if (!owner && team?.ownerUserId !== ok.actorUserId) {
+          return reply.code(403).send({
+            code: "LEGAL_HOLD_DISCLOSURE_OWNER_ONLY",
+            error: {
+              code: "LEGAL_HOLD_DISCLOSURE_OWNER_ONLY",
+              message: "Only the workspace owner can change whether held records may be released.",
+            },
+          });
+        }
+      }
 
       // GATE 2 — step-up re-proof. Still before any write.
       const gate = await requireStepUpForSensitiveAction({

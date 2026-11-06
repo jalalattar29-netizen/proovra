@@ -54,6 +54,7 @@ type PolicyFixture = {
   requireStepUpForEscalationResolve: boolean;
   requireStepUpForBulk: boolean;
   reviewerInactivityHours: number | null;
+  legalHoldDisclosure: string;
 };
 
 function permissivePolicy(): PolicyFixture {
@@ -85,6 +86,7 @@ function permissivePolicy(): PolicyFixture {
     requireStepUpForEscalationResolve: false,
     requireStepUpForBulk: false,
     reviewerInactivityHours: null,
+    legalHoldDisclosure: "BLOCK",
   };
 }
 

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 376,
-    "classifiedMigrations": 376,
+    "filesystemMigrations": 377,
+    "classifiedMigrations": 377,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 376,
+    "productionSnapshotUnknown": 377,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 376,
-    "classifiedMigrations": 376,
+    "filesystemMigrations": 377,
+    "classifiedMigrations": 377,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 376,
+    "productionSnapshotUnknown": 377,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 137,
+      "EXPAND": 138,
       "BACKFILL": 36,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 158,
+      "SAFE_TO_APPLY_NOW": 159,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 7
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 376
+    "ProductionMigrationStateUnknown": 377
   },
   "gateFailures": [],
   "migrations": [
@@ -28174,8 +28174,73 @@
       "evidence": "REPORT-014 (2026-11-04). One new, empty table remembering the definitive outcome of the immutable part of a package seal check by seal identity. Key revocation is never stored. An older image ignores it. Rollback: drop the table."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281119100400_legal_hold_disclosure_setting",
       "order": 375,
+      "sqlPresent": true,
+      "byteLength": 950,
+      "checksumSha256": "db7fae9c6758169437241adf0c5ad49a84131e262cb9106a25dcf46a792fe453",
+      "checksumSha256Raw": "db7fae9c6758169437241adf0c5ad49a84131e262cb9106a25dcf46a792fe453",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "workspace_governance_policies"
+        ],
+        "addedColumns": [
+          "legal_hold_disclosure"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "workspace_governance_policies_legal_hold_disclosure_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260517100000_add_governance_phase9"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='workspace_governance_policies' AND column_name='legal_hold_disclosure';\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "GOV-012 (2026-11-06). One NOT NULL column with default 'BLOCK' (the existing behaviour: a hold refuses every byte release) and a two-value CHECK. Only a workspace owner's opt-in changes it. An older image never reads it. Rollback: leave the column."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 376,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

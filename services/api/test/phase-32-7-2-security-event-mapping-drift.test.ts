@@ -1540,6 +1540,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281119100200_organization_data_export_requests",
       // REPORT-014: package seal byte checks, remembered. EXPAND.
       "20281119100300_package_seal_byte_checks",
+      // GOV-012: the owner-only legal-hold disclosure setting (default BLOCK). EXPAND.
+      "20281119100400_legal_hold_disclosure_setting",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

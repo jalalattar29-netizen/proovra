@@ -202,10 +202,13 @@ describe("fresh-enterprise repairs (live PostgreSQL)", () => {
     });
 
     it("a released template policy leaves the posture", async () => {
-      const row = await prisma.retentionPolicyConfig.findFirstOrThrow({ where: { teamId, state: "ACTIVE" } });
-      await prisma.retentionPolicyConfig.update({ where: { id: row.id }, data: { state: "RELEASED" } });
+      // GOV-005: the template policy lives in the one store, marked by its template.
+      const row = await prisma.evidenceRetentionPolicy.findFirstOrThrow({
+        where: { teamId, status: "ACTIVE", description: { startsWith: "lifecycle-template:" } },
+      });
+      await prisma.evidenceRetentionPolicy.update({ where: { id: row.id }, data: { status: "ARCHIVED" } });
       expect((await center(owner, orgId)).retention.data.activePolicyCount).toBe(1);
-      await prisma.retentionPolicyConfig.update({ where: { id: row.id }, data: { state: "ACTIVE" } });
+      await prisma.evidenceRetentionPolicy.update({ where: { id: row.id }, data: { status: "ACTIVE" } });
     });
   });
 
