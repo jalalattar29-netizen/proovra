@@ -646,14 +646,15 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
 
   it("D41 lifecycle retention policy release writes a persisted audit row", async () => {
     const { teamA } = h.fixtures;
-    const policy = await prisma.retentionPolicyConfig.create({
+    // GOV-005: a lifecycle template policy lives in the one retention store.
+    const policy = await prisma.evidenceRetentionPolicy.create({
       data: {
         teamId: teamA.teamId,
-        name: "Insurance hold",
-        template: "INSURANCE_7Y",
-        years: 7,
-        scopeKind: "WORKSPACE",
-        state: "ACTIVE",
+        displayName: "Insurance hold",
+        description: "lifecycle-template:INSURANCE_7Y",
+        retentionDays: 7 * 365,
+        scope: "WORKSPACE",
+        status: "ACTIVE",
         createdByUserId: teamA.ownerUserId,
       },
       select: { id: true },
@@ -664,11 +665,11 @@ describe("defects — exchange, lifecycle, retention, webhook cancel (live Postg
       token: teamA.ownerToken,
     });
     expect(res.statusCode, res.body).toBe(200);
-    const stored = await prisma.retentionPolicyConfig.findUniqueOrThrow({
+    const stored = await prisma.evidenceRetentionPolicy.findUniqueOrThrow({
       where: { id: policy.id },
-      select: { state: true },
+      select: { status: true },
     });
-    expect(stored.state).toBe("ARCHIVED");
+    expect(stored.status).toBe("ARCHIVED");
     const rows = await auditRows({
       action: "lifecycle.retention_policy.release",
       resourceId: policy.id,

@@ -117,7 +117,7 @@ async function emitRetentionAudit(
       sourceApp: actorUserId ? "API" : "SYSTEM",
       actorUserId,
       workspaceId: input.teamId,
-      resourceType: "retention_policy_config",
+      resourceType: "evidence_retention_policy",
       resourceId: input.policyId,
       previousState: input.previousState ?? null,
       resultingState: input.resultingState ?? null,
@@ -313,16 +313,36 @@ export async function releaseRetentionPolicy(input: {
 }): Promise<{ ok: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
   try {
-    await transitionCanonicalPolicy(
-      {
-        teamId: input.teamId,
-        id: input.policyId,
-        actorUserId: input.actorUserId,
-        nextStatus: "ARCHIVED",
-        changeNote: "Released from the lifecycle retention page",
-      },
-      prisma,
-    );
+    // The release and its audit row commit together (D41), in the one store.
+    await prisma.$transaction(async (tx) => {
+      const client = tx as unknown as PrismaClient;
+      const before = await client.evidenceRetentionPolicy.findFirst({
+        where: { id: input.policyId, teamId: input.teamId },
+        select: { status: true },
+      });
+      const released = await transitionCanonicalPolicy(
+        {
+          teamId: input.teamId,
+          id: input.policyId,
+          actorUserId: input.actorUserId,
+          nextStatus: "ARCHIVED",
+          changeNote: "Released from the lifecycle retention page",
+        },
+        client,
+      );
+      await emitRetentionAudit(
+        {
+          teamId: input.teamId,
+          policyId: released.id,
+          code: "RETENTION_POLICY_RELEASED",
+          actorUserId: input.actorUserId,
+          reason: null,
+          previousState: before?.status ?? null,
+          resultingState: "ARCHIVED",
+        },
+        client,
+      );
+    });
     return { ok: true };
   } catch (err) {
     if (err instanceof RetentionEngineError) return { ok: false };
