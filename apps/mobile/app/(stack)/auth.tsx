@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { emailLogin, resendVerification } from "../../src/auth/auth-api";
 import { useOAuth, type OAuthMode } from "../../src/auth/use-oauth";
 import { useCompleteLogin } from "../../src/auth/use-auth-flow";
+import { useSsoSignIn } from "../../src/auth/use-sso-sign-in";
 import { ORGANIZATION_SSO_SIGN_IN_NOTE, SESSION_END_NOTICE } from "../../src/auth/session-end";
 import { useAuth } from "../../src/auth-context";
 import { toSafeUserError } from "../../src/errors/safe-error";
@@ -76,6 +77,23 @@ export default function AuthScreen() {
       void completeLogin(result, mode, { legalAcceptedSource: "login" });
     },
   });
+
+  const sso = useSsoSignIn(
+    useCallback((result) => completeLogin(result, "sso", { legalAcceptedSource: "login" }), [completeLogin]),
+  );
+
+  // The work address decides the Organization (POST /v1/auth/sso/discover).
+  const startSso = () => {
+    setError(null);
+    setFieldErrors({});
+    sso.clearError();
+    if (!email.trim() || !EMAIL_RE.test(email.trim())) {
+      setFieldErrors({ email: "Enter your work email address to use single sign-on." });
+      return;
+    }
+    if (!requireLegal()) return;
+    void sso.start(email.trim());
+  };
 
   const requireLegal = (): boolean => {
     if (acceptLegal) return true;
@@ -270,10 +288,25 @@ export default function AuthScreen() {
         {shownError ? <AuthNote tone="error" testID="auth-error">{shownError}</AuthNote> : null}
         {status ? <AuthNote tone="status">{status}</AuthNote> : null}
 
-        {/* MOBILE-002 — an account with no password has no way in here, and would only be told its details are wrong. */}
-        <ProovraText variant="label" color={theme.color.ink.muted} center style={styles.ssoNote} testID="auth-sso-note">
-          {ORGANIZATION_SSO_SIGN_IN_NOTE}
-        </ProovraText>
+        {/*
+          MOBILE-002 — Organization single sign-on, through the platform's own
+          SSO routes in the system browser (src/auth/sso-native.ts). An
+          SSO-required member has no password way in; this is theirs.
+        */}
+        <View style={styles.sso} testID="auth-sso">
+          <ProovraText variant="label" color={theme.color.ink.muted} center>
+            {ORGANIZATION_SSO_SIGN_IN_NOTE}
+          </ProovraText>
+          <ProovraButton
+            label="Sign in with your organization (SSO)"
+            variant="secondary"
+            loading={sso.busy}
+            disabled={busy || oauth.busy !== null}
+            onPress={() => void startSso()}
+            testID="auth-sso-signin"
+          />
+          {sso.error ? <AuthNote tone="error" testID="auth-sso-error">{sso.error}</AuthNote> : null}
+        </View>
 
         <View style={styles.switchRow}>
           {/* NEW:L10N-LOGIN — the web's "Register? Register" line (login/page.tsx:1164-1175). */}
@@ -303,7 +336,7 @@ const styles = StyleSheet.create({
   },
   verifyActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s3 },
   failedHead: { marginTop: theme.space.s3 },
-  ssoNote: { marginTop: theme.space.s4 },
+  sso: { marginTop: theme.space.s4, gap: theme.space.s2 },
   oauthProgress: { marginTop: theme.space.s3, gap: theme.space.s1, alignItems: "center" },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: theme.space.s1, marginTop: theme.space.s4 },
 });

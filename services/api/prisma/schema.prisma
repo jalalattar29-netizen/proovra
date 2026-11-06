@@ -9753,6 +9753,37 @@ model SsoCallbackAttempt {
   @@map("sso_callback_attempts")
 }
 
+/// MOBILE-002 — the native app's SSO hand-off (sso-native-handoff.service.ts).
+/// One row per native sign-in attempt, keyed by the attempt's state hash: the
+/// app's PKCE challenge is recorded at initiate; after the IdP answer is
+/// verified the callback records WHO it proved under a single-use code (hash
+/// only). The app redeems the code with its verifier; no session token is
+/// ever stored here or put in a URL.
+model SsoNativeHandoff {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// HMAC of the sign-in state, as `sso_callback_attempts.state_hash`.
+  stateHash        String    @unique @map("state_hash") @db.VarChar(64)
+  /// RFC 7636 S256 challenge (BASE64URL, 43 chars).
+  codeChallenge    String    @map("code_challenge") @db.VarChar(64)
+  expiresAtUtc     DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  /// SHA-256 of the single-use code handed to the app; null until the IdP answer is verified.
+  codeHash         String?   @unique @map("code_hash") @db.VarChar(64)
+  codeExpiresAtUtc DateTime? @map("code_expires_at_utc") @db.Timestamptz(6)
+  usedAtUtc        DateTime? @map("used_at_utc") @db.Timestamptz(6)
+  /// The verified identity, recorded only after the IdP leg passed every check.
+  userId           String?   @map("user_id") @db.Uuid
+  email            String?   @db.VarChar(320)
+  teamId           String?   @map("team_id") @db.Uuid
+  ssoConnectionId  String?   @map("sso_connection_id") @db.Uuid
+  authMethod       String?   @map("auth_method") @db.VarChar(8)
+  idpContext       String?   @map("idp_context") @db.VarChar(256)
+  idpAuthAtUtc     DateTime? @map("idp_auth_at_utc") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([expiresAtUtc])
+  @@map("sso_native_handoffs")
+}
+
 model ScimGroup {
   id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   teamId String @map("team_id") @db.Uuid

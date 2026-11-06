@@ -22,6 +22,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 
 import { publicFetch } from "../../../src/api";
+import { heldIntakeParts, releaseIntakeSession } from "../../../src/intake/intake-resume";
 import { computeFileIntegrity, uploadWithPut } from "../../../src/upload-utils";
 import { theme } from "../../../src/theme/theme";
 import {
@@ -52,7 +53,9 @@ import {
   INTAKE_LOCATION_COPY as LOC,
   intakeDeviceTime,
   intakeLocationBody,
+  nextIntakePartIndex,
   type IntakeLocationState,
+  type ResumedIntakePart,
 } from "../../../src/product/external-intake";
 import * as Location from "expo-location";
 
@@ -67,7 +70,26 @@ type Staged = {
   partId: string | null;
   /** The checklist step this file is assigned to (web StagedPart.checklistStepId). */
   stepId: string | null;
+  /** The part index declared for this file; held parts keep the server's (PRO-115). */
+  partIndex: number;
+  /** A resumed part the server declared but whose bytes never reached storage. */
+  unfinished: boolean;
 };
+
+/** The files a resumed session already holds, as staged rows (web UC-WEB-003). */
+function stagedFromHeld(parts: ResumedIntakePart[]): Staged[] {
+  return parts.map((p) => ({
+    uri: "",
+    name: p.originalFileName ?? `File ${p.partIndex + 1}`,
+    mimeType: p.mimeType ?? "application/octet-stream",
+    size: p.sizeBytes,
+    sent: p.stored,
+    partId: p.id,
+    stepId: p.checklistStepId,
+    partIndex: p.partIndex,
+    unfinished: !p.stored,
+  }));
+}
 
 export default function IntakeCaptureScreen() {
   const router = useRouter();
@@ -119,7 +141,9 @@ export default function IntakeCaptureScreen() {
     }
   }, []);
 
-  const [staged, setStaged] = useState<Staged[]>([]);
+  const [staged, setStaged] = useState<Staged[]>(() =>
+    token && sessionId ? stagedFromHeld(heldIntakeParts(token, sessionId)) : [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Offered only for a genuine server fault, never for a refusal (web SupportReference). */
@@ -140,7 +164,9 @@ export default function IntakeCaptureScreen() {
     if (res.canceled) return;
 
     const room = INTAKE_MAX_PARTS - staged.length;
-    const next = res.assets.slice(0, room).map((a) => ({
+    // New files are numbered after every part the session already holds.
+    const first = nextIntakePartIndex(staged.map((s) => s.partIndex));
+    const next = res.assets.slice(0, room).map((a, k) => ({
       uri: a.uri,
       name: a.name ?? "file",
       mimeType: a.mimeType ?? "application/octet-stream",
@@ -148,9 +174,11 @@ export default function IntakeCaptureScreen() {
       sent: false,
       partId: null,
       stepId: null,
+      partIndex: first + k,
+      unfinished: false,
     }));
     setStaged((prev) => [...prev, ...next]);
-  }, [staged.length]);
+  }, [staged]);
 
   // Assigning a file to a step: an unsent file carries it in its parts POST; a
   // sent one is re-mapped with the web's PATCH …/parts/:partId (setPartStep).
@@ -185,7 +213,8 @@ export default function IntakeCaptureScreen() {
       const context = intakeCaptureContext();
       for (let i = 0; i < staged.length; i++) {
         const item = staged[i];
-        if (item.sent) continue;
+        // A held part is already the server's; an unfinished one has no file here to send.
+        if (item.sent || item.unfinished) continue;
 
         // The same on-device digest the app computes everywhere else, so a
         // contributor's file carries a hash from the moment it leaves their
@@ -196,7 +225,7 @@ export default function IntakeCaptureScreen() {
           method: "POST",
           body: JSON.stringify(
             buildIntakePartBody({
-              partIndex: i,
+              partIndex: item.partIndex,
               mimeType: item.mimeType,
               originalFileName: item.name,
               checksumSha256Base64: integrity.checksumSha256Base64,
@@ -237,6 +266,8 @@ export default function IntakeCaptureScreen() {
         // REQUIRED send the consent state (+ coordinates only when granted).
         body: JSON.stringify(buildIntakeSubmitBody({ location: intakeLocationBody(policy, location), deviceTime: intakeDeviceTime() })),
       });
+      // A submitted session is finished; a later open of the link starts fresh.
+      releaseIntakeSession(token);
       setSubmitted(true);
     } catch (err) {
       // The server's own reason, not a link-level guess (see intakeSendFailureMessage);
@@ -296,8 +327,16 @@ export default function IntakeCaptureScreen() {
                       <ProovraText variant="bodySm" numberOfLines={1}>
                         {s.name}
                       </ProovraText>
-                      <ProovraBadge label={s.sent ? "Sent" : "Ready"} tone={s.sent ? "verified" : "neutral"} />
+                      <ProovraBadge
+                        label={s.sent ? "Sent" : s.unfinished ? "Not uploaded" : "Ready"}
+                        tone={s.sent ? "verified" : s.unfinished ? "pending" : "neutral"}
+                      />
                     </View>
+                    {s.unfinished ? (
+                      <ProovraText variant="label" color={theme.color.status.pending.fg}>
+                        This file did not finish uploading. Choose the same file again to retry.
+                      </ProovraText>
+                    ) : null}
                     {/* The web's per-file "Map to step…" select, as chips. */}
                     {steps.length > 0 ? (
                       <ProovraFilterChips

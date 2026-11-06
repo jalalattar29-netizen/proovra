@@ -27,7 +27,13 @@ import {
   stopScreenCapture,
 } from "../../modules/proovra-screen-capture";
 import { discardDirectCaptureSession } from "../direct-capture";
-import { clearCaptureSession, loadCaptureSessions, setCaptureSessionOwner } from "./capture-session-store";
+import { clearCaptureLinks } from "./capture-links";
+import {
+  clearCaptureSession,
+  getCaptureSessionOwner,
+  loadCaptureSessions,
+  setCaptureSessionOwner,
+} from "./capture-session-store";
 import { clearLiveContinuousSession, loadLiveContinuousSession } from "./continuous-session-store";
 import { clearPendingScreenStaging, loadPendingScreenStaging } from "./screen-staging-store";
 
@@ -106,9 +112,11 @@ export async function teardownCaptureOnSignOut(): Promise<void> {
   // AUD-006 — iOS: the signed-out user's own recording, by its id.
   if (live?.recordingId) await quietly(() => discardContinuousSpool(live.recordingId));
 
-  // 4. The durable records, then the owner binding.
+  // 4. The durable records, the groups linking them (PRO-116), then the owner binding.
+  const owner = getCaptureSessionOwner();
   await quietly(() => clearLiveContinuousSession());
   await quietly(() => clearCaptureSession());
   await quietly(() => clearPendingScreenStaging());
+  await quietly(() => clearCaptureLinks(owner));
   setCaptureSessionOwner(null);
 }

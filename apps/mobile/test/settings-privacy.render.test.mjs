@@ -6,7 +6,7 @@
  * server's schema, history with its legal classification) and the references.
  * Every payload is the route's own reply shape.
  */
-import { test, before, beforeEach } from "node:test";
+import { test, before, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
 import { authenticatedRoutes, signIn } from "./support/authenticated.mjs";
@@ -15,6 +15,7 @@ const h = React.createElement;
 let M;
 let routes = {};
 let posts = [];
+let requests = [];
 let status;
 
 before(async () => {
@@ -22,6 +23,7 @@ before(async () => {
 });
 beforeEach(async () => {
   posts = [];
+  requests = [];
   status = { requiresReacceptance: true, missingPolicies: ["terms"], acceptedVersions: { terms: "2026-01" }, requiredVersions: { terms: "2026-09", privacy: "2026-08" } };
   routes = {
     ...authenticatedRoutes(),
@@ -51,16 +53,25 @@ beforeEach(async () => {
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(/^https?:\/\/[^/]+/, "");
     const key = Object.keys(routes).filter((p) => path === p || path.startsWith(p + "?") || path.startsWith(p + "/")).sort((a, b) => b.length - a.length)[0] ?? (routes[path] ? path : undefined);
-    const res = key ? routes[key](init) : undefined;
+    requests.push({ method: init.method ?? "GET", path, body: init.body ? JSON.parse(init.body) : null });
+    const res = key ? routes[key](init, path) : undefined;
+    if (res instanceof Response) return res;
     return new Response(JSON.stringify(res ?? {}), { status: res === undefined ? 404 : 200, headers: { "content-type": "application/json" } });
   };
+  globalThis.__WRITTEN__ = {};
+  globalThis.__SHARED__ = [];
   await signIn(M);
 });
 const settle = async () => {
   for (let i = 0; i < 8; i += 1) await act(async () => { await new Promise((x) => setTimeout(x, 0)); });
 };
+const mounted = [];
+afterEach(() => {
+  while (mounted.length) mounted.pop().unmount();
+});
 const render = async () => {
   const r = await renderComponent(h(M.TestProviders, null, h(M.default, {})));
+  mounted.push(r);
   await settle();
   return r;
 };
@@ -113,6 +124,113 @@ test("the references open the in-app reader", async () => {
   await r.press("Submit a privacy request");
   assert.equal(M.calls.push.at(-1), "/legal/privacy-requests");
   assert.ok(r.texts().some((t) => t.startsWith("The full legal library (DPA, subprocessors, retention, disclosure policies")));
+});
+
+/* ------------------------------------------------ PRO-114 / MOBILE-02 ---- */
+
+// The server's own answers (account-step-up.service.ts deny(), the routes' 201s).
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const stepUpRequired = () => json(401, { error: { code: "STEP_UP_REQUIRED", methods: ["password"], message: "" } });
+const posted = (suffix) => requests.filter((q) => q.method === "POST" && q.path.endsWith(suffix)).map((q) => q.body);
+const answerStepUp = async (r, password = "correct horse") => {
+  await settle();
+  assert.ok(r.hasText("This action needs one more proof that it is you. Nothing has been changed yet."), "the step-up sheet did not open");
+  await r.type("Your password", password);
+  await r.press("Confirm");
+  await settle();
+};
+
+test("PRO-114: an export request answers its step-up challenge and re-sends the SAME request with the proof", async () => {
+  let exportRows = [];
+  routes["/v1/identity/data-export"] = (init) => {
+    if (init.method === "POST") {
+      const b = JSON.parse(init.body);
+      if (!b.stepUp) return stepUpRequired();
+      exportRows = [{ id: "x9", status: "REQUESTED", requestedAtUtc: "2026-09-22T10:00:00Z", completedAtUtc: null, expiresAtUtc: null, failureCode: null, packageSha256: null, downloadCount: 0 }];
+      return json(201, { request: { id: "x9", status: "REQUESTED", requestedAtUtc: "2026-09-22T10:00:00Z" } });
+    }
+    return { requests: exportRows };
+  };
+  const r = await render();
+  await r.press("Request a data export");
+  await answerStepUp(r);
+  assert.deepEqual(posted("/v1/identity/data-export"), [{}, { stepUp: { method: "password", currentPassword: "correct horse" } }]);
+  assert.ok(r.hasText("Requested — queued for generation"), "the new request was not re-read");
+  assert.ok(r.hasText("An export is already being prepared."));
+});
+
+test("PRO-114: closure posts the route's `confirmation` field, then the proof the challenge asked for", async () => {
+  let closureRequest = null;
+  routes["/v1/identity/account-closure"] = (init) => {
+    if (init.method === "POST") {
+      const b = JSON.parse(init.body);
+      // The route's zod schema: `confirmation` is required.
+      if (typeof b.confirmation !== "string") return json(400, { error: { code: "INVALID_INPUT", message: "confirmation: Required" } });
+      if (!b.stepUp) return stepUpRequired();
+      closureRequest = { id: "c1", status: "COOLING_OFF", reason: b.reason ?? null, requestedAtUtc: "2026-09-22T10:00:00Z", coolingOffEndsAtUtc: "2099-01-01T00:00:00Z", cancelledAtUtc: null, completedAtUtc: null, failureCode: null };
+      return json(201, { request: closureRequest });
+    }
+    return { request: closureRequest, blockers: [], consequences: [], coolingOffDays: 7, confirmationPhrase: "close my account" };
+  };
+  const r = await render();
+  await r.type("Confirmation phrase", "close my account");
+  await r.type("Reason for closing", "testing");
+  await r.press("Request account closure");
+  await answerStepUp(r);
+  const bodies = posted("/v1/identity/account-closure");
+  assert.deepEqual(bodies, [
+    { confirmation: "close my account", reason: "testing" },
+    { confirmation: "close my account", reason: "testing", stepUp: { method: "password", currentPassword: "correct horse" } },
+  ]);
+  assert.ok(!bodies.some((b) => "confirmationPhrase" in b), "the app sent a field the route does not read");
+  assert.ok(r.hasText("Scheduled — cancellation window open"), "the open request was not shown");
+  assert.equal(r.byLabel("Cancel closure request").length > 0, true);
+});
+
+test("PRO-114: a wrong password is said in the server's words and nothing is requested", async () => {
+  routes["/v1/identity/account-closure"] = (init) => {
+    if (init.method === "POST") {
+      const b = JSON.parse(init.body);
+      if (!b.stepUp) return stepUpRequired();
+      return json(401, { error: { code: "STEP_UP_INVALID", methods: ["password"], message: "The current password is incorrect." } });
+    }
+    return { request: null, blockers: [], consequences: [], coolingOffDays: 7, confirmationPhrase: "close my account" };
+  };
+  const r = await render();
+  await r.type("Confirmation phrase", "close my account");
+  await r.press("Request account closure");
+  await answerStepUp(r, "wrong");
+  assert.ok(r.hasText("The current password is incorrect."));
+  assert.equal(r.byLabel("Cancel closure request").length, 0, "a refused request is shown as open");
+});
+
+test("PRO-114: Download is the route's POST with the proof; the package is saved to the export folder and shared, no URL is opened", async () => {
+  const pkg = { schemaVersion: 1, user: { id: "user-1" } };
+  routes["/v1/identity/data-export"] = (init, path) => {
+    if (path.endsWith("/download")) {
+      if (init.method !== "POST") return json(404, { error: { code: "ROUTE_NOT_FOUND" } });
+      const b = JSON.parse(init.body);
+      return b.stepUp ? json(200, pkg) : stepUpRequired();
+    }
+    return { requests: [{ id: "x1", status: "READY", requestedAtUtc: "2026-09-20T10:00:00Z", completedAtUtc: "2026-09-20T10:05:00Z", expiresAtUtc: "2099-01-01T00:00:00Z", failureCode: null, packageSha256: "0123456789abcdef0123", downloadCount: 0 }] };
+  };
+  M.calls.reset();
+  const r = await render();
+  await r.press("Download");
+  await answerStepUp(r);
+  assert.deepEqual(posted("/v1/identity/data-export/x1/download"), [{}, { stepUp: { method: "password", currentPassword: "correct horse" } }]);
+  assert.equal(requests.filter((q) => q.method === "GET" && q.path.endsWith("/download")).length, 0, "a GET was made to the POST-only route");
+  assert.deepEqual(M.calls.openURL, [], "the download was opened in a browser without the session");
+  const file = "file:///cache/proovra-exports/proovra-account-export-x1.json";
+  assert.deepEqual(JSON.parse(globalThis.__WRITTEN__[file]), pkg);
+  assert.equal(globalThis.__SHARED__.at(-1)?.uri, file);
+});
+
+test("PRO-114 control: an export in flight disables a second request instead of producing the server's refusal", async () => {
+  routes["/v1/identity/data-export"] = () => ({ requests: [{ id: "x1", status: "PROCESSING", requestedAtUtc: "2026-09-20T10:00:00Z" }] });
+  const r = await render();
+  await r.press("Request a data export");
+  assert.equal(posted("/v1/identity/data-export").length, 0);
 });
 
 test("the recorded cookie consent is shown read-only, with its categories (PrivacySection :933/:941/:947)", async () => {

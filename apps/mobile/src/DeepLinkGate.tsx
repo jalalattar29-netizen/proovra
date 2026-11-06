@@ -23,8 +23,10 @@ import {
   parsePublicDocumentDeepLink,
   parseExternalFlowDeepLink,
   resolveMobileDeepLink,
+  workspacePageDeepLink,
 } from "./deep-link";
 import { stepUpReturnRoute } from "./product/challenge-step-up";
+import { ssoReturnRoute } from "./auth/sso-native";
 import { setPendingRoute, hydratePendingRoute } from "./deep-link/pending-intent";
 
 function hasActiveWork(): boolean {
@@ -71,6 +73,14 @@ export function DeepLinkGate() {
       router.push(stepUpReturn as never);
       return;
     }
+    // MOBILE-002 — an Organization single sign-on's return. Its code is worthless
+    // without the verifier this app holds; the landing redeems it once.
+    const ssoReturn = ssoReturnRoute(url);
+    if (ssoReturn) {
+      handled.current = url;
+      router.push(ssoReturn as never);
+      return;
+    }
 
     const credential = parseCredentialDeepLink(url);
     if (credential) {
@@ -110,12 +120,22 @@ export function DeepLinkGate() {
     // Unauthenticated: preserve the intent and route to the gateway. The server
     // resolve requires a session, so we do not call it here; the destination is
     // replayed (and authorized by its own fetch) after the auth journey.
+    const workspacePage = workspacePageDeepLink(url);
     if (!getAuthToken()) {
       const parsed = parseCanonicalMobileDeepLink(url);
-      if (parsed) {
-        setPendingRoute(parsed.route);
+      const route = parsed?.route ?? workspacePage;
+      if (route) {
+        setPendingRoute(route);
         router.replace("/(stack)/auth");
       }
+      return;
+    }
+    if (workspacePage) {
+      if (hasActiveWork()) {
+        Alert.alert("Capture in progress", "Finish or pause the current capture before opening links.");
+        return;
+      }
+      router.push(workspacePage as never);
       return;
     }
 

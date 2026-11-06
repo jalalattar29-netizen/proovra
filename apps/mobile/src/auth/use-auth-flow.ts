@@ -12,12 +12,13 @@ import { useCallback } from "react";
 import { useRouter } from "expo-router";
 import { getAuthToken, setAuthToken } from "../api";
 import { useAuth } from "../auth-context";
+import { endSessionReplacedBy } from "./account-switch";
 import { fetchMe, getLegalStatus, recordLegalAcceptance, type LoginResult } from "./auth-api";
 import { endMfaEnrollment, holdMfaEnrollment } from "./mfa-enrollment-session";
 import type { OAuthMode } from "./use-oauth";
 import { takePendingRoute } from "../deep-link/pending-intent";
 
-export type LoginMode = OAuthMode | "email";
+export type LoginMode = OAuthMode | "email" | "sso";
 
 export interface CompleteLoginOptions {
   /**
@@ -32,7 +33,7 @@ export interface CompleteLoginOptions {
 }
 
 export function useCompleteLogin() {
-  const { setSession } = useAuth();
+  const { setSession, token: currentToken, user: currentUser } = useAuth();
   const router = useRouter();
 
   return useCallback(
@@ -56,6 +57,10 @@ export function useCompleteLogin() {
         router.push({ pathname: "/mfa", params: { pendingToken: result.mfaPendingToken, mode } });
         return;
       }
+      // The session this sign-in replaces, if the device holds one (PRO-113).
+      const previousToken = currentToken;
+      const previousUserId = currentUser?.id ?? null;
+
       // Confirm the session (fetch the user if the login response omitted it),
       // then persist it.
       setAuthToken(result.token);
@@ -70,12 +75,23 @@ export function useCompleteLogin() {
         // sign-in screen is saying why. It must not be stored after that.
         if (getAuthToken() !== result.token) return;
       }
-      setSession({ token: result.token, user, mode });
 
+      // PRO-113 / MOBILE-01 — a sign-in never silently leaves the replaced
+      // session live. A different (or unprovable) account ends the old one as
+      // sign-out does: capture torn down, session revoked, residue cleared.
       // A deep link that arrived before auth resumes here (survives auth → MFA →
-      // legal). The destination screen still authorizes via its own fetch.
+      // legal). The destination screen still authorizes via its own fetch. Taken
+      // before a switch clears the old account's residue: the link was opened
+      // for the sign-in happening now.
       const pending = takePendingRoute();
       const destination = pending ?? "/(tabs)";
+
+      if (previousToken && previousToken !== result.token) {
+        const sameAccount = Boolean(previousUserId && user?.id && user.id === previousUserId);
+        await endSessionReplacedBy(previousToken, sameAccount);
+        setAuthToken(result.token);
+      }
+      setSession({ token: result.token, user, mode });
 
       // Legal-status gate at the entry to the app (audit §Z13). Fail-open on a
       // transient error — the server's 428 gate will still catch a real gap.
@@ -104,6 +120,6 @@ export function useCompleteLogin() {
       if (getAuthToken() !== result.token) return;
       router.replace(destination as never);
     },
-    [router, setSession],
+    [router, setSession, currentToken, currentUser],
   );
 }

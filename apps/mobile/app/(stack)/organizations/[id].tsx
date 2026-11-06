@@ -128,6 +128,10 @@ type State =
   | { phase: "denied" }
   | { phase: "failed" };
 
+/** MOBILE-012 — the Enterprise administration that lives in the web app. */
+export const ORG_ADMIN_SCOPE_NOTE =
+  "Single sign-on and SCIM, verified domains, retention, legal holds, destruction, integrations, analytics and the security center are administered in the PROOVRA web app. Everything on this screen can be used here.";
+
 export default function OrganizationDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
@@ -405,6 +409,13 @@ export default function OrganizationDetailScreen() {
           </>
         }
       />
+      {/*
+        MOBILE-012 — what this app is for an Organization, said plainly: the
+        web app is PROOVRA's Enterprise administration client.
+      */}
+      <ProovraText variant="label" color={theme.color.ink.muted} testID="organization-admin-scope">
+        {ORG_ADMIN_SCOPE_NOTE}
+      </ProovraText>
 
       {leaveError ? (
         <ProovraCard testID="org-leave-error">

@@ -77,7 +77,8 @@ export function acceptedHeadline(r: OrgInviteAccepted): string {
   const role = roleWords(r.role);
   const base = role ? `You are now ${/^[aeiou]/.test(role) ? "an" : "a"} ${role} of the organization` : "You joined the organization";
   const n = r.assignedWorkspaceIds.length;
-  if (n === 0) return `${base}. Redirecting…`;
+  // An owed setup is not redirected to on the phone (orgSetupWebUrl): nothing moves on.
+  if (n === 0) return r.setupRedirect ? `${base}.` : `${base}. Redirecting…`;
   return n === 1 ? `${base} with access to one workspace.` : `${base} with access to ${n} workspaces.`;
 }
 
@@ -92,6 +93,24 @@ export function acceptedHeadline(r: OrgInviteAccepted): string {
 export function orgInviteLanding(r: OrgInviteAccepted): string | null {
   return r.organizationId ? `/organizations/${encodeURIComponent(r.organizationId)}` : null;
 }
+
+/**
+ * MOBILE-012 — a brand-new Enterprise owner's first-time setup (domains, single
+ * sign-on, retention and the rest of `/organizations/:id/setup`) runs in the
+ * web app, which is PROOVRA's Enterprise administration client. The phone used
+ * to drop `setupRedirect` and land on the organization page, so an owner who
+ * accepted on a phone was never told the setup was waiting. This is the web
+ * address that setup is continued at, or null when none is owed (or the
+ * server's path is not the setup route).
+ */
+export function orgSetupWebUrl(r: OrgInviteAccepted, webOrigin: string | null): string | null {
+  const path = r.setupRedirect;
+  if (!webOrigin || !path || !/^\/organizations\/[A-Za-z0-9-]+\/setup(\?[^#]*)?$/.test(path)) return null;
+  return `${webOrigin}${path}`;
+}
+
+export const ORG_SETUP_ON_WEB_COPY =
+  "Your organization's first-time setup — verified domains, single sign-on, retention and members — runs in the PROOVRA web app. Continue it there; everything you capture and review here works meanwhile.";
 
 /**
  * The refusal reason, by status (accept page.tsx:283-289), matching

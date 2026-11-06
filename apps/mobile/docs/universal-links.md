@@ -29,6 +29,9 @@ sometimes goes nowhere useful.
 | `/reset-password` | `(stack)/reset-password.tsx` |
 | `/auth/verify-email` | `(stack)/verify-email.tsx` |
 | `/auth/mfa-recovery/*` | `(stack)/mfa-recovery-verify.tsx` |
+| `/evidence/<id>`, `/cases/<id>` | `(stack)/evidence/[id].tsx`, `(stack)/case/[id].tsx`, after the server resolve |
+| `/evidence/archive` | `(stack)/evidence-archive.tsx` |
+| (`proovra://sso/complete`, scheme only) | `(stack)/sso-complete.tsx` — the Organization SSO return |
 
 `/portal/sso/callback` is deliberately absent: it is a browser redirect target
 with no native analogue, and claiming it would break the web SSO round-trip by
@@ -37,9 +40,12 @@ cannot exclude a sub-path, so neither platform claims all of `/portal`. The API
 mints `/portal/accept/<grantId>`, so that is what is claimed. A `/portal/<token>`
 link opens in the browser, and `proovra://portal/<token>` still opens the app.
 
-`/evidence/*` and `/cases/*` are not claimed. Those emails open the browser. The
-app can resolve them (`proovra://evidence/<id>`, through `POST /v1/deep-link/resolve`),
-and whether to claim them is an open decision, MOBILE-006.
+`/evidence/*` and `/cases/*` are claimed (MOBILE-006): the evidence and case
+links in notifications and e-mails open the app, which asks the server
+(`POST /v1/deep-link/resolve`) to authorize the record and name its workspace
+before anything is shown; a signed-out person signs in first and the link
+resumes; a denial is one generic "not available". `/evidence/archive`, the web
+archive page under the same prefix, opens the app's archive screen.
 
 A path with no route lands on `+not-found.tsx`.
 
@@ -59,11 +65,19 @@ platforms require.
    App Signing, devices receive a build signed by Google's app-signing key, so that
    key's SHA-256 must be listed too. Confirm it in the Play Console. The usual
    symptom of a missing one is App Links silently opening the browser.
+   **BLOCKED (MOBILE-010), exact action for the account owner:** Play Console →
+   the PROOVRA app → Test and release → Setup → App signing → "App signing key
+   certificate" → copy the SHA-256 fingerprint, and add it as a second entry in
+   `sha256_cert_fingerprints` in `apps/web/public/.well-known/assetlinks.json`
+   (keep the upload key's entry). Then deploy the web app and check
+   `https://www.proovra.com/.well-known/assetlinks.json` and Google's Digital
+   Asset Links checker for the package `com.jalalattar29.proovra`.
 2. Deploy `apps/web` so the two files are reachable over HTTPS at
    `https://www.proovra.com/.well-known/…` and
    `https://proovra.com/.well-known/…`, with `content-type: application/json`
-   and no redirect. Next serves the extensionless AASA with its default type
-   unless told otherwise (MOBILE-010).
+   and no redirect. `next.config.js` declares that type for both files
+   (pinned by `apps/web/__tests__/well-known-content-type.test.ts`); what the
+   live CDN answers is checked with `curl -I` after deploy.
 3. Install a build made AFTER the `app.json` change. iOS fetches the AASA at
    install time; Android verifies on install. An existing build will not pick
    this up.

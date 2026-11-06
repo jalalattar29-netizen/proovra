@@ -116,6 +116,22 @@ async function writeGroups(owner: string, groups: readonly LinkGroup[]): Promise
   }
 }
 
+/**
+ * PRO-116 / MOBILE-04 — the groups end with the account on this device. Sign-out
+ * and an account switch discard every staged record the groups name, so a group
+ * left behind links nothing and only tells the next person what was captured.
+ * A session the SERVER ended keeps both (stopCaptureOnSessionEnd), so this runs
+ * from the sign-out teardown only.
+ */
+export async function clearCaptureLinks(owner: string | null): Promise<void> {
+  if (!owner) return;
+  try {
+    await AsyncStorage.removeItem(captureLinksKey(owner));
+  } catch {
+    // Best-effort, like every other teardown step.
+  }
+}
+
 /** Record that `key` belongs to a group of records captured together. */
 export async function registerLinkedRecord(groupId: string, key: string): Promise<void> {
   const owner = getCaptureSessionOwner();

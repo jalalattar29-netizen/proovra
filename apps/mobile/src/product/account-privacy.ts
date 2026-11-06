@@ -2,8 +2,17 @@
  * ACCOUNT PRIVACY — data export and account closure.
  *
  * Ports the Settings privacy pane over `GET|POST /v1/identity/data-export`,
- * `GET .../data-export/:id/download`, and
- * `GET|POST /v1/identity/account-closure` with `.../:id/cancel`.
+ * `POST .../data-export/:id/download`, and
+ * `GET|POST /v1/identity/account-closure` with `.../:id/cancel`
+ * (services/api/src/routes/account-data-export.routes.ts,
+ * account-closure.routes.ts).
+ *
+ * PRO-114 / MOBILE-02 — the request shapes are the routes' own schemas, not a
+ * guess at them: closure posts `{ confirmation, reason?, stepUp? }`, an export
+ * request `{ stepUp? }`, and a download is a POST carrying `{ stepUp? }`
+ * (there is no GET; a step-up proof never travels in a URL). The statuses are
+ * the server's vocabulary — REQUESTED / PROCESSING / READY / FAILED / EXPIRED
+ * for an export — the same words the web's PrivacySection reads.
  *
  * ===========================================================================
  * CLOSURE IS THE MOST CONSEQUENTIAL CONTROL IN THE PRODUCT
@@ -52,6 +61,38 @@ export function buildClosureCancelPath(requestId: string): string {
   return `${ACCOUNT_CLOSURE_PATH}/${encodeURIComponent(requestId)}/cancel`;
 }
 
+/** The step-up proof, exactly as the identity routes' `stepUp` field accepts it. */
+export type PrivacyStepUpProof =
+  | { method: "password"; currentPassword: string }
+  | { method: "mfa"; code: string };
+
+/** `POST /v1/identity/account-closure` — the route's schema: `confirmation`, never `confirmationPhrase`. */
+export function buildClosureRequestBody(
+  typed: string,
+  reason: string,
+  proof: PrivacyStepUpProof | null,
+): { confirmation: string; reason?: string; stepUp?: PrivacyStepUpProof } {
+  const trimmedReason = reason.trim();
+  return {
+    confirmation: typed.trim(),
+    ...(trimmedReason ? { reason: trimmedReason } : {}),
+    ...(proof ? { stepUp: proof } : {}),
+  };
+}
+
+/** `POST /v1/identity/data-export` and `POST .../:id/download` both take only the proof. */
+export function buildExportStepUpBody(proof: PrivacyStepUpProof | null): { stepUp?: PrivacyStepUpProof } {
+  return proof ? { stepUp: proof } : {};
+}
+
+/** The download is a POST: the route has no GET, and the proof rides in the body. */
+export const EXPORT_DOWNLOAD_METHOD = "POST";
+
+/** The file name the route's content-disposition gives the package. */
+export function exportPackageFilename(requestId: string): string {
+  return `proovra-account-export-${requestId.replace(/[^A-Za-z0-9-]/g, "")}.json`;
+}
+
 // ---------------------------------------------------------------------------
 // Data export
 // ---------------------------------------------------------------------------
@@ -75,7 +116,7 @@ export function parseDataExports(payload: unknown): DataExportRequest[] {
       if (!id) return null;
       return {
         id,
-        status: str(r.status) ?? "PENDING",
+        status: str(r.status) ?? "REQUESTED",
         requestedAtIso: str(r.requestedAtUtc),
         completedAtIso: str(r.completedAtUtc),
         expiresAtIso: str(r.expiresAtUtc),
@@ -91,14 +132,16 @@ export function parseDataExports(payload: unknown): DataExportRequest[] {
  * Whether this export can still be downloaded.
  *
  * An EXPIRED package is not a download that will fail — it is one that should
- * not be offered. And a COMPLETED export with no expiry stated is treated as
- * available, because the server is the one that expires it.
+ * not be offered. READY is the server's one downloadable state
+ * (account-data-export.routes.ts: `row.status !== "READY"` → 409); a READY
+ * export with no expiry stated is treated as available, because the server is
+ * the one that expires it.
  */
 export function isExportDownloadable(
   request: DataExportRequest,
   nowMs: number = Date.now(),
 ): boolean {
-  if (request.status.toUpperCase() !== "COMPLETED") return false;
+  if (request.status.toUpperCase() !== "READY") return false;
   if (!request.expiresAtIso) return true;
   const expires = Date.parse(request.expiresAtIso);
   return Number.isFinite(expires) ? expires > nowMs : true;
@@ -106,30 +149,44 @@ export function isExportDownloadable(
 
 export function exportStatusTone(status: string): ProovraStatusTone {
   switch (status.toUpperCase()) {
-    case "COMPLETED":
+    case "READY":
       return "verified";
     case "FAILED":
       return "risk";
-    case "PENDING":
+    case "REQUESTED":
     case "PROCESSING":
       return "pending";
-    case "EXPIRED":
-      return "neutral";
     default:
       return "neutral";
   }
 }
 
+/** The web's words for each state (PrivacySection EXPORT_STATUS_LABEL). */
+const EXPORT_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: "Requested — queued for generation",
+  PROCESSING: "Generating…",
+  READY: "Ready to download",
+  FAILED: "Failed",
+  EXPIRED: "Expired",
+  CANCELLED: "Cancelled",
+};
+
 export function exportStatusLabel(request: DataExportRequest, nowMs = Date.now()): string {
   const s = request.status.toUpperCase();
-  if (s === "COMPLETED" && !isExportDownloadable(request, nowMs)) return "Expired";
+  if (s === "READY" && !isExportDownloadable(request, nowMs)) return "Expired";
+  const known = EXPORT_STATUS_LABEL[s];
+  if (known) return known;
   const t = s.replace(/_/g, " ").toLowerCase();
   return t.length === 0 ? "Unknown" : t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-/** A request already in flight — asking for a second is refused. */
+/**
+ * The server's "one active request" set (REQUESTED, PROCESSING, READY): while
+ * one exists a second request is refused with `export_request_active`, so the
+ * control says so instead of producing that refusal.
+ */
 export function hasExportInFlight(requests: DataExportRequest[]): boolean {
-  return requests.some((r) => ["PENDING", "PROCESSING"].includes(r.status.toUpperCase()));
+  return requests.some((r) => ["REQUESTED", "PROCESSING", "READY"].includes(r.status.toUpperCase()));
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +223,7 @@ export function parseClosure(payload: unknown): ClosureView {
     request: id
       ? {
           id,
-          status: str(r.status) ?? "PENDING",
+          status: str(r.status) ?? "REQUESTED",
           reason: str(r.reason),
           requestedAtIso: str(r.requestedAtUtc),
           coolingOffEndsAtIso: str(r.coolingOffEndsAtUtc),
@@ -197,11 +254,57 @@ export function confirmationMatches(typed: string, view: ClosureView): boolean {
   return typed.trim() === view.confirmationPhrase.trim();
 }
 
-/** A request that is still live — the user can cancel it, not file another. */
+/**
+ * A request that is still open — shown instead of the form. The server's own
+ * sets (account-closure.service.ts ACTIVE_CLOSURE_STATUSES plus a BLOCKED
+ * request, which stays cancellable), as the web's AccountClosureCard reads them.
+ */
 export function isClosureActive(request: ClosureRequest | null): boolean {
   if (!request) return false;
-  const s = request.status.toUpperCase();
-  return s === "PENDING" || s === "COOLING_OFF" || s === "SCHEDULED";
+  return ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED", "PROCESSING"].includes(
+    request.status.toUpperCase(),
+  );
+}
+
+/** Statuses the cancel route accepts (CANCELLABLE_CLOSURE_STATUSES); PROCESSING is past it. */
+export function isClosureCancellable(request: ClosureRequest | null): boolean {
+  if (!request) return false;
+  return ["REQUESTED", "BLOCKED", "COOLING_OFF", "SCHEDULED"].includes(request.status.toUpperCase());
+}
+
+/** The web's words for a closure request's state (PrivacySection CLOSURE_STATUS_LABEL). */
+const CLOSURE_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: "Requested",
+  BLOCKED: "Blocked — action needed",
+  COOLING_OFF: "Scheduled — cancellation window open",
+  SCHEDULED: "Scheduled",
+  PROCESSING: "Closing…",
+  COMPLETED: "Closed",
+  CANCELLED: "Cancelled",
+  FAILED: "Failed",
+};
+
+export function closureStatusLabel(status: string): string {
+  return CLOSURE_STATUS_LABEL[status.toUpperCase()] ?? status;
+}
+
+/** A refusal of the closure request, in the web's words (PrivacySection requestClosure). */
+export function closureRequestFailure(err: unknown): { message: string; reload: boolean } | null {
+  const e = obj(err);
+  const code = str(obj(obj(e.body).error).code) ?? str(e.code);
+  if (code === "closure_blocked") {
+    return { message: "Closure is blocked — resolve the items listed above and try again.", reload: true };
+  }
+  if (code === "confirmation_mismatch") {
+    return {
+      message: str(obj(obj(e.body).error).message) ?? "The confirmation phrase does not match.",
+      reload: false,
+    };
+  }
+  if (code === "closure_request_active") {
+    return { message: "An account closure request is already open.", reload: true };
+  }
+  return null;
 }
 
 export function closureStatusTone(status: string): ProovraStatusTone {

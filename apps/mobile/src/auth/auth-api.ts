@@ -19,6 +19,7 @@ import {
   parseTotpEnrollment,
   type TotpEnrollment,
 } from "../product/account-security";
+import { SSO_DISCOVER_PATH, SSO_EXCHANGE_PATH, parseSsoDiscovery } from "./sso-native";
 
 export interface AuthUser {
   id: string;
@@ -204,6 +205,20 @@ export async function oauthApple(idToken: string): Promise<LoginResult> {
   return signInExchange("/v1/auth/apple", { method: "POST", body: JSON.stringify({ idToken }) });
 }
 
+/* ------------------------------------------------------- Enterprise SSO */
+
+/** MOBILE-002 — the Organization sign-in route for this address, or null (sso-native.ts). */
+export async function discoverSso(email: string): Promise<string | null> {
+  return parseSsoDiscovery(
+    await publicFetch(SSO_DISCOVER_PATH, { method: "POST", body: JSON.stringify({ email }) }),
+  );
+}
+
+/** MOBILE-002 — redeem the single-use code from proovra://sso/complete with this attempt's verifier. */
+export async function exchangeNativeSso(code: string, codeVerifier: string): Promise<LoginResult> {
+  return signInExchange(SSO_EXCHANGE_PATH, { method: "POST", body: JSON.stringify({ code, codeVerifier }) });
+}
+
 /* -------------------------------------------------------------- session */
 
 export async function fetchMe(): Promise<AuthUser | null> {
@@ -216,6 +231,19 @@ export async function logout(): Promise<void> {
     await apiFetch("/v1/auth/logout", { method: "POST" });
   } catch {
     // logout is best-effort server-side; the client always clears local state.
+  }
+}
+
+/**
+ * Revoke ONE session by its own token, without touching the device's current
+ * session (PRO-113: the session a verification link created when the person
+ * chose to stay signed in). Best effort, like logout.
+ */
+export async function revokeSessionToken(token: string): Promise<void> {
+  try {
+    await publicFetch("/v1/auth/logout", { method: "POST" }, { bearer: token });
+  } catch {
+    // The session expires on its own; nothing on the device depends on it.
   }
 }
 

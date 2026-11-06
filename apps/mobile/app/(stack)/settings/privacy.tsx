@@ -10,13 +10,24 @@
  * from the response rather than hard-coded so the two can never drift; and
  * `coolingOffDays` says that closure is not immediate, which a user must be
  * told BEFORE they confirm rather than after.
+ *
+ * PRO-114 / MOBILE-02 — all three actions are step-up guarded on the server
+ * (verifyAccountStepUp), so each runs through the shared step-up loop: the
+ * first attempt goes without proof, a STEP_UP_REQUIRED challenge opens the
+ * sheet, and the SAME request is re-sent with the proof. The download is the
+ * route's POST (there is no GET), and the package is written to the export
+ * folder sign-out clears and handed to the share sheet — the web's
+ * "download a JSON file".
  */
 import { useCallback, useEffect, useState } from "react";
+import * as FileSystem from "expo-file-system";
 import { CookieConsentRecord, LegalRecordsSection, PrivacyReferences } from "../../../src/ui/legal-records";
-import { Linking, View } from "react-native";
+import { View } from "react-native";
 import { useRouter } from "expo-router";
 
-import { apiBaseUrl, apiFetch } from "../../../src/api";
+import { apiFetch } from "../../../src/api";
+import { exportFileUri, shareFile } from "../../../src/lib/share-file";
+import { StepUpSheet, useStepUp } from "../../../src/ui/step-up-sheet";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { useToast } from "../../../src/toast-context";
@@ -38,21 +49,36 @@ import {
 import {
   ACCOUNT_CLOSURE_PATH,
   DATA_EXPORT_PATH,
+  EXPORT_DOWNLOAD_METHOD,
   buildClosureCancelPath,
+  buildClosureRequestBody,
   buildExportDownloadPath,
+  buildExportStepUpBody,
   closureCountdown,
+  closureRequestFailure,
+  closureStatusLabel,
   closureStatusTone,
   confirmationMatches,
+  exportPackageFilename,
   exportStatusLabel,
   exportStatusTone,
   hasExportInFlight,
   isClosureActive,
+  isClosureCancellable,
   isExportDownloadable,
   parseClosure,
   parseDataExports,
   type ClosureView,
   type DataExportRequest,
 } from "../../../src/product/account-privacy";
+
+type StepUpFor = "export" | "download" | "closure";
+
+const STEP_UP_TITLE: Record<StepUpFor, string> = {
+  export: "Confirm requesting a copy of your personal data.",
+  download: "Confirm downloading your personal data export.",
+  closure: "Confirm closing your account.",
+};
 
 export default function PrivacyScreen() {
   const router = useRouter();
@@ -64,6 +90,9 @@ export default function PrivacyScreen() {
   const [busy, setBusy] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [reason, setReason] = useState("");
+  const [closureError, setClosureError] = useState<string | null>(null);
+  const stepUp = useStepUp();
+  const [stepUpFor, setStepUpFor] = useState<StepUpFor>("export");
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -80,40 +109,98 @@ export default function PrivacyScreen() {
     void load();
   }, [load]);
 
+  const onExportError = useCallback(
+    (err: unknown) => {
+      const e = err as { code?: string; body?: { error?: { code?: string; message?: string } } };
+      const code = e.body?.error?.code ?? e.code;
+      if (code === "export_request_active") {
+        addToast(e.body?.error?.message ?? "An export is already active.", "error");
+        void load();
+        return;
+      }
+      addToast(toSafeUserError(err, { message: "Could not request the export." }).message, "error");
+    },
+    [addToast, load],
+  );
+
   const requestExport = useCallback(async () => {
     setBusy(true);
-    try {
-      await apiFetch(DATA_EXPORT_PATH, { method: "POST", body: JSON.stringify({}) });
-      addToast("Export requested. You will be told when it is ready.", "success");
+    setStepUpFor("export");
+    await stepUp.start(async (proof) => {
+      await apiFetch(DATA_EXPORT_PATH, { method: "POST", body: JSON.stringify(buildExportStepUpBody(proof)) });
+      addToast(
+        "Export requested. Generation runs in the background — check back here; the package stays available for 7 days.",
+        "success",
+      );
       await load();
-    } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
-    } finally {
+    }, onExportError);
+    setBusy(false);
+  }, [stepUp, addToast, load, onExportError]);
+
+  const onDownloadError = useCallback(
+    (err: unknown) => {
+      addToast(toSafeUserError(err, { message: "Could not download the export." }).message, "error");
+    },
+    [addToast],
+  );
+
+  const downloadExport = useCallback(
+    async (request: DataExportRequest) => {
+      setBusy(true);
+      setStepUpFor("download");
+      await stepUp.start(async (proof) => {
+        // The route answers the package itself as JSON; apiFetch carries the
+        // session, so nothing about the account leaves in a URL.
+        const pkg = await apiFetch(buildExportDownloadPath(request.id), {
+          method: EXPORT_DOWNLOAD_METHOD,
+          body: JSON.stringify(buildExportStepUpBody(proof)),
+        });
+        const filename = exportPackageFilename(request.id);
+        const uri = await exportFileUri(filename);
+        if (!uri) throw new Error("A writable temporary directory is not available on this device.");
+        await FileSystem.writeAsStringAsync(uri, JSON.stringify(pkg, null, 2), {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        await shareFile(uri, { mimeType: "application/json", dialogTitle: filename, uti: "public.json" });
+        await load();
+      }, onDownloadError);
       setBusy(false);
-    }
-  }, [addToast, load]);
+    },
+    [stepUp, load, onDownloadError],
+  );
+
+  const onClosureError = useCallback(
+    (err: unknown) => {
+      const known = closureRequestFailure(err);
+      if (known) {
+        setClosureError(known.message);
+        if (known.reload) void load();
+        return;
+      }
+      setClosureError(toSafeUserError(err, { message: "Could not request account closure." }).message);
+    },
+    [load],
+  );
 
   const requestClosure = useCallback(async () => {
     if (!closure || !confirmationMatches(confirmText, closure)) return;
     setBusy(true);
-    try {
+    setClosureError(null);
+    setStepUpFor("closure");
+    await stepUp.start(async (proof) => {
+      // The route's schema field is `confirmation` (account-closure.routes.ts);
+      // the phrase is validated there, never trusted from here.
       await apiFetch(ACCOUNT_CLOSURE_PATH, {
         method: "POST",
-        body: JSON.stringify({
-          confirmationPhrase: confirmText.trim(),
-          reason: reason.trim() || undefined,
-        }),
+        body: JSON.stringify(buildClosureRequestBody(confirmText, reason, proof)),
       });
       setConfirmText("");
       setReason("");
-      addToast("Closure requested.", "info");
+      addToast("Closure requested. The cancellation window is now open.", "info");
       await load();
-    } catch (err) {
-      addToast(toSafeUserError(err).message, "error");
-    } finally {
-      setBusy(false);
-    }
-  }, [closure, confirmText, reason, addToast, load]);
+    }, onClosureError);
+    setBusy(false);
+  }, [closure, confirmText, reason, stepUp, addToast, load, onClosureError]);
 
   const cancelClosure = useCallback(async () => {
     if (!closure?.request) return;
@@ -182,7 +269,9 @@ export default function PrivacyScreen() {
               />
               {hasExportInFlight(exports) ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>
-                  An export is already being prepared.
+                  {exports.some((x) => x.status.toUpperCase() === "READY")
+                    ? "An export is ready. Download it, or wait for it to expire, before requesting another."
+                    : "An export is already being prepared."}
                 </ProovraText>
               ) : null}
             </ProovraCard>
@@ -218,11 +307,8 @@ export default function PrivacyScreen() {
                         label="Download"
                         variant="secondary"
                         fullWidth={false}
-                        onPress={() =>
-                          void Linking.openURL(
-                            `${apiBaseUrl().replace(/\/+$/, "")}${buildExportDownloadPath(e.id)}`,
-                          )
-                        }
+                        disabled={busy}
+                        onPress={() => void downloadExport(e)}
                       />
                     ) : null}
                     {e.expiresAtIso ? (
@@ -244,7 +330,7 @@ export default function PrivacyScreen() {
         ) : active ? (
           <ProovraCard>
             <ProovraBadge
-              label={closure.request!.status}
+              label={closureStatusLabel(closure.request!.status)}
               tone={closureStatusTone(closure.request!.status)}
             />
             {/*
@@ -252,11 +338,20 @@ export default function PrivacyScreen() {
               nor when it will.
             */}
             {countdown ? <ProovraText variant="body">{countdown}</ProovraText> : null}
-            <ProovraButton
-              label="Cancel closure request"
-              loading={busy}
-              onPress={() => void cancelClosure()}
-            />
+            {closure.request!.status.toUpperCase() === "BLOCKED" && closure.blockers.length > 0
+              ? closure.blockers.map((b, i) => (
+                  <ProovraText key={i} variant="label" color={theme.color.status.pending.fg}>
+                    {`• ${b}`}
+                  </ProovraText>
+                ))
+              : null}
+            {isClosureCancellable(closure.request) ? (
+              <ProovraButton
+                label="Cancel closure request"
+                loading={busy}
+                onPress={() => void cancelClosure()}
+              />
+            ) : null}
           </ProovraCard>
         ) : (
           <ProovraCard>
@@ -333,6 +428,13 @@ export default function PrivacyScreen() {
                   disabled={!confirmationMatches(confirmText, closure)}
                   onPress={() => void requestClosure()}
                 />
+                {closureError ? (
+                  <View testID="closure-error">
+                    <ProovraText variant="label" color={theme.color.status.risk.fg}>
+                      {closureError}
+                    </ProovraText>
+                  </View>
+                ) : null}
               </>
             )}
           </ProovraCard>
@@ -342,6 +444,19 @@ export default function PrivacyScreen() {
       <ProovraPageSection title="Privacy actions & references">
         <PrivacyReferences />
       </ProovraPageSection>
+
+      <StepUpSheet
+        challenge={stepUp.challenge}
+        title={STEP_UP_TITLE[stepUpFor]}
+        busy={busy}
+        onSubmit={(proof) => {
+          setBusy(true);
+          const onError =
+            stepUpFor === "closure" ? onClosureError : stepUpFor === "download" ? onDownloadError : onExportError;
+          void stepUp.retry(proof, onError).finally(() => setBusy(false));
+        }}
+        onCancel={stepUp.dismiss}
+      />
     </ProovraScreen>
   );
 }

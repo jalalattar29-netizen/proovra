@@ -343,12 +343,38 @@ export function parseCanonicalMobileDeepLink(url: string): ParsedMobileDeepLink 
   const route = MOBILE_ROUTES[family];
   const id = decodeURIComponent(rawId ?? "").trim();
   if (!route || !id) return null;
+  // MOBILE-006 — /evidence/* is claimed for record links; the web's own
+  // /evidence/archive page under it is not a record (workspacePageDeepLink).
+  if (family === "evidence" && id === "archive") return null;
 
   return {
     resourceType: family as "evidence" | "cases",
     resourceId: id,
     route: route(id),
   };
+}
+
+/**
+ * MOBILE-006 — a web workspace page under a claimed prefix that is not a
+ * resource: `/evidence/archive` (the retention archive). Its screen reads the
+ * archive through its own authorized fetch, so no resolve is needed.
+ */
+export function workspacePageDeepLink(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const segments =
+    parsed.protocol === "proovra:"
+      ? [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)]
+      : parsed.protocol === "https:"
+        ? parsed.pathname.split("/").filter(Boolean)
+        : [];
+  return segments.length === 2 && segments[0] === "evidence" && segments[1] === "archive"
+    ? "/(stack)/evidence-archive"
+    : null;
 }
 
 /**

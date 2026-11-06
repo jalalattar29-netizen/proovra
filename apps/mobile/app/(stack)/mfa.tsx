@@ -51,7 +51,8 @@ export default function MfaScreen() {
   const params = useLocalSearchParams<{ pendingToken?: string; mode?: string; enroll?: string }>();
   const pendingToken = typeof params.pendingToken === "string" ? params.pendingToken : "";
   const enrollmentRequired = params.enroll === "1";
-  const loginMode: LoginMode = params.mode === "google" || params.mode === "apple" ? params.mode : "email";
+  const loginMode: LoginMode =
+    params.mode === "google" || params.mode === "apple" || params.mode === "sso" ? params.mode : "email";
   // A challenge with no pending token cannot be completed (page.tsx:69-101).
   const [expired, setExpired] = useState<string | null>(
     pendingToken || enrollmentRequired ? null : "Your sign-in session has expired. Please sign in again.",
