@@ -1054,7 +1054,33 @@ export function sniffFileType(head: Uint8Array | Buffer): SniffedFileType {
       executable: false,
     };
   }
+  // PRO-052 / INGEST-007 — active markup has no magic number, so HTML or a
+  // script declared as an image sealed with nothing recorded. A head that
+  // opens (after an optional BOM and whitespace) with an HTML document or
+  // script element is HTML; the caller then compares it with the declared
+  // type like any other sniff. Narrow on purpose: only openings a browser
+  // would render as a page, never "contains a '<' somewhere".
+  if (looksLikeHtml(buf)) {
+    return { mime: "text/html", label: "HTML", executable: false };
+  }
   return { mime: null, label: null, executable: false };
+}
+
+const HTML_OPENINGS = ["<!doctype html", "<html", "<head", "<body", "<script", "<iframe"];
+
+function looksLikeHtml(buf: Uint8Array): boolean {
+  let i = 0;
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) i = 3;
+  while (i < buf.length && (buf[i] === 0x20 || buf[i] === 0x09 || buf[i] === 0x0a || buf[i] === 0x0d)) i += 1;
+  if (buf[i] !== 0x3c /* < */) return false;
+  let opening = "";
+  for (let j = i; j < Math.min(buf.length, i + 16); j += 1) opening += String.fromCharCode(buf[j]!).toLowerCase();
+  return HTML_OPENINGS.some((tag) => {
+    if (!opening.startsWith(tag)) return false;
+    const next = opening.charAt(tag.length);
+    // The tag name ends here: "<html>" or "<html lang", never "<htmlx".
+    return next === "" || next === ">" || next === " " || next === "\t" || next === "\n" || next === "\r" || next === "/";
+  });
 }
 
 // -----------------------------------------------------------------------------

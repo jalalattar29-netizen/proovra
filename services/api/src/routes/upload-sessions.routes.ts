@@ -140,7 +140,7 @@ const MultipartPresignBodySchema = z
   .object({
     teamId: z.string().uuid(),
     expiresInSeconds: z.number().int().min(60).max(900).optional(),
-    /** The chunk's exact size, signed into the URL. */
+    /** The chunk's exact size, signed into the URL. Required (PRO-051); see the route. */
     sizeBytes: z.number().int().min(0).optional(),
   })
   .strict();
@@ -708,6 +708,14 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
       const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
       if (!owned.ok) return sendDenial(reply, owned.reason);
+
+      // PRO-051 / INGEST-001 — every chunk URL is signed with its size, so the
+      // store refuses any other length; an unsized chunk URL is not issued.
+      if (body.sizeBytes === undefined) {
+        return reply.code(400).send({
+          error: { code: "upload_session_denied", reason: "upload_size_required" },
+        });
+      }
 
       const result = await presignStorageUploadPart({
         teamId: body.teamId,

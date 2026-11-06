@@ -82,10 +82,11 @@ describe("F-18 — one storage-protection outcome under concurrent completion (l
     const created = await call("POST", "/v1/evidence", { type: "PHOTO", mimeType: "image/jpeg", teamId: team.teamId });
     expect(created.statusCode, created.body).toBeLessThan(300);
     const id = created.json().id as string;
-    const part = await call("POST", `/v1/evidence/${id}/parts`, { partIndex: 0, mimeType: "image/jpeg", originalFileName: "photo.jpg" });
+    const bytes = Buffer.from(`web-part-${randomBytes(6).toString("hex")}`);
+    const part = await call("POST", `/v1/evidence/${id}/parts`, { partIndex: 0, mimeType: "image/jpeg", originalFileName: "photo.jpg", sizeBytes: bytes.length });
     expect(part.statusCode, part.body).toBe(201);
     const u = part.json().upload;
-    objects.set(`${u.bucket}/${u.key}`, Buffer.from(`web-part-${randomBytes(6).toString("hex")}`));
+    objects.set(`${u.bucket}/${u.key}`, bytes);
     return id;
   }
 

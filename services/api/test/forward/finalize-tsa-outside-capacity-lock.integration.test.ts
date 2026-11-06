@@ -128,9 +128,10 @@ describe("AUD-42: the timestamp authority is called outside the workspace capaci
     const created = await call("POST", "/v1/evidence", token, { type: "PHOTO", mimeType: "image/jpeg", teamId: h.fixtures.teamA.teamId });
     expect(created.statusCode, created.body).toBeLessThan(300);
     const id = created.json().id as string;
-    const part = await call("POST", `/v1/evidence/${id}/parts`, token, { partIndex: 0, mimeType: "image/jpeg", originalFileName: "p.jpg" });
+    const body = randomBytes(bytes);
+    const part = await call("POST", `/v1/evidence/${id}/parts`, token, { partIndex: 0, mimeType: "image/jpeg", originalFileName: "p.jpg", sizeBytes: body.length });
     const u = part.json().upload;
-    objects.set(`${u.bucket}/${u.key}`, randomBytes(bytes));
+    objects.set(`${u.bucket}/${u.key}`, body);
     return id;
   }
 

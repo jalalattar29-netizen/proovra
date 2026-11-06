@@ -686,6 +686,9 @@ export async function reserveIntakeLinkUse(
     UPDATE workflow_intake_links
        SET used_count = used_count + 1, updated_at = NOW()
      WHERE id = ${linkId}::uuid AND used_count < max_uses
+       -- PRO-050 — a revoked or expired link gives no further use.
+       AND status = 'ACTIVE'
+       AND (expires_at_utc IS NULL OR expires_at_utc > NOW())
   `;
   return n === 1;
 }

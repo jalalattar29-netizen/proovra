@@ -943,6 +943,23 @@ export async function completeEvidence(params: {
         throw captureCompletionError("EVIDENCE_RESERVATION_EXPIRED");
       }
 
+      // PRO-054 / EVIDENCE-09 — a draft that has left ACTIVE (archived, in the
+      // retention archive) accepts no bytes (evidence-part-writer) and so cannot
+      // be sealed either. The seal ran to its last step and the verification
+      // reference then refused it, a 500 logged as a critical alert. It is
+      // refused here, before anything is read or written, with the part
+      // writer's own answer.
+      {
+        const lifecycle = (evidence as { lifecycleState?: string | null }).lifecycleState ?? "ACTIVE";
+        if (lifecycle !== "ACTIVE" || evidence.archivedAt) {
+          const err: HttpError = Object.assign(new Error("EVIDENCE_NOT_WRITABLE"), {
+            statusCode: 409,
+            code: "EVIDENCE_NOT_WRITABLE",
+          });
+          throw err;
+        }
+      }
+
       // Phase 30.7 — custody-safe finalize gate.
       //
       // If a Phase 30 resumable upload session exists for this
@@ -1021,6 +1038,22 @@ export async function completeEvidence(params: {
           select: { id: true },
         });
         if (!boundIntake) throw captureCompletionError("INTAKE_SESSION_NOT_BOUND_TO_EVIDENCE");
+
+        // PRO-050 / EVIDENCE-05 — a revoked (or otherwise closed) link seals
+        // nothing more. The status was read once before the seal, so a revoke
+        // that landed during the seal returned 200 and the record still sealed.
+        // The link row is read FOR SHARE in this transaction: a revoke that
+        // committed first refuses the seal here, and a revoke that comes later
+        // waits for this seal and then closes the link to every later one.
+        if (params.intakeSubmission.linkId) {
+          const [link] = await tx.$queryRaw<Array<{ status: string }>>`
+            SELECT status FROM workflow_intake_links
+             WHERE id = ${params.intakeSubmission.linkId}::uuid
+             FOR SHARE`;
+          if (!link || link.status !== "ACTIVE") {
+            throw captureCompletionError("INTAKE_LINK_NOT_ACTIVE");
+          }
+        }
 
         // F-21 — the intake history a sealed intake record always carries.
         // Appended at session creation best-effort; whatever is missing is

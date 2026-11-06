@@ -150,14 +150,15 @@ describe("direct capture: discard racing completion (live PostgreSQL 16)", () =>
     });
     expect(reserve.statusCode, reserve.body).toBe(201);
     const evidenceId = reserve.json().evidence.evidenceId as string;
+    const bytes = Buffer.from(`dc01-${randomBytes(8).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, {
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "camera.jpg",
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
     const { bucket, key } = part.json().upload as { bucket: string; key: string };
-    const bytes = Buffer.from(`dc01-${randomBytes(8).toString("hex")}`);
     objects.set(`${bucket}/${key}`, bytes);
     const declare = await call("POST", `/v1/capture/direct-sessions/${sessionId}/parts/0/declaration`, token, {
       sha256: sha256(bytes),

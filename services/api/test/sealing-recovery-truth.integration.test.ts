@@ -81,6 +81,37 @@ describe("sealing and its recovery (live PostgreSQL 16, MinIO)", () => {
     });
   });
 
+  it("PRO-052: HTML with a script declared as image/jpeg is on the chain as differing bytes", async () => {
+    const html = Buffer.from("\uFEFF\n  <!DOCTYPE html><html><body><script>alert(document.cookie)</script></body></html>");
+    const id = await record([{ body: html, mime: "image/jpeg" }]);
+    const res = await complete(id);
+    expect(res.statusCode, res.body).toBeLessThan(300);
+    await vi.waitFor(async () => {
+      const row = await prisma.custodyEvent.findFirst({
+        where: { evidenceId: id, eventType: "TECHNICAL_VERIFICATION_CHECKED", payload: { path: ["source"], equals: "DECLARED_TYPE_CHECK" } },
+        select: { payload: true },
+      });
+      expect(row?.payload).toMatchObject({
+        outcome: "BYTES_DIFFER_FROM_DECLARED_TYPE",
+        files: [{ partIndex: 0, declaredMime: "image/jpeg", detected: "text/html", reason: "mime_content_mismatch" }],
+      });
+    });
+  });
+
+  it("positive control: HTML declared as HTML, and text that merely mentions a tag, leave no row", async () => {
+    for (const [body, mime] of [
+      [Buffer.from("<html><body>a saved page</body></html>"), "text/html"],
+      [Buffer.from("notes: the <html> tag starts a page"), "text/plain"],
+    ] as const) {
+      const id = await record([{ body, mime }]);
+      expect((await complete(id)).statusCode).toBeLessThan(300);
+      expect(
+        await prisma.custodyEvent.count({ where: { evidenceId: id, payload: { path: ["source"], equals: "DECLARED_TYPE_CHECK" } } }),
+        mime,
+      ).toBe(0);
+    }
+  });
+
   it("positive control: a file that is what it declares leaves no such row", async () => {
     const id = await record([{ body: Buffer.from("plain words"), mime: "text/plain" }]);
     expect((await complete(id)).statusCode).toBeLessThan(300);

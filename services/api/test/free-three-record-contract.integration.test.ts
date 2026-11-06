@@ -100,13 +100,14 @@ describe("FREE three complete records (Postgres + MinIO, real HTTP)", () => {
     const created = await call("POST", "/v1/evidence", token, { type: "DOCUMENT", mimeType: "text/plain" }, teamHeader ? { "x-proovra-workspace-id": teamHeader } : {});
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
+    const bytes = Buffer.from(`free-three-${id}-${randomBytes(8).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${id}/parts`, token, {
       partIndex: 0,
       mimeType: "text/plain",
       originalFileName: "free-contract.txt",
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
-    const bytes = Buffer.from(`free-three-${id}-${randomBytes(8).toString("hex")}`);
     const put = await fetch(part.json().upload.putUrl as string, {
       method: "PUT",
       body: bytes,
@@ -214,9 +215,10 @@ describe("FREE three complete records (Postgres + MinIO, real HTTP)", () => {
     });
     // Upload bytes for both, then finalize concurrently.
     const upload = async (id: string) => {
-      const part = await call("POST", `/v1/evidence/${id}/parts`, t.owner.token, { partIndex: 0, mimeType: "text/plain", originalFileName: "race.txt" });
+      const body = Buffer.from(`race-${id}`);
+      const part = await call("POST", `/v1/evidence/${id}/parts`, t.owner.token, { partIndex: 0, mimeType: "text/plain", originalFileName: "race.txt", sizeBytes: body.length });
       if (part.statusCode !== 201) return;
-      await fetch(part.json().upload.putUrl as string, { method: "PUT", body: Buffer.from(`race-${id}`), headers: { "content-type": "text/plain" } });
+      await fetch(part.json().upload.putUrl as string, { method: "PUT", body, headers: { "content-type": "text/plain" } });
     };
     await upload(admitted);
     await upload(sneaked.id);

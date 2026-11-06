@@ -135,7 +135,7 @@ export const apiClient = {
   async createPart(
     token: string,
     evidenceId: string,
-    input: { partIndex: number; mimeType: string; originalFileName: string },
+    input: { partIndex: number; mimeType: string; originalFileName: string; sizeBytes: number },
   ): Promise<PartUpload> {
     return apiFetch(token, "POST", `/v1/evidence/${evidenceId}/parts`, input);
   },

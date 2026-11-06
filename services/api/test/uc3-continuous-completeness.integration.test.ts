@@ -229,6 +229,7 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
       partIndex,
       mimeType: "application/octet-stream",
       originalFileName: `part-${partIndex}.bin`,
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
     const { bucket, key } = part.json().upload as { bucket: string; key: string };
@@ -732,6 +733,8 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
     const presign = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, {
       partIndex: MAX_EVIDENCE_PARTS - 1,
       mimeType: "application/json",
+      // No bytes are PUT: the control only asserts the URL is issued.
+      sizeBytes: 16,
     });
     expect(presign.statusCode, presign.body).toBe(201);
   });
@@ -958,6 +961,8 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
         partIndex: 1,
         mimeType: "application/octet-stream",
         originalFileName: "part-1.bin",
+        // Presigned, never stored: the declared size of the lost segment.
+        sizeBytes: 1024,
       });
       expect(presign.statusCode, presign.body).toBe(201);
       const d = await declare(token, sessionId, 1, sha256(`never-uploaded-${randomBytes(4).toString("hex")}`), "SCREEN_SEGMENT", 2);
@@ -1011,6 +1016,7 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
         partIndex: 2,
         mimeType: "application/octet-stream",
         originalFileName: "part-2.bin",
+        sizeBytes: 1024,
       });
       expect(presign.statusCode, presign.body).toBe(201);
       const d = await declare(token, sessionId, 2, sha256(`never-uploaded-${randomBytes(4).toString("hex")}`), "SCREEN_SEGMENT", 3);
@@ -1068,7 +1074,7 @@ describe("direct-capture seal authority (live PostgreSQL 16)", () => {
       const again = await declare(token, sessionId, 1, sha256("a different digest"), "SCREEN_SEGMENT", 2);
       expect(again.statusCode).toBe(409);
       expect(again.json().denial ?? again.json().error?.code ?? again.body).toMatch(/PART_LOST/);
-      const presign = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, { partIndex: 1, mimeType: "application/octet-stream" });
+      const presign = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, { partIndex: 1, mimeType: "application/octet-stream", sizeBytes: 1024 });
       expect(presign.statusCode).toBe(409);
       expect(presign.body).toMatch(/PART_LOST/);
     });

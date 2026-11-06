@@ -54,6 +54,7 @@
  * to happen in the other direction the moment the predicate is inverted.
  */
 import type { PrismaClient } from "@prisma/client";
+import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
 
 export type EffectiveLegalHoldSource =
   | "EVIDENCE_LEGAL_HOLD"
@@ -63,7 +64,11 @@ export type EffectiveLegalHoldSource =
 export type EffectiveLegalHoldScope = "EVIDENCE" | "CASE" | "WORKSPACE";
 
 export type EffectiveLegalHoldInput = {
-  /** Tenant authority. `null` = personal-scope evidence (no workspace holds). */
+  /**
+   * Tenant authority: the record's raw `teamId`. `null` = a Personal record
+   * stored with team_id NULL; the evaluator then resolves its owner's personal
+   * workspace from `evidenceId`, so its workspace holds still apply.
+   */
   teamId: string | null;
   evidenceId?: string | null;
   /**
@@ -242,30 +247,29 @@ export async function evaluateEffectiveLegalHold(
   //   * scope CASE, resolved      → covers records linked to a matching case
   //   * historical (ANY scope)    → target unresolvable, so FAIL CLOSED and
   //                                 block the whole workspace until resolved
-  if (teamId) {
-    const scopeClauses: Array<Record<string, unknown>> = [
-      { scope: "WORKSPACE", historical: false },
-      { historical: true },
-    ];
-    if (caseIds.length > 0) {
-      scopeClauses.push({
-        scope: "CASE",
-        caseId: { in: caseIds },
-        historical: false,
-      });
-    }
-    const scoped = await tolerateAbsentRelation(() =>
-      prisma.evidenceLegalHold.findMany({
-        where: {
-          teamId,
-          status: "ACTIVE",
-          OR: scopeClauses,
-        },
-        select: { id: true, scope: true, historical: true },
-        take: 25,
-      }),
-    );
-    for (const row of scoped ?? []) {
+  //
+  // EVERY RECORD LINKED TO A HELD CASE IS HELD, WHATEVER ITS WORKSPACE KIND
+  // (PRO-101 / WORKERS-03). The CASE clause is keyed on the case link alone:
+  // `CaseEvidenceLink` is the authority for "this record belongs to the case",
+  // so a hold on the case reaches the record whether it is stored with a team
+  // or as a Personal record with team_id NULL. The WORKSPACE and unresolved
+  // clauses need the record's workspace, and callers pass the raw
+  // `Evidence.teamId`, which is NULL for a Personal record. That workspace is
+  // the owner's personal workspace, where its holds are recorded
+  // (export-governance.service.ts); it is resolved here, once, so no caller
+  // can pass the raw column and lose the hold. The purge job destroyed a
+  // NULL-team record under an ACTIVE case hold before this.
+  let workspaceId = teamId;
+  if (!workspaceId && evidenceId) {
+    const row = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { teamId: true, ownerUserId: true },
+    });
+    if (row) workspaceId = await resolveEvidenceWorkspaceId(row, prisma);
+  }
+  const pushScoped = (rows: ReadonlyArray<{ id: string; scope: string | null; historical: boolean | null }> | null) => {
+    for (const row of rows ?? []) {
+      if (matches.some((m) => m.holdId === row.id)) continue;
       const unresolved = row.historical === true;
       matches.push({
         holdId: row.id,
@@ -275,6 +279,37 @@ export async function evaluateEffectiveLegalHold(
         ...(unresolved ? { unresolved: true } : {}),
       });
     }
+  };
+
+  // CASE — by the link alone, in whatever workspace the hold was placed.
+  if (caseIds.length > 0) {
+    pushScoped(
+      await tolerateAbsentRelation(() =>
+        prisma.evidenceLegalHold.findMany({
+          where: { status: "ACTIVE", scope: "CASE", caseId: { in: caseIds }, historical: false },
+          select: { id: true, scope: true, historical: true },
+          take: 25,
+        }),
+      ),
+    );
+    if (matches.length > 0 && !collectAll) return summarize(matches);
+  }
+
+  // WORKSPACE and unresolved — in the record's resolved workspace.
+  if (workspaceId) {
+    pushScoped(
+      await tolerateAbsentRelation(() =>
+        prisma.evidenceLegalHold.findMany({
+          where: {
+            teamId: workspaceId,
+            status: "ACTIVE",
+            OR: [{ scope: "WORKSPACE", historical: false }, { historical: true }],
+          },
+          select: { id: true, scope: true, historical: true },
+          take: 25,
+        }),
+      ),
+    );
     if (matches.length > 0 && !collectAll) return summarize(matches);
   }
 

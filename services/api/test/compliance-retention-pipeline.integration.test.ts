@@ -158,11 +158,17 @@ describe("COMPLIANCE 2920-day retention through the real report/package pipeline
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
     id = created.json().id as string;
-    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "compliance.txt" });
+    const bytes = Buffer.from(`compliance-retention ${id} ${randomBytes(8).toString("hex")}`);
+    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, {
+      partIndex: 0,
+      mimeType: "text/plain",
+      originalFileName: "compliance.txt",
+      sizeBytes: bytes.length,
+    });
     expect(part.statusCode, part.body).toBe(201);
     const put = await fetch(part.json().upload.putUrl as string, {
       method: "PUT",
-      body: Buffer.from(`compliance-retention ${id} ${randomBytes(8).toString("hex")}`),
+      body: bytes,
       headers: { "content-type": "text/plain" },
     });
     expect(put.status).toBe(200);
@@ -203,8 +209,14 @@ describe("COMPLIANCE 2920-day retention through the real report/package pipeline
 
     // An abandoned object in this same bucket can actually be removed.
     const abandoned = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
-    const abandonedPart = await call("POST", `/v1/evidence/${abandoned.json().id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "gone.txt" });
-    await fetch(abandonedPart.json().upload.putUrl as string, { method: "PUT", body: Buffer.from("never sealed"), headers: { "content-type": "text/plain" } });
+    const abandonedBytes = Buffer.from("never sealed");
+    const abandonedPart = await call("POST", `/v1/evidence/${abandoned.json().id}/parts`, A().ownerToken, {
+      partIndex: 0,
+      mimeType: "text/plain",
+      originalFileName: "gone.txt",
+      sizeBytes: abandonedBytes.length,
+    });
+    await fetch(abandonedPart.json().upload.putUrl as string, { method: "PUT", body: abandonedBytes, headers: { "content-type": "text/plain" } });
     const stored = await head(abandonedPart.json().part.storageKey as string);
     await s3.send(new DeleteObjectCommand({ Bucket: LOCK_BUCKET, Key: abandonedPart.json().part.storageKey as string, VersionId: stored.VersionId }));
     await expect(head(abandonedPart.json().part.storageKey as string, stored.VersionId)).rejects.toBeTruthy();

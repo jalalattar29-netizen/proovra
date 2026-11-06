@@ -133,11 +133,12 @@ describe("Review / Custody / Artifact boundary (Postgres + Redis + MinIO, real w
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
-    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "boundary.txt" });
+    const body = Buffer.from(`review-custody-boundary ${id} ${randomBytes(8).toString("hex")}`);
+    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "boundary.txt", sizeBytes: body.length });
     expect(part.statusCode, part.body).toBe(201);
     const put = await fetch(part.json().upload.putUrl as string, {
       method: "PUT",
-      body: Buffer.from(`review-custody-boundary ${id} ${randomBytes(8).toString("hex")}`),
+      body,
       headers: { "content-type": "text/plain" },
     });
     expect(put.status).toBe(200);

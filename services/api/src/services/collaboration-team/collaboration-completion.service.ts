@@ -48,6 +48,12 @@ import { workspaceCaseWhere, workspaceEvidenceWhere } from "@proovra/shared-runt
 import { prisma as defaultPrisma } from "../../db.js";
 import { caseVisibleToWhere, evidenceVisibleThroughCasesWhere } from "../cases/case-visibility.js";
 import {
+  caseClosedTo,
+  evidenceClosedTo,
+  hiddenRecordIdsInWorkspace,
+  hiddenWorkflowIdsInWorkspace,
+} from "../access/record-reach.js";
+import {
   CollaborationTeamError,
   isCollaborationTeamModerator,
 } from "./collaboration-team.service.js";
@@ -94,6 +100,55 @@ async function requireMemberRole(
       403,
     );
   return { role: member.role as CollaborationTeamRole, team };
+}
+
+/**
+ * PRO-046 / AUTHZ-002 — a comment on a case, a record or a record's review is
+ * that record's data, so it follows the record's reach (`case-visibility.ts`):
+ * a target a restricted case closes to the caller is refused as not found, and
+ * comments on such targets are not listed to them.
+ */
+async function commentTargetClosedTo(
+  client: PrismaClient,
+  targetType: string,
+  targetId: string | null,
+  actorUserId: string,
+): Promise<boolean> {
+  if (!targetId) return false;
+  if (targetType === "CASE") return caseClosedTo(targetId, actorUserId, client);
+  if (targetType === "EVIDENCE") return evidenceClosedTo(targetId, actorUserId, client);
+  if (targetType === "REVIEW") {
+    const workflow = await client.evidenceReviewWorkflow.findUnique({
+      where: { id: targetId },
+      select: { evidenceId: true },
+    });
+    return workflow ? evidenceClosedTo(workflow.evidenceId, actorUserId, client) : false;
+  }
+  return false;
+}
+
+async function closedCommentTargetsWhere(
+  client: PrismaClient,
+  workspaceId: string,
+  actorUserId: string,
+): Promise<Prisma.CollaborationTeamCommentWhereInput[]> {
+  const [hidden, workflows] = await Promise.all([
+    hiddenRecordIdsInWorkspace(workspaceId, actorUserId, client),
+    hiddenWorkflowIdsInWorkspace(workspaceId, actorUserId, client),
+  ]);
+  const out: Prisma.CollaborationTeamCommentWhereInput[] = [];
+  const exclude = (targetType: string, ids: string[]) => {
+    // Spelled as an OR so a row with a NULL target is kept (NOT IN drops NULLs).
+    if (ids.length > 0) {
+      out.push({
+        OR: [{ targetType: { not: targetType } }, { targetId: null }, { targetId: { notIn: ids } }],
+      });
+    }
+  };
+  exclude("CASE", hidden.caseIds);
+  exclude("EVIDENCE", hidden.evidenceIds);
+  exclude("REVIEW", workflows);
+  return out;
 }
 
 async function recordActivity(
@@ -314,6 +369,8 @@ export async function createComment(
   );
   assertMayComment(role);
   const targetType = validateCommentTarget(input.targetType);
+  if (await commentTargetClosedTo(client, targetType, input.targetId ?? null, input.actorUserId))
+    throw new CollaborationTeamError("team_not_found", "Comment target not found.", 404);
   const targetId = await resolveCommentTarget(client, {
     teamId: input.teamId,
     workspaceId: team.workspaceId,
@@ -574,10 +631,12 @@ export async function listComments(
   }>;
   directory: Record<string, CollaborationTeamUserDirectoryEntry>;
 }> {
-  await requireMemberRole(client, input.teamId, input.actorUserId);
+  const { team } = await requireMemberRole(client, input.teamId, input.actorUserId);
+  const closedTargets = await closedCommentTargetsWhere(client, team.workspaceId, input.actorUserId);
   const where: Prisma.CollaborationTeamCommentWhereInput = {
     teamId: input.teamId,
     status: { not: "DELETED" },
+    ...(closedTargets.length > 0 ? { AND: closedTargets } : {}),
   };
   if (input.targetType)
     where.targetType = validateCommentTarget(input.targetType);

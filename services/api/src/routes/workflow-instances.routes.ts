@@ -70,6 +70,8 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { caseClosedTo, hiddenRecordIdsInWorkspace } from "../services/access/record-reach.js";
+import { evidenceVisibleThroughCasesWhere } from "../services/cases/case-visibility.js";
 import {
   WorkflowEngineError,
   getInstanceExportPolicySummary,
@@ -138,6 +140,49 @@ function workflowInstanceMutationRetired(
   });
 }
 
+/**
+ * PRO-046 / AUTHZ-002 — a workflow instance is its records' data. It is closed
+ * to the caller when the case it is bound to (directly or through its evidence
+ * request) or any record mapped to its steps is in a restricted case the caller
+ * cannot see: the canonical reach rule (`case-visibility.ts`), answered with the
+ * same 404 the record itself gives.
+ */
+async function instanceClosedTo(instanceId: string, callerUserId: string): Promise<boolean> {
+  const instance = await prisma.evidenceWorkflowInstance.findUnique({
+    where: { id: instanceId },
+    select: { caseId: true, evidenceRequestId: true },
+  });
+  if (!instance) return false;
+  const caseIds = new Set<string>();
+  if (instance.caseId) caseIds.add(instance.caseId);
+  if (instance.evidenceRequestId) {
+    const request = await prisma.evidenceRequest.findUnique({
+      where: { id: instance.evidenceRequestId },
+      select: { caseId: true },
+    });
+    if (request?.caseId) caseIds.add(request.caseId);
+  }
+  for (const caseId of caseIds) {
+    if (await caseClosedTo(caseId, callerUserId)) return true;
+  }
+  const mapped = await prisma.evidenceWorkflowInstanceEvidence.findMany({
+    where: { workflowInstanceId: instanceId },
+    select: { evidenceId: true },
+  });
+  if (mapped.length === 0) return false;
+  const closed = await prisma.evidence.count({
+    where: {
+      id: { in: mapped.map((m) => m.evidenceId) },
+      NOT: evidenceVisibleThroughCasesWhere(callerUserId),
+    },
+  });
+  return closed > 0;
+}
+
+function instanceNotFound(reply: FastifyReply) {
+  return reply.code(404).send({ error: { code: "WORKFLOW_INSTANCE_NOT_FOUND" } });
+}
+
 function handleEngineError(reply: FastifyReply, err: unknown): boolean {
   if (err instanceof WorkflowEngineError) {
     const status =
@@ -187,9 +232,44 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         status: q.status as never,
         limit: q.limit,
       });
+      // PRO-046 — instances bound to a case, or mapped to a record, that a
+      // restricted case closes to the caller are not listed.
+      const hidden = await hiddenRecordIdsInWorkspace(q.teamId, actor.userId);
+      let visible = rows;
+      if (hidden.caseIds.length > 0 || hidden.evidenceIds.length > 0) {
+        const closedByEvidence = new Set(
+          (
+            await prisma.evidenceWorkflowInstanceEvidence.findMany({
+              where: {
+                workflowInstanceId: { in: rows.map((r) => r.id) },
+                evidenceId: { in: hidden.evidenceIds },
+              },
+              select: { workflowInstanceId: true },
+            })
+          ).map((m) => m.workflowInstanceId),
+        );
+        const requestCases = new Map(
+          (
+            await prisma.evidenceRequest.findMany({
+              where: {
+                id: { in: rows.map((r) => r.evidenceRequestId).filter((v): v is string => Boolean(v)) },
+              },
+              select: { id: true, caseId: true },
+            })
+          ).map((r) => [r.id, r.caseId]),
+        );
+        const closedCase = (caseId: string | null | undefined) =>
+          Boolean(caseId && hidden.caseIds.includes(caseId));
+        visible = rows.filter(
+          (r) =>
+            !closedByEvidence.has(r.id) &&
+            !closedCase(r.caseId) &&
+            !closedCase(r.evidenceRequestId ? requestCases.get(r.evidenceRequestId) : null),
+        );
+      }
       return reply
         .code(200)
-        .send({ instances: rows.map(projectInstance) });
+        .send({ instances: visible.map(projectInstance) });
     },
   );
 
@@ -210,6 +290,7 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         WORKFLOW_READ_PERMISSION,
       );
       if (!actor) return;
+      if (await instanceClosedTo(id, actor.userId)) return instanceNotFound(reply);
       try {
         const { instance, steps } = await getInstanceWithSteps({
           teamId: q.teamId,
@@ -319,6 +400,7 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         WORKFLOW_REVIEW_PERMISSION,
       );
       if (!actor) return;
+      if (await instanceClosedTo(params.id, actor.userId)) return instanceNotFound(reply);
       // Step-up: STEP_WAIVE_REQUIRED — defined in @proovra/shared
       // WORKFLOW_STEP_UP_ACTIONS. The Phase 19 catalog covers the
       // base step-up purposes (MEMBER_*, GOVERNANCE_*, ...); the
@@ -426,6 +508,7 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         WORKFLOW_READ_PERMISSION,
       );
       if (!actor) return;
+      if (await instanceClosedTo(id, actor.userId)) return instanceNotFound(reply);
       try {
         const events = await getInstanceTimeline({ teamId: q.teamId, id });
         return reply.code(200).send({ events });
@@ -449,6 +532,7 @@ export async function workflowInstancesRoutes(app: FastifyInstance) {
         WORKFLOW_READ_PERMISSION,
       );
       if (!actor) return;
+      if (await instanceClosedTo(id, actor.userId)) return instanceNotFound(reply);
       try {
         const summary = await getInstanceExportPolicySummary({
           teamId: q.teamId,

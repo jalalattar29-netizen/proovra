@@ -182,13 +182,15 @@ describe("one creation + finalization authority across channels (live PostgreSQL
     return { id, created };
   }
   async function webPart(id: string, index = 0) {
+    const bytes = Buffer.from(`web-${index}-${randomBytes(6).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, {
       partIndex: index,
       mimeType: "image/jpeg",
       originalFileName: `photo-${index}.jpg`,
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
-    storeFromPutUrl(part.json().upload.putUrl as string, Buffer.from(`web-${index}-${randomBytes(6).toString("hex")}`));
+    storeFromPutUrl(part.json().upload.putUrl as string, bytes);
   }
 
   async function directCapture() {
@@ -206,13 +208,14 @@ describe("one creation + finalization authority across channels (live PostgreSQL
     });
     expect(reserve.statusCode, reserve.body).toBe(201);
     const id = reserve.json().evidence.evidenceId as string;
+    const bytes = Buffer.from(`mobile-${randomBytes(8).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${id}/parts`, token, {
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "camera.jpg",
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
-    const bytes = Buffer.from(`mobile-${randomBytes(8).toString("hex")}`);
     storeFromPutUrl(part.json().upload.putUrl as string, bytes);
     const declare = await call("POST", `/v1/capture/direct-sessions/${sid}/parts/0/declaration`, token, {
       sha256: sha256(bytes),
@@ -362,6 +365,7 @@ describe("one creation + finalization authority across channels (live PostgreSQL
       partIndex: 50,
       mimeType: "image/jpeg",
       originalFileName: "injected.jpg",
+      sizeBytes: 1024,
     });
     expect(inject.statusCode, inject.body).toBe(409);
     expect(await prisma.evidencePart.count({ where: { evidenceId: intake.id, partIndex: 50 } })).toBe(0);

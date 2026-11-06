@@ -22,7 +22,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 
-type ShareTx = Pick<PrismaClient, "verificationShareToken" | "externalReviewGrant">;
+type ShareTx = Pick<PrismaClient, "verificationShareToken" | "externalReviewGrant" | "workflowIntakeLink">;
 
 export type CreatorShareRevocationReason =
   | "CREATOR_REMOVED"
@@ -81,10 +81,20 @@ export async function revokeCreatorShareGrantsTx(
     creators: ReadonlyArray<{ teamId: string; userId: string }>;
     reason: CreatorShareRevocationReason;
     actorUserId?: string | null;
-    kinds?: { ownerShares?: boolean; externalReview?: boolean };
+    kinds?: { ownerShares?: boolean; externalReview?: boolean; intakeLinks?: boolean };
   },
-): Promise<{ ownerShares: number; externalReview: number }> {
-  const out = { ownerShares: 0, externalReview: 0 };
+): Promise<{ ownerShares: number; externalReview: number; intakeLinks: number }> {
+  const out = { ownerShares: 0, externalReview: 0, intakeLinks: 0 };
+  // INGEST-010 — a secure intake link is an anonymous capability held in its
+  // creator's name, like an owner share link: it ends when the creator is
+  // removed or suspended, or the workspace closes (rows kept, revoked with the
+  // reason). It used to stay ACTIVE in the operator's list while every new
+  // contributor's first file was refused, because the record is created in the
+  // creator's name. A change of role does not end it: its authority is the
+  // intake permission, not the share permissions the role check above names.
+  const endsIntakeLinks =
+    input.kinds?.intakeLinks ??
+    (input.reason === "CREATOR_REMOVED" || input.reason === "CREATOR_SUSPENDED" || input.reason === "WORKSPACE_CLOSED");
   if (input.creators.length === 0) return out;
   const now = new Date();
   const byWorkspace = new Map<string, string[]>();
@@ -107,6 +117,18 @@ export async function revokeCreatorShareGrantsTx(
         data: { state: "REVOKED", revokedAtUtc: now, updatedAtUtc: now, ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}) },
       });
       out.externalReview += r.count;
+    }
+    if (endsIntakeLinks) {
+      const r = await tx.workflowIntakeLink.updateMany({
+        where: { teamId, createdByUserId: { in: userIds }, status: "ACTIVE" },
+        data: {
+          status: "REVOKED",
+          revokedAtUtc: now,
+          revokedByUserId: input.actorUserId ?? null,
+          revokedReason: input.reason.toLowerCase(),
+        },
+      });
+      out.intakeLinks += r.count;
     }
   }
   return out;

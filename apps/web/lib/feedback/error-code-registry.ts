@@ -586,6 +586,13 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   PUBLIC_VERIFY_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
   external_review_originals_not_released: { disposition: "customer", where: "global" },
   EVIDENCE_TOO_LARGE: { disposition: "customer", where: "global" },
+  UPLOAD_SIZE_REQUIRED: { disposition: "customer", where: "global" },
+  EVIDENCE_NOT_WRITABLE: { disposition: "customer", where: "global" },
+  WORKFLOW_INSTANCE_NOT_FOUND: {
+    disposition: "generic",
+    why:
+      "Anti-enumeration: a workflow instance that does not exist and one bound to a restricted case the caller cannot see (PRO-046) answer the same 404, so saying more would confirm the record exists.",
+  },
   ORIGINAL_DOWNLOAD_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_NOT_FOUND: { disposition: "customer", where: "global" },
   EXTERNAL_REVIEW_GRANT_LIFETIME_INVALID: { disposition: "customer", where: "global" },

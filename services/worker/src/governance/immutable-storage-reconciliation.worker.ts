@@ -35,7 +35,11 @@ import * as prismaPkg from "@prisma/client";
 import { newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { prisma } from "../db.js";
-import { runGovernanceReconciliation } from "@proovra/shared-runtime";
+import {
+  resolveEvidenceWorkspaceIds,
+  runGovernanceReconciliation,
+  workspaceEvidenceWhere,
+} from "@proovra/shared-runtime";
 import { emitWorkerGovernanceNotification } from "./notification-emitter.js";
 import { recordWorkerIncident } from "./incident-emitter.js";
 import { headObject, isObjectLockEnabled } from "../storage.js";
@@ -157,8 +161,16 @@ export async function runImmutableStorageReconciliation(
       // Pull evidence rows that should have immutable storage state
       // (retentionUntilUtc set OR a legal hold attached OR an immutable
       // policy version bound).
+      //
+      // PRO-110 / WORKERS-12 — a scoped run uses the canonical workspace scope,
+      // never a bare teamId, and an unscoped run no longer drops a Personal
+      // Space's records stored with team_id NULL: each record's workspace is
+      // resolved (its team, or its owner's personal workspace) below.
+      const workspaceScope = options.teamId
+        ? await workspaceEvidenceWhere(options.teamId, prisma)
+        : null;
       const population = {
-        ...(options.teamId ? { teamId: options.teamId } : { teamId: { not: null } }),
+        ...(workspaceScope ? { AND: [workspaceScope] } : {}),
         deletedAt: null,
         OR: [
           { retentionUntilUtc: { not: null } },
@@ -170,6 +182,7 @@ export async function runImmutableStorageReconciliation(
       const candidateSelect = {
         id: true,
         teamId: true,
+        ownerUserId: true,
         retentionUntilUtc: true,
         retentionPolicyVersionId: true,
         storageObjectLockMode: true,
@@ -195,13 +208,14 @@ export async function runImmutableStorageReconciliation(
         for (const w of wrapped) if (!seen.has(w.id)) candidates.push(w);
       }
       ctx.reportProgress({ scanned: candidates.length });
+      const workspaceOf = await resolveEvidenceWorkspaceIds(candidates, prisma);
 
       for (const ev of candidates) {
-        if (!ev.teamId) {
+        const evidenceTeamId = workspaceOf.get(ev.id) ?? null;
+        if (!evidenceTeamId) {
           ctx.reportProgress({ skipped: 1 });
           continue;
         }
-        const evidenceTeamId = ev.teamId;
         const correlationId = newCorrelationId();
         try {
           const directHold = await prisma.evidenceLegalHold.findFirst({

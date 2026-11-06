@@ -174,6 +174,7 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
       partIndex,
       mimeType: "application/octet-stream",
       originalFileName: `part-${partIndex}.bin`,
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
     const { bucket, key } = part.json().upload as { bucket: string; key: string };

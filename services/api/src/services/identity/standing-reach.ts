@@ -32,7 +32,7 @@ import {
 
 type ReachTx = Pick<
   PrismaClient,
-  "caseAccess" | "caseAssignment" | "collaborationTeamMember" | "verificationShareToken" | "externalReviewGrant"
+  "caseAccess" | "caseAssignment" | "collaborationTeamMember" | "verificationShareToken" | "externalReviewGrant" | "workflowIntakeLink"
 > &
   ReleaseTx;
 

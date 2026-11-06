@@ -284,6 +284,18 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message: "It is larger than a single record can hold, so it was not sealed. Split it into smaller records, or contact your workspace admin.",
     severity: "warning",
   },
+  // PRO-051 — an upload URL is issued only for a stated size.
+  UPLOAD_SIZE_REQUIRED: {
+    title: "This upload could not start",
+    message: "The app did not say how large the file is, so no upload was started. Update the app or try again from the web.",
+    severity: "warning",
+  },
+  // PRO-054 — an archived draft accepts no upload and cannot be finished.
+  EVIDENCE_NOT_WRITABLE: {
+    title: "This record is no longer open",
+    message: "It was archived, deleted or locked, so nothing more can be added to it. Restore it first, or start a new record.",
+    severity: "warning",
+  },
   external_review_originals_not_released: {
     title: "Original files are not shared with reviewers",
     message: "An external reviewer receives the disclosure package, not the original files. Remove that option and try again.",

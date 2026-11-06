@@ -150,7 +150,7 @@ describe("Contract A / C — single-file continuous recording (live PostgreSQL 1
   }
 
   async function upload(token: string, evidenceId: string, partIndex: number, bytes: Buffer, mimeType: string, name: string) {
-    const part = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, { partIndex, mimeType, originalFileName: name });
+    const part = await call("POST", `/v1/evidence/${evidenceId}/parts`, token, { partIndex, mimeType, originalFileName: name, sizeBytes: bytes.length });
     expect(part.statusCode, part.body).toBe(201);
     const { bucket, key } = part.json().upload as { bucket: string; key: string };
     objects.set(`${bucket}/${key}`, bytes);

@@ -102,15 +102,17 @@ describe("Public Verify disclosure convergence (Postgres + MinIO + Redis)", () =
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
     for (const [i, name] of PART_NAMES.entries()) {
+      const body = Buffer.from(`${name} ${randomBytes(8).toString("hex")}`);
       const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, {
         partIndex: i,
         mimeType: "text/plain",
         originalFileName: name,
+        sizeBytes: body.length,
       });
       expect(part.statusCode, part.body).toBe(201);
       const put = await fetch(part.json().upload.putUrl as string, {
         method: "PUT",
-        body: Buffer.from(`${name} ${randomBytes(8).toString("hex")}`),
+        body,
         headers: { "content-type": "text/plain" },
       });
       expect(put.status).toBe(200);

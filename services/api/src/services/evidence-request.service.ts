@@ -27,6 +27,7 @@ import type {
 } from "@prisma/client";
 import {
   canTransitionEvidenceRequest,
+  EVIDENCE_REQUEST_STATUSES,
   EvidenceRequestInput,
   EvidenceRequestInputSchema,
   EvidenceRequestStatus,
@@ -717,12 +718,28 @@ async function revokeRequestIntakeLinksTx(
   return live.map((l) => l.id);
 }
 
+/** The terminal statuses, from the shared state machine. */
+const TERMINAL_EVIDENCE_REQUEST_STATUSES: EvidenceRequestStatus[] = EVIDENCE_REQUEST_STATUSES.filter((s) =>
+  isTerminalEvidenceRequestStatus(s),
+);
+
+/** Serialises every state change and link binding of one request (PRO-048). */
+async function lockEvidenceRequestTx(tx: Prisma.TransactionClient, requestId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`evidence-request:${requestId}`}))`;
+}
+
 export async function transitionEvidenceRequest(
   input: TransitionEvidenceRequestInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RequestRow> {
   let revokedLinkIds: string[] = [];
   return client.$transaction(async (tx) => {
+    // PRO-048 / EVIDENCE-03 — one state change at a time per request. The
+    // read below decided the transition and the update wrote it unconditionally,
+    // so a cancel and a close that overlapped both succeeded, with both
+    // timestamps and both terminal events. Under this lock the second one reads
+    // the first one's state and is refused as terminal.
+    await lockEvidenceRequestTx(tx, input.id);
     const existing = await tx.evidenceRequest.findUnique({
       where: { id: input.id },
     });
@@ -950,21 +967,62 @@ export async function sendEvidenceRequest(
       { actorUserId: input.actorUserId },
       client,
     );
-    rawToken = result.rawToken;
-    intakeLinkId = result.link.id;
-
-    await client.evidenceRequest.update({
-      where: { id: input.id },
-      data: { intakeLinkId },
+    // PRO-048 / EVIDENCE-03 — the link is bound only if this send is the one
+    // that binds it, and only while the request is still open, under the same
+    // lock a cancel or close takes. Overlapping sends each minted a link and the
+    // last write won, so the others stayed ACTIVE with no request; a cancel that
+    // ran between the mint and the bind left the bound link ACTIVE on a
+    // cancelled request. A link that loses is revoked at once.
+    const minted = result.link.id;
+    const bound = await client.$transaction(async (tx) => {
+      await lockEvidenceRequestTx(tx, input.id);
+      const claim = await tx.evidenceRequest.updateMany({
+        where: {
+          id: input.id,
+          teamId: input.teamId,
+          intakeLinkId: null,
+          status: { notIn: [...TERMINAL_EVIDENCE_REQUEST_STATUSES] },
+        },
+        data: { intakeLinkId: minted },
+      });
+      if (claim.count === 1) {
+        await appendRequestEvent(
+          tx,
+          input.id,
+          "EVIDENCE_REQUEST_LINK_CREATED",
+          input.actorUserId,
+          { intakeLinkId: minted } as Prisma.InputJsonValue,
+        );
+        return { won: true as const };
+      }
+      await tx.workflowIntakeLink.updateMany({
+        where: { id: minted, teamId: input.teamId, status: { not: "REVOKED" } },
+        data: {
+          status: "REVOKED",
+          revokedAtUtc: new Date(),
+          revokedByUserId: input.actorUserId,
+          revokedReason: "evidence_request_send_superseded",
+        },
+      });
+      const now = await tx.evidenceRequest.findUnique({
+        where: { id: input.id },
+        select: { status: true, intakeLinkId: true },
+      });
+      return { won: false as const, status: now?.status ?? null, intakeLinkId: now?.intakeLinkId ?? null };
     });
-
-    await appendRequestEvent(
-      client,
-      input.id,
-      "EVIDENCE_REQUEST_LINK_CREATED",
-      input.actorUserId,
-      { intakeLinkId } as Prisma.InputJsonValue,
-    );
+    indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId: minted }, client);
+    if (bound.won) {
+      rawToken = result.rawToken;
+      intakeLinkId = minted;
+    } else {
+      if (!bound.status || isTerminalEvidenceRequestStatus(bound.status as EvidenceRequestStatus)) {
+        throw new EvidenceRequestError("request_terminal");
+      }
+      // Another send bound its link first and is sending it. This one is that
+      // same send arriving twice: it answers with the request as it stands, no
+      // token, no second transition and no second notification.
+      return { request: await loadRequest(client, input.id), rawToken: null };
+    }
   }
 
   // Mark the request SENT (covers both internal and external).

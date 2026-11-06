@@ -49,6 +49,18 @@ test("sniffFileType — PDF", () => {
   assert.equal(r.mime, "application/pdf");
 });
 
+test("sniffFileType — HTML document and script openings (PRO-052)", () => {
+  const enc = (t) => new TextEncoder().encode(t);
+  for (const t of ["<!DOCTYPE html><html>", "﻿\n  <html lang=\"en\">", "<script>alert(1)</script>", "<BODY>"]) {
+    assert.equal(sniffFileType(enc(t)).mime, "text/html", t);
+  }
+  for (const t of ["plain words <html>", "<htmlx>", "<svg xmlns=\"http://www.w3.org/2000/svg\">", "<?xml version=\"1.0\"?>", ""]) {
+    assert.equal(sniffFileType(enc(t)).mime, null, t);
+  }
+  assert.equal(classifyFileValidation({ claimedMime: "image/jpeg", fileName: "a.jpg", head: enc("<html><script>x</script>") }).reason, "mime_content_mismatch");
+  assert.equal(classifyFileValidation({ claimedMime: "text/html", fileName: "a.html", head: enc("<html>") }).mismatch, "none");
+});
+
 test("sniffFileType — ZIP", () => {
   const r = sniffFileType(bytes(0x50, 0x4b, 0x03, 0x04, 0, 0));
   assert.equal(r.mime, "application/zip");
