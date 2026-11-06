@@ -20,7 +20,7 @@ describe("nextOtsChainCheckDelayMs", () => {
     const anchoredAtUtc = anchored(8 * 24 * HOUR);
     const waiting = { state: "ANCHORED" as const, chain: chain("INSUFFICIENT_CONFIRMATIONS"), anchoredAtUtc };
     expect(nextOtsChainCheckDelayMs(waiting, now)).toBe(HOUR);
-    expect(nextOtsChainCheckDelayMs(waiting, now, { verifierUnavailable: true })).toBe(24 * HOUR);
+    expect(nextOtsChainCheckDelayMs(waiting, now, { verifierUnavailable: true })).toBeNull();
   });
 
   it("a VERIFIED outcome is rechecked once for reorgs and is final at the confirmation threshold", () => {
@@ -43,12 +43,16 @@ describe("nextOtsChainCheckDelayMs", () => {
     expect(missing(OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS + HOUR)).toBeNull();
   });
 
-  it("an unavailable verifier backs off to a daily recheck and never gives up (an operational condition, not a proof outcome)", () => {
-    expect(
+  it("CRYPTO-008: an unavailable verifier backs off and then parks the record's own follow-ups; the readiness-gated sweep collects the owed check", () => {
+    const unavailable = (ageMs: number) =>
       nextOtsChainCheckDelayMs(
-        { state: "ANCHORED", anchoredAtUtc: anchored(90 * 24 * HOUR), chain: chain("UNAVAILABLE", { failureCode: "BTC_RPC_UNAVAILABLE" }) },
+        { state: "ANCHORED", anchoredAtUtc: anchored(ageMs), chain: chain("UNAVAILABLE", { failureCode: "BTC_RPC_UNAVAILABLE" }) },
         now,
-      ),
-    ).toBe(24 * HOUR);
+      );
+    expect(unavailable(2 * HOUR)).toBe(HOUR);
+    expect(unavailable(2 * 24 * HOUR)).toBe(6 * HOUR);
+    // Before: 24 h for ever. Now no per-record job past a week.
+    expect(unavailable(8 * 24 * HOUR)).toBeNull();
+    expect(unavailable(90 * 24 * HOUR)).toBeNull();
   });
 });

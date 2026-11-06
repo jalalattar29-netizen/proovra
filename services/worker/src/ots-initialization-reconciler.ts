@@ -78,7 +78,16 @@ import {
   owedVersionRetryable,
   reconcileOtsAnchoredReportVersion,
 } from "./ots-anchored-version.js";
-import { resolveOtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
+import { resolveOtsBitcoinVerifierConfig, type OtsBitcoinVerifierConfig } from "./ots-bitcoin-config.js";
+import { probeOtsBitcoinVerifierReadiness } from "./ots-bitcoin-verifier.js";
+
+async function defaultVerifierReadiness(config: OtsBitcoinVerifierConfig): Promise<boolean> {
+  try {
+    return (await probeOtsBitcoinVerifierReadiness({ config })).ready === true;
+  } catch {
+    return false;
+  }
+}
 import { OTS_CHAIN_FINAL_CONFIRMATIONS, OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS } from "./ots-state.js";
 
 export interface RunOtsInitializationReconcilerOptions {
@@ -101,6 +110,8 @@ export interface RunOtsInitializationReconcilerOptions {
   batchSize?: number;
   /** F-10 closure — the owed-version sweep's per-tick ordering salt (tests pin it; random otherwise). */
   owedSweepSalt?: string;
+  /** CRYPTO-008 — test seam for the once-per-tick verifier readiness question. */
+  probeVerifierReadiness?: (config: OtsBitcoinVerifierConfig) => Promise<boolean>;
 }
 
 export interface OtsInitializationReconcilerResult {
@@ -118,6 +129,8 @@ export interface OtsInitializationReconcilerResult {
   /** ANCHORED proofs whose chain check was due. */
   chainScanned: number;
   chainRescheduled: number;
+  /** CRYPTO-008 — ticks that enqueued no chain check because the verifier was not ready. */
+  chainSkippedVerifierUnavailable?: number;
   /** F-10 — owed chain-verified versions re-requested after a technical failure. */
   owedVersionsRetried?: number;
 }
@@ -307,7 +320,19 @@ export async function runOtsInitializationReconciler(
   // is not scheduled is re-enqueued. A VERIFIED record re-asks the
   // (idempotent) derivative-version decision on that delivery, so a version
   // request lost to a failed in-flight report is recovered here.
-  if (resolveOtsBitcoinVerifierConfig().kind !== "disabled") {
+  const verifierConfig = resolveOtsBitcoinVerifierConfig();
+  // CRYPTO-008 — ONE record-independent readiness question per tick. While the
+  // verifier cannot answer, no chain check is enqueued at all (each would
+  // only record another "unavailable"); the owed checks stay due and are
+  // enqueued on the first tick the verifier is ready again.
+  const verifierReady =
+    verifierConfig.kind === "disabled"
+      ? false
+      : await (options.probeVerifierReadiness ?? defaultVerifierReadiness)(verifierConfig);
+  if (verifierConfig.kind !== "disabled" && !verifierReady) {
+    result.chainSkippedVerifierUnavailable = (result.chainSkippedVerifierUnavailable ?? 0) + 1;
+  }
+  if (verifierConfig.kind !== "disabled" && verifierReady) {
     const due = await prisma.evidence.findMany({
       where: chainCheckDueWhere({
         checkedBefore: new Date(now - CHAIN_RECHECK_STALE_MS),
