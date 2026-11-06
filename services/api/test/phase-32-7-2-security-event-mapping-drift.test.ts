@@ -1528,6 +1528,14 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281114000700_verification_share_view_session",
       // MOBILE-002: the native app's SSO hand-off (PKCE challenge, single-use code). EXPAND.
       "20281118070000_sso_native_handoffs",
+      // GOV-009: legal holds refuse DELETE; the destruction-certificate signing purpose. EXPAND.
+      "20281119100000_legal_hold_custody_and_certificate_signing",
+      // GOV-005: one retention policy store (copy, retire the old table). BACKFILL.
+      "20281119100100_retention_policy_single_store",
+      // GOV-015: the organization owner's offboarding export requests. EXPAND.
+      "20281119100200_organization_data_export_requests",
+      // REPORT-014: package seal byte checks, remembered. EXPAND.
+      "20281119100300_package_seal_byte_checks",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

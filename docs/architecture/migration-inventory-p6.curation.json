@@ -3791,6 +3791,38 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) = 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='verification_share_tokens' AND column_name='last_use_session_hash';\"",
       "evidence": "REPORT-013 (2026-11-04). One nullable VARCHAR(64) on verification_share_tokens: the hash of the per-tab view session that spent a link's latest use, so a reload from that session spends no further use. Links used earlier have none and count as before. No row is rewritten."
     },
+    "20281119100000_legal_hold_custody_and_certificate_signing": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM pg_trigger WHERE tgname='evidence_legal_holds_no_delete') || ':' || (SELECT count(*) FROM pg_constraint WHERE conname='signing_keys_purpose_check' AND pg_get_constraintdef(oid) LIKE '%DESTRUCTION_CERTIFICATE%');\"",
+      "evidence": "GOV-009 (2026-11-04). evidence_legal_holds refuses DELETE (release is a state change; no code deletes a hold); signing_keys.purpose CHECK gains DESTRUCTION_CERTIFICATE. No row is read or rewritten; an older image never deletes a hold. Rollback: drop the trigger; restore the two-value CHECK only if no DESTRUCTION_CERTIFICATE row exists."
+    },
+    "20281119100100_retention_policy_single_store": {
+      "classification": "BACKFILL",
+      "releaseWave": "WAIT_FOR_RUNTIME_CUTOVER",
+      "safeBeforeCodeDeployment": false,
+      "requiresBackfill": true,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM retention_policy_configs c WHERE NOT EXISTS (SELECT 1 FROM evidence_retention_policies p WHERE p.id = c.id)) || ':' || (SELECT count(*) FROM pg_trigger WHERE tgname='retention_policy_configs_retired');\"",
+      "evidence": "GOV-005 / RETENTION-TWO-TABLES (2026-11-04). Copies every retention_policy_configs row into evidence_retention_policies under its own id with a version-1 row (unbindable scopes and 0-year rows archived with the reason), then refuses INSERT/UPDATE on the retired table. Apply WITH the API image that writes the one store: an older image's lifecycle-page create would be refused. Idempotent (ON CONFLICT DO NOTHING). No row deleted. Rollback: drop the trigger; the copied policies can be archived."
+    },
+    "20281119100200_organization_data_export_requests": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.organization_data_export_requests') IS NOT NULL;\"",
+      "evidence": "GOV-015 (2026-11-04). One new, empty table for the organization owner's offboarding export requests. No existing object is touched; an older image never reads it. Rollback: drop the table."
+    },
+    "20281119100300_package_seal_byte_checks": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.package_seal_byte_checks') IS NOT NULL;\"",
+      "evidence": "REPORT-014 (2026-11-04). One new, empty table remembering the definitive outcome of the immutable part of a package seal check by seal identity. Key revocation is never stored. An older image ignores it. Rollback: drop the table."
+    },
     "20281118070000_sso_native_handoffs": {
       "classification": "EXPAND",
       "releaseWave": "SAFE_TO_APPLY_NOW",
