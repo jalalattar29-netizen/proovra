@@ -45,6 +45,7 @@ import { routeAccessInputFromEnvelope } from "../../lib/navigation/useRouteDesti
 import { hasNoContextYet } from "../../lib/platform-context/types";
 import { ProovraDenialState } from "../feedback/ProovraDenialState";
 import type { SystemStateAction } from "../feedback/ProovraSystemState";
+import { SignedOutAppState } from "./SignedOutAppState";
 
 export function PageRouteGate({
   routeId,
@@ -131,6 +132,20 @@ export function PageRouteGate({
           Checking whether this area is available in your workspace…
         </span>
       </div>
+    );
+  }
+
+  // PRO-075: the context refused the SESSION (401), not the workspace. With no
+  // envelope, the resolver below would read that as "no workspace" or "no
+  // permission" and show a state about plans and roles to someone who only
+  // needs to sign in (again: a session can expire while a page is open).
+  if (state.name === "FAILED" && state.errorCode === "AUTH_REQUIRED") {
+    return (
+      <SignedOutAppState
+        presentation="contained"
+        pathname={typeof window === "undefined" ? null : window.location.pathname}
+        search={typeof window === "undefined" ? "" : window.location.search}
+      />
     );
   }
 
