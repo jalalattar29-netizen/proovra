@@ -223,6 +223,7 @@ import { passkeyRoutes } from "./routes/passkey.routes.js";
 import { mfaRoutes } from "./routes/mfa.routes.js";
 import { identityLinksRoutes } from "./routes/identity-links.routes.js";
 import { accountDataExportRoutes } from "./routes/account-data-export.routes.js";
+import { organizationDataExportRoutes } from "./routes/organization-data-export.routes.js";
 import { accountClosureRoutes } from "./routes/account-closure.routes.js";
 // R8.1.4 — admin MFA lifecycle + lost-factor recovery routes. Same
 // canonical session model as the rest of the identity surface; the
@@ -1595,6 +1596,8 @@ allowedHeaders: [
   await app.register(identityLinksRoutes);
   // Lifecycle Phase 4 — personal account data export.
   await app.register(accountDataExportRoutes);
+  // GOV-015 — the organization owner's offboarding data export.
+  await app.register(organizationDataExportRoutes);
   await app.register(accountClosureRoutes);
   // R8.1.4 — admin lifecycle + lost-factor recovery endpoints.
   await app.register(mfaAdminRoutes);

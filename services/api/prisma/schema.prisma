@@ -3862,6 +3862,37 @@ model AccountDataExportRequest {
   @@map("account_data_export_requests")
 }
 
+// GOV-015 (2026-11-04) — an organization's data returned to the customer at
+// offboarding. One row per request; the manifest (every stored object of every
+// record in every workspace, with the digests a hand-over reconciles against)
+// is built by the lifecycle tick, checked against storage, and kept until the
+// request expires. Organization-owner only, step-up on request and download.
+model OrganizationDataExportRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  requestedByUserId   String    @map("requested_by_user_id") @db.Uuid
+  // REQUESTED / PROCESSING / READY / FAILED / EXPIRED
+  status              String    @default("REQUESTED") @db.VarChar(20)
+  requestedAtUtc      DateTime  @default(now()) @map("requested_at_utc") @db.Timestamptz(6)
+  startedAtUtc        DateTime? @map("started_at_utc") @db.Timestamptz(6)
+  completedAtUtc      DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  expiresAtUtc        DateTime? @map("expires_at_utc") @db.Timestamptz(6)
+  failureCode         String?   @map("failure_code") @db.VarChar(60)
+  manifestJson        String?   @map("manifest_json")
+  manifestSha256      String?   @map("manifest_sha256") @db.VarChar(64)
+  recordCount         Int?      @map("record_count")
+  objectCount         Int?      @map("object_count")
+  heldRecordCount     Int?      @map("held_record_count")
+  missingObjectCount  Int?      @map("missing_object_count")
+  downloadCount       Int       @default(0) @map("download_count")
+  lastDownloadedAtUtc DateTime? @map("last_downloaded_at_utc") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([organizationId, status])
+  @@index([status, requestedAtUtc])
+  @@map("organization_data_export_requests")
+}
 // Lifecycle Phase 5 (2026-07-17) — personal account closure.
 //
 // ACCOUNT-level closure, universal across every plan (privacy rights are

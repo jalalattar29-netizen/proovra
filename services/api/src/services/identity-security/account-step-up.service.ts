@@ -89,6 +89,9 @@ export type AccountStepUpAction =
   // them a co-owner on acceptance, so it is proved like a transfer.
   | "org_owner_invite"
   | "org_closure_request"
+  // GOV-015 — the organization owner's offboarding data export.
+  | "org_data_export_request"
+  | "org_data_export_download"
   // Lifecycle Phase 7 — workspace closure (workspace-owner-only route;
   // step-up proves the owner's own recent authentication).
   | "workspace_closure_request"

@@ -21,6 +21,7 @@ import { processAccountClosures } from "../identity/account-closure.service.js";
 import { processOrganizationClosures } from "../organization/org-closure.service.js";
 import { processWorkspaceClosures } from "../workspace/workspace-closure.service.js";
 import { processAccountDataExports } from "../identity/account-data-export.service.js";
+import { processOrganizationDataExports } from "../organization/organization-data-export.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { warn as logWarn } from "../../utils/logger.js";
 
@@ -33,7 +34,7 @@ export const RECOVERED_WORK_TYPES = ["LIFECYCLE"] as const;
 export type LifecycleTickSummary = {
   ranAt: string;
   processors: Record<
-    "accountClosures" | "organizationClosures" | "workspaceClosures" | "accountDataExports",
+    "accountClosures" | "organizationClosures" | "workspaceClosures" | "accountDataExports" | "organizationDataExports",
     "ok" | "failed"
   >;
   failures: number;
@@ -47,6 +48,7 @@ export async function runLifecycleTick(now: Date = new Date()): Promise<Lifecycl
       organizationClosures: "ok",
       workspaceClosures: "ok",
       accountDataExports: "ok",
+      organizationDataExports: "ok",
     },
     failures: 0,
   };
@@ -73,6 +75,10 @@ export async function runLifecycleTick(now: Date = new Date()): Promise<Lifecycl
   // the digest's schema refusal, so a digest problem stopped it.
   await step("accountDataExports", async () => {
     await processAccountDataExports(now);
+  });
+  // GOV-015 — an organization owner's offboarding export.
+  await step("organizationDataExports", async () => {
+    await processOrganizationDataExports(now);
   });
   bump("lifecycle_tick_completed_total");
   return summary;
