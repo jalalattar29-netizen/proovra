@@ -149,13 +149,27 @@ export function PageRouteGate({
   // needs to sign in (again: a session can expire while a page is open). A
   // route that loads with no context (an invitation page) still loads: it
   // handles the signed-out visitor itself.
+  //
+  // It is a refusal like every other branch below, so it carries the same
+  // gate markers (`data-page-route-gate*`, `route-gate-<id>`) with the state
+  // AUTH_REQUIRED: tools and tests that ask "did the gate refuse this route?"
+  // read one contract, whatever the reason was.
   if (state.name === "FAILED" && state.errorCode === "AUTH_REQUIRED") {
     return (
-      <SignedOutAppState
-        presentation="contained"
-        pathname={typeof window === "undefined" ? null : window.location.pathname}
-        search={typeof window === "undefined" ? "" : window.location.search}
-      />
+      <div
+        data-page-route-gate
+        data-page-route-gate-state="AUTH_REQUIRED"
+        data-page-route-gate-route-id={routeId}
+        data-page-route-gate-denial-reason="AUTH_REQUIRED"
+        data-page-route-gate-actions
+        data-testid={`route-gate-${routeId}`}
+      >
+        <SignedOutAppState
+          presentation="contained"
+          pathname={typeof window === "undefined" ? null : window.location.pathname}
+          search={typeof window === "undefined" ? "" : window.location.search}
+        />
+      </div>
     );
   }
 
