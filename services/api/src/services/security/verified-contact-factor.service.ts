@@ -431,14 +431,48 @@ export async function completeContactFactorEnrollment(
   return projected(row);
 }
 
-/** Revoke a factor. Bumps the generation, so pending challenges die with it. */
+/**
+ * The state of one of the caller's OWN, unrevoked contact factors, or null
+ * when the id names nothing of theirs that this module governs (another
+ * user's factor, a revoked one, or an authenticator app).
+ */
+export async function readOwnContactFactorStatus(
+  input: { userId: string; factorId: string },
+  client: Db = defaultPrisma,
+): Promise<"ENROLLING" | "ACTIVE" | null> {
+  const row = await (client as PrismaClient).mfaFactor.findFirst({
+    where: {
+      id: input.factorId,
+      userId: input.userId,
+      revokedAt: null,
+      kind: { in: CONTACT_FACTOR_KINDS } as unknown as never,
+    },
+    select: { status: true },
+  });
+  if (!row || row.status === "REVOKED") return null;
+  return row.status as "ENROLLING" | "ACTIVE";
+}
+
+/**
+ * Revoke a CONTACT factor. Bumps the generation, so pending challenges die
+ * with it.
+ *
+ * PRO-021 (AUTH-15) — the kind predicate is the boundary of this authority:
+ * without it the contact-factor revoke route removed the account's
+ * authenticator app too, outside the canonical factor-removal rules.
+ */
 export async function revokeContactFactor(
   input: { userId: string; factorId: string; reason?: string },
   client: Db = defaultPrisma,
 ): Promise<ProjectedContactFactor> {
   const db = client as PrismaClient;
   const result = await db.mfaFactor.updateMany({
-    where: { id: input.factorId, userId: input.userId, revokedAt: null },
+    where: {
+      id: input.factorId,
+      userId: input.userId,
+      revokedAt: null,
+      kind: { in: CONTACT_FACTOR_KINDS } as unknown as never,
+    },
     data: {
       status: "REVOKED",
       revokedAt: new Date(),

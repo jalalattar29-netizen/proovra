@@ -65,6 +65,7 @@ import { getAuthUserId } from "../auth.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { prisma } from "../db.js";
 import {
+  assertActorOutranksMfaTarget,
   listRecentMfaEvents,
   readUserMfaPosture,
   requireUserReenrollment,
@@ -237,6 +238,23 @@ async function authorizeMfaAdminScope(
 }
 
 /**
+ * PRO-022 (AUTH-16) — the target is a member the caller may see (the scope
+ * check concealed everyone else), so a rank refusal is told as the canonical
+ * 403, before any step-up is spent on an action that cannot happen.
+ */
+async function refuseUnlessOutranks(
+  reply: FastifyReply,
+  teamId: string,
+  actorUserId: string,
+  targetUserId: string,
+): Promise<boolean> {
+  const refusal = await assertActorOutranksMfaTarget({ teamId, actorUserId, targetUserId });
+  if (!refusal) return true;
+  reply.code(403).send({ error: { code: "permission_denied", reason: "rank_insufficient" } });
+  return false;
+}
+
+/**
  * PHASE 12B — SAFE factor projection for the admin posture surface.
  * The operator needs a factor id to revoke a single factor; the row also
  * carries the AES-GCM envelope (`secretCiphertext` / `secretIv` /
@@ -389,6 +407,7 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         targetUserId: params.userId,
       });
       if (!scope) return;
+      if (!(await refuseUnlessOutranks(reply, params.teamId, scope.actorUserId, params.userId))) return;
       // TARGET-BOUND step-up: the challenge is bound to the exact factor
       // being revoked, so an approval for factor A can never satisfy a
       // revoke of factor B.
@@ -439,6 +458,7 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
         targetUserId: params.userId,
       });
       if (!scope) return;
+      if (!(await refuseUnlessOutranks(reply, params.teamId, scope.actorUserId, params.userId))) return;
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
@@ -676,12 +696,38 @@ export async function mfaAdminRoutes(app: FastifyInstance) {
       const actorUserId = getAuthUserId(req);
       if (!actorUserId) throw new AppError(ErrorCode.UNAUTHORIZED, "Sign in.");
       const params = RequestIdParams.parse(req.params);
-      const result = await approveRecoveryRequest({
+      /*
+       * PRO-027 (AUTH-21) — an approval that meets the quorum revokes every
+       * factor the member holds: the same effect as requiring re-enrolment,
+       * which is stepped up. Approval was not, so one ADMIN session alone
+       * could strip a member's MFA. Every refusal runs first (nothing is
+       * recorded), then the approver steps up bound to the member, then the
+       * approval is taken on the row as it is at that moment.
+       */
+      const preflight = await approveRecoveryRequest({
         requestId: params.requestId,
         approverUserId: actorUserId,
-        ipAddress: req.ip ?? null,
-        userAgent: readUserAgent(req),
+        preflightOnly: true,
       });
+      let result = preflight;
+      if (preflight.ok && preflight.teamId && preflight.targetUserId) {
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: preflight.teamId,
+          userId: actorUserId,
+          purpose: "MFA_REENROLLMENT_REQUIRE",
+          resourceKind: "user",
+          resourceId: preflight.targetUserId,
+        });
+        if (gate.sent) return;
+        result = await approveRecoveryRequest({
+          requestId: params.requestId,
+          approverUserId: actorUserId,
+          ipAddress: req.ip ?? null,
+          userAgent: readUserAgent(req),
+        });
+      }
       if (!result.ok) {
         if (result.reason === "request_not_found") {
           reply.code(404);

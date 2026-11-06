@@ -1368,12 +1368,31 @@ export async function adminIdentityRuntimeRoutes(app: FastifyInstance) {
         "identity.contributor_session.revoke",
       );
       if (!actor) return;
+      /*
+       * PRO-023 (AUTH-17) — release had none of the gates its sibling
+       * (quarantine) has, so a quarantined session listed itself and released
+       * itself, and the privileged actions the quarantine blocked worked
+       * again. The same runtime adaptive gate now applies — a quarantined
+       * session is refused here as on every other privileged route — and the
+       * service refuses a person releasing their own quarantine.
+       */
+      const gate = await runtimeAdaptiveGate({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actor.userId,
+        action: "MEMBER_SUSPEND",
+      });
+      if (!gate.allow) return;
       const ok = await releaseQuarantine({
         teamId: body.teamId,
         sessionId: id,
         actorUserId: actor.userId,
         note: body.note ?? null,
       });
+      if (ok === "self_release_forbidden") {
+        return reply.code(403).send({ error: { code: "self_action_forbidden" } });
+      }
       if (!ok) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }

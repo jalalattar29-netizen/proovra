@@ -31,6 +31,8 @@ import {
 } from "../product/contact-factors";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraFormField, ProovraInput, ProovraText } from "./index";
 import { ProovraFilterChips, ProovraPageSection } from "./patterns";
+import { extractStepUp, withStepUp } from "../product/step-up";
+import { StepUpSheet, useStepUp } from "./step-up-sheet";
 
 type Phase =
   | { kind: "idle" }
@@ -55,6 +57,8 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
   const [replaceIntent, setReplaceIntent] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [stepUpBusy, setStepUpBusy] = useState(false);
+  const stepUp = useStepUp();
 
   const loadFactors = useCallback(async () => {
     try {
@@ -88,29 +92,54 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
       if (err) return;
     }
     const replacing = resend && ctx ? ctx.replacing : !!active;
+    const previous = phase;
     setPhase({ kind: "sending" });
     setNotice(null);
-    try {
-      const attempt = parseEnrolmentStart(
-        await apiFetch(CONTACT_FACTOR_ENROLL_START_PATH, {
-          method: "POST",
-          body: JSON.stringify({ teamId, channel, destination: destination.trim(), ...(label.trim() ? { label: label.trim() } : {}) }),
-        }),
-      );
-      if (!attempt) {
+    // PRO-015 — adding a device to an account that already holds a factor is
+    // an account step-up action; the sheet collects the proof and the SAME
+    // request is retried with it.
+    await stepUp.start(
+      async (proof) => {
+        let attempt: ReturnType<typeof parseEnrolmentStart>;
+        try {
+          attempt = parseEnrolmentStart(
+            await apiFetch(CONTACT_FACTOR_ENROLL_START_PATH, {
+              method: "POST",
+              body: JSON.stringify(
+                withStepUp(
+                  { teamId, channel, destination: destination.trim(), ...(label.trim() ? { label: label.trim() } : {}) },
+                  proof,
+                ),
+              ),
+            }),
+          );
+        } catch (err) {
+          // Only a step-up challenge goes back to the sheet; a code rate limit
+          // or provider failure keeps this section's own wording.
+          if (extractStepUp(err)) throw err;
+          setPhase({ kind: "idle" });
+          setNotice(contactFactorFailure(err, COPY.startFailed, safe));
+          void loadFactors();
+          return;
+        }
+        if (!attempt) {
+          setPhase({ kind: "idle" });
+          setNotice(COPY.startUnusable);
+          return;
+        }
+        setNow(Date.now());
+        setPhase({ kind: "otp", ctx: { ...attempt, sentAt: Date.now(), replacing } });
+        setCode("");
+        void loadFactors();
+      },
+      (err) => {
         setPhase({ kind: "idle" });
-        setNotice(COPY.startUnusable);
-        return;
-      }
-      setNow(Date.now());
-      setPhase({ kind: "otp", ctx: { ...attempt, sentAt: Date.now(), replacing } });
-      setCode("");
-      void loadFactors();
-    } catch (err) {
-      setPhase({ kind: "idle" });
-      setNotice(contactFactorFailure(err, COPY.startFailed, safe));
-      void loadFactors();
-    }
+        setNotice(contactFactorFailure(err, COPY.startFailed, safe));
+        void loadFactors();
+      },
+    );
+    // A challenge raised: nothing was sent, so the form stays where it was.
+    setPhase((p) => (p.kind === "sending" ? previous : p));
   };
 
   const verify = async () => {
@@ -145,17 +174,28 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
     if (revokingId) return;
     setRevokingId(factorId);
     setNotice(null);
-    try {
-      await apiFetch(buildContactFactorRevokePath(factorId), { method: "POST", body: JSON.stringify({}) });
-      setPhase({ kind: "revoked" });
-      setReplaceIntent(false);
-      setCode("");
-    } catch (err) {
-      setNotice(contactFactorFailure(err, COPY.revokeFailed, safe));
-    } finally {
-      setRevokingId(null);
-      void loadFactors();
-    }
+    // PRO-021 — removing an ACTIVE device is an account step-up action, as on
+    // the canonical factor-removal route.
+    await stepUp.start(
+      async (proof) => {
+        try {
+          await apiFetch(buildContactFactorRevokePath(factorId), {
+            method: "POST",
+            body: JSON.stringify(withStepUp({}, proof)),
+          });
+        } catch (err) {
+          if (extractStepUp(err)) throw err;
+          setNotice(contactFactorFailure(err, COPY.revokeFailed, safe));
+          return;
+        }
+        setPhase({ kind: "revoked" });
+        setReplaceIntent(false);
+        setCode("");
+      },
+      (err) => setNotice(contactFactorFailure(err, COPY.revokeFailed, safe)),
+    );
+    setRevokingId(null);
+    void loadFactors();
   };
 
   const expired = !!(ctx && ctx.codeExpiresAt !== null && ctx.codeExpiresAt <= now);
@@ -264,6 +304,21 @@ export function ContactFactorSection({ teamId }: { teamId: string | null }) {
           {notice ? <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>{notice}</ProovraText> : null}
         </View>
       </ProovraCard>
+      <StepUpSheet
+        challenge={stepUp.challenge}
+        title="Confirm this change to your verified devices"
+        busy={stepUpBusy}
+        onSubmit={(proof) => {
+          setStepUpBusy(true);
+          void stepUp
+            .retry(proof, (err) => setNotice(contactFactorFailure(err, COPY.startFailed, safe)))
+            .finally(() => {
+              setStepUpBusy(false);
+              void loadFactors();
+            });
+        }}
+        onCancel={stepUp.dismiss}
+      />
     </ProovraPageSection>
   );
 }

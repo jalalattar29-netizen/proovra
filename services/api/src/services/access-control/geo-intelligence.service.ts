@@ -46,12 +46,58 @@ function hashIp(ip: string): string {
     .digest("hex");
 }
 
-function resolveProvider(): GeoProvider {
+/**
+ * IDENT-016 / OPS-011 — WHAT IS CONFIGURED VERSUS WHAT ANSWERS.
+ *
+ * `GEO_PROVIDER=maxmind` (or `ip2location`) was accepted, recorded on every
+ * cache row and returned as the lookup's provider, while the built-in null
+ * stub answered: no MaxMind or IP2Location client, credential or database
+ * exists in this codebase, and no IP address is sent to either. The provider
+ * a lookup reports is now the one that actually answered, and the gap is said
+ * once in the log and readable through `geoProviderStatus()`.
+ */
+const IMPLEMENTED_PROVIDERS: ReadonlySet<GeoProvider> = new Set<GeoProvider>(["OFFLINE_DB", "STUB"]);
+
+function configuredProvider(): GeoProvider {
   const raw = (process.env["GEO_PROVIDER"] ?? "OFFLINE_DB").toUpperCase();
   if (raw === "MAXMIND" || raw === "IP2LOCATION" || raw === "STUB") {
     return raw;
   }
   return "OFFLINE_DB";
+}
+
+function resolveProvider(): GeoProvider {
+  const configured = configuredProvider();
+  return IMPLEMENTED_PROVIDERS.has(configured) ? configured : "OFFLINE_DB";
+}
+
+export function geoProviderStatus(): {
+  configured: GeoProvider;
+  effective: GeoProvider;
+  /** False when the configured provider has no client here and the stub answers. */
+  configuredProviderImplemented: boolean;
+  /** No provider in this codebase resolves a country; every lookup is null. */
+  resolvesCountries: false;
+} {
+  const configured = configuredProvider();
+  return {
+    configured,
+    effective: resolveProvider(),
+    configuredProviderImplemented: IMPLEMENTED_PROVIDERS.has(configured),
+    resolvesCountries: false,
+  };
+}
+
+let unimplementedProviderWarned = false;
+function warnIfUnimplementedProvider(): void {
+  if (unimplementedProviderWarned) return;
+  const status = geoProviderStatus();
+  if (status.configuredProviderImplemented) return;
+  unimplementedProviderWarned = true;
+  console.warn(
+    `[geo-intelligence] GEO_PROVIDER=${status.configured} has no client in this build; ` +
+      `lookups are answered by ${status.effective}, which returns no country, and no IP address is sent to any provider.`,
+  );
 }
 
 function resolveTimeoutMs(): number {
@@ -80,8 +126,6 @@ const stubProvider: ProviderFn = async () => null;
 
 function getProviderFn(provider: GeoProvider): ProviderFn {
   switch (provider) {
-    case "MAXMIND":
-    case "IP2LOCATION":
     case "OFFLINE_DB":
       return offlineDbProvider;
     case "STUB":
@@ -123,6 +167,7 @@ export async function lookupCountryCode(
   if (!geoEnabled() || !input.ip) {
     return { countryCode: null, cached: false, provider: resolveProvider() };
   }
+  warnIfUnimplementedProvider();
   const provider = resolveProvider();
   const ipHash = hashIp(input.ip);
 

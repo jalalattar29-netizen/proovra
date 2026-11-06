@@ -1374,9 +1374,35 @@ export async function updateDelegatedAdminScope(
   return runAtomically(client, async (tx) => {
     const scope = await tx.memberDelegatedAdminScope.findFirst({
       where: { id: input.scopeId, teamId: input.teamId, revokedAtUtc: null },
-      select: { id: true, scopeKind: true, teamMemberId: true, expiresAtUtc: true, reason: true },
+      select: {
+        id: true,
+        scopeKind: true,
+        teamMemberId: true,
+        expiresAtUtc: true,
+        reason: true,
+        teamMember: { select: { userId: true } },
+      },
     });
     if (!scope) throw new RbacError("delegated_scope_not_found");
+    /*
+     * PRO-032 (AUTH-26) — changing a scope's terms is granting it again for a
+     * different period, so it follows the grant's rules (AUTHZ-005, D54): the
+     * holder cannot rewrite their own scope (a temporary IDENTITY_ADMIN cleared
+     * its own expiry and became permanent), and the actor must hold every
+     * permission the scope carries.
+     */
+    if (scope.teamMember.userId === input.actorUserId) {
+      throw new RbacError("self_action_forbidden");
+    }
+    for (const permission of listPermissionsForDelegatedAdminScope(
+      scope.scopeKind as DelegatedAdminScopeKind,
+    )) {
+      const decision = await evaluateMemberAccess(
+        { teamId: input.teamId, userId: input.actorUserId, permission: permission as Permission },
+        tx,
+      );
+      if (!decision.allowed) throw new RbacError("grantor_lacks_permission");
+    }
     const data: { expiresAtUtc?: Date | null; reason?: string | null } = {};
     if (input.expiresAtUtc !== undefined) data.expiresAtUtc = input.expiresAtUtc;
     if (input.reason !== undefined) data.reason = input.reason;

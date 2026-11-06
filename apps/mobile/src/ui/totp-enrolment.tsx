@@ -46,7 +46,9 @@ import {
   validateTotpCode,
   type TotpEnrollment,
 } from "../product/account-security";
+import { extractStepUp, withStepUp } from "../product/step-up";
 import { RecoveryCodesSheet } from "./recovery-codes-sheet";
+import { StepUpSheet, useStepUp } from "./step-up-sheet";
 
 type Stage =
   | { kind: "idle" }
@@ -148,28 +150,44 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  /*
+   * PRO-015 — once the account holds a factor, adding an authenticator is an
+   * account step-up action (the same proof regenerating recovery codes asks
+   * for). The challenge is answered in the shared sheet and the SAME request
+   * is retried with the proof.
+   */
+  const stepUp = useStepUp();
   const start = useCallback(async () => {
     setBusy(true);
     setMessage(null);
-    try {
-      const enrollment = parseTotpEnrollment(
-        await apiFetch(MFA_ENROLL_START_PATH, {
-          method: "POST",
-          body: JSON.stringify(buildEnrollStartBody(label)),
-        }),
-      );
-      if (!enrollment) {
-        setMessage("Enrolment could not be started.");
-        return;
-      }
-      setCode("");
-      setStage({ kind: "enrolling", enrollment });
-    } catch (err) {
-      setMessage(toSafeUserError(err).message);
-    } finally {
-      setBusy(false);
-    }
-  }, [label]);
+    await stepUp.start(
+      async (proof) => {
+        let enrollment: TotpEnrollment | null;
+        try {
+          enrollment = parseTotpEnrollment(
+            await apiFetch(MFA_ENROLL_START_PATH, {
+              method: "POST",
+              body: JSON.stringify(withStepUp(buildEnrollStartBody(label), proof)),
+            }),
+          );
+        } catch (err) {
+          // Only a step-up challenge goes to the sheet; anything else keeps
+          // the message this screen always showed.
+          if (extractStepUp(err)) throw err;
+          setMessage(toSafeUserError(err).message);
+          return;
+        }
+        if (!enrollment) {
+          setMessage("Enrolment could not be started.");
+          return;
+        }
+        setCode("");
+        setStage({ kind: "enrolling", enrollment });
+      },
+      (err) => setMessage(toSafeUserError(err).message),
+    );
+    setBusy(false);
+  }, [label, stepUp]);
 
   const verify = useCallback(async () => {
     if (stage.kind !== "enrolling") return;
@@ -273,6 +291,19 @@ export function TotpEnrolment({ onEnrolled }: { onEnrolled: () => void }) {
           </>
         ) : null}
       </ProovraSheet>
+
+      <StepUpSheet
+        challenge={stepUp.challenge}
+        title="Confirm adding an authenticator"
+        busy={busy}
+        onSubmit={(proof) => {
+          setBusy(true);
+          void stepUp
+            .retry(proof, (err) => setMessage(toSafeUserError(err).message))
+            .finally(() => setBusy(false));
+        }}
+        onCancel={stepUp.dismiss}
+      />
 
       {/* Shown once, and not dismissed until the person says they saved them — the web's rule. */}
       <RecoveryCodesSheet

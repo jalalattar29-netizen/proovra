@@ -121,11 +121,53 @@ export async function accountClosureRoutes(app: FastifyInstance) {
         return reply.code(stepUp.denial.status).send(stepUp.denial.body);
       }
 
-      const open = await prisma.accountClosureRequest.findFirst({
-        where: { userId, status: { in: [...ACTIVE_CLOSURE_STATUSES] } },
-        select: { id: true, status: true },
+      const { blockers } = await evaluateAccountClosurePreflight(userId);
+      const coolingOffEndsAtUtc = new Date(Date.now() + COOLING_OFF_MS);
+
+      /*
+       * PRO-035 (AUTH-29) — ONE OPEN REQUEST PER ACCOUNT, UNDER CONCURRENCY.
+       *
+       * "Is one already open?" was a read and the insert a separate write, so
+       * three concurrent requests all read "none" and created three
+       * COOLING_OFF rows. The check and the insert now run in one transaction
+       * holding a per-account advisory lock (the platform's serialisation
+       * primitive, as for entitlement and capture writers): the second request
+       * waits, then sees the first one's row and is told it is already open.
+       */
+      const outcome = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-closure:${userId}`}))`;
+        const open = await tx.accountClosureRequest.findFirst({
+          where: { userId, status: { in: [...ACTIVE_CLOSURE_STATUSES] } },
+          select: { id: true },
+        });
+        if (open) return { kind: "open" as const };
+        if (blockers.length > 0) {
+          // Record the blocked attempt (audit trail) and surface the
+          // stable blocker codes; the user can re-request after resolving.
+          const blocked = await tx.accountClosureRequest.create({
+            data: {
+              userId,
+              status: "BLOCKED",
+              reason: body.reason ?? null,
+              blockersJson: JSON.stringify(blockers),
+            },
+            select: { id: true },
+          });
+          return { kind: "blocked" as const, id: blocked.id };
+        }
+        const created = await tx.accountClosureRequest.create({
+          data: {
+            userId,
+            status: "COOLING_OFF",
+            reason: body.reason ?? null,
+            coolingOffEndsAtUtc,
+          },
+          select: REQUEST_SELECT,
+        });
+        return { kind: "created" as const, created };
       });
-      if (open) {
+
+      if (outcome.kind === "open") {
         return reply.code(409).send({
           error: {
             code: "closure_request_active",
@@ -133,20 +175,8 @@ export async function accountClosureRoutes(app: FastifyInstance) {
           },
         });
       }
-
-      const { blockers } = await evaluateAccountClosurePreflight(userId);
-      if (blockers.length > 0) {
-        // Record the blocked attempt (audit trail) and surface the
-        // stable blocker codes; the user can re-request after resolving.
-        const blocked = await prisma.accountClosureRequest.create({
-          data: {
-            userId,
-            status: "BLOCKED",
-            reason: body.reason ?? null,
-            blockersJson: JSON.stringify(blockers),
-          },
-          select: { id: true },
-        });
+      if (outcome.kind === "blocked") {
+        const blocked = { id: outcome.id };
         await emitPlatformAudit({
           action: "identity.account_closure_blocked",
           outcome: "denied",
@@ -163,16 +193,7 @@ export async function accountClosureRoutes(app: FastifyInstance) {
           .send({ error: { code: "closure_blocked" }, blockers });
       }
 
-      const coolingOffEndsAtUtc = new Date(Date.now() + COOLING_OFF_MS);
-      const created = await prisma.accountClosureRequest.create({
-        data: {
-          userId,
-          status: "COOLING_OFF",
-          reason: body.reason ?? null,
-          coolingOffEndsAtUtc,
-        },
-        select: REQUEST_SELECT,
-      });
+      const created = outcome.created;
       await emitPlatformAudit({
         action: "identity.account_closure_requested",
         outcome: "success",

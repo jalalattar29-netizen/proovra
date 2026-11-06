@@ -41,6 +41,8 @@ import { prisma } from "../../db.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 import { getEmailService } from "../email.service.js";
+import { revokeAllSessionsForUser } from "../identity-security/session-revocation.service.js";
+import { cancelOutstandingStepUpChallenges } from "../identity-security/step-up.service.js";
 // PHASE 11 — canonical internal URL builder.
 import { absoluteInternalUrl, internalNavPath } from "@proovra/shared";
 
@@ -670,6 +672,12 @@ export interface ApproveRecoveryRequestInput {
   approverUserId: string;
   ipAddress?: string | null;
   userAgent?: string | null;
+  /**
+   * PRO-027 — run every refusal and return the request's workspace and
+   * subject, recording nothing. The route uses it to bind the approver's
+   * step-up to this person before the real approval.
+   */
+  preflightOnly?: boolean;
 }
 
 export interface ApproveRecoveryRequestResult {
@@ -685,6 +693,16 @@ export interface ApproveRecoveryRequestResult {
     | "quorum_not_met"
     | "cannot_self_approve";
   approvedNow?: boolean;
+  /** Set by a `preflightOnly` call. */
+  teamId?: string;
+  targetUserId?: string;
+}
+
+/** A refusal decided inside the approval transaction; throwing rolls it back. */
+class RecoveryDecisionRefused extends Error {
+  constructor(readonly reason: "request_not_pending") {
+    super(reason);
+  }
 }
 
 export async function approveRecoveryRequest(
@@ -733,26 +751,74 @@ export async function approveRecoveryRequest(
   if (!approverMembership) {
     return { ok: false, reason: "approver_not_admin" };
   }
+  if (input.preflightOnly) {
+    return { ok: true, approvedNow: false, teamId: row.teamId, targetUserId: row.userId };
+  }
+
+  /*
+   * PRO-026 (AUTH-20) — THE DECISION IS TAKEN ON THE ROW AS IT IS NOW.
+   *
+   * The status above was read outside any write, and the final update was
+   * `where: { id }`. A requester cancelling between the two left a CANCELLED
+   * row that the approval then overwrote to APPROVED — and wiped the factors
+   * of someone who had withdrawn the request. Every write below is predicated
+   * on `status = PENDING_ADMIN_REVIEW` inside ONE transaction: the increment
+   * takes the row lock, a concurrent cancel either committed first (and the
+   * predicate fails, the transaction rolls back, nothing is recorded) or waits
+   * for this decision and then finds the row no longer cancellable.
+   */
+  const now = new Date();
+  type Decision =
+    | { kind: "recorded"; approvalCount: number; requiredApprovals: number }
+    | { kind: "approved"; approvalCount: number };
+  let decision: Decision;
   try {
-    await prisma.mfaRecoveryRequestApproval.create({
-      data: {
-        requestId: row.id,
-        approverUserId: input.approverUserId,
-      },
+    decision = await prisma.$transaction(async (tx) => {
+      // The approval row first: a duplicate approver fails on its unique key
+      // before anything is counted.
+      await tx.mfaRecoveryRequestApproval.create({
+        data: { requestId: row.id, approverUserId: input.approverUserId },
+      });
+      const claimed = await tx.mfaRecoveryRequest.updateMany({
+        where: { id: row.id, status: "PENDING_ADMIN_REVIEW", expiresAt: { gt: now } },
+        data: { approvalCount: { increment: 1 } },
+      });
+      if (claimed.count !== 1) {
+        // Throwing rolls the approval row back with the transaction.
+        throw new RecoveryDecisionRefused("request_not_pending");
+      }
+      const current = await tx.mfaRecoveryRequest.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { approvalCount: true, requiredApprovals: true },
+      });
+      if (current.approvalCount < current.requiredApprovals) {
+        return { kind: "recorded", ...current } as const;
+      }
+      await tx.mfaRecoveryRequest.updateMany({
+        where: { id: row.id, status: "PENDING_ADMIN_REVIEW" },
+        data: { status: "APPROVED", approvedAtUtc: now },
+      });
+      await tx.mfaFactor.updateMany({
+        where: { userId: row.userId, status: "ACTIVE" },
+        data: { status: "REVOKED", revokedAt: now, revokedReason: "mfa_recovery_approved" },
+      });
+      await tx.mfaRecoveryCode.updateMany({
+        where: { userId: row.userId, usedAt: null, batchInvalidatedAt: null },
+        data: { batchInvalidatedAt: now },
+      });
+      return { kind: "approved", approvalCount: current.approvalCount } as const;
     });
   } catch (err) {
+    if (err instanceof RecoveryDecisionRefused) return { ok: false, reason: err.reason };
     const msg = err instanceof Error ? err.message : "";
-    if (msg.includes("Unique") || msg.includes("UNIQUE")) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "P2002" || msg.includes("Unique") || msg.includes("UNIQUE")) {
       return { ok: false, reason: "already_approved" };
     }
     throw err;
   }
-  const newCount = row.approvalCount + 1;
-  if (newCount < row.requiredApprovals) {
-    await prisma.mfaRecoveryRequest.update({
-      where: { id: row.id },
-      data: { approvalCount: newCount },
-    });
+  const newCount = decision.approvalCount;
+  if (decision.kind === "recorded") {
     void emitTenantAudit({
       action: "mfa.recovery.approval_recorded",
       outcome: "success",
@@ -769,33 +835,25 @@ export async function approveRecoveryRequest(
     }).catch(() => null);
     return { ok: true, approvedNow: false, reason: "quorum_not_met" };
   }
-  // Quorum met — atomic: status flip + factor revocation + recovery
-  // code invalidation, all in one transaction.
+  // Quorum met — the status flip, factor revocation and recovery-code
+  // invalidation committed together above.
   const requestId = row.id;
   const targetUserId = row.userId;
   const teamId = row.teamId;
-  await prisma.$transaction([
-    prisma.mfaRecoveryRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "APPROVED",
-        approvalCount: newCount,
-        approvedAtUtc: new Date(),
-      },
-    }),
-    prisma.mfaFactor.updateMany({
-      where: { userId: targetUserId, status: "ACTIVE" },
-      data: {
-        status: "REVOKED",
-        revokedAt: new Date(),
-        revokedReason: "mfa_recovery_approved",
-      },
-    }),
-    prisma.mfaRecoveryCode.updateMany({
-      where: { userId: targetUserId, usedAt: null, batchInvalidatedAt: null },
-      data: { batchInvalidatedAt: new Date() },
-    }),
-  ]);
+  /*
+   * PRO-027 (AUTH-21) — the member's sessions end with their factors. A
+   * session that existed when the factors were wiped is exactly the one the
+   * recovery may have been requested from by someone who is not the member;
+   * the member signs in again (and enrols) instead. Pending step-up
+   * approvals bound to the revoked factors die with them.
+   */
+  await revokeAllSessionsForUser({
+    teamId,
+    userId: targetUserId,
+    reason: "OPERATOR_REVOKED",
+    actorUserId: input.approverUserId,
+  });
+  await cancelOutstandingStepUpChallenges(targetUserId);
   void emitTenantAudit({
     action: "mfa.recovery.approved",
     outcome: "success",

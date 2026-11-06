@@ -279,7 +279,8 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
       {
         name: "POST ingest-metadata",
         method: "POST" as const,
-        steppedUp: false,
+        // PRO-017 — ingest replaces the primary IdP certificate.
+        steppedUp: true,
         url: `/v1/auth/saml/${id}/ingest-metadata`,
         payload: {
           metadataXml: `<?xml version="1.0"?><EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${IDP_ISSUER}"><IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><KeyDescriptor use="signing"><KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><X509Data><X509Certificate>${IDP_CERT_B64}</X509Certificate></X509Data></KeyInfo></KeyDescriptor><SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/></IDPSSODescriptor></EntityDescriptor>`,
@@ -352,6 +353,42 @@ describe("FINAL-002 — SAML operator routes enforce authentication and authoriz
           `${route.name} must succeed for an ACTIVE OWNER, got ${res.statusCode}: ${res.body.slice(0, 300)}`,
         ).toBe(200);
       });
+    }
+  });
+
+  // =========================================================================
+  // PRO-017 (AUTH-11) — the metadata ingest replaces the primary certificate,
+  // so an ACTIVE OWNER without a step-up is refused and the trust anchor is
+  // untouched. The positive control is case 6 above (same owner, stepped up).
+  // =========================================================================
+  it("PRO-017: ingest-metadata without a step-up is refused and the certificate is unchanged", async () => {
+    await setMembership(ownerUserId, "ACTIVE", "OWNER");
+    const ingest = OPERATOR_ROUTES(connectionA)[0];
+    const before = await prisma.ssoConnection.findUniqueOrThrow({
+      where: { id: connectionA },
+      select: { samlCertificate: true, samlCertFingerprint: true },
+    });
+    await prisma.ssoConnection.update({
+      where: { id: connectionA },
+      data: { samlCertificate: "MIIBefore".padEnd(200, "A"), samlCertFingerprint: "f".repeat(64) },
+    });
+    try {
+      const res = await h.app.inject({
+        method: ingest.method,
+        url: ingest.url,
+        headers: auth(ownerToken),
+        payload: ingest.payload,
+      });
+      expect(res.statusCode, res.body).toBe(401);
+      expect(JSON.parse(res.body).error.code).toBe("STEP_UP_REQUIRED");
+      const after = await prisma.ssoConnection.findUniqueOrThrow({
+        where: { id: connectionA },
+        select: { samlCertificate: true, samlCertFingerprint: true },
+      });
+      expect(after.samlCertificate).toBe("MIIBefore".padEnd(200, "A"));
+      expect(after.samlCertFingerprint).toBe("f".repeat(64));
+    } finally {
+      await prisma.ssoConnection.update({ where: { id: connectionA }, data: before });
     }
   });
 

@@ -772,6 +772,30 @@ export async function checkStepUpChallenge(
     throw new StepUpError("challenge_expired");
   }
 
+  /*
+   * PRO-029 (AUTH-23) — ONE CODE PER CHALLENGE, UNDER CONCURRENCY TOO.
+   *
+   * "A wrong code spends the challenge" was true only in sequence: the
+   * PENDING status was read above and both outcomes were written
+   * unconditionally afterwards, so a wrong and a right code racing on the
+   * same challenge were BOTH evaluated and the later write won — APPROVED
+   * after a wrong guess, and N concurrent guesses against one challenge.
+   * The challenge is now SPENT before the code is evaluated: one conditional
+   * transition PENDING -> DENIED, which exactly one caller can make. That
+   * caller alone evaluates its code, and only a correct code moves its own
+   * spent challenge on to APPROVED. Every other concurrent caller is told the
+   * challenge is consumed, without its code reaching the verifier.
+   */
+  const spent = await client.stepUpChallenge.updateMany({
+    where: {
+      id: row.id,
+      status: prismaPkg.StepUpChallengeStatus.PENDING,
+      expiresAtUtc: { gt: new Date() },
+    },
+    data: { status: prismaPkg.StepUpChallengeStatus.DENIED },
+  });
+  if (spent.count !== 1) throw new StepUpError("challenge_consumed");
+
   if (boundFactor.kind === "TOTP") {
     /**
      * PV-STEPUP-001 — an authenticator-app challenge is answered against the
@@ -833,13 +857,17 @@ export async function checkStepUpChallenge(
       throw new StepUpError("denied");
     }
   }
-  const approved = await client.stepUpChallenge.update({
-    where: { id: row.id },
+  // Only the caller that spent the challenge above reaches this line, and it
+  // moves its own spend to APPROVED.
+  const promoted = await client.stepUpChallenge.updateMany({
+    where: { id: row.id, status: prismaPkg.StepUpChallengeStatus.DENIED, approvedAtUtc: null },
     data: {
       status: prismaPkg.StepUpChallengeStatus.APPROVED,
       approvedAtUtc: new Date(),
     },
   });
+  if (promoted.count !== 1) throw new StepUpError("challenge_consumed");
+  const approved = await client.stepUpChallenge.findUniqueOrThrow({ where: { id: row.id } });
   safeEmitSecurityEvent(
     {
       teamId: input.teamId,
@@ -1458,8 +1486,10 @@ async function recordStepUpDenial(
   row: { id: string; purpose: string },
   client: PrismaClient,
 ): Promise<void> {
-  await client.stepUpChallenge.update({
-    where: { id: row.id },
+  // A code check has already spent its challenge (PRO-029); a passkey check
+  // spends it here. Either way only a PENDING row moves.
+  await client.stepUpChallenge.updateMany({
+    where: { id: row.id, status: prismaPkg.StepUpChallengeStatus.PENDING },
     data: { status: prismaPkg.StepUpChallengeStatus.DENIED },
   });
   safeEmitSecurityEvent(

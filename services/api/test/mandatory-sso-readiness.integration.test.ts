@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 import { createStepUpCeremony } from "./support/step-up-ceremony.js";
-import { seedOrganizationTenant, type FixtureDeps, type OrganizationTenant } from "./point7/product-fixtures.js";
+import { registerSessionForToken, seedOrganizationTenant, type FixtureDeps, type OrganizationTenant } from "./point7/product-fixtures.js";
 
 describe("Mandatory SSO readiness (live PostgreSQL)", () => {
   let harness: IntegrationHarness;
@@ -85,6 +85,53 @@ describe("Mandatory SSO readiness (live PostgreSQL)", () => {
     expect(res.statusCode, res.body).toBe(409);
     expect((res.json() as { error: { code: string } }).error.code).toBe("SSO_REQUIRED_NO_ACTIVE_CONNECTION");
     expect(await required(org.organizationId)).toEqual(before);
+  });
+
+  it("from the console, an ACTIVE connection is not enough: the administrator must have signed in through it", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const conn = await connection(org, "ACTIVE");
+    const stepUp = createStepUpCeremony({
+      prisma: prisma as never,
+      inject: (o) => harness.app.inject({ method: o.method, url: o.url, headers: o.headers, payload: o.payload as never }) as never,
+    });
+    const patch = (token: string, headers: Record<string, string>) =>
+      harness.app.inject({
+        method: "PATCH",
+        url: "/v1/security-policy",
+        headers: { authorization: `Bearer ${token}`, ...headers },
+        payload: { organizationId: org.organizationId, ssoRequired: true },
+      });
+
+    // A password session would be refused by the very policy it sets.
+    const before = await required(org.organizationId);
+    const refused = await patch(
+      org.owner.token,
+      await stepUp.approvedHeader({ userId: org.owner.userId, token: org.owner.token, teamId: org.workspaceId, purpose: "ORG_SECURITY_POLICY_UPDATE" }),
+    );
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect((refused.json() as { error: { code: string } }).error.code).toBe("SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO");
+    expect(await required(org.organizationId)).toEqual(before);
+
+    // The same administrator, signed in through the connection.
+    const ssoToken = signJwt(
+      {
+        sub: org.owner.userId,
+        provider: "EMAIL",
+        email: org.owner.email,
+        authMethod: "SAML",
+        ssoConnId: conn.id,
+        authAt: Math.floor(Date.now() / 1000),
+      } as never,
+      process.env.AUTH_JWT_SECRET!,
+      60 * 60,
+    );
+    await registerSessionForToken(deps, org.owner.userId, ssoToken);
+    const accepted = await patch(
+      ssoToken,
+      await stepUp.approvedHeader({ userId: org.owner.userId, token: ssoToken, teamId: org.workspaceId, purpose: "ORG_SECURITY_POLICY_UPDATE" }),
+    );
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect((await required(org.organizationId)).ssoRequired).toBe(true);
   });
 
   it("narrowing the allowed methods to SSO alone is the same lockout", async () => {

@@ -297,6 +297,10 @@ vi.mock("../src/services/security/mfa-admin-lifecycle.service.js", () => ({
     H.lifecycleCalls.push("resetTrustedDevicesForUser");
     return { ok: true, resetCount: 2 };
   },
+  // PRO-022 — the rank rule is its own authority (proven against PostgreSQL in
+  // auth-factors-step-up-integrity.integration.test.ts); here the actor
+  // outranks the target so the step-up gate is what each case exercises.
+  assertActorOutranksMfaTarget: async () => null,
   listRecentMfaEvents: async () => ({
     ok: true,
     events: [

@@ -367,13 +367,27 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
     }
     const { organizationId, expectedPolicyVersion, ...patch } = body;
     try {
-      const policy = await applySecurityPolicyPatch({ organizationId, expectedPolicyVersion: expectedPolicyVersion ?? null, actorUserId: auth.actorUserId, patch, ipAddress: ip(req), userAgent: (req.headers["user-agent"] as string) ?? null });
+      const policy = await applySecurityPolicyPatch({
+        organizationId,
+        expectedPolicyVersion: expectedPolicyVersion ?? null,
+        actorUserId: auth.actorUserId,
+        patch,
+        ipAddress: ip(req),
+        userAgent: (req.headers["user-agent"] as string) ?? null,
+        // IDENT-008 — the administrator's own way in is checked before SSO
+        // becomes the only one.
+        actorSession: {
+          authMethod: typeof req.user?.authMethod === "string" ? req.user.authMethod : null,
+          ssoConnectionId: typeof req.user?.ssoConnId === "string" ? req.user.ssoConnId : null,
+        },
+      });
       return reply.send({ policy: await projectPolicyForAdmin(organizationId, policy) });
     } catch (err) {
       const e = err as { statusCode?: number; code?: string; details?: unknown };
       if (e.code === "POLICY_VERSION_CONFLICT") return reply.code(409).send({ error: { code: e.code, details: e.details } });
       if (
         e.code === "SSO_REQUIRED_NO_ACTIVE_CONNECTION" ||
+        e.code === "SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO" ||
         e.code === "RESTRICTED_IP_RANGE_INVALID" ||
         e.code === "RESTRICTED_IP_EXCLUDES_ACTOR"
       ) {

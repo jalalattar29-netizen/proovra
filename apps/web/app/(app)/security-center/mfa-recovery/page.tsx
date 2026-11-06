@@ -38,6 +38,10 @@ import {
   type DataTableColumn,
 } from "../../../../components/ui/DataTable";
 import { EmptyState } from "../../../../components/ui/EmptyState";
+import {
+  StepUpModal,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
 
 type AdminRecoveryRequest = {
   id: string;
@@ -104,6 +108,7 @@ type DigestPreview = {
 
 function MfaRecoveryAdminBody() {
   const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId });
   const [requests, setRequests] = useState<AdminRecoveryRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // A refusal is not an empty queue: when set, the table is not rendered.
@@ -312,11 +317,19 @@ function MfaRecoveryAdminBody() {
   const doApprove = async (requestId: string) => {
     setBusy(true);
     try {
-      await apiFetch(
-        `/v1/identity/mfa-admin/recovery-requests/${encodeURIComponent(
-          requestId,
-        )}/approve`,
-        { method: "POST", body: JSON.stringify({}) },
+      // PRO-027 — approval revokes every factor the member holds, the same
+      // effect as requiring re-enrolment, so it is stepped up the same way.
+      await stepUp.runStepUpAction(async (headers) =>
+        apiFetch(
+          `/v1/identity/mfa-admin/recovery-requests/${encodeURIComponent(
+            requestId,
+          )}/approve`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({}),
+          },
+        ),
       );
       await reload();
       setPendingAction(null);
@@ -909,6 +922,7 @@ function MfaRecoveryAdminBody() {
           </div>
         </div>
       ) : null}
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

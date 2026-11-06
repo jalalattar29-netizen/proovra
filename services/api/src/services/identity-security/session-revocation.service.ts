@@ -154,6 +154,43 @@ export async function revokeAllSessionsForUser(
   } = {},
 ): Promise<prismaPkg.RevokedSession> {
   const now = Math.floor(Date.now() / 1000);
+  /*
+   * PRO-019 (AUTH-13) — A REVOCATION ENDS WHAT EXISTED, NOT WHAT COMES NEXT.
+   *
+   * The ALL_FOR_USER row ends every token whose `iat` (whole seconds) is at or
+   * before this second, so a sign-in completed in the SAME second after the
+   * revocation (the normal sequence after a password reset) minted a session
+   * that was dead on arrival. Every session that exists NOW is therefore also
+   * ended by its own id, and a token that carries a session id is held to the
+   * strict `iat < revokedBeforeIat` boundary (see `isSessionRevoked`). A token
+   * without a session id cannot be told apart, and keeps the inclusive
+   * boundary: it fails closed.
+   */
+  const live = await client.authenticatedSession.findMany({
+    where: { userId: input.userId, expiresAtUtc: { gt: new Date() } },
+    select: { sessionIdHash: true, teamId: true },
+  });
+  if (live.length > 0) {
+    await client.revokedSession.createMany({
+      data: live.map((session) => ({
+        teamId: session.teamId ?? null,
+        userId: input.userId,
+        scope: prismaPkg.RevokedSessionScope.SINGLE_SESSION,
+        sessionIdHash: session.sessionIdHash,
+        reason: input.reason.slice(0, 64),
+        revokedByUserId: input.actorUserId ?? null,
+      })),
+      skipDuplicates: true,
+    });
+    await client.authenticatedSession.updateMany({
+      where: { userId: input.userId, revokedAtUtc: null, sessionIdHash: { in: live.map((s) => s.sessionIdHash) } },
+      data: {
+        revokedAtUtc: new Date(),
+        revokedByUserId: input.actorUserId ?? null,
+        revokedReason: input.reason.slice(0, 64),
+      },
+    });
+  }
   const row = await client.revokedSession.create({
     data: {
       teamId: input.teamId ?? null,
@@ -259,18 +296,42 @@ export async function isSessionRevoked(
     });
     if (exact) return true;
   }
-  // All-for-user deny.
+  // All-for-user deny. PRO-019 — a token with a session id that existed when
+  // the revocation was written was ended above by its own id; the second the
+  // revocation was taken in no longer kills one minted after it.
   if (input.iat !== null) {
     const all = await client.revokedSession.findFirst({
       where: {
         userId: input.userId,
         scope: prismaPkg.RevokedSessionScope.ALL_FOR_USER,
-        revokedBeforeIat: { gte: BigInt(input.iat) },
+        revokedBeforeIat: input.sessionIdHash
+          ? { gt: BigInt(input.iat) }
+          : { gte: BigInt(input.iat) },
       },
       select: { id: true },
       orderBy: { revokedAtUtc: "desc" },
     });
     if (all) return true;
+    if (input.sessionIdHash) {
+      // The revocation's own second: only a session that has an inventory row
+      // can have been ended by id above, and one that does not cannot be
+      // proven newer than the revocation, so it stays ended.
+      const sameSecond = await client.revokedSession.findFirst({
+        where: {
+          userId: input.userId,
+          scope: prismaPkg.RevokedSessionScope.ALL_FOR_USER,
+          revokedBeforeIat: BigInt(input.iat),
+        },
+        select: { id: true },
+      });
+      if (sameSecond) {
+        const recorded = await client.authenticatedSession.findFirst({
+          where: { userId: input.userId, sessionIdHash: input.sessionIdHash },
+          select: { id: true },
+        });
+        if (!recorded) return true;
+      }
+    }
   }
   return false;
 }

@@ -1136,7 +1136,11 @@ function MfaCard({
   // Backend step-up state — set when a sensitive call returns 401
   // STEP_UP_REQUIRED/STEP_UP_INVALID; the prompt retries with proof.
   const [stepUpFor, setStepUpFor] = useState<
-    null | { kind: "remove"; factor: MfaFactorRow } | { kind: "regenerate" }
+    | null
+    | { kind: "remove"; factor: MfaFactorRow }
+    | { kind: "regenerate" }
+    // PRO-015 — adding an authenticator once the account holds a factor.
+    | { kind: "enroll" }
   >(null);
   const [stepUpMethods, setStepUpMethods] = useState<StepUpMethods>(["reauth"]);
   const [stepUpMsg, setStepUpMsg] = useState("");
@@ -1146,7 +1150,7 @@ function MfaCard({
     [mfa],
   );
 
-  const startEnrollment = useCallback(async () => {
+  const startEnrollment = useCallback(async (proof?: StepUpProof) => {
     setError(null);
     setNotice(null);
     setBusy(true);
@@ -1154,8 +1158,9 @@ function MfaCard({
       const res = (await apiFetch("/v1/identity/mfa/enroll/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(proof ? { stepUp: proof } : {}),
       })) as { factorId: string; otpauthUri: string; secretBase32: string };
+      setStepUpFor(null);
       setCode("");
       setPhase({
         kind: "enrolling",
@@ -1164,6 +1169,13 @@ function MfaCard({
         secretBase32: res.secretBase32,
       });
     } catch (err) {
+      const su = extractStepUp(err);
+      if (su) {
+        setStepUpFor({ kind: "enroll" });
+        setStepUpMethods(su.methods);
+        setStepUpMsg(su.message);
+        return;
+      }
       setError(
         toSafeUserError(err, { message: "Could not start enrollment." }).message,
       );
@@ -1583,7 +1595,9 @@ function MfaCard({
           title={
             stepUpFor.kind === "remove"
               ? "Confirm removing two-factor authentication from your account."
-              : "Confirm regenerating your recovery codes (existing codes stop working)."
+              : stepUpFor.kind === "enroll"
+                ? "Confirm adding an authenticator app to your account."
+                : "Confirm regenerating your recovery codes (existing codes stop working)."
           }
           methods={stepUpMethods}
           initialError={stepUpMsg}
@@ -1591,7 +1605,9 @@ function MfaCard({
           onSubmit={(proof) =>
             stepUpFor.kind === "remove"
               ? void removeFactor(stepUpFor.factor, proof)
-              : void regenerateCodes(proof)
+              : stepUpFor.kind === "enroll"
+                ? void startEnrollment(proof)
+                : void regenerateCodes(proof)
           }
           onCancel={() => {
             setStepUpFor(null);
@@ -2169,7 +2185,7 @@ export function PersonalSecuritySections() {
           workspace operation, so a personal space has nothing to step up FOR.
           Hidden there rather than shown broken. */}
       {contactFactorTeamId ? (
-        <ContactFactorEnrollmentPanel teamId={contactFactorTeamId} />
+        <ContactFactorEnrollmentPanel teamId={contactFactorTeamId} StepUpPrompt={StepUpVerify} />
       ) : null}
       <ActiveSessionsCard
         sessions={sessions}

@@ -43,9 +43,14 @@ import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import {
+  verifyAccountStepUp,
+  verifyFactorEnrollmentStepUp,
+} from "../services/identity-security/account-step-up.service.js";
+import {
   VerifiedContactFactorError,
   completeContactFactorEnrollment,
   listContactFactors,
+  readOwnContactFactorStatus,
   resolveEnrollingDestination,
   revokeContactFactor,
   startContactFactorEnrollment,
@@ -63,6 +68,17 @@ import {
 } from "./identity-security-shared.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
+
+/** The account step-up proof (`verifyAccountStepUp`), carried in the body. */
+const StepUpProofBody = z
+  .object({
+    method: z.enum(["password", "mfa"]).optional(),
+    currentPassword: z.string().max(1024).optional(),
+    code: z.string().max(16).optional(),
+  })
+  .strict();
+
+const RevokeBody = z.object({ stepUp: StepUpProofBody.optional() }).strict();
 
 export async function identitySecurityContactFactorRoutes(app: FastifyInstance) {
   app.get(
@@ -87,6 +103,7 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       channel: z.enum(["SMS", "WHATSAPP"]).default("SMS"),
       destination: z.string().min(3).max(32),
       label: z.string().min(1).max(60).optional(),
+      stepUp: StepUpProofBody.optional(),
     })
     .strict();
 
@@ -103,6 +120,23 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
       );
       if (!actor) return;
       const userId = actor.userId;
+
+      /*
+       * PRO-015 (AUTH-09) — proving the code comes back proves only that the
+       * CALLER holds the phone. A stolen session enrolled the attacker's phone
+       * here and then answered member-suspension step-ups with it. Once the
+       * account holds any factor, adding one needs the account step-up first,
+       * the same proof regenerating recovery codes needs.
+       */
+      const stepUp = await verifyFactorEnrollmentStepUp({
+        req,
+        reply,
+        userId,
+        proof: body.stepUp,
+      });
+      if (!stepUp.ok) {
+        return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+      }
 
       /**
        * The destination IS an input here, and only here — that is what
@@ -255,7 +289,30 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsId.parse(req.params);
+      const body = RevokeBody.parse(req.body ?? {});
       const userId = getAuthUserId(req);
+      /*
+       * PRO-021 (AUTH-15) — this route revoked ANY factor the caller owned,
+       * the authenticator app included, with no step-up, while the canonical
+       * DELETE /v1/identity/mfa/factors/:id demands one for an ACTIVE factor.
+       * It now touches contact factors only (the service filters by kind) and
+       * follows the canonical rule: an ACTIVE factor needs the account step-up;
+       * cancelling one's own pending (ENROLLING) enrolment does not.
+       */
+      const status = await readOwnContactFactorStatus({ userId, factorId: id });
+      if (!status) return reply.code(404).send({ error: { code: "not_found" } });
+      if (status === "ACTIVE") {
+        const stepUp = await verifyAccountStepUp({
+          req,
+          reply,
+          userId,
+          action: "mfa_factor_remove",
+          proof: body.stepUp,
+        });
+        if (!stepUp.ok) {
+          return reply.code(stepUp.denial.status).send(stepUp.denial.body);
+        }
+      }
       try {
         const factor = await revokeContactFactor({ userId, factorId: id });
         auditIdentitySecurityEvent(req, {

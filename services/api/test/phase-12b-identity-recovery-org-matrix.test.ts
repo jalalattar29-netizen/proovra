@@ -746,6 +746,9 @@ import { signMfaDigestSnoozeToken } from "../src/services/security/mfa-digest-sn
 type Row = Record<string, unknown>;
 
 const MODELS = [
+  // PRO-027 — an approved recovery cancels the member's outstanding step-up
+  // challenges along with their factors.
+  "stepUpChallenge",
   "teamMember",
   "team",
   "user",
@@ -1655,6 +1658,8 @@ describe("SYSTEM 1 — MFA recovery-request lifecycle", () => {
     expect(rows("mfaFactor")[0]!.status).toBe("REVOKED");
     expect(rows("mfaRecoveryCode")[0]!.batchInvalidatedAt).toBeInstanceOf(Date);
     expect(rows("mfaRecoveryRequestApproval")).toHaveLength(2);
+    // PRO-027 — the member's sessions end with their factors.
+    expect(H.writes).toContain("revokeAllSessionsForUser");
 
     // A THIRD approver cannot make a second decision on a decided request.
     H.actorUserId = ADMIN_3;

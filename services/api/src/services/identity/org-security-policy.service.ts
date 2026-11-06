@@ -346,20 +346,61 @@ async function assertSsoRequirementCanBeMet(
   organizationId: string,
   patch: ExtendedSecurityPolicyPatch,
   client: PrismaClient,
+  actorSession?: SecurityPolicyActorSession | null,
 ): Promise<void> {
   if (!policyRequiresSso(patch)) return;
   const active = await client.ssoConnection.findFirst({
     where: { organizationId, status: "ACTIVE" },
     select: { id: true },
   });
-  if (active) return;
+  if (!active) {
+    const err = new Error(
+      "SSO cannot be required before the Organization has an active connection.",
+    ) as Error & { statusCode?: number; code?: string };
+    err.statusCode = 409;
+    err.code = "SSO_REQUIRED_NO_ACTIVE_CONNECTION";
+    throw err;
+  }
+  if (actorSession === undefined) return;
+  /*
+   * IDENT-008 — THE ADMINISTRATOR MUST NOT LOCK THEMSELF OUT.
+   *
+   * An ACTIVE connection is not proof that anyone can sign in through it, and
+   * once SSO is the only way in, the policy refuses every non-SSO session —
+   * the administrator's own included, with no owner exception. So turning the
+   * requirement ON from the console is accepted only from a session that
+   * itself signed in through an ACTIVE connection of this Organization: the
+   * rule the IP allow-list already applies (`assertIpRangesUsable` refuses a
+   * list that excludes the actor). A policy that already requires SSO is not
+   * re-checked.
+   */
+  const current = await client.organizationSecurityPolicy.findUnique({
+    where: { organizationId },
+    select: { ssoRequired: true, allowedAuthMethods: true },
+  });
+  if (current && policyRequiresSso(current)) return;
+  const viaSso =
+    actorSession !== null &&
+    (actorSession.authMethod === "SAML" || actorSession.authMethod === "OIDC") &&
+    typeof actorSession.ssoConnectionId === "string" &&
+    (await client.ssoConnection.findFirst({
+      where: { id: actorSession.ssoConnectionId, organizationId, status: "ACTIVE" },
+      select: { id: true },
+    })) !== null;
+  if (viaSso) return;
   const err = new Error(
-    "SSO cannot be required before the Organization has an active connection.",
+    "Sign in through this Organization's SSO connection before requiring SSO, so the connection is known to work.",
   ) as Error & { statusCode?: number; code?: string };
   err.statusCode = 409;
-  err.code = "SSO_REQUIRED_NO_ACTIVE_CONNECTION";
+  err.code = "SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO";
   throw err;
 }
+
+/** How the acting administrator's own session was authenticated (IDENT-008). */
+export type SecurityPolicyActorSession = {
+  authMethod: string | null;
+  ssoConnectionId: string | null;
+};
 
 export async function applySecurityPolicyPatch(
   input: {
@@ -372,6 +413,12 @@ export async function applySecurityPolicyPatch(
     expectedPolicyVersion?: number | null;
     ipAddress?: string | null;
     userAgent?: string | null;
+    /**
+     * IDENT-008 — the acting session, supplied by the console route. When
+     * present, a patch that makes SSO the only way in must come from a session
+     * that signed in through an ACTIVE connection of this Organization.
+     */
+    actorSession?: SecurityPolicyActorSession | null;
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<ResolvedSecurityPolicy> {
@@ -400,7 +447,7 @@ export async function applySecurityPolicyPatch(
     err.details = { expected: input.expectedPolicyVersion, current: currentVersion };
     throw err;
   }
-  await assertSsoRequirementCanBeMet(organizationId, input.patch, client);
+  await assertSsoRequirementCanBeMet(organizationId, input.patch, client, input.actorSession);
   const nextVersion = currentVersion + 1;
   // PHASE 12B WAVE 1.2 — normalise the folded legacy fields (same rules the
   // deleted upsertOrgSecurityPolicy applied) so unvalidated raw values never

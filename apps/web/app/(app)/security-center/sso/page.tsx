@@ -337,14 +337,18 @@ function SsoAdminContent() {
     setIngestResult((prev) => ({ ...prev, [connectionId]: null }));
     setIngestError((prev) => ({ ...prev, [connectionId]: null }));
     try {
-      const result: IngestResult = await apiFetch(
-        `/v1/auth/saml/${encodeURIComponent(connectionId)}/ingest-metadata`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ metadataXml: xml }),
-        },
-      );
+      // PRO-017 — metadata replaces the primary IdP certificate, the same
+      // trust change as a certificate rotation, so it is stepped up the same way.
+      const result = (await stepUp.runStepUpAction(async (headers) =>
+        apiFetch(
+          `/v1/auth/saml/${encodeURIComponent(connectionId)}/ingest-metadata`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", ...(headers ?? {}) },
+            body: JSON.stringify({ metadataXml: xml }),
+          },
+        ),
+      )) as IngestResult;
       setIngestResult((prev) => ({ ...prev, [connectionId]: result }));
       bump();
     } catch (err) {

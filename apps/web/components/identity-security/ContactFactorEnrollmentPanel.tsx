@@ -67,6 +67,7 @@ import {
   useId,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
   type FormEvent,
 } from "react";
@@ -172,9 +173,62 @@ function statusLabel(status: ContactFactor["status"]): string {
   return "Revoked";
 }
 
+// ===========================================================================
+// Account step-up (PRO-015 / PRO-021)
+//
+// Adding a phone to an account that already holds a factor, and revoking an
+// ACTIVE phone, are account step-up actions: the API answers 401
+// STEP_UP_REQUIRED / STEP_UP_INVALID with the proof methods the account can
+// use, and the request is retried with `stepUp` in its body. The prompt itself
+// is the shared Security page one, handed in by the page that mounts this
+// panel (it lives beside that page, which imports this panel).
+// ===========================================================================
+
+export type ContactFactorStepUpMethods = Array<"password" | "mfa" | "reauth">;
+export type ContactFactorStepUpProof = {
+  method: "password" | "mfa";
+  currentPassword?: string;
+  code?: string;
+};
+export type ContactFactorStepUpPromptProps = {
+  title: string;
+  methods: ContactFactorStepUpMethods;
+  initialError: string;
+  busy: boolean;
+  onSubmit: (proof: ContactFactorStepUpProof) => void;
+  onCancel: () => void;
+};
+
+function stepUpOf(
+  err: unknown,
+): { methods: ContactFactorStepUpMethods; message: string } | null {
+  const e = err as {
+    body?: { error?: { code?: string; methods?: ContactFactorStepUpMethods; message?: string } };
+  } | null;
+  const code = e?.body?.error?.code;
+  if (code !== "STEP_UP_REQUIRED" && code !== "STEP_UP_INVALID") return null;
+  return {
+    methods: e?.body?.error?.methods ?? ["reauth"],
+    message:
+      code === "STEP_UP_INVALID"
+        ? (e?.body?.error?.message ?? "Verification failed. Try again.")
+        : "",
+  };
+}
+
+type PendingStepUp =
+  | { kind: "enroll"; resend: boolean }
+  | { kind: "revoke"; factorId: string };
+
 export function ContactFactorEnrollmentPanel({
   teamId,
+  StepUpPrompt,
 }: {
+  /**
+   * The shared "Verify it's you" prompt. Without it a step-up answer is shown
+   * as the re-authentication notice, which is still truthful.
+   */
+  StepUpPrompt?: ComponentType<ContactFactorStepUpPromptProps>;
   /**
    * The workspace the verification attempt is scoped to. The FACTOR is
    * account-owned — one enrolment serves every workspace the user can act in —
@@ -208,6 +262,9 @@ export function ContactFactorEnrollmentPanel({
   /** Explicit "replace the active factor" intent — see `showEnrolmentForm`. */
   const [replaceIntent, setReplaceIntent] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [stepUpFor, setStepUpFor] = useState<PendingStepUp | null>(null);
+  const [stepUpMethods, setStepUpMethods] = useState<ContactFactorStepUpMethods>(["reauth"]);
+  const [stepUpMsg, setStepUpMsg] = useState("");
   /** Ticks once a second only while a cooldown or expiry is actually running. */
   const [now, setNow] = useState<number>(() => Date.now());
 
@@ -309,7 +366,7 @@ export function ContactFactorEnrollmentPanel({
   );
 
   const startEnrolment = useCallback(
-    async (opts: { resend: boolean }) => {
+    async (opts: { resend: boolean }, proof?: ContactFactorStepUpProof) => {
       if (!teamId) return;
       if (phase.kind === "sending" || phase.kind === "verifying") return;
 
@@ -353,10 +410,13 @@ export function ContactFactorEnrollmentPanel({
               channel,
               destination: trimmed,
               ...(label.trim() ? { label: label.trim() } : {}),
+              ...(proof ? { stepUp: proof } : {}),
             }),
           },
         );
         if (!mountedRef.current || seq !== seqRef.current) return;
+        setStepUpFor(null);
+        setStepUpMsg("");
         const factor = res?.factor as ContactFactor | undefined;
         const attemptId = res?.verificationAttemptId;
         if (!factor?.factorId || typeof attemptId !== "string") {
@@ -394,6 +454,14 @@ export function ContactFactorEnrollmentPanel({
       } catch (err) {
         if (!mountedRef.current || seq !== seqRef.current) return;
         setPhase({ kind: "idle" });
+        const su = StepUpPrompt ? stepUpOf(err) : null;
+        if (su) {
+          // One more proof is needed — not a refusal, and nothing was sent.
+          setStepUpFor({ kind: "enroll", resend: opts.resend });
+          setStepUpMethods(su.methods);
+          setStepUpMsg(su.message);
+          return;
+        }
         setNotice(
           noticeForError(
             err,
@@ -413,6 +481,7 @@ export function ContactFactorEnrollmentPanel({
       awaitingCode,
       loadFactors,
       noticeForError,
+      StepUpPrompt,
     ],
   );
 
@@ -509,7 +578,7 @@ export function ContactFactorEnrollmentPanel({
   // -------------------------------------------------------------------------
 
   const revoke = useCallback(
-    async (factorId: string) => {
+    async (factorId: string, proof?: ContactFactorStepUpProof) => {
       if (revokingId) return;
       const seq = ++seqRef.current;
       setRevokingId(factorId);
@@ -517,14 +586,23 @@ export function ContactFactorEnrollmentPanel({
       try {
         await apiFetch(
           `/v1/identity-security/contact-factors/${encodeURIComponent(factorId)}/revoke`,
-          { method: "POST" },
+          { method: "POST", body: JSON.stringify(proof ? { stepUp: proof } : {}) },
         );
         if (!mountedRef.current || seq !== seqRef.current) return;
+        setStepUpFor(null);
+        setStepUpMsg("");
         setPhase({ kind: "revoked" });
         setReplaceIntent(false);
         setCode("");
       } catch (err) {
         if (!mountedRef.current || seq !== seqRef.current) return;
+        const su = StepUpPrompt ? stepUpOf(err) : null;
+        if (su) {
+          setStepUpFor({ kind: "revoke", factorId });
+          setStepUpMethods(su.methods);
+          setStepUpMsg(su.message);
+          return;
+        }
         setNotice(
           noticeForError(
             err,
@@ -536,7 +614,7 @@ export function ContactFactorEnrollmentPanel({
         void loadFactors();
       }
     },
-    [revokingId, loadFactors, noticeForError],
+    [revokingId, loadFactors, noticeForError, StepUpPrompt],
   );
 
   // -------------------------------------------------------------------------
@@ -979,6 +1057,28 @@ export function ContactFactorEnrollmentPanel({
             enrol another device.
           </p>
         </div>
+      ) : null}
+
+      {stepUpFor && StepUpPrompt ? (
+        <StepUpPrompt
+          title={
+            stepUpFor.kind === "enroll"
+              ? "Confirm adding a verified device to your account."
+              : "Confirm removing this verified device from your account."
+          }
+          methods={stepUpMethods}
+          initialError={stepUpMsg}
+          busy={phase.kind === "sending" || revokingId !== null}
+          onSubmit={(proof) =>
+            stepUpFor.kind === "enroll"
+              ? void startEnrolment({ resend: stepUpFor.resend }, proof)
+              : void revoke(stepUpFor.factorId, proof)
+          }
+          onCancel={() => {
+            setStepUpFor(null);
+            setStepUpMsg("");
+          }}
+        />
       ) : null}
 
       {noticeText ? (

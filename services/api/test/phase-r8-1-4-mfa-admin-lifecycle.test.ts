@@ -285,11 +285,16 @@ describe("R8.1.4 — lost-factor recovery workflow", () => {
     // THREE writes: status update, mfaFactor.updateMany REVOKED,
     // mfaRecoveryCode.updateMany batchInvalidatedAt. Atomic so we
     // never have an "APPROVED but old factors still ACTIVE" window.
-    const tx = RECOVERY_SVC.match(/prisma\.\$transaction\(\[[\s\S]*?\]\)/);
+    // PRO-026 — the transaction is interactive so every request write is
+    // predicated on the request still being PENDING_ADMIN_REVIEW (an approval
+    // can never overwrite a cancelled request). The same three writes stay
+    // inside the one transaction.
+    const tx = RECOVERY_SVC.match(/prisma\.\$transaction\(async \(tx\) => \{[\s\S]*?\n {4}\}\);/);
     expect(tx).toBeTruthy();
-    expect(tx![0]).toMatch(/mfaRecoveryRequest\.update/);
-    expect(tx![0]).toMatch(/mfaFactor\.updateMany/);
-    expect(tx![0]).toMatch(/mfaRecoveryCode\.updateMany/);
+    expect(tx![0]).toMatch(/tx\.mfaRecoveryRequest\.updateMany\(\{\s*where: \{ id: row\.id, status: "PENDING_ADMIN_REVIEW"/);
+    expect(tx![0]).toMatch(/status:\s*["']APPROVED["']/);
+    expect(tx![0]).toMatch(/tx\.mfaFactor\.updateMany/);
+    expect(tx![0]).toMatch(/tx\.mfaRecoveryCode\.updateMany/);
     expect(tx![0]).toMatch(/status:\s*["']REVOKED["']/);
     expect(tx![0]).toMatch(/batchInvalidatedAt:/);
   });
