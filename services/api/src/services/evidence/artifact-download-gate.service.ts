@@ -43,6 +43,33 @@ import { resolveEvidenceRecordAccess } from "./evidence-record-access.service.js
 import { assertRedactionCapability } from "../redaction/redaction-rbac.service.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
+import { evaluateEffectiveLegalHold, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+
+/**
+ * GOV-012 — was the record held when its bytes were released? Recorded on the
+ * release's custody event so the chain shows a held record's copy leaving and
+ * to whom. `null` when the hold state could not be read (it is recorded as
+ * unknown, never as "not held").
+ */
+async function legalHoldAtRelease(evidenceId: string): Promise<boolean | null> {
+  try {
+    const ev = await prisma.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { teamId: true, ownerUserId: true, caseLinks: { select: { caseId: true }, take: 100 } },
+    });
+    if (!ev) return null;
+    const teamId = ev.teamId ?? (await resolveEvidenceWorkspaceId(ev, prisma));
+    if (!teamId) return null;
+    const held = await evaluateEffectiveLegalHold(prisma, {
+      teamId,
+      evidenceId,
+      caseIds: ev.caseLinks.map((l) => l.caseId),
+    });
+    return held.held;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * ET-SEC-26 — "redaction": a released redacted derivative is a byte release
@@ -485,6 +512,7 @@ export async function recordOriginalRelease(input: {
 }): Promise<void> {
   if (input.originalUrlsIssued <= 0) return;
   const at = new Date();
+  const underLegalHold = input.channel === "public_verify" ? false : await legalHoldAtRelease(input.evidenceId);
   const eventType =
     input.channel === "original"
       ? prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED
@@ -508,6 +536,7 @@ export async function recordOriginalRelease(input: {
       accessedByUserId: input.actorUserId,
       mimeType: input.mimeType ?? null,
       accessedAtUtc: at.toISOString(),
+      ...(underLegalHold === false ? {} : { underLegalHold }),
     },
     ip: input.ip ?? undefined,
     userAgent: input.userAgent ?? undefined,
@@ -529,6 +558,7 @@ export async function recordDownloadAuthorized(input: {
   userAgent?: string | null;
 }): Promise<void> {
   const at = input.atUtc ?? new Date();
+  const underLegalHold = await legalHoldAtRelease(input.evidenceId);
   await appendCustodyEvent({
     evidenceId: input.evidenceId,
     eventType: prismaPkg.CustodyEventType.DOWNLOAD_AUTHORIZED,
@@ -539,6 +569,7 @@ export async function recordDownloadAuthorized(input: {
       accessedByUserId: input.actorUserId,
       accessedAtUtc: at.toISOString(),
       ...(input.detail ?? {}),
+      ...(underLegalHold === false ? {} : { underLegalHold }),
     },
     ip: input.ip ?? undefined,
     userAgent: input.userAgent ?? undefined,

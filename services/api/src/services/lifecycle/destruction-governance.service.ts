@@ -33,6 +33,11 @@
  */
 
 import { createHash, createHmac, randomUUID } from "node:crypto";
+
+import {
+  assertDestructionCertificateSignerReady,
+  signDestructionCertificateHash,
+} from "../../signing/destruction-certificate-signer.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   DESTRUCTION_LIFECYCLE_CODES,
@@ -105,6 +110,34 @@ function assertCertificateSigningAvailable(): void {
       "Nothing was destroyed: the destruction certificate cannot be signed on this deployment.",
     developerMessage: "destruction_certificate_signing_secret_missing",
   });
+}
+
+async function assertEd25519CertificateSigningAvailable(): Promise<void> {
+  try {
+    await assertDestructionCertificateSignerReady();
+  } catch {
+    throw conflictRefusal({
+      code: "DESTRUCTION_CERTIFICATE_SIGNING_UNAVAILABLE",
+      message:
+        "Nothing was destroyed: the destruction certificate cannot be signed on this deployment.",
+      developerMessage: "destruction_certificate_ed25519_signer_unavailable",
+    });
+  }
+}
+
+/**
+ * The Ed25519 signature, or — outside production only, exactly as the HMAC has a
+ * development fallback — null when this environment has no usable signer. In
+ * production the signer's readiness is proven before the first delete, so a
+ * failure here throws rather than certifying without the signature.
+ */
+async function ed25519CertificateSignature(certificateHash: string) {
+  try {
+    return await signDestructionCertificateHash(certificateHash);
+  } catch (err) {
+    if ((process.env.NODE_ENV ?? "").toLowerCase() === "production") throw err;
+    return null;
+  }
 }
 
 function signatureHmac(payload: string): string {
@@ -818,8 +851,11 @@ export async function executeDestruction(
     });
   }
 
-  // GOV-009 — settled before the first delete, not discovered after the last one.
+  // GOV-009 — settled before the first delete, not discovered after the last one:
+  // the HMAC secret, and the Ed25519 signer whose public key a customer verifies
+  // the certificate with.
   assertCertificateSigningAvailable();
+  await assertEd25519CertificateSigningAvailable();
 
   // Defence in depth — re-check legal hold immediately before
   // executing. A hold placed between APPROVED and execute MUST block.
@@ -1205,6 +1241,10 @@ export async function certifyDestruction(
     certificateBody,
     certificateHash,
     signature: signatureHmac(canonicalBody),
+    // GOV-009 — verifiable by anyone with the published key: Ed25519 over the
+    // bytes of certificateHash, by the platform signer, self-verified against
+    // signing_keys(keyId, keyVersion, DESTRUCTION_CERTIFICATE).
+    signatureEd25519: await ed25519CertificateSignature(certificateHash),
   };
   const artifactText = JSON.stringify(artifactBody, null, 2);
   const artifactBytes = Buffer.from(artifactText, "utf8");

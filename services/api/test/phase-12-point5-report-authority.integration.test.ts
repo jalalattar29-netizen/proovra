@@ -536,7 +536,7 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
       });
       expect(allowed.outcome).toBe("run");
     } finally {
-      await prisma.evidenceLegalHold.delete({ where: { id: hold.id } });
+      await prisma.evidenceLegalHold.update({ where: { id: hold.id }, data: { status: "RELEASED", releasedAtUtc: new Date() } }) /* GOV-009: holds are released, never deleted */;
     }
   });
 

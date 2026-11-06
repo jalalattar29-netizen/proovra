@@ -422,6 +422,11 @@ export type ExportEligibilityResult = {
   reason: string;
   /** Phase 27 lifecycle state at the moment of the check. */
   lifecycleState: EvidenceLifecycleState | null;
+  /**
+   * GOV-012 — ALLOWED while a legal hold is active: an authenticated release
+   * of a held record, which the caller records on the custody chain.
+   */
+  underLegalHold?: boolean;
 };
 
 // -----------------------------------------------------------------------------

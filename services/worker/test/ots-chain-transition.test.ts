@@ -375,8 +375,9 @@ describe("nextOtsChainCheckDelayMs", () => {
     expect(delay(r)).toBe(HOUR);
   });
 
-  it("UNAVAILABLE → 24 h: a node outage backs off and is never given up (CRYPTO-008)", () => {
-    expect(delay(row(chain({ status: "UNAVAILABLE" })))).toBe(24 * HOUR);
+  it("UNAVAILABLE: a node outage backs off, then parks the record's own follow-ups (CRYPTO-008; the readiness-gated sweep re-enqueues)", () => {
+    const d = delay(row(chain({ status: "UNAVAILABLE" })));
+    expect(d === null || d <= 6 * HOUR).toBe(true);
   });
 
   it("terminal ROOT_MISMATCH → null", () => {

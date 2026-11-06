@@ -630,6 +630,12 @@ export const OTS_CHAIN_FINAL_CONFIRMATIONS = 144;
  * never appeared in a month is not going to.
  */
 export const OTS_NOT_IN_ACTIVE_CHAIN_GIVE_UP_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * CRYPTO-008 — past this age a check that got no answer schedules no further
+ * per-record follow-up; the readiness-gated sweep re-enqueues it when the
+ * verifier answers again.
+ */
+export const OTS_CHAIN_UNAVAILABLE_PARK_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 export function nextOtsChainCheckDelayMs(
   anchoring: Pick<OtsAnchoring, "state" | "chain"> & { anchoredAtUtc?: string | Date | null },
   now: number = Date.now(),
@@ -651,16 +657,20 @@ export function nextOtsChainCheckDelayMs(
     return HOUR;
   }
   /*
-   * CRYPTO-008 — the verifier could not answer. It backs off with the same
-   * ladder, so a dead node costs each record one check a day rather than one an
-   * hour for ever. It never gives up: the answer is still owed when the node returns.
-   * An outage over a recorded outcome keeps that outcome, so the record reads
-   * INSUFFICIENT_CONFIRMATIONS, and only the caller knows this check got no answer.
+   * CRYPTO-008 — the verifier could not answer. The record's own follow-ups
+   * back off (1 h for the first day, 6 h for the first week) and then STOP: a
+   * dead node no longer costs every anchored record one job a day for ever.
+   * The answer is still owed, and it is collected by the record-independent
+   * sweep (ots-initialization-reconciler.ts), which asks the verifier's
+   * readiness ONCE per tick and re-enqueues the owed checks only when it is
+   * ready. An outage over a recorded outcome keeps that outcome, so the record
+   * reads INSUFFICIENT_CONFIRMATIONS, and only the caller knows this check got
+   * no answer.
    */
   if (c.status === "UNAVAILABLE" || opts.verifierUnavailable) {
     const anchoredAt = anchoring.anchoredAtUtc ? new Date(anchoring.anchoredAtUtc).getTime() : Number.NaN;
     const age = Number.isFinite(anchoredAt) ? now - anchoredAt : 0;
-    if (age >= 7 * 24 * HOUR) return 24 * HOUR;
+    if (age >= OTS_CHAIN_UNAVAILABLE_PARK_AFTER_MS) return null;
     if (age >= 24 * HOUR) return 6 * HOUR;
     return HOUR;
   }

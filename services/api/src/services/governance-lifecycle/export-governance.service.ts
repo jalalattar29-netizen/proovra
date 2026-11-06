@@ -6,6 +6,12 @@
  * compliance package builder + audit export + outbound transfer paths.
  *
  * Hard rules:
+ *   - GOV-012 (2026-11-04): an active hold blocks only an ANONYMOUS public
+ *     release (audience `public`). An authenticated release to the workspace's
+ *     own people is allowed and flagged `underLegalHold`; the custody writers in
+ *     artifact-download-gate.service.ts record it. Destruction and replacement
+ *     stay refused under hold (lifecycle-orchestrator, executor, package gate).
+ *     The paragraph below is the previous rule, kept for its scope notes.
  *   - Active legal hold → BLOCKED_BY_HOLD. The hold's existence is
  *     enough; the reason text is never returned. (2026-09-29) "Active" is
  *     THE effective-hold union — evidence, case AND workspace scope — from
@@ -65,6 +71,15 @@ export type CheckExportEligibilityInput = {
    * at INFO; only a real export refused by the lifecycle is WARNING.
    */
   preflight?: boolean;
+  /**
+   * GOV-012 — who the bytes are released to. A hold PRESERVES: it forbids
+   * destroying, replacing or anonymously publishing a held record, not handing
+   * a copy to the workspace's own authorised people (counsel, reviewers,
+   * offboarding), which is the reason holds exist. `workspace` (the default)
+   * is an authenticated release that the caller records on the custody chain;
+   * `public` is an anonymous Public Verify release, still refused under hold.
+   */
+  audience?: "workspace" | "public";
 };
 
 export async function checkExportEligibility(
@@ -108,7 +123,7 @@ export async function checkExportEligibility(
   } catch {
     held = { held: true, reasonCode: "UNRESOLVED_HOLD" };
   }
-  if (held.held) {
+  if (held.held && (input.audience ?? "workspace") === "public") {
     emitBlocked(input, "BLOCKED_BY_HOLD", {
       lifecycleState,
       holdSource: held.reasonCode,
@@ -119,6 +134,10 @@ export async function checkExportEligibility(
       lifecycleState,
     };
   }
+  // GOV-012 — an authenticated release under hold continues to the lifecycle
+  // and review gates below and, if allowed, says so: the caller's custody
+  // event records that the bytes left while the record was held.
+  const underLegalHold = held.held;
 
   // A trashed record is not exported (legacy rows carry only deletedAt).
   if (String(ev.lifecycleState) === "TRASHED" || ev.deletedAt != null) {
@@ -189,6 +208,9 @@ export async function checkExportEligibility(
     };
   }
 
+  if (underLegalHold) {
+    return { outcome: "ALLOWED", reason: "ok_under_legal_hold", lifecycleState, underLegalHold: true };
+  }
   return {
     outcome: "ALLOWED",
     reason: "ok",

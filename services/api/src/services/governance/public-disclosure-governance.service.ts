@@ -180,7 +180,7 @@ export async function evaluatePublicOriginalRelease(input: {
       if (!policy.allowOriginalDownload) return false;
     }
     const { checkExportEligibility } = await import("../governance-lifecycle/export-governance.service.js");
-    const eligibility = await checkExportEligibility({ teamId: row.teamId ?? null, evidenceId: input.evidenceId });
+    const eligibility = await checkExportEligibility({ teamId: row.teamId ?? null, evidenceId: input.evidenceId, audience: "public" });
     return eligibility.outcome === "ALLOWED";
   } catch {
     return false;

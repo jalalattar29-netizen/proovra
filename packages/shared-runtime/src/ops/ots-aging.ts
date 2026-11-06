@@ -81,7 +81,10 @@ export function resolveOtsBudgetStart(
   for (const event of events) {
     const payload = (event.payload ?? {}) as { otsPhase?: unknown };
     if (
-      (payload.otsPhase === "anchor_not_confirmed_on_recheck" || payload.otsPhase === "legacy_anchor_label_without_attestation") &&
+      (payload.otsPhase === "anchor_not_confirmed_on_recheck" ||
+        payload.otsPhase === "legacy_anchor_label_without_attestation" ||
+        // CRYPTO-005: a re-stamped proof gets a full budget from its re-stamp.
+        payload.otsPhase === "proof_restamped") &&
       event.atUtc > start
     ) {
       start = event.atUtc;

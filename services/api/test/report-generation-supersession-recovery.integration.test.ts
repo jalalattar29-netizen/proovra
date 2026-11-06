@@ -181,7 +181,7 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
       }
       expect(await prisma.reportGenerationRequest.count({ where: { evidenceId } })).toBe(1);
     } finally {
-      await prisma.evidenceLegalHold.delete({ where: { id: hold.id } });
+      await prisma.evidenceLegalHold.update({ where: { id: hold.id }, data: { status: "RELEASED", releasedAtUtc: new Date() } }) /* GOV-009: holds are released, never deleted */;
     }
   });
 
@@ -240,7 +240,7 @@ describe("blocked supersession + stranded recovery (live PostgreSQL 16)", () => 
       });
       expect(rows).toBe(1);
     } finally {
-      await prisma.evidenceLegalHold.delete({ where: { id: hold.id } });
+      await prisma.evidenceLegalHold.update({ where: { id: hold.id }, data: { status: "RELEASED", releasedAtUtc: new Date() } }) /* GOV-009: holds are released, never deleted */;
     }
   });
 

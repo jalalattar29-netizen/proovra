@@ -38,7 +38,7 @@ describe("case hold, role and link concurrency (live PostgreSQL 16)", () => {
 
   afterAll(async () => {
     if (createdCases.length) {
-      await prisma?.evidenceLegalHold.deleteMany({ where: { caseId: { in: createdCases } } }).catch(() => undefined);
+      await prisma?.evidenceLegalHold.updateMany({ where: { caseId: { in: createdCases } }, data: { status: "RELEASED", releasedAtUtc: new Date() } }).catch(() => undefined);
       await prisma?.caseEvidenceLink.deleteMany({ where: { caseId: { in: createdCases } } }).catch(() => undefined);
       await prisma?.caseAccess.deleteMany({ where: { caseId: { in: createdCases } } }).catch(() => undefined);
       await prisma?.case.deleteMany({ where: { id: { in: createdCases } } }).catch(() => undefined);

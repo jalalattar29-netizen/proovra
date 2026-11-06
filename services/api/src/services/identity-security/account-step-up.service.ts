@@ -93,6 +93,9 @@ export type AccountStepUpAction =
   // /v1/orgs/:id/members/:memberId), proved like the invite and transfer.
   | "org_owner_promote"
   | "org_closure_request"
+  // GOV-015 — the organization owner's offboarding data export.
+  | "org_data_export_request"
+  | "org_data_export_download"
   // Lifecycle Phase 7 — workspace closure (workspace-owner-only route;
   // step-up proves the owner's own recent authentication).
   | "workspace_closure_request"

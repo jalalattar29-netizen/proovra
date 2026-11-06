@@ -307,6 +307,10 @@ export const COUNTER_NAMES = [
   // written. Evaluation audits do not fail the request they describe, so a
   // lost row is counted here instead of vanishing in a catch.
   "governance_policy_audit_write_failed_total",
+  // CAP-6 / CAP-7 — every resolution through the legacy contract fallback.
+  "enterprise_contract_legacy_fallback_total",
+  // CAP-8 — routine ALLOW evaluations coalesced into the window's first row.
+  "governance_policy_evaluation_audit_coalesced_total",
   // A governance policy evaluation that could not read its effective policy
   // set (or a rule's decision input) and was REFUSED rather than allowed.
   "governance_policy_evaluation_unavailable_total",
@@ -665,6 +669,8 @@ export const COUNTER_NAMES = [
   "ots_calendar_failure_total",
   "ots_proof_integrity_failed_total",
   "ots_budget_exhausted_total",
+  // CRYPTO-005 — a proof that missed its budget, stamped again.
+  "ots_restamped_total",
   // Independent Bitcoin-chain verification outcomes (one per material change).
   "ots_chain_verified_total",
   "ots_chain_confirmations_pending_total",

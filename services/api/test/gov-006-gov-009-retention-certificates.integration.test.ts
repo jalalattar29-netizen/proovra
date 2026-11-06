@@ -343,6 +343,78 @@ describe("retention decisions stick, certificates tell the truth (live PostgreSQ
       expect((await prisma.destructionRequest.findUniqueOrThrow({ where: { id } })).state).toBe("APPROVED");
     });
 
+    it("GOV-009: the certificate carries an Ed25519 signature anyone can verify with the published key", async () => {
+      const own = await record(trashed());
+      const id = await approvedRequest([own.id]);
+      await execute(id);
+      const artifact = await requests.getDestructionCertificateArtifact({ teamId: A().teamId, requestId: id });
+      if (!artifact.ok) throw new Error(artifact.denial);
+      const parsed = JSON.parse(artifact.bytes.toString("utf8")) as {
+        certificateHash: string;
+        signatureEd25519: {
+          algorithm: string;
+          purpose: string;
+          keyId: string;
+          keyVersion: number;
+          publicKeySha256: string;
+          publicKeyPem: string;
+          signatureBase64: string;
+        };
+      };
+      const sig = parsed.signatureEd25519;
+      expect(sig).toMatchObject({ algorithm: "Ed25519", purpose: "DESTRUCTION_CERTIFICATE" });
+      const { createPublicKey, verify, createHash } = await import("node:crypto");
+      const key = createPublicKey(sig.publicKeyPem);
+      const message = Buffer.from(parsed.certificateHash, "hex");
+      expect(verify(null, message, key, Buffer.from(sig.signatureBase64, "base64"))).toBe(true);
+      // A different hash does not verify.
+      expect(verify(null, Buffer.from("00".repeat(32), "hex"), key, Buffer.from(sig.signatureBase64, "base64"))).toBe(false);
+      // The key is PROOVRA's registered key for this purpose, by fingerprint.
+      const registered = await prisma.signingKey.findUniqueOrThrow({
+        where: { keyId_version_purpose: { keyId: sig.keyId, version: sig.keyVersion, purpose: "DESTRUCTION_CERTIFICATE" } },
+        select: { publicKeyPem: true, revokedAt: true },
+      });
+      const spki = (pem: string) =>
+        createHash("sha256").update(createPublicKey(pem).export({ type: "spki", format: "der" })).digest("hex");
+      expect(spki(registered.publicKeyPem)).toBe(sig.publicKeySha256);
+      expect(registered.revokedAt).toBeNull();
+    });
+
+    it("GOV-009: without a usable Ed25519 signer, execution refuses before anything is deleted", async () => {
+      const own = await record(trashed());
+      const id = await approvedRequest([own.id]);
+      const saved = { path: process.env.SIGNING_PRIVATE_KEY_PATH, pem: process.env.SIGNING_PRIVATE_KEY_PEM };
+      process.env.SIGNING_PRIVATE_KEY_PATH = "C:/nonexistent/rem3-no-key.pem";
+      delete process.env.SIGNING_PRIVATE_KEY_PEM;
+      try {
+        await expect(execute(id)).rejects.toMatchObject({ publicCode: "DESTRUCTION_CERTIFICATE_SIGNING_UNAVAILABLE" });
+      } finally {
+        if (saved.path === undefined) delete process.env.SIGNING_PRIVATE_KEY_PATH;
+        else process.env.SIGNING_PRIVATE_KEY_PATH = saved.path;
+        if (saved.pem !== undefined) process.env.SIGNING_PRIVATE_KEY_PEM = saved.pem;
+      }
+      expect(
+        await prisma.evidence.findUniqueOrThrow({ where: { id: own.id }, select: { lifecycleState: true, destroyedAtUtc: true } }),
+      ).toEqual({ lifecycleState: "TRASHED", destroyedAtUtc: null });
+      expect((await prisma.destructionRequest.findUniqueOrThrow({ where: { id } })).state).toBe("APPROVED");
+    });
+
+    it("GOV-009: a legal hold is released, never deleted", async () => {
+      const own = await record();
+      const hold = await prisma.evidenceLegalHold.create({
+        data: { teamId: A().teamId, scope: "EVIDENCE", evidenceId: own.id, status: "ACTIVE", title: "gov-009 hold", placedByUserId: A().ownerUserId },
+        select: { id: true },
+      });
+      await expect(prisma.evidenceLegalHold.delete({ where: { id: hold.id } })).rejects.toThrow(/append-only/);
+      await expect(prisma.$executeRaw`DELETE FROM evidence_legal_holds WHERE id = ${hold.id}::uuid`).rejects.toThrow(/append-only/);
+      // Release is a state change and stays allowed.
+      await prisma.evidenceLegalHold.update({
+        where: { id: hold.id },
+        data: { status: "RELEASED", releasedAtUtc: new Date(), releasedByUserId: A().ownerUserId },
+      });
+      expect((await prisma.evidenceLegalHold.findUniqueOrThrow({ where: { id: hold.id } })).status).toBe("RELEASED");
+    });
+
     it("the database itself refuses to rewrite a certificate or delete a governance row", async () => {
       const own = await record(trashed());
       const id = await approvedRequest([own.id]);

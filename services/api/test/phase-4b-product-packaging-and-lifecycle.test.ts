@@ -674,17 +674,9 @@ describe("4. Entitlement enforcement", () => {
 describe("5. Retention engine resolves effective years", () => {
   it("WORKSPACE template=INSURANCE_7Y → 7 years", async () => {
     const prisma = makePrismaStub({
-      retentionPolicyConfig: {
-        findMany: async () => [
-          {
-            id: "p1",
-            years: 7,
-            scopeKind: "WORKSPACE",
-            scopeTargetId: null,
-            isOverride: false,
-            exceptions: [],
-          },
-        ],
+      evidenceRetentionPolicy: {
+        // GOV-005: the one store records bind to, in days.
+        findMany: async () => [{ id: "p1", retentionDays: Math.round(7 * 365.25) }],
       },
       evidence: {
         findUnique: async () => ({ caseId: null, departmentId: null }),
@@ -697,33 +689,19 @@ describe("5. Retention engine resolves effective years", () => {
       teamId: "team-1",
       evidenceId: "ev-1",
     });
-    expect(result.effectiveYears).toBe(7);
+    expect(result.effectiveYears).toBeCloseTo(7, 2);
   });
 
-  it("CASE override=true wins over WORKSPACE", async () => {
+  it("GOV-005: the longest matching policy is the bound (extend-only); no override can shorten it", async () => {
     const prisma = makePrismaStub({
-      retentionPolicyConfig: {
+      evidenceRetentionPolicy: {
         findMany: async () => [
-          {
-            id: "p1",
-            years: 7,
-            scopeKind: "WORKSPACE",
-            scopeTargetId: null,
-            isOverride: false,
-            exceptions: [],
-          },
-          {
-            id: "p2",
-            years: 3,
-            scopeKind: "CASE",
-            scopeTargetId: "case-1",
-            isOverride: true,
-            exceptions: [],
-          },
+          { id: "p1", retentionDays: Math.round(7 * 365.25) },
+          { id: "p2", retentionDays: Math.round(3 * 365.25) },
         ],
       },
       evidence: {
-        findUnique: async () => ({ caseId: "case-1", departmentId: null }),
+        findUnique: async () => ({ type: "PHOTO" }),
         findFirst: async () => null,
         findMany: async () => [],
       },
@@ -734,11 +712,11 @@ describe("5. Retention engine resolves effective years", () => {
       evidenceId: "ev-1",
       caseId: "case-1",
     });
-    expect(result.effectiveYears).toBe(3);
-    expect(result.isOverride).toBe(true);
+    expect(result.effectiveYears).toBeCloseTo(7, 2);
+    expect(result.appliedPolicyId).toBe("p1");
+    expect(result.isOverride).toBe(false);
   });
 });
-
 // ===========================================================================
 // 6. Retention gate
 // ===========================================================================
@@ -747,17 +725,9 @@ describe("6. Retention gate", () => {
   it("evidence 3y old + 7y policy → RETENTION_NOT_EXPIRED", async () => {
     const threeYearsAgo = new Date(Date.now() - 3 * 365.25 * 24 * 3600 * 1000);
     const prisma = makePrismaStub({
-      retentionPolicyConfig: {
-        findMany: async () => [
-          {
-            id: "p1",
-            years: 7,
-            scopeKind: "WORKSPACE",
-            scopeTargetId: null,
-            isOverride: false,
-            exceptions: [],
-          },
-        ],
+      evidenceRetentionPolicy: {
+        // GOV-005: the one store records bind to, in days.
+        findMany: async () => [{ id: "p1", retentionDays: Math.round(7 * 365.25) }],
         count: async () => 0,
         findFirst: async () => null,
         create: async () => ({ id: "p1" }),
@@ -790,17 +760,9 @@ describe("6. Retention gate", () => {
   it("evidence 8y old + 7y policy → ok to delete", async () => {
     const eightYearsAgo = new Date(Date.now() - 8 * 365.25 * 24 * 3600 * 1000);
     const prisma = makePrismaStub({
-      retentionPolicyConfig: {
-        findMany: async () => [
-          {
-            id: "p1",
-            years: 7,
-            scopeKind: "WORKSPACE",
-            scopeTargetId: null,
-            isOverride: false,
-            exceptions: [],
-          },
-        ],
+      evidenceRetentionPolicy: {
+        // GOV-005: the one store records bind to, in days.
+        findMany: async () => [{ id: "p1", retentionDays: Math.round(7 * 365.25) }],
         count: async () => 0,
         findFirst: async () => null,
         create: async () => ({ id: "p1" }),
