@@ -57,7 +57,8 @@ import { resolveWorkspaceAiPolicy } from "../ai/workspace-ai-policy.service.js";
 // all, which is what makes the retirement structural rather than a comment.
 import {
   evaluateWorkspaceAiOperation,
-  recordWorkspaceAiOperation,
+  releaseWorkspaceAiOperation,
+  reserveWorkspaceAiOperation,
 } from "../billing-enforcement.service.js";
 
 // ---------------------------------------------------------------------------
@@ -408,14 +409,47 @@ export async function runProviderOperation(
       reason: gate.reason ?? "budget_block",
     };
   }
+  // PRO-069 — the monthly AI allowance is taken HERE, before the provider is
+  // called, in one atomic statement; every path below that does not spend
+  // gives it back. It used to be read above and recorded after success, so
+  // concurrent operations at the boundary were all admitted.
+  const planReservation = aiAllowance.scope
+    ? await reserveWorkspaceAiOperation(aiAllowance.scope)
+    : ({ allowed: true, reservation: null } as const);
+  if (!planReservation.allowed) {
+    const reason =
+      planReservation.denial === "AI_MONTHLY_LIMIT_REACHED"
+        ? "quota_exceeded:AI_MONTHLY_LIMIT_REACHED"
+        : `entitlement_required:${planReservation.denial}`;
+    await recordProviderUsage({
+      prisma,
+      teamId: input.teamId,
+      provider: input.provider,
+      operation: input.operation,
+      unit: "CALL",
+      units: 0,
+      estimatedCostUsdMicros: 0,
+      decision: "BLOCK",
+      evidenceId: input.evidenceId,
+      caseId: input.caseId ?? null,
+      projectId: input.projectId ?? null,
+      initiatedByUserId: input.initiatedByUserId ?? null,
+      failureReason: reason,
+    }).catch(() => {});
+    return { ok: false, decision: "BLOCK" as const, reason };
+  }
+  const giveBack = () =>
+    releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
   // Dispatch.
   let result: IntelligenceProviderResult;
+  try {
   if ("text" in input) {
     if (input.operation === "EXTRACT_ENTITIES") {
       result = await (adapter.extractEntities!({ text: input.text }));
     } else if (input.operation === "SUMMARISE_DOCUMENT") {
       result = await (adapter.summariseDocument!({ text: input.text }));
     } else {
+      await giveBack();
       return {
         ok: false,
         decision: "ALLOW",
@@ -446,6 +480,7 @@ export async function runProviderOperation(
         break;
       case "EXTRACT_ENTITIES":
       case "SUMMARISE_DOCUMENT":
+        await giveBack();
         return {
           ok: false,
           decision: "ALLOW",
@@ -453,7 +488,12 @@ export async function runProviderOperation(
         };
     }
   }
+  } catch (err) {
+    await giveBack();
+    throw err;
+  }
   if (!result.ok) {
+    await giveBack();
     await recordProviderUsage({
       prisma,
       teamId: input.teamId,
@@ -544,9 +584,8 @@ export async function runProviderOperation(
   // counter, so a workspace's AI usage was split across two tallies and
   // neither was the month's real total. Fire-and-forget: a failed count must
   // never fail an operation the customer has already been given.
-  if (aiAllowance.scope) {
-    void recordWorkspaceAiOperation(aiAllowance.scope).catch(() => undefined);
-  }
+  // The allowance was taken before the call (PRO-069); a completed operation
+  // keeps it, so there is nothing more to record here.
   return {
     ok: true,
     decision: gate.decision,

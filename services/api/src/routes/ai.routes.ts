@@ -32,7 +32,8 @@ import {
 } from "../services/ai/ai-usage-ledger.service.js";
 import {
   assertWorkspaceAllowsAiOperation,
-  recordWorkspaceAiOperation,
+  releaseWorkspaceAiOperation,
+  reserveWorkspaceAiOperation,
 } from "../services/billing-enforcement.service.js";
 
 const aiProvider = createAiProvider();
@@ -530,9 +531,19 @@ export async function aiRoutes(app: FastifyInstance) {
       // failure) — the exact flow the Copilots use.
       let result: Awaited<ReturnType<typeof aiChatService.analyzeChat>>;
       const preflight = aiChatService.preflight(userId, body);
+      // PRO-069 — the plan cap is taken here, before the provider call, and
+      // given back below when the operation does not spend.
+      let planReservation: Awaited<ReturnType<typeof reserveWorkspaceAiOperation>> | null = null;
       if (preflight) {
         result = preflight;
       } else {
+        planReservation = await reserveWorkspaceAiOperation(aiScope);
+        if (!planReservation.allowed) {
+          return reply.code(planReservation.statusCode).send({
+            code: planReservation.denial,
+            message: planReservation.message,
+          });
+        }
         const ledger = await tryReserveAiBudget({
           teamId: aiScope.teamId,
           userId,
@@ -542,6 +553,7 @@ export async function aiRoutes(app: FastifyInstance) {
           estimatedCostUsdMicros: 100_000n,
         });
         if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
+          await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
           return reply.code(429).send({
             code: `AI_BUDGET_${ledger.decision.code}`,
             message: "The workspace AI budget or operation limit has been reached.",
@@ -556,6 +568,7 @@ export async function aiRoutes(app: FastifyInstance) {
           if (ledger.reservationId) {
             await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
           }
+          await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
           const isTimeout =
             err instanceof Error && err.message === "AI_REQUEST_TIMEOUT";
           if (isTimeout) {
@@ -620,13 +633,10 @@ export async function aiRoutes(app: FastifyInstance) {
        * durable budget". Two counters existed, one honouring that intent and
        * one not. This is the second one catching up, not a policy change.
        */
-      if (result.status === "ok" && !preflight) {
-        try {
-          await recordWorkspaceAiOperation(aiScope);
-        } catch {
-          // Counter failures must not surface to the user — log and
-          // move on; over-charging a user is worse than under-counting.
-        }
+      if (planReservation?.allowed && result.status !== "ok") {
+        // Counted before the call; a provider answer that was not "ok" did
+        // not spend, so it is given back. Counter failures never surface.
+        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
       }
 
       fireAiAnalytics({
@@ -690,6 +700,16 @@ export async function aiRoutes(app: FastifyInstance) {
         });
       }
 
+      // PRO-069 — the plan cap is taken before the provider call and given
+      // back below when the operation does not spend.
+      const planReservation = await reserveWorkspaceAiOperation(aiScope);
+      if (!planReservation.allowed) {
+        return reply.code(planReservation.statusCode).send({
+          code: planReservation.denial,
+          message: planReservation.message,
+        });
+      }
+
       // Phase F-1 — canonical durable ledger around the provider call
       // (reserve → provider → reconcile; release on failure/blocked).
       const ledger = await tryReserveAiBudget({
@@ -701,6 +721,7 @@ export async function aiRoutes(app: FastifyInstance) {
         estimatedCostUsdMicros: 100_000n,
       });
       if (ledger.decision && !ledger.decision.allowed && ledger.decision.code !== "DUPLICATE_REQUEST") {
+        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
         return reply.code(429).send({
           code: `AI_BUDGET_${ledger.decision.code}`,
           message: "The workspace AI budget or operation limit has been reached.",
@@ -713,6 +734,7 @@ export async function aiRoutes(app: FastifyInstance) {
         if (ledger.reservationId) {
           await releaseAiReservation(buildPrismaLedgerStore(), ledger.reservationId).catch(() => undefined);
         }
+        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
         throw err;
       }
       if (ledger.reservationId) {
@@ -724,12 +746,8 @@ export async function aiRoutes(app: FastifyInstance) {
           await reconcileAiUsage(buildPrismaLedgerStore(), ledger.reservationId, null).catch(() => undefined);
         }
       }
-      if (result.status === "ok") {
-        try {
-          await recordWorkspaceAiOperation(aiScope);
-        } catch {
-          /* see chat handler comment */
-        }
+      if (result.status !== "ok") {
+        await releaseWorkspaceAiOperation(planReservation.reservation).catch(() => undefined);
       }
 
       auditAiAction(req, {

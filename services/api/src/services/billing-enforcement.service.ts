@@ -1151,7 +1151,7 @@ export type AiOperationAllowance = {
   /**
    * The commercial scope the decision was made against, so a caller that
    * goes on to spend the operation records it through the EXISTING
-   * `recordWorkspaceAiOperation` rather than needing a second writer for the
+   * `reserveWorkspaceAiOperation` rather than needing a second writer for the
    * same counter. One counter, one writer — the rule this whole change
    * exists to enforce applies to its own implementation.
    */
@@ -1370,38 +1370,6 @@ export async function assertWorkspaceAllowsAiOperation(
   err.statusCode = shape.statusCode;
   err.code = outcome.denial;
   throw err;
-}
-
-/**
- * Idempotent upsert that increments the durable AI usage counter for
- * the current UTC month. Call ONLY after a successful AI operation; on
- * upstream failure the consumer's allowance is preserved.
- */
-export async function recordWorkspaceAiOperation(
-  scope: WorkspaceScope,
-): Promise<void> {
-  const tenantId = await resolveAiUsageTenantId(scope);
-  if (!tenantId) return;
-
-  const periodStartUtc = startOfCurrentMonthUtc();
-  await prisma.entitlementUsage.upsert({
-    where: {
-      teamId_key_periodStartUtc: {
-        teamId: tenantId,
-        key: AI_USAGE_KEY,
-        periodStartUtc,
-      },
-    },
-    create: {
-      teamId: tenantId,
-      key: AI_USAGE_KEY,
-      periodStartUtc,
-      consumed: 1n,
-    },
-    update: {
-      consumed: { increment: 1n },
-    },
-  });
 }
 
 export async function getWorkspaceAiUsageThisMonth(
@@ -1661,4 +1629,92 @@ export async function workspaceIncludesReviewerOperations(
   teamId: string,
 ): Promise<boolean> {
   return workspaceIncludesReviewCapability(teamId, "REVIEW_ASSIGNMENTS");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// AI monthly cap — reserve BEFORE the operation (PRO-069 / BILLING-014)
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * One counted AI operation, taken before the provider call. `null` fields are
+ * never produced: an operation that could not be counted durably (no personal
+ * team yet) has no reservation at all.
+ */
+export type AiOperationReservation = {
+  tenantId: string;
+  periodStartUtc: Date;
+};
+
+export type AiOperationReservationResult =
+  | { allowed: true; reservation: AiOperationReservation | null }
+  | {
+      allowed: false;
+      denial: AiOperationDenial;
+      statusCode: number;
+      message: string;
+    };
+
+/**
+ * PRO-069 / BILLING-10, Enterprise BILLING-014 (overshoot) — the monthly cap
+ * was check-then-record: `decideAiOperationAllowance` read the counter, the
+ * provider ran, and the old record-after-success writer incremented afterwards, so N
+ * concurrent operations at cap - 1 were all admitted (8 of 8, consumed 10 /
+ * cap 3 in the retest).
+ *
+ * This takes the operation in ONE statement: the upsert increments only while
+ * `consumed < cap`, under the row lock PostgreSQL holds for ON CONFLICT DO
+ * UPDATE, so concurrent callers at the boundary admit exactly the remaining
+ * allowance. The caller releases the reservation when the operation does not
+ * spend (provider failure, block, timeout) — the same rule the old
+ * record-after-success expressed, without the window.
+ *
+ * Denials that are not about the count (plan excludes AI, lifecycle restricts)
+ * come from the same decision function as before and take nothing.
+ */
+export async function reserveWorkspaceAiOperation(
+  scope: WorkspaceScope,
+): Promise<AiOperationReservationResult> {
+  const outcome = await decideAiOperationAllowance(scope);
+  if (!outcome.allowed && outcome.denial && outcome.denial !== "AI_MONTHLY_LIMIT_REACHED") {
+    const shape = AI_DENIAL_RESPONSES[outcome.denial];
+    return { allowed: false, denial: outcome.denial, ...shape };
+  }
+  const tenantId = await resolveAiUsageTenantId(scope);
+  if (!tenantId) return { allowed: true, reservation: null };
+  const cap = outcome.cap;
+  const periodStartUtc = startOfCurrentMonthUtc();
+  const rows =
+    cap === null
+      ? await prisma.$queryRaw<Array<{ consumed: bigint }>>`
+          INSERT INTO entitlement_usage (id, team_id, key, period_start_utc, consumed, updated_at)
+          VALUES (gen_random_uuid(), ${tenantId}::uuid, ${AI_USAGE_KEY}, ${periodStartUtc}, 1, now())
+          ON CONFLICT (team_id, key, period_start_utc)
+          DO UPDATE SET consumed = entitlement_usage.consumed + 1, updated_at = now()
+          RETURNING consumed`
+      : await prisma.$queryRaw<Array<{ consumed: bigint }>>`
+          INSERT INTO entitlement_usage (id, team_id, key, period_start_utc, consumed, updated_at)
+          VALUES (gen_random_uuid(), ${tenantId}::uuid, ${AI_USAGE_KEY}, ${periodStartUtc}, 1, now())
+          ON CONFLICT (team_id, key, period_start_utc)
+          DO UPDATE SET consumed = entitlement_usage.consumed + 1, updated_at = now()
+          WHERE entitlement_usage.consumed < ${BigInt(cap)}
+          RETURNING consumed`;
+  if (rows.length === 0) {
+    const shape = AI_DENIAL_RESPONSES.AI_MONTHLY_LIMIT_REACHED;
+    return { allowed: false, denial: "AI_MONTHLY_LIMIT_REACHED", ...shape };
+  }
+  return { allowed: true, reservation: { tenantId, periodStartUtc } };
+}
+
+/** Give back a reservation whose operation did not spend. Never below zero. */
+export async function releaseWorkspaceAiOperation(
+  reservation: AiOperationReservation | null,
+): Promise<void> {
+  if (!reservation) return;
+  await prisma.$executeRaw`
+    UPDATE entitlement_usage
+       SET consumed = consumed - 1, updated_at = now()
+     WHERE team_id = ${reservation.tenantId}::uuid
+       AND key = ${AI_USAGE_KEY}
+       AND period_start_utc = ${reservation.periodStartUtc}
+       AND consumed > 0`;
 }

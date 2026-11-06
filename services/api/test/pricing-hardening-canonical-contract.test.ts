@@ -246,7 +246,9 @@ describe("billing-enforcement guards (API)", () => {
   it("exposes a plan-aware AI monthly gate", () => {
     expect(text).toContain("assertWorkspaceAllowsAiOperation");
     expect(text).toContain("AI_MONTHLY_LIMIT_REACHED");
-    expect(text).toContain("recordWorkspaceAiOperation");
+    // PRO-069 — the counter is taken before the operation, atomically.
+    expect(text).toContain("reserveWorkspaceAiOperation");
+    expect(text).toContain("releaseWorkspaceAiOperation");
     // EntitlementUsage table is the durable monthly counter.
     expect(text.toLowerCase()).toContain("entitlementusage");
   });
@@ -283,7 +285,8 @@ describe("AI route wiring", () => {
   const text = read(API_AI_ROUTES);
   for (const fn of [
     "assertWorkspaceAllowsAiOperation",
-    "recordWorkspaceAiOperation",
+    "reserveWorkspaceAiOperation",
+    "releaseWorkspaceAiOperation",
     // §9.7 — AI scope now flows through the canonical commercial envelope.
     "resolveCommercialContext",
   ]) {

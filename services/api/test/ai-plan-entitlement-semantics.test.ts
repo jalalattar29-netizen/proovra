@@ -106,11 +106,15 @@ describe("deterministic answers and the monthly plan cap", () => {
     expect(chatEnd).toBeGreaterThan(chatStart);
     const chat = code.slice(chatStart, chatEnd);
 
-    expect(chat).toContain('if (result.status === "ok" && !preflight)');
-    expect(
-      chat,
-      "the unconditional form would charge for a local answer",
-    ).not.toMatch(/if \(result\.status === "ok"\) \{\s*try \{\s*await recordWorkspaceAiOperation/);
+    // PRO-069 — the allowance is now RESERVED before the provider call, and
+    // only on the provider branch: a preflight (local) answer never reaches
+    // the reservation, and a non-"ok" provider answer gives it back.
+    const preflightIdx = chat.indexOf("if (preflight) {");
+    const reserveIdx = chat.indexOf("reserveWorkspaceAiOperation(aiScope)");
+    expect(preflightIdx).toBeGreaterThan(0);
+    expect(reserveIdx, "the reservation must sit on the provider branch, after the preflight").toBeGreaterThan(preflightIdx);
+    expect(chat).toContain('if (planReservation?.allowed && result.status !== "ok")');
+    expect(chat, "the old record-after-success writer must not return").not.toContain("recordWorkspaceAiOperation");
   });
 
   it("the ledger still excludes them too, so both counters agree", () => {
