@@ -81,6 +81,7 @@ import {
   writeCodingValue,
 } from "../../../../lib/reviewer-workspace/reviewer-api";
 import { useActiveSpace, useActiveSpaceId } from "../../../../lib/platform-context";
+import { isApiResponseError } from "../../../../lib/api";
 import type { ReviewerAnnotationSummary } from "../../../../lib/reviewer-workspace/annotation-types";
 import { MediaViewer } from "../../../../components/reviewer-workspace/viewers/MediaViewer";
 import { AnnotationPanel } from "../../../../components/reviewer-workspace/AnnotationPanel";
@@ -193,23 +194,45 @@ function ReviewerWorkspaceShell() {
   const [disagreeBusy, setDisagreeBusy] = useState(false);
 
   // Load workspace projection.
+  //
+  // PRO-077: a VIEWER is answered 403 { denial: "NOT_PERMITTED" }. The
+  // rejection used to escape this effect, so loadingWorkspace never went
+  // false and the page said "Loading reviewer workspace…" forever. A refusal
+  // is now the "no reviewer role" state; any other failure is an error the
+  // person can retry. Neither is ever a spinner.
+  const [workspaceLoadAttempt, setWorkspaceLoadAttempt] = useState(0);
+  const [workspaceLoadError, setWorkspaceLoadError] = useState<
+    { kind: "DENIED"; denial: string | null } | { kind: "FAILED" } | null
+  >(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingWorkspace(true);
-      const ws = await fetchReviewerWorkspace(teamId);
-      if (cancelled) return;
-      setWorkspace(ws);
-      if (ws?.activeReview) {
-        setActiveWorkflowId(ws.activeReview.workflowId);
-        setActiveEvidenceId(ws.activeReview.evidenceId);
+      setWorkspaceLoadError(null);
+      try {
+        const ws = await fetchReviewerWorkspace(teamId);
+        if (cancelled) return;
+        setWorkspace(ws);
+        if (ws?.activeReview) {
+          setActiveWorkflowId(ws.activeReview.workflowId);
+          setActiveEvidenceId(ws.activeReview.evidenceId);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setWorkspace(null);
+        setWorkspaceLoadError(
+          isApiResponseError(err) && err.statusCode === 403
+            ? { kind: "DENIED", denial: typeof err.code === "string" ? err.code : null }
+            : { kind: "FAILED" },
+        );
+      } finally {
+        if (!cancelled) setLoadingWorkspace(false);
       }
-      setLoadingWorkspace(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+  }, [teamId, workspaceLoadAttempt]);
 
   // Load evidence preview + annotations for the active evidence.
   const refreshAnnotations = useCallback(async () => {
@@ -751,6 +774,33 @@ function ReviewerWorkspaceShell() {
     );
   }
 
+  if (!workspace && workspaceLoadError?.kind === "FAILED") {
+    return (
+      <PageShell
+        header={
+          <PageHeader
+            eyebrow="Review workspace"
+            title="Review Workspace"
+            subtitle="The operational surface for receiving, reviewing, coding and deciding evidence workflows."
+          />
+        }
+      >
+        <PageSection>
+          <EmptyState
+            framed
+            title="The reviewer workspace could not be loaded."
+            purpose="Nothing was changed. Check your connection and try again."
+            action={
+              <Button variant="secondary" onClick={() => setWorkspaceLoadAttempt((n) => n + 1)}>
+                Try again
+              </Button>
+            }
+          />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
   if (!workspace) {
     return (
       <PageShell
@@ -765,7 +815,11 @@ function ReviewerWorkspaceShell() {
         <PageSection>
           <EmptyState
             framed
-            title="You do not have a reviewer role in this workspace."
+            title={
+              workspaceLoadError?.kind === "DENIED" && workspaceLoadError.denial === "WORKSPACE_NOT_FOUND"
+                ? reviewerDenialMessage("WORKSPACE_NOT_FOUND")
+                : "You do not have a reviewer role in this workspace."
+            }
             purpose="Ask a workspace admin to invite you as a Reviewer or above to receive assignments here."
           />
         </PageSection>
