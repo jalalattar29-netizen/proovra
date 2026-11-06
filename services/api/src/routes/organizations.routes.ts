@@ -108,6 +108,8 @@ import { refreshTeamSeatState } from "../services/billing.service.js";
 // PHASE 5 §8 (2026-07-22) — canonical invite acceptance (idempotent +
 // concurrency-safe claim).
 import { acceptOrganizationInvite } from "../services/organization/org-invite-acceptance.service.js";
+import { lookupOrganizationInvitation } from "../services/organization/org-invite-lookup.service.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { establishOrganizationSessionContext } from "../services/identity/concurrent-session.service.js";
 // Macro-Wave A2 — durable invite delivery (outbox + inline first attempt +
 // rotation retry). The outbox row is committed in the SAME transaction as
@@ -1215,6 +1217,58 @@ export async function organizationsRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // -------------------------------------------------------------------------
+  // POST /v1/org-invites/lookup
+  //
+  // PRO-072 — describe an organization invitation BEFORE it is accepted:
+  // the organization, the organization role, and the workspaces and
+  // workspace roles acceptance would grant. A READ: nothing is claimed,
+  // written or audited. Same contract and disclosure rules as
+  // POST /v1/teams/invites/lookup: public (the token is the bearer
+  // credential, so the audience is the audience of the email), token in the
+  // body never the URL, rate-limited per address, no-store, one opaque 404
+  // for an unknown or malformed token, context only while PENDING, masked
+  // address, no ids.
+  // -------------------------------------------------------------------------
+  app.post("/v1/org-invites/lookup", async (req, reply) => {
+    void reply.header("Referrer-Policy", "no-referrer");
+    void reply.header("Cache-Control", "no-store");
+
+    const rl = await enforceRateLimit({
+      key: `org-invite-lookup:${req.ip ?? "unknown"}`,
+      bound: "global",
+      max: 30,
+      windowSec: 60,
+    });
+    if (!rl.allowed) {
+      const retryAfterSec = Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000));
+      void reply.header("Retry-After", String(retryAfterSec));
+      return reply.code(429).send({
+        error: {
+          code: "rate_limited",
+          message: "Too many attempts. Try again in a moment.",
+          requestId: req.id ?? null,
+        },
+      });
+    }
+
+    const notFound = () =>
+      reply.code(404).send({
+        error: {
+          code: "INVITE_NOT_FOUND",
+          message: "This invitation link is not available.",
+          requestId: req.id ?? null,
+        },
+      });
+
+    const parsed = z.object({ token: z.string().min(16).max(128) }).safeParse(req.body);
+    if (!parsed.success) return notFound();
+
+    const view = await lookupOrganizationInvitation({ rawToken: parsed.data.token });
+    if (!view) return notFound();
+    return reply.code(200).send(view);
+  });
 
   // -------------------------------------------------------------------------
   // POST /v1/org-invites/:token/accept

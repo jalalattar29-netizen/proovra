@@ -49,10 +49,16 @@ afterEach(() => {
   while (mounted.length) mounted.pop().unmount();
 });
 
-test("the web's heading, scope note and Accept invite", async () => {
+// PRO-072 (2026-11-06): the scope note said "This does NOT grant you access to
+// workspace evidence…" for every invitation, which was false for one carrying
+// workspace assignments. The note is now read from POST /v1/org-invites/lookup
+// (org-invite-grants.render.test.mjs); with no lookup answer here it claims
+// nothing either way.
+test("the web's heading and Accept invite; the scope note makes no false claim", async () => {
   const r = await render();
   assert.ok(r.hasText("Accept organization invite"));
-  assert.ok(r.hasText("Accepting will add you to the organization at the role the inviter chose. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped."));
+  assert.ok(!r.hasText("This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped."));
+  assert.ok(r.hasText("We could not load the details of this invitation. Accepting adds you to the organization with the role the inviter chose, and to any workspaces the invitation names, at the role it names."));
   assert.equal(r.byLabel("Accept invite").length, 1);
 });
 

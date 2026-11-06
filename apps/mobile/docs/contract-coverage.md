@@ -23,7 +23,7 @@ had none. The fixtures agreed, because they were written from the same guess.
 
 ## Coverage
 
-**172 bindings — OK 172, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
+**173 bindings — OK 173, MISMATCH 0, UNRESOLVED 0, N/A 0, unbound parser calls 0.**
 
 A binding is one place the app hands a fetched response to a parser. The
 route column is the handler in `services/api/src/routes` that answers that
@@ -198,6 +198,7 @@ top level of it.
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/enroll/verify` | <SPREAD>, error, factorId, recoveryCodes, retryAfterMs | recoveryCodes |
 | OK | `parseRecoveryCodes` | `POST /v1/identity/mfa/recovery-codes/regenerate` | recoveryCodes | recoveryCodes |
 | OK | `parseOrgInviteAccept` | `POST /v1/org-invites/:token/accept` | <SPREAD>, assignedWorkspaceIds, invitationAccepted, organizationId, role, workspaceOpened | assignedWorkspaceIds, enterpriseWorkspaceId, organizationId, role, setupRedirect |
+| OK | `parseOrgInviteLookup` | `POST /v1/org-invites/lookup` | context, state | context, state |
 | OK | `parsePortalAuth` | `POST /v1/portal/auth` | expiresAtUtc, newLogin, reviewerEmail, role, sessionId | expiresAtUtc, newLogin, reviewerEmail, role, sessionId |
 | OK | `parseWorkspaceInviteAccept` | `POST /v1/teams/invites/:token/accept` | alreadyMember, role, workspaceId | alreadyMember |
 | OK | `parseWorkspaceInviteLookup` | `POST /v1/teams/invites/lookup` | context, state | context, state |

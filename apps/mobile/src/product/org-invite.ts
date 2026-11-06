@@ -122,3 +122,101 @@ export function orgInviteFailureMessage(status: number): string {
   if (status === 404) return "Invite not found — the link may be incorrect. Ask an organization administrator for a new invitation.";
   return "The invite couldn't be accepted. Ask an organization administrator for a new invitation.";
 }
+
+// =============================================================================
+// PRO-072 — WHAT THE INVITATION GRANTS, BEFORE IT IS ACCEPTED
+// =============================================================================
+
+/**
+ * The read the web acceptance page uses (POST, token in the body, public).
+ * The screen used to say "This does NOT grant you access to workspace
+ * evidence, cases, or reviewer queues" for every invitation, while accepting
+ * wrote the invitation's workspace assignments, up to workspace ADMIN.
+ */
+export const ORG_INVITE_LOOKUP_PATH = "/v1/org-invites/lookup";
+
+const LOOKUP_STATES = ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED", "NOT_ACCEPTING_MEMBERS"] as const;
+export type OrgInviteLookupState = (typeof LOOKUP_STATES)[number];
+
+export interface OrgInviteLookupView {
+  state: OrgInviteLookupState;
+  organizationName: string | null;
+  role: string | null;
+  invitedEmailMasked: string | null;
+  workspaces: Array<{ workspaceName: string; role: string }>;
+}
+
+/** The lookup body, or null when it is not one (the screen then makes no claim). */
+export function parseOrgInviteLookup(payload: unknown): OrgInviteLookupView | null {
+  const d = obj(payload);
+  const state = str(d.state);
+  if (!state || !(LOOKUP_STATES as readonly string[]).includes(state)) return null;
+  const c = obj(d.context);
+  const list = Array.isArray(c.workspaces) ? c.workspaces : [];
+  return {
+    state: state as OrgInviteLookupState,
+    organizationName: str(c.organizationName),
+    role: str(c.role),
+    invitedEmailMasked: str(c.invitedEmailMasked),
+    workspaces: list
+      .map((w) => ({ workspaceName: str(obj(w).workspaceName), role: str(obj(w).role) }))
+      .filter((w): w is { workspaceName: string; role: string } => Boolean(w.workspaceName && w.role)),
+  };
+}
+
+const ORG_ROLE_WORD: Record<string, string> = {
+  ORG_OWNER: "owner",
+  ORG_ADMIN: "administrator",
+  ORG_SECURITY_ADMIN: "security administrator",
+  ORG_BILLING_ADMIN: "billing administrator",
+  ORG_AUDITOR: "auditor",
+  ORG_MEMBER: "member",
+};
+
+const WORKSPACE_ROLE_WORDS: Record<string, string> = {
+  VIEWER: "Viewer: can open and read its evidence, cases and reports",
+  MEMBER: "Member: can capture and work on its evidence and cases",
+  ADMIN: "Admin: can manage the workspace, its members and its settings",
+};
+
+/**
+ * The sentences the screen shows before Accept, and whether Accept is offered.
+ * Same copy as the web page. A failed or unreadable lookup claims nothing
+ * either way and still offers Accept (the accept itself says why it refuses).
+ */
+export function orgInviteGrantLines(view: OrgInviteLookupView | null): { lines: string[]; canAccept: boolean } {
+  if (!view) {
+    return {
+      lines: [
+        "We could not load the details of this invitation. Accepting adds you to the organization with the role the inviter chose, and to any workspaces the invitation names, at the role it names.",
+      ],
+      canAccept: true,
+    };
+  }
+  if (view.state !== "PENDING") {
+    const line =
+      view.state === "ACCEPTED"
+        ? "This invitation has already been accepted."
+        : view.state === "REVOKED"
+          ? "This invitation was revoked."
+          : view.state === "EXPIRED"
+            ? "This invitation has expired."
+            : "This organization is not accepting new members right now.";
+    return { lines: [line, "Ask an organization administrator to send a new invitation if you still need access."], canAccept: false };
+  }
+  const role = ORG_ROLE_WORD[view.role ?? ""] ?? "member";
+  const org = view.organizationName ?? "the organization";
+  const lines = [
+    `Accepting adds you to ${org} as an organization ${role}.${view.invitedEmailMasked ? ` Invited address: ${view.invitedEmailMasked}.` : ""}`,
+  ];
+  if (view.workspaces.length === 0) {
+    lines.push(
+      "It gives you no workspace access. Evidence, cases and reviewer queues belong to workspaces, and an administrator can add you to one later.",
+    );
+  } else {
+    lines.push(view.workspaces.length === 1 ? "It also gives you access to this workspace:" : `It also gives you access to these ${view.workspaces.length} workspaces:`);
+    for (const w of view.workspaces) lines.push(`${w.workspaceName}: ${WORKSPACE_ROLE_WORDS[w.role] ?? w.role}`);
+    lines.push("A workspace with no free seat cannot be granted; you will be told after accepting if that happens.");
+  }
+  return { lines, canAccept: true };
+}

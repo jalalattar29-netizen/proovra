@@ -135,10 +135,20 @@ export function PageRouteGate({
     );
   }
 
+  // The input is built by the one helper every link to this page also uses
+  // (`useCanOpenRoute`), so a link cannot be shown on facts the gate refuses.
+  const access = resolveRouteAccess(
+    routeAccessInputFromEnvelope(route, envelope, workspaceFragment, personalSpaceFragment),
+  );
+
+  if (access.canLoad) return <>{children}</>;
+
   // PRO-075: the context refused the SESSION (401), not the workspace. With no
-  // envelope, the resolver below would read that as "no workspace" or "no
-  // permission" and show a state about plans and roles to someone who only
-  // needs to sign in (again: a session can expire while a page is open).
+  // envelope, the resolver reads that as "no workspace" or "no
+  // permission", which would show a state about plans and roles to someone who only
+  // needs to sign in (again: a session can expire while a page is open). A
+  // route that loads with no context (an invitation page) still loads: it
+  // handles the signed-out visitor itself.
   if (state.name === "FAILED" && state.errorCode === "AUTH_REQUIRED") {
     return (
       <SignedOutAppState
@@ -148,14 +158,6 @@ export function PageRouteGate({
       />
     );
   }
-
-  // The input is built by the one helper every link to this page also uses
-  // (`useCanOpenRoute`), so a link cannot be shown on facts the gate refuses.
-  const access = resolveRouteAccess(
-    routeAccessInputFromEnvelope(route, envelope, workspaceFragment, personalSpaceFragment),
-  );
-
-  if (access.canLoad) return <>{children}</>;
 
   if (access.accessState === "PLATFORM_ADMIN_ONLY") {
     // PRODUCTION FIX: previously this branch returned `null`, leaving

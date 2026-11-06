@@ -78,6 +78,19 @@ describe("PRO-075: signed out means sign in", () => {
     expect(document.querySelector("[data-page-route-gate]")).toBeNull();
   });
 
+  it("control: a route that loads with no context (an invitation page) still renders on a 401", async () => {
+    stubFetch(unauthorized);
+    render(
+      <PlatformContextProvider>
+        <PageRouteGate routeId="account.org-invite-accept">
+          <div data-testid="invite-page">INVITE</div>
+        </PageRouteGate>
+      </PlatformContextProvider>,
+    );
+    await settle();
+    expect(screen.getByTestId("invite-page")).toBeTruthy();
+  });
+
   it("control: a network failure for a signed-in person keeps the app, not a sign-in prompt", async () => {
     stubFetch(async () => {
       throw new TypeError("Failed to fetch");
