@@ -23,6 +23,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 import type { TxClient } from "../identity/membership-provisioning.service.js";
 // Runtime audit of remaining legacy-fallback use (Phase 12 retirement metric).
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { bump } from "../ops/metrics.service.js";
 
 export type EnterpriseContractProjection = {
   organizationId: string;
@@ -349,7 +350,15 @@ export async function resolveEnterpriseContract(
   // so Phase 12 can retire it on zero-use + applied backfill.
   // Not recorded inside a read-only scan (an operator's dry run): that is not
   // a use of the fallback by a customer, and a dry run writes nothing.
-  if (!isReadOnlyScan()) emitTenantAudit({
+  //
+  // CAP-6 / CAP-7 (2026-11-04) — the use is COUNTED on every resolution and
+  // AUDITED once per organization per hour per process. This row is the zero-use
+  // signal for retiring the fallback, not a decision anyone made, and writing it
+  // on every resolution put one chained admin_audit_logs insert (and the chain's
+  // global advisory lock) on every read and on every workspace the operations
+  // sweep visited: 4 rows per sweep visit on the fixture organization.
+  bump("enterprise_contract_legacy_fallback_total");
+  if (!isReadOnlyScan() && legacyFallbackAuditDue(organizationId)) emitTenantAudit({
     action: "billing.enterprise_contract_legacy_fallback",
     outcome: "success",
     sourceApp: "API",
@@ -612,4 +621,19 @@ export async function upsertEnterpriseContract(
     const code = (err as { code?: string })?.code;
     if (code !== "P2021" && code !== "P2022") throw err;
   }
+}
+
+/** CAP-6 / CAP-7 — one legacy-fallback audit row per organization per window. */
+export const LEGACY_FALLBACK_AUDIT_WINDOW_MS = 60 * 60 * 1000;
+const legacyFallbackAuditedAt = new Map<string, number>();
+export function legacyFallbackAuditDue(organizationId: string, now = Date.now()): boolean {
+  const last = legacyFallbackAuditedAt.get(organizationId);
+  if (last !== undefined && now - last < LEGACY_FALLBACK_AUDIT_WINDOW_MS) return false;
+  if (legacyFallbackAuditedAt.size >= 50_000) legacyFallbackAuditedAt.clear();
+  legacyFallbackAuditedAt.set(organizationId, now);
+  return true;
+}
+/** Test seam. */
+export function resetLegacyFallbackAuditWindows(): void {
+  legacyFallbackAuditedAt.clear();
 }

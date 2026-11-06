@@ -30,7 +30,8 @@ describe("read-only scan scope", () => {
       new URL("../src/services/organization/enterprise-contract.service.ts", import.meta.url),
       "utf8",
     );
-    expect(src).toMatch(/if \(!isReadOnlyScan\(\)\) emitTenantAudit\(\{\s*action: "billing\.enterprise_contract_legacy_fallback"/);
+    // CAP-6 / CAP-7: still never inside a scan; also coalesced per organization.
+    expect(src).toMatch(/if \(!isReadOnlyScan\(\) && legacyFallbackAuditDue\(organizationId\)\) emitTenantAudit\(\{\s*action: "billing\.enterprise_contract_legacy_fallback"/);
     // The ONLY consumer: no authorization or action audit may depend on it.
     //
     // A portable walk, not `grep -rl` in a shell: on Windows `URL.pathname` is
