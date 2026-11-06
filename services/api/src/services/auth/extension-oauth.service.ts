@@ -1,5 +1,5 @@
 /**
- * UC-1 — first-party extension OAuth (Authorization Code + PKCE S256).
+ * UC-1 â€” first-party extension OAuth (Authorization Code + PKCE S256).
  *
  * This is NOT a second auth system. The authorize step runs behind the
  * canonical `requireAuth` (the user is already signed in to PROOVRA), issues a
@@ -18,7 +18,7 @@ export const EXTENSION_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 /** Random part (43) + "." + provenance segment; bounded well under the column-free transport limits. */
 export const EXTENSION_OAUTH_CODE_MAX_LENGTH = 512;
 /**
- * UC-EXT-008 — "offline" is gone: there is no refresh token, so advertising
+ * UC-EXT-008 â€” "offline" is gone: there is no refresh token, so advertising
  * offline access was false. A request still carrying it (an older extension
  * build) is accepted and the grant is narrowed to capture.direct.
  */
@@ -36,11 +36,11 @@ export function normalizeExtensionScope(): string {
  * redirect (`https://<32-char-id>.chromiumapp.org/...`). Never an arbitrary
  * redirect.
  *
- * ET-DC-04 — FAIL CLOSED. With the variable unset this accepted ANY
+ * ET-DC-04 â€” FAIL CLOSED. With the variable unset this accepted ANY
  * chromiumapp.org extension id, and authorize issues a code from the ambient
  * session and redirects at once: a third-party extension could silently obtain
  * a capture.direct token. Unset (or holding no valid entry) now refuses every
- * redirect — the state the release docs already describe ("fails closed
+ * redirect â€” the state the release docs already describe ("fails closed
  * server-side until registered").
  */
 export const EXTENSION_OAUTH_CLIENT_ID = "proovra-extension";
@@ -57,7 +57,7 @@ export function isAllowedExtensionRedirect(clientId: string, redirectUri: string
 }
 
 /**
- * UC-SEC-002 — the extension ORIGINS the API's CORS policy may admit. Derived
+ * UC-SEC-002 â€” the extension ORIGINS the API's CORS policy may admit. Derived
  * from the same pinned configuration as the OAuth redirect, so the two cannot
  * disagree: each allow-listed `https://<id>.chromiumapp.org/...` redirect names
  * extension `<id>`, whose pages and service worker send
@@ -89,7 +89,7 @@ export function isAllowedExtensionOrigin(
 }
 
 /**
- * UC-SEC-004 / UC-EXT-008 — the AUTHORIZING session's real provenance, carried
+ * UC-SEC-004 / UC-EXT-008 â€” the AUTHORIZING session's real provenance, carried
  * from authorize to token so the extension token states how the user actually
  * authenticated (it used to hard-code SOCIAL_OAUTH) and is anchored to the same
  * workspace session row, so organization session policy, the role
@@ -111,6 +111,13 @@ export type ExtensionAuthProvenance = {
   mfaAt: number | null;
   /** The authorizing session's workspace anchor (its session row's teamId). */
   teamId: string | null;
+  /**
+   * PRO-024 (AUTH-18) — the authorizing session itself (its hashed sid and the
+   * token's iat), so the exchange can refuse a code whose session has ended
+   * (sign-out, password reset, revoke-all) within the code's lifetime.
+   */
+  sessionIdHash: string | null;
+  sessionIat: number | null;
 };
 
 const PROVENANCE_METHODS: ReadonlySet<string> = new Set(["PASSWORD", "MAGIC_LINK", "SOCIAL_OAUTH", "SAML", "OIDC"]);
@@ -118,7 +125,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function encodeProvenance(p: ExtensionAuthProvenance): string {
   return Buffer.from(
-    JSON.stringify({ m: p.authMethod, a: p.authAt, s: p.ssoConnId, f: p.mfaAt, t: p.teamId }),
+    JSON.stringify({ m: p.authMethod, a: p.authAt, s: p.ssoConnId, f: p.mfaAt, t: p.teamId, h: p.sessionIdHash, i: p.sessionIat }),
     "utf8",
   ).toString("base64url");
 }
@@ -138,6 +145,8 @@ export function decodeProvenanceFromCode(code: string): ExtensionAuthProvenance 
       ssoConnId: id(raw.s),
       mfaAt: num(raw.f),
       teamId: id(raw.t),
+      sessionIdHash: typeof raw.h === "string" && /^[0-9a-f]{64}$/.test(raw.h) ? raw.h : null,
+      sessionIat: num(raw.i),
     };
   } catch {
     return null;

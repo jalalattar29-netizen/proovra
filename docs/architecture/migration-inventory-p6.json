@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 371,
-    "classifiedMigrations": 371,
+    "filesystemMigrations": 372,
+    "classifiedMigrations": 372,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 371,
+    "productionSnapshotUnknown": 372,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 371,
-    "classifiedMigrations": 371,
+    "filesystemMigrations": 372,
+    "classifiedMigrations": 372,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 371,
+    "productionSnapshotUnknown": 372,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 133,
+      "EXPAND": 134,
       "BACKFILL": 35,
       "CONTRACT_DROP": 12,
       "REPAIR": 6
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 154,
+      "SAFE_TO_APPLY_NOW": 155,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 6
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 371
+    "ProductionMigrationStateUnknown": 372
   },
   "gateFailures": [],
   "migrations": [
@@ -27729,8 +27729,70 @@
       "evidence": "REPORT-013 (2026-11-04). One nullable VARCHAR(64) on verification_share_tokens: the hash of the per-tab view session that spent a link's latest use, so a reload from that session spends no further use. Links used earlier have none and count as before. No row is rewritten."
     },
     {
-      "name": "20281118070000_sso_native_handoffs",
+      "name": "20281114100000_social_sign_in_nonces",
       "order": 368,
+      "sqlPresent": true,
+      "byteLength": 1680,
+      "checksumSha256": "dff42115b05cf22fce8e594f072ad291face63a8ecfa11313a1b478b866c3c24",
+      "checksumSha256Raw": "dff42115b05cf22fce8e594f072ad291face63a8ecfa11313a1b478b866c3c24",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:1 columns:0 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "social_sign_in_nonces"
+        ],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "social_sign_in_nonces_expires_at_utc_idx",
+          "social_sign_in_nonces_nonce_hash_key"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.social_sign_in_nonces') IS NOT NULL;\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "PRO-034 (2026-11-04). New table of hashed, server-issued sign-in nonces and single-use records of nonce-less id_tokens, so a Google or Apple id_token is accepted once and only for an attempt the API started. No existing row is touched."
+    },
+    {
+      "name": "20281118070000_sso_native_handoffs",
+      "order": 369,
       "sqlPresent": true,
       "byteLength": 1889,
       "checksumSha256": "145bf10be9c8b05e1b84e8bb572ff82f35f91448762a146df5f52c613edeb5f2",
@@ -27793,7 +27855,7 @@
     },
     {
       "name": "20281119000800_evidence_outputs_held_by_policy",
-      "order": 369,
+      "order": 370,
       "sqlPresent": true,
       "byteLength": 1142,
       "checksumSha256": "9b07e33e61857e27f0f122bd364f08a17c241799b8278269444138457c8df7af",
@@ -27858,7 +27920,7 @@
     },
     {
       "name": "email_password_auth",
-      "order": 370,
+      "order": 371,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

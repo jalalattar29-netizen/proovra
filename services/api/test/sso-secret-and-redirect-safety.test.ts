@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { isSafeRedirectAfter, safeIntendedDestination } from "@proovra/shared";
 
-import { samlAcsUrl, samlSpSigningKey } from "../src/services/access-control/sso-endpoints.js";
+import { oidcRedirectUri, samlAcsUrl, samlSpSigningKey } from "../src/services/access-control/sso-endpoints.js";
 import { isSealedText, openSealedText, sealText } from "../src/services/security/sealed-text.js";
 
 describe("isSafeRedirectAfter", () => {
@@ -83,11 +83,37 @@ describe("the ACS URL", () => {
     expect(samlAcsUrl(req)).toBe("https://sp.example.test/acs");
   });
 
-  it("falls back to the older name, then to the request", () => {
-    delete process.env["SAML_SP_ACS_URL"];
-    process.env["SAML_ACS_URL"] = "https://legacy.example.test/acs";
-    expect(samlAcsUrl(req)).toBe("https://legacy.example.test/acs");
-    delete process.env["SAML_ACS_URL"];
-    expect(samlAcsUrl(req)).toBe("https://api.example.test/v1/auth/saml/acs");
+  it("falls back to the older name, then to the configured API origin, never the Host header (PRO-036)", () => {
+    const savedBase = process.env["API_BASE_URL"];
+    try {
+      delete process.env["SAML_SP_ACS_URL"];
+      process.env["SAML_ACS_URL"] = "https://legacy.example.test/acs";
+      expect(samlAcsUrl(req)).toBe("https://legacy.example.test/acs");
+      delete process.env["SAML_ACS_URL"];
+      process.env["API_BASE_URL"] = "https://api.configured.test/";
+      expect(samlAcsUrl(req)).toBe("https://api.configured.test/v1/auth/saml/acs");
+      const hostile = { headers: { host: "evil.invalid", "x-forwarded-proto": "http" } } as never;
+      expect(samlAcsUrl(hostile)).toBe("https://api.configured.test/v1/auth/saml/acs");
+    } finally {
+      if (savedBase === undefined) delete process.env["API_BASE_URL"];
+      else process.env["API_BASE_URL"] = savedBase;
+    }
+  });
+
+  it("the OIDC redirect_uri is never taken from the Host header (PRO-036)", () => {
+    const saved2 = { base: process.env["API_BASE_URL"], cb: process.env["SSO_CALLBACK_REDIRECT_URI"] };
+    try {
+      delete process.env["SSO_CALLBACK_REDIRECT_URI"];
+      process.env["API_BASE_URL"] = "https://api.configured.test";
+      const hostile = { headers: { host: "evil.invalid" } } as never;
+      expect(oidcRedirectUri(hostile)).toBe("https://api.configured.test/v1/auth/sso/callback");
+      process.env["SSO_CALLBACK_REDIRECT_URI"] = "https://api.explicit.test/v1/auth/sso/callback";
+      expect(oidcRedirectUri(hostile)).toBe("https://api.explicit.test/v1/auth/sso/callback");
+    } finally {
+      for (const [k, v] of [["API_BASE_URL", saved2.base], ["SSO_CALLBACK_REDIRECT_URI", saved2.cb]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 });

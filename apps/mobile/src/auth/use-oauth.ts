@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Google from "expo-auth-session/providers/google";
-import { oauthApple, oauthGoogle, type LoginResult } from "./auth-api";
+import { fetchOAuthNonce, oauthApple, oauthGoogle, type LoginResult } from "./auth-api";
 import { toSafeUserError, type SafeError } from "../errors/safe-error";
 
 export type OAuthMode = "google" | "apple";
@@ -39,6 +39,16 @@ export function useOAuth(opts: {
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [busy, setBusy] = useState<OAuthMode | null>(null);
   const [error, setError] = useState<SafeError | null>(null);
+  // PRO-034 — the nonce the API issued for the NEXT Google attempt. Google signs
+  // it into the id_token and the API accepts that token once; a fresh one is
+  // fetched after every attempt. Until one arrives Google is not offered.
+  const [googleNonce, setGoogleNonce] = useState<string | null>(null);
+  const refreshGoogleNonce = useCallback(() => {
+    setGoogleNonce(null);
+    void fetchOAuthNonce("google")
+      .then(setGoogleNonce)
+      .catch(() => setGoogleNonce(null));
+  }, []);
 
   // Google native sign-in needs PLATFORM-SPECIFIC client ids (A1). Passing these
   // lets expo-auth-session derive the correct native redirect (iOS uses the
@@ -81,6 +91,10 @@ export function useOAuth(opts: {
         ? androidClientId
         : webClientId;
   const googleConfigured = typeof platformClientId === "string" && platformClientId.length > 0;
+  // Only a build that can offer Google asks the API for a Google nonce.
+  useEffect(() => {
+    if (googleConfigured) refreshGoogleNonce();
+  }, [googleConfigured, refreshGoogleNonce]);
 
   // Never sent anywhere: `promptGoogle` returns OAUTH_GOOGLE_UNCONFIGURED
   // before any request is built. It exists only so the provider's invariant
@@ -92,6 +106,7 @@ export function useOAuth(opts: {
     androidClientId: androidClientId ?? UNCONFIGURED,
     webClientId: webClientId ?? UNCONFIGURED,
     scopes: ["openid", "email", "profile"],
+    ...(googleNonce ? { extraParams: { nonce: googleNonce } } : {}),
   });
 
   useEffect(() => {
@@ -102,6 +117,8 @@ export function useOAuth(opts: {
 
   useEffect(() => {
     if (!googleResponse) return;
+    // Whatever the outcome, the nonce this attempt carried is spent.
+    refreshGoogleNonce();
     if (googleResponse.type === "dismiss") {
       setBusy(null);
       return;
@@ -130,10 +147,10 @@ export function useOAuth(opts: {
         setBusy(null);
       }
     })();
-  }, [googleResponse, onResult, onIdToken]);
+  }, [googleResponse, onResult, onIdToken, refreshGoogleNonce]);
 
   const promptGoogle = useCallback(() => {
-    if (!googleConfigured || !googleRequest) {
+    if (!googleConfigured || !googleRequest || !googleNonce) {
       // Request is null until a platform client id is provisioned via
       // EXPO_PUBLIC_GOOGLE_{IOS,ANDROID,WEB}_CLIENT_ID (EXTERNAL-CONFIG-PENDING).
       setError(toSafeUserError({ status: 503, code: "OAUTH_GOOGLE_UNCONFIGURED" }));
@@ -141,14 +158,17 @@ export function useOAuth(opts: {
     }
     setError(null);
     void promptAsync();
-  }, [googleConfigured, googleRequest, promptAsync]);
+  }, [googleConfigured, googleRequest, googleNonce, promptAsync]);
 
   const signInApple = useCallback(() => {
     void (async () => {
       setBusy("apple");
       setError(null);
       try {
+        // PRO-034 — a fresh API-issued nonce, signed into the identity token.
+        const nonce = await fetchOAuthNonce("apple");
         const result = await AppleAuthentication.signInAsync({
+          nonce,
           requestedScopes: [
             AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
             AppleAuthentication.AppleAuthenticationScope.EMAIL,
@@ -169,7 +189,7 @@ export function useOAuth(opts: {
   }, [onResult, onIdToken]);
 
   return {
-    googleReady: googleConfigured && !!googleRequest,
+    googleReady: googleConfigured && !!googleRequest && !!googleNonce,
     appleAvailable,
     busy,
     error,

@@ -10,6 +10,7 @@ import {
   verifyAppleIdToken,
   verifyGoogleIdToken,
 } from "../services/auth.service.js";
+import { bindIdTokenToAttempt } from "../services/auth/social-sign-in-nonce.service.js";
 
 import {
   registerWithEmailPassword,
@@ -718,8 +719,11 @@ export async function authRoutes(app: FastifyInstance) {
       userAgent: readUserAgent(req),
       metadata: { loginMethod },
     });
+    // PRO-008 (AUTH-02) — the pending token carries the PRIMARY ceremony this
+    // sign-in actually used, exactly as the enrolment token above does; a
+    // Google or Apple sign-in is never recorded as a password one.
     const pendingToken = signMfaPendingToken(
-      jwtPayloadFromUser(user, "PASSWORD"),
+      jwtPayloadFromUser(user, loginMethod === "email_password" ? "PASSWORD" : "SOCIAL_OAUTH"),
       jwtSecret as string,
       challenge.jti,
     );
@@ -787,6 +791,22 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const profile = await verifyGoogleIdToken(idToken);
+      // PRO-034 (AUTH-28) — the token answers one attempt this API started, once.
+      const bound = await bindIdTokenToAttempt(req, {
+        provider: "GOOGLE",
+        idToken,
+        claims: profile.binding!,
+      });
+      if (!bound.ok) {
+        auditAuthEvent(req, {
+          userId: null,
+          action: "auth.google_login",
+          outcome: "failure",
+          severity: "warning",
+          metadata: { reason: bound.reason },
+        });
+        return reply.code(401).send({ message: "invalid_id_token", code: bound.reason });
+      }
       const user = await upsertUser(profile);
 
       // R8.1.2 — second-factor gate. If the user has an active MFA
@@ -885,6 +905,22 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const profile = await verifyAppleIdToken(idToken);
+      // PRO-034 (AUTH-28) — the token answers one attempt this API started, once.
+      const bound = await bindIdTokenToAttempt(req, {
+        provider: "APPLE",
+        idToken,
+        claims: profile.binding!,
+      });
+      if (!bound.ok) {
+        auditAuthEvent(req, {
+          userId: null,
+          action: "auth.apple_login",
+          outcome: "failure",
+          severity: "warning",
+          metadata: { reason: bound.reason },
+        });
+        return reply.code(401).send({ message: "invalid_id_token", code: bound.reason });
+      }
       const user = await upsertUserWithEmailLink(profile);
 
       // R8.1.2 — second-factor gate (Apple flow parallel to Google).
@@ -1706,7 +1742,11 @@ export async function authRoutes(app: FastifyInstance) {
             email: user.email,
             platformRole: user.platformRole,
           },
-          ssoProvenance?.authMethod ?? "PASSWORD",
+          // PRO-008 (AUTH-02) — a social primary stays SOCIAL_OAUTH through the
+          // second factor. Only the two non-SSO values gateLoginWithMfa signs
+          // are read; anything else is the password ceremony, as before.
+          ssoProvenance?.authMethod ??
+            (pendingPayload.authMethod === "SOCIAL_OAUTH" ? "SOCIAL_OAUTH" : "PASSWORD"),
         ),
         ...(ssoProvenance
           ? { authAt: ssoProvenance.authAt, ssoConnId: ssoProvenance.ssoConnId }

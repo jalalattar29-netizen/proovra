@@ -183,6 +183,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281113000100_artifact_publication_intent_digest",
       // REPORT-013: a share link's view session (one nullable column). EXPAND.
       "20281114000700_verification_share_view_session",
+      // PRO-034: Google/Apple id_tokens bound to a server-issued nonce, used once. EXPAND.
+      "20281114100000_social_sign_in_nonces",
       // MOBILE-002: the native app's SSO hand-off (PKCE challenge, single-use code). EXPAND.
       "20281118070000_sso_native_handoffs",
       // REPORT-004: a record's first outputs held by the output policy (three nullable columns). EXPAND.

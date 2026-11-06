@@ -282,6 +282,17 @@ export async function executeAccountClosure(
       where: { userId, unlinkedAtUtc: null },
       data: { unlinkedAtUtc: now },
     });
+    // PRO-011 (AUTH-05) — so is a password-reset link still in someone's
+    // mailbox: it would set a password and reopen the account while a hold
+    // defers anonymisation. Outstanding links and verification links end here.
+    await tx.passwordResetToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: now },
+    });
+    await tx.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: now },
+    });
     await tx.user.update({
       where: { id: userId },
       data: {

@@ -3887,6 +3887,14 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.platform_backup_records') IS NOT NULL;\"",
       "evidence": "OPS-004 (2026-11-01). New append-only table written by the backup schedule, so the readiness posture reports recorded runs and not an assumption from DATABASE_URL. No existing row is touched."
     },
+    "20281114100000_social_sign_in_nonces": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT to_regclass('public.social_sign_in_nonces') IS NOT NULL;\"",
+      "evidence": "PRO-034 (2026-11-04). New table of hashed, server-issued sign-in nonces and single-use records of nonce-less id_tokens, so a Google or Apple id_token is accepted once and only for an attempt the API started. No existing row is touched."
+    },
     "20281108000100_subprocessor_name_per_workspace": {
       "classification": "REPAIR",
       "releaseWave": "SAFE_TO_APPLY_NOW",

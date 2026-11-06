@@ -12,10 +12,11 @@ import { describe, expect, it } from "vitest";
 const API = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FAMILY = /^(SSO|SCIM|SAML|SESSION|MFA|RBAC|ADAPTIVE)_[A-Z0-9_]+$/;
 /**
- * SSO_ENABLED and SCIM_ENABLED are the two still undecided: deployments carry them
- * with different values, so wiring them could switch off a working connection.
+ * Round 3 (2026-11-04) — the last two are decided. SCIM_ENABLED is wired as the
+ * /v2/scim kill switch (on unless "false", like SAML_ENABLED and
+ * SSO_CALLBACKS_ENABLED). SSO_ENABLED stays out: those two already switch OIDC
+ * and SAML, and a third name nothing reads is not a control.
  */
-const AWAITING_DECISION = new Set(["SSO_ENABLED", "SCIM_ENABLED"]);
 
 function sources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -34,7 +35,17 @@ describe("identity environment flags", () => {
       .filter((name): name is string => !!name && FAMILY.test(name));
     expect(documented.length).toBeGreaterThan(0);
     const code = sources(join(API, "src")).map((file) => readFileSync(file, "utf8")).join("\n");
-    const unread = documented.filter((name) => !AWAITING_DECISION.has(name) && !code.includes(name));
+    const unread = documented.filter((name) => !code.includes(name));
     expect(unread).toEqual([]);
+  });
+
+  it("the identity kill switches are documented and read; SSO_ENABLED is not documented", () => {
+    const example = readFileSync(join(API, ".env.example"), "utf8");
+    for (const name of ["SAML_ENABLED", "SSO_CALLBACKS_ENABLED", "SCIM_ENABLED"]) {
+      expect(example, name).toMatch(new RegExp(`^${name}=`, "m"));
+    }
+    expect(example).not.toMatch(/^#?\s*SSO_ENABLED=/m);
+    const scim = readFileSync(join(API, "src", "routes", "scim.routes.ts"), "utf8");
+    expect(scim).toMatch(/process\.env\["SCIM_ENABLED"\] !== "false"/);
   });
 });

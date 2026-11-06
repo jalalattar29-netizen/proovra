@@ -3829,6 +3829,28 @@ model UserIdentityLink {
   @@map("user_identity_links")
 }
 
+// PRO-034 (AUTH-28) — a Google or Apple id_token is accepted once, for an
+// attempt this API started. ISSUED rows are nonces handed to a sign-in or link
+// attempt (consumed by the id_token that carries the nonce); TOKEN_USE rows are
+// the single use of a nonce-less id_token from an older native build, keyed by
+// the token's hash. Hashes only. Migration 20281114100000_social_sign_in_nonces.
+model SocialSignInNonce {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nonceHash     String    @unique @map("nonce_hash") @db.VarChar(64)
+  /// GOOGLE | APPLE
+  provider      String    @db.VarChar(16)
+  /// ISSUED | TOKEN_USE
+  purpose       String    @db.VarChar(16)
+  /// sha256 of the browser-binding cookie set with a web nonce; null otherwise.
+  bindingHash   String?   @map("binding_hash") @db.VarChar(64)
+  createdAtUtc  DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  expiresAtUtc  DateTime  @map("expires_at_utc") @db.Timestamptz(6)
+  consumedAtUtc DateTime? @map("consumed_at_utc") @db.Timestamptz(6)
+
+  @@index([expiresAtUtc])
+  @@map("social_sign_in_nonces")
+}
+
 // Lifecycle Phase 4 (2026-07-17) — personal account data export.
 //
 // ACCOUNT-level privacy export, universal across every plan (privacy

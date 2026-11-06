@@ -8,6 +8,11 @@
  *                                             account (step-up; NOT recovery)
  *   DELETE /v1/identity/links/:id           — unlink a method (step-up +
  *                                             last-usable-method protection)
+ *   POST   /v1/auth/oauth/nonce             — PRO-034: the nonce a Google or
+ *                                             Apple ceremony signs into its
+ *                                             id_token, for ONE sign-in or link
+ *                                             attempt (public, rate-limited;
+ *                                             no account or tenant yet)
  *
  * Security model:
  *   - PERSONAL methods only (password / Google / Apple). Organization
@@ -48,6 +53,8 @@ import { getAuthUserId } from "../auth.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
+  detachedLegacySubject,
+  isDetachedLegacySubject,
   verifyGoogleIdToken,
   verifyAppleIdToken,
 } from "../services/auth.service.js";
@@ -60,6 +67,13 @@ import {
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import {
+  bindIdTokenToAttempt,
+  issueSocialSignInNonce,
+  SOCIAL_NONCE_TTL_SECONDS,
+} from "../services/auth/social-sign-in-nonce.service.js";
+import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 
 const LinkBody = z.object({
@@ -79,6 +93,9 @@ const PasswordBody = z.object({
 });
 
 const LinkIdParams = z.object({ id: z.string().uuid() });
+
+/** A concurrent add-password already set one; the guarded write found none to fill. */
+class PasswordAlreadySetError extends Error {}
 
 async function requireStepUp(
   req: FastifyRequest,
@@ -155,6 +172,8 @@ async function linkProviderIdentity(
     provider: prismaPkg.AuthProvider;
     providerUserId: string;
     email?: string | null;
+    emailVerified?: boolean;
+    binding?: { nonce: string | null; iat: number; exp: number };
   }>,
 ) {
   const userId = getAuthUserId(req);
@@ -173,42 +192,85 @@ async function linkProviderIdentity(
     return reply.code(400).send({ error: { code: "invalid_id_token" } });
   }
 
-  if (await identityBelongsElsewhere(provider, profile.providerUserId, userId)) {
+  const conflict = () =>
     // No merge, no hint about the owning account.
-    return reply.code(409).send({
+    reply.code(409).send({
       error: {
         code: "identity_already_linked",
         message:
           "This identity is already connected to a different PROOVRA account.",
       },
     });
+
+  if (await identityBelongsElsewhere(provider, profile.providerUserId, userId)) {
+    return conflict();
   }
 
-  // Upsert is the concurrency guard: a simultaneous duplicate link attempt
-  // lands on the DB unique and resolves to the same row.
-  const link = await prisma.userIdentityLink.upsert({
+  // PRO-034 (AUTH-28) — a link answers one attempt this API started, once,
+  // exactly as a sign-in does.
+  const bound = profile.binding
+    ? await bindIdTokenToAttempt(req, {
+        provider: provider === prismaPkg.AuthProvider.GOOGLE ? "GOOGLE" : "APPLE",
+        idToken: body.idToken,
+        claims: profile.binding,
+      })
+    : ({ ok: false, reason: "nonce_required" } as const);
+  if (!bound.ok) {
+    return reply.code(400).send({ error: { code: "invalid_id_token", reason: bound.reason } });
+  }
+
+  const fields = {
+    normalizedEmail: profile.email?.toLowerCase() ?? null,
+    providerEmailVerified: profile.emailVerified === true,
+  };
+  /*
+   * PRO-009 (AUTH-03) — THE LINK BELONGS TO THE ACCOUNT THAT LINKS IT.
+   *
+   * The row is unique per provider identity and outlives an unlink as a
+   * REVOKED record. Re-linking used to flip that row back to ACTIVE without
+   * touching its owner, so after A unlinked Google, B "linking" it re-activated
+   * A's row and Google sign-in landed in A. The claim is now one guarded write:
+   * the row is taken only while it is this caller's own or REVOKED, and it is
+   * re-owned by the caller. An ACTIVE row of another account is never touched,
+   * even when it went ACTIVE after the check above (it answers 409).
+   */
+  const now = new Date();
+  const claimed = await prisma.userIdentityLink.updateMany({
     where: {
-      user_identity_links_provider_subject_uniq: {
-        provider,
-        providerSubjectId: profile.providerUserId,
-      },
-    },
-    update: {
-      status: "ACTIVE",
-      revokedAtUtc: null,
-      normalizedEmail: profile.email?.toLowerCase() ?? null,
-      providerEmailVerified: Boolean(profile.email),
-    },
-    create: {
-      userId,
       provider,
       providerSubjectId: profile.providerUserId,
-      normalizedEmail: profile.email?.toLowerCase() ?? null,
-      providerEmailVerified: Boolean(profile.email),
-      status: "ACTIVE",
+      OR: [{ userId }, { status: "REVOKED" }],
     },
+    data: {
+      userId,
+      status: "ACTIVE",
+      revokedAtUtc: null,
+      linkedAtUtc: now,
+      ...fields,
+    },
+  });
+  if (claimed.count === 0) {
+    try {
+      await prisma.userIdentityLink.create({
+        data: {
+          userId,
+          provider,
+          providerSubjectId: profile.providerUserId,
+          status: "ACTIVE",
+          ...fields,
+        },
+      });
+    } catch (err) {
+      // The DB unique: another account holds this identity ACTIVE.
+      if ((err as { code?: unknown })?.code === "P2002") return conflict();
+      throw err;
+    }
+  }
+  const link = await prisma.userIdentityLink.findFirst({
+    where: { provider, providerSubjectId: profile.providerUserId, userId, status: "ACTIVE" },
     select: { id: true, provider: true, linkedAtUtc: true },
   });
+  if (!link) return conflict();
 
   auditIdentityEvent(req, userId, "identity.login_method_linked", {
     provider,
@@ -219,6 +281,39 @@ async function linkProviderIdentity(
 }
 
 export async function identityLinksRoutes(app: FastifyInstance) {
+  // ---------------------------------------------------------------------
+  // POST /v1/auth/oauth/nonce — PRO-034 (AUTH-28). Issued before the
+  // provider prompt; the sign-in (/v1/auth/google|apple) or the link below
+  // that presents the resulting id_token consumes it once. Public, so
+  // rate-limited per trusted client address like the other public auth routes.
+  // ---------------------------------------------------------------------
+  app.post("/v1/auth/oauth/nonce", async (req: FastifyRequest, reply: FastifyReply) => {
+    const rl = await enforceRateLimit({
+      key: `auth:oauth-nonce:ip:${trustedClientIpKey(req).slice(0, 200)}`,
+      bound: "global",
+      max: 30,
+      windowSec: 60,
+    });
+    if (!rl.allowed) {
+      return reply
+        .code(429)
+        .header("Retry-After", String(Math.max(1, Math.ceil((rl.resetAtMs - Date.now()) / 1000))))
+        .send({ error: { code: "RATE_LIMITED", message: "Too many requests. Try again shortly." } });
+    }
+    const parsed = z.object({ provider: z.enum(["google", "apple"]) }).safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: { code: "INVALID_REQUEST", message: "provider must be google or apple." } });
+    }
+    const issued = await issueSocialSignInNonce(
+      req,
+      reply,
+      parsed.data.provider === "google" ? "GOOGLE" : "APPLE",
+    );
+    return reply.code(200).send({ nonce: issued.nonce, expiresInSeconds: SOCIAL_NONCE_TTL_SECONDS });
+  });
+
   // ---------------------------------------------------------------------
   // GET /v1/identity/links — the account's login methods.
   // ---------------------------------------------------------------------
@@ -246,13 +341,24 @@ export async function identityLinksRoutes(app: FastifyInstance) {
       // Legacy compatibility: an OAuth account created before the link
       // model whose link row is missing (backfill covers this, but fail
       // safe) is still surfaced read-only from the legacy pair.
+      // A pair detached by an unlink is no longer a way in, and a pair whose
+      // link row exists in any state is represented by that row.
+      const legacyPairLinkRow =
+        me && (me.provider === "GOOGLE" || me.provider === "APPLE")
+          ? await prisma.userIdentityLink.findUnique({
+              where: {
+                user_identity_links_provider_subject_uniq: {
+                  provider: me.provider,
+                  providerSubjectId: me.providerUserId,
+                },
+              },
+              select: { id: true },
+            })
+          : null;
       const hasLegacyOnly =
         (me?.provider === "GOOGLE" || me?.provider === "APPLE") &&
-        !links.some(
-          (l) =>
-            l.provider === me.provider &&
-            true /* subject match implied by backfill uniqueness */,
-        );
+        !isDetachedLegacySubject(me.providerUserId) &&
+        !legacyPairLinkRow;
       const passwordConfigured = Boolean(me?.passwordHash);
       const usableMethods =
         links.length + (passwordConfigured ? 1 : 0) + (hasLegacyOnly ? 1 : 0);
@@ -311,7 +417,7 @@ export async function identityLinksRoutes(app: FastifyInstance) {
 
       const me = await prisma.user.findUnique({
         where: { id: userId },
-        select: { passwordHash: true },
+        select: { passwordHash: true, provider: true, providerUserId: true, email: true },
       });
       if (me?.passwordHash) {
         return reply.code(409).send({
@@ -331,10 +437,102 @@ export async function identityLinksRoutes(app: FastifyInstance) {
           },
         });
       }
-      await prisma.user.update({
-        where: { id: userId },
-        data: { passwordHash: hashPassword(body.newPassword) },
-      });
+      /*
+       * PRO-010 (AUTH-04) — A PASSWORD ADDED HERE MUST SIGN IN.
+       *
+       * Email sign-in resolves the account by its (EMAIL, address) pair. An
+       * account Google or Apple created carries that provider's pair instead,
+       * so the hash was stored on a row email sign-in can never reach (401).
+       * Adding the password now makes the account an email account: the pair
+       * becomes (EMAIL, address), and the provider identity that created it is
+       * kept as an ACTIVE login-method link, so that provider still signs in
+       * here (and an unlink of it now actually ends that). This is the same
+       * conversion a password reset already performs. Refused when the account
+       * has no address to sign in with, or another account already owns the
+       * address as an email account — never a silent second owner.
+       */
+      const legacyOAuth =
+        me && (me.provider === "GOOGLE" || me.provider === "APPLE")
+          ? { provider: me.provider, subject: me.providerUserId }
+          : null;
+      const address = me?.email ? me.email.trim().toLowerCase() : null;
+      if (legacyOAuth && !address) {
+        return reply.code(409).send({
+          error: {
+            code: "password_requires_email",
+            message: "This account has no email address to sign in with a password.",
+          },
+        });
+      }
+      if (legacyOAuth && address) {
+        const holder = await prisma.user.findFirst({
+          where: { provider: "EMAIL", providerUserId: address, id: { not: userId } },
+          select: { id: true },
+        });
+        if (holder) {
+          return reply.code(409).send({
+            error: {
+              code: "email_account_exists",
+              message:
+                "Another PROOVRA account already signs in with this email address.",
+            },
+          });
+        }
+      }
+      try {
+        await prisma.$transaction(async (tx) => {
+          if (legacyOAuth && address && !isDetachedLegacySubject(legacyOAuth.subject)) {
+            await tx.userIdentityLink.upsert({
+              where: {
+                user_identity_links_provider_subject_uniq: {
+                  provider: legacyOAuth.provider,
+                  providerSubjectId: legacyOAuth.subject,
+                },
+              },
+              // An existing row of this account keeps its status: an unlinked
+              // identity stays unlinked.
+              update: {},
+              create: {
+                userId,
+                provider: legacyOAuth.provider,
+                providerSubjectId: legacyOAuth.subject,
+                normalizedEmail: address,
+                providerEmailVerified: true,
+                status: "ACTIVE",
+              },
+            });
+          }
+          const written = await tx.user.updateMany({
+            where: { id: userId, passwordHash: null },
+            data: {
+              passwordHash: hashPassword(body.newPassword),
+              ...(legacyOAuth && address
+                ? { provider: "EMAIL", providerUserId: address }
+                : {}),
+            },
+          });
+          if (written.count === 0) throw new PasswordAlreadySetError();
+        });
+      } catch (err) {
+        if (err instanceof PasswordAlreadySetError) {
+          return reply.code(409).send({
+            error: {
+              code: "password_already_set",
+              message: "A password already exists. Use Change password instead.",
+            },
+          });
+        }
+        if ((err as { code?: unknown })?.code === "P2002") {
+          return reply.code(409).send({
+            error: {
+              code: "email_account_exists",
+              message:
+                "Another PROOVRA account already signs in with this email address.",
+            },
+          });
+        }
+        throw err;
+      }
       // Closure reconciliation (N-6) — a new password is a security change
       // like a changed one: no approval granted before it is spent after it.
       await cancelOutstandingStepUpChallenges(userId);
@@ -365,7 +563,7 @@ export async function identityLinksRoutes(app: FastifyInstance) {
       // never an authorization oracle.
       const target = await prisma.userIdentityLink.findFirst({
         where: { id: params.id, userId, status: "ACTIVE" },
-        select: { id: true, provider: true },
+        select: { id: true, provider: true, providerSubjectId: true },
       });
       if (!target) {
         return reply.code(404).send({ error: { code: "link_not_found" } });
@@ -391,9 +589,30 @@ export async function identityLinksRoutes(app: FastifyInstance) {
         });
       }
 
-      await prisma.userIdentityLink.update({
-        where: { id: target.id },
-        data: { status: "REVOKED", revokedAtUtc: new Date() },
+      /*
+       * PRO-010 (AUTH-04) — AN UNLINK ENDS THE IDENTITY'S WAY IN.
+       *
+       * Sign-in resolves an account by its own (provider, subject) pair before
+       * it looks at links, so revoking the link of an account that provider
+       * CREATED changed nothing: the next sign-in found the row by its pair and
+       * re-activated the link. The pair is now detached in the same transaction
+       * (`detachedLegacySubject`): it can never equal a provider subject again,
+       * so the identity resolves to this account only if it is linked again.
+       */
+      const revokedAt = new Date();
+      await prisma.$transaction(async (tx) => {
+        await tx.userIdentityLink.update({
+          where: { id: target.id },
+          data: { status: "REVOKED", revokedAtUtc: revokedAt },
+        });
+        await tx.user.updateMany({
+          where: {
+            id: userId,
+            provider: target.provider,
+            providerUserId: target.providerSubjectId,
+          },
+          data: { providerUserId: detachedLegacySubject(target.id) },
+        });
       });
       auditIdentityEvent(req, userId, "identity.login_method_unlinked", {
         provider: target.provider,

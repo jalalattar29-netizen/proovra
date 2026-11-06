@@ -928,6 +928,8 @@ export async function exchangeCodeForVerifiedIdToken(input: {
   sub: string;
   acr: string | null;
   authTime: Date | null;
+  /** PRO-025 — the id_token's `email_verified`, or null when it does not say. */
+  emailVerified: boolean | null;
   accessToken: string;
   discovery: OidcDiscovery;
 }> {
@@ -1006,6 +1008,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
   let idTokenSub: string;
   let acr: string | null = null;
   let authTime: Date | null = null;
+  let emailVerified: boolean | null = null;
   try {
     await assertIdpUrlAllowed(discovery.jwks_uri);
     const { payload } = await jwtVerify(
@@ -1024,6 +1027,7 @@ export async function exchangeCodeForVerifiedIdToken(input: {
       throw new Error("nonce_mismatch");
     }
     idTokenSub = payload.sub;
+    emailVerified = emailVerifiedClaim(payload["email_verified"]);
     const rawAcr = payload["acr"];
     acr = typeof rawAcr === "string" && rawAcr.length > 0 ? rawAcr.slice(0, 256) : null;
     const rawAuthTime = payload["auth_time"];
@@ -1050,9 +1054,17 @@ export async function exchangeCodeForVerifiedIdToken(input: {
     sub: idTokenSub,
     acr,
     authTime,
+    emailVerified,
     accessToken: tokenJson.access_token,
     discovery,
   };
+}
+
+/** `email_verified` as the IdP stated it: true, false, or not stated (null). */
+function emailVerifiedClaim(claim: unknown): boolean | null {
+  if (claim === true || claim === "true") return true;
+  if (claim === false || claim === "false") return false;
+  return null;
 }
 
 export type OidcCallbackResult = {
@@ -1119,6 +1131,8 @@ export async function handleOidcCallback(
   });
   const idTokenSub = verified.sub;
   const tokenJson = { access_token: verified.accessToken };
+  // PRO-025 — the IdP's own word on the address, id_token first, then userinfo.
+  let emailVerified: boolean | null = verified.emailVerified;
   const discovery = verified.discovery;
 
   // ---- Userinfo ----
@@ -1136,6 +1150,9 @@ export async function handleOidcCallback(
       email?: string;
       name?: string;
     };
+    if (emailVerified === null) {
+      emailVerified = emailVerifiedClaim((uiRes.body as { email_verified?: unknown } | null)?.email_verified);
+    }
   } catch (err) {
     if (err instanceof SsoServiceError) throw err;
     bump("sso_login_failure_total");
@@ -1322,6 +1339,42 @@ export async function handleOidcCallback(
       }
       if (await isAccountClosed(existingUser.id, client)) {
         throw new SsoServiceError("SSO_ACCOUNT_LINK_DENIED", { reason: "account_closed" });
+      }
+    } else {
+      /*
+       * IDENT-013 / PRO-025 (AUTH-19) — A NEW ACCOUNT ONLY FOR A PROVEN ADDRESS.
+       *
+       * Creating a user is now held to the rule linking one already was: the
+       * address's domain is DNS-verified by this connection's Organization and
+       * claimed by no other. An IdP that may assert any address — including one
+       * it marks `email_verified: false` — used to create a row for it and keep
+       * signing in to it, ahead of the address's real owner. Within a proved
+       * domain the Organization is the authority over its addresses; an IdP
+       * that still says the address is unverified is refused all the same.
+       */
+      if (emailVerified === false) {
+        bump("sso_jit_denied_total");
+        safeEmitSecurityEvent({
+          teamId: conn.teamId,
+          eventType: "sso_jit_denied",
+          severity: "WARNING",
+          details: { connectionId: conn.id, reason: "email_not_verified_by_idp" },
+        });
+        throw new SsoServiceError("SSO_JIT_DISABLED", { reason: "email_not_verified_by_idp" });
+      }
+      const creation = await evaluateExistingAccountLink(
+        { teamId: conn.teamId, email: userinfo.email },
+        client,
+      );
+      if (!creation.ok) {
+        bump("sso_jit_denied_total");
+        safeEmitSecurityEvent({
+          teamId: conn.teamId,
+          eventType: "sso_jit_denied",
+          severity: "WARNING",
+          details: { connectionId: conn.id, reason: `unproven_domain:${creation.reason}` },
+        });
+        throw new SsoServiceError("SSO_DOMAIN_NOT_VERIFIED", { reason: creation.reason });
       }
     }
 

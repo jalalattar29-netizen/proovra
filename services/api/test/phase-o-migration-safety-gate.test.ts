@@ -349,6 +349,9 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // PLATFORM BACKUP RECORDS (2026-11-01) — a brand new table with no prior
     // state to mask. It is committed, and a committed migration is not edited.
     "20281107000300_platform_backup_records": new Set(["CREATE_TABLE_IF_NOT_EXISTS"]),
+    // SOCIAL SIGN-IN NONCES (2026-11-04, PRO-034) - a brand new table with no
+    // prior state to mask, the same shape as platform_backup_records.
+    "20281114100000_social_sign_in_nonces": new Set(["CREATE_TABLE_IF_NOT_EXISTS"]),
     // VERIFICATION PACKAGE PROFILE ROWS (2026-10-07) — ONE guarded DROP INDEX
     // retires the (evidence_id, version) unique key so a version can hold its
     // FULL_FORENSIC and EXTERNAL_DISCLOSURE rows. The two partial keys that

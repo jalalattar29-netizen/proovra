@@ -63,6 +63,17 @@ export async function enterpriseTenantMaker(h: IntegrationHarness): Promise<() =
     await prisma.organizationSecurityPolicy.create({
       data: { organizationId: organization.id, teamId: team.id } as never,
     });
+    // IDENT-013 — a directory creates accounts only in a domain its Organization
+    // verified; the sweep's SCIM rows use this one (write-sweep-token-hints).
+    await prisma.organizationDomain.create({
+      data: {
+        organizationId: organization.id,
+        domain: sweepDirectoryDomain(organization.id),
+        verificationToken: `sweep-${kit.tag()}`,
+        verifiedAt: new Date(),
+        createdByUserId: owner.id,
+      } as never,
+    });
     await prisma.teamMember.create({ data: { teamId: team.id, userId: owner.id, role: "OWNER", status: "ACTIVE" } as never });
     await prisma.user.update({ where: { id: owner.id }, data: { currentWorkspaceId: team.id } as never });
     const [approver, admin, admin2, member, viewer] = await Promise.all([
@@ -154,3 +165,7 @@ export async function buildSweepWorld(h: IntegrationHarness): Promise<WriteSweep
     hints: WRITE_SWEEP_HINTS,
   });
 }
+
+/** IDENT-013 — the verified domain every sweep tenant holds for its directory users. */
+export const sweepDirectoryDomain = (organizationId: string): string =>
+  `sweep-${organizationId.slice(0, 8)}-${organizationId.slice(-4)}.verified.example`;

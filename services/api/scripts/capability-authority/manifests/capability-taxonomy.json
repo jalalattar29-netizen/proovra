@@ -611,6 +611,12 @@
       "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
     },
     {
+      "capabilityId": "POST:/v1/auth/oauth/nonce",
+      "routeId": "POST /v1/auth/oauth/nonce",
+      "vertical": "PLATFORM_CORE",
+      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
+    },
+    {
       "capabilityId": "POST:/v1/auth/sso/discover",
       "routeId": "POST /v1/auth/sso/discover",
       "vertical": "ENTERPRISE_IDENTITY_SECURITY",

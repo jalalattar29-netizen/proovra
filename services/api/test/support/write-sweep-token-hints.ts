@@ -5,6 +5,7 @@
  * token in the path, a portal session. Each credential is minted on its own side, so
  * the attacker's is a valid credential of the wrong tenant.
  */
+import { sweepDirectoryDomain } from "./write-sweep-world.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { Actor, RouteHint, RowSet } from "./write-sweep-engine.js";
@@ -65,7 +66,8 @@ async function apiKey(s: RowSet, scopes: string[]): Promise<Record<string, strin
 
 const SCIM: Partial<RouteHint> = { klass: "token", credential: scimToken };
 
-const scimUser = () => `sweep-${randomUUID().slice(0, 8)}@test.proovra.local`;
+// IDENT-013 — in the tenant's verified directory domain (write-sweep-world).
+const scimUser = (s: RowSet) => `sweep-${randomUUID().slice(0, 8)}@${sweepDirectoryDomain(s.tenant.orgId)}`;
 
 /** A provisioned person of this tenant, by the SCIM service itself. */
 const scimUserRow = async (s: RowSet): Promise<void> => {
@@ -74,7 +76,7 @@ const scimUserRow = async (s: RowSet): Promise<void> => {
     url: "/v2/scim/Users",
     headers: await scimToken(s),
     payload: (() => {
-      const userName = scimUser();
+      const userName = scimUser(s);
       return { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"], userName, emails: [{ value: userName, primary: true }], active: true };
     })(),
   });
@@ -218,7 +220,7 @@ export const REQUIRED_RECIPES: Record<string, RouteHint> = {
     body: {
       schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
       userName: (s: RowSet) => {
-        const name = scimUser();
+        const name = scimUser(s);
         s.put("ScimName", name);
         return name;
       },

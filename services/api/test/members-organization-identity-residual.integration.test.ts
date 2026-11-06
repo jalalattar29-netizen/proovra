@@ -94,9 +94,14 @@ describe("DOM-13 residual — Organization-scoped readers, merged groups, rows t
   }
 
   /** An Enterprise Organization with two open Workspaces. */
+  /** IDENT-013 — each Organization's verified domain; directory emails live in it. */
+  const orgDomains = new Map<string, string>();
+
   async function organization() {
     const t = await fixtures.seedOrganizationTenant(deps());
     const w2 = await workspace(t.organizationId, t.owner.userId);
+    // IDENT-013 — a directory creates accounts only in a verified domain.
+    orgDomains.set(t.organizationId, await fixtures.verifyOrganizationDomain(deps(), t.organizationId, t.owner.userId));
     return { orgId: t.organizationId, w1: t.workspaceId, w2, owner: t.owner };
   }
 
@@ -109,7 +114,7 @@ describe("DOM-13 residual — Organization-scoped readers, merged groups, rows t
   }
 
   async function pushUser(ctx: Awaited<ReturnType<typeof directory>>, externalId: string) {
-    const email = `dom13r-${tag()}@example.test`;
+    const email = `dom13r-${tag()}@${orgDomains.get(ctx.organizationId) ?? "example.test"}`;
     const out = await scim.scimCreateUser(
       ctx,
       { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"], userName: email, externalId, emails: [{ value: email, primary: true }], active: true } as never,

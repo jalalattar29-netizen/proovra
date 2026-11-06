@@ -17,19 +17,32 @@ import { isSealedText, openSealedText } from "../security/sealed-text.js";
  * POSTs the SAMLResponse to).
  */
 export function samlAcsUrl(req: FastifyRequest): string {
+  void req;
   // OPS-014 — the same names, in the same order, as the boot guard, so the value
   // it validates is the value used here.
   const env = process.env["SAML_SP_ACS_URL"] || process.env["SAML_ACS_URL"];
   if (env) return env;
-  const proto = (req.headers["x-forwarded-proto"] as string) || "https";
-  const host = req.headers["host"] ?? "";
-  return `${proto}://${host}/v1/auth/saml/acs`;
+  // PRO-036 (AUTH-30) — never from the request's Host header (see below).
+  return `${apiPublicBaseUrl()}/v1/auth/saml/acs`;
+}
+
+/**
+ * PRO-036 (AUTH-30) — the API's own public origin, from configuration: the
+ * value the SP entityID has always used. The SP-side endpoints were built from
+ * the request's `Host` / `X-Forwarded-Proto` headers when their own variables
+ * were unset, so a request with `Host: evil.invalid` sent the IdP a
+ * redirect_uri (and an ACS URL, which the Destination/Recipient check compares
+ * against) on a host the caller chose. Headers are the caller's; configuration
+ * is the operator's.
+ */
+function apiPublicBaseUrl(): string {
+  const base = process.env["API_BASE_URL"] || "https://api.proovra.com";
+  return base.replace(/\/+$/, "");
 }
 
 /** The SP entityID for a connection: {apiBaseUrl}/saml/sp/{connectionId}. */
 export function samlSpEntityId(connectionId: string): string {
-  const base = process.env["API_BASE_URL"] ?? "https://api.proovra.com";
-  return `${base.replace(/\/$/, "")}/saml/sp/${connectionId}`;
+  return `${apiPublicBaseUrl()}/saml/sp/${connectionId}`;
 }
 
 /**
@@ -56,12 +69,12 @@ export function samlSpSigningKey(connectionPrivateKey: string | null | undefined
 
 /** The OIDC redirect URI registered with the IdP (the callback route). */
 export function oidcRedirectUri(req: FastifyRequest): string {
-  // Production: build from request host. Dev: env override allowed.
+  void req;
+  // The explicit value when set; otherwise the API's configured public origin.
+  // PRO-036 (AUTH-30) — never the request's Host header.
   const env = process.env["SSO_CALLBACK_REDIRECT_URI"];
   if (env) return env;
-  const proto = (req.headers["x-forwarded-proto"] as string) || "https";
-  const host = req.headers["host"] ?? "";
-  return `${proto}://${host}/v1/auth/sso/callback`;
+  return `${apiPublicBaseUrl()}/v1/auth/sso/callback`;
 }
 
 /**

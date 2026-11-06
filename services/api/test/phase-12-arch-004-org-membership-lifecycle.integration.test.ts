@@ -396,6 +396,17 @@ describe("§2 — ARCH-004: Organization membership has an auditable lifecycle",
       },
       update: { status: "ACTIVE" },
     });
+    // PRO-014 — a directory deprovisions only people it provisioned: the
+    // subject carries this Organization's directory link.
+    await prisma.externalIdentityMapping.create({
+      data: {
+        teamId: workspaceA,
+        organizationId,
+        userId: subjectUserId,
+        provider: "GENERIC_SCIM",
+        externalSubjectId: `arch004-${randomUUID()}`,
+      },
+    });
 
     await scim.scimDeactivateUser(
       { teamId: workspaceA, organizationId, tokenId: randomUUID(), baseUrl: "https://local.test" },

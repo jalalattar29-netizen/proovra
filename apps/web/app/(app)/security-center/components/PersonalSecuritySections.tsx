@@ -747,8 +747,10 @@ function LoginMethodsCard({
   const connectGoogle = useCallback(async () => {
     setError(null);
     try {
-      const { loadGoogleIdentity } = await import("../../../../lib/oauth");
+      const { fetchSocialSignInNonce, loadGoogleIdentity } = await import("../../../../lib/oauth");
       await loadGoogleIdentity();
+      // PRO-034 — the link answers one attempt the API started.
+      const nonce = await fetchSocialSignInNonce("google");
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
       const google = (
         window as unknown as {
@@ -770,6 +772,7 @@ function LoginMethodsCard({
       id.initialize({
         client_id: clientId,
         cancel_on_tap_outside: true,
+        nonce,
         callback: (response: { credential?: string }) => {
           if (!response.credential) {
             setError("Google did not return a credential.");
@@ -787,7 +790,7 @@ function LoginMethodsCard({
   const connectApple = useCallback(async () => {
     setError(null);
     try {
-      const { loadAppleIdentity } = await import("../../../../lib/oauth");
+      const { fetchSocialSignInNonce, loadAppleIdentity } = await import("../../../../lib/oauth");
       await loadAppleIdentity();
       const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "";
       const AppleID = (
@@ -811,6 +814,8 @@ function LoginMethodsCard({
         scope: "email",
         redirectURI: window.location.origin,
         usePopup: true,
+        // PRO-034 — the link answers one attempt the API started.
+        nonce: await fetchSocialSignInNonce("apple"),
       });
       const res = await AppleID.auth.signIn();
       const idToken = res.authorization?.id_token;

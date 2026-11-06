@@ -197,6 +197,23 @@ export async function completeSignInEnrollment(provingToken: string): Promise<Au
 
 /* ------------------------------------------------------------------ OAuth */
 
+/**
+ * PRO-034 — the nonce the API issues for ONE Google or Apple sign-in or link
+ * attempt. The provider signs it into the id_token and the API accepts that
+ * token once; fetch a fresh one for every attempt.
+ */
+export const OAUTH_NONCE_PATH = "/v1/auth/oauth/nonce";
+
+export async function fetchOAuthNonce(provider: "google" | "apple"): Promise<string> {
+  const data = (await publicFetch(OAUTH_NONCE_PATH, {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  })) as Record<string, unknown> | null;
+  const nonce = data?.["nonce"];
+  if (typeof nonce !== "string" || nonce.length === 0) throw new Error("oauth_nonce_unavailable");
+  return nonce;
+}
+
 export async function oauthGoogle(idToken: string): Promise<LoginResult> {
   return signInExchange("/v1/auth/google", { method: "POST", body: JSON.stringify({ idToken }) });
 }

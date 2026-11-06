@@ -302,8 +302,20 @@ describe("token-gated GET routes (live PostgreSQL, MinIO)", () => {
       return res.json().id as string;
     };
 
-    const newUser = async (raw: string) => {
-      const userName = `scim-${kit.tag()}@test.proovra.local`;
+    // IDENT-013 — a directory creates accounts only in a domain its
+    // Organization verified, so each customer gets one.
+    const newUser = async (raw: string, c: Customer) => {
+      const domain = `${kit.tag()}-${c.orgId.slice(0, 8)}.verified.example`.toLowerCase();
+      await prisma.organizationDomain.create({
+        data: {
+          organizationId: c.orgId,
+          domain,
+          verifiedAt: new Date(),
+          verificationToken: `cov-${kit.tag()}`,
+          createdByUserId: c.owner.userId,
+        } as never,
+      });
+      const userName = `scim-${kit.tag()}@${domain}`;
       const res = await kit.call("POST", "/v2/scim/Users", bearer(raw), {
         schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
         userName,
@@ -318,8 +330,8 @@ describe("token-gated GET routes (live PostgreSQL, MinIO)", () => {
       tokenB = await scimToken(b, ALL);
       groupA = await newGroup(tokenA.raw);
       groupB = await newGroup(tokenB.raw);
-      userA = await newUser(tokenA.raw);
-      userB = await newUser(tokenB.raw);
+      userA = await newUser(tokenA.raw, a);
+      userB = await newUser(tokenB.raw, b);
     });
 
     it("POSITIVE: a token reads its own users and groups", async () => {
