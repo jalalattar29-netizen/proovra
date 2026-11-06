@@ -199,9 +199,13 @@ describe("features round 3 closures (live PostgreSQL)", () => {
     expect(started.method).toBe("SMS");
 
     // The attack: six wrong codes for the colleague's number on the bare route.
+    // COMMS-VIEWER-SMS (commercial batch): the route now asks for
+    // identity.org_policy.manage, so a viewer is refused before any code is
+    // checked (403, not the 400 of a wrong code). Either way the colleague's
+    // challenge must be untouched — asserted below.
     for (let i = 0; i < 6; i += 1) {
       const burn = await req("POST", "/v1/communications/verify/check", A.viewerToken, { teamId: A.teamId, phone, code: "000000" });
-      expect(burn.statusCode).toBe(400);
+      expect(burn.statusCode, burn.body).toBe(403);
     }
     const challenge = await prisma.stepUpChallenge.findUnique({ where: { id: started.challenge.id }, select: { verificationAttemptId: true } });
     const attempt = await prisma.verificationAttempt.findUnique({ where: { id: challenge!.verificationAttemptId! } });
@@ -217,17 +221,23 @@ describe("features round 3 closures (live PostgreSQL)", () => {
     expect(ok.statusCode, ok.body).toBe(200);
 
     // The bare route still serves the caller's OWN verification (positive control),
-    // and a co-member cannot approve or spend it either.
+    // and a co-member cannot approve or spend it either. COMMS-VIEWER-SMS
+    // (commercial batch): the route belongs to policy managers
+    // (identity.org_policy.manage — OWNER, ADMIN), so the control runs as the
+    // owner; a co-member who MAY use the route (the ADMIN victim) still cannot
+    // spend the owner's verification, and a viewer is refused outright.
     const own = "+12025550178";
     const ownAlias = recorder.recipientAliasForPhone(own);
-    const s2 = await req("POST", "/v1/communications/verify/start", A.memberToken, { teamId: A.teamId, channel: "SMS", phone: own });
+    const s2 = await req("POST", "/v1/communications/verify/start", A.ownerToken, { teamId: A.teamId, channel: "SMS", phone: own });
     expect(s2.statusCode, s2.body).toBe(200);
     const ownCode = (recorder.recordedMessages() as ReadonlyArray<{ recipientAlias?: string; code?: string }>)
       .filter((m) => m.recipientAlias === ownAlias && m.code)
       .at(-1)?.code;
-    const other = await req("POST", "/v1/communications/verify/check", A.viewerToken, { teamId: A.teamId, phone: own, code: ownCode });
-    expect(other.statusCode).toBe(400);
-    const mine = await req("POST", "/v1/communications/verify/check", A.memberToken, { teamId: A.teamId, phone: own, code: ownCode });
+    const other = await req("POST", "/v1/communications/verify/check", victim.token, { teamId: A.teamId, phone: own, code: ownCode });
+    expect(other.statusCode, other.body).toBe(400);
+    const viewer = await req("POST", "/v1/communications/verify/check", A.viewerToken, { teamId: A.teamId, phone: own, code: ownCode });
+    expect(viewer.statusCode, viewer.body).toBe(403);
+    const mine = await req("POST", "/v1/communications/verify/check", A.ownerToken, { teamId: A.teamId, phone: own, code: ownCode });
     expect(mine.statusCode, mine.body).toBe(200);
     expect(json<{ status: string }>(mine).status).toBe("approved");
   });

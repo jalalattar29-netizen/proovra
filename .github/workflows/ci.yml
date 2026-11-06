@@ -990,7 +990,10 @@ jobs:
           # UC-ARCH-008 — the record reservation issues NO upload URL of its
           # own. The original is declared as part 0 and uploaded to that
           # part's presigned URL, the path every product channel uses.
-          req 201 POST "/v1/evidence/$id/parts" '{"partIndex":0,"mimeType":"text/plain","originalFileName":"ci-smoke.txt"}'
+          # PRO-051 — the part declares its size, signed as the upload's
+          # Content-Length: 16 = the bytes of "proovra-ci-smoke" written by
+          # `printf %s` below (no newline). Change both together.
+          req 201 POST "/v1/evidence/$id/parts" '{"partIndex":0,"mimeType":"text/plain","originalFileName":"ci-smoke.txt","sizeBytes":16}'
           put=$(field 'upload.putUrl')
           if [ -z "$put" ]; then
             echo "::error::part 0 of $id was declared but no upload URL was issued"

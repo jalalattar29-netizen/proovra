@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "044bd4f2bfb6bfa5fcd0a838737ef460410e34e89aa847d4cdd177c8eda5fd2c",
-  "consumerInventoryHash": "0a43affdd3a6bdcd704ef9e7cebbc641db97b01528c4f9c78128057ba8544282",
+  "consumerInventoryHash": "2a6321c51c82539258b103664d0515c191bc83ba9bbb7b4d97ff765306e66666",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1237,
@@ -2957,7 +2957,7 @@
       "route": "/v1/evidence/:id/report/latest",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/mobile/app/(stack)/evidence/[id].tsx:394",
-      "machineConsumer": "scripts/smoke-prod.mjs:85",
+      "machineConsumer": "scripts/smoke-prod.mjs:87",
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -10133,7 +10133,7 @@
       "route": "/v1/evidence/:id/complete",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:1006",
-      "machineConsumer": "scripts/smoke-prod.mjs:76",
+      "machineConsumer": "scripts/smoke-prod.mjs:78",
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -100336,8 +100336,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#apiCredential.updateMany@112",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:112",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#apiCredential.updateMany@127",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:127",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100371,8 +100371,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#externalReviewGrant.updateMany@120",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:120",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#externalReviewGrant.updateMany@135",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:135",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100406,8 +100406,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#team.updateMany@141",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:141",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#team.updateMany@144",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:144",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100441,8 +100441,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#teamActivity.create@178",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:178",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#teamActivity.create@181",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:181",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "executeWorkspaceClosure",
       "kind": "DATABASE",
@@ -100476,8 +100476,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#teamInvite.updateMany@108",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:108",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#teamInvite.updateMany@123",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:123",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100511,8 +100511,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#user.updateMany@136",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:136",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#user.updateMany@139",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:139",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100546,8 +100546,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#webhookEndpoint.updateMany@116",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:116",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#webhookEndpoint.updateMany@131",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:131",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100581,8 +100581,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workflowIntakeLink.updateMany@127",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:127",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workflowIntakeLink.updateMany@109",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:109",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "closeWorkspacesTx",
       "kind": "DATABASE",
@@ -100616,8 +100616,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.update@189",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:189",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.update@192",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:192",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "executeWorkspaceClosure",
       "kind": "DATABASE",
@@ -100651,8 +100651,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@226",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:226",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@229",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:229",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "recordWorkspaceClosureOutcome",
       "kind": "DATABASE",
@@ -100686,8 +100686,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@271",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:271",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@274",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:274",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "processWorkspaceClosures",
       "kind": "DATABASE",
@@ -100721,8 +100721,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@303",
-      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:303",
+      "writerId": "services/api/src/services/workspace/workspace-closure.service.ts#workspaceClosureRequest.updateMany@306",
+      "terminalLocation": "services/api/src/services/workspace/workspace-closure.service.ts:306",
       "file": "services/api/src/services/workspace/workspace-closure.service.ts",
       "enclosingDeclaration": "processWorkspaceClosures",
       "kind": "DATABASE",
@@ -121888,7 +121888,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/smoke-prod.mjs",
-          "line": 85,
+          "line": 87,
           "caller": "main",
           "class": "CLI",
           "primitive": "api"
@@ -165847,7 +165847,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/smoke-prod.mjs",
-          "line": 76,
+          "line": 78,
           "caller": "main",
           "class": "CLI",
           "primitive": "api"

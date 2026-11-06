@@ -100,6 +100,21 @@ export async function closeWorkspacesTx(
   // pvr_ reference and issued-report links are publication state and stay
   // governed by the record's own lifecycle.
   await revokeWorkspaceOwnerSharesTx(tx, { teamIds, actorUserId: input.actorUserId });
+  // PROV-007 — the leg this list was missing: a public link is an inbound
+  // channel too. Every intake call revalidates the link, so a session already
+  // open ends here with it, and its submitted evidence stays where it is.
+  // Revoked BEFORE the memberships, like the owner shares above: since
+  // INGEST-010 a member's removal also ends the intake links they created
+  // (reason creator_removed), and the reason recorded here is the closure.
+  await tx.workflowIntakeLink.updateMany({
+    where: { teamId: { in: teamIds }, status: "ACTIVE" },
+    data: {
+      status: "REVOKED",
+      revokedAtUtc: now,
+      revokedReason: "workspace_closed",
+      ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}),
+    },
+  });
   const revoked = await massRevokeWorkspaceMemberships(tx, {
     where: { teamIds },
     actorUserId: input.actorUserId,
@@ -120,18 +135,6 @@ export async function closeWorkspacesTx(
   await tx.externalReviewGrant.updateMany({
     where: { teamId: { in: teamIds }, state: { in: ["INVITED", "ACTIVE"] } },
     data: { state: "REVOKED", revokedAtUtc: now, ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}) },
-  });
-  // PROV-007 — the leg this list was missing: a public link is an inbound
-  // channel too. Every intake call revalidates the link, so a session already
-  // open ends here with it, and its submitted evidence stays where it is.
-  await tx.workflowIntakeLink.updateMany({
-    where: { teamId: { in: teamIds }, status: "ACTIVE" },
-    data: {
-      status: "REVOKED",
-      revokedAtUtc: now,
-      revokedReason: "workspace_closed",
-      ...(input.actorUserId ? { revokedByUserId: input.actorUserId } : {}),
-    },
   });
   await tx.user.updateMany({
     where: { currentWorkspaceId: { in: teamIds } },
