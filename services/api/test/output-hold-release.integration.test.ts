@@ -140,13 +140,16 @@ describe("REPORT-004 held outputs (live PostgreSQL 16)", () => {
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "PHOTO", mimeType: "image/jpeg", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
+    // PRO-051: every part declares its size, signed as the upload's Content-Length.
+    const bytes = Buffer.from(`held-${randomBytes(8).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, {
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "photo.jpg",
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
-    storeFromPutUrl(part.json().upload.putUrl as string, Buffer.from(`held-${randomBytes(8).toString("hex")}`));
+    storeFromPutUrl(part.json().upload.putUrl as string, bytes);
     return id;
   }
   const requests = (evidenceId: string) => prisma.reportGenerationRequest.count({ where: { evidenceId } });
