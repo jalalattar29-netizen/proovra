@@ -244,6 +244,20 @@ describe("SAML sign-in integrity (live PostgreSQL)", () => {
     expect(await prisma.teamMember.count({ where: { teamId: org.workspaceId, user: { email } } })).toBe(0);
   });
 
+  it("IDENT-013 / PRO-025: with no domain restriction on the connection, SAML JIT still creates no account outside a verified domain", async () => {
+    const org = await seedOrganizationTenant(deps, {});
+    const conn = await connection(org); // allowedEmailDomains: [] — any address passes the connection's own rule
+    const email = `anyone-${randomUUID().slice(0, 8)}@unproven-${randomUUID().slice(0, 6)}.example`;
+    const res = await signIn(conn, email);
+    expect(String(res.headers.location)).toContain("saml_error=");
+    expect(sessionSet(res)).toBe(false);
+    expect(await prisma.user.count({ where: { email } })).toBe(0);
+    // Control: the same connection provisions inside the Organization's verified domain.
+    const inside = `inside-${randomUUID().slice(0, 8)}@${currentDomain}`;
+    expect((await signIn(conn, inside)).headers.location).toBe(`${WEB}/home`);
+    expect(await prisma.user.count({ where: { email: inside } })).toBe(1);
+  });
+
   it("IDENT-006: control, the same sign-in on a verified domain provisions", async () => {
     const org = await seedOrganizationTenant(deps, {});
     const domain = `${randomUUID().slice(0, 8)}.verified.example`;
