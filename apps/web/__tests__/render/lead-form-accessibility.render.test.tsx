@@ -134,6 +134,24 @@ describe("PRO-006: the select reads keys only while focus is in it", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
+  it("focus leaving the TRIGGER of an open select (before its list took focus) closes it", () => {
+    // Seen in a real browser whose page was not drawing: Enter opened Team
+    // size, its list had not mounted yet, Tab moved on, and when the list
+    // mounted it took focus back and the next Enter chose an option.
+    renderForm("demo");
+    const teamSize = screen.getByRole("combobox", { name: "Team size" });
+    const next = screen.getByRole("combobox", { name: "Primary interest" });
+    act(() => {
+      fireEvent.keyDown(teamSize, { key: "Enter" });
+    });
+    expect(screen.getByRole("listbox", { name: "Team size" })).toBeTruthy();
+    act(() => {
+      fireEvent.blur(teamSize, { relatedTarget: next });
+    });
+    expect(screen.queryByRole("listbox", { name: "Team size" })).toBeNull();
+    expect(teamSize.textContent).toContain("Select team size");
+  });
+
   it("positive control: inside the list the keys choose an option, with an active descendant", () => {
     renderForm("demo");
     const teamSize = screen.getByRole("combobox", { name: "Team size" });
