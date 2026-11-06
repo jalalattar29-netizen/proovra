@@ -478,7 +478,11 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   expect(states(pvSignals).identity).toBe("NOT_APPLICABLE");
   const pvMatrix = pv.body.verificationMatrix as { rows: MatrixRow[]; summary: string };
   const surfaceRows = ["package_signature", "package_completeness", "public_verify_publication"];
-  expect(statuses(pvMatrix.rows, surfaceRows)).toEqual(statuses(matrixRows(v3Full!), surfaceRows));
+  // REPORT-008 / RPT-R08: the identity rows are not disclosed on a page whose
+  // attribution is withheld; every other non-surface row matches the package.
+  const identityRows = ["account_identity", "organization_verification"];
+  expect(statuses(pvMatrix.rows, [...surfaceRows, ...identityRows])).toEqual(statuses(matrixRows(v3Full!), [...surfaceRows, ...identityRows]));
+  for (const key of identityRows) expect(statuses(pvMatrix.rows)[key]).toBe("NOT_APPLICABLE");
   expect(statuses(pvMatrix.rows).package_signature).toBe("VERIFIED");
   // (2026-10-18) Opened through a reviewer share: the row states that the
   // share's own profile applies (never "Published").

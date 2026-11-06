@@ -37,6 +37,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   provisionEnterpriseOrg,
+  SESSION_PASSWORD,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -308,7 +309,9 @@ test.describe("Phase 2.7X Stage 4 — org write surfaces @critical", () => {
     const owner2 = await createGuestSession();
 
     const inviteResp = await owner1.api.post(`/v1/orgs/${orgId}/invites`, {
-      data: { email: owner2.email, role: "ORG_OWNER" },
+      // FEATURES-15 (PRO-097): minting an ORG_OWNER asks the inviting owner's
+      // account step-up, the same proof an ownership transfer asks for.
+      data: { email: owner2.email, role: "ORG_OWNER", stepUp: { method: "password", currentPassword: SESSION_PASSWORD } },
     });
     expect(inviteResp.status()).toBe(201);
     const token = ((await inviteResp.json()) as { token: string }).token;

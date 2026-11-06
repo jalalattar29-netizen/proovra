@@ -99,6 +99,11 @@ test("the native-only actions are named, and each has a reason", () => {
     // family (`/v1/cases/:id/siu-export`) instead; this one is ordinary
     // member-authorized access to the same case, not a reserved surface.
     "/v1/cases/:id/export",
+    // MOBILE-002: SSO sign-in on the phone. The browser callback finishes by
+    // setting the web session cookie, which the app cannot receive; the app
+    // redeems a single-use PKCE-bound code here instead, behind the same MFA
+    // gate and session record as the browser callback.
+    "/v1/auth/sso/native/exchange",
   ];
   for (const r of rows.filter((x) => x.verdict === "NATIVE_ONLY")) {
     assert.ok(
