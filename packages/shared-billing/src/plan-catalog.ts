@@ -287,9 +287,11 @@ export type PlanCapabilities = {
    * commercial question. `teams.routes.ts` now refuses self-service workspace
    * creation as a platform rule, for a reason no catalog integer could carry:
    * a workspace created there could never be paid for, since checkout has one
-   * subject and it is the person. Multi-workspace tenancy remains real and is
-   * created by Enterprise PROVISIONING against an Organization contract, which
-   * never consulted this field.
+   * subject and it is the person. Enterprise PROVISIONING creates exactly ONE
+   * workspace for each new Organization contract, and no path adds a second
+   * (PROV-020; decisions-rem3-commercial.md), so an Organization contract and
+   * its workspace are counted as one. Selling a second workspace under one
+   * contract is an open founder decision, not a capability.
    *
    * The two Collaboration-Team capacities below are unaffected: they were
    * separated from this field in 2026-08-27 precisely because they are a
