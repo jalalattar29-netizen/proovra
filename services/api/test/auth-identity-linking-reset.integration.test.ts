@@ -447,7 +447,12 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     const P2 = "ResetWinnerTwo123";
     const u = await emailUser("reset-race", P0);
     for (let round = 0; round < 3; round += 1) {
-      const before = await prisma.revokedSession.count({ where: { userId: u.id } });
+      // "Once" is one revoke-all: since PRO-019 a revocation also ends each
+      // live session by id (SINGLE_SESSION rows), and from the second round the
+      // user holds the session the previous round signed in with.
+      const revokeAlls = () =>
+        prisma.revokedSession.count({ where: { userId: u.id, scope: "ALL_FOR_USER" } });
+      const before = await revokeAlls();
       const t = await auth.createPasswordResetTokenForEmail(u.email);
       expect(t).not.toBeNull();
       const [a, b] = await Promise.all([
@@ -463,7 +468,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       const row = await prisma.user.findUniqueOrThrow({ where: { id: u.id } });
       expect(auth.verifyPassword(winnerPassword, row.passwordHash!)).toBe(true);
       expect(auth.verifyPassword(loserPassword, row.passwordHash!)).toBe(false);
-      expect(await prisma.revokedSession.count({ where: { userId: u.id } })).toBe(before + 1);
+      expect(await revokeAlls()).toBe(before + 1);
       // Replay of the spent link is refused too.
       const replay = await call("POST", "/v1/auth/password-reset/confirm", undefined, { token: t!.rawToken, newPassword: "ReplayAttempt12345" });
       expect(replay.statusCode).toBe(400);
