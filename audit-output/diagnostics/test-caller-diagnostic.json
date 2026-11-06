@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "10c806df17534b184f2a490dd5f86429cebbb764dba7346058f59f8ac46b2019",
+  "capabilityRouteInventoryHash": "9bd900a2bd0501d8eddf2372e9b497aa22e39b80d3156c15d26807b1f8698ae3",
   "totals": {
-    "routes": 1232,
+    "routes": 1236,
     "routesWithAnyTestCaller": 53,
     "testOnlyRoutes": 9,
     "testCallSites": 125,
@@ -2605,6 +2605,12 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/closure",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/data-export",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6511,6 +6517,24 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/orgs/:id/data-export",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/data-export/:requestId/links",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/orgs/:id/data-export/:requestId/manifest",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/orgs/:id/invites",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7525,5 +7549,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "6232e828d575396dd0836a43d30cf123423cc76386ced5c181ac4bbd26bcf58d"
+  "contentHash": "2b049ab3f33b66c071cc05dc96c6b341ec1032feec1a2032c80e5db07f84a214"
 }
