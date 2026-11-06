@@ -66,6 +66,7 @@ import {
 // Phase 19 — sensitive governance routes require step-up.
 import { assertFeatureEntitlement } from "../services/packaging/entitlement.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { releaseHeldOutputsForWorkspace } from "../services/governance/output-hold-release.service.js";
 
 const ParamsId = z.object({ id: z.string().uuid() });
 
@@ -308,6 +309,10 @@ export async function governanceRoutes(app: FastifyInstance) {
           changedFields: written.changedFields,
         },
       });
+
+      // REPORT-004 — a policy change can release records whose first outputs
+      // the previous policy held. Bounded; a failure never fails the update.
+      await releaseHeldOutputsForWorkspace(ok.teamId).catch(() => null);
 
       const policy = await loadWorkspaceGovernancePolicy(ok.teamId);
       return reply.code(200).send({

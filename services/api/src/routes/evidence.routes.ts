@@ -11726,26 +11726,19 @@ try {
         return reply.code(429).send({ message: "Rate limit exceeded" });
       }
 
-      // Phase 9.5 — governance gate on completion, now the ONE finalization
-      // gate every capture path asks (2026-09-29, audit D3). If policy denies
-      // report or package generation or public Verify publication for this
-      // record, completion is refused and the attempt is recorded in custody.
+      // The ONE finalization output-policy boundary every capture path asks
+      // (2026-09-29, audit D3). REPORT-004: it never refuses sealing — when the
+      // output policy refuses the report or package, the record is sealed and
+      // its first outputs are held (recorded on the record and in custody).
       const { evaluateFinalizationGovernance } = await import(
         "../services/governance/finalization-governance.service.js"
       );
-      const finalizationGate = await evaluateFinalizationGovernance({
+      await evaluateFinalizationGovernance({
         evidenceId: id,
         actorUserId: ownerUserId,
         ip: req.ip,
         userAgent: req.headers["user-agent"] ?? null,
       });
-      if (!finalizationGate.allowed) {
-        return reply.code(finalizationGate.statusCode).send({
-          code: finalizationGate.code,
-          reason: finalizationGate.reason,
-          message: "Evidence finalization is blocked by workspace governance policy.",
-        });
-      }
 
       try {
         const result = await completeEvidence({

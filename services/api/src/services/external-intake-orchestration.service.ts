@@ -1070,13 +1070,12 @@ export async function submitExternalIntake(
   // its location was persisted.
   let sealedByThisSubmission = false;
   if (!alreadyFinalized) {
-  const gate = await evaluateFinalizationGovernance({
+  // REPORT-004 — the contributor's submission is sealed in every case; when the
+  // output policy refuses the report or package, its first outputs are held.
+  await evaluateFinalizationGovernance({
     evidenceId: evidence.id,
     actorUserId: evidence.ownerUserId,
   });
-  if (!gate.allowed) {
-    throw new ExternalIntakeOrchestrationError("finalization_blocked_by_policy");
-  }
   // AUD-36 (2026-10-20) — the plan is asked again at redemption: a workspace
   // downgraded off secure intake after the link was minted takes no more
   // submissions through it (nothing is reserved, nothing is finalized).

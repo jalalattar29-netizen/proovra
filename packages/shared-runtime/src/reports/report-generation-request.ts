@@ -169,6 +169,9 @@ export type CreateReportGenerationRequestInput = {
   entitlement: (subject: { id: string; ownerUserId: string; teamId: string | null }) => Promise<OutputProductionEntitlement | null>;
 };
 
+/** REPORT-004 — the writer's refusal for a record whose outputs are held by policy. */
+export const OUTPUTS_HELD_BY_POLICY_REASON = "outputs_held_by_policy";
+
 export type CreateReportGenerationRequestResult =
   | {
       created: true;
@@ -311,7 +314,7 @@ export async function createReportGenerationRequest(
   // ---- Tenancy comes from the evidence row, both now and again at run time --
   const evidence = await prisma.evidence.findFirst({
     where: { id: evidenceId },
-    select: { id: true, teamId: true, ownerUserId: true, status: true, lifecycleState: true, deletedAt: true },
+    select: { id: true, teamId: true, ownerUserId: true, status: true, lifecycleState: true, deletedAt: true, outputsHeldAtUtc: true },
   });
   if (!evidence) return { created: false, reason: "evidence_not_found" };
 
@@ -320,6 +323,13 @@ export async function createReportGenerationRequest(
   // reading. A refused record gets NO row — an expected business answer.
   const lifecycleRefusal = outputLifecycleRefusal(evidence as never);
   if (lifecycleRefusal) return { created: false, reason: lifecycleRefusal, refusal: lifecycleRefusal };
+  // ---- REPORT-004: OUTPUTS HELD BY THE WORKSPACE OUTPUT POLICY -------------
+  // The record was sealed while its output policy refused the report/package.
+  // No producer creates a request while the hold stands; the api's release
+  // path re-reads the policy live and clears the hold before it issues.
+  if (evidence.outputsHeldAtUtc) {
+    return { created: false, reason: OUTPUTS_HELD_BY_POLICY_REASON };
+  }
   let entitlement: OutputProductionEntitlement | null = null;
   try {
     entitlement = await input.entitlement({ id: evidence.id, ownerUserId: evidence.ownerUserId, teamId: evidence.teamId ?? null });

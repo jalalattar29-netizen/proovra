@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281118070000_sso_native_handoffs";
+export const EXPECTED_MIGRATION_HEAD = "20281119000800_evidence_outputs_held_by_policy";
 
 export type MigrationRow = {
   migration_name: string;
