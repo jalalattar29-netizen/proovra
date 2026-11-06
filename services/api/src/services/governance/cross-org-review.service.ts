@@ -66,7 +66,10 @@ export type InviteCrossOrgReviewInput = {
 
 export type InviteCrossOrgReviewResult =
   | { ok: true; grantId: string }
-  | { ok: false; denial: "POLICY_REJECTED" | "SUBJECT_NOT_IN_WORKSPACE" };
+  | {
+      ok: false;
+      denial: "POLICY_REJECTED" | "SUBJECT_NOT_IN_WORKSPACE" | "ORGANIZATION_NOT_IN_WORKSPACE";
+    };
 
 export async function inviteCrossOrgReview(
   input: InviteCrossOrgReviewInput,
@@ -78,6 +81,18 @@ export async function inviteCrossOrgReview(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // PRO-071 / BILLING-12 — the inviting organization IS the workspace's own
+  // organization. The body's value was stored as given, so a workspace could
+  // record another tenant's organization as the inviter. It is now derived
+  // from the resolved workspace; a supplied value only ever rejects a
+  // mismatch (the departments route's rule).
+  const workspace = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { organizationId: true },
+  });
+  if (!workspace?.organizationId || workspace.organizationId !== input.invitingOrganizationId) {
+    return { ok: false, denial: "ORGANIZATION_NOT_IN_WORKSPACE" };
+  }
   // D17 — the subject must be a record of the inviting workspace, checked
   // with the rule the portal invitation is later issued under.
   if (input.subject && !(await externalReviewTargetBelongsToTeam(prisma, input.teamId, input.subject, input.createdByUserId))) {
@@ -86,7 +101,7 @@ export async function inviteCrossOrgReview(
   const row = await prisma.crossOrgReviewGrant.create({
     data: {
       teamId: input.teamId,
-      invitingOrganizationId: input.invitingOrganizationId,
+      invitingOrganizationId: workspace.organizationId,
       invitedOrgSlug: input.invitedOrgSlug,
       state: "INVITED",
       // R7-governance: scope is a Json column; service input is a bounded string description. Wrap as

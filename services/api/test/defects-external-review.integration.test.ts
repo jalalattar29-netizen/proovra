@@ -397,9 +397,13 @@ describe("external review defects D2 / D31 / D33 / D17 (live PostgreSQL 16 + Red
         headers: { authorization: `Bearer ${a.ownerToken}`, "content-type": "application/json" },
         payload: payload as never,
       });
-    // CrossOrgReviewForms.tsx — the invite body.
+    // CrossOrgReviewForms.tsx — the invite body. The form sends the
+    // workspace's own organization (PRO-071: any other is refused).
+    const orgA = (
+      await prisma.team.findUniqueOrThrow({ where: { id: a.teamId }, select: { organizationId: true } })
+    ).organizationId!;
     const base = {
-      invitingOrganizationId: randomUUID(),
+      invitingOrganizationId: orgA,
       invitedOrgSlug: `dx-org-${randomUUID().slice(0, 6)}`,
       scope: "Review the dock camera footage",
       expiresAtUtc: null,

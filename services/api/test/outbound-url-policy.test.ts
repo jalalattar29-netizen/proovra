@@ -79,14 +79,13 @@ const noDns: OutboundResolver = async (hostname) => {
 
 function resolverAnswering(map: Record<string, string[]>): OutboundResolver & { calls: string[] } {
   const calls: string[] = [];
-  const fn = (async (hostname: string) => {
+  const fn: OutboundResolver = async (hostname: string) => {
     calls.push(hostname);
     const answers = map[hostname];
     if (!answers) throw Object.assign(new Error("ENOTFOUND"), { code: "ENOTFOUND" });
     return answers.map((address) => ({ address, family: net.isIP(address) }));
-  }) as OutboundResolver & { calls: string[] };
-  fn.calls = calls;
-  return fn;
+  };
+  return Object.assign(fn, { calls });
 }
 
 describe("the address classifier is by bytes", () => {
