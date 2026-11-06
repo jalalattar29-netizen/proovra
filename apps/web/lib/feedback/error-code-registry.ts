@@ -552,6 +552,16 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // Answered by the SSO connections console, the only surface that creates or
   // activates a connection.
   SSO_CONNECTION_EXISTS: { disposition: "customer", where: SSO_CONNECTIONS },
+  // IDENT-008 — mandatory SSO with no working way in, the administrator's own
+  // included. The policy editor says what to do instead.
+  SSO_REQUIRED_NO_ACTIVE_CONNECTION: {
+    disposition: "customer",
+    where: "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
+  },
+  SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO: {
+    disposition: "customer",
+    where: "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
+  },
   SCIM_GROUP_PROJECTION_EXISTS: { disposition: "customer", where: "global" },
   SCIM_GROUP_PROJECTION_WORKSPACE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
   SCIM_GROUP_PROJECTION_NO_DIRECTORY: { disposition: "customer", where: "global" },

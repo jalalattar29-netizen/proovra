@@ -294,6 +294,10 @@ test("the registry does not describe codes the API no longer emits", () => {
     ["PACKAGE_BLOCKED_BY_POLICY", "services/api/src/services/governance.service.ts"],
     ["REPORT_BLOCKED_BY_TEMPLATE_POLICY", "services/api/src/services/governance/template-export-policy.service.ts"],
     ["PACKAGE_BLOCKED_BY_TEMPLATE_POLICY", "services/api/src/services/governance/template-export-policy.service.ts"],
+    // IDENT-008 — the policy authority's refusals, answered 409 by
+    // PATCH /v1/security-policy as `code: e.code`.
+    ["SSO_REQUIRED_NO_ACTIVE_CONNECTION", "services/api/src/services/identity/org-security-policy.service.ts"],
+    ["SSO_REQUIRED_ACTOR_NOT_SIGNED_IN_WITH_SSO", "services/api/src/services/identity/org-security-policy.service.ts"],
   ] as const) {
     assert.ok(
       read(authority).includes('"' + c + '"'),
