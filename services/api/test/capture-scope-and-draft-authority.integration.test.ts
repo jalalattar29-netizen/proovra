@@ -75,7 +75,7 @@ describe("capture scope and draft authority (live PostgreSQL 16, real HTTP)", ()
     expect(created.statusCode, created.body).toBe(201);
     const id = (created.json() as { id: string }).id;
 
-    const res = await post(extensionToken, `/v1/evidence/${id}/parts`, { partIndex: 0, mimeType: "image/png" });
+    const res = await post(extensionToken, `/v1/evidence/${id}/parts`, { partIndex: 0, mimeType: "image/png", sizeBytes: 1024 });
     expect(res.statusCode, res.body).toBe(403);
     expect(await prisma.evidencePart.count({ where: { evidenceId: id } })).toBe(0);
   });
@@ -95,7 +95,8 @@ describe("capture scope and draft authority (live PostgreSQL 16, real HTTP)", ()
     expect(reserve.statusCode, reserve.body).toBe(201);
     const evidenceId = reserve.json().evidence.evidenceId as string;
 
-    const part = await post(extensionToken, `/v1/evidence/${evidenceId}/parts`, { partIndex: 0, mimeType: "image/png" });
+    // No bytes are PUT: the control only asserts the URL is issued.
+    const part = await post(extensionToken, `/v1/evidence/${evidenceId}/parts`, { partIndex: 0, mimeType: "image/png", sizeBytes: 1024 });
     expect([200, 201]).toContain(part.statusCode);
   });
 

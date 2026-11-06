@@ -55,7 +55,9 @@ describe("evidence part bounds (live PostgreSQL 16, real HTTP)", () => {
       method: "POST",
       url: `/v1/evidence/${id}/parts`,
       headers: auth(),
-      payload: { partIndex, mimeType: "image/jpeg" },
+      // A stated size, so the refusals below are the bound and the rate limit,
+      // not the missing size (no bytes are PUT in this file).
+      payload: { partIndex, mimeType: "image/jpeg", sizeBytes: 1024 },
     });
 
   it("an index past the bound is refused 400 and creates no part; the last index inside it is accepted", async () => {

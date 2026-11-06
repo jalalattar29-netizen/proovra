@@ -120,11 +120,17 @@ describe("canonical verification identity (Postgres + Redis + MinIO, real worker
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
-    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "canonical.txt" });
+    const bytes = Buffer.from(`canonical-verification ${id} ${randomBytes(8).toString("hex")}`);
+    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, {
+      partIndex: 0,
+      mimeType: "text/plain",
+      originalFileName: "canonical.txt",
+      sizeBytes: bytes.length,
+    });
     expect(part.statusCode, part.body).toBe(201);
     const put = await fetch(part.json().upload.putUrl as string, {
       method: "PUT",
-      body: Buffer.from(`canonical-verification ${id} ${randomBytes(8).toString("hex")}`),
+      body: bytes,
       headers: { "content-type": "text/plain" },
     });
     expect(put.status).toBe(200);

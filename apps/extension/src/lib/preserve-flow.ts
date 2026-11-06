@@ -273,6 +273,8 @@ export async function runPreserveFlow(
           partIndex: i,
           mimeType: a.mediaType,
           originalFileName: `${a.role}-${i}`,
+          // PRO-051 — signed into the upload URL; the API requires it.
+          sizeBytes: a.blob.size,
         }),
       );
       await withRetry("uploading", () => deps.api.putBytes(part.upload.putUrl, a.blob, a.mediaType));
@@ -324,6 +326,7 @@ export async function runPreserveFlow(
         partIndex: manifestPartIndex,
         mimeType: "application/json",
         originalFileName: "capture-manifest.json",
+        sizeBytes: manifestBytes.size,
       }),
     );
     await withRetry("uploading", () =>

@@ -142,13 +142,15 @@ describe("TSA validation facts persisted at finalize (live PostgreSQL 16)", () =
     });
     expect(created.statusCode, created.body).toBeLessThan(300);
     const id = created.json().id as string;
+    const body = Buffer.from(`tsa-part-${randomBytes(6).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${id}/parts`, token, {
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "photo.jpg",
+      sizeBytes: body.length,
     });
     const u = part.json().upload;
-    objects.set(`${u.bucket}/${u.key}`, Buffer.from(`tsa-part-${randomBytes(6).toString("hex")}`));
+    objects.set(`${u.bucket}/${u.key}`, body);
     const done = await call("POST", `/v1/evidence/${id}/complete`, token, {});
     expect(done.statusCode, done.body).toBe(200);
     const row = await prisma.evidence.findUniqueOrThrow({

@@ -103,9 +103,9 @@ describe("UC-SEC-001 upload-session actor binding (live PostgreSQL 16 + MinIO)",
     expect(await snapshot()).toEqual(before);
 
     // The creator: presign → real PUT to MinIO → uploaded (ETag) → multipart complete.
-    const presign = await call("POST", `${base}/parts/0/presign`, A.ownerToken, { teamId });
-    expect(presign.statusCode, presign.body).toBe(200);
     const bytes = randomBytes(1024);
+    const presign = await call("POST", `${base}/parts/0/presign`, A.ownerToken, { teamId, sizeBytes: bytes.length });
+    expect(presign.statusCode, presign.body).toBe(200);
     const put = await fetch(presign.json().uploadUrl as string, { method: "PUT", body: bytes });
     expect(put.status).toBe(200);
     const etag = put.headers.get("etag");

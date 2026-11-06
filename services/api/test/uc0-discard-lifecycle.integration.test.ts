@@ -272,6 +272,7 @@ describe("UC-0 discard — live PostgreSQL 16", () => {
       mimeType: "text/plain",
       checksumSha256Base64: createHash("sha256").update(bytes).digest("base64"),
       contentMd5Base64: createHash("md5").update(bytes).digest("base64"),
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
     // The key comes from the response the route sends, not from parsing its

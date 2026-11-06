@@ -225,6 +225,9 @@ export async function uploadDirectCaptureItem(
           originalFileName: item.originalFilename ?? undefined,
           checksumSha256Base64: integrity.checksumSha256Base64,
           contentMd5Base64: integrity.contentMd5Base64,
+          // PRO-051 — the size is signed into the upload URL, so storage refuses
+          // any other length; the API requires it.
+          sizeBytes: integrity.sizeBytes,
           // The schema takes min(1) strings, so an empty value is omitted, not sent.
           privateRole: item.privateRole?.trim() || undefined,
           privateNote: item.privateNote?.trim() || undefined,

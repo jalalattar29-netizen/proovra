@@ -399,6 +399,7 @@ import { noteCustodyFailure } from "../services/custody-events-observability.js"
 import { recordDownloadAuthorized, recordOriginalRelease, evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { narrowPublicDisclosureAtRead } from "../services/governance/public-disclosure-governance.service.js";
 import { checkUploadSize, getUploadSizeLimits } from "../services/reliability/upload-limits.service.js";
+import { discardRefusedUploadObjects } from "../services/evidence/refused-upload-cleanup.service.js";
 // PHASE 1 AUTHORIZATION CLOSURE (2026-07-21) — canonical destructive gate for
 // archive / unarchive / delete (owner rule for personal-scope evidence only;
 // canonical membership+lifecycle+capability for workspace-bound evidence).
@@ -632,7 +633,11 @@ const CreatePartBody = z.object({
   durationMs: z.number().int().positive().optional(),
   checksumSha256Base64: z.string().min(1).max(128).optional(),
   contentMd5Base64: z.string().min(1).max(128).optional(),
-  /** The file's exact size. Signed into the upload URL; a larger one is refused here. */
+  /**
+   * The file's exact size. Required (PRO-051): signed into the upload URL, and a
+   * larger one is refused here. Optional in the schema only so a missing value is
+   * answered with its own code rather than a generic validation error.
+   */
   sizeBytes: z.number().int().min(0).optional(),
   privateRole: z.string().trim().min(1).max(120).optional(),
   privateNote: z.string().trim().max(1000).optional(),
@@ -6938,6 +6943,17 @@ const storage = await getStorageProtectionSummary(
         () => undefined,
       );
       const body = CreatePartBody.parse(req.body);
+      // PRO-051 / INGEST-001 — the size bound is mandatory: the declared size is
+      // signed into the URL, so the store refuses any other length. Without one
+      // the URL took a body of any size and the oversized object stayed after the
+      // seal refused it. Every client (web, mobile, extension) holds the file and
+      // sends its size; the public intake door already requires it.
+      if (body.sizeBytes === undefined) {
+        return reply.code(400).send({
+          code: "UPLOAD_SIZE_REQUIRED",
+          message: "The upload must state the file size.",
+        });
+      }
       // INGEST-002 — refused before a byte moves, not after the whole transfer.
       {
         const refused = checkUploadSize(body.sizeBytes);
@@ -7395,7 +7411,13 @@ return {
         return reply.code(500).send({ message: "AUTH_JWT_SECRET is not set" });
       }
 
-      const payload = verifyJwt(body.guestToken, secret);
+      // PRO-049 — a malformed or forged token is the caller's error (400), not a 500.
+      let payload: ReturnType<typeof verifyJwt>;
+      try {
+        payload = verifyJwt(body.guestToken, secret);
+      } catch {
+        return reply.code(400).send({ message: "invalid_guest_token" });
+      }
       if (payload.provider !== "GUEST") {
         return reply.code(400).send({ message: "invalid_guest_token" });
       }
@@ -7424,17 +7446,29 @@ return {
         return reply.code(200).send({ claimed: 0 });
       }
 
-      await prisma.evidence.updateMany({
-        where,
-        data: { ownerUserId: userId },
-      });
+      // PRO-049 / EVIDENCE-04 — each record moves once. The read above and an
+      // unconditional update let two parallel claims both "claim" every record
+      // and record two EVIDENCE_CLAIMED transfers to different users. A record
+      // is now claimed only by the write that still finds it owned by the guest,
+      // and only that claimant records the transfer.
+      const claimed: typeof evidence = [];
+      for (const item of evidence) {
+        const moved = await prisma.evidence.updateMany({
+          where: { ...where, id: item.id, ownerUserId: guestUserId },
+          data: { ownerUserId: userId },
+        });
+        if (moved.count === 1) claimed.push(item);
+      }
+      if (claimed.length === 0) {
+        return reply.code(200).send({ claimed: 0 });
+      }
 
       await prisma.guestIdentity.updateMany({
-        where: { userId: guestUserId },
+        where: { userId: guestUserId, claimedByUserId: null },
         data: { claimedByUserId: userId, claimedAt: new Date() },
       });
 
-      for (const item of evidence) {
+      for (const item of claimed) {
         await appendCustodyEvent({
           evidenceId: item.id,
           eventType: prismaPkg.CustodyEventType.EVIDENCE_CLAIMED,
@@ -7456,7 +7490,7 @@ return {
         });
       }
 
-      return reply.code(200).send({ claimed: evidence.length });
+      return reply.code(200).send({ claimed: claimed.length });
     }
   );
 
@@ -8704,10 +8738,21 @@ return {
   app.get("/v1/evidence/:id/legal-notes", { preHandler: requireAuth }, async (req, reply) => {
     const userId = getAuthUserId(req);
     const id = z.string().uuid().parse((req.params as ParamsId).id);
-    await getEvidenceWithReadAccess(userId, id);
+    const evidence = await getEvidenceWithReadAccess(userId, id);
 
+    // EVID-011 — a PRIVILEGED note is read by its author and by those who may
+    // manage the record's collaborative content (the owner, or OWNER / ADMIN
+    // with current authority: canManageEvidenceCollaborativeContent), never by
+    // every reader. It reached VIEWER with its author's email. Other note types
+    // keep the record's read audience. This narrows who sees the note; it makes
+    // no claim about legal privilege.
+    const seesPrivileged = await canManageEvidenceCollaborativeContent(userId, evidence);
     const items = await prisma.evidenceLegalNote.findMany({
-      where: { evidenceId: id, deletedAt: null },
+      where: {
+        evidenceId: id,
+        deletedAt: null,
+        ...(seesPrivileged ? {} : { OR: [{ noteType: { not: "PRIVILEGED" } }, { authorUserId: userId }] }),
+      },
       include: { author: { select: { id: true, displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
     });
@@ -12058,6 +12103,12 @@ if (
         // INGEST-002 — an expected refusal: answered with its own code and audited
         // as blocked. It used to read as a critical fault and page someone.
         if (err instanceof Error && err.message === "EVIDENCE_TOO_LARGE") {
+          // PRO-051 — the refused bytes can never become this record's evidence,
+          // so they are removed now rather than left in storage, uncounted.
+          const cleanup = await discardRefusedUploadObjects(id).catch((cleanupErr: unknown) => {
+            req.log.warn({ err: cleanupErr, evidenceId: id }, "evidence.complete.refused_upload_cleanup_failed");
+            return null;
+          });
           await auditEvidenceAction(req, {
             userId: ownerUserId,
             action: "evidence.complete",
@@ -12065,9 +12116,27 @@ if (
             severity: "warning",
             resourceId: id,
             teamId: evidence.teamId,
-            metadata: { reason: "EVIDENCE_TOO_LARGE" },
+            metadata: { reason: "EVIDENCE_TOO_LARGE", refusedObjectsRemoved: cleanup?.deletedVersions ?? 0 },
           });
           return reply.code(413).send({ code: "EVIDENCE_TOO_LARGE", details: { maxBytes: getUploadSizeLimits().maxUploadFileSizeBytes } });
+        }
+
+        // PRO-054 — a draft that left ACTIVE (archived) is refused before the seal,
+        // with the part writer's answer; it used to be a 500 critical alert.
+        if (err instanceof Error && err.message === "EVIDENCE_NOT_WRITABLE") {
+          await auditEvidenceAction(req, {
+            userId: ownerUserId,
+            action: "evidence.complete",
+            outcome: "blocked",
+            severity: "warning",
+            resourceId: id,
+            teamId: evidence.teamId,
+            metadata: { reason: "EVIDENCE_NOT_WRITABLE" },
+          });
+          return reply.code(409).send({
+            code: "EVIDENCE_NOT_WRITABLE",
+            message: "This record is no longer open for upload. Restore it before finishing the upload.",
+          });
         }
 
         await auditEvidenceAction(req, {

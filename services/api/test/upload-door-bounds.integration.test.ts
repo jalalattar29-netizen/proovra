@@ -8,6 +8,7 @@
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
+import { ListObjectVersionsCommand } from "@aws-sdk/client-s3";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
@@ -18,6 +19,7 @@ const MiB = 1024 * 1024;
 describe("the upload door (live PostgreSQL 16, MinIO)", () => {
   let h: IntegrationHarness;
   let prisma: (typeof import("../src/db.js"))["prisma"];
+  let s3: (typeof import("../src/storage.js"))["s3"];
   const A = () => h.fixtures.teamA;
   const auth = () => ({ authorization: `Bearer ${A().ownerToken}` });
 
@@ -25,6 +27,7 @@ describe("the upload door (live PostgreSQL 16, MinIO)", () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
+    ({ s3 } = await import("../src/storage.js"));
   }, 180_000);
   beforeEach(() => {
     delete process.env.MAX_EVIDENCE_SIZE_MB;
@@ -68,6 +71,72 @@ describe("the upload door (live PostgreSQL 16, MinIO)", () => {
     expect((await part(id, { ...body, sizeBytes: MiB })).statusCode).toBe(201);
     const other = await record();
     expect((await part(other, { ...body, sizeBytes: MiB - 1 })).statusCode).toBe(201);
+  });
+
+  it("PRO-051: an upload URL is never issued without a size", async () => {
+    const id = await record();
+    const missing = await part(id, { checksumSha256Base64: b64(Buffer.from("x")) });
+    expect(missing.statusCode, missing.body).toBe(400);
+    expect(missing.json().code).toBe("UPLOAD_SIZE_REQUIRED");
+    expect(missing.body).not.toContain("X-Amz");
+    expect(await prisma.evidencePart.count({ where: { evidenceId: id } })).toBe(0);
+    // Positive control: the same request with its size gets a signed URL bound to it.
+    const sized = await part(id, { checksumSha256Base64: b64(Buffer.from("x")), sizeBytes: 1 });
+    expect(sized.statusCode, sized.body).toBe(201);
+    expect(decodeURIComponent(sized.json().upload.putUrl as string)).toMatch(/content-length/i);
+  });
+
+  it("PRO-051: bytes the seal refuses as too large are removed from storage at once", async () => {
+    process.env.MAX_EVIDENCE_SIZE_MB = "1";
+    const id = await record();
+    // Two parts that each fit the per-file limit, together over the record ceiling.
+    const chunks = [randomBytes(MiB - 1024), randomBytes(MiB - 1024)];
+    const urls: string[] = [];
+    for (const [partIndex, bytes] of chunks.entries()) {
+      const res = await part(id, { partIndex, checksumSha256Base64: b64(bytes), sizeBytes: bytes.length });
+      expect(res.statusCode, res.body).toBe(201);
+      const put = await fetch(res.json().upload.putUrl as string, {
+        method: "PUT",
+        body: new Uint8Array(bytes),
+        headers: { "content-type": "text/plain", "x-amz-checksum-sha256": b64(bytes) },
+      });
+      expect(put.ok, await put.text()).toBe(true);
+      urls.push(res.json().upload.key as string);
+    }
+    const versions = async (key: string) =>
+      ((await s3.send(new ListObjectVersionsCommand({ Bucket: process.env.S3_BUCKET!, Prefix: key }))).Versions ?? []).filter((v) => v.Key === key);
+    for (const key of urls) expect((await versions(key)).length, key).toBeGreaterThan(0);
+
+    const done = await h.app.inject({ method: "POST", url: `/v1/evidence/${id}/complete`, headers: auth(), payload: {} });
+    expect(done.statusCode, done.body).toBe(413);
+    expect(done.json().code).toBe("EVIDENCE_TOO_LARGE");
+    for (const key of urls) expect((await versions(key)).length, key).toBe(0);
+    // The record is not sealed and stays open for a smaller upload.
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { status: true } })).status).not.toBe("SIGNED");
+  });
+
+  it("PRO-054: completing an archived draft is a typed 409, not a 500, and seals nothing", async () => {
+    const id = await record();
+    const bytes = randomBytes(512);
+    const res = await part(id, { checksumSha256Base64: b64(bytes), sizeBytes: bytes.length });
+    expect(res.statusCode, res.body).toBe(201);
+    const put = await fetch(res.json().upload.putUrl as string, {
+      method: "PUT",
+      body: new Uint8Array(bytes),
+      headers: { "content-type": "text/plain", "x-amz-checksum-sha256": b64(bytes) },
+    });
+    expect(put.ok, await put.text()).toBe(true);
+    await prisma.evidence.update({ where: { id }, data: { lifecycleState: "ARCHIVED", archivedAt: new Date() } as never });
+    const done = await h.app.inject({ method: "POST", url: `/v1/evidence/${id}/complete`, headers: auth(), payload: {} });
+    expect(done.statusCode, done.body).toBe(409);
+    expect(done.json().code).toBe("EVIDENCE_NOT_WRITABLE");
+    const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { status: true, verificationRef: true } });
+    expect(row.status).not.toBe("SIGNED");
+    expect(row.verificationRef).toBeNull();
+    // Positive control: restored to ACTIVE, the same bytes seal.
+    await prisma.evidence.update({ where: { id }, data: { lifecycleState: "ACTIVE", archivedAt: null } as never });
+    const sealed = await h.app.inject({ method: "POST", url: `/v1/evidence/${id}/complete`, headers: auth(), payload: {} });
+    expect(sealed.statusCode, sealed.body).toBe(200);
   });
 
   it("INGEST-001: the store itself refuses another length and other bytes; the declared file is accepted", async () => {

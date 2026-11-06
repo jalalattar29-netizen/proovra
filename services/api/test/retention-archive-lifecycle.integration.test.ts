@@ -142,9 +142,9 @@ describe("Trash → Retention Archive → Purge on real Object Lock (Postgres + 
     const created = await call("POST", "/v1/evidence", A().ownerToken, { type: "DOCUMENT", mimeType: "text/plain", teamId: A().teamId });
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
-    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "lifecycle.txt" });
-    expect(part.statusCode, part.body).toBe(201);
     const bytes = Buffer.from(`retention-archive ${id} ${randomBytes(8).toString("hex")}`);
+    const part = await call("POST", `/v1/evidence/${id}/parts`, A().ownerToken, { partIndex: 0, mimeType: "text/plain", originalFileName: "lifecycle.txt", sizeBytes: bytes.length });
+    expect(part.statusCode, part.body).toBe(201);
     const put = await fetch(part.json().upload.putUrl as string, { method: "PUT", body: bytes, headers: { "content-type": "text/plain" } });
     expect(put.status, await put.text()).toBe(200);
     const done = await call("POST", `/v1/evidence/${id}/complete`, A().ownerToken, {});

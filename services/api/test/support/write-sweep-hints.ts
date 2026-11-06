@@ -367,7 +367,7 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
   "POST /v1/intelligence/evidence/:p/run/bytes": { unreachable: "Every byte operation calls a live provider; the local one takes text." },
   "POST /v1/evidence/:p/combined-recording/prepare": { unreachable: "Needs a stored multi-part screen recording." },
   "POST /v1/capture/direct-sessions/:p/parts/:p/loss": { unreachable: "Needs a live continuous capture with a declared segment." },
-  "POST /v1/evidence/:p/parts": { rows: { Evidence: { status: "CREATED", lockedAt: null } }, body: { partIndex: 0 } },
+  "POST /v1/evidence/:p/parts": { rows: { Evidence: { status: "CREATED", lockedAt: null } }, body: { partIndex: 0, sizeBytes: 16 } },
   "POST /v1/evidence/:p/relationships": {
     make: { Other: { model: "Evidence" } },
     body: { targetEvidenceId: "$Other", relationshipType: "RELATED" },
@@ -536,7 +536,7 @@ export const WRITE_SWEEP_HINTS: Record<string, RouteHint> = {
       },
     },
     path: ["$EvidenceUploadSession", "0"],
-    body: { teamId: "$Team" },
+    body: { teamId: "$Team", sizeBytes: 16 },
   },
   "POST /v1/uploads/sessions/:p/parts/:p/uploaded": {
     rows: {

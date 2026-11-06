@@ -187,6 +187,7 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "camera.jpg",
+      sizeBytes: bytes.length,
     });
     expect(part.statusCode, part.body).toBe(201);
     const { bucket, key } = part.json().upload as { bucket: string; key: string };
@@ -213,13 +214,15 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       teamId: owner().teamId,
     });
     const id = created.json().id as string;
+    const body = Buffer.from(`web-part-${randomBytes(4).toString("hex")}`);
     const part = await call("POST", `/v1/evidence/${id}/parts`, token, {
       partIndex: 0,
       mimeType: "image/jpeg",
       originalFileName: "photo.jpg",
+      sizeBytes: body.length,
     });
     const u = part.json().upload;
-    objects.set(`${u.bucket}/${u.key}`, Buffer.from(`web-part-${randomBytes(4).toString("hex")}`));
+    objects.set(`${u.bucket}/${u.key}`, body);
     const first = await call("POST", `/v1/evidence/${id}/complete`, token, {});
     expect(first.statusCode, first.body).toBe(200);
     const snapshot = async () => {
@@ -266,14 +269,16 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     // Two parts → a multipart record, the case that used to rewrite
     // captureMethod to MULTIPART_PACKAGE.
     for (const i of [0, 1]) {
+      const body = Buffer.from(`web-part-${i}-${randomBytes(4).toString("hex")}`);
       const part = await call("POST", `/v1/evidence/${id}/parts`, token, {
         partIndex: i,
         mimeType: "image/jpeg",
         originalFileName: `Screenshot_2026-09-16_${i}.png`,
+        sizeBytes: body.length,
       });
       expect(part.statusCode, part.body).toBe(201);
       const u = part.json().upload;
-      objects.set(`${u.bucket}/${u.key}`, Buffer.from(`web-part-${i}-${randomBytes(4).toString("hex")}`));
+      objects.set(`${u.bucket}/${u.key}`, body);
     }
     const done = await call("POST", `/v1/evidence/${id}/complete`, token, {});
     expect(done.statusCode, done.body).toBe(200);

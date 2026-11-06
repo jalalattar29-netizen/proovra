@@ -615,6 +615,7 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
       const { teamA } = harness.fixtures;
       const res = await call("POST", `/v1/uploads/sessions/${sessionId}/parts/0/presign`, teamA.ownerToken, {
         teamId: teamA.teamId,
+        sizeBytes: 1024,
       });
       expect(res.statusCode, res.body).toBe(200);
       const body = json(res);
