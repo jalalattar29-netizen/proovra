@@ -15,7 +15,7 @@ import { prisma } from "./db.js";
 import { enqueueOtsUpgradeJob } from "./queue.js";
 import { resolveOtsBin, resolveOtsTimeoutMs } from "./ots.service.js";
 import { ensureOtsAnchoredReportVersion } from "./ots-anchored-version.js";
-import { ensureEvidenceOtsInitialized, restampOtsAfterBudgetExhaustion } from "./ots-lifecycle.js";
+import { ensureEvidenceOtsInitialized, restampExhaustedOtsProof } from "./ots-lifecycle.js";
 import {
   OTS_ROW_SNAPSHOT_SELECT,
   applyOtsTransition,
@@ -595,28 +595,8 @@ async function commitOtsTransition(input: {
       withJobContext({ jobId: job.id, evidenceId, durationMs: Date.now() - startedAt, status: "global_budget_exhausted" }),
       "ots.upgrade.budget_exhausted",
     );
-    // CRYPTO-005 / OPS-016 — the same digest is stamped again, once, with the
-    // superseded proof kept on the custody event, and the upgrade ladder starts
-    // over. Only when that is not possible (already re-stamped, the stamp did not
-    // come back pending, or a writer raced) is exhaustion terminal.
-    try {
-      const restamp = await restampOtsAfterBudgetExhaustion({ evidenceId, jobId: job.id ?? null, trigger: "ots_budget_exhausted" });
-      if (restamp.restamped) {
-        bump("ots_restamped_total");
-        if (restamp.needsUpgrade) {
-          await enqueueOtsUpgradeJob(evidenceId, { delayMs: 60 * 60 * 1000, traceId: "ots_restamp", selfJobId: job.id });
-        }
-        logger.warn(
-          { ...withJobContext({ jobId: job.id, evidenceId, status: "restamped" }), ordinal: restamp.ordinal },
-          "ots.upgrade.restamped_after_budget",
-        );
-        return;
-      }
-    } catch (err) {
-      // A transient stamp failure: the record stays FAILED and the incident below
-      // names it; the reconcile script or an operator can re-run the re-stamp.
-      logger.warn({ err, evidenceId }, "ots.upgrade.restamp_failed");
-    }
+    // CRYPTO-005 / OPS-016 — stamped again once; terminal only when that is not possible.
+    if (await restampAfterBudgetExhaustion(evidenceId, job.id ?? null)) return;
     // Budget exhaustion is TERMINAL past the re-stamp: no further upgrade
     // attempts. CRITICAL so /v1/me/inbox lifts it to P1.
     try {
@@ -777,4 +757,27 @@ async function verifyAnchoredProofAgainstChain(input: {
         ? { chainUnavailableCode: check.code }
         : {};
   await commitOtsTransition({ job, evidenceId, evidence, snapshot, transition, observedAt: check.kind === "DISABLED" ? now() : check.checkedAtUtc, forensic, startedAt });
+}
+
+/**
+ * CRYPTO-005 / OPS-016 — on budget exhaustion the same digest is stamped again,
+ * once, with the superseded proof kept on the custody event, and the upgrade
+ * ladder starts over. Returns false (exhaustion stays terminal and the caller
+ * raises the incident) when that is not possible: already re-stamped, the stamp
+ * did not come back pending, a writer raced, or the stamp threw.
+ */
+async function restampAfterBudgetExhaustion(evidenceId: string, jobId: string | null): Promise<boolean> {
+  try {
+    const restamp = await restampExhaustedOtsProof({ evidenceId, jobId, trigger: "ots_budget_exhausted" });
+    if (!restamp.restamped) return false;
+    bump("ots_restamped_total");
+    if (restamp.needsUpgrade) {
+      await enqueueOtsUpgradeJob(evidenceId, { delayMs: 60 * 60 * 1000, traceId: "ots_restamp", selfJobId: jobId ?? undefined });
+    }
+    logger.warn(withJobContext({ jobId, evidenceId, status: "restamped" }), "ots.upgrade.restamped_after_budget");
+    return true;
+  } catch (err) {
+    logger.warn({ err, evidenceId }, "ots.upgrade.restamp_failed");
+    return false;
+  }
 }

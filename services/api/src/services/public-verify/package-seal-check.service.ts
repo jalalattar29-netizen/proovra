@@ -275,12 +275,14 @@ async function rememberedOrChecked(pkg: SealCheckPackageRow, recordedFp: string,
   }
   const checked = await inByteCheckSlot(() => checkLegacySealBytes(pkg, recordedFp));
   if (checked.kind !== "TRANSIENT") {
-    await prisma.packageSealByteCheck
-      .createMany({
+    try {
+      await prisma.packageSealByteCheck.createMany({
         data: [{ identitySha256, packageId: pkg.id, outcome: checked.kind, complete: checked.kind === "VERIFIED" ? checked.complete : false }],
         skipDuplicates: true,
-      })
-      .catch(() => undefined);
+      });
+    } catch {
+      /* not remembered: the next process reads the bytes again, nothing else */
+    }
   }
   return checked;
 }

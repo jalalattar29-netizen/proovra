@@ -223,7 +223,7 @@ import { passkeyRoutes } from "./routes/passkey.routes.js";
 import { mfaRoutes } from "./routes/mfa.routes.js";
 import { identityLinksRoutes } from "./routes/identity-links.routes.js";
 import { accountDataExportRoutes } from "./routes/account-data-export.routes.js";
-import { organizationDataExportRoutes } from "./routes/organization-data-export.routes.js";
+import { organizationDataExportRoutes } from "./routes/organizations.routes.js";
 import { accountClosureRoutes } from "./routes/account-closure.routes.js";
 // R8.1.4 — admin MFA lifecycle + lost-factor recovery routes. Same
 // canonical session model as the rest of the identity surface; the

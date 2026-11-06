@@ -154,7 +154,11 @@ export type OtsInitializationOutcome =
         | "evidence_not_found"
         | "already_initialized"
         | "not_finalized"
-        | "raced";
+        | "raced"
+        // CRYPTO-005 re-stamp mode only.
+        | "not_budget_exhausted"
+        | "restamp_limit_reached"
+        | "stamp_not_pending";
     };
 
 /**
@@ -198,6 +202,14 @@ export async function ensureEvidenceOtsInitialized(params: {
   jobId?: string | number | null;
   /** What caused this attempt — recorded on the custody event. */
   trigger?: string;
+  /**
+   * CRYPTO-005 / OPS-016 — RE-STAMP a proof that missed its 30-day budget,
+   * through this same single stamp-and-persist path. Only a row whose proof is
+   * FAILED with OTS_GLOBAL_BUDGET_EXHAUSTED qualifies, at most
+   * MAX_OTS_RESTAMPS times; the write is conditional on that exact proof still
+   * being stored, and the superseded proof travels whole on the custody event.
+   */
+  mode?: "initialize" | "restamp_exhausted";
 }): Promise<OtsInitializationOutcome> {
   const { evidenceId } = params;
   const ctx = withJobContext({
@@ -206,14 +218,25 @@ export async function ensureEvidenceOtsInitialized(params: {
     evidenceId,
   });
 
+  const restamp = params.mode === "restamp_exhausted";
   const evidence = await prisma.evidence.findFirst({
     where: { id: evidenceId, deletedAt: null },
-    select: INIT_SELECT,
+    select: { ...INIT_SELECT, otsFailureReason: true, otsCalendar: true },
   });
 
   if (!evidence) return { initialized: false, reason: "evidence_not_found" };
 
-  if (evidence.otsProofBase64) {
+  let restampOrdinal = 0;
+  if (restamp) {
+    if (evidence.otsStatus !== "FAILED" || evidence.otsFailureReason !== OTS_BUDGET_EXHAUSTED || !evidence.otsProofBase64) {
+      return { initialized: false, reason: "not_budget_exhausted" };
+    }
+    const prior = await prisma.custodyEvent.count({
+      where: { evidenceId, eventType: prismaPkg.CustodyEventType.OTS_APPLIED, payload: { path: ["otsPhase"], equals: "proof_restamped" } },
+    });
+    if (prior >= MAX_OTS_RESTAMPS) return { initialized: false, reason: "restamp_limit_reached" };
+    restampOrdinal = prior + 1;
+  } else if (evidence.otsProofBase64) {
     return { initialized: false, reason: "already_initialized" };
   }
 
@@ -281,8 +304,15 @@ export async function ensureEvidenceOtsInitialized(params: {
     }
   }
 
+  // A re-stamp replaces an exhausted proof only with a live pending one.
+  if (restamp && (stamp.status !== "PENDING" || !stamp.proofBase64)) {
+    return { initialized: false, reason: "stamp_not_pending" };
+  }
+  const previousProofBase64 = restamp ? evidence.otsProofBase64! : null;
+
   // ------------------------------------------------------------------
-  // Persistence — short, transactional, and conditional on still being unset.
+  // Persistence — short, transactional, and conditional on still being unset
+  // (or, for a re-stamp, on the exhausted proof still being the stored one).
   // ------------------------------------------------------------------
   const applied = await prisma.$transaction(async (tx) => {
     const claimed = await tx.evidence.updateMany({
@@ -291,7 +321,9 @@ export async function ensureEvidenceOtsInitialized(params: {
       // proof with an anchored one — cannot be overwritten by this older
       // stamp. `updateMany` returns a count rather than throwing, which is
       // what makes the loser's path ordinary rather than exceptional.
-      where: { id: evidenceId, otsProofBase64: null, deletedAt: null },
+      where: restamp
+        ? { id: evidenceId, deletedAt: null, otsStatus: "FAILED", otsFailureReason: OTS_BUDGET_EXHAUSTED, otsProofBase64: previousProofBase64 }
+        : { id: evidenceId, otsProofBase64: null, deletedAt: null },
       data: buildOtsEvidenceUpdateData(stamp) as Prisma.EvidenceUpdateManyMutationInput,
     });
 
@@ -305,11 +337,22 @@ export async function ensureEvidenceOtsInitialized(params: {
           : prismaPkg.CustodyEventType.OTS_APPLIED,
       atUtc: new Date(),
       payload: {
-        phase: "ots_initialized",
+        phase: restamp ? "ots_restamped" : "ots_initialized",
         trigger: params.trigger ?? "ots_lifecycle",
         otsStatus: stamp.status,
-        otsPhase:
-          stamp.status === "ANCHORED"
+        ...(previousProofBase64
+          ? {
+              // CRYPTO-005 — the superseded proof, kept whole on the chain.
+              restampOrdinal,
+              previousProofBase64,
+              previousProofSha256: createHash("sha256").update(Buffer.from(previousProofBase64, "base64")).digest("hex"),
+              previousFailureReason: OTS_BUDGET_EXHAUSTED,
+              previousCalendar: evidence.otsCalendar ?? null,
+            }
+          : {}),
+        otsPhase: restamp
+          ? "proof_restamped"
+          : stamp.status === "ANCHORED"
             ? "anchored"
             : stamp.status === "FAILED"
               ? "stamp_failed"
@@ -355,115 +398,31 @@ export function otsInitializationNeedsUpgrade(stamp: Pick<OtsStampResult, "statu
 // CRYPTO-005 / OPS-016 — RE-STAMPING A PROOF THAT MISSED ITS BUDGET
 // ===========================================================================
 
+const OTS_BUDGET_EXHAUSTED = "OTS_GLOBAL_BUDGET_EXHAUSTED";
+
 /** At most this many re-stamps per record; a re-stamped proof that misses its budget again stays FAILED. */
 export const MAX_OTS_RESTAMPS = 1;
 
 export type OtsRestampOutcome =
-  | { restamped: true; status: OtsStampResult["status"]; needsUpgrade: boolean; ordinal: number }
-  | { restamped: false; reason: "evidence_not_found" | "not_budget_exhausted" | "restamp_limit_reached" | "stamp_not_pending" | "raced" };
+  | { restamped: true; status: OtsStampResult["status"]; needsUpgrade: boolean }
+  | { restamped: false; reason: Extract<OtsInitializationOutcome, { initialized: false }>["reason"] };
 
 /**
- * A proof the calendar never upgraded within the 30-day budget used to be
- * terminal, with nothing able to anchor the record again (`ensureEvidenceOtsInitialized`
- * refuses any row holding a proof, by design). The same fingerprint digest is
- * stamped again: the new proof truthfully attests a LATER block, so nothing is
- * backdated. The old proof is NEVER rewritten away: its full bytes, digest and
- * failure travel on the custody event that records the re-stamp (append-only),
- * and the budget clock restarts at that event (`resolveOtsBudgetStart`).
- *
- * Conditional on the row still holding the exhausted proof, so a concurrent
- * writer wins and this one steps aside. Bounded by MAX_OTS_RESTAMPS.
+ * A proof the calendar never upgraded within the budget used to be terminal.
+ * The same fingerprint digest is stamped again through the one stamp-and-persist
+ * path above: the new proof truthfully attests a LATER block, so nothing is
+ * backdated, and the old proof is never rewritten away (it travels on the
+ * OTS_APPLIED custody event, otsPhase proof_restamped, where the budget clock
+ * restarts: resolveOtsBudgetStart).
  */
-export async function restampOtsAfterBudgetExhaustion(params: {
+export async function restampExhaustedOtsProof(params: {
   evidenceId: string;
   requestId?: string | null;
   jobId?: string | number | null;
   trigger?: string;
 }): Promise<OtsRestampOutcome> {
-  const { evidenceId } = params;
-  const ctx = withJobContext({ jobId: params.jobId ?? null, requestId: params.requestId ?? undefined, evidenceId });
-  const evidence = await prisma.evidence.findFirst({
-    where: { id: evidenceId, deletedAt: null },
-    select: { ...INIT_SELECT, otsFailureReason: true, otsHash: true, otsCalendar: true },
-  });
-  if (!evidence) return { restamped: false, reason: "evidence_not_found" };
-  if (
-    evidence.otsStatus !== "FAILED" ||
-    evidence.otsFailureReason !== "OTS_GLOBAL_BUDGET_EXHAUSTED" ||
-    !evidence.otsProofBase64 ||
-    !evidence.fingerprintCanonicalJson
-  ) {
-    return { restamped: false, reason: "not_budget_exhausted" };
-  }
-  const prior = await prisma.custodyEvent.count({
-    where: {
-      evidenceId,
-      eventType: prismaPkg.CustodyEventType.OTS_APPLIED,
-      payload: { path: ["otsPhase"], equals: "proof_restamped" },
-    },
-  });
-  if (prior >= MAX_OTS_RESTAMPS) return { restamped: false, reason: "restamp_limit_reached" };
-
-  // The external call; no transaction is open across it. A throw is transient.
-  let stamp: OtsStampResult;
-  try {
-    stamp = await createOpenTimestamp({
-      content: Buffer.from(evidence.fingerprintCanonicalJson, "utf8"),
-      filenameStem: `fingerprint-${evidenceId}`,
-    });
-  } catch (error) {
-    logger.warn({ ...ctx, err: error }, "ots.restamp.attempt_failed");
-    throw new OtsInitializationTransientError(evidenceId, error);
-  }
-  if (stamp.status !== "PENDING" || !stamp.proofBase64) return { restamped: false, reason: "stamp_not_pending" };
-  const binding = checkOtsDigestBinding({
-    proofBase64: stamp.proofBase64,
-    fingerprintHash: evidence.fingerprintHash ?? null,
-    otsHash: stamp.hash ?? null,
-  });
-  if (binding.kind !== "MATCH") {
-    throw new OtsInitializationTransientError(
-      evidenceId,
-      new Error(`OTS_PROOF_DIGEST_${binding.kind}: the re-stamped proof does not commit to the fingerprint digest`),
-    );
-  }
-
-  const previousProofBase64 = evidence.otsProofBase64;
-  const ordinal = prior + 1;
-  const applied = await prisma.$transaction(async (tx) => {
-    const claimed = await tx.evidence.updateMany({
-      where: {
-        id: evidenceId,
-        deletedAt: null,
-        otsStatus: "FAILED",
-        otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED",
-        otsProofBase64: previousProofBase64,
-      },
-      data: buildOtsEvidenceUpdateData(stamp) as Prisma.EvidenceUpdateManyMutationInput,
-    });
-    if (claimed.count === 0) return false;
-    await appendCustodyEventTx(tx, {
-      evidenceId,
-      eventType: prismaPkg.CustodyEventType.OTS_APPLIED,
-      atUtc: new Date(),
-      payload: {
-        phase: "ots_restamped",
-        otsPhase: "proof_restamped",
-        trigger: params.trigger ?? "ots_budget_exhausted",
-        restampOrdinal: ordinal,
-        otsStatus: stamp.status,
-        hash: stamp.hash,
-        calendar: stamp.calendar,
-        // The superseded proof, kept whole on the append-only chain.
-        previousProofBase64,
-        previousProofSha256: createHash("sha256").update(Buffer.from(previousProofBase64, "base64")).digest("hex"),
-        previousFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED",
-        previousCalendar: evidence.otsCalendar ?? null,
-      } as Prisma.InputJsonValue,
-    });
-    return true;
-  });
-  if (!applied) return { restamped: false, reason: "raced" };
-  logger.info({ ...ctx, ordinal }, "ots.restamp.completed");
-  return { restamped: true, status: stamp.status, needsUpgrade: otsInitializationNeedsUpgrade(stamp), ordinal };
+  const out = await ensureEvidenceOtsInitialized({ ...params, mode: "restamp_exhausted" });
+  return out.initialized
+    ? { restamped: true, status: out.status, needsUpgrade: out.needsUpgrade }
+    : { restamped: false, reason: out.reason };
 }

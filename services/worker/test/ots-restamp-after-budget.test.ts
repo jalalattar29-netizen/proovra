@@ -55,7 +55,7 @@ vi.mock("@proovra/shared", async (orig) => ({
   checkOtsDigestBinding: () => ({ kind: "MATCH" }),
 }));
 
-import { MAX_OTS_RESTAMPS, restampOtsAfterBudgetExhaustion } from "../src/ots-lifecycle.js";
+import { MAX_OTS_RESTAMPS, restampExhaustedOtsProof } from "../src/ots-lifecycle.js";
 
 const OLD = Buffer.from("old-proof").toString("base64");
 
@@ -81,8 +81,8 @@ beforeEach(() => {
 
 describe("CRYPTO-005 — re-stamp after the budget", () => {
   it("stamps the same digest again and keeps the superseded proof whole on the custody event", async () => {
-    const out = await restampOtsAfterBudgetExhaustion({ evidenceId: "ev-1" });
-    expect(out).toEqual({ restamped: true, status: "PENDING", needsUpgrade: true, ordinal: 1 });
+    const out = await restampExhaustedOtsProof({ evidenceId: "ev-1" });
+    expect(out).toEqual({ restamped: true, status: "PENDING", needsUpgrade: true });
     expect(S.row!.otsStatus).toBe("PENDING");
     expect(S.row!.otsProofBase64).toBe(S.stamp.proofBase64);
     // The write was conditional on the exhausted proof still being there.
@@ -101,22 +101,22 @@ describe("CRYPTO-005 — re-stamp after the budget", () => {
 
   it("is bounded: a record already re-stamped is not stamped again", async () => {
     S.priorRestamps = MAX_OTS_RESTAMPS;
-    expect(await restampOtsAfterBudgetExhaustion({ evidenceId: "ev-1" })).toEqual({ restamped: false, reason: "restamp_limit_reached" });
+    expect(await restampExhaustedOtsProof({ evidenceId: "ev-1" })).toEqual({ restamped: false, reason: "restamp_limit_reached" });
     expect(S.stampCalls).toBe(0);
   });
 
   it("only a budget-exhausted proof qualifies; an invalid proof or a pending one is left alone", async () => {
     S.row!.otsFailureReason = "PROOF_HASH_MISMATCH";
-    expect(await restampOtsAfterBudgetExhaustion({ evidenceId: "ev-1" })).toMatchObject({ restamped: false, reason: "not_budget_exhausted" });
+    expect(await restampExhaustedOtsProof({ evidenceId: "ev-1" })).toMatchObject({ restamped: false, reason: "not_budget_exhausted" });
     S.row!.otsFailureReason = "OTS_GLOBAL_BUDGET_EXHAUSTED";
     S.row!.otsStatus = "PENDING";
-    expect(await restampOtsAfterBudgetExhaustion({ evidenceId: "ev-1" })).toMatchObject({ restamped: false, reason: "not_budget_exhausted" });
+    expect(await restampExhaustedOtsProof({ evidenceId: "ev-1" })).toMatchObject({ restamped: false, reason: "not_budget_exhausted" });
     expect(S.stampCalls).toBe(0);
   });
 
   it("a stamp that does not come back pending changes nothing; a raced writer wins", async () => {
     S.stamp = { status: "FAILED", proofBase64: null, failureReason: "calendar_down" };
-    expect(await restampOtsAfterBudgetExhaustion({ evidenceId: "ev-1" })).toEqual({ restamped: false, reason: "stamp_not_pending" });
+    expect(await restampExhaustedOtsProof({ evidenceId: "ev-1" })).toEqual({ restamped: false, reason: "stamp_not_pending" });
     expect(S.row!.otsProofBase64).toBe(OLD);
     S.stamp = { status: "PENDING", proofBase64: Buffer.from("new").toString("base64"), hash: "h", calendar: "c" };
     // Another writer replaced the proof between the read and the write.
@@ -125,7 +125,7 @@ describe("CRYPTO-005 — re-stamp after the budget", () => {
     const original = S.row;
     S.updates = [];
     original.otsProofBase64 = OLD;
-    const pending = restampOtsAfterBudgetExhaustion({ evidenceId: "ev-1" });
+    const pending = restampExhaustedOtsProof({ evidenceId: "ev-1" });
     original.otsProofBase64 = Buffer.from("someone-else").toString("base64");
     expect(await pending).toEqual({ restamped: false, reason: "raced" });
     expect(S.events).toHaveLength(0);

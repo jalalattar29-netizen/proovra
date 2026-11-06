@@ -9,7 +9,7 @@
 -- image ignores the table. Rollback: drop it (the next view re-reads the bytes).
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS "package_seal_byte_checks" (
+CREATE TABLE "package_seal_byte_checks" (
   "identity_sha256" VARCHAR(64) NOT NULL,
   "package_id" UUID NOT NULL,
   "outcome" VARCHAR(16) NOT NULL,
@@ -19,4 +19,4 @@ CREATE TABLE IF NOT EXISTS "package_seal_byte_checks" (
   CONSTRAINT "package_seal_byte_checks_outcome_check" CHECK ("outcome" IN ('VERIFIED', 'FAILED', 'UNBOUND'))
 );
 
-CREATE INDEX IF NOT EXISTS "package_seal_byte_checks_package_id_idx" ON "package_seal_byte_checks" ("package_id");
+CREATE INDEX "package_seal_byte_checks_package_id_idx" ON "package_seal_byte_checks" ("package_id");

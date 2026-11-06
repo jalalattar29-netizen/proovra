@@ -7,7 +7,7 @@
 -- the table (requests are re-creatable; the evidence itself is untouched).
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS "organization_data_export_requests" (
+CREATE TABLE "organization_data_export_requests" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "organization_id" UUID NOT NULL,
   "requested_by_user_id" UUID NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "organization_data_export_requests" (
   CONSTRAINT "organization_data_export_requests_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS "organization_data_export_requests_organization_id_status_idx"
+CREATE INDEX "organization_data_export_requests_organization_id_status_idx"
   ON "organization_data_export_requests" ("organization_id", "status");
-CREATE INDEX IF NOT EXISTS "organization_data_export_requests_status_requested_at_utc_idx"
+CREATE INDEX "organization_data_export_requests_status_requested_at_utc_idx"
   ON "organization_data_export_requests" ("status", "requested_at_utc");

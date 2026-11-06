@@ -125,6 +125,21 @@ async function assertEd25519CertificateSigningAvailable(): Promise<void> {
   }
 }
 
+/**
+ * The Ed25519 signature, or — outside production only, exactly as the HMAC has a
+ * development fallback — null when this environment has no usable signer. In
+ * production the signer's readiness is proven before the first delete, so a
+ * failure here throws rather than certifying without the signature.
+ */
+async function ed25519CertificateSignature(certificateHash: string) {
+  try {
+    return await signDestructionCertificateHash(certificateHash);
+  } catch (err) {
+    if ((process.env.NODE_ENV ?? "").toLowerCase() === "production") throw err;
+    return null;
+  }
+}
+
 function signatureHmac(payload: string): string {
   const secret = certificateSigningSecret();
   if (!secret) {
@@ -1229,7 +1244,7 @@ export async function certifyDestruction(
     // GOV-009 — verifiable by anyone with the published key: Ed25519 over the
     // bytes of certificateHash, by the platform signer, self-verified against
     // signing_keys(keyId, keyVersion, DESTRUCTION_CERTIFICATE).
-    signatureEd25519: await signDestructionCertificateHash(certificateHash),
+    signatureEd25519: await ed25519CertificateSignature(certificateHash),
   };
   const artifactText = JSON.stringify(artifactBody, null, 2);
   const artifactBytes = Buffer.from(artifactText, "utf8");

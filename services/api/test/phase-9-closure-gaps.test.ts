@@ -84,7 +84,7 @@ import {
   loadMemberAccessSnapshot,
   evaluateAccess,
 } from "../src/services/identity/access-policy.service.js";
-import { resolveEnterpriseContract } from "../src/services/organization/enterprise-contract.service.js";
+import { resetLegacyFallbackAuditWindows, resolveEnterpriseContract } from "../src/services/organization/enterprise-contract.service.js";
 import { verifyStripeSignature, StripeSignatureError } from "../src/services/stripe.service.js";
 
 beforeEach(() => {
@@ -187,6 +187,8 @@ describe("EnterpriseContract legacy fallback — temporary COMPATIBILITY_INPUT_A
 
   it("every fallback use is runtime-audited for the Phase 12 retirement metric", async () => {
     H.orgRow = { id: "org-1", kind: "CUSTOMER", status: "ACTIVE", createdAt: new Date(), billingOwnerUserId: "u1", pendingEnterpriseSeats: 1 };
+    // CAP-6 / CAP-7: audited once per organization per window; a fresh window here.
+    resetLegacyFallbackAuditWindows();
     await resolveEnterpriseContract("org-1");
     // The audit is fire-and-forget — flush pending microtasks/timers.
     await new Promise((r) => setTimeout(r, 10));
