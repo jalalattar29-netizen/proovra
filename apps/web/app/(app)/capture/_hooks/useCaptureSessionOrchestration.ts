@@ -1047,15 +1047,24 @@ export function useCaptureSessionOrchestration({
       resetCaptureState({ preserveTimeline: true });
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
+      // PRO-078 — the server refused the record's only file and released its
+      // empty reservation (no record slot is held). Resuming into it would
+      // address a record that no longer exists, so the next Finish starts a
+      // new one.
+      const released = refusedUploadReleasedReservation(err);
+      if (released) reservationRef.current = null;
+
       // UC-WEB-001 — no item may stay "uploading" after a failure. The item
       // that failed carries a safe error; items already uploaded keep 100%;
       // the rest go back to idle so the retry can resume them.
       {
         const failedItemId = currentItemId;
         const uploaded = reservationRef.current?.uploadedItemIds ?? new Set<string>();
-        const itemError = toSafeUserError(err, {
-          message: "This item could not be uploaded. Retry to resume.",
-        }).message;
+        const itemError = released
+          ? `${toSafeUserError(err).message} No record slot was used.`
+          : toSafeUserError(err, {
+              message: "This item could not be uploaded. Retry to resume.",
+            }).message;
         setSessionItems((prev) =>
           prev.map((current) => {
             if (uploaded.has(current.id)) {
@@ -1097,7 +1106,7 @@ export function useCaptureSessionOrchestration({
       }
 
       const storageMessage = buildStorageLimitMessage(err);
-      const baseMsg = storageMessage || safe.message;
+      const baseMsg = storageMessage || (released ? `${safe.message} No record slot was used.` : safe.message);
 
       const toast = captureFailureToast(safe, {
         explained,
@@ -1137,4 +1146,13 @@ export function useCaptureSessionOrchestration({
     setSessionItems,
     setSessionStatus,
   };
+}
+/**
+ * PRO-078 — POST /v1/evidence/:id/parts answered 415 FILE_VALIDATION_BLOCKED
+ * and released the record's empty reservation (`reservationReleased: true`).
+ * apiFetch keeps a flat body's fields under `body.error`.
+ */
+export function refusedUploadReleasedReservation(err: unknown): boolean {
+  const e = err as { code?: unknown; body?: { error?: { reservationReleased?: unknown } } } | null;
+  return e?.code === "FILE_VALIDATION_BLOCKED" && e.body?.error?.reservationReleased === true;
 }

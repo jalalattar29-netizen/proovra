@@ -78,6 +78,9 @@ describe("evidence reservation has one authority", () => {
       // the same canonical release (reason RESERVATION_EXPIRED).
       "services/api/src/scripts/three-decisions-backfill.ts",
       "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+      // PRO-078 — a refused first file releases its EMPTY record at once
+      // (reason UPLOAD_REFUSED) instead of holding a slot for 24 hours.
+      "services/api/src/services/evidence-upload-refusal.service.ts",
       // ET-INT-09 — the loser of a concurrent intake session claim releases
       // the record it reserved (reason INTAKE_SESSION_RACE_LOST).
       "services/api/src/services/external-intake-orchestration.service.ts",
@@ -87,7 +90,7 @@ describe("evidence reservation has one authority", () => {
 
   it("no module writes a reservation-release custody reason outside the authority", () => {
     const hand = files
-      .filter((f) => f.path !== CANONICAL && /"(CAPTURE_SESSION_DISCARDED|CAPTURE_SESSION_EXPIRED|RESERVATION_EXPIRED)"/.test(f.source))
+      .filter((f) => f.path !== CANONICAL && /"(CAPTURE_SESSION_DISCARDED|CAPTURE_SESSION_EXPIRED|RESERVATION_EXPIRED|UPLOAD_REFUSED)"/.test(f.source))
       .filter((f) => /EVIDENCE_DELETED/.test(f.source))
       .map((f) => f.path);
     expect(hand).toEqual([]);

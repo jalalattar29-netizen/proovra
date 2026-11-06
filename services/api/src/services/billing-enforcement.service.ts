@@ -585,14 +585,30 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       // an internal error. That broke the integration gate, and the honest fix
       // is the copy, not the assertion — nothing the rewrite added is lost
       // here: the number, the reassurance and the remedy all remain.
+      // PRO-078 — when some of the occupied slots are uploads that were never
+      // finished, say so: they are not gone for good. Each frees its slot when
+      // it is finished or released, or 24 hours after it was last touched
+      // (EVIDENCE_RESERVATION_TTL_MS, the reservation authority's window).
       publicMessage: isFree
-        ? "You have reached the record limit included in the Free plan: 3 records. Deleting a record does not restore a slot. Existing records remain available — buy evidence credits or upgrade to add more."
-        : "You have reached the record limit included in your current plan. Existing records remain available — buy evidence credits or upgrade to add more.",
+        ? `You have reached the record limit included in the Free plan: 3 records. Deleting a record does not restore a slot.${unfinishedUploadsClause(lifetime.unsealed)} Existing records remain available — buy evidence credits or upgrade to add more.`
+        : `You have reached the record limit included in your current plan.${unfinishedUploadsClause(lifetime.unsealed)} Existing records remain available — buy evidence credits or upgrade to add more.`,
       reportability: "EXPECTED_DENIAL",
       severity: "info",
-      metadata: { plan: String(scope.plan), limitKind: "evidence_records" },
+      metadata: {
+        plan: String(scope.plan),
+        limitKind: "evidence_records",
+        unfinishedUploads: lifetime.unsealed,
+      },
     },
   );
+}
+
+/** PRO-078 — the sentence for slots held by uploads that were never finished. */
+function unfinishedUploadsClause(unsealed: number): string {
+  if (unsealed <= 0) return "";
+  return unsealed === 1
+    ? " One of them is an upload that was never finished: it frees its slot when it is finished or released, or 24 hours after it was last touched."
+    : ` ${unsealed} of them are uploads that were never finished: each frees its slot when it is finished or released, or 24 hours after it was last touched.`;
 }
 
 /**

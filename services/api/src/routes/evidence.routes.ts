@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { releaseRefusedUploadReservation } from "../services/evidence-upload-refusal.service.js";
 import { bumpCaptureFailure, objectLockPolicyFromEnv } from "@proovra/shared-runtime";
 import {
   accessibleWorkspaceIdsFor,
@@ -7193,6 +7194,17 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           },
         });
       } catch (err) {
+        // PRO-078 — a refused file leaves an EMPTY record that can never be
+        // sealed as it stands; its reservation is released now, not after the
+        // 24-hour sweep, so it stops holding a record slot. A record that
+        // already holds another file keeps its reservation (the authority
+        // checks, under the evidence lock).
+        const refusedCode = (err as { code?: string }).code;
+        const reservationReleased =
+          refusedCode === "FILE_VALIDATION_BLOCKED"
+            ? await releaseRefusedUploadReservation({ evidenceId: id }).catch(() => false)
+            : false;
+
         await auditEvidenceAction(req, {
           userId: ownerUserId,
           action: "evidence.part_presign_created",
@@ -7203,6 +7215,7 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
           metadata: {
             reason: err instanceof Error ? err.message : "unknown_error",
             partIndex: body.partIndex,
+            ...(reservationReleased ? { reservationReleased: true } : {}),
           },
         });
 
@@ -7211,6 +7224,9 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
             ? (err as Error & { statusCode?: number }).statusCode ?? 500
             : 500;
         const message = err instanceof Error ? err.message : "Unexpected error";
+        if (refusedCode === "FILE_VALIDATION_BLOCKED") {
+          return reply.code(statusCode).send({ message, code: refusedCode, reservationReleased });
+        }
         return reply.code(statusCode).send({ message });
       }
     }
