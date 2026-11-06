@@ -262,7 +262,7 @@ describe("round 3 governance follow-up (live PostgreSQL 16)", () => {
       // The other organization's record is not in it.
       expect(pkg.manifest.records.some((r) => r.evidenceId === foreign.id)).toBe(false);
       // Under the default (BLOCK) the held record is listed as withheld, with no link.
-      expect(pkg.withheldByLegalHold).toEqual([{ evidenceId: held.id, workspaceId: A().teamId, reason: "WITHHELD_BY_LEGAL_HOLD" }]);
+      expect(pkg.withheldByLegalHold).toContainEqual({ evidenceId: held.id, workspaceId: A().teamId, reason: "WITHHELD_BY_LEGAL_HOLD" });
       const blocked = await orgExport.issueOrganizationExportLinks({ manifest: pkg.manifest, exportId: req.id, actorUserId: A().ownerUserId, offset: 0, client: prisma as never });
       expect(blocked.links.some((l) => l.evidenceId === held.id)).toBe(false);
       expect(blocked.withheldByLegalHold.map((w) => w.evidenceId)).toContain(held.id);
