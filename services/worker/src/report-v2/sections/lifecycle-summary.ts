@@ -104,7 +104,7 @@ export type LifecycleSummaryPrisma = Record<
   | "destructionRequest"
   | "evidenceLegalHold"
   | "intelligenceActivityEvent"
-  | "retentionPolicyConfig",
+  | "evidenceRetentionPolicy",
   LifecycleReadDelegate
 >;
 
@@ -116,50 +116,48 @@ export async function loadLifecycleSummary(input: {
   const { prisma, teamId } = input;
 
   try {
-    // Retention
-    const [totalPolicies, activePolicies, overridePolicies, templateGroups, activePolicy] =
-      await Promise.all([
-        prisma.retentionPolicyConfig.count({ where: { teamId } }).catch(() => 0),
-        prisma.retentionPolicyConfig.count({ where: { teamId, state: "ACTIVE" } }).catch(() => 0),
-        prisma.retentionPolicyConfig.count({ where: { teamId, isOverride: true } }).catch(() => 0),
-        prisma.retentionPolicyConfig
-          .groupBy({
-            by: ["template"],
-            where: { teamId, state: "ACTIVE" },
-            _count: { _all: true },
-          })
-          .catch(() => [] as Array<{ template: string; _count: { _all: number } }>),
-        prisma.retentionPolicyConfig
-          .findFirst({
-            where: { teamId, state: "ACTIVE" },
-            orderBy: { createdAt: "desc" },
-            select: { id: true, name: true, years: true },
-          })
-          .catch(() => null),
-      ]);
+    // Retention — GOV-005: the one store records bind to
+    // (`evidence_retention_policies`). The retired `retention_policy_configs`
+    // was copied into it; a lifecycle-page policy carries its template in the
+    // description (`lifecycle-template:<TEMPLATE>`). Overrides do not exist in
+    // the binding store, so none are reported.
+    const [totalPolicies, activePolicyRows, activePolicy] = await Promise.all([
+      prisma.evidenceRetentionPolicy.count({ where: { teamId } }).catch(() => 0),
+      prisma.evidenceRetentionPolicy
+        .findMany({ where: { teamId, status: "ACTIVE" }, select: { description: true } })
+        .catch(() => [] as Array<{ description: string | null }>),
+      prisma.evidenceRetentionPolicy
+        .findFirst({
+          where: { teamId, status: "ACTIVE" },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, displayName: true, retentionDays: true },
+        })
+        .catch(() => null),
+    ]);
 
     const templateBreakdown: Record<string, number> = {};
-    for (const g of templateGroups as Array<{
-      template: string;
-      _count: { _all: number };
-    }>) {
-      templateBreakdown[g.template] = g._count._all;
+    for (const row of activePolicyRows as Array<{ description: string | null }>) {
+      const marker = row.description?.startsWith("lifecycle-template:")
+        ? row.description.slice("lifecycle-template:".length).split(/\s/)[0]
+        : null;
+      const key = marker || "GOVERNANCE_POLICY";
+      templateBreakdown[key] = (templateBreakdown[key] ?? 0) + 1;
     }
+    const latest = activePolicy as { id: string; displayName: string; retentionDays: number | null } | null;
 
     const retention = {
       totalPolicies: totalPolicies as number,
-      activePolicies: activePolicies as number,
-      overridePolicies: overridePolicies as number,
+      activePolicies: (activePolicyRows as unknown[]).length,
+      overridePolicies: 0,
       templateBreakdown,
-      activePolicy: activePolicy
+      activePolicy: latest
         ? {
-            policyId: (activePolicy as { id: string; name: string; years: number }).id,
-            policyName: (activePolicy as { id: string; name: string; years: number }).name,
-            years: (activePolicy as { id: string; name: string; years: number }).years,
+            policyId: latest.id,
+            policyName: latest.displayName,
+            years: latest.retentionDays === null ? 0 : Math.round((latest.retentionDays / 365.25) * 100) / 100,
           }
         : null,
     };
-
     // Legal holds — read from the CANONICAL store (`evidence_legal_holds`).
     //
     // This block previously counted the legacy scope-generic `legal_holds`

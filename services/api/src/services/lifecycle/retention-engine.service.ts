@@ -36,6 +36,11 @@ import { resolveEntitlement } from "../packaging/entitlement.service.js";
 import { emitLifecycleEvent } from "../intelligence/intelligence-activity.service.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import {
+  RetentionEngineError,
+  createRetentionPolicy as createCanonicalPolicy,
+  transitionRetentionPolicy as transitionCanonicalPolicy,
+} from "../governance-lifecycle/retention-engine.service.js";
 
 // ===========================================================================
 // Template defaults
@@ -62,16 +67,6 @@ export const RETENTION_SCOPE_KINDS = [
   "EVIDENCE",
 ] as const;
 export type RetentionScopeKind = (typeof RETENTION_SCOPE_KINDS)[number];
-
-// Scope precedence — narrower scopes appear later. When `isOverride`
-// is set, the narrower scope replaces the parent's effective years.
-// Otherwise the strictest (max years) effective value wins.
-const SCOPE_RANK: Record<RetentionScopeKind, number> = {
-  WORKSPACE: 0,
-  DEPARTMENT: 1,
-  CASE: 2,
-  EVIDENCE: 3,
-};
 
 // ===========================================================================
 // Bounded denial codes
@@ -145,55 +140,66 @@ function yearsInMs(years: number): number {
   return Math.max(0, years) * 365.25 * 24 * 3600 * 1000;
 }
 
-function clampExceptions(
-  exceptions?: ReadonlyArray<string>,
-): ReadonlyArray<string> {
-  if (!exceptions || exceptions.length === 0) return [];
-  const trimmed: Array<string> = [];
-  for (const e of exceptions) {
-    if (typeof e !== "string") continue;
-    const v = e.slice(0, 80);
-    if (v.length > 0) trimmed.push(v);
-    if (trimmed.length >= 50) break;
-  }
-  return trimmed;
+// ===========================================================================
+// GOV-005 / RETENTION-TWO-TABLES — ONE STORE (2026-11-04)
+// ===========================================================================
+//
+// This module kept its own table, `retention_policy_configs`, and nothing read
+// it when a record was created or its date ran out: a policy made on the
+// evidence-lifecycle page or in the organization setup wizard governed nothing.
+// The binding authority is `evidence_retention_policies`
+// (`packages/shared-runtime/src/evidence-retention/policy-binding.ts`:
+// prospective, extend-only), so every function below now reads and writes that
+// store through the canonical engine. The old table is retired by migration
+// 20281115100100: its rows were copied (same ids) and it refuses writes.
+//
+// The request shape is kept (template + years, WORKSPACE or CASE scope) so the
+// existing pages keep working. What the binding cannot honour is refused with a
+// reason instead of being stored and ignored: DEPARTMENT scope (a record carries
+// no department), per-policy exceptions, inheritance and overrides (binding
+// precedence is the catalog's, `pickHighestPrecedencePolicy`).
+
+/** The template a lifecycle-page policy was created from, kept in its description. */
+const TEMPLATE_MARKER = "lifecycle-template:";
+
+const DAYS_PER_YEAR = 365.25;
+
+function yearsToDays(years: number): number {
+  return Math.round(years * DAYS_PER_YEAR);
 }
 
-function projectPolicyRow(row: {
+function templateFromDescription(description: string | null, days: number | null): RetentionPolicyTemplate {
+  const marked = description?.split(/\s/).find((w) => w.startsWith(TEMPLATE_MARKER))?.slice(TEMPLATE_MARKER.length);
+  if (marked && (RETENTION_POLICY_TEMPLATES as ReadonlyArray<string>).includes(marked)) {
+    return marked as RetentionPolicyTemplate;
+  }
+  for (const t of RETENTION_POLICY_TEMPLATES) {
+    if (t !== "CUSTOM" && days !== null && yearsToDays(RETENTION_TEMPLATE_DEFAULTS[t].years) === days) return t;
+  }
+  return "CUSTOM";
+}
+
+function projectCanonical(row: {
   id: string;
-  name: string;
-  template: string;
-  years: number;
-  scopeKind: string;
-  scopeTargetId: string | null;
-  inheritsFromId: string | null;
-  isOverride: boolean;
-  exceptions: unknown;
+  displayName: string;
+  description: string | null;
+  scope: string;
+  caseId: string | null;
+  retentionDays: number | null;
 }): RetentionPolicyProjection {
   const appliesTo =
-    row.scopeKind === "WORKSPACE"
-      ? "workspace"
-      : `${row.scopeKind.toLowerCase()}:${(row.scopeTargetId ?? "").slice(0, 8)}`;
-  const exceptions = Array.isArray(row.exceptions)
-    ? (row.exceptions as ReadonlyArray<unknown>).filter(
-        (v): v is string => typeof v === "string",
-      )
-    : [];
+    row.scope === "WORKSPACE" ? "workspace" : `${row.scope.toLowerCase()}:${(row.caseId ?? "").slice(0, 8)}`;
   return {
     id: row.id,
-    name: row.name,
-    template: row.template as RetentionPolicyTemplate,
-    years: row.years,
+    name: row.displayName,
+    template: templateFromDescription(row.description, row.retentionDays),
+    years: row.retentionDays === null ? 0 : Math.round((row.retentionDays / DAYS_PER_YEAR) * 100) / 100,
     appliesTo,
-    inheritsFrom: row.inheritsFromId,
-    isOverride: row.isOverride,
-    exceptions,
+    inheritsFrom: null,
+    isOverride: false,
+    exceptions: [],
   };
 }
-
-// ===========================================================================
-// createRetentionPolicy
-// ===========================================================================
 
 export type CreateRetentionPolicyInput = {
   prisma?: PrismaClient;
@@ -217,57 +223,34 @@ export type CreateRetentionPolicyResult =
 export async function createRetentionPolicy(
   input: CreateRetentionPolicyInput,
 ): Promise<CreateRetentionPolicyResult> {
-  if (
-    !(RETENTION_POLICY_TEMPLATES as ReadonlyArray<string>).includes(
-      input.template,
-    )
-  ) {
-    return {
-      ok: false,
-      denial: "POLICY_REJECTED",
-      reason: "unknown_template",
-    };
+  if (!(RETENTION_POLICY_TEMPLATES as ReadonlyArray<string>).includes(input.template)) {
+    return { ok: false, denial: "POLICY_REJECTED", reason: "unknown_template" };
   }
   if (input.template === "CUSTOM" && (input.years === undefined || input.years === null)) {
-    return {
-      ok: false,
-      denial: "POLICY_REJECTED",
-      reason: "custom_template_requires_years",
-    };
+    return { ok: false, denial: "POLICY_REJECTED", reason: "custom_template_requires_years" };
   }
   const years = input.years ?? RETENTION_TEMPLATE_DEFAULTS[input.template].years;
-  if (!Number.isFinite(years) || years < 0 || years > 100) {
-    return {
-      ok: false,
-      denial: "POLICY_REJECTED",
-      reason: "years_out_of_range",
-    };
+  // A zero-year policy used to mean "no floor"; in the binding store a policy
+  // with no days is INDEFINITE retention, the opposite. Refused, not inverted.
+  if (!Number.isFinite(years) || years < 1 || years > 100) {
+    return { ok: false, denial: "POLICY_REJECTED", reason: "years_out_of_range" };
   }
-  if (
-    input.scopeKind !== "WORKSPACE" &&
-    !input.scopeTargetId
-  ) {
-    return {
-      ok: false,
-      denial: "POLICY_REJECTED",
-      reason: "scope_requires_target_id",
-    };
+  if (input.scopeKind === "DEPARTMENT") {
+    return { ok: false, denial: "POLICY_REJECTED", reason: "scope_not_bindable" };
+  }
+  if (input.scopeKind !== "WORKSPACE" && !input.scopeTargetId) {
+    return { ok: false, denial: "POLICY_REJECTED", reason: "scope_requires_target_id" };
+  }
+  if ((input.exceptions?.length ?? 0) > 0 || input.inheritsFromId || input.isOverride) {
+    return { ok: false, denial: "POLICY_REJECTED", reason: "not_supported_by_binding" };
   }
   const prisma = input.prisma ?? defaultPrisma;
 
   // 4B-I9: RETENTION_MAX_YEARS — gate before policy creation.
-  // Reads the workspace entitlement limit and rejects when the requested
-  // years exceed it. Emits POLICY_VIOLATION_RETENTION on denial.
-  // Engine errors are swallowed so this gate never blocks the operational path.
   try {
-    const limitGrant = await resolveEntitlement({
-      prisma,
-      teamId: input.teamId,
-      key: "RETENTION_MAX_YEARS",
-    });
+    const limitGrant = await resolveEntitlement({ prisma, teamId: input.teamId, key: "RETENTION_MAX_YEARS" });
     const maxYears = typeof limitGrant.value === "number" ? limitGrant.value : 0;
     if (years > maxYears) {
-      // Emit lifecycle event for the violation (best-effort).
       emitLifecycleEvent({
         prisma,
         teamId: input.teamId,
@@ -284,37 +267,38 @@ export async function createRetentionPolicy(
     /* entitlement engine error — do not block policy creation */
   }
 
-  const row = await prisma.$transaction(async (tx) => {
-    const created = await tx.retentionPolicyConfig.create({
-      data: {
-        teamId: input.teamId,
-        name: input.name.slice(0, 200),
-        template: input.template,
-        years: Math.round(years),
-        scopeKind: input.scopeKind,
-        scopeTargetId: input.scopeTargetId ?? null,
-        inheritsFromId: input.inheritsFromId ?? null,
-        isOverride: input.isOverride ?? false,
-        exceptions: clampExceptions(input.exceptions) as never,
-        state: "ACTIVE",
-        createdByUserId: input.createdByUserId,
-      },
+  if (input.scopeKind === "CASE") {
+    const owned = await prisma.case.findFirst({
+      where: { id: input.scopeTargetId!, teamId: input.teamId },
       select: { id: true },
     });
-    await emitRetentionAudit(
+    if (!owned) return { ok: false, denial: "POLICY_REJECTED", reason: "case_not_in_workspace" };
+  }
+
+  try {
+    const created = await createCanonicalPolicy(
       {
         teamId: input.teamId,
-        policyId: created.id,
-        code: "RETENTION_POLICY_CREATED",
         actorUserId: input.createdByUserId,
-        reason: `template=${input.template}; years=${Math.round(years)}; scope=${input.scopeKind}`,
-        resultingState: "ACTIVE",
+        displayName: input.name.slice(0, 180),
+        description: `${TEMPLATE_MARKER}${input.template}`,
+        scope: input.scopeKind,
+        caseId: input.scopeKind === "CASE" ? input.scopeTargetId! : null,
+        retentionDays: yearsToDays(years),
+        changeNote: `Created from the lifecycle retention page (template ${input.template}, ${years} years)`,
       },
-      tx as unknown as PrismaClient,
+      prisma,
     );
-    return created;
-  });
-  return { ok: true, policyId: row.id };
+    return { ok: true, policyId: created.id };
+  } catch (err) {
+    if (err instanceof RetentionEngineError && err.code === "RETENTION_POLICY_DUPLICATE") {
+      return { ok: false, denial: "POLICY_REJECTED", reason: "duplicate_name" };
+    }
+    if (err instanceof RetentionEngineError && err.code === "RETENTION_POLICY_INVALID") {
+      return { ok: false, denial: "POLICY_REJECTED", reason: "invalid_policy" };
+    }
+    throw err;
+  }
 }
 
 // ===========================================================================
@@ -328,31 +312,22 @@ export async function releaseRetentionPolicy(input: {
   actorUserId: string;
 }): Promise<{ ok: boolean }> {
   const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.retentionPolicyConfig.findFirst({
-    where: { id: input.policyId, teamId: input.teamId },
-    select: { id: true, state: true },
-  });
-  if (!row) return { ok: false };
-  // The release and its audit row commit together.
-  await prisma.$transaction(async (tx) => {
-    await tx.retentionPolicyConfig.update({
-      where: { id: row.id },
-      data: { state: "ARCHIVED" },
-    });
-    await emitRetentionAudit(
+  try {
+    await transitionCanonicalPolicy(
       {
         teamId: input.teamId,
-        policyId: row.id,
-        code: "RETENTION_POLICY_RELEASED",
+        id: input.policyId,
         actorUserId: input.actorUserId,
-        reason: null,
-        previousState: row.state,
-        resultingState: "ARCHIVED",
+        nextStatus: "ARCHIVED",
+        changeNote: "Released from the lifecycle retention page",
       },
-      tx as unknown as PrismaClient,
+      prisma,
     );
-  });
-  return { ok: true };
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof RetentionEngineError) return { ok: false };
+    throw err;
+  }
 }
 
 // ===========================================================================
@@ -366,6 +341,12 @@ export type EffectiveRetention = {
   exceptions: ReadonlyArray<string>;
 };
 
+/**
+ * The longest ACTIVE, dated policy of the binding store that matches the
+ * record (workspace, its type, any of its cases). Longest because a template
+ * bound must never shorten retention (extend-only); an indefinite policy is
+ * reported by the binding itself, not as a date here.
+ */
 export async function resolveEffectiveRetention(input: {
   prisma?: PrismaClient;
   teamId: string;
@@ -374,108 +355,29 @@ export async function resolveEffectiveRetention(input: {
   departmentId?: string;
 }): Promise<EffectiveRetention> {
   const prisma = input.prisma ?? defaultPrisma;
-
-  // If caseId / departmentId weren't supplied, hydrate from the
-  // canonical CaseEvidenceLink table. Track 1B closure — retention
-  // scope considers ALL linked cases (the strictest matching policy
-  // wins in the walk below), not a single legacy primary case.
-  const departmentId = input.departmentId ?? null;
   let caseIds: string[] = input.caseId ? [input.caseId] : [];
   if (caseIds.length === 0) {
     const links = await prisma.caseEvidenceLink
-      .findMany({
-        where: { evidenceId: input.evidenceId },
-        select: { caseId: true },
-        take: 100,
-      })
+      .findMany({ where: { evidenceId: input.evidenceId }, select: { caseId: true }, take: 100 })
       .catch(() => []);
     caseIds = links.map((l) => l.caseId);
-    // departmentId is not stored on Evidence; caller must supply it if needed
   }
-
-  const orClauses: Array<{ scopeKind: string; scopeTargetId: string | null }> = [
-    { scopeKind: "WORKSPACE", scopeTargetId: null },
-  ];
-  if (departmentId) {
-    orClauses.push({ scopeKind: "DEPARTMENT", scopeTargetId: departmentId });
-  }
-  for (const cid of caseIds) {
-    orClauses.push({ scopeKind: "CASE", scopeTargetId: cid });
-  }
-  orClauses.push({ scopeKind: "EVIDENCE", scopeTargetId: input.evidenceId });
-
-  const rows = await prisma.retentionPolicyConfig.findMany({
-    where: {
-      teamId: input.teamId,
-      state: "ACTIVE",
-      OR: orClauses,
-    },
-    select: {
-      id: true,
-      years: true,
-      scopeKind: true,
-      scopeTargetId: true,
-      isOverride: true,
-      exceptions: true,
-    },
+  const ev = await prisma.evidence
+    .findUnique({ where: { id: input.evidenceId }, select: { type: true } })
+    .catch(() => null);
+  const arms: Array<Record<string, unknown>> = [{ scope: "WORKSPACE" }];
+  if (ev?.type) arms.push({ scope: "EVIDENCE_TYPE", scopeQualifier: String(ev.type) });
+  if (caseIds.length > 0) arms.push({ scope: "CASE", caseId: { in: caseIds } });
+  const rows = await prisma.evidenceRetentionPolicy.findMany({
+    where: { teamId: input.teamId, status: "ACTIVE", retentionDays: { not: null }, OR: arms },
+    select: { id: true, retentionDays: true },
   });
-
-  // Walk narrowest-to-widest. When the narrowest scope present carries
-  // `isOverride=true`, it wins outright. Otherwise the strictest
-  // (max years) across all matching policies wins.
-  let chosen: {
-    id: string;
-    years: number;
-    isOverride: boolean;
-    exceptions: ReadonlyArray<string>;
-    rank: number;
-  } | null = null;
-
+  let chosen: { id: string; days: number } | null = null;
   for (const r of rows) {
-    const kind = r.scopeKind as RetentionScopeKind;
-    const rank = SCOPE_RANK[kind] ?? 0;
-    const exceptions = Array.isArray(r.exceptions)
-      ? (r.exceptions as ReadonlyArray<unknown>).filter(
-          (v): v is string => typeof v === "string",
-        )
-      : [];
-    const candidate = {
-      id: r.id,
-      years: r.years,
-      isOverride: r.isOverride,
-      exceptions,
-      rank,
-    };
-    if (!chosen) {
-      chosen = candidate;
-      continue;
-    }
-    // Narrower override outright replaces.
-    if (candidate.isOverride && candidate.rank >= chosen.rank) {
-      chosen = candidate;
-      continue;
-    }
-    // Otherwise, strictest (longest) wins so we never auto-shrink
-    // retention by accident.
-    if (!chosen.isOverride && candidate.years > chosen.years) {
-      chosen = candidate;
-    }
+    if (r.retentionDays !== null && (!chosen || r.retentionDays > chosen.days)) chosen = { id: r.id, days: r.retentionDays };
   }
-
-  if (!chosen) {
-    return {
-      effectiveYears: 0,
-      appliedPolicyId: null,
-      isOverride: false,
-      exceptions: [],
-    };
-  }
-  return {
-    effectiveYears: chosen.years,
-    appliedPolicyId: chosen.id,
-    isOverride: chosen.isOverride,
-    exceptions: chosen.exceptions,
-  };
+  if (!chosen) return { effectiveYears: 0, appliedPolicyId: null, isOverride: false, exceptions: [] };
+  return { effectiveYears: chosen.days / DAYS_PER_YEAR, appliedPolicyId: chosen.id, isOverride: false, exceptions: [] };
 }
 
 // ===========================================================================
@@ -495,55 +397,25 @@ export async function gateRetention(input: {
 }): Promise<GateRetentionResult> {
   const prisma = input.prisma ?? defaultPrisma;
   const ev = await prisma.evidence
-    .findUnique({
-      where: { id: input.evidenceId },
-      select: { id: true, createdAt: true },
-    })
+    .findUnique({ where: { id: input.evidenceId }, select: { id: true, createdAt: true } })
     .catch(() => null);
-  if (!ev) {
-    return {
-      ok: false,
-      denial: "EVIDENCE_NOT_FOUND",
-      reason: "evidence_not_found",
-    };
-  }
-  // caseId deliberately omitted — resolveEffectiveRetention hydrates
-  // ALL linked cases from the canonical link table.
-  const effective = await resolveEffectiveRetention({
-    prisma,
-    teamId: input.teamId,
-    evidenceId: ev.id,
-  });
-  if (effective.effectiveYears <= 0) {
-    // No policy or 0-year policy = no retention floor; allow.
-    return { ok: true };
-  }
+  if (!ev) return { ok: false, denial: "EVIDENCE_NOT_FOUND", reason: "evidence_not_found" };
+  const effective = await resolveEffectiveRetention({ prisma, teamId: input.teamId, evidenceId: ev.id });
+  if (effective.effectiveYears <= 0) return { ok: true };
   const ageMs = nowMs() - ev.createdAt.getTime();
-  const requiredMs = yearsInMs(effective.effectiveYears);
-  if (ageMs < requiredMs) {
-    const reason = `retention_floor_${effective.effectiveYears}y_not_met_action_${input.action.toLowerCase()}`;
+  if (ageMs < yearsInMs(effective.effectiveYears)) {
+    const reason = `retention_floor_${Math.round(effective.effectiveYears)}y_not_met_action_${input.action.toLowerCase()}`;
     await emitRetentionAudit(
-      {
-        teamId: input.teamId,
-        policyId: effective.appliedPolicyId,
-        code: "POLICY_BLOCK",
-        actorUserId: null,
-        reason,
-      },
+      { teamId: input.teamId, policyId: effective.appliedPolicyId, code: "POLICY_BLOCK", actorUserId: null, reason },
       prisma,
     ).catch((err: unknown) => {
-      // The denial stands either way; the failed audit write is surfaced.
       // eslint-disable-next-line no-console
       console.error("retention_policy_block_audit_failed", {
         teamId: input.teamId,
         error: err instanceof Error ? err.message : String(err),
       });
     });
-    return {
-      ok: false,
-      denial: "RETENTION_NOT_EXPIRED",
-      reason,
-    };
+    return { ok: false, denial: "RETENTION_NOT_EXPIRED", reason };
   }
   return { ok: true };
 }
@@ -552,27 +424,18 @@ export async function gateRetention(input: {
 // listRetentionPolicies
 // ===========================================================================
 
+/** The workspace's ACTIVE policies of the binding store, in this page's shape. */
 export async function listRetentionPolicies(input: {
   prisma?: PrismaClient;
   teamId: string;
 }): Promise<ReadonlyArray<RetentionPolicyProjection>> {
   const prisma = input.prisma ?? defaultPrisma;
-  const rows = await prisma.retentionPolicyConfig.findMany({
-    where: { teamId: input.teamId, state: "ACTIVE" },
-    orderBy: [{ scopeKind: "asc" }, { name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      template: true,
-      years: true,
-      scopeKind: true,
-      scopeTargetId: true,
-      inheritsFromId: true,
-      isOverride: true,
-      exceptions: true,
-    },
+  const rows = await prisma.evidenceRetentionPolicy.findMany({
+    where: { teamId: input.teamId, status: "ACTIVE" },
+    orderBy: [{ scope: "asc" }, { displayName: "asc" }],
+    select: { id: true, displayName: true, description: true, scope: true, caseId: true, retentionDays: true },
   });
-  return rows.map(projectPolicyRow);
+  return rows.map(projectCanonical);
 }
 
 // ===========================================================================

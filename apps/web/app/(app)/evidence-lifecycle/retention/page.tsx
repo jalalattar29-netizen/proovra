@@ -407,8 +407,9 @@ function Shell() {
         title="Create retention policy"
       >
         <p style={{ margin: 0, fontSize: 12, color: "#475569", marginBottom: 10 }}>
-          Policies apply to the chosen scope. Create one per workspace, department,
-          or case. Use <strong>{retentionTemplateLabel("CORPORATE_5Y")}</strong> for
+          Policies apply to the chosen scope: the workspace, or one case. A policy
+          binds records created after it, and a record's retention only ever gets
+          longer. Use <strong>{retentionTemplateLabel("CORPORATE_5Y")}</strong> for
           most workspaces, or <strong>{retentionTemplateLabel("CUSTOM")}</strong> with
           an explicit number of years for a bespoke retention window.
         </p>
@@ -452,7 +453,6 @@ function Shell() {
               value={scopeKind}
               options={[
                 { value: "WORKSPACE", label: "Workspace" },
-                { value: "DEPARTMENT", label: "Department" },
                 { value: "CASE", label: "Case" },
               ]}
               onChange={(next) => setScopeKind(next)}

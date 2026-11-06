@@ -51,31 +51,24 @@ export async function projectLifecycleDashboard(
   // Retention
   // ---------------------------------------------------------------
   const retention = await (async () => {
-    const totalPolicies = await prisma.retentionPolicyConfig
+    // GOV-005: the one retention store records bind to. A lifecycle-page
+    // policy carries its template in the description; overrides do not exist
+    // in the binding store.
+    const totalPolicies = await prisma.evidenceRetentionPolicy
       .count({ where: { teamId } })
       .catch(() => 0);
-    const activePolicies = await prisma.retentionPolicyConfig
-      .count({ where: { teamId, state: "ACTIVE" } })
-      .catch(() => 0);
-    const overridePolicies = await prisma.retentionPolicyConfig
-      .count({ where: { teamId, isOverride: true } })
-      .catch(() => 0);
-
-    const templateGroups = await prisma.retentionPolicyConfig
-      .groupBy({
-        by: ["template"],
-        where: { teamId, state: "ACTIVE" },
-        _count: { _all: true },
-      })
-      .catch(
-        () =>
-          [] as Array<{ template: string; _count: { _all: number } }>,
-      );
+    const active = await prisma.evidenceRetentionPolicy
+      .findMany({ where: { teamId, status: "ACTIVE" }, select: { description: true } })
+      .catch(() => [] as Array<{ description: string | null }>);
+    const activePolicies = active.length;
+    const overridePolicies = 0;
     const templateBreakdown: Record<string, number> = {};
-    for (const g of templateGroups) {
-      templateBreakdown[g.template] = g._count._all;
-    }
-    return {
+    for (const row of active) {
+      const key = row.description?.startsWith("lifecycle-template:")
+        ? row.description.slice("lifecycle-template:".length).split(/\s/)[0] || "CUSTOM"
+        : "GOVERNANCE_POLICY";
+      templateBreakdown[key] = (templateBreakdown[key] ?? 0) + 1;
+    }    return {
       totalPolicies,
       activePolicies,
       overridePolicies,

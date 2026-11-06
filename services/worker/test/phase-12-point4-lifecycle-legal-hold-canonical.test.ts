@@ -32,7 +32,7 @@ const DELEGATE_NAMES = [
   "destructionRequest",
   "evidenceLegalHold",
   "intelligenceActivityEvent",
-  "retentionPolicyConfig",
+  "evidenceRetentionPolicy",
 ] as const;
 
 type DelegateName = (typeof DELEGATE_NAMES)[number];

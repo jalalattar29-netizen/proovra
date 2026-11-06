@@ -47,7 +47,8 @@ export async function buildLifecycleAndExchangeManifests(input: {
 
   // --- lifecycle-manifest.json ---
   try {
-    const totalPolicies = await prisma.retentionPolicyConfig
+    // GOV-005: the one retention store records bind to.
+    const totalPolicies = await prisma.evidenceRetentionPolicy
       .count({ where: { teamId } })
       .catch(() => 0);
     const totalLegalHolds = await prisma.evidenceLegalHold
@@ -83,20 +84,11 @@ export async function buildLifecycleAndExchangeManifests(input: {
 
   // --- retention-manifest.json ---
   try {
-    const row = await prisma.retentionPolicyConfig
-      .findFirst({
-        where: { teamId },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          name: true,
-          template: true,
-          years: true,
-          scopeKind: true,
-          isOverride: true,
-        },
-      })
-      .catch(() => null);
+    const row = mapRetentionPolicy(
+      await prisma.evidenceRetentionPolicy
+        .findFirst({ where: { teamId, status: "ACTIVE" }, orderBy: { createdAt: "desc" }, select: { id: true, displayName: true, description: true, retentionDays: true, scope: true } })
+        .catch(() => null),
+    );
     out.push({
       path: "lifecycle/retention-manifest.json",
       json: {
@@ -342,3 +334,18 @@ export async function buildLifecycleAndExchangeManifests(input: {
 
   return out;
 }
+
+/** GOV-005 — a binding-store policy in the manifest's (lifecycle-template) shape. */
+const mapRetentionPolicy = (p: { id: string; displayName: string; description: string | null; retentionDays: number | null; scope: string } | null) =>
+  p
+    ? {
+        id: p.id,
+        name: p.displayName,
+        template: p.description?.startsWith("lifecycle-template:")
+          ? p.description.slice("lifecycle-template:".length).split(/\s/)[0] || "CUSTOM"
+          : "CUSTOM",
+        years: p.retentionDays === null ? 0 : Math.round((p.retentionDays / 365.25) * 100) / 100,
+        scopeKind: p.scope,
+        isOverride: false,
+      }
+    : null;

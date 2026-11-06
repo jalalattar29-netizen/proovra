@@ -629,11 +629,12 @@ async function appendKindContent(params: {
 
     case "GOVERNANCE": {
       try {
-        const policies = await prisma.retentionPolicyConfig
+        // GOV-005: the one retention store records bind to.
+        const policies = await prisma.evidenceRetentionPolicy
           .findMany({
             where: { teamId },
             take: 50,
-            select: { id: true, name: true, template: true, years: true },
+            select: { id: true, displayName: true, status: true, scope: true, retentionDays: true, immutable: true },
           })
           .catch(() => []);
         const legalHoldCount = await prisma.evidenceLegalHold
