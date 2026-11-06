@@ -90,6 +90,7 @@ describe("REPORT-004 held outputs (live PostgreSQL 16)", () => {
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let release: typeof import("../src/services/governance/output-hold-release.service.js");
   let authority: typeof import("../src/services/reports/report-generation-authority.service.js");
+  let decisions: typeof import("../src/services/reviewer-ops/review-decision.service.js");
   let clearRates: () => Promise<unknown>;
 
   beforeAll(async () => {
@@ -98,6 +99,7 @@ describe("REPORT-004 held outputs (live PostgreSQL 16)", () => {
     ({ prisma } = await import("../src/db.js"));
     release = await import("../src/services/governance/output-hold-release.service.js");
     authority = await import("../src/services/reports/report-generation-authority.service.js");
+    decisions = await import("../src/services/reviewer-ops/review-decision.service.js");
     ({ clearAllRateLimitBuckets: clearRates } = await import("../src/services/rate-limit.js"));
     await prisma.team.update({
       where: { id: h.fixtures.teamA.teamId },
@@ -225,5 +227,97 @@ describe("REPORT-004 held outputs (live PostgreSQL 16)", () => {
     expect(swept.released).toBeGreaterThanOrEqual(1);
     expect((await held(id)).outputsHeldAtUtc).toBeNull();
     expect(await requests(id)).toBe(1);
+  });
+
+  // ===========================================================================
+  // Follow-up (2026-11-06): the approval trigger, and the periodic sweep.
+  // ===========================================================================
+
+  /** Put the record's review where an APPROVE is a legal move (fixture state). */
+  async function inReview(evidenceId: string): Promise<string> {
+    const wf = await prisma.evidenceReviewWorkflow.findFirstOrThrow({ where: { evidenceId }, select: { id: true } });
+    await prisma.evidenceReviewWorkflow.update({
+      where: { id: wf.id },
+      data: { status: "IN_REVIEW", assignedToUserId: A().ownerUserId } as never,
+    });
+    return wf.id;
+  }
+
+  it("an approving review releases a record held for review: exactly one first report request", async () => {
+    await policy({ requireReviewBeforeReport: true, requireReviewBeforePackage: true });
+    const id = await upload();
+    expect((await call("POST", `/v1/evidence/${id}/complete`, A().ownerToken, {})).statusCode).toBe(200);
+    expect((await held(id)).outputsHeldAtUtc).not.toBeNull();
+    expect(await requests(id)).toBe(0);
+
+    const workflowId = await inReview(id);
+    const decided = await decisions.recordReviewDecision({
+      workflowId,
+      teamId: A().teamId,
+      actorUserId: A().ownerUserId,
+      decision: "APPROVE",
+    });
+    expect(decided.workflow.status).toBe("APPROVED_INTERNAL");
+    expect((await held(id)).outputsHeldAtUtc).toBeNull();
+    expect(await requests(id)).toBe(1);
+    // A replay of the same decision issues nothing more.
+    await decisions.recordReviewDecision({ workflowId, teamId: A().teamId, actorUserId: A().ownerUserId, decision: "APPROVE" });
+    expect(await requests(id)).toBe(1);
+  });
+
+  it("control: an approval that leaves the policy refusing releases nothing", async () => {
+    await policy({ requireReviewBeforeReport: true, allowReportDownload: false });
+    const id = await upload();
+    expect((await call("POST", `/v1/evidence/${id}/complete`, A().ownerToken, {})).statusCode).toBe(200);
+    const workflowId = await inReview(id);
+    const decided = await decisions.recordReviewDecision({
+      workflowId,
+      teamId: A().teamId,
+      actorUserId: A().ownerUserId,
+      decision: "APPROVE",
+    });
+    expect(decided.workflow.status).toBe("APPROVED_INTERNAL");
+    expect((await held(id)).outputsHeldAtUtc).not.toBeNull();
+    expect(await requests(id)).toBe(0);
+  });
+
+  it("the periodic sweep releases a hold no event released, leaves a refused one untouched, and reports stale holds", async () => {
+    release.resetOutputHoldSweepCursor();
+    // Two records held under a refusing policy.
+    await policy({ allowReportDownload: false });
+    const releasable = await upload();
+    const refused = await upload();
+    for (const id of [releasable, refused]) {
+      expect((await call("POST", `/v1/evidence/${id}/complete`, A().ownerToken, {})).statusCode).toBe(200);
+      expect((await held(id)).outputsHeldAtUtc).not.toBeNull();
+    }
+    // `refused` is held for a reason the next policy still refuses: the
+    // finalizing actor's role no longer has the output permission.
+    await prisma.evidence.update({ where: { id: refused }, data: { outputsHeldActorUserId: A().viewerUserId } });
+    // The policy becomes permissive WITHOUT the route (no event fires).
+    await policy({});
+    const before = await prisma.evidence.findUniqueOrThrow({ where: { id: refused }, select: { updatedAt: true, outputsHeldReason: true } });
+    const custodyBefore = await prisma.custodyEvent.count({ where: { evidenceId: refused } });
+
+    const first = await release.sweepHeldOutputs({ staleAfterMs: 0 });
+    expect(first.released).toBeGreaterThanOrEqual(1);
+    expect(first.stale).toBeGreaterThanOrEqual(1);
+    expect((await held(releasable)).outputsHeldAtUtc).toBeNull();
+    expect(await requests(releasable)).toBe(1);
+    expect((await held(refused)).outputsHeldAtUtc).not.toBeNull();
+    expect(await requests(refused)).toBe(0);
+
+    // Further passes: nothing more issued, and the refused record is not
+    // re-written (beyond a reason change on the first pass) nor its chain grown.
+    const afterFirst = await prisma.evidence.findUniqueOrThrow({ where: { id: refused }, select: { updatedAt: true, outputsHeldReason: true } });
+    for (let i = 0; i < 3; i += 1) {
+      release.resetOutputHoldSweepCursor();
+      await release.sweepHeldOutputs();
+    }
+    const afterMany = await prisma.evidence.findUniqueOrThrow({ where: { id: refused }, select: { updatedAt: true, outputsHeldReason: true } });
+    expect(afterMany.updatedAt.getTime()).toBe(afterFirst.updatedAt.getTime());
+    expect(await prisma.custodyEvent.count({ where: { evidenceId: refused } })).toBe(custodyBefore);
+    expect(await requests(releasable)).toBe(1);
+    expect(before.outputsHeldReason).toBeTruthy();
   });
 });

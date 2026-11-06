@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   OPS_MASTER_RECONCILE_LEASE_KEY,
+  OUTPUT_HOLD_RELEASE_LEASE_KEY,
   PLATFORM_MAINTENANCE_INTERVAL_MS,
   PLATFORM_MAINTENANCE_LEASE_TTL_MS,
   RELIABILITY_UPLOAD_RECONCILE_LEASE_KEY,
@@ -254,5 +255,67 @@ describe("platform maintenance sweep — wiring contract", () => {
     expect(OPS_SRC).toMatch(/export async function runMasterReconcile\(\)/);
     expect(OPS_SRC).toMatch(/const summary = await runMasterReconcile\(\);/);
     expect(RELIABILITY_SRC).toMatch(/await reconcileUploads\(\{ batchSize: body\.batchSize \}\)/);
+  });
+});
+
+describe("platform maintenance sweep — REPORT-004 held-output release step", () => {
+  const HOLD_SUMMARY = { scanned: 3, released: 1, stillHeld: 2, failed: 0, active: 2, stale: 1, oldestAgeSeconds: 90_000 };
+
+  it("runs the release under its own lease, after the other two steps, and warns on a stale hold", async () => {
+    const lease = memoryLease();
+    const releaseHeldOutputs = vi.fn(async () => HOLD_SUMMARY);
+    const log = logger();
+    const result = await runPlatformMaintenanceSweep(
+      { trigger: "scheduler" },
+      {
+        runMasterReconcile: vi.fn(async () => MASTER_SUMMARY),
+        reconcileUploads: vi.fn(async () => UPLOAD_SUMMARY),
+        releaseHeldOutputs,
+        withLease: lease.withLease,
+        logger: log,
+      },
+    );
+    expect(releaseHeldOutputs).toHaveBeenCalledTimes(1);
+    expect(lease.calls.map((c) => c.key)).toEqual([
+      OPS_MASTER_RECONCILE_LEASE_KEY,
+      RELIABILITY_UPLOAD_RECONCILE_LEASE_KEY,
+      OUTPUT_HOLD_RELEASE_LEASE_KEY,
+    ]);
+    expect(result.outputHoldRelease).toMatchObject({ status: "completed", summary: HOLD_SUMMARY });
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ stale: 1, oldestAgeSeconds: 90_000 }),
+      "output_hold.stale_detected",
+    );
+  });
+
+  it("a held lease skips the release; a failing release does not stop the sweep", async () => {
+    const lease = memoryLease();
+    lease.held.add(OUTPUT_HOLD_RELEASE_LEASE_KEY);
+    const skipped = await runPlatformMaintenanceSweep(
+      {},
+      {
+        runMasterReconcile: vi.fn(async () => MASTER_SUMMARY),
+        reconcileUploads: vi.fn(async () => UPLOAD_SUMMARY),
+        releaseHeldOutputs: vi.fn(async () => HOLD_SUMMARY),
+        withLease: lease.withLease,
+        logger: logger(),
+      },
+    );
+    expect(skipped.outputHoldRelease?.status).toBe("skipped_locked");
+
+    const failed = await runPlatformMaintenanceSweep(
+      {},
+      {
+        runMasterReconcile: vi.fn(async () => MASTER_SUMMARY),
+        reconcileUploads: vi.fn(async () => UPLOAD_SUMMARY),
+        releaseHeldOutputs: vi.fn(async () => {
+          throw new Error("boom");
+        }),
+        withLease: memoryLease().withLease,
+        logger: logger(),
+      },
+    );
+    expect(failed.masterReconcile.status).toBe("completed");
+    expect(failed.outputHoldRelease?.status).toBe("failed");
   });
 });
