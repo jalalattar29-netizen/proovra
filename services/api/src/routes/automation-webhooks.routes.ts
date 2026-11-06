@@ -33,6 +33,7 @@ import type { Permission } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { safeEmitSecurityEvent } from "../services/security/security-event.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import {
   createDestinationSecret,
   validateDestinationUrlStatic,
@@ -263,6 +264,20 @@ export async function automationWebhooksRoutes(
         });
       }
 
+      // WEBHOOK-STEPUP — registering a destination is a new outbound network
+      // capability with a signing secret, exactly what integration webhooks
+      // gate on INTEGRATION_WEBHOOK_CREATE; the same purpose applies here.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.data.teamId,
+        userId: member.userId,
+        purpose: "INTEGRATION_WEBHOOK_CREATE",
+        resourceKind: "team",
+        resourceId: body.data.teamId,
+      });
+      if (gate.sent) return;
+
       // Generate one-time secret.
       const secret = createDestinationSecret();
 
@@ -353,6 +368,19 @@ export async function automationWebhooksRoutes(
             error: { code: "url_rejected", reason: urlCheck.reason },
           });
         }
+        // WEBHOOK-STEPUP — re-pointing a destination sends every later
+        // delivery, signed, to a new address: the same act as registering
+        // one, so it asks for the same step-up.
+        const gate = await requireStepUpForSensitiveAction({
+          req,
+          reply,
+          teamId: existing.teamId,
+          userId: member.userId,
+          purpose: "INTEGRATION_WEBHOOK_CREATE",
+          resourceKind: "automation_webhook_destination",
+          resourceId: existing.id,
+        });
+        if (gate.sent) return;
         data.url = body.data.url;
         data.urlOrigin = urlCheck.origin;
       }
@@ -402,6 +430,21 @@ export async function automationWebhooksRoutes(
       "AUTOMATION_MANAGE",
     );
     if (!member) return;
+    if (enabled) {
+      // WEBHOOK-STEPUP — destinations are created disabled; enabling is what
+      // starts signed outbound deliveries, gated like INTEGRATION_WEBHOOK_ENABLE
+      // on integration webhooks. Disabling stays a one-click protective act.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: existing.teamId,
+        userId: member.userId,
+        purpose: "INTEGRATION_WEBHOOK_ENABLE",
+        resourceKind: "automation_webhook_destination",
+        resourceId: existing.id,
+      });
+      if (gate.sent) return;
+    }
     const updated = await prisma.automationWebhookDestination.update({
       where: { id: existing.id },
       data: {
@@ -507,6 +550,19 @@ export async function automationWebhooksRoutes(
         "AUTOMATION_MANAGE",
       );
       if (!member) return;
+
+      // WEBHOOK-STEPUP — a new signing secret is revealed once; the same
+      // purpose integration webhooks use for rotation.
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: existing.teamId,
+        userId: member.userId,
+        purpose: "INTEGRATION_WEBHOOK_SECRET_ROTATE",
+        resourceKind: "automation_webhook_destination",
+        resourceId: existing.id,
+      });
+      if (gate.sent) return;
 
       const fresh = createDestinationSecret();
       const updated = await prisma.automationWebhookDestination.update({

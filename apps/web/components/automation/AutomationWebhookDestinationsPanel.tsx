@@ -27,6 +27,11 @@ import { formatUserDateTime } from "../../lib/date";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import { Button } from "../ui/Button";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../identity-security/StepUpModal";
 
 export type AutomationWebhookDestination = {
   id: string;
@@ -83,9 +88,14 @@ const ROOT = "/v1/automation/webhooks";
 /** The two delivery switches; `DestinationSwitch` names every route this reaches. */
 type DestinationSwitch = "enable" | "disable";
 
-function switchDestination(destinationId: string, action: DestinationSwitch) {
+function switchDestination(
+  destinationId: string,
+  action: DestinationSwitch,
+  stepUpHeaders?: Record<string, string>,
+) {
   return apiFetch(`${ROOT}/${encodeURIComponent(destinationId)}/${action}`, {
     method: "POST",
+    headers: { ...(stepUpHeaders ?? {}) },
     body: JSON.stringify({}),
   });
 }
@@ -189,6 +199,9 @@ function DestinationsWorkspace({
   onDestinationsChange?: (destinations: AutomationWebhookDestination[] | null) => void;
 }) {
   const { confirm } = useConfirmAction();
+  // WEBHOOK-STEPUP — registering, re-pointing, enabling and re-keying a
+  // destination each ask for a fresh factor, as integration webhooks do.
+  const stepUp = useStepUpAction({ teamId });
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -300,13 +313,16 @@ function DestinationsWorkspace({
     if (!alive.current || !ok) return;
     const result = await mutate(
       destination.id,
-      () => switchDestination(destination.id, enabled ? "enable" : "disable"),
+      () =>
+        enabled
+          ? stepUp.runStepUpAction((h) => switchDestination(destination.id, "enable", h))
+          : switchDestination(destination.id, "disable"),
       (row) => row?.enabled === enabled,
       enabled
         ? `"${destination.name}" is enabled and confirmed from the saved record. Deliveries resume from now.`
         : `"${destination.name}" is disabled and confirmed from the saved record. No further events will be sent to it.`,
     );
-    if (result.error) setError(destinationFailure(result.error).message);
+    if (result.error && !isStepUpCancelled(result.error)) setError(destinationFailure(result.error).message);
   }
 
   async function rotate(destination: AutomationWebhookDestination) {
@@ -324,10 +340,13 @@ function DestinationsWorkspace({
     const result = await mutate(
       destination.id,
       () =>
-        apiFetch(`${ROOT}/${encodeURIComponent(destination.id)}/rotate-secret`, {
-          method: "POST",
-          body: JSON.stringify({}),
-        }),
+        stepUp.runStepUpAction((h) =>
+          apiFetch(`${ROOT}/${encodeURIComponent(destination.id)}/rotate-secret`, {
+            method: "POST",
+            headers: { ...(h ?? {}) },
+            body: JSON.stringify({}),
+          }),
+        ),
       (row, response) =>
         Boolean(row) &&
         row?.secretFingerprint === (response as { secretFingerprint?: string } | null)?.secretFingerprint &&
@@ -340,7 +359,7 @@ function DestinationsWorkspace({
     if (typeof value === "string" && value) {
       setSecret({ destinationName: destination.name, value, rotated: true });
     }
-    if (result.error) setError(destinationFailure(result.error).message);
+    if (result.error && !isStepUpCancelled(result.error)) setError(destinationFailure(result.error).message);
   }
 
   const destinations = list.status === "ready" ? list.value.destinations : [];
@@ -411,7 +430,14 @@ function DestinationsWorkspace({
               setSecret(null);
               const result = await mutate(
                 "new",
-                () => apiFetch(ROOT, { method: "POST", body: JSON.stringify({ teamId, name: values.name, url: values.url }) }),
+                () =>
+                  stepUp.runStepUpAction((h) =>
+                    apiFetch(ROOT, {
+                      method: "POST",
+                      headers: { ...(h ?? {}) },
+                      body: JSON.stringify({ teamId, name: values.name, url: values.url }),
+                    }),
+                  ),
                 (row) => Boolean(row) && row?.enabled === false,
                 `"${values.name}" was added and confirmed from the saved record. It starts disabled — enable it when your receiver is ready.`,
               );
@@ -420,6 +446,7 @@ function DestinationsWorkspace({
                 setSecret({ destinationName: values.name, value, rotated: false });
               }
               if (result.response !== undefined) setFormMode({ kind: "closed" });
+              if (result.error && isStepUpCancelled(result.error)) return null;
               return result.error ? destinationFailure(result.error) : null;
             }}
           />
@@ -535,11 +562,21 @@ function DestinationsWorkspace({
                         }
                         const result = await mutate(
                           d.id,
-                          () => apiFetch(`${ROOT}/${encodeURIComponent(d.id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+                          () => {
+                            const patch = (h?: Record<string, string>) =>
+                              apiFetch(`${ROOT}/${encodeURIComponent(d.id)}`, {
+                                method: "PATCH",
+                                headers: { ...(h ?? {}) },
+                                body: JSON.stringify(body),
+                              });
+                            // Only a new address needs the step-up.
+                            return body.url ? stepUp.runStepUpAction(patch) : patch();
+                          },
                           (row) => row?.name === values.name && row?.url === values.url,
                           `"${values.name}" was saved and confirmed from the saved record.`,
                         );
                         if (result.response !== undefined) setFormMode({ kind: "closed" });
+                        if (result.error && isStepUpCancelled(result.error)) return null;
                         return result.error ? destinationFailure(result.error) : null;
                       }}
                     />
@@ -550,6 +587,7 @@ function DestinationsWorkspace({
           })}
         </ul>
       )}
+      <StepUpModal control={stepUp} />
     </section>
   );
 }

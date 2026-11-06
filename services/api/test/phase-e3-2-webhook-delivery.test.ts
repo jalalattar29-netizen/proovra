@@ -431,18 +431,24 @@ describe("E3.2 Test 6 — delivery executor source-level safety", () => {
     expect(WEBHOOK_TIMEOUT_MS).toBeLessThanOrEqual(5_000);
   });
 
-  it("webhook service uses redirect: 'manual' (no redirect-chain SSRF)", () => {
-    expect(WEBHOOK_SVC).toMatch(/redirect:\s*["']manual["']/);
+  // PRO-064 — the send moved from `fetch(..., { redirect: "manual" })` to the
+  // shared outbound transport, which never follows a redirect and resolves the
+  // name inside the connection (the checked address is the connected
+  // address). The driven proof is `outbound-url-policy.test.ts`; these pin
+  // that the service cannot go round it.
+  it("webhook service sends only through the shared outbound transport (no redirect-chain SSRF)", () => {
+    expect(WEBHOOK_SVC).toMatch(/sendOutboundRequest\(/);
+    expect(WEBHOOK_SVC).not.toMatch(/\bfetch\s*\(/);
+    expect(WEBHOOK_SVC).not.toMatch(/from\s+["']node:https?["']/);
   });
 
   it("webhook service performs DNS revalidation before delivery", () => {
     expect(WEBHOOK_SVC).toMatch(/validateDestinationUrlWithDns/);
-    expect(WEBHOOK_SVC).toMatch(/dnsLookup/);
+    expect(WEBHOOK_SVC).toMatch(/checkOutboundUrlResolved/);
   });
 
-  it("webhook service uses AbortController for timeout", () => {
-    expect(WEBHOOK_SVC).toMatch(/new AbortController/);
-    expect(WEBHOOK_SVC).toMatch(/controller\.abort/);
+  it("webhook service bounds the send with the timeout constant", () => {
+    expect(WEBHOOK_SVC).toMatch(/timeoutMs:\s*input\.timeoutMs \?\? WEBHOOK_TIMEOUT_MS/);
   });
 
   it("webhook service does NOT store response body in DB or return it", () => {

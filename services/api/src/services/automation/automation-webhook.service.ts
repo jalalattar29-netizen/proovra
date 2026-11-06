@@ -29,8 +29,22 @@
  */
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  checkOutboundUrlResolved,
+  checkOutboundUrlStatic,
+  sendOutboundRequest,
+  type OutboundResolver,
+  type OutboundUrlPolicy,
+} from "@proovra/shared-runtime/outbound";
 import { lookup as dnsLookup } from "node:dns/promises";
-import { isIP } from "node:net";
+
+/**
+ * This service's name resolution, through `node:dns/promises` as it always
+ * was (callers and tests that answer DNS in-process keep working). Every
+ * answer is classified by the shared outbound policy.
+ */
+const apiResolver: OutboundResolver = (hostname) =>
+  dnsLookup(hostname, { all: true, verbatim: true });
 
 import { getSecret } from "../../config/runtime-secrets.js";
 
@@ -417,6 +431,11 @@ export const URL_VALIDATION_REASONS = [
   "loopback_ip",
   "ipv6_local",
   "dns_resolution_failed",
+  // PRO-064 — the shared outbound policy's further refusals: an over-long URL,
+  // and the reserved IPv6 forms (IPv4-compatible, Teredo, 6to4 to a refused
+  // address, local-use NAT64) that can only be a way round the others.
+  "url_too_long",
+  "reserved_ip",
 ] as const;
 export type UrlValidationReason = (typeof URL_VALIDATION_REASONS)[number];
 
@@ -451,8 +470,40 @@ export function isLocalWebhookTestingEnabled(): boolean {
 }
 
 /**
- * Validate the URL itself (scheme / port / credentials). Does NOT
- * perform DNS resolution — call `validateDestinationUrlWithDns()` for
+ * PRO-064 / BILLING-05 — the address rules are the shared outbound policy
+ * (`@proovra/shared-runtime/outbound`), which classifies by address BYTES. The
+ * string-prefix classifier this replaced accepted the hex spelling WHATWG URL
+ * normalises IPv4-mapped addresses to (`[::ffff:7f00:1]`), `[::]` and NAT64
+ * (`64:ff9b::a9fe:a9fe`).
+ */
+const AUTOMATION_POLICY: OutboundUrlPolicy = {
+  requireDefaultPort: true,
+  localAllowance: "none",
+};
+
+function loopbackLiteralUnderTestFlag(input: string): boolean {
+  if (!isLocalWebhookTestingEnabled()) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return false;
+  }
+  const raw = parsed.hostname.toLowerCase();
+  const h = raw.startsWith("[") && raw.endsWith("]") ? raw.slice(1, -1) : raw;
+  return h === "127.0.0.1" || h === "::1";
+}
+
+/** The policy one URL is checked and SENT under. */
+function policyFor(input: string): OutboundUrlPolicy {
+  return loopbackLiteralUnderTestFlag(input)
+    ? { ...AUTOMATION_POLICY, localAllowance: "loopback" }
+    : AUTOMATION_POLICY;
+}
+
+/**
+ * Validate the URL itself (scheme / port / credentials / literal address).
+ * Does NOT perform DNS resolution — call `validateDestinationUrlWithDns()` for
  * a fully-checked URL.
  */
 export function validateDestinationUrlStatic(input: string): UrlValidationResult {
@@ -476,123 +527,26 @@ export function validateDestinationUrlStatic(input: string): UrlValidationResult
     // Anything else falls through to the ordinary rules below — including
     // every private, link-local and metadata address.
   }
-  if (parsed.protocol !== "https:") {
-    return { ok: false, reason: "non_https_scheme" };
-  }
-  if (parsed.username || parsed.password) {
-    return { ok: false, reason: "credentials_in_url" };
-  }
-  // Default HTTPS port only. The recommended whitelist could be
-  // extended via env if needed; for E3.2 we keep it strict.
-  if (parsed.port && parsed.port !== "443") {
-    return { ok: false, reason: "non_default_port" };
-  }
-  // Hostname-level checks: reject literal "localhost".
-  // URL hostnames for IPv6 literals include surrounding brackets
-  // (e.g. `[::1]`); strip them before any IP classification.
-  const rawHost = parsed.hostname.toLowerCase();
-  const host =
-    rawHost.startsWith("[") && rawHost.endsWith("]")
-      ? rawHost.slice(1, -1)
-      : rawHost;
-  if (host === "localhost" || host.endsWith(".localhost")) {
-    return { ok: false, reason: "localhost" };
-  }
-  // Reject literal IP that is already private / link-local — saves a
-  // DNS round-trip for the obvious cases.
-  if (isIP(host) > 0) {
-    const ipReason = classifyIp(host);
-    if (ipReason) return { ok: false, reason: ipReason };
-  }
-  return {
-    ok: true,
-    origin: parsed.origin,
-    hostname: host,
-  };
+  const verdict = checkOutboundUrlStatic(input, AUTOMATION_POLICY);
+  if (!verdict.ok) return { ok: false, reason: verdict.reason };
+  return { ok: true, origin: verdict.origin, hostname: verdict.hostname };
 }
 
 /**
- * Full URL validation including DNS resolution. Use this right before
- * sending a webhook (DNS rebinding defence).
+ * Full URL validation including DNS resolution: every address the name
+ * resolves to must be allowed. The send itself (`deliverWebhookOnce`) checks
+ * the address it actually connects to as well, so a DNS answer that changes
+ * after this call cannot reach a refused address.
  */
 export async function validateDestinationUrlWithDns(
   input: string,
+  resolver: OutboundResolver = apiResolver,
 ): Promise<UrlValidationResult> {
   const staticResult = validateDestinationUrlStatic(input);
   if (!staticResult.ok) return staticResult;
-  // If the hostname was already a literal IP, the static check has
-  // already classified it — DNS lookup would be redundant.
-  if (isIP(staticResult.hostname) > 0) return staticResult;
-  let resolved;
-  try {
-    resolved = await dnsLookup(staticResult.hostname, { all: true });
-  } catch {
-    return { ok: false, reason: "dns_resolution_failed" };
-  }
-  for (const addr of resolved) {
-    const reason = classifyIp(addr.address);
-    if (reason) return { ok: false, reason };
-  }
+  const verdict = await checkOutboundUrlResolved(input, policyFor(input), resolver);
+  if (!verdict.ok) return { ok: false, reason: verdict.reason };
   return staticResult;
-}
-
-/**
- * Classify an IP literal. Returns the validation reason if the IP is
- * forbidden, or null if it is acceptable for outbound delivery.
- */
-function classifyIp(ip: string): UrlValidationReason | null {
-  const v = isIP(ip);
-  if (v === 4) return classifyIpV4(ip);
-  if (v === 6) return classifyIpV6(ip);
-  return "invalid_url";
-}
-
-function classifyIpV4(ip: string): UrlValidationReason | null {
-  const parts = ip.split(".").map((p) => Number.parseInt(p, 10));
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
-    return "invalid_url";
-  }
-  const [a, b] = parts as [number, number, number, number];
-  // 127.0.0.0/8 — loopback.
-  if (a === 127) return "loopback_ip";
-  // 10.0.0.0/8 — RFC1918 private.
-  if (a === 10) return "private_ip";
-  // 172.16.0.0/12 — RFC1918 private.
-  if (a === 172 && b >= 16 && b <= 31) return "private_ip";
-  // 192.168.0.0/16 — RFC1918 private.
-  if (a === 192 && b === 168) return "private_ip";
-  // 169.254.0.0/16 — link-local (includes AWS / GCP metadata service
-  // at 169.254.169.254).
-  if (a === 169 && b === 254) {
-    // Specifically call out the metadata-service IP for operator
-    // visibility — it's the most likely SSRF target.
-    if (parts[2] === 169 && parts[3] === 254) return "metadata_service_ip";
-    return "link_local_ip";
-  }
-  // 0.0.0.0/8 — "this network", treat as forbidden.
-  if (a === 0) return "loopback_ip";
-  // Multicast / reserved high ranges (224.0.0.0+) — out of scope for
-  // outbound delivery.
-  if (a >= 224) return "private_ip";
-  return null;
-}
-
-function classifyIpV6(ip: string): UrlValidationReason | null {
-  const lower = ip.toLowerCase();
-  // ::1 — loopback.
-  if (lower === "::1") return "loopback_ip";
-  // ::ffff:127.0.0.1 — IPv4-mapped loopback.
-  if (lower.startsWith("::ffff:")) {
-    const v4 = lower.slice(7);
-    if (isIP(v4) === 4) return classifyIpV4(v4);
-  }
-  // fc00::/7 — unique local addresses.
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return "ipv6_local";
-  // fe80::/10 — link-local.
-  if (lower.startsWith("fe80:") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) {
-    return "link_local_ip";
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -745,72 +699,75 @@ export async function deliverWebhookOnce(input: {
   body: string;
   headers: Readonly<Record<string, string>>;
   timeoutMs?: number;
+  /** Test seam for name resolution; production uses the system resolver. */
+  resolver?: OutboundResolver;
 }): Promise<DeliveryAttemptResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    input.timeoutMs ?? WEBHOOK_TIMEOUT_MS,
-  );
-  try {
-    const res = await fetch(input.url, {
-      method: "POST",
-      headers: input.headers as Record<string, string>,
-      body: input.body,
-      signal: controller.signal,
-      // Disable any redirect-following that could lead to SSRF via
-      // a redirect to an internal address. We have already validated
-      // the original URL; the response should be from that origin.
-      redirect: "manual",
-    });
-    if (res.status >= 200 && res.status < 300) {
-      return { ok: true, status: res.status };
+  // PRO-064 — the send goes through the shared outbound transport. It refuses
+  // the URL again (a row stored before a rule existed is not trusted), resolves
+  // the name inside the connection and refuses any answer the policy refuses,
+  // so the address checked is the address connected to. It never follows a
+  // redirect (a 3xx comes back as `non_2xx:3xx`, a permanent refusal) and it
+  // does not read the receiver's body back: only the status is kept.
+  const result = await sendOutboundRequest({
+    url: input.url,
+    method: "POST",
+    headers: input.headers,
+    body: input.body,
+    timeoutMs: input.timeoutMs ?? WEBHOOK_TIMEOUT_MS,
+    policy: policyFor(input.url),
+    resolver: input.resolver ?? apiResolver,
+    maxResponseBytes: 4 * 1024,
+  });
+  if (result.kind === "refused") {
+    return { ok: false, status: 0, reason: `ssrf_blocked:${result.reason}` };
+  }
+  if (result.kind === "response") {
+    if (result.status >= 200 && result.status < 300) {
+      return { ok: true, status: result.status };
     }
     return {
       ok: false,
-      status: res.status,
-      reason: `non_2xx:${res.status}`,
+      status: result.status,
+      reason: `non_2xx:${result.status}`,
     };
-  } catch (err) {
-    /**
-     * ARCH-005 (2026-08-07) — REPORT WHAT THE TRANSPORT KNOWS, NOT LESS.
-     *
-     * This used to collapse everything into `timeout` or `fetch_error`, and
-     * the caller then treated both as retryable. That discarded the one
-     * distinction that matters: whether the request was ever WRITTEN.
-     *
-     * `undici` surfaces the underlying syscall on `err.cause.code`. A refused
-     * connection, an unresolvable host or a failed handshake all mean nothing
-     * left this process — those are safe to send again. A reset or a hang-up
-     * mid-flight means bytes DID leave and the answer was lost, which is not
-     * the same thing and must never be resent as though it were.
-     */
-    const e = err as { name?: string; cause?: { code?: string } };
-    const code = e?.cause?.code ?? "";
-    if (e?.name === "AbortError" || e?.name === "TimeoutError") {
-      // The abort fires only after the request has been dispatched, so the
-      // receiver may have processed it. AMBIGUOUS, not retryable.
-      return { ok: false, status: 0, reason: "timeout" };
-    }
-    if (code === "ECONNREFUSED" || code === "ERR_SOCKET_CONNECTION_TIMEOUT") {
-      return { ok: false, status: 0, reason: "connect_failed" };
-    }
+  }
+  /**
+   * ARCH-005 (2026-08-07) — REPORT WHAT THE TRANSPORT KNOWS, NOT LESS.
+   *
+   * The one distinction that matters is whether the request was ever
+   * WRITTEN. The transport says so directly: `requestWritten` is false until
+   * the connection (and, for https, the TLS handshake) is up. A refused
+   * connection, an unresolvable host or a failed handshake all mean nothing
+   * left this process — those are safe to send again. A reset, a hang-up or a
+   * timeout after the connection was up means bytes may have left and the
+   * answer was lost, which must never be resent as though it were.
+   */
+  const code = result.code;
+  if (!result.requestWritten) {
     if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
       return { ok: false, status: 0, reason: "dns_failed" };
     }
-    if (code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL")) {
-      return { ok: false, status: 0, reason: "tls_failed" };
+    if (
+      code === "ECONNREFUSED" ||
+      code === "ETIMEDOUT" ||
+      code === "EHOSTUNREACH" ||
+      code === "ENETUNREACH" ||
+      code === "timeout"
+    ) {
+      return { ok: false, status: 0, reason: "connect_failed" };
     }
-    if (code === "ECONNRESET" || code === "EPIPE") {
-      return { ok: false, status: 0, reason: "connection_reset" };
-    }
-    if (code === "UND_ERR_SOCKET") {
-      return { ok: false, status: 0, reason: "socket_hang_up" };
-    }
-    // Unrecognised. An unknown transport failure IS an unknown outcome, and
-    // this default is the one place where guessing "retryable" would silently
-    // reintroduce duplicate deliveries.
-    return { ok: false, status: 0, reason: "transport_unknown" };
-  } finally {
-    clearTimeout(timeout);
+    // Anything else before the connection was up is a handshake failure
+    // (certificate, protocol): nothing was written.
+    return { ok: false, status: 0, reason: "tls_failed" };
   }
+  if (code === "timeout") {
+    return { ok: false, status: 0, reason: "timeout" };
+  }
+  if (code === "ECONNRESET" || code === "EPIPE") {
+    return { ok: false, status: 0, reason: "connection_reset" };
+  }
+  // Unrecognised. An unknown transport failure IS an unknown outcome, and
+  // this default is the one place where guessing "retryable" would silently
+  // reintroduce duplicate deliveries.
+  return { ok: false, status: 0, reason: "transport_unknown" };
 }

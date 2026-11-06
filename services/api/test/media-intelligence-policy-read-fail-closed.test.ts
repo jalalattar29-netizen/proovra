@@ -56,7 +56,8 @@ vi.mock("../src/services/billing-enforcement.service.js", () => ({
     H.allowanceCalls += 1;
     return { allowed: false, denial: "AI_NOT_INCLUDED" };
   },
-  recordWorkspaceAiOperation: async () => undefined,
+  reserveWorkspaceAiOperation: async () => ({ allowed: true, reservation: null }),
+  releaseWorkspaceAiOperation: async () => undefined,
 }));
 
 const { runProviderOperation } = await import(

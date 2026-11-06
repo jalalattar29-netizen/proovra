@@ -55,8 +55,8 @@ import { AI_LEGAL_DISCLAIMER } from "./ai-policy.js";
  * =============================================================================
  * `status: "disabled"` is already the typed unavailable outcome in `AiResult`,
  * and it is not a success: callers branch on it, the assistant panel maps it to
- * a `CONFIGURATION_ERROR` state, and `recordWorkspaceAiOperation` only counts
- * `status === "ok"`, so nothing here records a fake inference, a misleading
+ * a `CONFIGURATION_ERROR` state, and the AI routes give the reserved allowance
+ * back unless `status === "ok"`, so nothing here records a fake inference, a misleading
  * audit entry, or a false provider-health signal. Throwing instead would turn a
  * known, expected configuration state into an exception path shared with real
  * provider faults — losing exactly the distinction this class exists to carry.

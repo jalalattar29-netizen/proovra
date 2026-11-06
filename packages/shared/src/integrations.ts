@@ -7,6 +7,8 @@
 
 import { z } from "zod";
 
+import { checkOutboundUrlStatic } from "./outbound-url-policy.js";
+
 // -----------------------------------------------------------------------------
 // Webhook event types
 //
@@ -225,10 +227,22 @@ export function validateWebhookUrl(
   if (parsed.username || parsed.password) {
     return { ok: false, reason: "credentials_in_url_not_allowed" };
   }
-  // Node's URL parser returns IPv6 hostnames wrapped in brackets
-  // (e.g. "[::1]"). Strip them for pattern matching.
+  if (!parsed.hostname) return { ok: false, reason: "missing_host" };
+  // PRO-067 / BILLING-08 — the address decision is the shared outbound
+  // policy, by address bytes and on the canonical hostname (trailing dots
+  // stripped). The regex list below matched the literal spelling only, so
+  // `localhost.` and `0.0.0.1` passed. The list is kept as a second, older
+  // net: it can only refuse more.
+  const verdict = checkOutboundUrlStatic(raw, {
+    requireDefaultPort: false,
+    localAllowance: opts.allowPrivateNetworks ? "private" : "none",
+  });
+  if (!verdict.ok) {
+    if (verdict.reason === "invalid_url") return { ok: false, reason: "invalid_url" };
+    if (verdict.reason === "url_too_long") return { ok: false, reason: "url_too_long" };
+    return { ok: false, reason: "private_network_blocked" };
+  }
   const rawHost = parsed.hostname.toLowerCase();
-  if (!rawHost) return { ok: false, reason: "missing_host" };
   const host =
     rawHost.startsWith("[") && rawHost.endsWith("]")
       ? rawHost.slice(1, -1)

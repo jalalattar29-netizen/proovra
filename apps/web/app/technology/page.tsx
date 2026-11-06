@@ -820,7 +820,7 @@ function HowItWorksRestored() {
     {
       Icon: Users,
       title: "Built for enterprise",
-      body: "Role-based access, audit logs, data residency, and policy enforcement at scale.",
+      body: "Role-based access, audit logs, and policy enforcement at scale.",
       color: TECH.blue,
     },
     {

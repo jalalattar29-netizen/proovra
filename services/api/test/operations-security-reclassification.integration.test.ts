@@ -34,6 +34,50 @@ const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
 describe("OPS-13 security reclassification (live PostgreSQL 16)", () => {
   let c: Ctx;
+
+  /** A real step-up: a verified TOTP factor, /start, then /check with the code. */
+  async function ownerStepUp(
+    owner: { id: string; token: string },
+    teamId: string,
+    purpose: string,
+    resourceId: string,
+  ): Promise<string> {
+    const totp = await import("../src/services/security/mfa-totp.js");
+    const { sealSecret } = await import("../src/services/security/mfa-secret-storage.js");
+    const secret = totp.generateTotpSecretBytes();
+    const sealed = sealSecret(secret);
+    const now = new Date();
+    await c.prisma.mfaFactor.create({
+      data: {
+        userId: owner.id,
+        kind: "TOTP",
+        status: "ACTIVE",
+        label: "Authenticator",
+        secretCiphertext: Buffer.from(sealed.ciphertext),
+        secretIv: Buffer.from(sealed.iv),
+        secretAuthTag: Buffer.from(sealed.authTag),
+        secretKekId: sealed.kekId,
+        verifiedAtUtc: now,
+        enrolledAt: now,
+      },
+    });
+    const started = await c.inj("POST", "/v1/identity-security/step-up/start", owner.token, {
+      teamId,
+      purpose,
+      resourceKind: "automation_webhook_destination",
+      resourceId,
+    });
+    expect(started.statusCode, started.body).toBe(200);
+    const challengeId = (started.json() as { challenge: { id: string } }).challenge.id;
+    const code = totp.computeTotpCode(secret, totp.timeStep(Math.floor(Date.now() / 1000)));
+    const checked = await c.inj("POST", "/v1/identity-security/step-up/check", owner.token, {
+      teamId,
+      challengeId,
+      code,
+    });
+    expect(checked.statusCode, checked.body).toBe(200);
+    return challengeId;
+  }
   beforeAll(async () => {
     c = await bootOps();
   }, 900_000);
@@ -149,8 +193,16 @@ describe("OPS-13 security reclassification (live PostgreSQL 16)", () => {
     expect(await probe(d1.id)).toBe("ACTIVE");
 
     // Re-enable through the route: the counters reset and the condition closes.
-    const r = await c.inj("POST", `/v1/automation/webhooks/${d1.id}/enable`, owner.token);
-    expect(r.statusCode).toBe(200);
+    // WEBHOOK-STEPUP — enabling resumes signed outbound deliveries and asks
+    // for a step-up; the owner answers one with an authenticator code.
+    const refused = await c.inj("POST", `/v1/automation/webhooks/${d1.id}/enable`, owner.token);
+    expect(refused.statusCode).toBe(401);
+    expect((await c.prisma.automationWebhookDestination.findUniqueOrThrow({ where: { id: d1.id } })).enabled).toBe(false);
+    const challengeId = await ownerStepUp(owner, w.teamId, "INTEGRATION_WEBHOOK_ENABLE", d1.id);
+    const r = await c.inj("POST", `/v1/automation/webhooks/${d1.id}/enable`, owner.token, undefined, {
+      "x-proovra-step-up-challenge-id": challengeId,
+    });
+    expect(r.statusCode, r.body).toBe(200);
     const body = r.json() as { enabled: boolean; autoDisabledAt: string | null; disabledReason: string | null; consecutiveFailureCount: number };
     expect(body).toMatchObject({ enabled: true, autoDisabledAt: null, disabledReason: null, consecutiveFailureCount: 0 });
     const after = await c.prisma.automationWebhookDestination.findUniqueOrThrow({ where: { id: d1.id } });

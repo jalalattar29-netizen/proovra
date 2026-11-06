@@ -15,8 +15,10 @@
  *   * HTTPS-only endpoint URLs (length-bounded).
  *   * Secrets are 32 random bytes (base64). Raw secret returned ONLY
  *     at endpoint creation; never read back.
- *   * No PII in error logs / response previews. Response bodies are
- *     truncated to 400 chars (matches schema column width).
+ *   * No PII in error logs. The receiver's response body is not stored or
+ *     shown (PRO-061); only its status is recorded.
+ *   * Destinations follow the shared outbound policy at create and at every
+ *     send (PRO-061).
  *   * Delivery is at-least-once with bounded retries
  *     (PRODUCT_AND_LIFECYCLE_LIMITATIONS standing limitation).
  */
@@ -29,16 +31,26 @@ import {
   type WebhookEventKind,
 } from "@proovra/shared";
 
+import {
+  LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
+  checkOutboundUrlStatic,
+  sendOutboundRequest,
+  type OutboundSendInput,
+  type OutboundSendResult,
+  type OutboundUrlCheck,
+} from "@proovra/shared-runtime/outbound";
+
 import { prisma as defaultPrisma } from "../../../db.js";
 import { inputRefusal } from "../../../errors.js";
+import { assertLimitEntitlementTx } from "../entitlement.service.js";
 
 // -----------------------------------------------------------------------------
 // Bounded constants — keep all magic numbers here.
 // -----------------------------------------------------------------------------
 
-const URL_MAX_LENGTH = 1024;
 const SECRET_RANDOM_BYTES = 32;
-const RESPONSE_PREVIEW_MAX_CHARS = 400;
+/** Response bytes read (then discarded) before the connection is dropped. */
+const RESPONSE_DRAIN_MAX_BYTES = 4 * 1024;
 const DELIVERY_TIMEOUT_MS = 5_000;
 const MAX_ATTEMPTS_BEFORE_DEAD_LETTER = 8;
 const BACKOFF_BASE_SECONDS = 30;
@@ -56,22 +68,20 @@ function isValidEventKind(s: string): s is WebhookEventKind {
   return VALID_EVENT_KINDS.has(s);
 }
 
-function isValidHttpsUrl(raw: string): boolean {
-  if (typeof raw !== "string") return false;
-  const trimmed = raw.trim();
-  if (trimmed.length === 0 || trimmed.length > URL_MAX_LENGTH) return false;
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return false;
+/**
+ * PRO-061 / BILLING-02 — the lifecycle webhook policy is the shared outbound
+ * policy (`LIFECYCLE_WEBHOOK_OUTBOUND_POLICY`, the same constant the worker
+ * sends under). This used to check the scheme only, while the refusal text
+ * promised "a public https:// URL": loopback, private ranges, `localhost.` and
+ * the cloud metadata address were all accepted, and the worker then fetched
+ * them.
+ */
+function checkLifecycleUrl(raw: string): OutboundUrlCheck {
+  const verdict = checkOutboundUrlStatic(raw, LIFECYCLE_WEBHOOK_OUTBOUND_POLICY);
+  if (verdict.ok && verdict.url.protocol !== "https:") {
+    return { ok: false, reason: "non_https_scheme" };
   }
-  return parsed.protocol === "https:";
-}
-
-function truncatePreview(s: string): string {
-  if (s.length <= RESPONSE_PREVIEW_MAX_CHARS) return s;
-  return s.slice(0, RESPONSE_PREVIEW_MAX_CHARS);
+  return verdict;
 }
 
 function computeBackoffSeconds(attemptCount: number): number {
@@ -109,11 +119,12 @@ export async function createWebhookEndpoint(
   // Batch C sweep — these were bare Errors, so an http:// URL, an empty or
   // oversized event list, or an unknown event answered 500 and paged
   // critical. They are rejected inputs; the developer message is unchanged.
-  if (!isValidHttpsUrl(input.url)) {
+  const urlCheck = checkLifecycleUrl(input.url);
+  if (!urlCheck.ok) {
     throw inputRefusal({
       code: "WEBHOOK_ENDPOINT_URL_INVALID",
       message: "The endpoint address must be a public https:// URL.",
-      developerMessage: "webhook_endpoint_invalid_url",
+      developerMessage: `webhook_endpoint_invalid_url:${urlCheck.reason}`,
     });
   }
   if (
@@ -140,19 +151,47 @@ export async function createWebhookEndpoint(
   const prisma = input.prisma ?? defaultPrisma;
   const secret = randomBytes(SECRET_RANDOM_BYTES).toString("base64");
 
-  const row = await prisma.lifecycleWebhookEndpoint.create({
-    data: {
+  // PRO-062 / BILLING-03 — the endpoint ceiling is a live count of ACTIVE
+  // endpoints, taken under a per-workspace lock in the same transaction as
+  // the insert. It used to be compared with a usage meter nothing wrote, so
+  // it never tripped; and a count outside the insert's transaction would
+  // admit every concurrent create at the boundary.
+  const row = await prisma.$transaction(async (tx) => {
+    const admitted = await assertLimitEntitlementTx({
+      tx,
+      prisma,
       teamId: input.teamId,
-      url: input.url.trim(),
-      secret,
-      subscribedEvents: Array.from(input.subscribedEvents),
-      state: "ACTIVE",
-      createdByUserId: input.createdByUserId,
-    },
-    select: { id: true },
+      key: "INTEGRATION_WEBHOOK_ENDPOINTS_MAX",
+      requested: 1,
+    });
+    if (!admitted.ok) {
+      throw new WebhookEndpointLimitError(admitted.limit, admitted.current);
+    }
+    return tx.lifecycleWebhookEndpoint.create({
+      data: {
+        teamId: input.teamId,
+        url: input.url.trim(),
+        secret,
+        subscribedEvents: Array.from(input.subscribedEvents),
+        state: "ACTIVE",
+        createdByUserId: input.createdByUserId,
+      },
+      select: { id: true },
+    });
   });
 
   return { ok: true, endpointId: row.id, secret };
+}
+
+/** The workspace already has as many ACTIVE endpoints as it is allowed. */
+export class WebhookEndpointLimitError extends Error {
+  constructor(
+    public readonly limit: number,
+    public readonly current: number,
+  ) {
+    super("webhook_endpoint_limit_reached");
+    this.name = "WebhookEndpointLimitError";
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -312,6 +351,8 @@ export async function emitWebhookEvent(
 export type DeliverWebhookDeliveryInput = {
   prisma?: PrismaClient;
   deliveryId: string;
+  /** Test seam; production uses the shared outbound transport. */
+  send?: (input: OutboundSendInput) => Promise<OutboundSendResult>;
 };
 
 export type DeliverWebhookDeliveryResult = {
@@ -351,35 +392,46 @@ export async function deliverWebhookDelivery(
   const canonical = canonicalJson(delivery.payload as unknown);
 
   let responseStatus: number | null = null;
-  let responseBodyPreview: string | null = null;
+  // PRO-061 — the receiver's body is never stored or shown; only its status.
+  const responseBodyPreview: string | null = null;
   let networkError = false;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
-  try {
-    const res = await fetch(delivery.endpoint.url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-proovra-event": eventKind,
-        "x-proovra-signature": signature,
-        "x-proovra-delivery": delivery.id,
-      },
-      body: canonical,
-      signal: controller.signal,
-    });
-    responseStatus = res.status;
-    try {
-      const text = await res.text();
-      responseBodyPreview = truncatePreview(text);
-    } catch {
-      responseBodyPreview = null;
-    }
-  } catch {
-    networkError = true;
-  } finally {
-    clearTimeout(timer);
+  // PRO-061 — the same policy at send: the stored URL is checked again (a row
+  // written before the policy is not trusted), the name is resolved inside the
+  // connection so the checked address is the connected address, and no
+  // redirect is followed.
+  const send = input.send ?? sendOutboundRequest;
+  const result = await send({
+    url: delivery.endpoint.url,
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-proovra-event": eventKind,
+      "x-proovra-signature": signature,
+      "x-proovra-delivery": delivery.id,
+    },
+    body: canonical,
+    timeoutMs: DELIVERY_TIMEOUT_MS,
+    policy: LIFECYCLE_WEBHOOK_OUTBOUND_POLICY,
+    maxResponseBytes: RESPONSE_DRAIN_MAX_BYTES,
+  });
+  if (result.kind === "refused") {
+    await prisma.lifecycleWebhookDelivery
+      .update({
+        where: { id: delivery.id },
+        data: {
+          state: "FAILED",
+          attemptCount: nextAttemptCount,
+          lastAttemptAtUtc: new Date(),
+          responseStatus: null,
+          responseBodyPreview: null,
+        },
+      })
+      .catch(() => null);
+    return { ok: false };
   }
+  if (result.kind === "response") responseStatus = result.status;
+  else networkError = true;
 
   const now = new Date();
   const baseUpdate: {
@@ -403,11 +455,13 @@ export async function deliverWebhookDelivery(
     networkError ||
     responseStatus === 429 ||
     (responseStatus !== null && responseStatus >= 500);
+  // A redirect (3xx) is not followed and is not retried: like a 4xx it is
+  // the receiver's definite answer.
   const isHardFailure =
     !success &&
     !isRetryable &&
     responseStatus !== null &&
-    responseStatus >= 400 &&
+    responseStatus >= 300 &&
     responseStatus < 500;
 
   if (success) {
@@ -503,7 +557,6 @@ export async function getDeliveryAudit(input: {
       attemptCount: true,
       signature: true,
       responseStatus: true,
-      responseBodyPreview: true,
       enqueuedAtUtc: true,
       lastAttemptAtUtc: true,
       deliveredAtUtc: true,
@@ -520,7 +573,8 @@ export async function getDeliveryAudit(input: {
     attemptCount: row.attemptCount,
     signature: row.signature,
     responseStatus: row.responseStatus,
-    responseBodyPreview: row.responseBodyPreview,
+    // PRO-061 — never the receiver's body (older rows may still hold one).
+    responseBodyPreview: null,
     enqueuedAtUtc: row.enqueuedAtUtc.toISOString(),
     lastAttemptAtUtc: row.lastAttemptAtUtc?.toISOString() ?? null,
     deliveredAtUtc: row.deliveredAtUtc?.toISOString() ?? null,

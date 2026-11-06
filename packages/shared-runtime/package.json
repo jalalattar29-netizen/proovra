@@ -42,6 +42,11 @@
       "import": "./dist/reports/index.js",
       "default": "./dist/reports/index.js"
     },
+    "./outbound": {
+      "types": "./dist/outbound/index.d.ts",
+      "import": "./dist/outbound/index.js",
+      "default": "./dist/outbound/index.js"
+    },
     "./isolation": {
       "types": "./dist/config/test-stack-isolation.d.ts",
       "import": "./dist/config/test-stack-isolation.js",

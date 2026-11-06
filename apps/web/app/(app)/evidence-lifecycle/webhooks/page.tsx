@@ -20,6 +20,12 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { StatusBadge, statusBadgeStyle } from "../../../../components/ui/StatusBadge";
 import { webhookDeliveryStateLabel } from "../../../../lib/labels/governanceReviewLabels";
 import { apiFetch } from "../../../../lib/api";
+import {
+  StepUpModal,
+  isStepUpCancelled,
+  useStepUpAction,
+} from "../../../../components/identity-security/StepUpModal";
+import { useTeamId } from "../../../../lib/platform-context";
 import { formatUserDate, formatUserDateTime } from "../../../../lib/date";
 import {
   DenialBanner,
@@ -102,6 +108,8 @@ function deactivateFailureMessage(err: unknown): string {
 }
 
 function Shell() {
+  const teamId = useTeamId();
+  const stepUp = useStepUpAction({ teamId });
   const [endpoints, setEndpoints] = useState<WebhookEndpoint[]>([]);
   const [endpointsLoaded, setEndpointsLoaded] = useState(false);
   const { confirm: confirmAction } = useConfirmAction();
@@ -246,10 +254,15 @@ function Shell() {
     setDenial(null);
     setSecretBanner(null);
     try {
-      const res = (await apiFetch("/v1/integrations/webhooks/endpoints", {
-        method: "POST",
-        body: JSON.stringify({ url, subscribedEvents: selectedEvents }),
-      })) as { secret?: string } | null;
+      // WEBHOOK-STEPUP — registering an endpoint asks for a fresh factor, the
+      // same as an integration webhook.
+      const res = (await stepUp.runStepUpAction((stepUpHeaders) =>
+        apiFetch("/v1/integrations/webhooks/endpoints", {
+          method: "POST",
+          headers: { ...(stepUpHeaders ?? {}) },
+          body: JSON.stringify({ url, subscribedEvents: selectedEvents }),
+        }),
+      )) as { secret?: string } | null;
       if (res?.secret) {
         setSecretBanner(res.secret);
       }
@@ -257,11 +270,12 @@ function Shell() {
       setSelectedEvents([]);
       await refresh();
     } catch (err) {
+      if (isStepUpCancelled(err)) return;
       applyDenial(err, setDenial);
     } finally {
       setCreating(false);
     }
-  }, [url, selectedEvents, refresh]);
+  }, [url, selectedEvents, refresh, stepUp]);
 
   const toggleEvent = useCallback((event: string) => {
     setSelectedEvents((prev) =>
@@ -487,6 +501,7 @@ function Shell() {
         />
         )}
       </PageSection>
+      <StepUpModal control={stepUp} />
     </PageShell>
   );
 }

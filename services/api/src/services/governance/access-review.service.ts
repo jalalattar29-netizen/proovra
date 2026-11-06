@@ -54,7 +54,14 @@ export type CreateCampaignInput = {
 
 export type CreateCampaignResult =
   | { ok: true; campaignId: string; itemCount: number }
-  | { ok: false; denial: "POLICY_REJECTED" | "SUBJECT_NOT_A_MEMBER" | "GRANT_NOT_RECOGNISED" };
+  | {
+      ok: false;
+      denial:
+        | "POLICY_REJECTED"
+        | "SUBJECT_NOT_A_MEMBER"
+        | "GRANT_NOT_RECOGNISED"
+        | "SCOPE_NOT_IN_WORKSPACE";
+    };
 
 /** The grants an access review can actually revoke. */
 const REVOCABLE_GRANT_KINDS = [
@@ -111,6 +118,29 @@ export async function createCampaign(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
+  // PRO-071 / BILLING-12 — the campaign's scope attributes are derived from
+  // the resolved workspace, never taken from the body: the same rule the
+  // departments route applies ("a supplied organizationId is only ever used
+  // to REJECT a mismatch, never to widen the tenancy"). Another tenant's
+  // workspace, organization or department id was stored as given.
+  const workspace = await prisma.team.findUnique({
+    where: { id: input.teamId },
+    select: { organizationId: true },
+  });
+  if (!workspace) return { ok: false, denial: "SCOPE_NOT_IN_WORKSPACE" };
+  if (input.workspaceId && input.workspaceId !== input.teamId) {
+    return { ok: false, denial: "SCOPE_NOT_IN_WORKSPACE" };
+  }
+  if (input.organizationId && input.organizationId !== workspace.organizationId) {
+    return { ok: false, denial: "SCOPE_NOT_IN_WORKSPACE" };
+  }
+  if (input.departmentId) {
+    const dept = await prisma.department.findFirst({
+      where: { id: input.departmentId, teamId: input.teamId },
+      select: { id: true },
+    });
+    if (!dept) return { ok: false, denial: "SCOPE_NOT_IN_WORKSPACE" };
+  }
   for (const item of input.items) {
     // A fact about the campaign's data, not a gate on the caller.
     const members = await prisma.teamMember.count({

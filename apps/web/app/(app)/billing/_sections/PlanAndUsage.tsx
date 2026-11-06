@@ -257,7 +257,12 @@ export function EnterpriseContractCard({
       `${contract.storageGb} GB`,
     ]);
   }
-  if (contract.region) rows.push(["Region", contract.region]);
+  // PROV-018 — the region is recorded on the contract and enforces nothing:
+  // evidence is stored in the platform's one configured storage location.
+  // The label says so rather than implying data residency.
+  if (contract.region) {
+    rows.push(["Region on agreement (does not set where data is stored)", contract.region]);
+  }
 
   return (
     <Card variant="summary" title="Agreement" data-billing-contract>

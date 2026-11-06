@@ -18,6 +18,25 @@ const H = vi.hoisted(() => ({
   updates: [] as Array<Record<string, unknown>>,
   authorized: true,
   exists: true,
+  stepUpPresented: true,
+  stepUpPurposes: [] as string[],
+}));
+
+// WEBHOOK-STEPUP — enabling resumes signed outbound deliveries, so it asks
+// for a step-up (INTEGRATION_WEBHOOK_ENABLE). The middleware is substituted
+// at its module boundary; its own behaviour is proven elsewhere.
+vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
+  requireStepUpForSensitiveAction: async (input: {
+    purpose: string;
+    reply: { code: (n: number) => { send: (b: unknown) => void } };
+  }) => {
+    H.stepUpPurposes.push(input.purpose);
+    if (!H.stepUpPresented) {
+      input.reply.code(401).send({ error: { code: "STEP_UP_REQUIRED" } });
+      return { sent: true };
+    }
+    return { sent: false, verifiedChallengeId: "c-1" };
+  },
 }));
 
 vi.mock("../src/middleware/auth.js", () => ({ requireAuth: async () => undefined }));
@@ -71,6 +90,8 @@ beforeEach(async () => {
   H.updates = [];
   H.authorized = true;
   H.exists = true;
+  H.stepUpPresented = true;
+  H.stepUpPurposes = [];
   app = Fastify();
   await app.register(automationWebhooksRoutes);
   await app.ready();
@@ -99,9 +120,20 @@ describe("automation webhook destination enable/disable audit", () => {
     ]);
   });
 
-  it("disable keeps its dedicated audit event", async () => {
+  it("enable without a step-up is refused and writes nothing (WEBHOOK-STEPUP)", async () => {
+    H.stepUpPresented = false;
+    const res = await post("enable");
+    expect(res.statusCode).toBe(401);
+    expect(H.stepUpPurposes).toEqual(["INTEGRATION_WEBHOOK_ENABLE"]);
+    expect(H.updates).toHaveLength(0);
+    expect(H.events).toHaveLength(0);
+  });
+
+  it("disable keeps its dedicated audit event and needs no step-up", async () => {
+    H.stepUpPresented = false;
     const res = await post("disable");
     expect(res.statusCode).toBe(200);
+    expect(H.stepUpPurposes).toEqual([]);
     expect(H.events).toEqual([
       expect.objectContaining({ eventType: "automation_webhook_destination_disabled", details: { destinationId: DEST, actorUserId: "actor-1" } }),
     ]);

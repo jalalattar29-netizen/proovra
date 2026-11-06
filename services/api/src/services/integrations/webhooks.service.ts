@@ -33,6 +33,10 @@ import {
   buildWebhookSignatureBase,
   validateWebhookUrl,
 } from "@proovra/shared";
+import {
+  resolveLocalAllowance,
+  type OutboundUrlPolicy,
+} from "@proovra/shared-runtime/outbound";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -47,8 +51,30 @@ const WEBHOOK_SECRET_VERSION = 1;
 
 const ALLOW_PRIVATE_NETWORKS_ENV = "WEBHOOK_ALLOW_PRIVATE_NETWORKS";
 
+/**
+ * The local-development allowance for integration webhooks. PRO-067: it is
+ * honoured only when NODE_ENV is exactly "development" or "test"; production,
+ * staging-as-production and an unset NODE_ENV fail closed whatever the
+ * variable says. Even when it is honoured it never admits link-local
+ * addresses or the metadata service (the shared outbound policy).
+ */
 export function webhookAllowPrivateNetworks(): boolean {
-  return process.env[ALLOW_PRIVATE_NETWORKS_ENV] === "true";
+  return (
+    resolveLocalAllowance({
+      requested: "private",
+      flagEnabled: process.env[ALLOW_PRIVATE_NETWORKS_ENV] === "true",
+      nodeEnv: process.env.NODE_ENV,
+      permittedEnvironments: ["development", "test"],
+    }) === "private"
+  );
+}
+
+/** The policy an integration webhook is checked and sent under. */
+export function integrationWebhookOutboundPolicy(): OutboundUrlPolicy {
+  return {
+    requireDefaultPort: false,
+    localAllowance: webhookAllowPrivateNetworks() ? "private" : "none",
+  };
 }
 
 function readWebhookHmacKey(): Buffer | null {

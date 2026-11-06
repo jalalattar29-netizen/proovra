@@ -95,13 +95,19 @@ export async function startVerification(
    * opposite of a limit that decays. A rate limit must measure the thing being
    * limited — verification STARTS — and a refusal is not a start.
    */
+  //
+  // PRO-086 / FEATURES-04 — and it must COUNT the starts. `NOT: { errorCode:
+  // "rate_limited" }` compiles to `NOT (error_code = 'rate_limited')`, which
+  // is NULL — not true — for a successful start (errorCode NULL), so every
+  // successful start was dropped and the limit could never trip. The NULL
+  // case is now named explicitly.
   const sinceHour = new Date(Date.now() - 3600 * 1000);
   const recentStarts = await client.verificationAttempt.count({
     where: {
       teamId: input.teamId,
       recipientHash,
       createdAt: { gte: sinceHour },
-      NOT: { errorCode: "rate_limited" },
+      OR: [{ errorCode: null }, { errorCode: { not: "rate_limited" } }],
     },
   });
   if (recentStarts >= STARTS_PER_HOUR) {
