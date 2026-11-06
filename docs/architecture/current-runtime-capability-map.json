@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "259db5d5a4f9718359df9a46ca1b1d3d56829eb7ecd09e3cd4eef102920486f2",
-  "consumerInventoryHash": "6fbe2600d3b89a3b07fdaebecbf71419cd6208339ab59f7a8ea071defa9b4c4f",
+  "consumerInventoryHash": "8ed2f8fb18aadaa67207892c17c7665089ef9818bd3a54b6314ba06f5d5415ca",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1231,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1520,
-    "ReachableSensitiveMutations": 1495,
-    "ClassifiedSensitiveMutations": 1495,
+    "TerminalWriters": 1523,
+    "ReachableSensitiveMutations": 1498,
+    "ClassifiedSensitiveMutations": 1498,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 25,
@@ -71,7 +71,7 @@
     "TenantUnboundMutations": 0,
     "UnsafeEffectsInsideTransactions": 0,
     "byFamily": {
-      "ACCOUNT_SESSION_SECURITY": 234,
+      "ACCOUNT_SESSION_SECURITY": 237,
       "ORGANIZATION": 32,
       "ORGANIZATION_MEMBERSHIP": 30,
       "WORKSPACE": 74,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1329,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1332,
       "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11285,
+      "METHOD_ON_VALUE": 11292,
       "UNRESOLVED_IDENTIFIER": 1626
     },
     "MutationFixpointRounds": 10,
@@ -161,7 +161,7 @@
       "NO_DATA_ACCESS": 54
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 982,
+    "OrganizationRoutesMeasured": 983,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
@@ -3832,7 +3832,7 @@
       "method": "GET",
       "route": "/v1/identity-security/contact-factors",
       "registeringFile": "services/api/src/routes/identity-security-contact-factors.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:61",
+      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:65",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -4036,7 +4036,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/digest-preferences",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:169",
+      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:174",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -4048,7 +4048,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/digest-preferences/preview",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:182",
+      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:187",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -4132,7 +4132,7 @@
       "method": "GET",
       "route": "/v1/identity/mfa-admin/recovery-requests/:teamId",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:136",
+      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:141",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7552,7 +7552,7 @@
       "method": "PATCH",
       "route": "/v1/identity/mfa-admin/digest-preferences",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:209",
+      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:214",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8440,7 +8440,7 @@
       "method": "POST",
       "route": "/v1/auth/saml/:connectionId/ingest-metadata",
       "registeringFile": "services/api/src/routes/saml-auth.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/sso/page.tsx:340",
+      "productConsumer": "apps/web/app/(app)/security-center/sso/page.tsx:343",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -11128,7 +11128,7 @@
       "method": "POST",
       "route": "/v1/identity-security/contact-factors/:id/revoke",
       "registeringFile": "services/api/src/routes/identity-security-contact-factors.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:149",
+      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:182",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11140,7 +11140,7 @@
       "method": "POST",
       "route": "/v1/identity-security/contact-factors/enroll/start",
       "registeringFile": "services/api/src/routes/identity-security-contact-factors.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:95",
+      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:106",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11152,7 +11152,7 @@
       "method": "POST",
       "route": "/v1/identity-security/contact-factors/enroll/verify",
       "registeringFile": "services/api/src/routes/identity-security-contact-factors.routes.ts",
-      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:125",
+      "productConsumer": "apps/mobile/src/ui/contact-factor-section.tsx:154",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11584,7 +11584,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa-admin/recovery-requests/:requestId/approve",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:315",
+      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:323",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11596,7 +11596,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa-admin/recovery-requests/:requestId/reject",
       "registeringFile": "services/api/src/routes/mfa-admin.routes.ts",
-      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:335",
+      "productConsumer": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:348",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14224,7 +14224,7 @@
       "method": "POST",
       "route": "/v1/security-policy/high-security/activate",
       "registeringFile": "services/api/src/routes/enterprise-security.routes.ts",
-      "productConsumer": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:301",
+      "productConsumer": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:304",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -28167,15 +28167,15 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/account-closure.routes.ts#accountClosureRequest.create@141",
-      "terminalLocation": "services/api/src/routes/account-closure.routes.ts:141",
+      "writerId": "services/api/src/routes/account-closure.routes.ts#accountClosureRequest.create@147",
+      "terminalLocation": "services/api/src/routes/account-closure.routes.ts:147",
       "file": "services/api/src/routes/account-closure.routes.ts",
       "enclosingDeclaration": "accountClosureRoutes",
       "kind": "DATABASE",
       "target": "accountClosureRequest",
       "mutationKind": "create",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/identity/account-closure"
       ],
@@ -28191,7 +28191,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -28200,15 +28200,15 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/account-closure.routes.ts#accountClosureRequest.create@167",
-      "terminalLocation": "services/api/src/routes/account-closure.routes.ts:167",
+      "writerId": "services/api/src/routes/account-closure.routes.ts#accountClosureRequest.create@158",
+      "terminalLocation": "services/api/src/routes/account-closure.routes.ts:158",
       "file": "services/api/src/routes/account-closure.routes.ts",
       "enclosingDeclaration": "accountClosureRoutes",
       "kind": "DATABASE",
       "target": "accountClosureRequest",
       "mutationKind": "create",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/identity/account-closure"
       ],
@@ -28224,7 +28224,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -28233,8 +28233,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/account-closure.routes.ts#accountClosureRequest.updateMany@199",
-      "terminalLocation": "services/api/src/routes/account-closure.routes.ts:199",
+      "writerId": "services/api/src/routes/account-closure.routes.ts#accountClosureRequest.updateMany@220",
+      "terminalLocation": "services/api/src/routes/account-closure.routes.ts:220",
       "file": "services/api/src/routes/account-closure.routes.ts",
       "enclosingDeclaration": "accountClosureRoutes",
       "kind": "DATABASE",
@@ -32350,8 +32350,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1304",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1304",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1327",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1327",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32383,8 +32383,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1501",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1501",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1541",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1541",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32416,8 +32416,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1619",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1619",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1659",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1659",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32449,8 +32449,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1727",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1727",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1767",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1767",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -33566,8 +33566,8 @@
       "nonRequestDisposition": "REGISTERED_CLI"
     },
     {
-      "writerId": "services/api/src/services/access-control/geo-intelligence.service.ts#geoIntelligenceLookup.deleteMany@213",
-      "terminalLocation": "services/api/src/services/access-control/geo-intelligence.service.ts:213",
+      "writerId": "services/api/src/services/access-control/geo-intelligence.service.ts#geoIntelligenceLookup.deleteMany@258",
+      "terminalLocation": "services/api/src/services/access-control/geo-intelligence.service.ts:258",
       "file": "services/api/src/services/access-control/geo-intelligence.service.ts",
       "enclosingDeclaration": "sweepGeoCache",
       "kind": "DATABASE",
@@ -33599,8 +33599,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/geo-intelligence.service.ts#geoIntelligenceLookup.update@135",
-      "terminalLocation": "services/api/src/services/access-control/geo-intelligence.service.ts:135",
+      "writerId": "services/api/src/services/access-control/geo-intelligence.service.ts#geoIntelligenceLookup.update@180",
+      "terminalLocation": "services/api/src/services/access-control/geo-intelligence.service.ts:180",
       "file": "services/api/src/services/access-control/geo-intelligence.service.ts",
       "enclosingDeclaration": "lookupCountryCode",
       "kind": "DATABASE",
@@ -33635,8 +33635,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/geo-intelligence.service.ts#geoIntelligenceLookup.upsert@184",
-      "terminalLocation": "services/api/src/services/access-control/geo-intelligence.service.ts:184",
+      "writerId": "services/api/src/services/access-control/geo-intelligence.service.ts#geoIntelligenceLookup.upsert@229",
+      "terminalLocation": "services/api/src/services/access-control/geo-intelligence.service.ts:229",
       "file": "services/api/src/services/access-control/geo-intelligence.service.ts",
       "enclosingDeclaration": "lookupCountryCode",
       "kind": "DATABASE",
@@ -34733,8 +34733,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@171",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:171",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@179",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:179",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "releaseQuarantine",
       "kind": "DATABASE",
@@ -34766,8 +34766,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@234",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:234",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.update@242",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:242",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "sweepQuarantineReleases",
       "kind": "DATABASE",
@@ -34833,8 +34833,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.updateMany@370",
-      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:370",
+      "writerId": "services/api/src/services/access-control/session-quarantine.service.ts#authenticatedSession.updateMany@378",
+      "terminalLocation": "services/api/src/services/access-control/session-quarantine.service.ts:378",
       "file": "services/api/src/services/access-control/session-quarantine.service.ts",
       "enclosingDeclaration": "emergencyOrgRevoke",
       "kind": "DATABASE",
@@ -50021,13 +50021,13 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@367",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:367",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.updateMany@376",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:376",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "checkVerification",
       "kind": "DATABASE",
       "target": "verificationAttempt",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": false,
       "entryRoutes": [
@@ -50058,50 +50058,50 @@
       }
     },
     {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@379",
-      "terminalLocation": "services/api/src/services/communications/verification.service.ts:379",
-      "file": "services/api/src/services/communications/verification.service.ts",
-      "enclosingDeclaration": "checkVerification",
-      "kind": "DATABASE",
-      "target": "verificationAttempt",
-      "mutationKind": "update",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/communications/verify/check",
-        "POST /v1/identity-security/contact-factors/enroll/verify",
-        "POST /v1/identity-security/step-up/check"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/communications.routes.ts",
-        "MODULE services/api/src/routes/identity-security-contact-factors.routes.ts",
-        "MODULE services/api/src/routes/identity-security.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.update@385",
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.updateMany@385",
       "terminalLocation": "services/api/src/services/communications/verification.service.ts:385",
       "file": "services/api/src/services/communications/verification.service.ts",
       "enclosingDeclaration": "checkVerification",
       "kind": "DATABASE",
       "target": "verificationAttempt",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/communications/verify/check",
+        "POST /v1/identity-security/contact-factors/enroll/verify",
+        "POST /v1/identity-security/step-up/check"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/communications.routes.ts",
+        "MODULE services/api/src/routes/identity-security-contact-factors.routes.ts",
+        "MODULE services/api/src/routes/identity-security.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/communications/verification.service.ts#verificationAttempt.updateMany@407",
+      "terminalLocation": "services/api/src/services/communications/verification.service.ts:407",
+      "file": "services/api/src/services/communications/verification.service.ts",
+      "enclosingDeclaration": "checkVerification",
+      "kind": "DATABASE",
+      "target": "verificationAttempt",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
       "insideTransaction": false,
       "entryRoutes": [
@@ -58135,8 +58135,74 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#authenticatedSession.updateMany@221",
-      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:221",
+      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#authenticatedSession.updateMany@185",
+      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:185",
+      "file": "services/api/src/services/identity-security/session-revocation.service.ts",
+      "enclosingDeclaration": "revokeAllSessionsForUser",
+      "kind": "DATABASE",
+      "target": "authenticatedSession",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "DELETE /v1/orgs/:id/members/:memberId",
+        "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Users/:id",
+        "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/emergency-revoke",
+        "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/orgs/:id/resume",
+        "POST /v1/admin/orgs/:id/suspend",
+        "POST /v1/auth/password-reset/confirm",
+        "POST /v1/break-glass/emergency/sessions/revoke",
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/identity-security/sessions/revoke-all",
+        "POST /v1/identity/access-reviews/:id/decision",
+        "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/suspend",
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve",
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/run-digests",
+        "POST /v1/orgs/:id/members/:memberId/restore",
+        "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/security-policy/high-security/activate",
+        "POST /v1/teams/:id/leave"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-identity.routes.ts",
+        "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/auth.routes.ts",
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/enterprise-security.routes.ts",
+        "MODULE services/api/src/routes/identity-security.routes.ts",
+        "MODULE services/api/src/routes/identity.routes.ts",
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/mfa-admin.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts",
+        "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim.routes.ts",
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#authenticatedSession.updateMany@258",
+      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:258",
       "file": "services/api/src/services/identity-security/session-revocation.service.ts",
       "enclosingDeclaration": "revokeOtherSessionsForUserTx",
       "kind": "DATABASE",
@@ -58175,8 +58241,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.create@157",
-      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:157",
+      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.create@194",
+      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:194",
       "file": "services/api/src/services/identity-security/session-revocation.service.ts",
       "enclosingDeclaration": "revokeAllSessionsForUser",
       "kind": "DATABASE",
@@ -58200,6 +58266,7 @@
         "POST /v1/identity/access-reviews/:id/decision",
         "POST /v1/identity/members/:id/revoke",
         "POST /v1/identity/members/:id/suspend",
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve",
         "POST /v1/internal/lifecycle/run",
         "POST /v1/notifications/run-digests",
         "POST /v1/orgs/:id/members/:memberId/restore",
@@ -58217,6 +58284,7 @@
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/identity.routes.ts",
         "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/notifications.routes.ts",
         "MODULE services/api/src/routes/organizations.routes.ts",
         "MODULE services/api/src/routes/scim.routes.ts",
@@ -58255,6 +58323,7 @@
         "POST /v1/admin/identity/providers/:id/policy",
         "POST /v1/admin/identity/scim/tokens",
         "POST /v1/admin/identity/sessions/:id/quarantine",
+        "POST /v1/admin/identity/sessions/:id/release",
         "POST /v1/admin/identity/sessions/:id/revoke",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/auth/logout",
@@ -58309,8 +58378,74 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.createMany@211",
-      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:211",
+      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.createMany@174",
+      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:174",
+      "file": "services/api/src/services/identity-security/session-revocation.service.ts",
+      "enclosingDeclaration": "revokeAllSessionsForUser",
+      "kind": "DATABASE",
+      "target": "revokedSession",
+      "mutationKind": "createMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "DELETE /v1/orgs/:id/members/:memberId",
+        "DELETE /v1/teams/:id/members/:memberId",
+        "DELETE /v2/scim/Users/:id",
+        "PATCH /v2/scim/Users/:id",
+        "POST /v1/admin/identity/emergency-revoke",
+        "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
+        "POST /v1/admin/orgs/:id/resume",
+        "POST /v1/admin/orgs/:id/suspend",
+        "POST /v1/auth/password-reset/confirm",
+        "POST /v1/break-glass/emergency/sessions/revoke",
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/identity-security/sessions/revoke-all",
+        "POST /v1/identity/access-reviews/:id/decision",
+        "POST /v1/identity/members/:id/revoke",
+        "POST /v1/identity/members/:id/suspend",
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve",
+        "POST /v1/internal/lifecycle/run",
+        "POST /v1/notifications/run-digests",
+        "POST /v1/orgs/:id/members/:memberId/restore",
+        "POST /v1/orgs/:id/members/:memberId/suspend",
+        "POST /v1/security-policy/high-security/activate",
+        "POST /v1/teams/:id/leave"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-identity.routes.ts",
+        "MODULE services/api/src/routes/admin-provisioning.routes.ts",
+        "MODULE services/api/src/routes/auth.routes.ts",
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/enterprise-security.routes.ts",
+        "MODULE services/api/src/routes/identity-security.routes.ts",
+        "MODULE services/api/src/routes/identity.routes.ts",
+        "MODULE services/api/src/routes/internal-lifecycle.routes.ts",
+        "MODULE services/api/src/routes/mfa-admin.routes.ts",
+        "MODULE services/api/src/routes/notifications.routes.ts",
+        "MODULE services/api/src/routes/organizations.routes.ts",
+        "MODULE services/api/src/routes/scim.routes.ts",
+        "MODULE services/api/src/routes/teams.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity-security/session-revocation.service.ts#revokedSession.createMany@248",
+      "terminalLocation": "services/api/src/services/identity-security/session-revocation.service.ts:248",
       "file": "services/api/src/services/identity-security/session-revocation.service.ts",
       "enclosingDeclaration": "revokeOtherSessionsForUserTx",
       "kind": "DATABASE",
@@ -58482,8 +58617,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@1011",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1011",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@1039",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1039",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "consumeApprovedChallenge",
       "kind": "DATABASE",
@@ -58530,6 +58665,7 @@
         "POST /v1/admin/identity/scim/tokens/:id/revoke",
         "POST /v1/admin/identity/scim/tokens/:id/rotate",
         "POST /v1/admin/identity/sessions/:id/quarantine",
+        "POST /v1/admin/identity/sessions/:id/release",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
         "POST /v1/admin/orgs/:id/owner-invite/reissue",
@@ -58537,6 +58673,7 @@
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/admin/orgs/:id/terminate",
         "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/break-glass/activate",
         "POST /v1/cases/:id/siu-export",
         "POST /v1/cases/:id/siu-profile/reveal-pii",
@@ -58577,6 +58714,7 @@
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
         "POST /v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve",
         "POST /v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
         "POST /v1/identity/service-accounts/:id/disable",
         "POST /v1/identity/service-accounts/:id/enable",
@@ -58682,40 +58820,6 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@1461",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1461",
-      "file": "services/api/src/services/identity-security/step-up.service.ts",
-      "enclosingDeclaration": "recordStepUpDenial",
-      "kind": "DATABASE",
-      "target": "stepUpChallenge",
-      "mutationKind": "update",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/identity-security/step-up/check",
-        "POST /v1/identity-security/step-up/handoff/passkey"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/identity-security.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY+NONE",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -58763,41 +58867,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.update@836",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:836",
-      "file": "services/api/src/services/identity-security/step-up.service.ts",
-      "enclosingDeclaration": "checkStepUpChallenge",
-      "kind": "DATABASE",
-      "target": "stepUpChallenge",
-      "mutationKind": "update",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/identity-security/step-up/check"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/identity-security.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NAMED_AUTHORITY",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1060",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1060",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1088",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1088",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "consumeApprovedChallenge",
       "kind": "DATABASE",
@@ -58844,6 +58915,7 @@
         "POST /v1/admin/identity/scim/tokens/:id/revoke",
         "POST /v1/admin/identity/scim/tokens/:id/rotate",
         "POST /v1/admin/identity/sessions/:id/quarantine",
+        "POST /v1/admin/identity/sessions/:id/release",
         "POST /v1/admin/identity/sessions/reconcile-stale",
         "POST /v1/admin/identity/sessions/user/:userId/revoke-all",
         "POST /v1/admin/orgs/:id/owner-invite/reissue",
@@ -58851,6 +58923,7 @@
         "POST /v1/admin/orgs/:id/suspend",
         "POST /v1/admin/orgs/:id/terminate",
         "POST /v1/admin/orgs/:id/terminate/cancel",
+        "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/break-glass/activate",
         "POST /v1/cases/:id/siu-export",
         "POST /v1/cases/:id/siu-profile/reveal-pii",
@@ -58891,6 +58964,7 @@
         "POST /v1/identity/members/:id/suspend",
         "POST /v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
         "POST /v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve",
         "POST /v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
         "POST /v1/identity/service-accounts/:id/disable",
         "POST /v1/identity/service-accounts/:id/enable",
@@ -59010,8 +59084,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1093",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1093",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1121",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1121",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "answerPasskeyChallenge",
       "kind": "DATABASE",
@@ -59044,8 +59118,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1129",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1129",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1157",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1157",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "markLadderChallengeApproved",
       "kind": "DATABASE",
@@ -59082,8 +59156,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1219",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1219",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1247",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1247",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "beginIdpHandoff",
       "kind": "DATABASE",
@@ -59115,8 +59189,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1297",
-      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1297",
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1325",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1325",
       "file": "services/api/src/services/identity-security/step-up.service.ts",
       "enclosingDeclaration": "cancelOutstandingStepUpChallenges",
       "kind": "DATABASE",
@@ -59130,6 +59204,7 @@
         "POST /v1/auth/password-reset/confirm",
         "POST /v1/identity-security/passkeys/registration/verify",
         "POST /v1/identity-security/password",
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve",
         "POST /v1/identity/mfa/enroll/verify",
         "POST /v1/identity/password"
       ],
@@ -59138,12 +59213,113 @@
         "MODULE services/api/src/routes/auth.routes.ts",
         "MODULE services/api/src/routes/identity-links.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
+        "MODULE services/api/src/routes/mfa-admin.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
         "MODULE services/api/src/routes/passkey.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "AUTHENTICATED_SUBJECT+MEMBERSHIP_LOOKUP+RESOURCE_OWNER_COLUMN",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@1491",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:1491",
+      "file": "services/api/src/services/identity-security/step-up.service.ts",
+      "enclosingDeclaration": "recordStepUpDenial",
+      "kind": "DATABASE",
+      "target": "stepUpChallenge",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity-security/step-up/check",
+        "POST /v1/identity-security/step-up/handoff/passkey"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-security.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY+NONE",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@789",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:789",
+      "file": "services/api/src/services/identity-security/step-up.service.ts",
+      "enclosingDeclaration": "checkStepUpChallenge",
+      "kind": "DATABASE",
+      "target": "stepUpChallenge",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity-security/step-up/check"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-security.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/identity-security/step-up.service.ts#stepUpChallenge.updateMany@862",
+      "terminalLocation": "services/api/src/services/identity-security/step-up.service.ts:862",
+      "file": "services/api/src/services/identity-security/step-up.service.ts",
+      "enclosingDeclaration": "checkStepUpChallenge",
+      "kind": "DATABASE",
+      "target": "stepUpChallenge",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity-security/step-up/check"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/identity-security.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -61195,8 +61371,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/org-security-policy.service.ts#organizationSecurityPolicy.upsert@428",
-      "terminalLocation": "services/api/src/services/identity/org-security-policy.service.ts:428",
+      "writerId": "services/api/src/services/identity/org-security-policy.service.ts#organizationSecurityPolicy.upsert@475",
+      "terminalLocation": "services/api/src/services/identity/org-security-policy.service.ts:475",
       "file": "services/api/src/services/identity/org-security-policy.service.ts",
       "enclosingDeclaration": "applySecurityPolicyPatch",
       "kind": "DATABASE",
@@ -61396,8 +61572,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.update@1435",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1435",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.update@1461",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1461",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "revokeDelegatedAdminScope",
       "kind": "DATABASE",
@@ -61464,8 +61640,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1383",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1383",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#memberDelegatedAdminScope.updateMany@1409",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1409",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "updateDelegatedAdminScope",
       "kind": "DATABASE",
@@ -61740,8 +61916,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.updateMany@1589",
-      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1589",
+      "writerId": "services/api/src/services/identity/rbac.service.ts#teamMember.updateMany@1615",
+      "terminalLocation": "services/api/src/services/identity/rbac.service.ts:1615",
       "file": "services/api/src/services/identity/rbac.service.ts",
       "enclosingDeclaration": "touchMemberLastSeen",
       "kind": "DATABASE",
@@ -94041,8 +94217,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.update@202",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:202",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.update@243",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:243",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "revokeUserFactor",
       "kind": "DATABASE",
@@ -94074,8 +94250,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.updateMany@265",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:265",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#mfaFactor.updateMany@306",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:306",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "requireUserReenrollment",
       "kind": "DATABASE",
@@ -94107,8 +94283,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#trustedDevice.updateMany@335",
-      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:335",
+      "writerId": "services/api/src/services/security/mfa-admin-lifecycle.service.ts#trustedDevice.updateMany@376",
+      "terminalLocation": "services/api/src/services/security/mfa-admin-lifecycle.service.ts:376",
       "file": "services/api/src/services/security/mfa-admin-lifecycle.service.ts",
       "enclosingDeclaration": "resetTrustedDevicesForUser",
       "kind": "DATABASE",
@@ -94208,8 +94384,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@786",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:786",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaFactor.updateMany@801",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:801",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
@@ -94241,8 +94417,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@794",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:794",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryCode.updateMany@805",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:805",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
@@ -94274,8 +94450,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.create@273",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:273",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.create@275",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:275",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "createRecoveryRequest",
       "kind": "DATABASE",
@@ -94307,8 +94483,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@553",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:553",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@555",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:555",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "resendRecoveryRequestEmail",
       "kind": "DATABASE",
@@ -94340,8 +94516,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@718",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:718",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@736",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:736",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
@@ -94373,74 +94549,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@752",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:752",
-      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
-      "enclosingDeclaration": "approveRecoveryRequest",
-      "kind": "DATABASE",
-      "target": "mfaRecoveryRequest",
-      "mutationKind": "update",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/mfa-admin.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@778",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:778",
-      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
-      "enclosingDeclaration": "approveRecoveryRequest",
-      "kind": "DATABASE",
-      "target": "mfaRecoveryRequest",
-      "mutationKind": "update",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": true,
-      "entryRoutes": [
-        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/mfa-admin.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@873",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:873",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.update@931",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:931",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "rejectRecoveryRequest",
       "kind": "DATABASE",
@@ -94472,74 +94582,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@439",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:439",
-      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
-      "enclosingDeclaration": "verifyRecoveryRequestEmail",
-      "kind": "DATABASE",
-      "target": "mfaRecoveryRequest",
-      "mutationKind": "updateMany",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/identity/mfa/recovery-requests/:requestId/verify-email"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/mfa-admin.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@629",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:629",
-      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
-      "enclosingDeclaration": "cancelRecoveryRequest",
-      "kind": "DATABASE",
-      "target": "mfaRecoveryRequest",
-      "mutationKind": "updateMany",
-      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/identity/mfa/recovery-requests/:requestId/cancel"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/mfa-admin.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@943",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:943",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@1001",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:1001",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "markRecoveryCompleted",
       "kind": "DATABASE",
@@ -94571,15 +94615,81 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequestApproval.create@737",
-      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:737",
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@441",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:441",
+      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+      "enclosingDeclaration": "verifyRecoveryRequestEmail",
+      "kind": "DATABASE",
+      "target": "mfaRecoveryRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity/mfa/recovery-requests/:requestId/verify-email"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@631",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:631",
+      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+      "enclosingDeclaration": "cancelRecoveryRequest",
+      "kind": "DATABASE",
+      "target": "mfaRecoveryRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/identity/mfa/recovery-requests/:requestId/cancel"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "RESOURCE_OWNER_COLUMN",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@782",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:782",
       "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
       "enclosingDeclaration": "approveRecoveryRequest",
       "kind": "DATABASE",
-      "target": "mfaRecoveryRequestApproval",
-      "mutationKind": "create",
+      "target": "mfaRecoveryRequest",
+      "mutationKind": "updateMany",
       "primaryFamily": "ACCOUNT_SESSION_SECURITY",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
       ],
@@ -94595,7 +94705,73 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequest.updateMany@797",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:797",
+      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+      "enclosingDeclaration": "approveRecoveryRequest",
+      "kind": "DATABASE",
+      "target": "mfaRecoveryRequest",
+      "mutationKind": "updateMany",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/security/mfa-recovery-request.service.ts#mfaRecoveryRequestApproval.create@779",
+      "terminalLocation": "services/api/src/services/security/mfa-recovery-request.service.ts:779",
+      "file": "services/api/src/services/security/mfa-recovery-request.service.ts",
+      "enclosingDeclaration": "approveRecoveryRequest",
+      "kind": "DATABASE",
+      "target": "mfaRecoveryRequestApproval",
+      "mutationKind": "create",
+      "primaryFamily": "ACCOUNT_SESSION_SECURITY",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/identity/mfa-admin/recovery-requests/:requestId/approve"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/mfa-admin.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -94622,7 +94798,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NONE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -94716,6 +94892,8 @@
         "DELETE /v1/identity/links/:id",
         "DELETE /v1/identity/mfa/factors/:id",
         "POST /v1/auth/mfa/verify",
+        "POST /v1/identity-security/contact-factors/:id/revoke",
+        "POST /v1/identity-security/contact-factors/enroll/start",
         "POST /v1/identity-security/my-sessions/:id/revoke",
         "POST /v1/identity-security/my-sessions/revoke-others",
         "POST /v1/identity-security/step-up/check",
@@ -94725,6 +94903,7 @@
         "POST /v1/identity/links/apple",
         "POST /v1/identity/links/google",
         "POST /v1/identity/mfa/challenge/verify",
+        "POST /v1/identity/mfa/enroll/start",
         "POST /v1/identity/mfa/recovery-codes/regenerate",
         "POST /v1/identity/password",
         "POST /v1/orgs/:id/closure",
@@ -94741,6 +94920,7 @@
         "MODULE services/api/src/routes/account-data-export.routes.ts",
         "MODULE services/api/src/routes/auth.routes.ts",
         "MODULE services/api/src/routes/identity-links.routes.ts",
+        "MODULE services/api/src/routes/identity-security-contact-factors.routes.ts",
         "MODULE services/api/src/routes/identity-security.routes.ts",
         "MODULE services/api/src/routes/mfa.routes.ts",
         "MODULE services/api/src/routes/organizations-bulk-invite.routes.ts",
@@ -96298,8 +96478,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/security/verified-contact-factor.service.ts#mfaFactor.updateMany@440",
-      "terminalLocation": "services/api/src/services/security/verified-contact-factor.service.ts:440",
+      "writerId": "services/api/src/services/security/verified-contact-factor.service.ts#mfaFactor.updateMany@469",
+      "terminalLocation": "services/api/src/services/security/verified-contact-factor.service.ts:469",
       "file": "services/api/src/services/security/verified-contact-factor.service.ts",
       "enclosingDeclaration": "revokeContactFactor",
       "kind": "DATABASE",
@@ -96316,7 +96496,7 @@
       ],
       "entrySchedules": [],
       "invariants": {
-        "authorizationAuthority": "NONE",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -104585,7 +104765,7 @@
       "method": "DELETE",
       "path": "/v1/auth/saml/:connectionId/certificate-next",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1669",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1709",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106490,7 +106670,7 @@
       "method": "DELETE",
       "path": "/v1/identity/mfa/factors/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:237",
+      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:260",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -106509,7 +106689,7 @@
         },
         {
           "file": "apps/mobile/src/ui/totp-enrolment.tsx",
-          "line": 215,
+          "line": 233,
           "caller": "TotpEnrolment",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -106517,7 +106697,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1219,
+          "line": 1231,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106525,7 +106705,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1299,
+          "line": 1311,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106535,7 +106715,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:221 (SecuritySettingsScreen, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:215 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1219 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:221 (SecuritySettingsScreen, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:233 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1231 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -106807,6 +106987,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeamAssignment",
         "collaborationTeamMember",
@@ -106826,6 +107007,7 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseAccess",
         "caseAssignment",
         "caseSiuProfile",
@@ -106877,6 +107059,7 @@
         "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/identity/standing-reach.ts: collaborationTeamActivity.create",
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -107967,6 +108150,7 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeamAssignment",
         "discussionThread",
@@ -107988,6 +108172,7 @@
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamActivity",
@@ -108033,6 +108218,7 @@
       "tenantStampingInsertSites": [
         "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
         "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -113888,7 +114074,7 @@
       "method": "GET",
       "path": "/v1/break-glass/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:455",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:469",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -125559,7 +125745,7 @@
       "method": "GET",
       "path": "/v1/identity-security/contact-factors",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:68",
+      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:84",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -125570,7 +125756,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/contact-factor-section.tsx",
-          "line": 61,
+          "line": 65,
           "caller": "ContactFactorSection",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -125578,7 +125764,7 @@
         },
         {
           "file": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
-          "line": 231,
+          "line": 288,
           "caller": "ContactFactorEnrollmentPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -125588,7 +125774,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:61 (ContactFactorSection, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:231 (ContactFactorEnrollmentPanel, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:65 (ContactFactorSection, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:288 (ContactFactorEnrollmentPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126016,7 +126202,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1982,
+          "line": 1998,
           "caller": "SecurityEventsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -126026,7 +126212,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:128 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1982 (SecurityEventsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:128 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1998 (SecurityEventsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126697,7 +126883,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1113",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1159",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126708,7 +126894,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 169,
+          "line": 174,
           "caller": "reloadPreferences",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -126726,7 +126912,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:169 (reloadPreferences, WEB); apps/web/app/(app)/security-center/posture/_sections/MfaDigestPreferencesSection.tsx:83 (MfaDigestPreferencesSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:174 (reloadPreferences, WEB); apps/web/app/(app)/security-center/posture/_sections/MfaDigestPreferencesSection.tsx:83 (MfaDigestPreferencesSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126757,7 +126943,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences/preview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1218",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1264",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126768,7 +126954,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 182,
+          "line": 187,
           "caller": "reloadPreview",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -126786,7 +126972,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:182 (reloadPreview, WEB); apps/web/app/(app)/security-center/posture/_sections/MfaDigestPreferencesSection.tsx:84 (MfaDigestPreferencesSection, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:187 (reloadPreview, WEB); apps/web/app/(app)/security-center/posture/_sections/MfaDigestPreferencesSection.tsx:84 (MfaDigestPreferencesSection, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126823,7 +127009,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/digest-preferences/snooze-link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1280",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1326",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -126875,7 +127061,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/events/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:522",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:542",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -126942,7 +127128,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/policy/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1000",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1046",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127006,7 +127192,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/posture/:teamId/:userId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:342",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:360",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127074,7 +127260,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1499",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1545",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -127131,7 +127317,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/approvals",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:967",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1013",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -127187,7 +127373,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:590",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:610",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -127200,7 +127386,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 136,
+          "line": 141,
           "caller": "reload",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127218,7 +127404,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:136 (reload, WEB); apps/web/app/(app)/security-center/page.tsx:175 (SecurityCenterPageInner, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:141 (reload, WEB); apps/web/app/(app)/security-center/page.tsx:175 (SecurityCenterPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127260,7 +127446,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa-admin/recovery-requests/detail/:requestId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:929",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:975",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -127279,7 +127465,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 299,
+          "line": 304,
           "caller": "openDetail",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -127297,7 +127483,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/mfa-recovery-request.tsx:163 (MfaRecoveryRequestPanel, MOBILE); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:299 (openDetail, WEB); apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:178 (MfaRecoveryRequestPanel, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/mfa-recovery-request.tsx:163 (MfaRecoveryRequestPanel, MOBILE); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:304 (openDetail, WEB); apps/web/components/mfa-recovery/MfaRecoveryRequestPanel.tsx:178 (MfaRecoveryRequestPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -127330,7 +127516,7 @@
       "method": "GET",
       "path": "/v1/identity/mfa/factors",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:148",
+      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:158",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -141205,7 +141391,7 @@
       "method": "GET",
       "path": "/v1/security-policy/high-security/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:388",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:402",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -141768,7 +141954,7 @@
       "method": "GET",
       "path": "/v1/support-access/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:648",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:662",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -147499,7 +147685,7 @@
       "method": "PATCH",
       "path": "/v1/identity/mfa-admin/digest-preferences",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1137",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1183",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -147510,7 +147696,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 209,
+          "line": 214,
           "caller": "doSnooze",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147518,7 +147704,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 236,
+          "line": 241,
           "caller": "doResume",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147526,7 +147712,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 266,
+          "line": 271,
           "caller": "doToggleEnabled",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -147544,7 +147730,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:209 (doSnooze, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:236 (doResume, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:266 (doToggleEnabled, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:214 (doSnooze, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:241 (doResume, WEB); apps/web/app/(app)/security-center/mfa-recovery/page.tsx:271 (doToggleEnabled, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147585,7 +147771,7 @@
       "method": "PATCH",
       "path": "/v1/identity/mfa-admin/policy/:teamId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1015",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1061",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -148301,7 +148487,7 @@
         },
         {
           "file": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
-          "line": 347,
+          "line": 350,
           "caller": "OrganizationSecurityPolicyEditor",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148311,7 +148497,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:264 (OrganizationSecurityPolicyEditor, WEB); apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:347 (OrganizationSecurityPolicyEditor, WEB)",
+      "dispositionEvidence": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:264 (OrganizationSecurityPolicyEditor, WEB); apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:350 (OrganizationSecurityPolicyEditor, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148825,6 +149011,7 @@
       "tenantBindingAuthority": "inline-membership-status-check",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeamAssignment",
         "discussionThread",
@@ -148852,6 +149039,7 @@
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamActivity",
@@ -148901,6 +149089,7 @@
         "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create",
         "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
         "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -149743,7 +149932,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/emergency-revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1387",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1406",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireIdentityAdmin -> services/api/src/routes/identity-operations-completion.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -149804,6 +149993,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -150070,7 +150260,7 @@
       "method": "POST",
       "path": "/v1/admin/identity/runtime/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1435",
+      "registrationEvidence": "services/api/src/routes/admin-identity.routes.ts:1454",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "reconcileEntrypointAuth -> services/api/src/routes/admin-identity.routes.ts: reaches the constant-time cron/integration shared-secret comparison (cronSecretMatches)",
@@ -150665,23 +150855,42 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "externalIdentityMapping",
+        "mfaFactor",
+        "operationalIncident",
+        "operationalIncidentEvent",
         "organizationSecurityPolicy",
+        "revokedSession",
+        "riskSignal",
         "ssoConnection",
+        "stepUpChallenge",
         "team",
-        "teamMember"
+        "teamMember",
+        "trustedDevice"
       ],
       "modelsWritten": [
-        "authenticatedSession"
+        "authenticatedSession",
+        "operationalIncident",
+        "operationalIncidentEvent",
+        "revokedSession",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
-        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)"
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/access-control/session-quarantine.service.ts: authenticatedSession.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate",
+        "services/api/src/services/observability/incident.service.ts: operationalIncident.count — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -150935,6 +151144,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "externalIdentityMapping",
         "mfaFactor",
         "organizationSecurityPolicy",
@@ -150959,6 +151169,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -151321,6 +151532,7 @@
       "modelsRead": [
         "adminAuditLog",
         "apiCredential",
+        "authenticatedSession",
         "externalIdentityMapping",
         "mfaFactor",
         "organization",
@@ -151335,6 +151547,7 @@
       "modelsWritten": [
         "adminAuditLog",
         "apiCredential",
+        "authenticatedSession",
         "organization",
         "organizationAuditEvent",
         "organizationInvite",
@@ -151356,6 +151569,7 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -151403,6 +151617,7 @@
       "modelsRead": [
         "adminAuditLog",
         "apiCredential",
+        "authenticatedSession",
         "externalIdentityMapping",
         "mfaFactor",
         "organization",
@@ -151417,6 +151632,7 @@
       "modelsWritten": [
         "adminAuditLog",
         "apiCredential",
+        "authenticatedSession",
         "organization",
         "organizationAuditEvent",
         "organizationInvite",
@@ -151438,6 +151654,7 @@
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -153129,11 +153346,13 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "passwordResetToken",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "authenticatedSession",
         "emailVerificationToken",
         "passwordResetToken",
         "revokedSession",
@@ -153147,6 +153366,7 @@
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -153232,7 +153452,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/sso/page.tsx",
-          "line": 340,
+          "line": 343,
           "caller": "handleIngest",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -153242,7 +153462,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/page.tsx:340 (handleIngest, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/sso/page.tsx:343 (handleIngest, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153257,16 +153477,22 @@
       "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "externalIdentityMapping",
+        "mfaFactor",
         "organization",
         "organizationMembership",
+        "organizationSecurityPolicy",
+        "riskSignal",
         "ssoConnection",
+        "stepUpChallenge",
         "subscription",
         "team",
         "teamMember"
       ],
       "modelsWritten": [
         "securityEvent",
-        "ssoConnection"
+        "ssoConnection",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -153278,6 +153504,8 @@
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
+        "services/api/src/routes/saml-auth.routes.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/routes/saml-auth.routes.ts: ssoConnection.update — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -153291,7 +153519,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/:connectionId/test-connection",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1372",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1412",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -156400,7 +156628,7 @@
       "method": "POST",
       "path": "/v1/break-glass/activate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:417",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:431",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/identity/break-glass.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -156487,7 +156715,7 @@
       "method": "POST",
       "path": "/v1/break-glass/emergency/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:713",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:727",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWithEmergencyOverlay -> services/api/src/middleware/authorize-emergency.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -156543,6 +156771,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -156552,7 +156781,7 @@
       "method": "POST",
       "path": "/v1/break-glass/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:438",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:452",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -161667,9 +161896,11 @@
         "services/api/src/services/communications/verification.service.ts: stepUpChallenge.findMany — no tenant or self predicate",
         "services/api/src/services/communications/verification.service.ts: verificationAttempt.findFirst — no tenant or self predicate",
         "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate"
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.findUniqueOrThrow — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.findUniqueOrThrow — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -170630,7 +170861,7 @@
       "method": "POST",
       "path": "/v1/identity-security/contact-factors/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:253",
+      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:287",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170641,7 +170872,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/contact-factor-section.tsx",
-          "line": 149,
+          "line": 182,
           "caller": "revoke",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -170649,7 +170880,7 @@
         },
         {
           "file": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
-          "line": 518,
+          "line": 587,
           "caller": "ContactFactorEnrollmentPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -170659,7 +170890,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:149 (revoke, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:518 (ContactFactorEnrollmentPanel, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:182 (revoke, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:587 (ContactFactorEnrollmentPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -170673,6 +170904,7 @@
       "membershipStatusRequirement": null,
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "mfaFactor",
         "user"
       ],
@@ -170683,7 +170915,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 404",
       "tenantStampingInsertSites": [],
@@ -170694,7 +170926,7 @@
       "method": "POST",
       "path": "/v1/identity-security/contact-factors/enroll/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:93",
+      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:110",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170705,7 +170937,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/contact-factor-section.tsx",
-          "line": 95,
+          "line": 106,
           "caller": "start",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -170713,7 +170945,7 @@
         },
         {
           "file": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
-          "line": 347,
+          "line": 404,
           "caller": "ContactFactorEnrollmentPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -170723,7 +170955,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:95 (start, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:347 (ContactFactorEnrollmentPanel, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:106 (start, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:404 (ContactFactorEnrollmentPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -170736,11 +170968,13 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "mfaFactor",
         "organizationSecurityPolicy",
         "ssoConnection",
         "team",
         "teamMember",
+        "user",
         "verificationAttempt"
       ],
       "modelsWritten": [
@@ -170768,7 +171002,7 @@
       "method": "POST",
       "path": "/v1/identity-security/contact-factors/enroll/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:193",
+      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:227",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -170779,7 +171013,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/ui/contact-factor-section.tsx",
-          "line": 125,
+          "line": 154,
           "caller": "verify",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -170787,7 +171021,7 @@
         },
         {
           "file": "apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx",
-          "line": 451,
+          "line": 520,
           "caller": "ContactFactorEnrollmentPanel",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -170797,7 +171031,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:125 (verify, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:451 (ContactFactorEnrollmentPanel, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/contact-factor-section.tsx:154 (verify, MOBILE); apps/web/components/identity-security/ContactFactorEnrollmentPanel.tsx:520 (ContactFactorEnrollmentPanel, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -170830,9 +171064,11 @@
         "services/api/src/services/communications/verification.service.ts: stepUpChallenge.findMany — no tenant or self predicate",
         "services/api/src/services/communications/verification.service.ts: verificationAttempt.findFirst — no tenant or self predicate",
         "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate"
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.findUniqueOrThrow — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.findUniqueOrThrow — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -171005,7 +171241,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1698,
+          "line": 1714,
           "caller": "ActiveSessionsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -171015,7 +171251,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:202 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1698 (ActiveSessionsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:202 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1714 (ActiveSessionsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171075,7 +171311,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1652,
+          "line": 1668,
           "caller": "ActiveSessionsCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -171085,7 +171321,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:208 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1652 (ActiveSessionsCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:208 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1668 (ActiveSessionsCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171498,6 +171734,7 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
         "enterpriseContract",
         "entitlement",
         "externalIdentityMapping",
@@ -171514,6 +171751,7 @@
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
+        "authenticatedSession",
         "entitlement",
         "revokedSession",
         "stepUpChallenge"
@@ -171531,6 +171769,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -171614,9 +171853,11 @@
         "services/api/src/services/communications/verification.service.ts: stepUpChallenge.findMany — no tenant or self predicate",
         "services/api/src/services/communications/verification.service.ts: verificationAttempt.findFirst — no tenant or self predicate",
         "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate",
-        "services/api/src/services/communications/verification.service.ts: verificationAttempt.update — no tenant or self predicate"
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.findUniqueOrThrow — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.updateMany — no tenant or self predicate",
+        "services/api/src/services/communications/verification.service.ts: verificationAttempt.findUniqueOrThrow — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -171742,7 +171983,7 @@
       "tenantBindingEvidence": [
         "services/api/src/services/identity-security/step-up.service.ts: stepUpChallenge.findUnique — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up.service.ts: stepUpChallenge.updateMany — no tenant or self predicate",
-        "services/api/src/services/identity-security/step-up.service.ts: stepUpChallenge.update — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up.service.ts: stepUpChallenge.updateMany — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up.service.ts: stepUpChallenge.updateMany — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up.service.ts: stepUpChallenge.findUniqueOrThrow — no tenant or self predicate"
       ],
@@ -172176,7 +172417,7 @@
       "method": "POST",
       "path": "/v1/identity/account-closure/:id/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/account-closure.routes.ts:190",
+      "registrationEvidence": "services/api/src/routes/account-closure.routes.ts:211",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173240,7 +173481,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/digest-preferences/preview/send-test",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1364",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:1410",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173300,7 +173541,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/factors/:teamId/:userId/:factorId/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:380",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:398",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -173372,7 +173613,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/factors/:teamId/:userId/require-reenrollment",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:430",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:449",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -173444,7 +173685,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/recovery-requests",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:620",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:640",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173513,7 +173754,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/approve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:672",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:692",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173524,7 +173765,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 315,
+          "line": 323,
           "caller": "doApprove",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -173534,7 +173775,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:315 (doApprove, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:323 (doApprove, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173548,30 +173789,46 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
+        "externalIdentityMapping",
+        "mfaFactor",
         "mfaRecoveryRequest",
+        "organizationSecurityPolicy",
+        "riskSignal",
+        "ssoConnection",
+        "stepUpChallenge",
+        "team",
         "teamMember",
         "user"
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "authenticatedSession",
         "mfaFactor",
         "mfaRecoveryCode",
         "mfaRecoveryRequest",
         "mfaRecoveryRequestApproval",
-        "securityEvent"
+        "revokedSession",
+        "securityEvent",
+        "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
         "services/api/src/services/security/mfa-recovery-request.service.ts: teamMember.findFirst paired with a lifecycle-status predicate (services/api/src/services/security/mfa-recovery-request.service.ts)",
         "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.findUnique — no tenant or self predicate",
         "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.update — no tenant or self predicate",
-        "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.update — no tenant or self predicate",
-        "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.update — no tenant or self predicate"
+        "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.updateMany — no tenant or self predicate",
+        "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.findUniqueOrThrow — no tenant or self predicate",
+        "services/api/src/services/security/mfa-recovery-request.service.ts: mfaRecoveryRequest.updateMany — no tenant or self predicate",
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 403/404",
-      "tenantStampingInsertSites": [],
+      "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -173579,7 +173836,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/recovery-requests/:requestId/reject",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:711",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:757",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173590,7 +173847,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx",
-          "line": 335,
+          "line": 348,
           "caller": "doReject",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -173600,7 +173857,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:335 (doReject, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/security-center/mfa-recovery/page.tsx:348 (doReject, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173639,7 +173896,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa-admin/trusted-devices/:teamId/:userId/reset",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:476",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:496",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeMfaAdminScope -> services/api/src/routes/mfa-admin.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -173711,7 +173968,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/challenge/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:321",
+      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:344",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173766,7 +174023,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/enroll/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:162",
+      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:172",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173785,7 +174042,7 @@
         },
         {
           "file": "apps/mobile/src/ui/totp-enrolment.tsx",
-          "line": 156,
+          "line": 168,
           "caller": "TotpEnrolment",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -173793,7 +174050,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1154,
+          "line": 1158,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -173811,7 +174068,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:158 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:156 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1154 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:158 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:168 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1158 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173824,6 +174081,8 @@
       "tenantBindingAuthority": null,
       "membershipStatusRequirement": null,
       "modelsRead": [
+        "authenticatedSession",
+        "mfaFactor",
         "user"
       ],
       "modelsWritten": [
@@ -173832,7 +174091,7 @@
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [],
-      "tenantIdSource": "NONE",
+      "tenantIdSource": "AUTHENTICATED_SUBJECT",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
@@ -173843,7 +174102,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/enroll/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:191",
+      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:214",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173862,7 +174121,7 @@
         },
         {
           "file": "apps/mobile/src/ui/totp-enrolment.tsx",
-          "line": 184,
+          "line": 202,
           "caller": "TotpEnrolment",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -173870,7 +174129,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1180,
+          "line": 1192,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -173888,7 +174147,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:177 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:184 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1180 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:177 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:202 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1192 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173923,7 +174182,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-codes/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:289",
+      "registrationEvidence": "services/api/src/routes/mfa.routes.ts:312",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -173942,7 +174201,7 @@
         },
         {
           "file": "apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx",
-          "line": 1247,
+          "line": 1259,
           "caller": "MfaCard",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -173952,7 +174211,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:229 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1247 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/security.tsx:229 (SecuritySettingsScreen, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1259 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173987,7 +174246,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:891",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:937",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174055,7 +174314,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/resend-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:845",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:891",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174121,7 +174380,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/:requestId/verify-email",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:755",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:801",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/mfa-admin.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -174190,7 +174449,7 @@
       "method": "POST",
       "path": "/v1/identity/mfa/recovery-requests/analytics/page-viewed",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:827",
+      "registrationEvidence": "services/api/src/routes/mfa-admin.routes.ts:873",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/mfa-admin.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -176727,6 +176986,7 @@
       "tenantStampingInsertSites": [
         "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
         "services/api/src/services/identity/standing-reach.ts: collaborationTeamActivity.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create",
         "services/api/src/services/workspace/workspace-closure.service.ts: teamActivity.create"
@@ -178925,6 +179185,7 @@
       "crossTenantRefusalSemantics": "refusal raised by the named authority",
       "tenantStampingInsertSites": [
         "services/api/src/services/identity/standing-reach.ts: collaborationTeamActivity.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/organization/org-audit.service.ts: organizationAuditEvent.create",
         "services/api/src/services/workspace/workspace-closure.service.ts: teamActivity.create",
@@ -182811,6 +183072,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamAssignment",
@@ -182831,6 +183093,7 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamActivity",
@@ -182875,6 +183138,7 @@
       "tenantStampingInsertSites": [
         "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
         "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -182921,6 +183185,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamAssignment",
@@ -182941,6 +183206,7 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "authenticatedSession",
         "caseSiuProfile",
         "collaborationTeam",
         "collaborationTeamActivity",
@@ -182985,6 +183251,7 @@
       "tenantStampingInsertSites": [
         "services/api/src/services/assignment/release-held-work.ts: collaborationTeamActivity.create",
         "services/api/src/services/assignment/release-held-work.ts: operationalWorkflowEvent.create",
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -190479,7 +190746,7 @@
       "method": "POST",
       "path": "/v1/security-policy/high-security/activate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:396",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:410",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -190492,7 +190759,7 @@
       "productConsumers": [
         {
           "file": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx",
-          "line": 301,
+          "line": 304,
           "caller": "OrganizationSecurityPolicyEditor",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -190502,7 +190769,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:301 (OrganizationSecurityPolicyEditor, WEB)",
+      "dispositionEvidence": "apps/web/components/organizations/OrganizationSecurityPolicyEditor.tsx:304 (OrganizationSecurityPolicyEditor, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -190516,6 +190783,7 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "adminAuditLog",
+        "authenticatedSession",
         "emergencyAccessGrant",
         "enterpriseContract",
         "evidence",
@@ -190533,6 +190801,7 @@
       ],
       "modelsWritten": [
         "adminAuditLog",
+        "authenticatedSession",
         "organizationSecurityPolicy",
         "revokedSession",
         "securityEvent",
@@ -190549,6 +190818,7 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.createMany",
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create"
       ],
       "tenantUnboundInsertSites": []
@@ -190675,7 +190945,7 @@
       "method": "POST",
       "path": "/v1/support-access/enter",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:762",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:776",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -190752,7 +191022,7 @@
       "method": "POST",
       "path": "/v1/support-access/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:621",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:635",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -190816,7 +191086,7 @@
       "method": "POST",
       "path": "/v1/support-access/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:497",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:511",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -194298,7 +194568,7 @@
       "method": "PUT",
       "path": "/v1/auth/saml/:connectionId/certificate-next",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1568",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1608",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
