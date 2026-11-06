@@ -46,7 +46,7 @@
 import { prisma } from "../../db.js";
 import { mfaRequiredForRole, type MfaPolicyLevel } from "@proovra/shared";
 
-import { readMfaStatus } from "./mfa.service.js";
+import { SIGN_IN_SECOND_FACTOR_KINDS, readMfaStatus } from "./mfa.service.js";
 import { safeEmitSecurityEvent } from "./security-event.service.js";
 
 /**
@@ -215,8 +215,18 @@ export async function resolveLoginMfaEnforcement(
   let factorLookupOk = true;
   try {
     const status = await readMfaStatus({ userId: input.userId });
+    /*
+     * AUTH-LOCKOUT-NONTOTP — only a factor the sign-in can CHECK counts. A
+     * passkey or a verified phone (a step-up factor, enrollable without an
+     * authenticator) used to count, so its holder was told "MFA required"
+     * by a sign-in that accepts only an authenticator or recovery code, and
+     * could not finish. Such a person now meets the same branch as someone
+     * with no factor: under an Organization MFA policy, ENROLLMENT_REQUIRED
+     * (add an authenticator app at sign-in); otherwise no second factor is
+     * asked at sign-in, exactly as before they added the step-up factor.
+     */
     activeFactorCount = status.factors.filter(
-      (f) => f.status === "ACTIVE",
+      (f) => f.status === "ACTIVE" && SIGN_IN_SECOND_FACTOR_KINDS.includes(f.kind),
     ).length;
   } catch {
     factorLookupOk = false;
