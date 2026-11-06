@@ -1547,14 +1547,14 @@ export async function completeDirectCapture(input: {
       ? await input.plan({ db, session, declarations, now })
       : { manifestPartIndex: null };
 
-    // The ONE finalization governance gate (2026-09-29, audit D3): the same
-    // policy the web upload obeys. A refusal leaves the session ACTIVE and the
-    // record unsigned — nothing is published that policy forbids.
-    const gate = await evaluateFinalizationGovernance({
+    // The ONE finalization output-policy boundary (2026-09-29, audit D3): the
+    // same policy the web upload obeys. REPORT-004: sealing always proceeds;
+    // when the policy refuses the report or package, the record's first outputs
+    // are held until it allows them.
+    await evaluateFinalizationGovernance({
       evidenceId: session.finalizedEvidenceId,
       actorUserId: input.ownerUserId,
     });
-    if (!gate.allowed) throw new DirectCaptureError("FINALIZATION_BLOCKED_BY_POLICY");
 
     await extendDirectCaptureSessionOnActivity(tx, session, now);
     const claim = await tx.captureSession.updateMany({

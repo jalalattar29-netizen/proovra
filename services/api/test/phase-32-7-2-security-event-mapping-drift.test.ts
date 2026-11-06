@@ -1528,6 +1528,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281114000700_verification_share_view_session",
       // MOBILE-002: the native app's SSO hand-off (PKCE challenge, single-use code). EXPAND.
       "20281118070000_sso_native_handoffs",
+      // REPORT-004: a record's first outputs held by the output policy (three nullable columns). EXPAND.
+      "20281119000800_evidence_outputs_held_by_policy",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

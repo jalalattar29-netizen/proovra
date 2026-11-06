@@ -2,12 +2,12 @@
  * EXTERNAL INTAKE OBEYS THE FINALIZATION GOVERNANCE GATE (2026-09-29, audit
  * D3) — live PostgreSQL 16, the real submit service, a recording object store.
  *
- * `submitExternalIntake` is the one finalizer of a contributor's submission
- * (the public route calls it and maps the refusal to INTAKE_NOT_ACCEPTING_
- * EVIDENCE without disclosing the policy). Pinned here:
- *   * a receiving workspace whose policy forbids public Verify refuses the
- *     submission: nothing is signed, nothing is published, public Verify
- *     serves nothing, and the refusal is on the record's custody chain;
+ * `submitExternalIntake` is the one finalizer of a contributor's submission.
+ * Pinned here:
+ *   * REPORT-004: a receiving workspace whose output policy refuses reports
+ *     and public Verify SEALS the submission and holds its first outputs: no
+ *     request is issued, public Verify serves nothing by record id, and the
+ *     hold is on the record's custody chain once;
  *   * a workspace that requires publication approval finalizes the record
  *     SIGNED but NOT_PUBLISHED, and public Verify does not serve it.
  */
@@ -165,35 +165,34 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
 
   const publicVerify = (id: string) => h.app.inject({ method: "GET", url: `/public/verify/${id}` });
 
-  it("a workspace whose policy forbids public Verify refuses the submission: nothing signed, published or served", async () => {
-    const { submitExternalIntake, ExternalIntakeOrchestrationError } = await import(
-      "../src/services/external-intake-orchestration.service.js"
-    );
-    await withPolicy({ allowPublicVerify: false }, async () => {
+  /*
+   * REPORT-004 (2026-11-04) — this case used to pin the REFUSAL: an output or
+   * publication preference stopped the contributor's record from being sealed
+   * at all. Sealing now always proceeds; the policy holds the OUTPUTS.
+   */
+  it("REPORT-004: a workspace whose output policy refuses reports and public Verify seals the submission and holds its first outputs; nothing is issued or served", async () => {
+    const { submitExternalIntake } = await import("../src/services/external-intake-orchestration.service.js");
+    await withPolicy({ allowPublicVerify: false, allowReportDownload: false }, async () => {
       const s = await submission();
-      const err = await submitExternalIntake({ link: s.link, session: s.session }).then(
-        () => null,
-        (e: unknown) => e,
-      );
-      expect(err).toBeInstanceOf(ExternalIntakeOrchestrationError);
-      expect((err as { code: string }).code).toBe("finalization_blocked_by_policy");
-      // ET-INT-13 — an anonymous contributor retrying the refused submit does
-      // not grow the chain: the refusal is recorded once while it is unchanged.
+      await expect(submitExternalIntake({ link: s.link, session: s.session })).resolves.toBeTruthy();
+      // ET-INT-13 — a retry seals nothing again and does not grow the chain.
       for (let i = 0; i < 3; i += 1) {
         await submitExternalIntake({ link: s.link, session: s.session }).catch(() => null);
       }
 
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: s.evidenceId },
-        select: { status: true, signedAtUtc: true, signatureBase64: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
+        select: { status: true, signedAtUtc: true, signatureBase64: true, outputsHeldAtUtc: true, outputsHeldReason: true },
       });
-      expect(ev.status).not.toBe("SIGNED");
-      expect(ev.signedAtUtc).toBeNull();
-      expect(ev.signatureBase64).toBeNull();
-      // (2026-10-18) A refused finalization discloses nothing: the policy stays
-      // at its column default and no one changed it.
-      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
-      expect(ev.verificationDisclosureVersion).toBe(0);
+      expect(ev.status).toBe("SIGNED");
+      expect(ev.signedAtUtc).not.toBeNull();
+      expect(ev.signatureBase64).not.toBeNull();
+      expect(ev.outputsHeldAtUtc).not.toBeNull();
+      expect(ev.outputsHeldReason).toBeTruthy();
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: s.evidenceId, eventType: "SIGNATURE_APPLIED" } })).toBe(1);
+      // No report or package request exists while the outputs are held.
+      expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: s.evidenceId } })).toBe(0);
+      // The record id is not a public link.
       expect((await publicVerify(s.evidenceId)).statusCode).toBe(404);
       expect(
         await prisma.custodyEvent.count({ where: { evidenceId: s.evidenceId, eventType: "EXPORT_BLOCKED_BY_POLICY" } }),

@@ -126,6 +126,9 @@ export async function runFirstIssuanceReconciliation(options: {
     lifecycleState: { in: ["ACTIVE", "UNDER_REVIEW", "ON_HOLD", "RETENTION_LOCKED"] as prismaPkg.EvidenceLifecycleState[] },
     signedAtUtc: { lte: signedBefore },
     reports: { none: {} },
+    // REPORT-004 — a record whose first outputs the workspace output policy
+    // holds is not issued here; the api releases it when the policy allows.
+    outputsHeldAtUtc: null,
   } satisfies prismaPkg.Prisma.EvidenceWhereInput;
 
   const busyAmong = async (ids: string[]): Promise<Set<string>> =>

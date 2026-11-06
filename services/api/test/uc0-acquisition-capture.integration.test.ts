@@ -557,27 +557,29 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     expect(await bindEvents(staged.session.captureSessionId)).toHaveLength(1);
   });
 
-  it("D3: a mobile capture in a workspace whose policy forbids public Verify is NOT finalized (as the web path)", async () => {
-    await withPolicy({ allowPublicVerify: false }, async () => {
+  /*
+   * REPORT-004 (2026-11-04) — this case pinned the REFUSAL (409, record never
+   * signed). An output or publication preference no longer stops sealing; it
+   * holds the record's first outputs, on the mobile path as on the web path.
+   */
+  it("REPORT-004: a mobile capture in a workspace whose output policy refuses reports and public Verify is sealed, with its first outputs held (as the web path)", async () => {
+    await withPolicy({ allowPublicVerify: false, allowReportDownload: false }, async () => {
       const staged = await stageDeclared();
       const done = await call(
         "POST",
         `/v1/capture/direct-sessions/${staged.session.captureSessionId}/complete`,
         staged.token,
       );
-      expect(done.statusCode, done.body).toBe(409);
-      expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
+      expect(done.statusCode, done.body).toBe(200);
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: staged.evidenceId },
-        select: { status: true, signedAtUtc: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
+        select: { status: true, signedAtUtc: true, outputsHeldAtUtc: true },
       });
-      expect(ev.status).not.toBe("SIGNED");
-      expect(ev.signedAtUtc).toBeNull();
-      // (2026-10-18) A refused finalization discloses nothing: the policy stays
-      // at its column default and no one changed it.
-      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
-      expect(ev.verificationDisclosureVersion).toBe(0);
-      // No public verification link is served for the refused record.
+      expect(ev.status).toBe("SIGNED");
+      expect(ev.signedAtUtc).not.toBeNull();
+      expect(ev.outputsHeldAtUtc).not.toBeNull();
+      expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: staged.evidenceId } })).toBe(0);
+      // The record id is still not a public link.
       const pub = await harness.app.inject({ method: "GET", url: `/public/verify/${staged.evidenceId}` });
       expect(pub.statusCode).toBe(404);
       const blocked = await prisma.custodyEvent.count({

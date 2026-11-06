@@ -1,19 +1,35 @@
 /**
- * THE FINALIZATION GOVERNANCE GATE — ONE BOUNDARY FOR EVERY CAPTURE PATH
- * (2026-09-29, audit D3).
+ * THE FINALIZATION OUTPUT-POLICY BOUNDARY — ONE FOR EVERY CAPTURE PATH
+ * (2026-09-29, audit D3; REPORT-004, 2026-11-04).
  *
- * Finalization is what makes a record's report, verification package and
- * public Verify page possible. A workspace policy that denies generating a
- * report, generating a package or publishing public Verify for a record must
- * therefore refuse its finalization — on EVERY path that finalizes.
+ * Every finalizer (POST /v1/evidence/:id/complete, direct capture — mobile
+ * camera and files, the browser extension, Android and iOS screen capture —
+ * and external intake) asks this one function, with the same actions, the
+ * same review state, the same template overlay and the same custody record.
  *
- * This decision lived inline in the web route (POST /v1/evidence/:id/complete)
- * only. Direct capture (mobile camera and files, the browser extension,
- * Android and iOS screen capture) and external intake finalized through
- * `completeEvidence` without it, so a record in a workspace whose policy
- * forbids publication was signed and served on public Verify. Every finalizer
- * now asks this one function, with the same actions, the same review state,
- * the same template overlay and the same custody record of a refusal.
+ * REPORT-004 — OUTPUT PREFERENCES HOLD OUTPUTS, NEVER SEALING. This boundary
+ * used to REFUSE finalization when the output policy denied a report, a
+ * package or public Verify publication, so a setting labelled as a download or
+ * publication preference stopped integrity sealing for every new record: it
+ * stayed UPLOADING and was never signed, timestamped or anchored. Sealing now
+ * always proceeds. What the policy refuses is the record's first OUTPUTS:
+ *
+ *   HOLD     the record carries `outputsHeldAtUtc` (+ reason, + the actor whose
+ *            role was decided), and the refusal is a custody fact
+ *            (EXPORT_BLOCKED_BY_POLICY, once per unchanged refusal);
+ *   ISSUE    no report or package request exists while it is held — the
+ *            shared request writer refuses a held record for every producer,
+ *            and the worker's first-issuance scan skips it;
+ *   RELEASE  `output-hold.service` re-reads the same decision live (a policy
+ *            change, an approving review, an explicit Generate) and, when it
+ *            now allows them, clears the hold once and issues the first pair
+ *            once.
+ *
+ * Publication stays governed where it happens: a reviewer link or a widened
+ * disclosure asks `evaluatePublicDisclosureGrant`, and every download asks the
+ * download gate. A `pvr_` reference opens verification only, as the owner
+ * decision of 2026-10-14 says ("policy narrows an answer; it never removes the
+ * page").
  */
 import * as prismaPkg from "@prisma/client";
 
@@ -21,37 +37,32 @@ import { prisma } from "../../db.js";
 import { appendCustodyEventTx } from "@proovra/shared-runtime";
 import { enforceSensitiveAction, evidenceIsReviewed } from "../governance.service.js";
 
-export const FINALIZATION_GOVERNED_ACTIONS = [
-  "generate_report",
-  "generate_package",
-  "publish_public_verify",
-] as const;
+/** The outputs a record's first issuance produces, decided at finalization. */
+export const FINALIZATION_GOVERNED_ACTIONS = ["generate_report", "generate_package"] as const;
 
 export type FinalizationGovernanceDecision =
-  | { allowed: true }
+  | { allowed: true; outputsHeld: false }
   | {
-      allowed: false;
+      /** Sealing always proceeds (REPORT-004); the first outputs are held. */
+      allowed: true;
+      outputsHeld: true;
       action: (typeof FINALIZATION_GOVERNED_ACTIONS)[number];
       code: string;
       reason: string;
-      /** 503 when the policy could not be read (fail closed), else 409. */
-      statusCode: 409 | 503;
     };
 
-type GovernedOutputAction = (typeof FINALIZATION_GOVERNED_ACTIONS)[number];
+type GovernedOutputAction = "generate_report" | "generate_package" | "publish_public_verify";
 
 /**
  * THE ONE OUTPUT-POLICY DECISION (ET-SEC-14, 2026-09-30).
  *
  * The workspace policy for a record's outputs — role, requireReviewBeforeReport,
  * allowReportDownload/allowPackageDownload and the workflow template overlay —
- * decided for `actions` in order; the first refusal wins. No side effects:
- * finalization records its refusal itself, and an output regeneration is
- * refused with no trace on the record.
+ * decided for `actions` in order; the first refusal wins. No side effects.
  *
  * A record with no workspace row has no workspace policy to evaluate.
  */
-async function decideGovernedOutputActions(input: {
+export async function decideGovernedOutputActions(input: {
   evidenceId: string;
   actorUserId: string;
   actions: readonly GovernedOutputAction[];
@@ -128,6 +139,10 @@ export async function evaluateOutputRegenerationGovernance(input: {
   };
 }
 
+/**
+ * Decide the record's first outputs at finalization and record the answer on
+ * the record. Never refuses: the caller seals in every case (REPORT-004).
+ */
 export async function evaluateFinalizationGovernance(input: {
   evidenceId: string;
   /** The person on whose authority the record is finalized. */
@@ -139,22 +154,41 @@ export async function evaluateFinalizationGovernance(input: {
     evidenceId: input.evidenceId,
     actorUserId: input.actorUserId,
     actions: FINALIZATION_GOVERNED_ACTIONS,
-  });
-  if (decision.allowed) return { allowed: true };
-  const evidence = { id: decision.evidenceId };
-  const action = decision.action;
-  // A REFUSED FINALIZATION DISCLOSES NOTHING (2026-10-18): a never-signed
-  // record has no verification page at all (it is not finalized), and its
-  // disclosure policy is its column default. ET-CUS-11: the refusal's custody
-  // event commits or the request fails.
+  }).catch(
+    // An unreadable policy holds the outputs (the fail-closed direction for
+    // outputs); it never blocks sealing.
+    () => ({ allowed: false as const, evidenceId: input.evidenceId, action: "generate_report" as const, code: "GOVERNANCE_CHECK_FAILED", reason: "policy_lookup_failed" }),
+  );
+  if (decision.allowed) {
+    // A retry after the policy was relaxed clears an earlier hold.
+    if (decision.evidenceId) {
+      await prisma.evidence.updateMany({
+        where: { id: decision.evidenceId, outputsHeldAtUtc: { not: null }, status: { notIn: ["SIGNED", "REPORTED"] } },
+        data: { outputsHeldAtUtc: null, outputsHeldReason: null, outputsHeldActorUserId: null },
+      });
+    }
+    return { allowed: true, outputsHeld: false };
+  }
+  const evidenceId = decision.evidenceId;
+  const action = decision.action === "publish_public_verify" ? "generate_report" : decision.action;
+  // ET-CUS-11: the hold and its custody event commit together or the request
+  // fails. ET-INT-13: ONE refusal event per unchanged refusal, decided under the
+  // record lock, so concurrent retries append once.
   await prisma.$transaction(async (tx) => {
-    // ET-INT-13 — ONE refusal event per unchanged refusal. An anonymous
-    // contributor retrying a governance-denied submit appended a new
-    // EXPORT_BLOCKED_BY_POLICY per retry, growing the chain without bound.
-    // Decided under the record lock, so concurrent retries append once.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidence.id}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
+    await tx.evidence.updateMany({
+      where: { id: evidenceId },
+      data: {
+        outputsHeldReason: decision.reason.slice(0, 64),
+        outputsHeldActorUserId: input.actorUserId,
+      },
+    });
+    await tx.evidence.updateMany({
+      where: { id: evidenceId, outputsHeldAtUtc: null },
+      data: { outputsHeldAtUtc: new Date() },
+    });
     const latest = await tx.custodyEvent.findFirst({
-      where: { evidenceId: evidence.id },
+      where: { evidenceId },
       orderBy: { sequence: "desc" },
       select: { eventType: true, payload: true },
     });
@@ -167,18 +201,12 @@ export async function evaluateFinalizationGovernance(input: {
       return;
     }
     await appendCustodyEventTx(tx, {
-      evidenceId: evidence.id,
+      evidenceId,
       eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-      payload: { action, reason: decision.reason, actorUserId: input.actorUserId },
+      payload: { action, reason: decision.reason, actorUserId: input.actorUserId, outputsHeld: true },
       ip: input.ip ?? null,
       userAgent: input.userAgent ?? null,
     });
   });
-  return {
-    allowed: false,
-    action,
-    code: decision.code,
-    reason: decision.reason,
-    statusCode: governanceUnavailable(decision.code) ? 503 : 409,
-  };
+  return { allowed: true, outputsHeld: true, action, code: decision.code, reason: decision.reason };
 }

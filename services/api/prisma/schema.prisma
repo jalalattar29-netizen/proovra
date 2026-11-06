@@ -161,6 +161,14 @@ model Evidence {
   capturedAtUtc            DateTime? @map("captured_at_utc") @db.Timestamptz(6)
   uploadedAtUtc            DateTime? @map("uploaded_at_utc") @db.Timestamptz(6)
   signedAtUtc              DateTime? @map("signed_at_utc") @db.Timestamptz(6)
+  /// REPORT-004 — the record was sealed while the workspace output policy
+  /// refused its report/package: its first outputs are HELD (no request is
+  /// created) until the policy, re-read live, allows them. Null = not held.
+  outputsHeldAtUtc         DateTime? @map("outputs_held_at_utc") @db.Timestamptz(6)
+  /// The bounded policy reason the outputs are held for.
+  outputsHeldReason        String?   @map("outputs_held_reason") @db.VarChar(64)
+  /// Whose authority the record was finalized on; the release is decided for that role.
+  outputsHeldActorUserId   String?   @map("outputs_held_actor_user_id") @db.Uuid
   reportGeneratedAtUtc     DateTime? @map("report_generated_at_utc") @db.Timestamptz(6)
   fingerprintCanonicalJson String?   @map("fingerprint_canonical_json")
   fingerprintHash          String?   @map("fingerprint_hash") @db.VarChar(64)

@@ -39,6 +39,7 @@
 import {
   createReportGenerationRequest,
   lifecycleRefusalForRequest,
+  OUTPUTS_HELD_BY_POLICY_REASON,
   settleReportRequestNotApplicable,
   type ReportArtifactType,
   type ReportGenerationPurpose,
@@ -62,6 +63,8 @@ import { enqueueCanonicalWork } from "../../queue/canonical-queue-client.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the record-aware eligibility resolver, so a
 // request that the worker would only refuse is never created at all.
 import { resolveEvidenceOutputEligibility } from "../billing/evidence-output-eligibility.service.js";
+// REPORT-004 — a held record is re-decided live before any request.
+import { tryLiftOutputHold } from "../governance/output-hold.service.js";
 
 export {
   REPORT_ARTIFACT_TYPES,
@@ -184,7 +187,7 @@ export async function requestReportGeneration(
   const evidenceSubject = await prisma.evidence
     .findUnique({
       where: { id: input.evidenceId },
-      select: { ownerUserId: true, teamId: true },
+      select: { ownerUserId: true, teamId: true, outputsHeldAtUtc: true },
     })
     .catch(() => undefined);
   if (evidenceSubject === undefined) {
@@ -193,6 +196,19 @@ export async function requestReportGeneration(
       reason: "entitlement_unresolved",
       outcome: "ENTITLEMENT_UNAVAILABLE",
     };
+  }
+  /*
+   * REPORT-004 — THE OUTPUT HOLD. A record sealed while its workspace output
+   * policy refused the report/package has its first outputs held. Any request
+   * re-reads that policy live first (the same decision, the same actor's
+   * role): if it now allows them the hold is lifted and the request proceeds;
+   * if not, nothing is requested and the answer is a governance block.
+   */
+  if (evidenceSubject?.outputsHeldAtUtc) {
+    const lift = await tryLiftOutputHold(input.evidenceId).catch(() => "still_held" as const);
+    if (lift === "still_held") {
+      return { requested: false, reason: OUTPUTS_HELD_BY_POLICY_REASON, outcome: "RECOVERABLE_BLOCKED" };
+    }
   }
   /*
    * THE OUTPUT-PRODUCER GUARD (2026-10-20, AUD-01/02/35). The pair rule
@@ -301,7 +317,9 @@ export async function requestReportGeneration(
        * separately.
        */
       outcome:
-        persisted.reason === "evidence_workspace_unresolved"
+        persisted.reason === OUTPUTS_HELD_BY_POLICY_REASON
+          ? "RECOVERABLE_BLOCKED"
+          : persisted.reason === "evidence_workspace_unresolved"
           ? "WORKSPACE_UNRESOLVED"
           : persisted.reason === "evidence_not_found"
             ? "EVIDENCE_NOT_FOUND"

@@ -70,6 +70,7 @@ import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { notifyReviewNeedsMoreInfo } from "../review-operations/review-notifications.service.js";
 import { resolveOpenReviewEscalation } from "./escalation-engine.service.js";
+import { releaseHeldOutputs } from "../governance/output-hold-release.service.js";
 import { requiresSecondReview, secondReviewForRound } from "../evidence-review/second-review.service.js";
 import { recordReviewActivityTx } from "../evidence-review/reviewer-audit.service.js";
 
@@ -572,6 +573,15 @@ export async function recordReviewDecision(
         { workflow: result.workflow, actorUserId: input.actorUserId, note: "Review decided." },
         client,
       );
+    }
+    // REPORT-004 — an approval can satisfy a requireReviewBefore* gate that
+    // held this record's first outputs at sealing. The release re-reads the
+    // policy itself; best effort, never undoes the decision.
+    if (stageAfter === "APPROVED_INTERNAL") {
+      const held = await client.evidence
+        .findUnique({ where: { id: result.workflow.evidenceId }, select: { outputsHeldAtUtc: true } })
+        .catch(() => null);
+      if (held?.outputsHeldAtUtc) await releaseHeldOutputs(result.workflow.evidenceId).catch(() => null);
     }
   }
 

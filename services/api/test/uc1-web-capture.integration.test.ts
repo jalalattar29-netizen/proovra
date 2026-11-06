@@ -319,35 +319,35 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     expect(ev.status).not.toBe("SIGNED");
   });
 
-  it("D3 (2026-09-29): an extension capture in a workspace whose policy forbids public Verify is NOT sealed, published or served", async () => {
+  // REPORT-004 (2026-11-04) — this case pinned the REFUSAL (409, never sealed).
+  // An output or publication preference now holds the outputs, not the seal.
+  it("REPORT-004: an extension capture in a workspace whose output policy refuses reports and public Verify is sealed with its first outputs held; nothing is issued or served", async () => {
     const teamId = owner().teamId;
     const existing = await prisma.workspaceGovernancePolicy.findUnique({ where: { teamId } });
-    if (existing) await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: { allowPublicVerify: false } as never });
-    else await prisma.workspaceGovernancePolicy.create({ data: { teamId, allowPublicVerify: false } as never });
+    const restrictive = { allowPublicVerify: false, allowReportDownload: false };
+    if (existing) await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: restrictive as never });
+    else await prisma.workspaceGovernancePolicy.create({ data: { teamId, ...restrictive } as never });
     try {
       const { token, sessionId, evidenceId, manifestJson } = await stageWebCapture();
       const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });
-      expect(done.statusCode, done.body).toBe(409);
-      expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
+      expect(done.statusCode, done.body).toBe(200);
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: evidenceId },
-        select: { status: true, signedAtUtc: true, verificationDisclosureMode: true, verificationDisclosureVersion: true },
+        select: { status: true, signedAtUtc: true, outputsHeldAtUtc: true },
       });
-      expect(ev.status).not.toBe("SIGNED");
-      expect(ev.signedAtUtc).toBeNull();
-      // (2026-10-18) A refused finalization discloses nothing: the policy stays
-      // at its column default and no one changed it.
-      expect(ev.verificationDisclosureMode).toBe("VERIFICATION_ONLY");
-      expect(ev.verificationDisclosureVersion).toBe(0);
-      // No public verification link is served for it.
+      expect(ev.status).toBe("SIGNED");
+      expect(ev.signedAtUtc).not.toBeNull();
+      expect(ev.outputsHeldAtUtc).not.toBeNull();
+      expect(await prisma.reportGenerationRequest.count({ where: { evidenceId } })).toBe(0);
+      // The record id is still not a public link.
       const pub = await app.inject({ method: "GET", url: `/public/verify/${evidenceId}` });
       expect(pub.statusCode).toBe(404);
-      // The refusal is on the record's custody chain.
+      // The hold is on the record's custody chain.
       expect(
         await prisma.custodyEvent.count({ where: { evidenceId, eventType: "EXPORT_BLOCKED_BY_POLICY" } }),
       ).toBeGreaterThanOrEqual(1);
     } finally {
-      await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: { allowPublicVerify: true } as never });
+      await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: { allowPublicVerify: true, allowReportDownload: true } as never });
     }
   });
 
