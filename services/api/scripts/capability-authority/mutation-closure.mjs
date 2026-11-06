@@ -172,7 +172,7 @@ const FAMILY_RULES = Object.freeze([
   [/^(case|discussion|investigationGraph|manualRelationship|qcSample|codingS|codingF|codingV|reviewerDisagreement|workflowReviewDecision)/i, "CASE"],
   [/^(externalReview|externalReviewer|reviewAssignment|reviewDecision|reviewEscalation|reviewer|workflowIntake|intakeSession|evidenceRequest|crossOrgReviewGrant|evidenceExchange|contactSalesRequest|demoRequest|enterpriseProvisioningRequest)/i, "EXTERNAL_REVIEW_INTAKE_SHARE"],
   [/^(subscription|payment|entitlement|storageAddon|providerBudget|providerUsage|semanticUsage|aiUsage|aiCopilotRun)/i, "BILLING_SUBSCRIPTION_SEAT"],
-  [/^(ssoConnection|scim|externalIdentityMapping|ssoCallbackAttempt)/i, "SSO_OIDC_SCIM_PROVISIONING"],
+  [/^(ssoConnection|scim|externalIdentityMapping|ssoCallbackAttempt|ssoNativeHandoff)/i, "SSO_OIDC_SCIM_PROVISIONING"],
   [/^(automation|webhook|integrationWebhook|lifecycleWebhook|queueTelemetry|operationalWorkflow|bulkOperationalAction|operationalGraph|operationalCausality|operationalTimeline)/i, "AUTOMATION_QUEUE_WEBHOOK"],
   [/^(report|artifactPublicationIntent|export|redaction|governanceExport|evidenceIntegritySnapshot|reportGenerationRequest|searchAuditLog|savedSearchView|evidenceSavedView|evidenceSearchDocument|semantic)/i, "REPORT_EXPORT_REDACTION"],
   [/^(apiCredential|apiKey|adminAuditLog|securityEvent|securityClaimCheck|emergencyAccessGrant|supportAccessGrant|operationalIncident|operationalCorrelation|accessAnomaly|riskSignal|governancePolicy|governanceNotification|trustCenter|subprocessor|status|maintenanceWindow|accessReview|signingKey|signerControlState|intelligenceActivityEvent|operationsInboxSnapshot|inboxItemState)/i, "API_KEY_SECRET_OPERATIONAL_ADMIN"],

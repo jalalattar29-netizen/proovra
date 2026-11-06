@@ -4,22 +4,22 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "926c8cd89bbc15244764115eac539d6ba86b4ef002c515b3b8cf9ddb1de3168f",
-  "consumerInventoryHash": "15ed5fbfe722cdb43fcd7346ed297bdd83d5447ec0415d0f9e85ef3e8d5e2282",
+  "routeInventoryHash": "259db5d5a4f9718359df9a46ca1b1d3d56829eb7ecd09e3cd4eef102920486f2",
+  "consumerInventoryHash": "6fbe2600d3b89a3b07fdaebecbf71419cd6208339ab59f7a8ea071defa9b4c4f",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
-    "RegisteredRoutes": 1230,
-    "ProductionRegisteredRoutes": 1229,
+    "RegisteredRoutes": 1231,
+    "ProductionRegisteredRoutes": 1230,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 1010,
+    "ProductConsumedRoutes": 1011,
     "NonProductDispositionedRoutes": 203,
     "UndisposedRoutes": 16,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 1010,
+    "ProductConsumerRoutes": 1011,
     "MachineOnlyConsumerRoutes": 7,
     "NoConsumerRoutes": 213,
     "AuthorizationUnresolved": 0,
-    "PublicUnguardedRoutes": 37,
+    "PublicUnguardedRoutes": 38,
     "DynamicUnresolvedRouteRegistrations": 0,
     "DynamicUnresolvedConsumers": 0,
     "UnreviewedOriginConsumers": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1516,
-    "ReachableSensitiveMutations": 1491,
-    "ClassifiedSensitiveMutations": 1491,
+    "TerminalWriters": 1520,
+    "ReachableSensitiveMutations": 1495,
+    "ClassifiedSensitiveMutations": 1495,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 25,
@@ -81,7 +81,7 @@
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 98,
       "BILLING_SUBSCRIPTION_SEAT": 105,
-      "SSO_OIDC_SCIM_PROVISIONING": 58,
+      "SSO_OIDC_SCIM_PROVISIONING": 62,
       "AUTOMATION_QUEUE_WEBHOOK": 117,
       "REPORT_EXPORT_REDACTION": 60,
       "API_KEY_SECRET_OPERATIONAL_ADMIN": 130
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1325,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1329,
       "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 11277,
-      "UNRESOLVED_IDENTIFIER": 1623
+      "METHOD_ON_VALUE": 11285,
+      "UNRESOLVED_IDENTIFIER": 1626
     },
     "MutationFixpointRounds": 10,
     "MutationClosurePass": false,
@@ -134,7 +134,7 @@
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
       "UNDISPOSED": 16,
-      "PRODUCT_CONNECTED": 1015,
+      "PRODUCT_CONNECTED": 1016,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 22,
       "WEBHOOK": 4,
@@ -146,7 +146,7 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1228,
+    "TenantBindingResolved": 1229,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 32,
@@ -155,17 +155,17 @@
       "WORKSPACE_SCOPED": 710,
       "ORGANIZATION_SCOPED": 130,
       "MULTI_TENANT_PLATFORM_ADMIN": 133,
-      "TOKEN_SCOPED": 38,
+      "TOKEN_SCOPED": 39,
       "PROVIDER_SCOPED": 5,
       "MACHINE_SCOPED": 17,
       "NO_DATA_ACCESS": 54
     },
     "TenantUnboundInsertRoutes": 0,
-    "OrganizationRoutesMeasured": 981,
+    "OrganizationRoutesMeasured": 982,
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1228,
+    "ClassifiedSecurityRoutes": 1229,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -211,8 +211,8 @@
         "tagged": 7
       },
       "OIDC": {
-        "primary": 2,
-        "tagged": 4
+        "primary": 3,
+        "tagged": 5
       },
       "SCIM_BEARER": {
         "primary": 10,
@@ -240,21 +240,21 @@
       }
     }
   },
-  "totalRoutes": 1230,
+  "totalRoutes": 1231,
   "classificationCounts": {
     "BACKEND_ONLY_UNWIRED": 16,
     "COMPATIBILITY_TEMPORARY": 16,
     "INTERNAL_REQUIRED": 188,
-    "TARGET_COMPLETE": 1010
+    "TARGET_COMPLETE": 1011
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 404,
-    "BEHAVIORAL_SERVICE_ONLY": 16,
+    "BEHAVIORAL_SERVICE_ONLY": 17,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
     "UNPROVEN": 294
   },
   "verticalCounts": {
-    "ENTERPRISE_IDENTITY_SECURITY": 179,
+    "ENTERPRISE_IDENTITY_SECURITY": 180,
     "EVIDENCE_OPERATIONS": 279,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
@@ -3184,7 +3184,7 @@
       "method": "GET",
       "route": "/v1/external-intake/:token",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake/[token].tsx:84",
+      "productConsumer": "apps/mobile/app/(stack)/intake/[token].tsx:88",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -3976,7 +3976,7 @@
       "method": "GET",
       "route": "/v1/identity/account-closure",
       "registeringFile": "services/api/src/routes/account-closure.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:72",
+      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:101",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -3988,7 +3988,7 @@
       "method": "GET",
       "route": "/v1/identity/data-export",
       "registeringFile": "services/api/src/routes/account-data-export.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:71",
+      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:100",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -5320,7 +5320,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:163",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:167",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5332,7 +5332,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id/audit-events",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:223",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:227",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5356,7 +5356,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id/closure",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:232",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:236",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5380,7 +5380,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id/invites",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:220",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:224",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5404,7 +5404,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id/members",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:212",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:216",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -5524,7 +5524,7 @@
       "method": "GET",
       "route": "/v1/orgs/:id/workspaces",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:175",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:179",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7012,7 +7012,7 @@
       "method": "GET",
       "route": "/v1/users/legal-status",
       "registeringFile": "services/api/src/routes/users.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:231",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:259",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -7504,7 +7504,7 @@
       "method": "PATCH",
       "route": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake/capture.tsx:164",
+      "productConsumer": "apps/mobile/app/(stack)/intake/capture.tsx:192",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -8308,7 +8308,7 @@
       "method": "POST",
       "route": "/v1/auth/apple",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:204",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:205",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8320,7 +8320,7 @@
       "method": "POST",
       "route": "/v1/auth/email/login",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:83",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:84",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8332,7 +8332,7 @@
       "method": "POST",
       "route": "/v1/auth/email/register",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:99",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:100",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -8344,7 +8344,7 @@
       "method": "POST",
       "route": "/v1/auth/email/resend-verification",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:115",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:116",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -8356,7 +8356,7 @@
       "method": "POST",
       "route": "/v1/auth/email/verify",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:107",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:108",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8368,7 +8368,7 @@
       "method": "POST",
       "route": "/v1/auth/google",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:200",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:201",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8380,7 +8380,7 @@
       "method": "POST",
       "route": "/v1/auth/logout",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:216",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:231",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8392,7 +8392,7 @@
       "method": "POST",
       "route": "/v1/auth/mfa/enrollment/complete",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:189",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:190",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8404,7 +8404,7 @@
       "method": "POST",
       "route": "/v1/auth/mfa/verify",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:141",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:142",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8416,7 +8416,7 @@
       "method": "POST",
       "route": "/v1/auth/password-reset/confirm",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:129",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:130",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -8428,7 +8428,7 @@
       "method": "POST",
       "route": "/v1/auth/password-reset/request",
       "registeringFile": "services/api/src/routes/auth.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:122",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:123",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -8476,7 +8476,19 @@
       "method": "POST",
       "route": "/v1/auth/sso/discover",
       "registeringFile": "services/api/src/routes/sso-auth.routes.ts",
-      "productConsumer": "apps/web/app/login/page.tsx:235",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:213",
+      "machineConsumer": null,
+      "authorization": "PUBLIC_UNGUARDED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "BEHAVIORAL_SERVICE_ONLY"
+    },
+    {
+      "capabilityId": "POST:/v1/auth/sso/native/exchange",
+      "vertical": "ENTERPRISE_IDENTITY_SECURITY",
+      "method": "POST",
+      "route": "/v1/auth/sso/native/exchange",
+      "registeringFile": "services/api/src/routes/sso-auth.routes.ts",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:219",
       "machineConsumer": null,
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "TARGET_COMPLETE",
@@ -9784,7 +9796,7 @@
       "method": "POST",
       "route": "/v1/deep-link/resolve",
       "registeringFile": "services/api/src/routes/phase11-tenant.routes.ts",
-      "productConsumer": "apps/mobile/src/DeepLinkGate.tsx:124",
+      "productConsumer": "apps/mobile/src/DeepLinkGate.tsx:144",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -10480,7 +10492,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/consent",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake/[token].tsx:135",
+      "productConsumer": "apps/mobile/app/(stack)/intake/[token].tsx:152",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -10492,7 +10504,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/identity",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake/[token].tsx:107",
+      "productConsumer": "apps/mobile/app/(stack)/intake/[token].tsx:124",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -10504,7 +10516,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/parts",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake/capture.tsx:195",
+      "productConsumer": "apps/mobile/app/(stack)/intake/capture.tsx:224",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -10516,7 +10528,7 @@
       "method": "POST",
       "route": "/v1/external-intake/:token/sessions/:sid/submit",
       "registeringFile": "services/api/src/routes/external-intake.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake/capture.tsx:234",
+      "productConsumer": "apps/mobile/app/(stack)/intake/capture.tsx:263",
       "machineConsumer": null,
       "authorization": "INVITATION_TOKEN",
       "classification": "TARGET_COMPLETE",
@@ -11356,7 +11368,7 @@
       "method": "POST",
       "route": "/v1/identity/account-closure",
       "registeringFile": "services/api/src/routes/account-closure.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:100",
+      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:193",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11368,7 +11380,7 @@
       "method": "POST",
       "route": "/v1/identity/account-closure/:id/cancel",
       "registeringFile": "services/api/src/routes/account-closure.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:122",
+      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:209",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11392,7 +11404,7 @@
       "method": "POST",
       "route": "/v1/identity/data-export",
       "registeringFile": "services/api/src/routes/account-data-export.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:86",
+      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:130",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11404,7 +11416,7 @@
       "method": "POST",
       "route": "/v1/identity/data-export/:id/download",
       "registeringFile": "services/api/src/routes/account-data-export.routes.ts",
-      "productConsumer": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:212",
+      "productConsumer": "apps/mobile/app/(stack)/settings/privacy.tsx:154",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11620,7 +11632,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa/enroll/start",
       "registeringFile": "services/api/src/routes/mfa.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:157",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:158",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -11632,7 +11644,7 @@
       "method": "POST",
       "route": "/v1/identity/mfa/enroll/verify",
       "registeringFile": "services/api/src/routes/mfa.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:176",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:177",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -12988,7 +13000,7 @@
       "method": "POST",
       "route": "/v1/org-invites/:token/accept",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:87",
+      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:91",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13012,7 +13024,7 @@
       "method": "POST",
       "route": "/v1/orgs/:id/closure",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:318",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:322",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13024,7 +13036,7 @@
       "method": "POST",
       "route": "/v1/orgs/:id/closure/:requestId/cancel",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:340",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:344",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13108,7 +13120,7 @@
       "method": "POST",
       "route": "/v1/orgs/:id/leave",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:277",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:281",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -13156,7 +13168,7 @@
       "method": "POST",
       "route": "/v1/orgs/:id/transfer-ownership",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:300",
+      "productConsumer": "apps/mobile/app/(stack)/organizations/[id].tsx:304",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -13240,7 +13252,7 @@
       "method": "POST",
       "route": "/v1/platform/context/switch-workspace",
       "registeringFile": "services/api/src/routes/platform-context.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:119",
+      "productConsumer": "apps/mobile/app/(stack)/org-invite/[token].tsx:125",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14656,7 +14668,7 @@
       "method": "POST",
       "route": "/v1/users/legal-acceptance",
       "registeringFile": "services/api/src/routes/users.routes.ts",
-      "productConsumer": "apps/mobile/src/auth/auth-api.ts:257",
+      "productConsumer": "apps/mobile/src/auth/auth-api.ts:285",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14728,7 +14740,7 @@
       "method": "POST",
       "route": "/v1/workflow/intake-links/:id/send",
       "registeringFile": "services/api/src/routes/workflow-intake-links.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/intake-link-create.tsx:633",
+      "productConsumer": "apps/mobile/app/(stack)/intake-link-create.tsx:636",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15690,6 +15702,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -19893,6 +19906,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -20990,6 +21004,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -22110,6 +22125,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -23230,6 +23246,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -24327,6 +24344,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -25447,6 +25465,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -26544,6 +26563,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -32330,8 +32350,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1261",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1261",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1304",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1304",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32363,8 +32383,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1458",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1458",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1501",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1501",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32396,8 +32416,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1576",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1576",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1619",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1619",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32429,8 +32449,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1684",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1684",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@1727",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:1727",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32462,8 +32482,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@685",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:685",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@707",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:707",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -32495,8 +32515,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@781",
-      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:781",
+      "writerId": "services/api/src/routes/saml-auth.routes.ts#ssoConnection.update@803",
+      "terminalLocation": "services/api/src/routes/saml-auth.routes.ts:803",
       "file": "services/api/src/routes/saml-auth.routes.ts",
       "enclosingDeclaration": "samlAuthRoutes",
       "kind": "DATABASE",
@@ -34686,6 +34706,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/oauth/extension/token"
       ],
       "entryJobs": [],
@@ -35193,6 +35214,142 @@
       }
     },
     {
+      "writerId": "services/api/src/services/access-control/sso-hardening.service.ts#ssoNativeHandoff.deleteMany@553",
+      "terminalLocation": "services/api/src/services/access-control/sso-hardening.service.ts:553",
+      "file": "services/api/src/services/access-control/sso-hardening.service.ts",
+      "enclosingDeclaration": "sweepStaleCallbackAttempts",
+      "kind": "DATABASE",
+      "target": "ssoNativeHandoff",
+      "mutationKind": "deleteMany",
+      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/identity/sessions/reconcile-stale"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-identity.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/access-control/sso-native-handoff.service.ts#ssoNativeHandoff.create@71",
+      "terminalLocation": "services/api/src/services/access-control/sso-native-handoff.service.ts:71",
+      "file": "services/api/src/services/access-control/sso-native-handoff.service.ts",
+      "enclosingDeclaration": "recordNativeSsoChallenge",
+      "kind": "DATABASE",
+      "target": "ssoNativeHandoff",
+      "mutationKind": "create",
+      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/auth/saml/:connectionId/login",
+        "GET /v1/auth/sso/:connectionId/initiate"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/saml-auth.routes.ts",
+        "MODULE services/api/src/routes/sso-auth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "BEARER_TOKEN_SUBJECT",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/access-control/sso-native-handoff.service.ts#ssoNativeHandoff.updateMany@109",
+      "terminalLocation": "services/api/src/services/access-control/sso-native-handoff.service.ts:109",
+      "file": "services/api/src/services/access-control/sso-native-handoff.service.ts",
+      "enclosingDeclaration": "issueNativeSsoCode",
+      "kind": "DATABASE",
+      "target": "ssoNativeHandoff",
+      "mutationKind": "updateMany",
+      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "GET /v1/auth/sso/callback",
+        "POST /v1/auth/saml/acs"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/saml-auth.routes.ts",
+        "MODULE services/api/src/routes/sso-auth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/access-control/sso-native-handoff.service.ts#ssoNativeHandoff.updateMany@168",
+      "terminalLocation": "services/api/src/services/access-control/sso-native-handoff.service.ts:168",
+      "file": "services/api/src/services/access-control/sso-native-handoff.service.ts",
+      "enclosingDeclaration": "redeemNativeSsoCode",
+      "kind": "DATABASE",
+      "target": "ssoNativeHandoff",
+      "mutationKind": "updateMany",
+      "primaryFamily": "SSO_OIDC_SCIM_PROVISIONING",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/auth/sso/native/exchange"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/sso-auth.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/access-control/sso.service.ts#externalIdentityMapping.create@1360",
       "terminalLocation": "services/api/src/services/access-control/sso.service.ts:1360",
       "file": "services/api/src/services/access-control/sso.service.ts",
@@ -35410,7 +35567,8 @@
         "POST /v1/auth/google",
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
-        "POST /v1/auth/saml/acs"
+        "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -36469,6 +36627,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -37611,6 +37770,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -38753,6 +38913,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -42111,6 +42272,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -56936,6 +57098,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -59835,6 +59998,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/org-invites/:token/accept",
         "POST /v1/platform/context/switch-workspace"
       ],
@@ -60020,6 +60184,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/cases",
@@ -60258,6 +60423,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/cases",
@@ -60358,6 +60524,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/cases",
@@ -60810,6 +60977,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/cases",
@@ -60875,6 +61043,7 @@
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/capture/direct-sessions",
         "POST /v1/capture/direct-sessions/:id/evidence",
         "POST /v1/cases",
@@ -61629,7 +61798,8 @@
         "GET /v1/auth/sso/callback",
         "POST /v1/auth/mfa/enrollment/complete",
         "POST /v1/auth/mfa/verify",
-        "POST /v1/auth/saml/acs"
+        "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -66906,6 +67076,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -68002,6 +68173,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -69089,6 +69261,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -70176,6 +70349,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -71272,6 +71446,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -72360,6 +72535,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -73456,6 +73632,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -74552,6 +74729,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -75639,6 +75817,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -76727,6 +76906,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -78338,6 +78518,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -79426,6 +79607,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -80514,6 +80696,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -81602,6 +81785,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -82690,6 +82874,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -83778,6 +83963,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -84866,6 +85052,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -85954,6 +86141,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -94590,7 +94778,8 @@
         "POST /v1/auth/apple",
         "POST /v1/auth/email/login",
         "POST /v1/auth/google",
-        "POST /v1/auth/saml/acs"
+        "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -94630,7 +94819,8 @@
         "POST /v1/auth/email/login",
         "POST /v1/auth/google",
         "POST /v1/auth/mfa/verify",
-        "POST /v1/auth/saml/acs"
+        "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -95518,6 +95708,7 @@
         "POST /v1/auth/saml/:connectionId/ingest-metadata",
         "POST /v1/auth/saml/:connectionId/test-connection",
         "POST /v1/auth/saml/acs",
+        "POST /v1/auth/sso/native/exchange",
         "POST /v1/automation/rules",
         "POST /v1/automation/rules/:id/disable",
         "POST /v1/automation/rules/:id/enable",
@@ -104394,7 +104585,7 @@
       "method": "DELETE",
       "path": "/v1/auth/saml/:connectionId/certificate-next",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1626",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1669",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -112203,7 +112394,7 @@
         },
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 210,
+          "line": 225,
           "caller": "fetchMe",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -112245,7 +112436,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth-context.tsx:106 (AuthProvider, MOBILE); apps/mobile/src/auth/auth-api.ts:210 (fetchMe, MOBILE); apps/web/app/auth/callback/ui/page.tsx:250 (AppleCallbackPage, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth-context.tsx:106 (AuthProvider, MOBILE); apps/mobile/src/auth/auth-api.ts:225 (fetchMe, MOBILE); apps/web/app/auth/callback/ui/page.tsx:250 (AppleCallbackPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112274,7 +112465,7 @@
       "method": "GET",
       "path": "/v1/auth/saml/:connectionId/login",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:386",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:393",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -112310,7 +112501,8 @@
         "operationalIncidentEvent",
         "securityEvent",
         "ssoCallbackAttempt",
-        "ssoConnection"
+        "ssoConnection",
+        "ssoNativeHandoff"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -112338,7 +112530,7 @@
       "method": "GET",
       "path": "/v1/auth/saml/metadata/:connectionId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1077",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1120",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -112449,7 +112641,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/:connectionId/initiate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:420",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:579",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -112485,7 +112677,8 @@
         "operationalIncidentEvent",
         "securityEvent",
         "ssoCallbackAttempt",
-        "ssoConnection"
+        "ssoConnection",
+        "ssoNativeHandoff"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -112513,7 +112706,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/callback",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:505",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:673",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -112556,6 +112749,7 @@
         "scimProvisioningToken",
         "ssoCallbackAttempt",
         "ssoConnection",
+        "ssoNativeHandoff",
         "stepUpChallenge",
         "team",
         "teamMember",
@@ -112573,6 +112767,7 @@
         "securityEvent",
         "ssoCallbackAttempt",
         "ssoConnection",
+        "ssoNativeHandoff",
         "stepUpChallenge",
         "teamMember",
         "user"
@@ -112605,7 +112800,7 @@
       "method": "GET",
       "path": "/v1/auth/sso/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:234",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:244",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -121754,7 +121949,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake/[token].tsx",
-          "line": 84,
+          "line": 88,
           "caller": "IntakeScreen",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -121772,7 +121967,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:84 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:492 (ExternalIntakePage, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:88 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:492 (ExternalIntakePage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126151,7 +126346,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
-          "line": 72,
+          "line": 101,
           "caller": "PrivacyScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -126169,7 +126364,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:72 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:452 (AccountClosureCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:101 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:452 (AccountClosureCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -126217,7 +126412,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
-          "line": 71,
+          "line": 100,
           "caller": "PrivacyScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -126235,7 +126430,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:71 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:154 (DataExportCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:100 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:154 (DataExportCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133572,7 +133767,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 163,
+          "line": 167,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -133580,7 +133775,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 196,
+          "line": 200,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -133654,7 +133849,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:163 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:196 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/layout.tsx:273 (OrganizationAdminLayout, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:167 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:200 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/layout.tsx:273 (OrganizationAdminLayout, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133704,7 +133899,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 223,
+          "line": 227,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -133712,7 +133907,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 242,
+          "line": 246,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -133746,7 +133941,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:223 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:242 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/audit/page.tsx:116 (AuditTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:227 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:246 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/audit/page.tsx:116 (AuditTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -133869,7 +134064,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 232,
+          "line": 236,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -133877,7 +134072,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 254,
+          "line": 258,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -133895,7 +134090,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:232 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:254 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1355 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:236 (OrganizationDetailScreen, MOBILE); apps/mobile/app/(stack)/organizations/[id].tsx:258 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1355 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -134011,7 +134206,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 220,
+          "line": 224,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -134053,7 +134248,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:220 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx:163 (InvitationGovernanceSection, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:318 (MembersTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:224 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx:163 (InvitationGovernanceSection, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:318 (MembersTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -134151,7 +134346,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 212,
+          "line": 216,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -134209,7 +134404,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:212 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:289 (MembersTab, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:317 (MembersTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:216 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:289 (MembersTab, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:317 (MembersTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -134905,7 +135100,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 175,
+          "line": 179,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -134979,7 +135174,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:175 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/_lib/SeatsCard.tsx:122 (SeatsCard, WEB); apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx:204 (BulkInviteTab, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:179 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/admin/_lib/SeatsCard.tsx:122 (SeatsCard, WEB); apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx:204 (BulkInviteTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -144123,7 +144318,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 231,
+          "line": 259,
           "caller": "getLegalStatus",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -144157,7 +144352,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:231 (getLegalStatus, MOBILE); apps/mobile/src/ui/legal-records.tsx:49 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:91 (LegalAcceptanceStatusCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:259 (getLegalStatus, MOBILE); apps/mobile/src/ui/legal-records.tsx:49 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:91 (LegalAcceptanceStatusCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -147017,7 +147212,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake/capture.tsx",
-          "line": 164,
+          "line": 192,
           "caller": "IntakeCaptureScreen",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -147035,7 +147230,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:164 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:913 (setPartStep, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:192 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:913 (setPartStep, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -150677,6 +150872,7 @@
         "revokedSession",
         "securityEvent",
         "ssoCallbackAttempt",
+        "ssoNativeHandoff",
         "stepUpChallenge"
       ],
       "tenantBindingResolved": true,
@@ -150687,7 +150883,8 @@
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
         "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
         "services/api/src/services/access-control/session-inventory.service.ts: authenticatedSession.update — no tenant or self predicate",
-        "services/api/src/services/access-control/sso-hardening.service.ts: ssoCallbackAttempt.deleteMany — no tenant or self predicate"
+        "services/api/src/services/access-control/sso-hardening.service.ts: ssoCallbackAttempt.deleteMany — no tenant or self predicate",
+        "services/api/src/services/access-control/sso-hardening.service.ts: ssoNativeHandoff.deleteMany — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -152152,7 +152349,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 204,
+          "line": 205,
           "caller": "oauthApple",
           "class": "MOBILE",
           "primitive": "signInExchange",
@@ -152178,7 +152375,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:204 (oauthApple, MOBILE); apps/web/app/login/page.tsx:593 (startApple, WEB); apps/web/app/register/page.tsx:730 (startApple, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:205 (oauthApple, MOBILE); apps/web/app/login/page.tsx:593 (startApple, WEB); apps/web/app/register/page.tsx:730 (startApple, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152251,7 +152448,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 83,
+          "line": 84,
           "caller": "emailLogin",
           "class": "MOBILE",
           "primitive": "signInExchange",
@@ -152269,7 +152466,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:83 (emailLogin, MOBILE); apps/web/app/login/page.tsx:626 (onEmailLogin, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:84 (emailLogin, MOBILE); apps/web/app/login/page.tsx:626 (onEmailLogin, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152325,7 +152522,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 99,
+          "line": 100,
           "caller": "registerAccount",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -152343,7 +152540,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:99 (registerAccount, MOBILE); apps/web/app/register/page.tsx:817 (onEmailRegister, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:100 (registerAccount, MOBILE); apps/web/app/register/page.tsx:817 (onEmailRegister, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152406,7 +152603,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 115,
+          "line": 116,
           "caller": "resendVerification",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -152440,7 +152637,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:115 (resendVerification, MOBILE); apps/web/app/auth/verify-email/page.tsx:197 (onResend, WEB); apps/web/app/login/page.tsx:999 (LoginPageContent, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:116 (resendVerification, MOBILE); apps/web/app/auth/verify-email/page.tsx:197 (onResend, WEB); apps/web/app/login/page.tsx:999 (LoginPageContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152485,7 +152682,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 107,
+          "line": 108,
           "caller": "verifyEmail",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -152503,7 +152700,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:107 (verifyEmail, MOBILE); apps/web/app/auth/verify-email/page.tsx:98 (VerifyEmailPageContent, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:108 (verifyEmail, MOBILE); apps/web/app/auth/verify-email/page.tsx:98 (VerifyEmailPageContent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152556,7 +152753,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 200,
+          "line": 201,
           "caller": "oauthGoogle",
           "class": "MOBILE",
           "primitive": "signInExchange",
@@ -152574,7 +152771,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:200 (oauthGoogle, MOBILE); apps/web/app/auth/callback/ui/page.tsx:175 (AppleCallbackPage, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:201 (oauthGoogle, MOBILE); apps/web/app/auth/callback/ui/page.tsx:175 (AppleCallbackPage, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152647,10 +152844,18 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 216,
+          "line": 231,
           "caller": "logout",
           "class": "MOBILE",
           "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
+          "file": "apps/mobile/src/auth/auth-api.ts",
+          "line": 244,
+          "caller": "revokeSessionToken",
+          "class": "MOBILE",
+          "primitive": "publicFetch",
           "viaResolution": false
         },
         {
@@ -152665,7 +152870,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:216 (logout, MOBILE); apps/web/app/(app)/layout.tsx:77 (handleLogout, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:231 (logout, MOBILE); apps/mobile/src/auth/auth-api.ts:244 (revokeSessionToken, MOBILE); apps/web/app/(app)/layout.tsx:77 (handleLogout, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152715,7 +152920,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 189,
+          "line": 190,
           "caller": "completeSignInEnrollment",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -152733,7 +152938,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:189 (completeSignInEnrollment, MOBILE); apps/web/components/identity-security/MfaEnrollmentAtSignIn.tsx:96 (finish, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:190 (completeSignInEnrollment, MOBILE); apps/web/components/identity-security/MfaEnrollmentAtSignIn.tsx:96 (finish, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152803,7 +153008,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 141,
+          "line": 142,
           "caller": "verifyMfa",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -152821,7 +153026,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:141 (verifyMfa, MOBILE); apps/web/app/auth/mfa-challenge/page.tsx:97 (handleSubmit, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:142 (verifyMfa, MOBILE); apps/web/app/auth/mfa-challenge/page.tsx:97 (handleSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152892,7 +153097,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 129,
+          "line": 130,
           "caller": "confirmPasswordReset",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -152910,7 +153115,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:129 (confirmPasswordReset, MOBILE); apps/web/app/reset-password/page.tsx:207 (submit, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:130 (confirmPasswordReset, MOBILE); apps/web/app/reset-password/page.tsx:207 (submit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -152960,7 +153165,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 122,
+          "line": 123,
           "caller": "requestPasswordReset",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -152978,7 +153183,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:122 (requestPasswordReset, MOBILE); apps/web/components/marketing/ForgotPasswordModal.tsx:113 (submit, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:123 (requestPasswordReset, MOBILE); apps/web/components/marketing/ForgotPasswordModal.tsx:113 (submit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153014,7 +153219,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/:connectionId/ingest-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1188",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1231",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -153086,7 +153291,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/:connectionId/test-connection",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1329",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1372",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -153159,7 +153364,7 @@
       "method": "POST",
       "path": "/v1/auth/saml/acs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:543",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:561",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/saml-auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153201,6 +153406,7 @@
         "scimProvisioningToken",
         "ssoCallbackAttempt",
         "ssoConnection",
+        "ssoNativeHandoff",
         "stepUpChallenge",
         "team",
         "teamMember",
@@ -153217,6 +153423,7 @@
         "securityEvent",
         "ssoCallbackAttempt",
         "ssoConnection",
+        "ssoNativeHandoff",
         "stepUpChallenge",
         "teamMember",
         "user"
@@ -153249,13 +153456,21 @@
       "method": "POST",
       "path": "/v1/auth/sso/discover",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:384",
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:394",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
       ],
       "gates": [],
       "productConsumers": [
+        {
+          "file": "apps/mobile/src/auth/auth-api.ts",
+          "line": 213,
+          "caller": "discoverSso",
+          "class": "MOBILE",
+          "primitive": "publicFetch",
+          "viaResolution": false
+        },
         {
           "file": "apps/web/app/login/page.tsx",
           "line": 235,
@@ -153268,7 +153483,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/login/page.tsx:235 (startSingleSignOn, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:213 (discoverSso, MOBILE); apps/web/app/login/page.tsx:235 (startSingleSignOn, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -153293,6 +153508,87 @@
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "NONE_OBSERVED",
       "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/auth/sso/native/exchange",
+      "method": "POST",
+      "path": "/v1/auth/sso/native/exchange",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/sso-auth.routes.ts:436",
+      "authorizationClass": "PUBLIC_UNGUARDED",
+      "authorizationEvidence": [
+        "no preHandler and no in-handler guard call was found"
+      ],
+      "gates": [],
+      "productConsumers": [
+        {
+          "file": "apps/mobile/src/auth/auth-api.ts",
+          "line": 219,
+          "caller": "exchangeNativeSso",
+          "class": "MOBILE",
+          "primitive": "signInExchange",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:219 (exchangeNativeSso, MOBILE)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "OIDC",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "PUBLIC_UNGUARDED",
+      "authorizationAuthority": "PUBLIC_UNGUARDED",
+      "dataScope": "TOKEN_SCOPED",
+      "tenantType": "TOKEN_BOUND",
+      "tenantBindingAuthority": "inline-membership-status-check",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "authenticatedSession",
+        "enterpriseContract",
+        "mfaFactor",
+        "mfaPendingChallenge",
+        "mfaRecoveryCode",
+        "organization",
+        "organizationDomain",
+        "organizationMembership",
+        "organizationSecurityPolicy",
+        "scimProvisioningToken",
+        "ssoCallbackAttempt",
+        "ssoConnection",
+        "ssoNativeHandoff",
+        "team",
+        "teamMember",
+        "user"
+      ],
+      "modelsWritten": [
+        "authenticatedSession",
+        "membershipGrant",
+        "mfaPendingChallenge",
+        "organizationMembership",
+        "securityEvent",
+        "ssoNativeHandoff",
+        "teamMember"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/security/login-mfa-enforcement.service.ts: teamMember.findMany paired with a lifecycle-status predicate (services/api/src/services/security/mfa.service.ts)",
+        "services/api/src/services/access-control/sso-native-handoff.service.ts: ssoNativeHandoff.findUnique — no tenant or self predicate",
+        "services/api/src/services/access-control/sso-native-handoff.service.ts: ssoNativeHandoff.updateMany — no tenant or self predicate",
+        "services/api/src/services/security/login-mfa-enforcement.service.ts: team.findMany — no tenant or self predicate",
+        "services/api/src/services/identity/sso-session-completion.service.ts: authenticatedSession.delete — no tenant or self predicate",
+        "services/api/src/services/billing/workspace-seats.service.ts: teamMember.count — no tenant or self predicate",
+        "services/api/src/services/identity/sso-session-completion.service.ts: authenticatedSession.delete — no tenant or self predicate"
+      ],
+      "tenantIdSource": "MEMBERSHIP_LOOKUP",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 403",
+      "tenantStampingInsertSites": [
+        "services/api/src/services/identity/membership-provisioning.service.ts: organizationMembership.create"
+      ],
       "tenantUnboundInsertSites": []
     },
     {
@@ -161634,7 +161930,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/DeepLinkGate.tsx",
-          "line": 124,
+          "line": 144,
           "caller": "DeepLinkGate",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -161652,7 +161948,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/DeepLinkGate.tsx:124 (DeepLinkGate, MOBILE); apps/web/lib/api/deep-link.ts:52 (resolveDeepLink, WEB)",
+      "dispositionEvidence": "apps/mobile/src/DeepLinkGate.tsx:144 (DeepLinkGate, MOBILE); apps/web/lib/api/deep-link.ts:52 (resolveDeepLink, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -164174,7 +164470,7 @@
         },
         {
           "file": "apps/mobile/src/capture/capture-links.ts",
-          "line": 168,
+          "line": 184,
           "caller": "postCapturedTogether",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -164192,7 +164488,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:754 (EvidenceDetailScreen, MOBILE); apps/mobile/src/capture/capture-links.ts:168 (postCapturedTogether, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:572 (saveRelationship, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:754 (EvidenceDetailScreen, MOBILE); apps/mobile/src/capture/capture-links.ts:184 (postCapturedTogether, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:572 (saveRelationship, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -166394,7 +166690,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake/[token].tsx",
-          "line": 135,
+          "line": 152,
           "caller": "IntakeScreen",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -166412,7 +166708,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:135 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:695 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:152 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:695 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -166461,7 +166757,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake/[token].tsx",
-          "line": 107,
+          "line": 124,
           "caller": "IntakeScreen",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -166479,7 +166775,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:107 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:661 (acceptConsent, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/[token].tsx:124 (IntakeScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:661 (acceptConsent, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -166525,7 +166821,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake/capture.tsx",
-          "line": 195,
+          "line": 224,
           "caller": "IntakeCaptureScreen",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -166543,7 +166839,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:195 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:786 (stageFile, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:224 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:786 (stageFile, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -166648,7 +166944,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake/capture.tsx",
-          "line": 234,
+          "line": 263,
           "caller": "IntakeCaptureScreen",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -166666,7 +166962,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:234 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:973 (onSubmit, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake/capture.tsx:263 (IntakeCaptureScreen, MOBILE); apps/web/app/intake/[token]/page.tsx:973 (onSubmit, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171816,7 +172112,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
-          "line": 100,
+          "line": 193,
           "caller": "PrivacyScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -171834,7 +172130,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:100 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:482 (AccountClosureCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:193 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:482 (AccountClosureCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -171891,7 +172187,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
-          "line": 122,
+          "line": 209,
           "caller": "PrivacyScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -171909,7 +172205,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:122 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:531 (AccountClosureCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:209 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:531 (AccountClosureCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -172027,7 +172323,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
-          "line": 86,
+          "line": 130,
           "caller": "PrivacyScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -172045,7 +172341,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:86 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:172 (DataExportCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:130 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:172 (DataExportCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -172094,6 +172390,14 @@
       ],
       "productConsumers": [
         {
+          "file": "apps/mobile/app/(stack)/settings/privacy.tsx",
+          "line": 154,
+          "caller": "PrivacyScreen",
+          "class": "MOBILE",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        },
+        {
           "file": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx",
           "line": 212,
           "caller": "DataExportCard",
@@ -172105,7 +172409,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/settings/_sections/PrivacySection.tsx:212 (DataExportCard, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/settings/privacy.tsx:154 (PrivacyScreen, MOBILE); apps/web/app/(app)/settings/_sections/PrivacySection.tsx:212 (DataExportCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173473,7 +173777,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 157,
+          "line": 158,
           "caller": "startSignInEnrollment",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -173507,7 +173811,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:157 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:156 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1154 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:158 (startSignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:156 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1154 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -173550,7 +173854,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 176,
+          "line": 177,
           "caller": "verifySignInEnrollment",
           "class": "MOBILE",
           "primitive": "publicFetch",
@@ -173584,7 +173888,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:176 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:184 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1180 (MfaCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:177 (verifySignInEnrollment, MOBILE); apps/mobile/src/ui/totp-enrolment.tsx:184 (TotpEnrolment, MOBILE); apps/web/app/(app)/security-center/components/PersonalSecuritySections.tsx:1180 (MfaCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -181590,7 +181894,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
-          "line": 87,
+          "line": 91,
           "caller": "OrgInviteAcceptScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -181616,7 +181920,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:87 (OrgInviteAcceptScreen, MOBILE); apps/web/app/(app)/org-invites/[token]/accept/page.tsx:93 (OrgInviteAcceptPageInner, WEB); apps/web/app/(app)/organizations/page.tsx:155 (OrganizationsListPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:91 (OrgInviteAcceptScreen, MOBILE); apps/web/app/(app)/org-invites/[token]/accept/page.tsx:93 (OrgInviteAcceptPageInner, WEB); apps/web/app/(app)/organizations/page.tsx:155 (OrganizationsListPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -181729,7 +182033,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 318,
+          "line": 322,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -181747,7 +182051,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:318 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1428 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:322 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1428 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -181813,7 +182117,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 340,
+          "line": 344,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -181831,7 +182135,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:340 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1475 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:344 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1475 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -182364,7 +182668,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 277,
+          "line": 281,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -182382,7 +182686,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:277 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:464 (OrganizationDetailInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:281 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:464 (OrganizationDetailInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -182757,7 +183061,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/organizations/[id].tsx",
-          "line": 300,
+          "line": 304,
           "caller": "OrganizationDetailScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -182775,7 +183079,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:300 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1385 (OrgLifecycleControls, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/organizations/[id].tsx:304 (OrganizationDetailScreen, MOBILE); apps/web/app/(app)/organizations/[id]/page.tsx:1385 (OrgLifecycleControls, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -183294,7 +183598,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/org-invite/[token].tsx",
-          "line": 119,
+          "line": 125,
           "caller": "openWorkspace",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -183320,7 +183624,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:119 (openWorkspace, MOBILE); apps/mobile/app/(stack)/spaces.tsx:120 (SpacesScreen, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:475 (PlatformContextProvider, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/org-invite/[token].tsx:125 (openWorkspace, MOBILE); apps/mobile/app/(stack)/spaces.tsx:120 (SpacesScreen, MOBILE); apps/web/lib/platform-context/PlatformContextProvider.tsx:475 (PlatformContextProvider, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -192796,7 +193100,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/src/auth/auth-api.ts",
-          "line": 257,
+          "line": 285,
           "caller": "recordLegalAcceptance",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -192854,7 +193158,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:257 (recordLegalAcceptance, MOBILE); apps/mobile/src/ui/legal-records.tsx:73 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:122 (LegalAcceptanceStatusCard, WEB)",
+      "dispositionEvidence": "apps/mobile/src/auth/auth-api.ts:285 (recordLegalAcceptance, MOBILE); apps/mobile/src/ui/legal-records.tsx:73 (LegalRecordsSection, MOBILE); apps/web/app/(app)/settings/_sections/LegalAcceptanceStatusCard.tsx:122 (LegalAcceptanceStatusCard, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -193257,7 +193561,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/intake-link-create.tsx",
-          "line": 633,
+          "line": 636,
           "caller": "send",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -193275,7 +193579,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/intake-link-create.tsx:633 (send, MOBILE); apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:88 (send, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/intake-link-create.tsx:636 (send, MOBILE); apps/web/app/(app)/intake-links/_components/LinkCreatedDialog.tsx:88 (send, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -193994,7 +194298,7 @@
       "method": "PUT",
       "path": "/v1/auth/saml/:connectionId/certificate-next",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1525",
+      "registrationEvidence": "services/api/src/routes/saml-auth.routes.ts:1568",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeSamlOperator -> services/api/src/services/identity/organization-identity-authority.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
