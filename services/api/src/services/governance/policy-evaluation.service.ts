@@ -14,7 +14,9 @@
  *   * Walks each policy's `rule` JSON against the call's context.
  *   * Combines per-policy decisions using strictest-wins:
  *     BLOCK > WARN > ALLOW.
- *   * Emits a `POLICY_EVALUATED` audit row on every call.
+ *   * Emits a `POLICY_EVALUATED` audit row on every call, except that an
+ *     identical routine ALLOW within ROUTINE_EVALUATION_AUDIT_WINDOW_MS is
+ *     coalesced into the first one (CAP-8).
  *   * Emits a `POLICY_WARNING` audit row when the combined verdict is
  *     WARN, and `POLICY_BLOCK` + `POLICY_VIOLATION` when the combined
  *     verdict is BLOCK. The governance dashboard counts these last two
@@ -210,6 +212,33 @@ function boundReason(reason: string | null | undefined): string | null {
     .slice(0, 80);
 }
 
+/** CAP-8 — how long one routine ALLOW row stands for identical evaluations. */
+export const ROUTINE_EVALUATION_AUDIT_WINDOW_MS = 5 * 60 * 1000;
+const ROUTINE_EVALUATION_CACHE_MAX = 20_000;
+const routineEvaluationWrittenAt = new Map<string, number>();
+
+/**
+ * True when an identical routine evaluation was recorded within the window
+ * (the caller then writes nothing); false when this one must be recorded,
+ * which also starts a new window for its key.
+ */
+export function coalesceRoutineEvaluation(teamId: string, policyId: string | null, reason: string | null, now = Date.now()): boolean {
+  const key = `${teamId}|${policyId ?? "-"}|${reason ?? "-"}`;
+  const last = routineEvaluationWrittenAt.get(key);
+  if (last !== undefined && now - last < ROUTINE_EVALUATION_AUDIT_WINDOW_MS) {
+    bump("governance_policy_evaluation_audit_coalesced_total");
+    return true;
+  }
+  if (routineEvaluationWrittenAt.size >= ROUTINE_EVALUATION_CACHE_MAX) routineEvaluationWrittenAt.clear();
+  routineEvaluationWrittenAt.set(key, now);
+  return false;
+}
+
+/** Test seam: forget every window. */
+export function resetRoutineEvaluationAuditWindows(): void {
+  routineEvaluationWrittenAt.clear();
+}
+
 /**
  * Single canonical post-processing path used by every evaluator —
  * emits the POLICY_EVALUATED row and, on strict outcomes, the
@@ -234,14 +263,22 @@ async function emitEvaluationAudit(
       result.reason ? `:${result.reason}` : ""
     }${context ? `:${context}` : ""}`,
   );
-  await emitPolicyAudit({
-    prisma,
-    teamId,
-    policyId: policyIdForAudit,
-    code: "POLICY_EVALUATED",
-    actorUserId: null,
-    reason: baseReason,
-  });
+  // CAP-8 — a routine ALLOW is recorded once per (workspace, policy, outcome)
+  // per window per process, not once per read: every authenticated read
+  // evaluates the session against each reachable workspace, which was one
+  // insert per workspace per request. The first evaluation in each window is
+  // still recorded (PA-03: no evaluation goes unrecorded), and WARN / BLOCK are
+  // never coalesced: those are the enforcement record.
+  if (result.decision !== "ALLOW" || !coalesceRoutineEvaluation(teamId, policyIdForAudit, baseReason)) {
+    await emitPolicyAudit({
+      prisma,
+      teamId,
+      policyId: policyIdForAudit,
+      code: "POLICY_EVALUATED",
+      actorUserId: null,
+      reason: baseReason,
+    });
+  }
   if (result.decision === "WARN") {
     await emitPolicyAudit({
       prisma,
