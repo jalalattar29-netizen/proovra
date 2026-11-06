@@ -9,11 +9,18 @@ today. The code is the authority:
 - `apps/web/components/app-primitives/` and `apps/web/components/ui/`: the React
   primitives.
 
-**Open founder question (audit finding RT-014).** Earlier versions of this
-document specified velvet chrome and teal focus. The product no longer ships
-that. Whether the shipped indigo and lavender palette is the approved palette
-has not been recorded as a decision. This document states what is shipped and
-does not settle that question.
+**Palette decision (audit finding RT-014, recorded 2026-11-06).** Earlier
+versions of this document specified velvet chrome and teal focus; the product
+no longer ships that. The palette is the shipped one: the tokens in
+`tokens.css` and the semantic contract in `app-primitives.css`, described
+below. A colour that is not a token (an inline dark-navy primary button, a
+non-token warning banner, `#0B1F5E`) is a defect to move onto a token, not a
+second palette. The browser chrome colour is the card surface `#FFFFFF`
+(section 1.3), because it is a token and `#0B1F5E` is not. Platform status
+is not shell chrome for customers: the header shows the operational pill only
+to people with operations access, and everyone reads platform status on the
+status page. Recorded in the remediation decisions for the web UI batch
+(`decisions-rem3-web-ui.md`).
 
 **Audience:** product engineers and designers shipping new screens or
 consolidating existing ones.
