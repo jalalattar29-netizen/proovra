@@ -433,6 +433,7 @@ function makeFake() {
     // external-review grants; this fixture holds none.
     verificationShareToken: { updateMany: async () => ({ count: 0 }) },
     externalReviewGrant: { updateMany: async () => ({ count: 0 }) },
+    workflowIntakeLink: { updateMany: async () => ({ count: 0 }) },
 
     async $executeRaw() {
       return 0;

@@ -267,32 +267,9 @@ export async function evaluateEffectiveLegalHold(
     });
     if (row) workspaceId = await resolveEvidenceWorkspaceId(row, prisma);
   }
-  const scopeClauses: Array<Record<string, unknown>> = [];
-  if (caseIds.length > 0) {
-    scopeClauses.push({
-      scope: "CASE",
-      caseId: { in: caseIds },
-      historical: false,
-    });
-  }
-  if (workspaceId) {
-    scopeClauses.push({
-      teamId: workspaceId,
-      OR: [{ scope: "WORKSPACE", historical: false }, { historical: true }],
-    });
-  }
-  if (scopeClauses.length > 0) {
-    const scoped = await tolerateAbsentRelation(() =>
-      prisma.evidenceLegalHold.findMany({
-        where: {
-          status: "ACTIVE",
-          OR: scopeClauses,
-        },
-        select: { id: true, scope: true, historical: true },
-        take: 25,
-      }),
-    );
-    for (const row of scoped ?? []) {
+  const pushScoped = (rows: ReadonlyArray<{ id: string; scope: string | null; historical: boolean | null }> | null) => {
+    for (const row of rows ?? []) {
+      if (matches.some((m) => m.holdId === row.id)) continue;
       const unresolved = row.historical === true;
       matches.push({
         holdId: row.id,
@@ -302,6 +279,37 @@ export async function evaluateEffectiveLegalHold(
         ...(unresolved ? { unresolved: true } : {}),
       });
     }
+  };
+
+  // CASE — by the link alone, in whatever workspace the hold was placed.
+  if (caseIds.length > 0) {
+    pushScoped(
+      await tolerateAbsentRelation(() =>
+        prisma.evidenceLegalHold.findMany({
+          where: { status: "ACTIVE", scope: "CASE", caseId: { in: caseIds }, historical: false },
+          select: { id: true, scope: true, historical: true },
+          take: 25,
+        }),
+      ),
+    );
+    if (matches.length > 0 && !collectAll) return summarize(matches);
+  }
+
+  // WORKSPACE and unresolved — in the record's resolved workspace.
+  if (workspaceId) {
+    pushScoped(
+      await tolerateAbsentRelation(() =>
+        prisma.evidenceLegalHold.findMany({
+          where: {
+            teamId: workspaceId,
+            status: "ACTIVE",
+            OR: [{ scope: "WORKSPACE", historical: false }, { historical: true }],
+          },
+          select: { id: true, scope: true, historical: true },
+          take: 25,
+        }),
+      ),
+    );
     if (matches.length > 0 && !collectAll) return summarize(matches);
   }
 
