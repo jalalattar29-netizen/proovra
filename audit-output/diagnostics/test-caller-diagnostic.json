@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "9bd900a2bd0501d8eddf2372e9b497aa22e39b80d3156c15d26807b1f8698ae3",
+  "capabilityRouteInventoryHash": "044bd4f2bfb6bfa5fcd0a838737ef460410e34e89aa847d4cdd177c8eda5fd2c",
   "totals": {
-    "routes": 1236,
-    "routesWithAnyTestCaller": 53,
+    "routes": 1237,
+    "routesWithAnyTestCaller": 54,
     "testOnlyRoutes": 9,
-    "testCallSites": 125,
+    "testCallSites": 126,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -5056,9 +5056,11 @@
     },
     {
       "routeId": "POST /v1/evidence/:id/parts",
-      "testCallerCount": 0,
+      "testCallerCount": 1,
       "testOnly": false,
-      "testCallerFiles": []
+      "testCallerFiles": [
+        "apps/web/__tests__/render/capture-refused-upload.render.test.tsx"
+      ]
     },
     {
       "routeId": "POST /v1/evidence/:id/relationships",
@@ -6499,6 +6501,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/org-invites/lookup",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/orgs",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7549,5 +7557,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "2b049ab3f33b66c071cc05dc96c6b341ec1032feec1a2032c80e5db07f84a214"
+  "contentHash": "261f3c8b70d04f5e4778033c9857985fee2d9e13833095556ff66250ef5fc914"
 }
