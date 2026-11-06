@@ -155,9 +155,12 @@ describe("organization ownership continuity (live PostgreSQL)", () => {
         method: "PATCH",
         url: `/v1/orgs/${o.orgId}/members/${target.membershipId}`,
         headers: bearer(o.owner.token),
-        payload: { role: "ORG_OWNER" },
+        // PRO-097 — a promotion to ORG_OWNER carries the owner's step-up, as the
+        // transfer above does, so the target-state rule is what answers here.
+        payload: { role: "ORG_OWNER", stepUp: { method: "password", currentPassword: STEP_UP_PASSWORD } },
       });
       expect(promoted.statusCode, promoted.body).toBe(409);
+      expect(promoted.json()).toMatchObject({ error: { code: "OWNER_TARGET_NOT_ACTIVE" } });
     }
     expect(await liveOwners(o.orgId)).toBe(1);
     expect(
