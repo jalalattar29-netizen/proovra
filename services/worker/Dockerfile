@@ -170,11 +170,19 @@ RUN apk-install \
     harfbuzz \
     fontconfig \
     ttf-freefont \
+    font-noto-cjk \
     ffmpeg \
     tesseract-ocr \
     tesseract-ocr-data-eng \
     tesseract-ocr-data-ara \
     tesseract-ocr-data-deu
+# REPORT-012 — `font-noto-cjk`: a record's title, file names and notes are the
+# customer's own words, in any script, and reports print them. `ttf-freefont`
+# covers Latin, Greek, Cyrillic, Hebrew and Arabic but has no Chinese, Japanese
+# or Korean, so those printed as empty boxes in a signed report. The release
+# smoke (scripts/smoke-report-scripts.mjs) fails unless every script the
+# reports carry is drawn by a font that covers it.
+#
 # UC-4 — `tesseract-ocr` provides the LOCAL, self-hosted OCR engine on PATH for
 # derived screen/keyframe text extraction. It runs entirely in-image: no network,
 # no external OCR processor, no training on evidence. Language data is bounded to the

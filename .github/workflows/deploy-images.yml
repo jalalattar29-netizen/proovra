@@ -197,6 +197,9 @@ jobs:
       # AUD-019 — smoke-ocr-languages.mjs fails unless the SHIPPED image has the
       # tesseract engine with eng, ara and deu installed and the worker's own
       # provider recognises an English, a German and an Arabic line.
+      # REPORT-012 — smoke-report-scripts.mjs fails unless the image's fonts cover
+      # Arabic, Hebrew, Cyrillic, Greek, Chinese, Japanese and Korean and the
+      # report stylesheet draws each from a covering font.
       # The Bitcoin verifier smoke runs the image exactly as the production
       # compose wires it (password only as a read-only file owned by the image's
       # app user) against a JSON-RPC stand-in: a node in IBD — or on the wrong
@@ -207,6 +210,7 @@ jobs:
           docker pull "$IMAGE_REF"
           docker run --rm             -e PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true             -e SMOKE_EXPECT_RELEASE_SHA="${RELEASE_SHA}"             "$IMAGE_REF" node scripts/smoke-pdf-verification.mjs
           docker run --rm "$IMAGE_REF" node scripts/smoke-ocr-languages.mjs
+          docker run --rm --network none "$IMAGE_REF" node scripts/smoke-report-scripts.mjs
           node scripts/release/smoke-worker-bitcoin-verifier.mjs "$IMAGE_REF"
 
       - name: Tag the smoked digest
