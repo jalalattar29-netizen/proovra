@@ -1320,10 +1320,13 @@ onClick={async () => {
                 counsel. Renamed to "Your notes" and the placeholder
                 to plain-language guidance. The underlying field
                 (`privateNote`) and API contract are unchanged. */}
-            <strong>Your notes</strong>
-            <p>{mappingHelper}</p>
+            <strong id={`capture-note-label-${item.id}`}>Your notes</strong>
+            <p id={`capture-note-help-${item.id}`}>{mappingHelper}</p>
 
+            {/* PRO-076: named by its heading, not only by its placeholder. */}
             <textarea
+              aria-labelledby={`capture-note-label-${item.id}`}
+              aria-describedby={`capture-note-help-${item.id}`}
               value={item.privateNote ?? ""}
               onChange={(event) =>
                 updateSessionItem(item.id, {

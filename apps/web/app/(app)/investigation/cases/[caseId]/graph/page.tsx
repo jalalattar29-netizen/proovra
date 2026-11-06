@@ -219,16 +219,18 @@ function CaseGraphExplorerPageBody() {
       </header>
 
       <section style={controlsRowStyle}>
-        <label style={controlsLabelStyle}>Node kind</label>
+        <span id="case-graph-node-kind-label" style={controlsLabelStyle}>Node kind</span>
         <AppListbox
+          ariaLabelledby="case-graph-node-kind-label"
           value={nodeKindFilter}
           options={[
             ...ALL_NODE_KINDS.map((k) => ({ value: k, label: k === "ALL" ? "All node kinds" : k })),
           ]}
           onChange={(next) => setNodeKindFilter(next as NodeKindFilter)}
         />
-        <label style={controlsLabelStyle}>Edge type</label>
+        <span id="case-graph-edge-type-label" style={controlsLabelStyle}>Edge type</span>
         <AppListbox
+          ariaLabelledby="case-graph-edge-type-label"
           value={edgeTypeFilter}
           options={[
             ...ALL_EDGE_TYPES.map((t) => ({ value: t, label: t === "ALL" ? "All relationships" : t })),

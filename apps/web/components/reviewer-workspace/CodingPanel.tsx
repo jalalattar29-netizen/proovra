@@ -112,7 +112,8 @@ function FieldRow({
       data-coding-field-missing={isMissing ? "true" : "false"}
       style={{ display: "grid", gap: 4 }}
     >
-      <label style={{ fontSize: 12, color: "#0f172a", fontWeight: 600 }}>
+      {/* PRO-076: the label names the widget below it (aria-labelledby). */}
+      <label id={codingLabelId(field.id)} style={{ fontSize: 12, color: "#0f172a", fontWeight: 600 }}>
         {field.label}
         {field.required ? (
           <span style={{ color: "#b91c1c", marginLeft: 4 }}>*</span>
@@ -131,6 +132,10 @@ function FieldRow({
   );
 }
 
+function codingLabelId(fieldId: string): string {
+  return `coding-field-label-${fieldId}`;
+}
+
 function FieldWidget({
   field,
   current,
@@ -143,10 +148,12 @@ function FieldWidget({
   write: (v: Record<string, unknown>) => Promise<void>;
 }) {
   const v = (current?.value ?? {}) as Record<string, unknown>;
+  const labelId = codingLabelId(field.id);
   switch (field.fieldType) {
     case "TEXT":
       return (
         <textarea
+          aria-labelledby={labelId}
           rows={3}
           disabled={pending}
           defaultValue={typeof v["text"] === "string" ? (v["text"] as string) : ""}
@@ -157,6 +164,7 @@ function FieldWidget({
     case "NUMERIC":
       return (
         <input
+          aria-labelledby={labelId}
           type="number"
           disabled={pending}
           defaultValue={typeof v["number"] === "number" ? (v["number"] as number) : 0}
@@ -167,6 +175,7 @@ function FieldWidget({
     case "BOOLEAN":
       return (
         <input
+          aria-labelledby={labelId}
           type="checkbox"
           disabled={pending}
           defaultChecked={v["boolean"] === true}
@@ -176,6 +185,7 @@ function FieldWidget({
     case "CONFIDENCE_SCORE":
       return (
         <input
+          aria-labelledby={labelId}
           type="range"
           min={CONFIDENCE_SCORE_RANGE.min}
           max={CONFIDENCE_SCORE_RANGE.max}
@@ -188,6 +198,7 @@ function FieldWidget({
     case "REVIEWER_VERDICT":
       return (
         <SelectWidget
+          labelledBy={labelId}
           options={REVIEWER_VERDICTS.map((x) => ({ value: x, label: x }))}
           current={typeof v["verdict"] === "string" ? (v["verdict"] as string) : ""}
           onChange={(val) => void write({ verdict: val })}
@@ -197,6 +208,7 @@ function FieldWidget({
     case "RISK_LEVEL":
       return (
         <SelectWidget
+          labelledBy={labelId}
           options={REVIEWER_RISK_LEVELS.map((x) => ({ value: x, label: x }))}
           current={typeof v["risk"] === "string" ? (v["risk"] as string) : ""}
           onChange={(val) => void write({ risk: val })}
@@ -206,6 +218,7 @@ function FieldWidget({
     case "ESCALATION_LEVEL":
       return (
         <SelectWidget
+          labelledBy={labelId}
           options={ESCALATION_LEVELS.map((x) => ({
             value: String(x),
             label: `Level ${x}`,
@@ -221,6 +234,7 @@ function FieldWidget({
         [];
       return (
         <SelectWidget
+          labelledBy={labelId}
           options={opts}
           current={typeof v["single"] === "string" ? (v["single"] as string) : ""}
           onChange={(val) => void write({ single: val })}
@@ -276,7 +290,9 @@ function SelectWidget({
   current,
   onChange,
   disabled,
+  labelledBy,
 }: {
+  labelledBy: string;
   options: ReadonlyArray<{ value: string; label: string }>;
   current: string;
   onChange: (val: string) => void;
@@ -284,6 +300,7 @@ function SelectWidget({
 }) {
   return (
     <AppListbox
+      ariaLabelledby={labelledBy}
       value={current}
       options={[
         { value: "", label: "— Select —" },

@@ -801,6 +801,10 @@ function LoginPageContent() {
                         </div>
 
                         <form onSubmit={onEmailLogin} style={{ display: "grid", gap: 10 }}>
+                          {/* PRO-076: the field is named by a label, not only its placeholder. */}
+                          <label htmlFor="login-email" className="app-visually-hidden">
+                            Email
+                          </label>
                           <div className="auth-input-wrap">
                             <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--silver-ink)" }}>
                               <EmailIcon />
@@ -840,6 +844,9 @@ function LoginPageContent() {
                           ) : null}
 
                           <div style={{ display: "grid", gap: 6 }}>
+                            <label htmlFor="login-password" className="app-visually-hidden">
+                              Password
+                            </label>
                             <div className="auth-input-wrap">
                               <span className="auth-input-icon" aria-hidden="true" style={{ color: "var(--silver-ink)" }}>
                                 <LockIcon />

@@ -255,6 +255,7 @@ function CommunicationsPageInner() {
               <h2 style={sectionTitleStyle}>Messages</h2>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
                 <AppListbox
+                  ariaLabel="Channel"
                   value={channel}
                   options={[
                     { value: "", label: "All channels" },
@@ -263,6 +264,7 @@ function CommunicationsPageInner() {
                   onChange={(next) => setChannel(next as Channel | "")}
                 />
                 <AppListbox
+                  ariaLabel="Purpose"
                   value={purpose}
                   options={[
                     { value: "", label: "All purposes" },
@@ -271,6 +273,7 @@ function CommunicationsPageInner() {
                   onChange={(next) => setPurpose(next as Purpose | "")}
                 />
                 <AppListbox
+                  ariaLabel="Status"
                   value={status}
                   options={[
                     { value: "", label: "All statuses" },

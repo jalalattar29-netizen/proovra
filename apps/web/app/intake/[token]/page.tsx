@@ -1568,6 +1568,7 @@ export default function ExternalIntakePage({
                   </div>
                   {expectedSteps.length > 0 ? (
                     <AppListbox
+                      ariaLabel={`Checklist step for ${p.fileName}`}
                       value={p.checklistStepId ?? ""}
                       options={[
                         { value: "", label: "Map to step…" },
