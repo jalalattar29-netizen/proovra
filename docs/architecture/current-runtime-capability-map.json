@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "259db5d5a4f9718359df9a46ca1b1d3d56829eb7ecd09e3cd4eef102920486f2",
-  "consumerInventoryHash": "8ed2f8fb18aadaa67207892c17c7665089ef9818bd3a54b6314ba06f5d5415ca",
+  "consumerInventoryHash": "5999c1bd9fa1670bb6e493f5b3d0dcabb9a1c06ecbfe47f0f7fb3783d416517e",
   "dispositionsHash": "a23fed3de9a02d026277d09487f952b21fe5c095015ecd04d81e6715c8bf87d9",
   "totals": {
     "RegisteredRoutes": 1231,
@@ -640,7 +640,7 @@
       "method": "DELETE",
       "route": "/v1/orgs/:id/members/:memberId",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:423",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:435",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -7624,7 +7624,7 @@
       "method": "PATCH",
       "route": "/v1/orgs/:id/members/:memberId",
       "registeringFile": "services/api/src/routes/organizations.routes.ts",
-      "productConsumer": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:384",
+      "productConsumer": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:390",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -14056,7 +14056,7 @@
       "method": "POST",
       "route": "/v1/reviewer/qc/samples/:id/assign",
       "registeringFile": "services/api/src/routes/reviewer-workspace.routes.ts",
-      "productConsumer": "apps/web/app/(app)/review/qc/page.tsx:335",
+      "productConsumer": "apps/web/app/(app)/review/qc/page.tsx:339",
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
@@ -15635,6 +15635,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -19848,6 +19849,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -20946,6 +20948,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -22067,6 +22070,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -23188,6 +23192,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -24286,6 +24291,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -25407,6 +25413,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -26505,6 +26512,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -31492,8 +31500,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2542",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2542",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2574",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2574",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31525,8 +31533,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@917",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:917",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@925",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:925",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31558,8 +31566,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2880",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2880",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2912",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2912",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31591,8 +31599,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2926",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2926",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2958",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2958",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31624,8 +31632,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3011",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3011",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3043",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3043",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31657,8 +31665,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1116",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1116",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1124",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1124",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31690,8 +31698,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1485",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1485",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1493",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1493",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31723,8 +31731,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1580",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1580",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1588",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1588",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31756,8 +31764,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2340",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2340",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2372",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2372",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31789,8 +31797,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@1920",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1920",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@1952",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1952",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -36568,6 +36576,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -37711,6 +37720,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -38854,6 +38864,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -42213,6 +42224,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -57040,6 +57052,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -67194,6 +67207,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -68291,6 +68305,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -69379,6 +69394,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -70467,6 +70483,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -71564,6 +71581,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -72653,6 +72671,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -73750,6 +73769,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -74847,6 +74867,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -75935,6 +75956,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -77024,6 +77046,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -78636,6 +78659,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -79725,6 +79749,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -80814,6 +80839,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -81903,6 +81929,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -82992,6 +83019,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -84081,6 +84109,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -85170,6 +85199,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -86259,6 +86289,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -93270,8 +93301,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/qc-sample.service.ts#qcSample.updateMany@184",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/qc-sample.service.ts:184",
+      "writerId": "services/api/src/services/reviewer-workspace/qc-sample.service.ts#qcSample.updateMany@225",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/qc-sample.service.ts:225",
       "file": "services/api/src/services/reviewer-workspace/qc-sample.service.ts",
       "enclosingDeclaration": "assignSample",
       "kind": "DATABASE",
@@ -93303,8 +93334,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-workspace/qc-sample.service.ts#qcSample.updateMany@262",
-      "terminalLocation": "services/api/src/services/reviewer-workspace/qc-sample.service.ts:262",
+      "writerId": "services/api/src/services/reviewer-workspace/qc-sample.service.ts#qcSample.updateMany@314",
+      "terminalLocation": "services/api/src/services/reviewer-workspace/qc-sample.service.ts:314",
       "file": "services/api/src/services/reviewer-workspace/qc-sample.service.ts",
       "enclosingDeclaration": "renderQcVerdict",
       "kind": "DATABASE",
@@ -94891,6 +94922,7 @@
       "entryRoutes": [
         "DELETE /v1/identity/links/:id",
         "DELETE /v1/identity/mfa/factors/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "POST /v1/auth/mfa/verify",
         "POST /v1/identity-security/contact-factors/:id/revoke",
         "POST /v1/identity-security/contact-factors/enroll/start",
@@ -95830,6 +95862,7 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/ops/saved-views/:id",
+        "PATCH /v1/orgs/:id/members/:memberId",
         "PATCH /v1/redaction/policy",
         "PATCH /v1/reviewer-criteria/:setId/draft",
         "PATCH /v1/search/saved-views/:id",
@@ -106879,7 +106912,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1442",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1450",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106900,7 +106933,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
-          "line": 479,
+          "line": 491,
           "caller": "MembersTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106910,7 +106943,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx:272 (InvitationGovernanceSection, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:479 (MembersTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx:272 (InvitationGovernanceSection, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:491 (MembersTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -106950,7 +106983,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1831",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1863",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106963,7 +106996,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
-          "line": 423,
+          "line": 435,
           "caller": "MembersTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -106973,7 +107006,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:423 (MembersTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:435 (MembersTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -131446,7 +131479,7 @@
       "method": "GET",
       "path": "/v1/me/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:323",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:331",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133940,7 +133973,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:430",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:438",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134072,7 +134105,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/audit-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3088",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3120",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134237,7 +134270,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2736",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2768",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134379,7 +134412,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1373",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1381",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134519,7 +134552,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:544",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:552",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135273,7 +135306,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/workspaces",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:729",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:737",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148074,7 +148107,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:886",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:894",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148162,7 +148195,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1694",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1702",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -148175,7 +148208,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
-          "line": 384,
+          "line": 390,
           "caller": "MembersTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -148185,7 +148218,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:384 (MembersTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:390 (MembersTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -148198,13 +148231,18 @@
       "tenantBindingAuthority": "checkOrgAccess + organizationMembershipGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
+        "authenticatedSession",
+        "mfaFactor",
         "organization",
-        "organizationMembership"
+        "organizationMembership",
+        "user"
       ],
       "modelsWritten": [
         "membershipGrant",
+        "mfaFactor",
         "organizationAuditEvent",
-        "organizationMembership"
+        "organizationMembership",
+        "securityEvent"
       ],
       "tenantBindingResolved": true,
       "tenantBindingEvidence": [
@@ -182082,7 +182120,7 @@
       "method": "POST",
       "path": "/v1/org-invite-deliveries/process",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1674",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1682",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -182102,7 +182140,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1674 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:107 (runOrgInviteDeliverySweep)",
+      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1682 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:107 (runOrgInviteDeliverySweep)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -182144,7 +182182,7 @@
       "method": "POST",
       "path": "/v1/org-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1235",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1243",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182242,7 +182280,7 @@
       "method": "POST",
       "path": "/v1/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:866",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:874",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182281,7 +182319,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2780",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2812",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182365,7 +182403,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2967",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2999",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182439,7 +182477,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:995",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1003",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182525,7 +182563,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1539",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1547",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182554,7 +182592,7 @@
         },
         {
           "file": "apps/web/app/(app)/organizations/[id]/admin/members/page.tsx",
-          "line": 444,
+          "line": 456,
           "caller": "MembersTab",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -182564,7 +182602,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx:218 (InvitationGovernanceSection, WEB); apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx:317 (BulkInviteTab, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:444 (MembersTab, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/admin/provisioning/_sections/InvitationGovernanceSection.tsx:218 (InvitationGovernanceSection, WEB); apps/web/app/(app)/organizations/[id]/admin/bulk-invite/page.tsx:317 (BulkInviteTab, WEB); apps/web/app/(app)/organizations/[id]/admin/members/page.tsx:456 (MembersTab, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -182918,7 +182956,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/leave",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2277",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2309",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -183035,7 +183073,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2240",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2272",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183148,7 +183186,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2235",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2267",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183315,7 +183353,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2424",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2456",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183403,7 +183441,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2653",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2685",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183481,7 +183519,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2653",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2685",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -189830,7 +189868,7 @@
       "productConsumers": [
         {
           "file": "apps/web/app/(app)/review/qc/page.tsx",
-          "line": 335,
+          "line": 339,
           "caller": "QcWorkspace",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -189840,7 +189878,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/web/app/(app)/review/qc/page.tsx:335 (QcWorkspace, WEB)",
+      "dispositionEvidence": "apps/web/app/(app)/review/qc/page.tsx:339 (QcWorkspace, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -189868,7 +189906,8 @@
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "workflowReviewDecision"
       ],
       "modelsWritten": [
         "qcSample"
@@ -189936,7 +189975,8 @@
         "supportAccessGrant",
         "team",
         "teamMember",
-        "user"
+        "user",
+        "workflowReviewDecision"
       ],
       "modelsWritten": [
         "qcSample"
