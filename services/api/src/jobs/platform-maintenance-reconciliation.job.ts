@@ -39,10 +39,16 @@
  *     callback can never surface an unhandled rejection and the timer keeps
  *     firing; the next tick IS the retry (both steps are idempotent and
  *     bounded per call).
+ *
+ * REPORT-004 (2026-11-06) — a third step releases records whose first outputs
+ * the workspace output policy held, when that policy, re-read live, now allows
+ * them (`sweepHeldOutputs`): a bounded page per tick under its own lease, the
+ * same single-winner release every trigger uses, and the hold gauges.
  */
 
 import type { ReconcileStalledSummary } from "../services/reliability/upload-reconciliation.service.js";
 import type { ReconcileSummary } from "../routes/ops.routes.js";
+import type { OutputHoldSweepSummary } from "../services/governance/output-hold-release.service.js";
 
 /** Default cadence. Matches the 5-minute granularity runMasterReconcile's own
  *  "QUEUED for more than 5 minutes" cancellation is written against. */
@@ -55,6 +61,7 @@ export const PLATFORM_MAINTENANCE_LEASE_TTL_MS = 10 * 60 * 1000;
 export const OPS_MASTER_RECONCILE_LEASE_KEY = "cron:ops-master-reconcile";
 export const RELIABILITY_UPLOAD_RECONCILE_LEASE_KEY =
   "cron:reliability-upload-reconcile";
+export const OUTPUT_HOLD_RELEASE_LEASE_KEY = "cron:output-hold-release";
 
 export type PlatformMaintenanceStepOutcome<T> =
   | { status: "completed"; summary: T; durationMs: number }
@@ -65,6 +72,8 @@ export type PlatformMaintenanceSweepResult = {
   trigger: string;
   masterReconcile: PlatformMaintenanceStepOutcome<ReconcileSummary>;
   uploadReconcile: PlatformMaintenanceStepOutcome<ReconcileStalledSummary>;
+  /** REPORT-004 — absent when no release sweep is configured (a narrow test). */
+  outputHoldRelease?: PlatformMaintenanceStepOutcome<OutputHoldSweepSummary>;
 };
 
 type SweepLogger = {
@@ -76,6 +85,7 @@ type SweepLogger = {
 export type PlatformMaintenanceDeps = {
   runMasterReconcile: () => Promise<ReconcileSummary>;
   reconcileUploads: () => Promise<ReconcileStalledSummary>;
+  releaseHeldOutputs?: () => Promise<OutputHoldSweepSummary>;
   withLease: <T>(
     key: string,
     ttlMs: number,
@@ -87,16 +97,18 @@ export type PlatformMaintenanceDeps = {
 };
 
 async function defaultDeps(): Promise<PlatformMaintenanceDeps> {
-  const [{ runMasterReconcile }, { reconcileUploads }, { withLease }, { captureException }] =
+  const [{ runMasterReconcile }, { reconcileUploads }, { withLease }, { captureException }, { sweepHeldOutputs }] =
     await Promise.all([
       import("../routes/ops.routes.js"),
       import("../services/reliability/upload-reconciliation.service.js"),
       import("../services/rate-limit.js"),
       import("../observability/sentry.js"),
+      import("../services/governance/output-hold-release.service.js"),
     ]);
   return {
     runMasterReconcile,
     reconcileUploads: () => reconcileUploads({}),
+    releaseHeldOutputs: () => sweepHeldOutputs(),
     withLease,
     captureException,
   };
@@ -178,7 +190,19 @@ export async function runPlatformMaintenanceSweep(
     deps,
     trigger,
   );
-  return { trigger, masterReconcile, uploadReconcile };
+  const releaseHeldOutputs = deps.releaseHeldOutputs;
+  const outputHoldRelease = releaseHeldOutputs
+    ? await runStep("output_hold_release", OUTPUT_HOLD_RELEASE_LEASE_KEY, releaseHeldOutputs, deps, trigger)
+    : undefined;
+  // The alert: any hold older than the staleness threshold is a warning, with
+  // the gauges (output_holds_stale, output_hold_oldest_age_seconds) set by the step.
+  if (outputHoldRelease?.status === "completed" && outputHoldRelease.summary.stale > 0) {
+    deps.logger?.warn(
+      { stale: outputHoldRelease.summary.stale, oldestAgeSeconds: outputHoldRelease.summary.oldestAgeSeconds },
+      "output_hold.stale_detected",
+    );
+  }
+  return { trigger, masterReconcile, uploadReconcile, ...(outputHoldRelease ? { outputHoldRelease } : {}) };
 }
 
 /** Never-rejecting wrapper for the interval timer. */

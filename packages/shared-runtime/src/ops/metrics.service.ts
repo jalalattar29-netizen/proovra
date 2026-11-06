@@ -882,6 +882,11 @@ export const COUNTER_NAMES = [
   // tick, and one per closure processor that failed inside it.
   "lifecycle_tick_completed_total",
   "lifecycle_tick_processor_failed_total",
+  // REPORT-004 — the periodic release of records whose first outputs the
+  // workspace output policy held: one per record released, one per record the
+  // sweep could not re-decide.
+  "output_hold_released_total",
+  "output_hold_sweep_failed_total",
 ] as const;
 export type CounterName = (typeof COUNTER_NAMES)[number];
 
@@ -983,6 +988,11 @@ export const GAUGE_NAMES = [
   "derived_assets_completed",
   "derived_assets_unsupported",
   "derived_assets_oldest_pending_age_seconds",
+  // REPORT-004 — held first outputs: how many, how many past the staleness
+  // threshold, and the oldest hold's age.
+  "output_holds_active",
+  "output_holds_stale",
+  "output_hold_oldest_age_seconds",
 ] as const;
 export type GaugeName = (typeof GAUGE_NAMES)[number];
 
