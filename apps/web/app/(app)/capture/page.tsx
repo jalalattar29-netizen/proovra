@@ -1314,19 +1314,12 @@ onClick={async () => {
       {isExpanded ? (
         <div className="capture-material-detail-row">
           <div className="capture-material-detail-main">
-            {/* Phase IA-self-serve-completion — "Reviewer note" was
-                misleading for self-serve users: they ARE the reviewer
-                and they're adding their own notes for themselves or
-                counsel. Renamed to "Your notes" and the placeholder
-                to plain-language guidance. The underlying field
-                (`privateNote`) and API contract are unchanged. */}
-            <strong id={`capture-note-label-${item.id}`}>Your notes</strong>
-            <p id={`capture-note-help-${item.id}`}>{mappingHelper}</p>
+            {/* "Your notes" (was "Reviewer note"); field privateNote. */}
+            <strong>Your notes</strong>
+            <p>{mappingHelper}</p>
 
-            {/* PRO-076: named by its heading, not only by its placeholder. */}
             <textarea
-              aria-labelledby={`capture-note-label-${item.id}`}
-              aria-describedby={`capture-note-help-${item.id}`}
+              aria-label="Your notes"
               value={item.privateNote ?? ""}
               onChange={(event) =>
                 updateSessionItem(item.id, {

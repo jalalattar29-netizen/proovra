@@ -6,6 +6,7 @@ import { getClientCaptureEnvironment } from "./captureEnvironmentClient";
 
 import { useToast } from "../../../../components/ui";
 import { apiFetch } from "../../../../lib/api";
+import { refusedUploadReleasedReservation, withReleasedNote } from "./capture-refusal";
 // Phase HOME-DATA-OWNERSHIP — capture stamps the ACTIVE workspace id
 // (personal Team id or team id) on every new evidence record.
 import { useActiveSpace, useTenantGuard } from "../../../../lib/platform-context";
@@ -1047,24 +1048,15 @@ export function useCaptureSessionOrchestration({
       resetCaptureState({ preserveTimeline: true });
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
-      // PRO-078 — the server refused the record's only file and released its
-      // empty reservation (no record slot is held). Resuming into it would
-      // address a record that no longer exists, so the next Finish starts a
-      // new one.
-      const released = refusedUploadReleasedReservation(err);
+      const released = refusedUploadReleasedReservation(err); // PRO-078
       if (released) reservationRef.current = null;
-
-      // UC-WEB-001 — no item may stay "uploading" after a failure. The item
-      // that failed carries a safe error; items already uploaded keep 100%;
-      // the rest go back to idle so the retry can resume them.
+      // UC-WEB-001 — a failed item gets a safe error; uploaded ones keep 100%.
       {
         const failedItemId = currentItemId;
         const uploaded = reservationRef.current?.uploadedItemIds ?? new Set<string>();
-        const itemError = released
-          ? `${toSafeUserError(err).message} No record slot was used.`
-          : toSafeUserError(err, {
-              message: "This item could not be uploaded. Retry to resume.",
-            }).message;
+        const itemError = withReleasedNote(toSafeUserError(err, {
+          message: "This item could not be uploaded. Retry to resume.",
+        }).message, released);
         setSessionItems((prev) =>
           prev.map((current) => {
             if (uploaded.has(current.id)) {
@@ -1080,11 +1072,8 @@ export function useCaptureSessionOrchestration({
         );
       }
 
-      // Expected billing gate — TEAM workspace evidence requires a TEAM
-      // plan. This is user-recoverable: switch to personal workspace OR
-      // upgrade. Staged materials must NOT be discarded (we don't call
-      // resetCaptureState below for billing gates). Skip the Sentry
-      // capture too — this is not a server fault.
+      // Expected billing gate (TEAM evidence needs a TEAM plan): recoverable,
+      // staged materials are kept, and it is not reported as a server fault.
       const teamPlanGate = buildTeamPlanRequiredDetails(err);
       if (teamPlanGate) {
         setError(teamPlanGate.message);
@@ -1106,7 +1095,7 @@ export function useCaptureSessionOrchestration({
       }
 
       const storageMessage = buildStorageLimitMessage(err);
-      const baseMsg = storageMessage || (released ? `${safe.message} No record slot was used.` : safe.message);
+      const baseMsg = storageMessage || withReleasedNote(safe.message, released);
 
       const toast = captureFailureToast(safe, {
         explained,
@@ -1146,13 +1135,4 @@ export function useCaptureSessionOrchestration({
     setSessionItems,
     setSessionStatus,
   };
-}
-/**
- * PRO-078 — POST /v1/evidence/:id/parts answered 415 FILE_VALIDATION_BLOCKED
- * and released the record's empty reservation (`reservationReleased: true`).
- * apiFetch keeps a flat body's fields under `body.error`.
- */
-export function refusedUploadReleasedReservation(err: unknown): boolean {
-  const e = err as { code?: unknown; body?: { error?: { reservationReleased?: unknown } } } | null;
-  return e?.code === "FILE_VALIDATION_BLOCKED" && e.body?.error?.reservationReleased === true;
 }

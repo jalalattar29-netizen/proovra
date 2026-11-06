@@ -277,7 +277,9 @@ export function RequestDemoForm({
         </div>
 
         <div>
-          <LeadFieldLabel id="rd-teamSize-label">Team size</LeadFieldLabel>
+          <LeadFieldLabel id="rd-teamSize-label">
+            Team size
+          </LeadFieldLabel>
           <PremiumSelect
             labelId="rd-teamSize-label"
             value={form.teamSize ?? ""}

@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "../../lib/api";
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
-import { refusedUploadReleasedReservation } from "../../app/(app)/capture/_hooks/useCaptureSessionOrchestration";
+import { refusedUploadReleasedReservation } from "../../app/(app)/capture/_hooks/capture-refusal";
 
 function answer(status: number, body: unknown) {
   vi.stubGlobal(

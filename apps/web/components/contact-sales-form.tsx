@@ -168,7 +168,9 @@ export function ContactSalesForm({
           />
         </div>
         <div>
-          <LeadFieldLabel id="cs-teamSize-label">Team size</LeadFieldLabel>
+          <LeadFieldLabel id="cs-teamSize-label">
+            Team size
+          </LeadFieldLabel>
           <PremiumSelect
             labelId="cs-teamSize-label"
             value={form.teamSize ?? ""}
