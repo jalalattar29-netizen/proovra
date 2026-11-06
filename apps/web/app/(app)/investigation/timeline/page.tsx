@@ -326,8 +326,9 @@ function InvestigationTimelinePageInner() {
       </header>
 
       <section style={controlsRowStyle}>
-        <label style={controlsLabelStyle}>Event kind</label>
+        <span id="timeline-event-kind-label" style={controlsLabelStyle}>Event kind</span>
         <AppListbox
+          ariaLabelledby="timeline-event-kind-label"
           value={filter}
           options={[
             ...FILTER_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label })),

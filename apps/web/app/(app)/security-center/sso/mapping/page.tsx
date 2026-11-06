@@ -512,9 +512,9 @@ function FieldEditor({
           marginBottom: 4,
         }}
       >
-        <label style={{ fontWeight: 600, fontSize: 13 }}>
+        <span id={`sso-mapping-${descriptor.key}-label`} style={{ fontWeight: 600, fontSize: 13 }}>
           {descriptor.label}
-        </label>
+        </span>
         {descriptor.privilegeAffecting ? (
           <Badge tone="pending">PRIV</Badge>
         ) : null}
@@ -524,6 +524,7 @@ function FieldEditor({
       </p>
       {descriptor.kind === "enum" && descriptor.enumValues ? (
         <AppListbox
+          ariaLabelledby={`sso-mapping-${descriptor.key}-label`}
           value={value ?? ""}
           options={[
             { value: "", label: "— default —" },
@@ -534,6 +535,7 @@ function FieldEditor({
       ) : (
         <input
           className="app-input"
+          aria-labelledby={`sso-mapping-${descriptor.key}-label`}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value || null)}
           placeholder={descriptor.suggestions[0] ?? ""}
@@ -590,12 +592,14 @@ function GroupRoleMapEditor({
                 <td >
                   <input
                     className="app-input"
+                    aria-label={`Group claim value, row ${i + 1}`}
                     value={e.group}
                     onChange={(ev) => update(i, { group: ev.target.value })}
                   />
                 </td>
                 <td >
                   <AppListbox
+                    ariaLabel={`Role for group claim, row ${i + 1}`}
                     value={e.role}
                     options={[
                       { value: "OWNER", label: "Owner" },

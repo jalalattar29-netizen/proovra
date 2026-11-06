@@ -164,7 +164,11 @@ export type ReservationReleaseReason =
   | "RESERVATION_EXPIRED"
   // ET-INT-09 — two first-part intake uploads raced; the loser releases its own
   // still-empty reservation (the session is bound to the winner's record).
-  | "INTAKE_SESSION_RACE_LOST";
+  | "INTAKE_SESSION_RACE_LOST"
+  // PRO-078 — the record's first file was refused (file validation), so the
+  // record holds nothing and cannot be sealed as it stands. Its reservation
+  // used to hold a FREE slot, invisibly, for 24 hours.
+  | "UPLOAD_REFUSED";
 
 /**
  * Release one reservation inside the caller's transaction. Returns false (and
@@ -186,6 +190,20 @@ export async function releaseEvidenceReservationTx(
     select: { id: true, status: true, deletedAt: true },
   });
   if (!evidence || evidence.deletedAt || !UNSEALED.includes(evidence.status as never)) return false;
+  // PRO-078 — a refusal releases only a record that is still EMPTY: no part,
+  // no resumable (multipart) upload under way or with a completed part, and no
+  // live intake or capture session that could still fill it. Creation reserves
+  // a storage location and opens an upload session for every record, so
+  // neither of those proves content. A refused second file must not discard
+  // the record its first file is in.
+  if (params.reason === "UPLOAD_REFUSED") {
+    if ((await tx.evidencePart.count({ where: { evidenceId: evidence.id } })) > 0) return false;
+    const resumable = await tx.uploadSession.count({
+      where: { evidenceId: evidence.id, OR: [{ isMultipart: true }, { completedPartCount: { gt: 0 } }] },
+    });
+    if (resumable > 0) return false;
+    if (await heldByLiveSession(tx, evidence.id, params.now)) return false;
+  }
   // A time-based release never takes a record a live session can still finish.
   // (A discard or a session expiry has already ended its own session.)
   if (params.reason === "RESERVATION_EXPIRED" && (await heldByLiveSession(tx, evidence.id, params.now))) {

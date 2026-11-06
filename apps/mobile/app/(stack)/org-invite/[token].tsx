@@ -44,7 +44,11 @@ import {
   acceptedHeadline,
   grantedWorkspaceName,
   orgInviteFailureMessage,
+  orgInviteGrantLines,
   orgInviteLanding,
+  ORG_INVITE_LOOKUP_PATH,
+  parseOrgInviteLookup,
+  type OrgInviteLookupView,
   orgSetupWebUrl,
   ORG_SETUP_ON_WEB_COPY,
   parseOrgInviteAccept,
@@ -67,6 +71,8 @@ export default function OrgInviteAcceptScreen() {
   const [phase, setPhase] = useState<Phase>("checking");
   const [result, setResult] = useState<OrgInviteAccepted | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // PRO-072 — what accepting grants, read before Accept is offered.
+  const [lookup, setLookup] = useState<OrgInviteLookupView | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -81,7 +87,30 @@ export default function OrgInviteAcceptScreen() {
       router.replace("/(stack)/auth");
       return;
     }
-    setPhase("ready");
+    let cancelled = false;
+    void (async () => {
+      let view: OrgInviteLookupView | null = null;
+      try {
+        view = parseOrgInviteLookup(
+          await apiFetch(ORG_INVITE_LOOKUP_PATH, { method: "POST", body: JSON.stringify({ token }) }),
+        );
+      } catch (err) {
+        // An unknown link is one opaque 404; anything else claims nothing.
+        if (toSafeUserError(err).status === 404) {
+          if (!cancelled) {
+            setFailure(orgInviteFailureMessage(404));
+            setPhase("error");
+          }
+          return;
+        }
+      }
+      if (cancelled) return;
+      setLookup(view);
+      setPhase("ready");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [token, router]);
 
   const accept = useCallback(async () => {
@@ -131,6 +160,8 @@ export default function OrgInviteAcceptScreen() {
     }
   };
 
+  const grants = orgInviteGrantLines(lookup);
+
   if (phase === "checking") {
     return (
       <ProovraScreen scroll={false}>
@@ -143,16 +174,22 @@ export default function OrgInviteAcceptScreen() {
     <ProovraScreen width="form" testID="org-invite-accept">
       <ProovraSection title="Accept organization invite">
         <ProovraCard>
-          <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
-            Accepting will add you to the organization at the role the inviter chose. This does NOT grant you access to workspace evidence, cases, or reviewer queues — those remain workspace-scoped.
-          </ProovraText>
+          {phase === "ready" || phase === "accepting" ? (
+            <View testID="org-invite-grants" style={styles.grants}>
+              {grants.lines.map((line) => (
+                <ProovraText key={line} variant="bodySm" color={theme.color.ink.secondary}>
+                  {line}
+                </ProovraText>
+              ))}
+            </View>
+          ) : null}
           <ProovraText variant="label" color={theme.color.ink.muted}>
             Your personal space is not merged or converted — this adds a space you can switch to.
           </ProovraText>
 
           {phase === "ready" ? (
             <View style={styles.actions}>
-              <ProovraButton label="Accept invite" onPress={() => void accept()} />
+              {grants.canAccept ? <ProovraButton label="Accept invite" onPress={() => void accept()} /> : null}
               <ProovraButton label="Not now" variant="ghost" onPress={() => router.replace("/")} />
             </View>
           ) : null}
@@ -215,6 +252,7 @@ export default function OrgInviteAcceptScreen() {
 
 const styles = StyleSheet.create({
   actions: { marginTop: 16, gap: 8 },
+  grants: { gap: 6 },
   panel: { marginTop: theme.space.s4, padding: theme.space.s3, borderRadius: theme.radius.md, borderWidth: 1, gap: theme.space.s2 },
   panelOk: { borderColor: theme.color.status.verified.border, backgroundColor: theme.color.status.verified.bg },
   panelError: { borderColor: theme.color.status.risk.border, backgroundColor: theme.color.status.risk.bg },

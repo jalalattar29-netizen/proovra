@@ -48,12 +48,19 @@ const integrations: TileItem[] = [
   { kind: "icon", name: "Custom API", desc: "Build on PROOVRA", Icon: Code2, tint: "#475569" },
 ];
 
+/*
+ * REPORT-009 — no certification marks. The SOC, ISO and NIST logos sat here
+ * as "Security control principles", "Aligned security controls" and
+ * "NIST-aligned controls". A certification body's mark reads as a
+ * certification, and PROOVRA's own security policy (content/legal/en/
+ * security.md) states that it claims no SOC 2, ISO 27001 or other
+ * certification unless a named audit report says so. Every tile below names
+ * something the product does. A mark returns only with the certification it
+ * stands for, recorded in lib/marketing/certifications.ts.
+ */
 const compliance: TileItem[] = [
-  { kind: "logo", name: "Security control principles", desc: "Designed with recognized security frameworks", logo: "/assets/logos/soc.svg" },
-  { kind: "logo", name: "Aligned security controls", desc: "Enterprise security controls aligned with recognized frameworks", logo: "/assets/logos/iso.svg" },
   { kind: "icon", name: "GDPR support", desc: "GDPR support features", Icon: ShieldCheck, tint: "#2563EB" },
   { kind: "icon", name: "Healthcare workflows", desc: "Workflows for healthcare data handling", Icon: FileCheck2, tint: "#BE123C" },
-  { kind: "logo", name: "NIST-aligned controls", desc: "NIST cybersecurity-framework controls", logo: "/assets/logos/nist.svg" },
   { kind: "logo", name: "SAML SSO Supported", desc: "Enterprise single sign-on", logo: "/assets/logos/saml.svg" },
   { kind: "icon", name: "MFA Policy", desc: "Multi-factor authentication, required by workspace policy", Icon: Lock, tint: "#15803D" },
   { kind: "icon", name: "SCIM Supported", desc: "User provisioning and sync", Icon: Users, tint: "#7C3AED" },

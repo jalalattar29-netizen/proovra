@@ -196,6 +196,7 @@ function WorkflowsTemplatesPageInner() {
             <h2 style={sectionTitleStyle}>Templates</h2>
             <div style={{ display: "flex", gap: 8 }}>
               <AppListbox
+                ariaLabel="Sector"
                 value={sector}
                 options={[
                   { value: "", label: "All sectors" },

@@ -297,6 +297,9 @@ export const REQUIRED_RECIPES: Record<string, RouteHint> = {
   "POST /v1/teams/invites/lookup": {
     klass: "public",
   },
+  "POST /v1/org-invites/lookup": {
+    klass: "public",
+  },
   "POST /v1/collaboration-team-invites/accept": {
     klass: "token",
     session: async (s) => {

@@ -45,6 +45,7 @@ import { routeAccessInputFromEnvelope } from "../../lib/navigation/useRouteDesti
 import { hasNoContextYet } from "../../lib/platform-context/types";
 import { ProovraDenialState } from "../feedback/ProovraDenialState";
 import type { SystemStateAction } from "../feedback/ProovraSystemState";
+import { SignedOutAppState } from "./SignedOutAppState";
 
 export function PageRouteGate({
   routeId,
@@ -141,6 +142,22 @@ export function PageRouteGate({
   );
 
   if (access.canLoad) return <>{children}</>;
+
+  // PRO-075: the context refused the SESSION (401), not the workspace. With no
+  // envelope, the resolver reads that as "no workspace" or "no
+  // permission", which would show a state about plans and roles to someone who only
+  // needs to sign in (again: a session can expire while a page is open). A
+  // route that loads with no context (an invitation page) still loads: it
+  // handles the signed-out visitor itself.
+  if (state.name === "FAILED" && state.errorCode === "AUTH_REQUIRED") {
+    return (
+      <SignedOutAppState
+        presentation="contained"
+        pathname={typeof window === "undefined" ? null : window.location.pathname}
+        search={typeof window === "undefined" ? "" : window.location.search}
+      />
+    );
+  }
 
   if (access.accessState === "PLATFORM_ADMIN_ONLY") {
     // PRODUCTION FIX: previously this branch returned `null`, leaving

@@ -213,6 +213,11 @@ export type {
   WorkspaceInvitationContext,
   WorkspaceInvitationRefusalCode,
 } from "./workspace-invitation-contract.js";
+export type {
+  OrganizationInvitationLookup,
+  OrganizationInvitationContext,
+  OrganizationInvitationWorkspaceGrant,
+} from "./organization-invitation-contract.js";
 export { resolveInvitationView, isRetryableRefusal } from "./workspace-invitation-view.js";
 export type {
   InvitationAuthState,

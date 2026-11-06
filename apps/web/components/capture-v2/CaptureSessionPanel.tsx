@@ -306,16 +306,19 @@ export function CaptureSessionPanel({
         </section>
 
         <section className="capture-notes-card">
-          <div className="capture-card-title capture-inline-heading">
+          <div className="capture-card-title capture-inline-heading" id="capture-private-note-title">
             <span className="capture-inline-heading-icon">
               <LockKeyhole size={15} strokeWidth={2.1} />
             </span>
             Private note
           </div>
-          <p>
+          <p id="capture-private-note-help">
             Visible only inside the authenticated app. Excluded from public verification, reports, and verification packages.
           </p>
+          {/* PRO-076: named by its heading, not only by its placeholder. */}
           <textarea
+            aria-labelledby="capture-private-note-title"
+            aria-describedby="capture-private-note-help"
             value={internalNotes}
             onChange={(event) => setInternalNotes(event.target.value)}
             maxLength={4000}

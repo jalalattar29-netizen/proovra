@@ -157,7 +157,7 @@ export function BulkToolbar({
                 if (next) onAssign(next);
               }}
               disabled={busy}
-              aria-label={copy.bulkAssignTo}
+              ariaLabel={copy.bulkAssignTo}
               options={[
                 { value: "", label: copy.bulkAssignPlaceholder },
                 ...(selfUserId

@@ -276,6 +276,7 @@ useEffect(() => {
               <h2 style={sectionTitleStyle}>Queue</h2>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
                 <AppListbox
+                  ariaLabel="Queue status"
                   value={stage}
                   options={[
                     { value: "", label: "All statuses" },

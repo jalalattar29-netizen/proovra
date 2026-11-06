@@ -398,7 +398,8 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     why: "Integrations API (API-key clients) only; no browser surface calls it.",
   },
   MIME_TYPE_NOT_ALLOWED: { disposition: "customer", where: PUBLIC_INTAKE },
-  FILE_VALIDATION_BLOCKED: { disposition: "customer", where: PUBLIC_INTAKE },
+  // PRO-078 — also sent by the authenticated part upload now; global copy.
+  FILE_VALIDATION_BLOCKED: { disposition: "customer", where: "global" },
   PART_INDEX_TAKEN: { disposition: "customer", where: PUBLIC_INTAKE },
   PART_NOT_UPLOADED: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMITTER_IDENTITY_INVALID: { disposition: "customer", where: PUBLIC_INTAKE },

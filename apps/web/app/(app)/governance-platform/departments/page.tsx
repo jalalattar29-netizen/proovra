@@ -739,6 +739,7 @@ function Shell() {
           >
             <input
               data-department-name
+              aria-label="Department name"
               placeholder="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -746,6 +747,7 @@ function Shell() {
             />
             <input
               data-department-slug
+              aria-label="Department slug"
               placeholder="slug (lowercase)"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
@@ -904,12 +906,14 @@ function Shell() {
               >
                 <input
                   data-department-grant-user-id
+                  aria-label="Member user ID"
                   placeholder="Member user ID"
                   value={grantUserId}
                   onChange={(e) => setGrantUserId(e.target.value)}
                   style={input}
                 />
                 <AppListbox
+                  ariaLabel="Membership role"
                   value={grantRole}
                   options={[
                     ...DEPARTMENT_MEMBERSHIP_ROLES.map((r) => ({ value: r, label: departmentRoleLabel(r) })),

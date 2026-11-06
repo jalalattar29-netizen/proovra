@@ -475,6 +475,7 @@ function SlaDashboardPageInner() {
         >
           <h3 className="app-panel__title">Escalation analytics</h3>
           <AppListbox
+            ariaLabel="Escalation analytics range"
             value={String(rangeDays)}
             options={[
               { value: "7", label: "Last 7 days" },

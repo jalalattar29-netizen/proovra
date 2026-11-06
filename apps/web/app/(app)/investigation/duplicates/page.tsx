@@ -367,8 +367,9 @@ function DuplicatesReviewPageInner() {
 
       <section style={controlsRowStyle}>
         <div style={controlsGroupStyle}>
-          <label style={controlsLabelStyle}>Relationship</label>
+          <span id="duplicates-relationship-label" style={controlsLabelStyle}>Relationship</span>
           <AppListbox
+            ariaLabelledby="duplicates-relationship-label"
             value={filter}
             options={[
               ...FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
@@ -377,8 +378,9 @@ function DuplicatesReviewPageInner() {
           />
         </div>
         <div style={controlsGroupStyle}>
-          <label style={controlsLabelStyle}>Confidence</label>
+          <span id="duplicates-confidence-label" style={controlsLabelStyle}>Confidence</span>
           <AppListbox
+            ariaLabelledby="duplicates-confidence-label"
             value={confidenceFilter}
             options={[
               ...CONFIDENCE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),

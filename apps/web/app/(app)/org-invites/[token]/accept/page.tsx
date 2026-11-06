@@ -30,6 +30,7 @@ import { useParams, useRouter } from "next/navigation";
 import { apiFetch, isApiResponseError } from "../../../../../lib/api";
 import { PageRouteGate } from "../../../../../components/navigation/PageRouteGate";
 import { usePlatformContext } from "../../../../../lib/platform-context";
+import type { OrganizationInvitationLookup } from "@proovra/shared";
 
 type State =
   | { kind: "idle" }
@@ -45,6 +46,31 @@ type State =
       refusedWorkspaceCount: number;
     }
   | { kind: "error"; status: number; message: string; code?: string };
+
+/**
+ * PRO-072: what the invitation grants, read BEFORE accepting.
+ *
+ * The page used to say "This does NOT grant you access to workspace
+ * evidence, cases, or reviewer queues" for every invitation, while accepting
+ * wrote the invitation's workspace assignments (up to workspace ADMIN). It now
+ * asks POST /v1/org-invites/lookup, which reads the same assignments the
+ * accept transaction acts on, and states them.
+ */
+type Lookup =
+  | { phase: "loading" }
+  | { phase: "ready"; view: OrganizationInvitationLookup }
+  | { phase: "unavailable" }
+  | { phase: "failed" };
+
+const WORKSPACE_ROLE_WORDS: Record<string, string> = {
+  VIEWER: "Viewer: can open and read its evidence, cases and reports",
+  MEMBER: "Member: can capture and work on its evidence and cases",
+  ADMIN: "Admin: can manage the workspace, its members and its settings",
+};
+
+function workspaceRoleWords(role: string): string {
+  return WORKSPACE_ROLE_WORDS[role] ?? role;
+}
 
 /** The role as a word: the raw value read "You are now a ORG_MEMBER". */
 function orgRoleLabel(role: string): string {
@@ -77,6 +103,32 @@ function OrgInviteAcceptPageInner() {
   const token = params?.token ?? "";
 
   const [state, setState] = useState<State>({ kind: "idle" });
+  const [lookup, setLookup] = useState<Lookup>({ phase: "loading" });
+
+  useEffect(() => {
+    if (!token) {
+      setLookup({ phase: "unavailable" });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const view = (await apiFetch("/v1/org-invites/lookup", {
+          method: "POST",
+          body: JSON.stringify({ token }),
+        })) as OrganizationInvitationLookup;
+        if (!cancelled) setLookup({ phase: "ready", view });
+      } catch (err) {
+        if (cancelled) return;
+        setLookup(
+          isApiResponseError(err) && err.statusCode === 404 ? { phase: "unavailable" } : { phase: "failed" },
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const accept = useCallback(async () => {
     if (!token) {
@@ -203,13 +255,9 @@ function OrgInviteAcceptPageInner() {
       data-token-present={token ? "true" : "false"}
     >
       <h1>Accept organization invite</h1>
-      <p style={{ fontSize: 14, opacity: 0.85 }}>
-        Accepting will add you to the organization at the role the inviter
-        chose. This does NOT grant you access to workspace evidence, cases,
-        or reviewer queues — those remain workspace-scoped.
-      </p>
+      {state.kind === "idle" || state.kind === "accepting" ? <InvitationGrants lookup={lookup} /> : null}
 
-      {state.kind === "idle" && (
+      {state.kind === "idle" && acceptable(lookup) && (
         <button
           type="button"
           data-action="accept-invite"
@@ -352,6 +400,111 @@ function OrgInviteAcceptPageInner() {
             ]}
           />
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Offered for acceptance while PENDING, or when the details could not be read (the accept says why it refuses). */
+function acceptable(lookup: Lookup): boolean {
+  return lookup.phase === "failed" || (lookup.phase === "ready" && lookup.view.state === "PENDING");
+}
+
+function InvitationGrants({ lookup }: { lookup: Lookup }) {
+  const text = { fontSize: 14, opacity: 0.85 } as const;
+  if (lookup.phase === "loading") {
+    return (
+      <p style={text} data-invite-grants="loading" role="status">
+        Checking what this invitation gives you…
+      </p>
+    );
+  }
+  if (lookup.phase === "failed") {
+    return (
+      <p style={text} data-invite-grants="unknown">
+        We could not load the details of this invitation. Accepting adds you to the organization with
+        the role the inviter chose, and to any workspaces the invitation names, at the role it names.
+      </p>
+    );
+  }
+  if (lookup.phase === "unavailable") {
+    return (
+      <div data-invite-grants="unavailable">
+        <ProovraSystemState
+          context="authenticated"
+          presentation="contained"
+          kind="invitation-invalid"
+          testId="org-invite-unavailable"
+          title="This invitation link isn't available"
+          message="The link may be incorrect. Ask an organization administrator for a new invitation."
+          actions={[{ label: "Return to dashboard", href: "/home", variant: "primary" }]}
+        />
+      </div>
+    );
+  }
+  const { view } = lookup;
+  if (view.state !== "PENDING" || !view.context) {
+    const title =
+      view.state === "ACCEPTED"
+        ? "This invitation has already been accepted"
+        : view.state === "REVOKED"
+          ? "This invitation was revoked"
+          : view.state === "EXPIRED"
+            ? "This invitation has expired"
+            : "This organization is not accepting new members right now";
+    return (
+      <div data-invite-grants={view.state.toLowerCase()}>
+        <ProovraSystemState
+          context="authenticated"
+          presentation="contained"
+          kind={
+            view.state === "REVOKED"
+              ? "invitation-revoked"
+              : view.state === "EXPIRED"
+                ? "invitation-expired"
+                : "invitation-invalid"
+          }
+          testId="org-invite-terminal"
+          title={title}
+          message="Ask an organization administrator to send a new invitation if you still need access."
+          actions={[{ label: "Return to dashboard", href: "/home", variant: "primary" }]}
+        />
+      </div>
+    );
+  }
+  const ctx = view.context;
+  return (
+    <div data-invite-grants="pending" style={{ display: "grid", gap: 8 }}>
+      <p style={text}>
+        Accepting adds you to <strong>{ctx.organizationName}</strong> as an organization{" "}
+        {orgRoleLabel(ctx.role)}. Invited address: {ctx.invitedEmailMasked}.
+      </p>
+      {ctx.workspaces.length > 0 ? (
+        <div>
+          <p style={text} id="invite-workspace-grants">
+            It also gives you access to{" "}
+            {ctx.workspaces.length === 1 ? "this workspace" : `these ${ctx.workspaces.length} workspaces`}:
+          </p>
+          <ul
+            aria-labelledby="invite-workspace-grants"
+            data-invite-workspace-grants
+            style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 14 }}
+          >
+            {ctx.workspaces.map((w) => (
+              <li key={`${w.workspaceName}:${w.role}`} data-invite-workspace-role={w.role}>
+                <strong>{w.workspaceName}</strong>: {workspaceRoleWords(w.role)}
+              </li>
+            ))}
+          </ul>
+          <p style={{ ...text, fontSize: 13 }}>
+            A workspace with no free seat cannot be granted; you will be told after accepting if that happens.
+          </p>
+        </div>
+      ) : (
+        <p style={text} data-invite-workspace-grants="none">
+          It gives you no workspace access. Evidence, cases and reviewer queues belong to workspaces, and an
+          administrator can add you to one later.
+        </p>
       )}
     </div>
   );

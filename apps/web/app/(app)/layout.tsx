@@ -9,6 +9,7 @@ import { AppShellV2 } from "../../components/app-shell-v2/AppShellV2";
 import { ProovraChatWidget } from "../../components/ai/ProovraChatWidget";
 import { useAuth } from "../providers";
 import { PlatformContextProvider } from "../../lib/platform-context";
+import { SignedOutAppGate } from "../../components/navigation/SignedOutAppState";
 import { isInvitationAcceptPath } from "../../lib/navigation/invitation-path";
 import { LegalAcceptanceStep } from "../../components/legal/LegalAcceptanceStep";
 
@@ -132,6 +133,7 @@ export default function AppLayout({
           {children}
         </div>
       ) : (
+      <SignedOutAppGate active={!hasSession} pathname={pathname}>
       <AppShellV2 onLogout={handleLogout}>
         {/* Both slots carry STABLE DOMAIN KEYS, and the route child rides a
             keyed fragment — deliberately, and not decoration:
@@ -157,7 +159,9 @@ export default function AppLayout({
           <ProovraChatWidget key="assistant-widget" />
         ) : null}
       </AppShellV2>
+      </SignedOutAppGate>
       )}
     </PlatformContextProvider>
   );
 }
+

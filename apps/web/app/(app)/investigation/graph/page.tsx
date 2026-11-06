@@ -273,8 +273,9 @@ useEffect(() => {
       />
 
       <section style={controlsRowStyle}>
-        <label style={controlsLabelStyle}>Seed kind</label>
+        <span id="graph-seed-kind-label" style={controlsLabelStyle}>Seed kind</span>
         <AppListbox
+          ariaLabelledby="graph-seed-kind-label"
           value={filter}
           options={[
             ...FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label })),

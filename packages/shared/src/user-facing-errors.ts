@@ -684,6 +684,16 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
    * they cannot add evidence needs to know that what they already recorded is
    * safe before they need to know what to buy.
    */
+  /**
+   * PRO-078 — the authenticated upload now names this refusal (it sent only
+   * "File validation blocked"). Nothing from the file was stored.
+   */
+  FILE_VALIDATION_BLOCKED: {
+    title: "This file can't be recorded",
+    message:
+      "PROOVRA does not record this kind of file, such as a program or a file whose name disguises its type. Nothing from it was stored. Remove it and add the original document, image, audio or video instead.",
+    severity: "warning",
+  },
   EVIDENCE_RECORD_LIMIT_REACHED: {
     title: "Evidence record limit reached",
     message:
@@ -692,10 +702,17 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionLabel: "View plans",
     actionHref: "/billing",
   },
+  /**
+   * PRO-078 — the copy stays true when the slots are held by uploads that were
+   * never finished, not only by sealed records: those hold a slot while they
+   * are live, and give it back when finished, released, or 24 hours after
+   * they were last touched. "Deleting a record does not restore a slot" is
+   * about sealed records (owner decision 2026-10-14) and stays.
+   */
   FREE_LIMIT_REACHED: {
     title: "Free record limit reached",
     message:
-      "The Free plan includes 3 complete evidence records, each with its report, verification package and verification page, and this account has used them all. Deleting a record does not restore a slot. Your existing records remain available — buy evidence credits or upgrade to add more.",
+      "The Free plan includes 3 evidence records, each with its report, verification package and verification page. Deleting a record does not restore a slot. An upload that was started but never finished also holds a slot, until it is finished or released and for at most 24 hours after it was last touched. Your existing records remain available — buy evidence credits or upgrade to add more.",
     severity: "warning",
     actionLabel: "View plans",
     actionHref: "/billing",

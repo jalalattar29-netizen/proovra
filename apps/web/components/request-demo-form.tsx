@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AppListbox } from "./app-primitives/AppListbox";
 import { Input, useToast } from "./ui";
 import {
   ORGANIZATION_TYPE_OPTIONS,
@@ -18,109 +18,82 @@ import { MARKETING_BTN } from "../lib/marketing-buttons";
 
 type SelectOption = { value: string; label: string };
 
+/**
+ * The lead forms' select, now the shared AppListbox (PRO-006).
+ *
+ * The hand-written menu it replaces listened for keys on the whole DOCUMENT
+ * while open, and never closed when focus left: open "Team size", Tab to the
+ * next field, press ArrowDown + Enter, and Team size changed while another
+ * control had focus. AppListbox reads keys only on its own listbox, closes
+ * when focus leaves it, returns focus to its trigger on Tab, and exposes the
+ * active option through aria-activedescendant.
+ *
+ * `labelId` names the control from the visible label above it (PRO-002): the
+ * label is a <span> with that id, since a <label> can only name a labelable
+ * element and the trigger is a combobox button.
+ */
 export function PremiumSelect({
   value,
   onChange,
   options,
   placeholder,
+  labelId,
+  describedBy,
+  required = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: readonly SelectOption[];
   placeholder?: string;
+  labelId: string;
+  describedBy?: string;
+  required?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const [focusIdx, setFocusIdx] = useState(-1);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const selected = options.find((o) => o.value === value);
-
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-        buttonRef.current?.focus();
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setFocusIdx((i) => Math.min(options.length - 1, i + 1));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setFocusIdx((i) => Math.max(0, i - 1));
-      } else if (e.key === "Enter" && focusIdx >= 0) {
-        e.preventDefault();
-        onChange(options[focusIdx].value);
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, focusIdx, options, onChange]);
-
   return (
-    <div ref={wrapperRef} className="relative">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => {
-          setOpen((o) => !o);
-          setFocusIdx(options.findIndex((o) => o.value === value));
-        }}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className="flex w-full items-center justify-between rounded-[12px] border border-[#E2E8F0] bg-white px-3 text-[13.5px] shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all duration-200 hover:border-[#CBD5E1] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
-        style={{ minHeight: 40 }}
-      >
-        <span className={selected ? "text-[#0F172A]" : "text-[#94A3B8]"}>
-          {selected ? selected.label : placeholder ?? "Select"}
-        </span>
-        <ChevronDown
-          size={14}
-          className={`text-[#64748B] transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-56 overflow-auto rounded-[12px] border border-[#E2E8F0] bg-white p-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
-        >
-          {options.map((opt, i) => {
-            const isSelected = opt.value === value;
-            const isFocused = i === focusIdx;
-            return (
-              <li
-                key={opt.value}
-                role="option"
-                aria-selected={isSelected}
-                onMouseEnter={() => setFocusIdx(i)}
-                onClick={() => {
-                  onChange(opt.value);
-                  setOpen(false);
-                  buttonRef.current?.focus();
-                }}
-                className={`cursor-pointer rounded-[8px] px-2.5 py-1.5 text-[13.5px] ${
-                  isSelected
-                    ? "bg-[#EFF6FF] font-semibold text-[#2563EB]"
-                    : isFocused
-                      ? "bg-[#F1F5F9] text-[#0F172A]"
-                      : "text-[#475569]"
-                }`}
-              >
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
+    <AppListbox
+      value={value || null}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder ?? "Select"}
+      ariaLabelledby={labelId}
+      triggerProps={{
+        "aria-describedby": describedBy,
+        "aria-required": required || undefined,
+      }}
+    />
+  );
+}
+
+/** The label above a lead-form field; `htmlFor` for inputs, `id` for selects. */
+export function LeadFieldLabel({
+  htmlFor,
+  id,
+  required = false,
+  children,
+}: {
+  htmlFor?: string;
+  id?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  const className = "mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]";
+  const mark = required ? (
+    <span className="text-[#F97316]" aria-hidden="true">
+      {" "}*
+    </span>
+  ) : null;
+  // The marker sits beside the naming element, not in it, so the name is the
+  // label's words alone; required-ness is announced by aria-required.
+  return (
+    <div className={className}>
+      {htmlFor ? (
+        <label htmlFor={htmlFor} id={id}>
+          {children}
+        </label>
+      ) : (
+        <span id={id}>{children}</span>
       )}
+      {mark}
     </div>
   );
 }
@@ -215,10 +188,10 @@ export function RequestDemoForm({
     <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Full name <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel htmlFor="rd-fullName" required>Full name</LeadFieldLabel>
           <Input
+            id="rd-fullName"
+            aria-required="true"
             value={form.fullName}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -233,10 +206,10 @@ export function RequestDemoForm({
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Work email <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel htmlFor="rd-workEmail" required>Work email</LeadFieldLabel>
           <Input
+            id="rd-workEmail"
+            aria-required="true"
             value={form.workEmail}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -254,10 +227,9 @@ export function RequestDemoForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Organization
-          </label>
+          <LeadFieldLabel htmlFor="rd-organization">Organization</LeadFieldLabel>
           <Input
+            id="rd-organization"
             value={form.organization ?? ""}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -271,10 +243,9 @@ export function RequestDemoForm({
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Job title
-          </label>
+          <LeadFieldLabel htmlFor="rd-jobTitle">Job title</LeadFieldLabel>
           <Input
+            id="rd-jobTitle"
             value={form.jobTitle ?? ""}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -290,10 +261,9 @@ export function RequestDemoForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Country
-          </label>
+          <LeadFieldLabel htmlFor="rd-country">Country</LeadFieldLabel>
           <Input
+            id="rd-country"
             value={form.country ?? ""}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -307,10 +277,11 @@ export function RequestDemoForm({
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
+          <LeadFieldLabel id="rd-teamSize-label">
             Team size
-          </label>
+          </LeadFieldLabel>
           <PremiumSelect
+            labelId="rd-teamSize-label"
             value={form.teamSize ?? ""}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -326,10 +297,10 @@ export function RequestDemoForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Primary interest <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel id="rd-primaryInterest-label" required>Primary interest</LeadFieldLabel>
           <PremiumSelect
+            labelId="rd-primaryInterest-label"
+            required
             value={form.primaryInterest ?? ""}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -346,10 +317,10 @@ export function RequestDemoForm({
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-            Organization type <span className="text-[#F97316]">*</span>
-          </label>
+          <LeadFieldLabel id="rd-organizationType-label" required>Organization type</LeadFieldLabel>
           <PremiumSelect
+            labelId="rd-organizationType-label"
+            required
             value={form.organizationType ?? ""}
             onChange={(value) =>
               setForm((prev: RequestDemoFormValues) => ({
@@ -367,10 +338,10 @@ export function RequestDemoForm({
       </div>
 
       <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-          Primary use case <span className="text-[#F97316]">*</span>
-        </label>
+        <LeadFieldLabel htmlFor="rd-useCase" required>Primary use case</LeadFieldLabel>
         <textarea
+          id="rd-useCase"
+          aria-required="true"
           value={form.useCase}
           onChange={(e) =>
             setForm((prev: RequestDemoFormValues) => ({
@@ -389,10 +360,9 @@ export function RequestDemoForm({
       </div>
 
       <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-[#0F172A]">
-          Additional context
-        </label>
+        <LeadFieldLabel htmlFor="rd-message">Additional context</LeadFieldLabel>
         <textarea
+          id="rd-message"
           value={form.message ?? ""}
           onChange={(e) =>
             setForm((prev: RequestDemoFormValues) => ({
