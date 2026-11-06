@@ -578,8 +578,11 @@ export async function recordReviewDecision(
     // held this record's first outputs at sealing. The release re-reads the
     // policy itself; best effort, never undoes the decision.
     if (stageAfter === "APPROVED_INTERNAL") {
-      const held = await client.evidence
-        .findUnique({ where: { id: result.workflow.evidenceId }, select: { outputsHeldAtUtc: true } })
+      // A client without the read (a narrow test double) is treated as not held.
+      const held = await Promise.resolve()
+        .then(() =>
+          client.evidence.findUnique({ where: { id: result.workflow.evidenceId }, select: { outputsHeldAtUtc: true } }),
+        )
         .catch(() => null);
       if (held?.outputsHeldAtUtc) await releaseHeldOutputs(result.workflow.evidenceId).catch(() => null);
     }

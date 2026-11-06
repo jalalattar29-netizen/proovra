@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 28
     },
-    "TerminalWriters": 1520,
-    "ReachableSensitiveMutations": 1495,
-    "ClassifiedSensitiveMutations": 1495,
+    "TerminalWriters": 1525,
+    "ReachableSensitiveMutations": 1500,
+    "ClassifiedSensitiveMutations": 1500,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 1,
     "NonRequestWriters": 25,
@@ -77,7 +77,7 @@
       "WORKSPACE": 74,
       "WORKSPACE_MEMBERSHIP_INVITATION": 67,
       "CASE": 91,
-      "EVIDENCE_CUSTODY_FINALIZATION": 356,
+      "EVIDENCE_CUSTODY_FINALIZATION": 361,
       "LEGAL_HOLD_RETENTION_DELETION": 63,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 98,
       "BILLING_SUBSCRIPTION_SEAT": 105,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1329,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1334,
       "JOB_ATTRIBUTED_REACHABLE": 155,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 7,
@@ -15044,8 +15044,8 @@
   "mutationQueueTopology": {
     "producedWork": {
       "GENERATE_REPORT": [
-        "services/api/src/services/reports/report-generation-authority.service.ts:368",
-        "services/api/src/services/reports/report-generation-authority.service.ts:446"
+        "services/api/src/services/reports/report-generation-authority.service.ts:386",
+        "services/api/src/services/reports/report-generation-authority.service.ts:464"
       ],
       "UPGRADE_OTS": [
         "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85"
@@ -27359,8 +27359,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/reports/report-generation-request.ts#reportGenerationRequest.create@599",
-      "terminalLocation": "packages/shared-runtime/src/reports/report-generation-request.ts:599",
+      "writerId": "packages/shared-runtime/src/reports/report-generation-request.ts#reportGenerationRequest.create@609",
+      "terminalLocation": "packages/shared-runtime/src/reports/report-generation-request.ts:609",
       "file": "packages/shared-runtime/src/reports/report-generation-request.ts",
       "enclosingDeclaration": "createReportGenerationRequest",
       "kind": "DATABASE",
@@ -27377,7 +27377,15 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/reports/regenerate",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
-        "POST /v1/ops/incidents/:id/remediate"
+        "POST /v1/ops/incidents/:id/remediate",
+        "POST /v1/review-operations/bulk",
+        "POST /v1/review-operations/evidence/:evidenceId/decision",
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/bulk",
+        "POST /v1/reviewer-ops/workspace/:workflowId/decisions",
+        "PUT /v1/governance/policy"
       ],
       "entryJobs": [
         "SWEEP services/worker/src/first-issuance-reconciliation.ts#runFirstIssuanceReconciliation",
@@ -27392,7 +27400,10 @@
         "MODULE services/api/src/routes/capture-trust.routes.ts",
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
-        "MODULE services/api/src/routes/ops.routes.ts"
+        "MODULE services/api/src/routes/governance.routes.ts",
+        "MODULE services/api/src/routes/ops.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
       ],
       "entrySchedules": [
         "BOOT services/worker/src/index.ts:656#runLifecycleRecovery",
@@ -27876,7 +27887,15 @@
         "POST /v1/graph/reconcile",
         "POST /v1/internal/media-intelligence/extract",
         "POST /v1/investigation/media-intelligence/refresh",
-        "POST /v1/ops/incidents/:id/remediate"
+        "POST /v1/ops/incidents/:id/remediate",
+        "POST /v1/review-operations/bulk",
+        "POST /v1/review-operations/evidence/:evidenceId/decision",
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/bulk",
+        "POST /v1/reviewer-ops/workspace/:workflowId/decisions",
+        "PUT /v1/governance/policy"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -27884,10 +27903,13 @@
         "MODULE services/api/src/routes/capture-trust.routes.ts",
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/graph.routes.ts",
         "MODULE services/api/src/routes/internal-media-intelligence-extract.routes.ts",
         "MODULE services/api/src/routes/media-intelligence.routes.ts",
-        "MODULE services/api/src/routes/ops.routes.ts"
+        "MODULE services/api/src/routes/ops.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
@@ -29362,8 +29384,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13380",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13380",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13373",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13373",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29395,8 +29417,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@16178",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16178",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@16171",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16171",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29494,8 +29516,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@16166",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16166",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@16159",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16159",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -29989,8 +30011,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@16184",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16184",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@16177",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:16177",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -56435,6 +56457,126 @@
       }
     },
     {
+      "writerId": "services/api/src/services/governance/finalization-governance.service.ts#evidence.updateMany@165",
+      "terminalLocation": "services/api/src/services/governance/finalization-governance.service.ts:165",
+      "file": "services/api/src/services/governance/finalization-governance.service.ts",
+      "enclosingDeclaration": "evaluateFinalizationGovernance",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/governance/finalization-governance.service.ts#evidence.updateMany@179",
+      "terminalLocation": "services/api/src/services/governance/finalization-governance.service.ts:179",
+      "file": "services/api/src/services/governance/finalization-governance.service.ts",
+      "enclosingDeclaration": "evaluateFinalizationGovernance",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/governance/finalization-governance.service.ts#evidence.updateMany@186",
+      "terminalLocation": "services/api/src/services/governance/finalization-governance.service.ts:186",
+      "file": "services/api/src/services/governance/finalization-governance.service.ts",
+      "enclosingDeclaration": "evaluateFinalizationGovernance",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/external-intake/:token/sessions/:sid/submit"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.create@68",
       "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:68",
       "file": "services/api/src/services/governance/governance-policy.service.ts",
@@ -57779,6 +57921,118 @@
       "entrySchedules": [],
       "invariants": {
         "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/governance/output-hold.service.ts#evidence.updateMany@40",
+      "terminalLocation": "services/api/src/services/governance/output-hold.service.ts:40",
+      "file": "services/api/src/services/governance/output-hold.service.ts",
+      "enclosingDeclaration": "tryLiftOutputHold",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/incidents/:id/remediate",
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/ops/incidents/:id/remediate",
+        "POST /v1/review-operations/bulk",
+        "POST /v1/review-operations/evidence/:evidenceId/decision",
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/bulk",
+        "POST /v1/reviewer-ops/workspace/:workflowId/decisions",
+        "PUT /v1/governance/policy"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-security.routes.ts",
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
+        "MODULE services/api/src/routes/ops.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/governance/output-hold.service.ts#evidence.updateMany@47",
+      "terminalLocation": "services/api/src/services/governance/output-hold.service.ts:47",
+      "file": "services/api/src/services/governance/output-hold.service.ts",
+      "enclosingDeclaration": "tryLiftOutputHold",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/incidents/:id/remediate",
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/web-complete",
+        "POST /v1/evidence/:id/complete",
+        "POST /v1/evidence/:id/reports/regenerate",
+        "POST /v1/external-intake/:token/sessions/:sid/submit",
+        "POST /v1/ops/incidents/:id/remediate",
+        "POST /v1/review-operations/bulk",
+        "POST /v1/review-operations/evidence/:evidenceId/decision",
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/bulk",
+        "POST /v1/reviewer-ops/workspace/:workflowId/decisions",
+        "PUT /v1/governance/policy"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-security.routes.ts",
+        "MODULE services/api/src/routes/capture-trust.routes.ts",
+        "MODULE services/api/src/routes/evidence.routes.ts",
+        "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/governance.routes.ts",
+        "MODULE services/api/src/routes/ops.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -91252,8 +91506,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@368",
-      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:368",
+      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@386",
+      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:386",
       "file": "services/api/src/services/reports/report-generation-authority.service.ts",
       "enclosingDeclaration": "requestReportGeneration",
       "kind": "QUEUE",
@@ -91270,7 +91524,15 @@
         "POST /v1/evidence/:id/complete",
         "POST /v1/evidence/:id/reports/regenerate",
         "POST /v1/external-intake/:token/sessions/:sid/submit",
-        "POST /v1/ops/incidents/:id/remediate"
+        "POST /v1/ops/incidents/:id/remediate",
+        "POST /v1/review-operations/bulk",
+        "POST /v1/review-operations/evidence/:evidenceId/decision",
+        "POST /v1/reviewer-ops/reviews/:workflowId/approve",
+        "POST /v1/reviewer-ops/reviews/:workflowId/reject",
+        "POST /v1/reviewer-ops/reviews/:workflowId/request-info",
+        "POST /v1/reviewer-ops/reviews/bulk",
+        "POST /v1/reviewer-ops/workspace/:workflowId/decisions",
+        "PUT /v1/governance/policy"
       ],
       "entryJobs": [],
       "entryModules": [
@@ -91278,7 +91540,10 @@
         "MODULE services/api/src/routes/capture-trust.routes.ts",
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
-        "MODULE services/api/src/routes/ops.routes.ts"
+        "MODULE services/api/src/routes/governance.routes.ts",
+        "MODULE services/api/src/routes/ops.routes.ts",
+        "MODULE services/api/src/routes/review-operations.routes.ts",
+        "MODULE services/api/src/routes/reviewer-ops.routes.ts"
       ],
       "entrySchedules": [],
       "invariants": {
@@ -91297,8 +91562,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@446",
-      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:446",
+      "writerId": "services/api/src/services/reports/report-generation-authority.service.ts#GENERATE_REPORT.enqueueCanonicalWork@464",
+      "terminalLocation": "services/api/src/services/reports/report-generation-authority.service.ts:464",
       "file": "services/api/src/services/reports/report-generation-authority.service.ts",
       "enclosingDeclaration": "reenqueueReportGenerationRequest",
       "kind": "QUEUE",
@@ -92079,8 +92344,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@277",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:277",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@278",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:278",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -92119,8 +92384,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@480",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:480",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@481",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:481",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -92159,8 +92424,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@693",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:693",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflow.updateMany@703",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:703",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "reconcileWorkflowProjection",
       "kind": "DATABASE",
@@ -92194,8 +92459,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@505",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:505",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@506",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:506",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -92234,8 +92499,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@709",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:709",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#evidenceReviewWorkflowEvent.create@719",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:719",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "reconcileWorkflowProjection",
       "kind": "DATABASE",
@@ -92269,8 +92534,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#teamActivity.create@522",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:522",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#teamActivity.create@523",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:523",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -92309,8 +92574,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#workflowReviewDecision.create@419",
-      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:419",
+      "writerId": "services/api/src/services/reviewer-ops/review-decision.service.ts#workflowReviewDecision.create@420",
+      "terminalLocation": "services/api/src/services/reviewer-ops/review-decision.service.ts:420",
       "file": "services/api/src/services/reviewer-ops/review-decision.service.ts",
       "enclosingDeclaration": "recordReviewDecision",
       "kind": "DATABASE",
@@ -108231,7 +108496,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14057",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14050",
       "authorizationClass": "WEBHOOK_SIGNATURE",
       "authorizationEvidence": [
         "resolvePackageSealCheck -> services/api/src/services/public-verify/package-seal-check.service.ts: reaches an inbound provider signature verifier (verifySignature)"
@@ -119408,7 +119673,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12115",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12108",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -119558,7 +119823,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13890",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13883",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -120142,7 +120407,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13262",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13255",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -120361,7 +120626,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12663",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12656",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -120488,7 +120753,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12907",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12900",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -120996,7 +121261,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13504",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13497",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121119,7 +121384,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13016",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13009",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -121207,7 +121472,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13159",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13152",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -122697,7 +122962,7 @@
       "method": "GET",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:562",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:567",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -123542,7 +123807,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:825",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:830",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -123600,7 +123865,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/is-held",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:910",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:915",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -123661,7 +123926,7 @@
       "method": "GET",
       "path": "/v1/governance/evidence/:id/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:765",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:770",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124084,7 +124349,7 @@
       "method": "GET",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:355",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:360",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124603,7 +124868,7 @@
       "method": "GET",
       "path": "/v1/governance/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:153",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:154",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveGovernancePolicyWorkspace -> services/api/src/routes/governance.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -124734,7 +124999,7 @@
       "method": "GET",
       "path": "/v1/governance/retention-candidates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:864",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:869",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -157016,9 +157281,9 @@
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -157134,9 +157399,9 @@
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -157602,9 +157867,9 @@
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -157711,9 +157976,9 @@
         "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
         "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
-        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/evidence-reservation/reservation.ts: captureSession.count — no tenant or self predicate"
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -163817,7 +164082,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13967",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13960",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163889,7 +164154,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13920",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:13913",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -163961,7 +164226,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14015",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:14008",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -164155,9 +164420,10 @@
         "evidenceCreditLedgerEntry",
         "evidenceEntity",
         "evidenceExtractedText",
-        "evidenceLegalHold",
         "evidencePart",
         "evidencePartDerivedAsset",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "evidenceWorkflowInstanceEvidence",
         "fileSecurityScan",
         "organization",
@@ -164174,6 +164440,7 @@
         "verificationPackage",
         "webhookEndpoint",
         "workflowIntakeSession",
+        "workflowReviewDecision",
         "workspaceGovernancePolicy",
         "workspaceStorageAddon"
       ],
@@ -164187,7 +164454,6 @@
         "evidenceCreditLedgerEntry",
         "evidenceIntegrityCheck",
         "evidencePart",
-        "evidenceSearchDocument",
         "fileSecurityScan",
         "integrationWebhookDelivery",
         "reportGenerationRequest",
@@ -164532,7 +164798,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12208",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12201",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -164630,6 +164896,8 @@
         "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "organization",
         "organizationSecurityPolicy",
         "planGrant",
@@ -164640,11 +164908,13 @@
         "team",
         "teamMember",
         "verificationPackage",
+        "workflowReviewDecision",
         "workspaceGovernancePolicy",
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
         "entitlement",
+        "evidence",
         "reportGenerationRequest"
       ],
       "tenantBindingResolved": true,
@@ -167017,7 +167287,6 @@
         "evidenceCreditLedgerEntry",
         "evidenceIntegrityCheck",
         "evidencePart",
-        "evidenceSearchDocument",
         "fileSecurityScan",
         "integrationWebhookDelivery",
         "reportGenerationRequest",
@@ -168253,7 +168522,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:600",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:605",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -168337,7 +168606,7 @@
       "method": "POST",
       "path": "/v1/governance/case-legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:687",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:692",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169392,7 +169661,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:384",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:389",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169477,7 +169746,7 @@
       "method": "POST",
       "path": "/v1/governance/legal-holds/:id/release",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:490",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:495",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireMember -> services/api/src/routes/evidence-requests.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -169988,7 +170257,7 @@
       "method": "POST",
       "path": "/v1/governance/reconcile-retention",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:887",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:892",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -170000,7 +170269,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "CRON_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:887 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
+      "dispositionEvidence": "services/api/src/routes/governance.routes.ts:892 — requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)",
       "dispositionReason": "gated by the canonical constant-time cron/internal shared secret, so only a scheduler or operator holding it can call it",
       "replacement": null,
       "result": "DISPOSED_CRON_CONSUMER",
@@ -180231,6 +180500,7 @@
         "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
+        "evidenceReviewWorkflow",
         "operationalIncident",
         "organization",
         "organizationSecurityPolicy",
@@ -180245,6 +180515,7 @@
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
+        "evidence",
         "operationalIncidentEvent",
         "reportGenerationRequest"
       ],
@@ -186441,6 +186712,7 @@
         "collaborationTeamMember",
         "enterpriseContract",
         "evidence",
+        "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
@@ -186453,6 +186725,8 @@
         "operationalIncidentEvent",
         "organization",
         "organizationSecurityPolicy",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -186471,6 +186745,7 @@
       ],
       "modelsWritten": [
         "automationRun",
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
@@ -186478,6 +186753,7 @@
         "notificationDelivery",
         "operationalIncident",
         "operationalIncidentEvent",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "securityEvent",
@@ -186514,7 +186790,8 @@
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: workflowReviewDecision.create",
-        "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create"
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -186698,6 +186975,7 @@
         "collaborationTeamMember",
         "enterpriseContract",
         "evidence",
+        "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
@@ -186708,6 +186986,8 @@
         "operationalIncidentEvent",
         "organization",
         "organizationSecurityPolicy",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -186725,6 +187005,7 @@
       ],
       "modelsWritten": [
         "automationRun",
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
@@ -186732,6 +187013,7 @@
         "notificationDelivery",
         "operationalIncident",
         "operationalIncidentEvent",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "securityEvent",
@@ -186767,6 +187049,7 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.create"
       ],
       "tenantUnboundInsertSites": []
@@ -187851,6 +188134,8 @@
       "modelsRead": [
         "authenticatedSession",
         "enterpriseContract",
+        "evidence",
+        "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
@@ -187862,6 +188147,8 @@
         "organization",
         "organizationSecurityPolicy",
         "qcSample",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -187876,6 +188163,7 @@
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
@@ -187883,6 +188171,7 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "qcSample",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "stepUpChallenge",
@@ -187915,6 +188204,7 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
         "services/api/src/services/reviewer-workspace/qc-sample.service.ts: qcSample.create"
       ],
       "tenantUnboundInsertSites": []
@@ -188231,6 +188521,8 @@
       "modelsRead": [
         "authenticatedSession",
         "enterpriseContract",
+        "evidence",
+        "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
@@ -188242,6 +188534,8 @@
         "organization",
         "organizationSecurityPolicy",
         "qcSample",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -188257,6 +188551,7 @@
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
@@ -188264,6 +188559,7 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "qcSample",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "stepUpChallenge",
@@ -188296,6 +188592,7 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create",
         "services/api/src/services/reviewer-workspace/qc-sample.service.ts: qcSample.create"
       ],
       "tenantUnboundInsertSites": []
@@ -188365,12 +188662,16 @@
       "modelsRead": [
         "authenticatedSession",
         "enterpriseContract",
+        "evidence",
+        "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceWorkflowVisibilityDecision",
         "organization",
         "organizationSecurityPolicy",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "ssoConnection",
@@ -188379,13 +188680,16 @@
         "teamMember",
         "user",
         "workflowReviewDecision",
+        "workspaceGovernancePolicy",
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
         "notificationDelivery",
+        "reportGenerationRequest",
         "reviewEscalation",
         "teamActivity",
         "workflowReviewDecision"
@@ -188399,7 +188703,11 @@
         "services/api/src/services/evidence-review/second-review.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
         "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.update — no tenant or self predicate",
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/output-hold.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -188410,7 +188718,8 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
-        "services/api/src/services/notifications/index.ts: notificationDelivery.create"
+        "services/api/src/services/notifications/index.ts: notificationDelivery.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -188621,6 +188930,8 @@
         "operationalIncidentEvent",
         "organization",
         "organizationSecurityPolicy",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -188637,11 +188948,13 @@
       ],
       "modelsWritten": [
         "automationRun",
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
         "operationalIncident",
         "operationalIncidentEvent",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "stepUpChallenge",
@@ -188670,7 +188983,8 @@
         "services/api/src/services/identity-security/session-revocation.service.ts: revokedSession.create",
         "services/api/src/services/reviewer-ops/escalation-engine.service.ts: reviewEscalation.create",
         "services/api/src/services/reviewer-ops/review-decision.service.ts: workflowReviewDecision.create",
-        "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create"
+        "services/api/src/services/reviewer-ops/review-decision.service.ts: teamActivity.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -188854,6 +189168,8 @@
       "modelsRead": [
         "authenticatedSession",
         "enterpriseContract",
+        "evidence",
+        "evidenceCreditLedgerEntry",
         "evidenceLegalHold",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
@@ -188864,6 +189180,8 @@
         "operationalIncidentEvent",
         "organization",
         "organizationSecurityPolicy",
+        "report",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "riskSignal",
@@ -188880,6 +189198,7 @@
         "workspaceNotificationPreference"
       ],
       "modelsWritten": [
+        "evidence",
         "evidenceReviewWorkflow",
         "evidenceReviewWorkflowEvent",
         "evidenceReviewerAuditEvent",
@@ -188887,6 +189206,7 @@
         "notificationDelivery",
         "operationalIncident",
         "operationalIncidentEvent",
+        "reportGenerationRequest",
         "reviewEscalation",
         "revokedSession",
         "stepUpChallenge",
@@ -188919,7 +189239,8 @@
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
         "services/api/src/services/notifications/index.ts: notificationDelivery.create",
-        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create"
+        "services/api/src/services/integrations/webhook-dispatcher.ts: integrationWebhookDelivery.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
       ],
       "tenantUnboundInsertSites": []
     },
@@ -194531,7 +194852,7 @@
       "method": "PUT",
       "path": "/v1/governance/policy",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/governance.routes.ts:201",
+      "registrationEvidence": "services/api/src/routes/governance.routes.ts:202",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveGovernancePolicyWorkspace -> services/api/src/routes/governance.routes.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -194568,20 +194889,32 @@
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
         "authenticatedSession",
+        "evidence",
+        "evidenceCreditLedgerEntry",
+        "evidenceReviewWorkflow",
+        "evidenceReviewWorkflowEvent",
         "externalIdentityMapping",
         "mfaFactor",
+        "organization",
         "organizationSecurityPolicy",
+        "planGrant",
+        "report",
+        "reportGenerationRequest",
         "revokedSession",
         "riskSignal",
         "ssoConnection",
         "stepUpChallenge",
+        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
         "user",
+        "workflowReviewDecision",
         "workspaceGovernancePolicy"
       ],
       "modelsWritten": [
+        "evidence",
+        "reportGenerationRequest",
         "securityEvent",
         "stepUpChallenge",
         "workspaceGovernancePolicy"
@@ -194592,13 +194925,22 @@
         "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
         "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate",
-        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate"
+        "services/api/src/services/identity-security/step-up-idp.ts: ssoConnection.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/output-hold.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance/finalization-governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/governance.service.ts: evidenceReviewWorkflow.findUnique — no tenant or self predicate",
+        "services/api/src/services/evidence-review/review-outcome.service.ts: workflowReviewDecision.findMany — no tenant or self predicate",
+        "services/api/src/services/governance.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/reports/report-generation-authority.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/evidence-output-eligibility.service.ts: evidence.findMany — no tenant or self predicate",
+        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
-        "services/api/src/services/governance.service.ts: workspaceGovernancePolicy.create"
+        "services/api/src/services/governance.service.ts: workspaceGovernancePolicy.create",
+        "packages/shared-runtime/src/reports/report-generation-request.ts: reportGenerationRequest.create"
       ],
       "tenantUnboundInsertSites": []
     },

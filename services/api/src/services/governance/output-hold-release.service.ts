@@ -13,6 +13,8 @@
  * one row. A failure to issue after the lift is the ordinary first-issuance
  * case the worker's reconciliation already owns (the record is no longer held).
  */
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+
 import { prisma } from "../../db.js";
 import { requestReportGeneration } from "../reports/report-generation-authority.service.js";
 import { tryLiftOutputHold } from "./output-hold.service.js";
@@ -35,7 +37,8 @@ const RELEASE_PAGE = 200;
 
 export async function releaseHeldOutputsForWorkspace(teamId: string): Promise<{ released: number; stillHeld: number }> {
   const held = await prisma.evidence.findMany({
-    where: { teamId, outputsHeldAtUtc: { not: null } },
+    // The canonical workspace scope (a Personal record may carry a null team).
+    where: { AND: [await workspaceEvidenceWhere(teamId, prisma), { outputsHeldAtUtc: { not: null } }] },
     select: { id: true },
     orderBy: [{ outputsHeldAtUtc: "asc" }, { id: "asc" }],
     take: RELEASE_PAGE,
