@@ -3862,6 +3862,23 @@ model AccountDataExportRequest {
   @@map("account_data_export_requests")
 }
 
+// REPORT-014 (2026-11-04) — the immutable half of a package seal check,
+// remembered across processes and restarts. The key is the SHA-256 of the seal
+// identity (package, seal digest, key fingerprint, object, version); an issued
+// package's bytes are Object-Locked, so a definitive outcome never changes. Key
+// revocation is NOT stored here: it is read live on every check (AUD-05). A
+// transient storage failure is never stored.
+model PackageSealByteCheck {
+  identitySha256 String   @id @map("identity_sha256") @db.VarChar(64)
+  packageId      String   @map("package_id") @db.Uuid
+  // VERIFIED / FAILED / UNBOUND
+  outcome        String   @db.VarChar(16)
+  complete       Boolean  @default(false)
+  checkedAtUtc   DateTime @default(now()) @map("checked_at_utc") @db.Timestamptz(6)
+
+  @@index([packageId])
+  @@map("package_seal_byte_checks")
+}
 // GOV-015 (2026-11-04) — an organization's data returned to the customer at
 // offboarding. One row per request; the manifest (every stored object of every
 // record in every workspace, with the digests a hand-over reconciles against)

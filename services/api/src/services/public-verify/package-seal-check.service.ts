@@ -26,8 +26,9 @@
  *                   the row recorded, the stored seal is not the recorded seal,
  *                   or its signature does not verify
  *
- * NOTHING IS WRITTEN. An issued package, its row and its storage object are
- * immutable; this reads them.
+ * NOTHING ABOUT THE PACKAGE IS WRITTEN. An issued package, its row and its
+ * storage object are immutable; this reads them. The one write is the shared
+ * memo of the immutable byte check (REPORT-014, package_seal_byte_checks).
  *
  * WHAT IS REMEMBERED (2026-10-20, AUD-05). The key registry is NOT immutable: a
  * key can be revoked at any time. The whole answer used to be memoized per
@@ -242,7 +243,7 @@ async function checkSealBytesOnce(pkg: SealCheckPackageRow, recordedFp: string):
   const memoKey = [pkg.id, pkg.sealSha256, recordedFp, pkg.storageBucket, pkg.storageKey, pkg.s3VersionId ?? ""].join("|");
   let pending = byteCheckMemo.get(memoKey);
   if (!pending) {
-    pending = inByteCheckSlot(() => checkLegacySealBytes(pkg, recordedFp)).catch((): ByteCheck => ({ kind: "TRANSIENT" }));
+    pending = rememberedOrChecked(pkg, recordedFp, memoKey).catch((): ByteCheck => ({ kind: "TRANSIENT" }));
     if (byteCheckMemo.size >= maxMemoizedByteChecks) {
       byteCheckMemo.delete(byteCheckMemo.keys().next().value as string);
     }
@@ -251,6 +252,37 @@ async function checkSealBytesOnce(pkg: SealCheckPackageRow, recordedFp: string):
   const bytes = await pending;
   if (bytes.kind === "TRANSIENT") byteCheckMemo.delete(memoKey);
   return bytes;
+}
+
+/**
+ * REPORT-014 — the definitive outcome of this seal identity, from the shared
+ * store when any process already checked it; otherwise read the bytes once and
+ * store a definitive outcome (never a transient one). A store that cannot be
+ * read or written only costs a re-read, never a different answer.
+ */
+async function rememberedOrChecked(pkg: SealCheckPackageRow, recordedFp: string, memoKey: string): Promise<ByteCheck> {
+  const identitySha256 = createHash("sha256").update(memoKey, "utf8").digest("hex");
+  try {
+    const row = await prisma.packageSealByteCheck.findUnique({
+      where: { identitySha256 },
+      select: { outcome: true, complete: true },
+    });
+    if (row?.outcome === "VERIFIED") return { kind: "VERIFIED", complete: row.complete };
+    if (row?.outcome === "FAILED") return { kind: "FAILED" };
+    if (row?.outcome === "UNBOUND") return { kind: "UNBOUND" };
+  } catch {
+    /* the store is a cache of an immutable fact: fall through to the bytes */
+  }
+  const checked = await inByteCheckSlot(() => checkLegacySealBytes(pkg, recordedFp));
+  if (checked.kind !== "TRANSIENT") {
+    await prisma.packageSealByteCheck
+      .createMany({
+        data: [{ identitySha256, packageId: pkg.id, outcome: checked.kind, complete: checked.kind === "VERIFIED" ? checked.complete : false }],
+        skipDuplicates: true,
+      })
+      .catch(() => undefined);
+  }
+  return checked;
 }
 
 /** The immutable part: the stored package's seal bytes, verified. Never reads the registry. */
