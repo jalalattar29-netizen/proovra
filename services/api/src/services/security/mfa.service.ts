@@ -577,11 +577,25 @@ export async function regenerateRecoveryBatch(input: {
   return { recoveryCodes };
 }
 
+/**
+ * AUTH-LOCKOUT-NONTOTP — the factor kinds a SIGN-IN can be completed with.
+ *
+ * `POST /v1/auth/mfa/verify` accepts an authenticator code (`verifyActiveTotp`)
+ * or a recovery code, and recovery codes are minted only by an authenticator
+ * enrolment. A passkey or a verified phone is a STEP-UP factor: nothing at
+ * sign-in can check it. The login MFA gate counts only these kinds, so a
+ * person holding nothing else is never asked for a second factor the sign-in
+ * cannot take (see login-mfa-enforcement.service.ts).
+ */
+export const SIGN_IN_SECOND_FACTOR_KINDS: ReadonlyArray<string> = Object.freeze(["TOTP"]);
+
 /** Read-only MFA status for a user. */
 export async function readMfaStatus(input: { userId: string }): Promise<{
   hasMfa: boolean;
   factors: ReadonlyArray<{
     id: string;
+    /** TOTP, PASSKEY, SMS or WHATSAPP. */
+    kind: string;
     label: string;
     status: string;
     enrolledAt: string | null;
@@ -594,6 +608,7 @@ export async function readMfaStatus(input: { userId: string }): Promise<{
       where: { userId: input.userId },
       select: {
         id: true,
+        kind: true,
         label: true,
         status: true,
         enrolledAt: true,
@@ -614,6 +629,7 @@ export async function readMfaStatus(input: { userId: string }): Promise<{
     hasMfa,
     factors: factors.map((f) => ({
       id: f.id,
+      kind: String(f.kind),
       label: f.label,
       status: f.status,
       enrolledAt: f.enrolledAt ? f.enrolledAt.toISOString() : null,
