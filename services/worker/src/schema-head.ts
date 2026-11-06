@@ -16,7 +16,7 @@
  */
 
 /** The newest migration this worker build was written against. */
-export const EXPECTED_MIGRATION_HEAD = "20281113000100_artifact_publication_intent_digest";
+export const EXPECTED_MIGRATION_HEAD = "20281114100000_social_sign_in_nonces";
 
 export type MigrationRow = {
   migration_name: string;

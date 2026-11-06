@@ -569,7 +569,12 @@ vi.mock("../src/services/auth.service.js", async (orig) => {
     async (idToken: string) => {
       H.rec(`verify${provider}IdToken`, { idToken });
       if (!H.idTokenValid) throw new Error("token_rejected");
-      return { provider, providerUserId: subject, email: "actor@example.com" };
+      return {
+        provider,
+        providerUserId: subject,
+        email: "actor@example.com",
+        binding: { nonce: "issued-nonce", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 600 },
+      };
     };
   return {
     ...(await orig<Record<string, unknown>>()),
@@ -577,6 +582,17 @@ vi.mock("../src/services/auth.service.js", async (orig) => {
     verifyAppleIdToken: verifier("APPLE", "APPLE-SUBJECT-SEED"),
   };
 });
+
+// PRO-034 — the nonce consumption itself is proven against PostgreSQL in
+// auth-identity-linking-reset.integration.test.ts; here the link route must ask
+// for it after the provider token is verified.
+vi.mock("../src/services/auth/social-sign-in-nonce.service.js", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  bindIdTokenToAttempt: async (_req: unknown, input: Record<string, unknown>) => {
+    H.rec("bindIdTokenToAttempt", input);
+    return { ok: true };
+  },
+}));
 
 vi.mock("../src/middleware/cron-secret.js", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -1980,8 +1996,16 @@ describe("personal identity links", () => {
       expect(JSON.parse(res.body).linked).toBe(true);
       expect(called(p.verifier)).toHaveLength(1);
       expect(callInput(p.verifier).idToken).toBe("provider-id-token-value");
-      const upsert = callInput("db.userIdentityLink.upsert");
-      expect((upsert.create as Record<string, unknown> | undefined)?.userId ?? ACTOR).toBe(ACTOR);
+      expect(callInput("bindIdTokenToAttempt").idToken).toBe("provider-id-token-value");
+      // PRO-009 — the link is written for the SESSION subject, never a body-supplied id.
+      // An existing own/REVOKED row is claimed by the guarded updateMany,
+      // otherwise one is created — either way for ACTOR only.
+      const writes = [
+        ...called("db.userIdentityLink.updateMany"),
+        ...called("db.userIdentityLink.create"),
+      ].map((c) => (c.input.data as Record<string, unknown>).userId);
+      expect(writes.length).toBeGreaterThan(0);
+      expect(writes.every((u) => u === ACTOR)).toBe(true);
       // The projection returns the link handle only — never the subject id.
       expect(res.body).not.toContain(p.subject);
     });
@@ -1992,7 +2016,8 @@ describe("personal identity links", () => {
         method: "POST", url: p.url, payload: { idToken: "provider-id-token-value" },
       });
       expect(res.statusCode).toBe(401);
-      expect(called("db.userIdentityLink.upsert")).toHaveLength(0);
+      expect(called("db.userIdentityLink.create")).toHaveLength(0);
+      expect(called("db.userIdentityLink.updateMany")).toHaveLength(0);
       expect(called(p.verifier)).toHaveLength(0);
     });
 
@@ -2003,7 +2028,8 @@ describe("personal identity links", () => {
       });
       expect(res.statusCode).toBe(400);
       expect(JSON.parse(res.body).error.code).toBe("invalid_id_token");
-      expect(called("db.userIdentityLink.upsert")).toHaveLength(0);
+      expect(called("db.userIdentityLink.create")).toHaveLength(0);
+      expect(called("db.userIdentityLink.updateMany")).toHaveLength(0);
     });
   }
 
@@ -2016,7 +2042,8 @@ describe("personal identity links", () => {
     });
     expect(res.statusCode).toBe(409);
     expect(JSON.parse(res.body).error.code).toBe("identity_already_linked");
-    expect(called("db.userIdentityLink.upsert")).toHaveLength(0);
+    expect(called("db.userIdentityLink.create")).toHaveLength(0);
+      expect(called("db.userIdentityLink.updateMany")).toHaveLength(0);
     expect(linkRow(FOREIGN_LINK).userId).toBe(OTHER);
   });
 
@@ -2028,7 +2055,7 @@ describe("personal identity links", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ passwordConfigured: true });
-    const update = callInput("db.user.update");
+    const update = callInput("db.user.updateMany");
     expect((update.where as Record<string, unknown>).id).toBe(ACTOR); // SELF-ONLY
     const stored = String((update.data as Record<string, unknown>).passwordHash);
     expect(stored.startsWith("scrypt$")).toBe(true);
@@ -2044,6 +2071,7 @@ describe("personal identity links", () => {
     expect(res.statusCode).toBe(409);
     expect(JSON.parse(res.body).error.code).toBe("password_already_set");
     expect(called("db.user.update")).toHaveLength(0);
+    expect(called("db.user.updateMany")).toHaveLength(0);
   });
 
   it("password add refuses a non-compliant password with ZERO write", async () => {
@@ -2055,6 +2083,7 @@ describe("personal identity links", () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error.code).toBe("weak_new_password");
     expect(called("db.user.update")).toHaveLength(0);
+    expect(called("db.user.updateMany")).toHaveLength(0);
   });
 
   it("password add step-up denial → 401 with ZERO write", async () => {
@@ -2065,6 +2094,7 @@ describe("personal identity links", () => {
     });
     expect(res.statusCode).toBe(401);
     expect(called("db.user.update")).toHaveLength(0);
+    expect(called("db.user.updateMany")).toHaveLength(0);
   });
 
   it("unlink REVOKES my own link (rows are never erased)", async () => {

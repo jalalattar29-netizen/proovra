@@ -42,6 +42,8 @@ type AuthProfile = {
       not expose any picture claim. Custom uploads (future) populate the
       same `User.avatarUrl` column. */
   avatarUrl?: string | null;
+  /** PRO-034 — set by the verifiers; the routes consume the attempt with it. */
+  binding?: { nonce: string | null; iat: number; exp: number };
 };
 
 function must(name: string): string {
@@ -87,6 +89,8 @@ function parseJwt(token: string) {
     aud?: string | string[];
     iss?: string;
     exp?: number;
+    iat?: number;
+    nonce?: string;
     email?: string;
     name?: string;
     /** Google-only OIDC claim carrying the user's profile picture URL. */
@@ -143,6 +147,30 @@ function assertNotExpired(payloadExp: number | undefined) {
 }
 
 /**
+ * PRO-034 (AUTH-28) — how old an id_token may be when it is presented. A sign-in
+ * presents its token within seconds; the window is the nonce's own life. A token
+ * from the future beyond a minute of clock skew is refused as well.
+ */
+export const ID_TOKEN_MAX_AGE_SECONDS = 10 * 60;
+const ID_TOKEN_CLOCK_SKEW_SECONDS = 60;
+
+function assertIssuedRecently(payloadIat: number | undefined) {
+  if (typeof payloadIat !== "number" || !Number.isFinite(payloadIat)) throw new Error("Missing iat");
+  const now = Date.now() / 1000;
+  if (payloadIat > now + ID_TOKEN_CLOCK_SKEW_SECONDS) throw new Error("iat in the future");
+  if (now - payloadIat > ID_TOKEN_MAX_AGE_SECONDS) throw new Error("Token too old");
+}
+
+/** The claims that bind an accepted id_token to one attempt (PRO-034). */
+function bindingClaims(payload: { nonce?: unknown; iat?: number; exp?: number }) {
+  return {
+    nonce: typeof payload.nonce === "string" && payload.nonce.length > 0 ? payload.nonce : null,
+    iat: payload.iat as number,
+    exp: payload.exp as number,
+  };
+}
+
+/**
  * IDENT-022 — whether the provider vouches for the address. Apple sends the
  * string "true". Anything else is not a voucher, so the address gets no verified
  * stamp and no claim on a historical guest row.
@@ -168,6 +196,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
   assertAudience(payload.aud, allowedAudiences("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_IDS"));
   assertIssuer(payload.iss, ["https://accounts.google.com", "accounts.google.com"]);
   assertNotExpired(payload.exp);
+  assertIssuedRecently(payload.iat);
   const profile = {
     provider: prismaPkg.AuthProvider.GOOGLE,
     providerUserId: String(payload.sub),
@@ -175,6 +204,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<AuthProfile>
     emailVerified: emailVerifiedClaim(payload.email_verified),
     displayName: payload.name ? String(payload.name) : null,
     avatarUrl: payload.picture ? String(payload.picture) : null,
+    binding: bindingClaims(payload),
   };
   debugAvatar("google.verifyIdToken", {
     providerUserId: profile.providerUserId,
@@ -264,6 +294,7 @@ export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> 
     assertAudience(payload.aud, allowedAudiences("APPLE_CLIENT_ID", "APPLE_CLIENT_IDS"));
     assertIssuer(payload.iss, "https://appleid.apple.com");
     assertNotExpired(payload.exp);
+    assertIssuedRecently(payload.iat);
   } catch {
     throw new Error("invalid_id_token");
   }
@@ -276,6 +307,7 @@ export async function verifyAppleIdToken(idToken: string): Promise<AuthProfile> 
     // Apple id_token does not include a picture claim. Users can upload
     // a custom avatar later (populates the same User.avatarUrl column).
     avatarUrl: null,
+    binding: bindingClaims(payload),
   };
 }
 

@@ -181,6 +181,8 @@ describe("internal-grant rollout — migration state", () => {
       "20281111000200_capacity_case_links_team_evidence_idx",
       // REPORT-006: the publication intent records the object digest. EXPAND.
       "20281113000100_artifact_publication_intent_digest",
+      // PRO-034: Google/Apple id_tokens bound to a server-issued nonce, used once. EXPAND.
+      "20281114100000_social_sign_in_nonces",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

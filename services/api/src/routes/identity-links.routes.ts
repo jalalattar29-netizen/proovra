@@ -62,6 +62,7 @@ import {
   type AccountStepUpProof,
 } from "../services/identity-security/account-step-up.service.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
+import { bindIdTokenToAttempt } from "../services/auth/social-sign-in-nonce.service.js";
 import { cancelOutstandingStepUpChallenges } from "../services/identity-security/step-up.service.js";
 
 const LinkBody = z.object({
@@ -161,6 +162,7 @@ async function linkProviderIdentity(
     providerUserId: string;
     email?: string | null;
     emailVerified?: boolean;
+    binding?: { nonce: string | null; iat: number; exp: number };
   }>,
 ) {
   const userId = getAuthUserId(req);
@@ -191,6 +193,19 @@ async function linkProviderIdentity(
 
   if (await identityBelongsElsewhere(provider, profile.providerUserId, userId)) {
     return conflict();
+  }
+
+  // PRO-034 (AUTH-28) — a link answers one attempt this API started, once,
+  // exactly as a sign-in does.
+  const bound = profile.binding
+    ? await bindIdTokenToAttempt(req, {
+        provider: provider === prismaPkg.AuthProvider.GOOGLE ? "GOOGLE" : "APPLE",
+        idToken: body.idToken,
+        claims: profile.binding,
+      })
+    : ({ ok: false, reason: "nonce_required" } as const);
+  if (!bound.ok) {
+    return reply.code(400).send({ error: { code: "invalid_id_token", reason: bound.reason } });
   }
 
   const fields = {
@@ -240,15 +255,11 @@ async function linkProviderIdentity(
       throw err;
     }
   }
-  const link = await prisma.userIdentityLink.findUniqueOrThrow({
-    where: {
-      user_identity_links_provider_subject_uniq: {
-        provider,
-        providerSubjectId: profile.providerUserId,
-      },
-    },
+  const link = await prisma.userIdentityLink.findFirst({
+    where: { provider, providerSubjectId: profile.providerUserId, userId, status: "ACTIVE" },
     select: { id: true, provider: true, linkedAtUtc: true },
   });
+  if (!link) return conflict();
 
   auditIdentityEvent(req, userId, "identity.login_method_linked", {
     provider,

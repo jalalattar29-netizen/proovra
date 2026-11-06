@@ -109,7 +109,7 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:938",
+      "site": "services/api/src/services/access-control/sso.service.ts:940",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetchOidcDiscovery(conn.issuerUrl) on the callback path.",
       "reviewedAtUtc": "2026-08-15"
@@ -121,13 +121,13 @@
       "reviewedAtUtc": "2026-10-28"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:965",
+      "site": "services/api/src/services/access-control/sso.service.ts:967",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.token_endpoint) — the IdP's token endpoint.",
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "services/api/src/services/access-control/sso.service.ts:1127",
+      "site": "services/api/src/services/access-control/sso.service.ts:1141",
       "class": "EXTERNAL_DESTINATION",
       "evidence": "fetch(discovery.userinfo_endpoint) — the IdP's userinfo endpoint.",
       "reviewedAtUtc": "2026-08-15"

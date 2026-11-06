@@ -1524,6 +1524,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281111000200_capacity_case_links_team_evidence_idx",
       // REPORT-006: the publication intent records the object digest. EXPAND.
       "20281113000100_artifact_publication_intent_digest",
+      // PRO-034: Google/Apple id_tokens bound to a server-issued nonce, used once. EXPAND.
+      "20281114100000_social_sign_in_nonces",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

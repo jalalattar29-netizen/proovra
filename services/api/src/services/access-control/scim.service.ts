@@ -1430,17 +1430,19 @@ export async function scimDeactivateUser(
  * Returns `{ ok:false, notFound:true }` when there is no member row at
  * all (nothing to reactivate).
  */
-export async function scimReactivateUser(
-  ctx: ScimCreateUserContext,
-  userId: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<{
+export type ScimReactivateResult = {
   ok: boolean;
   notFound?: boolean;
   /** PRO-013 — an administrator suspended or revoked the membership. */
   heldByAdministrator?: boolean;
   seatRefused?: "seat_limit_reached" | "seat_contention";
-}> {
+};
+
+export async function scimReactivateUser(
+  ctx: ScimCreateUserContext,
+  userId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<ScimReactivateResult> {
   const member = await client.teamMember.findUnique({
     where: { teamId_userId: { teamId: ctx.teamId, userId } },
   });

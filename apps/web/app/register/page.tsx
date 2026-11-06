@@ -18,7 +18,7 @@ import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiFetch, isApiResponseError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
-import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
+import { fetchSocialSignInNonce, loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import {
   clearPendingOAuthLegalAcceptance,
@@ -34,6 +34,7 @@ type GoogleAccountsId = {
     client_id: string;
     callback: (response: GoogleCredentialResponse) => void;
     cancel_on_tap_outside?: boolean;
+    nonce?: string;
   }) => void;
   renderButton?: (
     parent: HTMLElement,
@@ -62,6 +63,7 @@ type AppleAuth = {
     scope: string;
     redirectURI: string;
     usePopup: boolean;
+    nonce?: string;
   }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
@@ -633,20 +635,31 @@ function RegisterPageContent() {
         const id = google?.accounts?.id;
         if (!id?.initialize) return;
 
-        if (!googleInitOnceRef.current) {
-          googleInitOnceRef.current = true;
+        // PRO-034 — every Google attempt carries a nonce the API issued; the
+        // button is armed again with a fresh one after each attempt.
+        const armGoogle = async (): Promise<void> => {
+          const nonce = await fetchSocialSignInNonce("google");
           id.initialize({
             client_id: clientId,
             cancel_on_tap_outside: true,
+            nonce,
             callback: (response: GoogleCredentialResponse) => {
               const idToken = response.credential;
               if (!idToken) {
                 setError("Google sign-up failed.");
+                void armGoogle().catch(() => undefined);
                 return;
               }
-              void handleAuthRef.current("/v1/auth/google", idToken);
+              void handleAuthRef.current("/v1/auth/google", idToken).finally(() => {
+                void armGoogle().catch(() => undefined);
+              });
             },
           });
+          renderGoogleButtonRef.current();
+        };
+        if (!googleInitOnceRef.current) {
+          googleInitOnceRef.current = true;
+          void armGoogle().catch(() => undefined);
         }
 
         renderGoogleButtonRef.current();
@@ -716,6 +729,15 @@ function RegisterPageContent() {
     }
 
     try {
+      // PRO-034 — a fresh API-issued nonce for this attempt.
+      auth.init({
+        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "",
+        scope: "name email",
+        redirectURI:
+          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`,
+        usePopup: true,
+        nonce: await fetchSocialSignInNonce("apple"),
+      });
       const response = await auth.signIn();
       const idToken = response.authorization?.id_token;
       const code = response.authorization?.code;

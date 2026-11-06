@@ -19,6 +19,25 @@ export function buildGoogleAuthUrl(params: { state: string; origin?: string }): 
   return url.toString();
 }
 
+/**
+ * PRO-034 — the nonce the API issues for ONE Google or Apple sign-in or link
+ * attempt. It is handed to the provider, which signs it into the id_token, and
+ * the API accepts that token once, from this browser (an HTTP-only binding
+ * cookie comes back with the nonce). Fetch a fresh one for every attempt.
+ */
+export async function fetchSocialSignInNonce(provider: "google" | "apple"): Promise<string> {
+  const { apiFetch } = await import("./api");
+  const data = (await apiFetch(
+    "/v1/auth/oauth/nonce",
+    { method: "POST", body: JSON.stringify({ provider }) },
+    { auth: false },
+  )) as { nonce?: unknown };
+  if (typeof data?.nonce !== "string" || data.nonce.length === 0) {
+    throw new Error("sign_in_nonce_unavailable");
+  }
+  return data.nonce;
+}
+
 let googleScriptPromise: Promise<void> | null = null;
 let appleScriptPromise: Promise<void> | null = null;
 

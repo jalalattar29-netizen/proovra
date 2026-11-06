@@ -374,9 +374,13 @@ function makeGroupDb(seed: { members: string[] }) {
           : [],
       updateMany: async () => ({ count: 0 }),
     },
-    // No SCIM link: Organization identity is resolved through membership.
+    // PRO-030 — a group names only people the directory linked in its
+    // Organization: the seeded members carry a live link, anyone else none.
     externalIdentityMapping: {
-      findFirst: async () => null,
+      findFirst: async (args: { where: { userId: string; organizationId: string } }) =>
+        seed.members.includes(args.where.userId) && args.where.organizationId === ORG_ID
+          ? { id: `link-${args.where.userId}` }
+          : null,
     },
     teamMember: {
       findFirst: async (args: {

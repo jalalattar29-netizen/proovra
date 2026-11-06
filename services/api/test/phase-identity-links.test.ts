@@ -73,8 +73,15 @@ describe("sign-in resolution", () => {
     expect(AUTH).toMatch(/providerSubjectId: profile\.providerUserId/);
   });
   it("every OAuth sign-in freshens the link inventory without blocking auth", () => {
-    expect(AUTH).toMatch(/userIdentityLink[\s\S]{0,80}\.upsert/);
+    // PRO-009 — the freshen is a guarded write: this account's own row or a
+    // REVOKED one, never another account's ACTIVE link; else a create.
+    expect(AUTH).toMatch(/userIdentityLink\.updateMany\(\{[\s\S]{0,300}OR: \[\{ userId: signedInUserId \}, \{ status: "REVOKED" \}\]/);
+    expect(AUTH).toMatch(/userIdentityLink\.create\(/);
     expect(AUTH).toMatch(/lastUsedAtUtc: now/);
     expect(AUTH).toMatch(/\.catch\(\(\) => null\)/);
+  });
+  it("PRO-010: an unlinked identity no longer resolves through the account's own pair", () => {
+    expect(AUTH).toMatch(/pairLink && pairLink\.status !== "ACTIVE"/);
+    expect(ROUTES).toMatch(/providerUserId: detachedLegacySubject\(target\.id\)/);
   });
 });

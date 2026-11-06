@@ -100,6 +100,13 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
     });
   const json = (res: { body: string }) => JSON.parse(res.body) as Json;
 
+  /** PRO-034 — the nonce a real client fetches before the provider ceremony. */
+  async function nonceFor(provider: "google" | "apple"): Promise<string> {
+    const res = await call({ method: "POST", url: "/v1/auth/oauth/nonce", payload: { provider } });
+    if (res.statusCode !== 200) throw new Error(`nonce ${res.statusCode} ${res.body}`);
+    return json(res).nonce as string;
+  }
+
   /** Bounded wait for a row the product writes fire-and-forget. */
   async function eventually<T>(label: string, read: () => Promise<T | null | undefined>): Promise<T> {
     const deadline = Date.now() + 10_000;
@@ -275,6 +282,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
             sub,
             email,
             email_verified: true,
+            nonce: await nonceFor("google"),
             name: "K1 Google",
           }),
         },
@@ -330,6 +338,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
             aud: APPLE_AUD,
             sub,
             email,
+            nonce: await nonceFor("apple"),
             // Apple sends this claim as a string.
             email_verified: "true",
           }),
@@ -864,6 +873,7 @@ describe("K1 identity-auth (A) — personal sign-in and account security (live P
             aud: GOOGLE_AUD,
             sub,
             email: `k1-links-${sub.slice(2, 10)}@test.proovra.local`,
+            nonce: await nonceFor("google"),
           }),
         },
       });

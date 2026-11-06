@@ -447,6 +447,8 @@ describe("P0 — SCIM deactivation revokes sessions and heals context", () => {
       "teamMember.findMany": () => [{ id: "member-1", teamId: TEAM_ID }],
       "teamMember.findFirst": () => ({ id: "member-1" }),
       "teamMember.findUnique": () => ({ id: "member-1", status: "ACTIVE" }),
+      // PRO-014 — the directory reaches only people it linked in this Organization.
+      "externalIdentityMapping.findFirst": () => ({ id: "mapping-1" }),
     });
     const res = await scimDeactivateUser(
       { teamId: TEAM_ID, organizationId: ORG_ID, tokenId: "tok-1", baseUrl: "https://x" },

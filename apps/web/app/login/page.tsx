@@ -22,7 +22,7 @@ import { useToast } from "../../components/ui";
 import { useAuth, useLocale } from "../providers";
 import { apiBaseUrl, apiFetch, isApiResponseError } from "../../lib/api";
 import { authLogger } from "../../lib/auth-logger";
-import { loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
+import { fetchSocialSignInNonce, loadAppleIdentity, loadGoogleIdentity } from "../../lib/oauth";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { ForgotPasswordModal } from "../../components/marketing/ForgotPasswordModal";
 import { ssoSignInFailureMessage } from "../../lib/identity/ssoSignIn";
@@ -36,6 +36,7 @@ type GoogleAccountsId = {
     client_id: string;
     callback: (response: GoogleCredentialResponse) => void;
     cancel_on_tap_outside?: boolean;
+    nonce?: string;
   }) => void;
   renderButton?: (
     parent: HTMLElement,
@@ -59,7 +60,7 @@ type GoogleGlobal = Window & {
 type AppleSignInResponse = { authorization?: { code?: string; id_token?: string } };
 
 type AppleAuth = {
-  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean }) => void;
+  init: (options: { clientId: string; scope: string; redirectURI: string; usePopup: boolean; nonce?: string }) => void;
   signIn: () => Promise<AppleSignInResponse>;
 };
 
@@ -500,20 +501,33 @@ function LoginPageContent() {
         const id = google?.accounts?.id;
         if (!id?.initialize) return;
 
-        if (!googleInitOnceRef.current) {
-          googleInitOnceRef.current = true;
+        // PRO-034 — every Google attempt carries a nonce the API issued, and the
+        // API accepts the resulting token once. After an attempt (whatever its
+        // outcome) the button is armed again with a fresh nonce.
+        const armGoogle = async (): Promise<void> => {
+          const nonce = await fetchSocialSignInNonce("google");
+          if (!isMountedRef.current) return;
           id.initialize({
             client_id: clientId,
             cancel_on_tap_outside: true,
+            nonce,
             callback: (response: GoogleCredentialResponse) => {
               const idToken = response.credential;
               if (!idToken) {
                 setError("Google login failed.");
+                void armGoogle().catch(() => undefined);
                 return;
               }
-              void handleAuthRef.current("/v1/auth/google", idToken);
+              void handleAuthRef.current("/v1/auth/google", idToken).finally(() => {
+                void armGoogle().catch(() => undefined);
+              });
             },
           });
+          renderGoogleButtonRef.current();
+        };
+        if (!googleInitOnceRef.current) {
+          googleInitOnceRef.current = true;
+          void armGoogle().catch(() => undefined);
         }
 
         renderGoogleButtonRef.current();
@@ -579,6 +593,16 @@ function LoginPageContent() {
     }
 
     try {
+      // PRO-034 — a fresh API-issued nonce for this attempt, signed into the
+      // id_token by Apple; the API accepts that token once.
+      auth.init({
+        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID ?? "",
+        scope: "name email",
+        redirectURI:
+          process.env.NEXT_PUBLIC_APPLE_REDIRECT_URI ?? `${window.location.origin}/auth/callback`,
+        usePopup: true,
+        nonce: await fetchSocialSignInNonce("apple"),
+      });
       const response = await auth.signIn();
       const idToken = response.authorization?.id_token;
       const code = response.authorization?.code;

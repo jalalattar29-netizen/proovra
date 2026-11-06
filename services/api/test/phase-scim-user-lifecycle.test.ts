@@ -185,8 +185,20 @@ function makeFake() {
     // organizationIdForPolicy → null and the managed binding is skipped (this
     // suite covers SCIM user mechanics, not managed identity — see
     // phase-10-managed-provisioning.test.ts for the atomic binding).
+    //
+    // IDENT-013 — a directory creates an account only in a domain its
+    // Organization verified, so the workspace names its Organization (still not
+    // a CUSTOMER one: `organization: null` keeps the managed binding out of
+    // scope) and acme.com is that Organization's verified domain.
     team: {
-      findUnique: async () => ({ organizationId: null, organization: null }),
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        organizationId: TEAM_ORG[where.id] ?? null,
+        organization: null,
+      }),
+    },
+    organizationDomain: {
+      findMany: async ({ where }: { where: { domain: string } }) =>
+        where.domain === "acme.com" ? [{ organizationId: ORG }] : [],
     },
 
     /**

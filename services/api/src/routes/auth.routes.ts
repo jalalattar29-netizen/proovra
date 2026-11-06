@@ -10,6 +10,7 @@ import {
   verifyAppleIdToken,
   verifyGoogleIdToken,
 } from "../services/auth.service.js";
+import { bindIdTokenToAttempt } from "../services/auth/social-sign-in-nonce.service.js";
 
 import {
   registerWithEmailPassword,
@@ -790,6 +791,22 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const profile = await verifyGoogleIdToken(idToken);
+      // PRO-034 (AUTH-28) — the token answers one attempt this API started, once.
+      const bound = await bindIdTokenToAttempt(req, {
+        provider: "GOOGLE",
+        idToken,
+        claims: profile.binding!,
+      });
+      if (!bound.ok) {
+        auditAuthEvent(req, {
+          userId: null,
+          action: "auth.google_login",
+          outcome: "failure",
+          severity: "warning",
+          metadata: { reason: bound.reason },
+        });
+        return reply.code(401).send({ message: "invalid_id_token", code: bound.reason });
+      }
       const user = await upsertUser(profile);
 
       // R8.1.2 — second-factor gate. If the user has an active MFA
@@ -888,6 +905,22 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const profile = await verifyAppleIdToken(idToken);
+      // PRO-034 (AUTH-28) — the token answers one attempt this API started, once.
+      const bound = await bindIdTokenToAttempt(req, {
+        provider: "APPLE",
+        idToken,
+        claims: profile.binding!,
+      });
+      if (!bound.ok) {
+        auditAuthEvent(req, {
+          userId: null,
+          action: "auth.apple_login",
+          outcome: "failure",
+          severity: "warning",
+          metadata: { reason: bound.reason },
+        });
+        return reply.code(401).send({ message: "invalid_id_token", code: bound.reason });
+      }
       const user = await upsertUserWithEmailLink(profile);
 
       // R8.1.2 — second-factor gate (Apple flow parallel to Google).

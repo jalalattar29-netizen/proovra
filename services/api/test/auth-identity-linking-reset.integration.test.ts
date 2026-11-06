@@ -44,7 +44,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
   let ipCounter = 1;
   const nextIp = () => `198.51.100.${(ipCounter++ % 250) + 1}`;
 
-  function googleIdToken(sub: string, email: string): string {
+  function googleIdToken(sub: string, email: string, extra: Json = {}): string {
     const b = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
     const now = Math.floor(Date.now() / 1000);
     const head = b({ alg: "RS256", kid: KID, typ: "JWT" });
@@ -56,11 +56,19 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
       email_verified: true,
       iat: now,
       exp: now + 600,
+      ...extra,
     });
     const s = createSign("RSA-SHA256");
     s.update(`${head}.${body}`);
     s.end();
     return `${head}.${body}.${Buffer.from(s.sign(key.privateKey)).toString("base64url")}`;
+  }
+
+  /** PRO-034 — a token for an attempt this API started: fetch a nonce first. */
+  async function freshToken(sub: string, email: string, extra: Json = {}): Promise<string> {
+    const r = await call("POST", "/v1/auth/oauth/nonce", undefined, { provider: "google" });
+    expect(r.statusCode, r.body).toBe(200);
+    return googleIdToken(sub, email, { nonce: (JSON.parse(r.body) as Json).nonce, ...extra });
   }
 
   const call = (method: string, url: string, token?: string, payload?: unknown) =>
@@ -115,7 +123,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
   }
 
   async function google(sub: string, email: string) {
-    const r = await call("POST", "/v1/auth/google", undefined, { idToken: googleIdToken(sub, email) });
+    const r = await call("POST", "/v1/auth/google", undefined, { idToken: await freshToken(sub, email) });
     return { status: r.statusCode, json: r.statusCode === 200 ? body(r) : null, raw: r };
   }
 
@@ -191,6 +199,77 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
   }, 300_000);
 
   // ---------------------------------------------------------------------------
+  // PRO-034 (AUTH-28)
+  // ---------------------------------------------------------------------------
+  it("PRO-034: an id_token signs in once, for a nonce this API issued, while it is fresh", async () => {
+    const sub = `rem3-nonce-${randomUUID()}`;
+    const email = `rem3-nonce-${randomUUID().slice(0, 8)}@test.proovra.local`;
+    const post = (idToken: string, headers: Record<string, string> = {}) =>
+      harness.app.inject({
+        method: "POST",
+        url: "/v1/auth/google",
+        remoteAddress: nextIp(),
+        headers: { "content-type": "application/json", ...headers },
+        payload: { idToken } as never,
+      });
+
+    // Control: an issued nonce signs in.
+    const t = await freshToken(sub, email);
+    const ok = await post(t);
+    expect(ok.statusCode, ok.body).toBe(200);
+    // The same token again: refused.
+    const replay = await post(t);
+    expect(replay.statusCode).toBe(401);
+    expect(body(replay).code).toBe("nonce_invalid");
+    // A nonce this API never issued.
+    const foreign = await post(googleIdToken(sub, email, { nonce: "never-issued-by-proovra" }));
+    expect(foreign.statusCode).toBe(401);
+    expect(body(foreign).code).toBe("nonce_invalid");
+    // No nonce at all (the rollout switch is off).
+    const none = await post(googleIdToken(sub, email));
+    expect(none.statusCode).toBe(401);
+    expect(body(none).code).toBe("nonce_required");
+    // Issued 30 days ago, still unexpired: refused by the iat window.
+    const old = Math.floor(Date.now() / 1000) - 30 * 86_400;
+    const stale = await post(await freshToken(sub, email, { iat: old }));
+    expect(stale.statusCode).toBe(401);
+
+    // A web nonce is bound to the browser that asked for it.
+    const issued = await harness.app.inject({
+      method: "POST",
+      url: "/v1/auth/oauth/nonce",
+      remoteAddress: nextIp(),
+      headers: { "content-type": "application/json", "x-web-client": "1" },
+      payload: { provider: "google" } as never,
+    });
+    expect(issued.statusCode).toBe(200);
+    const setCookie = String(([] as string[]).concat(issued.headers["set-cookie"] as never)[0] ?? "");
+    expect(setCookie).toMatch(/proovra_oauth_bind=[^;]+;.*HttpOnly/i);
+    const bindCookie = setCookie.split(";")[0]!;
+    const webToken = googleIdToken(sub, email, { nonce: (JSON.parse(issued.body) as Json).nonce });
+    const otherBrowser = await post(webToken, { "x-web-client": "1" });
+    expect(otherBrowser.statusCode).toBe(401);
+    const sameBrowser = await post(webToken, { "x-web-client": "1", cookie: bindCookie });
+    expect(sameBrowser.statusCode, sameBrowser.body).toBe(200);
+
+    // The rollout switch for native builds without a nonce: accepted once, never from the web.
+    process.env.SOCIAL_NONCELESS_ID_TOKENS = "accept";
+    try {
+      const legacy = googleIdToken(sub, email);
+      expect((await post(legacy)).statusCode).toBe(200);
+      const again = await post(legacy);
+      expect(again.statusCode).toBe(401);
+      expect(body(again).code).toBe("token_replayed");
+      expect((await post(googleIdToken(sub, email), { "x-web-client": "1" })).statusCode).toBe(401);
+    } finally {
+      delete process.env.SOCIAL_NONCELESS_ID_TOKENS;
+    }
+    // Only hashes are stored.
+    const rows = await prisma.socialSignInNonce.findMany({ take: 50, orderBy: { createdAtUtc: "desc" } });
+    expect(rows.every((r) => /^[0-9a-f]{64}$/.test(r.nonceHash))).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
   // PRO-009 (AUTH-03)
   // ---------------------------------------------------------------------------
   it("PRO-009: an identity A unlinked is re-owned by B when B links it, and signs in to B, never A", async () => {
@@ -204,13 +283,13 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     const b = await login(B.email, PB);
 
     const linkA = await call("POST", "/v1/identity/links/google", a.token!, {
-      idToken: googleIdToken(sub, gEmail),
+      idToken: await freshToken(sub, gEmail),
       stepUp: { method: "password", currentPassword: PA },
     });
     expect(linkA.statusCode, linkA.body).toBe(200);
     // Control: while A's link is ACTIVE, B is refused and nothing moves.
     const bWhileActive = await call("POST", "/v1/identity/links/google", b.token!, {
-      idToken: googleIdToken(sub, gEmail),
+      idToken: await freshToken(sub, gEmail),
       stepUp: { method: "password", currentPassword: PB },
     });
     expect(bWhileActive.statusCode).toBe(409);
@@ -223,7 +302,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
     expect(unlink.statusCode, unlink.body).toBe(200);
 
     const linkB = await call("POST", "/v1/identity/links/google", b.token!, {
-      idToken: googleIdToken(sub, gEmail),
+      idToken: await freshToken(sub, gEmail),
       stepUp: { method: "password", currentPassword: PB },
     });
     expect(linkB.statusCode, linkB.body).toBe(200);
@@ -237,7 +316,7 @@ describe("auth-identity remediation — linking, provenance, reset, extension co
 
     // And A can no longer take it back while B holds it.
     const aAgain = await call("POST", "/v1/identity/links/google", a.token!, {
-      idToken: googleIdToken(sub, gEmail),
+      idToken: await freshToken(sub, gEmail),
       stepUp: { method: "password", currentPassword: PA },
     });
     expect(aAgain.statusCode).toBe(409);
