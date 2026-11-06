@@ -60,12 +60,6 @@ import {
   suspendOrganizationMembership,
   type LifecycleOutcome,
 } from "../services/identity/org-membership-lifecycle.service.js";
-// PRO-039 / RT-020 — organization member suspension pauses workspace access.
-import {
-  RbacError,
-  restoreOrganizationWorkspaceAccessTx,
-  suspendOrganizationWorkspaceAccessTx,
-} from "../services/identity/rbac.service.js";
 // P2 domain remediation (2026-07-21) — canonical membership provisioning
 // (governance + explicit workspace assignments).
 import {
@@ -73,6 +67,11 @@ import {
   massRevokeWorkspaceMemberships,
   removeOrganizationMembership,
   updateOrganizationMembershipRole,
+  // PRO-039 / RT-020 — an organization member's suspension pauses workspace
+  // access, through the orchestrator (the rbac engine is subordinate to it).
+  RbacError,
+  restoreOrganizationWorkspaceAccessTx,
+  suspendOrganizationWorkspaceAccessTx,
 } from "../services/identity/membership-provisioning.service.js";
 // Phase 2.7X Stage 4 — audit emitter (writes inside the mutation tx).
 import { emitOrgAuditEvent } from "../services/organization/org-audit.service.js";

@@ -91,6 +91,12 @@ export {
   preflightMemberMutation,
 } from "./rbac.service.js";
 
+// PRO-039 / RT-020 — an organization member's suspension pauses (and its
+// restore returns) their workspace access. Same subordination: the
+// organization routes reach these through the orchestrator. A separate,
+// short statement so the reachability verifier's bounded lookahead holds.
+export { suspendOrganizationWorkspaceAccessTx, restoreOrganizationWorkspaceAccessTx } from "./rbac.service.js";
+
 // =============================================================================
 // PHASE 3 (2026-07-21) — canonical provisioning intents + grant sources.
 // =============================================================================

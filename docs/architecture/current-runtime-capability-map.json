@@ -31492,8 +31492,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2543",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2543",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@2542",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2542",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31525,8 +31525,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@918",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:918",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organization.update@917",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:917",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31558,8 +31558,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2881",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2881",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2880",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2880",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31591,8 +31591,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2927",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2927",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.create@2926",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2926",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31624,8 +31624,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3012",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3012",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationClosureRequest.updateMany@3011",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:3011",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31657,8 +31657,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1117",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1117",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.create@1116",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1116",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31690,8 +31690,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1486",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1486",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1485",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1485",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31723,8 +31723,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1581",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1581",
+      "writerId": "services/api/src/routes/organizations.routes.ts#organizationInvite.update@1580",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1580",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31756,8 +31756,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2341",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2341",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.update@2340",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:2340",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -31789,8 +31789,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@1921",
-      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1921",
+      "writerId": "services/api/src/routes/organizations.routes.ts#user.updateMany@1920",
+      "terminalLocation": "services/api/src/routes/organizations.routes.ts:1920",
       "file": "services/api/src/routes/organizations.routes.ts",
       "enclosingDeclaration": "organizationsRoutes",
       "kind": "DATABASE",
@@ -60159,8 +60159,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.create@200",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:200",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.create@206",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:206",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "recordMembershipGrant",
       "kind": "DATABASE",
@@ -60240,8 +60240,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@524",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:524",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@530",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:530",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "revokeAllMembershipGrants",
       "kind": "DATABASE",
@@ -60277,8 +60277,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@858",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:858",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@864",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:864",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeGrantsForTeamMembers",
       "kind": "DATABASE",
@@ -60315,8 +60315,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@878",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:878",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@884",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:884",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeGrantsForOrgMemberships",
       "kind": "DATABASE",
@@ -60353,8 +60353,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@322",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:322",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@328",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:328",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantOrganizationMembership",
       "kind": "DATABASE",
@@ -60402,8 +60402,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@713",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:713",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@719",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:719",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -60468,8 +60468,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1148",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1148",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1154",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1154",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "removeAllOrganizationMembershipsForUser",
       "kind": "DATABASE",
@@ -60503,8 +60503,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@707",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:707",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@713",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:713",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -60569,8 +60569,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@989",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:989",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@995",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:995",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "updateOrganizationMembershipRole",
       "kind": "DATABASE",
@@ -60603,8 +60603,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1258",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1258",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1264",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1264",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -60636,8 +60636,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1185",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1185",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1191",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1191",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -60671,8 +60671,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1203",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1203",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1209",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1209",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -60706,8 +60706,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1236",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1236",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1242",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1242",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -60739,8 +60739,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@557",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:557",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@563",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:563",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "suspendWorkspaceMembership",
       "kind": "DATABASE",
@@ -60776,8 +60776,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@917",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:917",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@923",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:923",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "applyDirectoryRoleChange",
       "kind": "DATABASE",
@@ -60815,8 +60815,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1094",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1094",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1100",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1100",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massRevokeWorkspaceMemberships",
       "kind": "DATABASE",
@@ -60853,8 +60853,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1293",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1293",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1299",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1299",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massSuspendWorkspaceMemberships",
       "kind": "DATABASE",
@@ -60887,8 +60887,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1342",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1342",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1348",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1348",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massReactivateSuspendedWorkspaceMemberships",
       "kind": "DATABASE",
@@ -60921,8 +60921,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@950",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:950",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@956",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:956",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "demoteGroupMappedRoleOnArchive",
       "kind": "DATABASE",
@@ -60956,8 +60956,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@466",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:466",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@472",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:472",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantWorkspaceMembership",
       "kind": "DATABASE",
@@ -61022,8 +61022,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@799",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:799",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@805",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:805",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -106699,7 +106699,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/invites/:inviteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1443",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1442",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -106770,7 +106770,7 @@
       "method": "DELETE",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1832",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1831",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -131260,7 +131260,7 @@
       "method": "GET",
       "path": "/v1/me/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:324",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:323",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -133754,7 +133754,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:431",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:430",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -133886,7 +133886,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/audit-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3089",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:3088",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134051,7 +134051,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2737",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2736",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134193,7 +134193,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1374",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1373",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -134333,7 +134333,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/members",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:545",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:544",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135087,7 +135087,7 @@
       "method": "GET",
       "path": "/v1/orgs/:id/workspaces",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:730",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:729",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147888,7 +147888,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:887",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:886",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -147976,7 +147976,7 @@
       "method": "PATCH",
       "path": "/v1/orgs/:id/members/:memberId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1695",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1694",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -181821,7 +181821,7 @@
       "method": "POST",
       "path": "/v1/org-invite-deliveries/process",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1675",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1674",
       "authorizationClass": "CRON_SECRET",
       "authorizationEvidence": [
         "requireIntegrationCronSecret -> services/api/src/middleware/cron-secret.ts: reaches the constant-time cron/integration shared-secret comparison (checkCronSecret)"
@@ -181841,7 +181841,7 @@
       ],
       "primaryDisposition": "WORKER_CONSUMER",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1675 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:107 (runOrgInviteDeliverySweep)",
+      "dispositionEvidence": "services/api/src/routes/organizations.routes.ts:1674 — worker caller(s): services/worker/src/org-invite-delivery.worker.ts:107 (runOrgInviteDeliverySweep)",
       "dispositionReason": "called by the worker service",
       "replacement": null,
       "result": "DISPOSED_WORKER_CONSUMER",
@@ -181883,7 +181883,7 @@
       "method": "POST",
       "path": "/v1/org-invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1236",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1235",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -181981,7 +181981,7 @@
       "method": "POST",
       "path": "/v1/orgs",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:867",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:866",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182020,7 +182020,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2781",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2780",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182104,7 +182104,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2968",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2967",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182178,7 +182178,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:996",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:995",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182264,7 +182264,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1540",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:1539",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182657,7 +182657,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/leave",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2278",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2277",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"AUTH_JWT_SECRET\")"
@@ -182774,7 +182774,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2241",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2240",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -182884,7 +182884,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/members/:memberId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2236",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2235",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/organizations.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183048,7 +183048,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2425",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2424",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183136,7 +183136,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2654",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2653",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -183214,7 +183214,7 @@
       "method": "POST",
       "path": "/v1/orgs/:id/workspaces/:teamId/suspend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2654",
+      "registrationEvidence": "services/api/src/routes/organizations.routes.ts:2653",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
