@@ -72,6 +72,8 @@ const REGISTER = "apps/web/app/register/page.tsx";
 const EXCHANGE = "apps/web/app/(app)/exchange/page.tsx";
 const MANAGE_VERIFICATION_PAGE = "apps/web/components/evidence-outputs/ManageVerificationPagePanel.tsx";
 const SSO_CONNECTIONS = "apps/web/app/(app)/security-center/sso/_sections/IdentityProvidersSection.tsx";
+// MOBILE-002 — the native SSO handoff is answered by the mobile app, not the web.
+const NATIVE_SSO = "apps/mobile/src/auth/use-sso-sign-in.ts";
 
 export const ERROR_CODE_DISPOSITIONS: Readonly<
   Record<string, ErrorCodeDisposition>
@@ -552,6 +554,14 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   // Answered by the SSO connections console, the only surface that creates or
   // activates a connection.
   SSO_CONNECTION_EXISTS: { disposition: "customer", where: SSO_CONNECTIONS },
+  SSO_NATIVE_CODE_INVALID: { disposition: "customer", where: NATIVE_SSO },
+  SSO_SIGN_IN_REFUSED: { disposition: "customer", where: NATIVE_SSO },
+  INVALID_INPUT: {
+    disposition: "internal",
+    why:
+      "MOBILE-002 native SSO handoff only: the S256 code challenge and the code verifier are " +
+      "computed by the mobile app, never typed by a person; the app still maps it to its input message.",
+  },
   SCIM_GROUP_PROJECTION_EXISTS: { disposition: "customer", where: "global" },
   SCIM_GROUP_PROJECTION_WORKSPACE_NOT_ELIGIBLE: { disposition: "customer", where: "global" },
   SCIM_GROUP_PROJECTION_NO_DIRECTORY: { disposition: "customer", where: "global" },
