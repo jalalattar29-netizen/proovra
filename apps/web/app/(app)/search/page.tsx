@@ -31,7 +31,6 @@ import {
 } from "../../../lib/platform-context";
 // PHASE 12 REMEDIATION — WEB-002 (2026-08-06). The ONE tenant-storage
 // namespace authority; see the recent-searches block below.
-import { tenantStorageKey } from "../../../lib/platform-context/tenantStorage";
 import { getCookieConsentEventName, hasPreferencesConsent } from "../../../lib/consent";
 import {
   clearRecentSearches,
