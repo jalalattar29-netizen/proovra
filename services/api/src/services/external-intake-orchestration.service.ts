@@ -67,7 +67,7 @@ import {
   transitionIntakeSession,
   WorkflowIntakeSessionError,
 } from "./workflow-intake-session.service.js";
-import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
+import { EVIDENCE_RESERVATION_TTL_MS, releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 import { linkResponseFromIntakeSession } from "./evidence-request.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 // Client-signal helpers — server-side canonical source. The intake
@@ -330,6 +330,14 @@ export async function createOrLoadExternalEvidence(
       select: { maxUses: true, usedCount: true },
     });
     const remaining = linkNow ? linkNow.maxUses - linkNow.usedCount : 0;
+    // PRO-050 / EVIDENCE-05 — a pending session holds a use only while its
+    // record is active: created or touched within the reservation window (24 h,
+    // the window the reaper and the allowance use). Sessions expire with their
+    // link (up to 90 days), so two contributors who each staged a file and left
+    // locked a reusable link against everyone else for that long. A stale
+    // session can still submit; the use itself is reserved atomically at submit
+    // (reserveIntakeLinkUse), so the link is never over-used.
+    const holdCutoff = new Date(Date.now() - EVIDENCE_RESERVATION_TTL_MS);
     const pending = await client.workflowIntakeSession.count({
       where: {
         intakeLinkId: pair.link.id,
@@ -337,6 +345,7 @@ export async function createOrLoadExternalEvidence(
         evidenceId: { not: null },
         status: { in: ["CREATED", "OPENED", "UPLOAD_STARTED", "UPLOAD_COMPLETED"] },
         expiresAtUtc: { gt: new Date() },
+        evidence: { OR: [{ createdAt: { gte: holdCutoff } }, { updatedAt: { gte: holdCutoff } }] },
       },
     });
     if (pending >= remaining) {
@@ -1093,6 +1102,16 @@ export async function submitExternalIntake(
   // validateIntakeToken and the increment after completion were a read and a
   // later unconditional write. A finalization that fails gives the use back.
   if (!(await reserveIntakeLinkUse(input.link.id, client))) {
+    // PRO-050 — the reservation also refuses a link revoked or expired since
+    // the token was validated; say so rather than "exhausted".
+    const linkNow = await client.workflowIntakeLink.findUnique({
+      where: { id: input.link.id },
+      select: { status: true, expiresAtUtc: true },
+    });
+    // (A ONE_TIME link closed by its own submission keeps its own answer below.)
+    if (linkNow && (linkNow.status === "REVOKED" || (linkNow.status === "ACTIVE" && linkNow.expiresAtUtc.getTime() <= Date.now()))) {
+      throw new ExternalIntakeOrchestrationError("link_revoked");
+    }
     throw new WorkflowIntakeSessionError(
       input.link.maxUses === 1 ? "link_already_submitted" : "link_exhausted",
     );
@@ -1115,6 +1134,11 @@ export async function submitExternalIntake(
       },
     });
     sealedByThisSubmission = completed?.alreadyFinalized !== true;
+    // PRO-050 / EVIDENCE-05 — a second submit of the same session that found
+    // the record already sealed (by the first, under the record lock) used no
+    // use of the link: it gives back the use it reserved. Two parallel submits
+    // of one session counted two uses.
+    if (!sealedByThisSubmission) await releaseIntakeLinkUse(input.link.id, client);
   } catch (err) {
     // INGEST-011 — a failure after the seal committed (retention) did use the
     // link: the record exists. Only a submission that sealed nothing gives it back.
@@ -1123,6 +1147,10 @@ export async function submitExternalIntake(
       .then((row) => row?.status === "SIGNED" || row?.status === "REPORTED")
       .catch(() => false);
     if (!sealed) await releaseIntakeLinkUse(input.link.id, client);
+    // PRO-050 — the link was revoked (or closed) while this submit was in flight.
+    if (err instanceof Error && err.message === "INTAKE_LINK_NOT_ACTIVE") {
+      throw new ExternalIntakeOrchestrationError("link_revoked");
+    }
     // ET-INT-02 — a part whose object was never written is the contributor's
     // to fix (upload it again), not "this intake can't accept evidence".
     // Both not-found shapes completion raises: a zero-size object, and a HEAD
