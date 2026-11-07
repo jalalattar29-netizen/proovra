@@ -104,6 +104,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "A pagination cursor the UI produced itself; a person never types one.",
   },
+  LEGAL_HOLD_DISCLOSURE_OWNER_ONLY: {
+    disposition: "internal",
+    why: "GOV-012 — the legal-hold disclosure setting is changed only through the governance settings API by the workspace owner; no web page sends it, so a person never sees this refusal in the UI.",
+  },
   SUPPRESSION_REASON_REQUIRED: {
     disposition: "internal",
     why: "OPS-030 — the Operations drawer and bulk toolbar ask for the reason and keep the control disabled until one is given, so a person never sends a suppression without it.",
