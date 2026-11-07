@@ -697,7 +697,10 @@ test("S16B sign-out and sign-in mid-journey: the record, its report and the deci
   // A session that ended stays ended: the app sends a signed-out person to sign in.
   await page.goto(`/evidence/${s.facts.evidenceId}`);
   await settle(page);
-  await expect(page.locator("main")).not.toContainText(`hull-damage-${s.runId}`);
+  // The signed-out state (PRO-075) renders its own role="main" region rather than a <main>
+  // element, so assert that state is shown and that nothing of the record is anywhere on the page.
+  await expect(page.locator("[data-signed-out-app-state]")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(`hull-damage-${s.runId}`);
   expect(await signIn(page, analyst)).toBe("challenge");
   await settle(page);
   await switchWorkspace(page, "Claims Investigations");
@@ -757,7 +760,10 @@ test("S17 role change and member suspension take effect, and restoring brings ac
   await a.page.goto("/home");
   await settle(a.page);
   await shot(a.page, "s17-suspended-member");
-  await expect(a.page.locator("[data-context-chip-name]")).not.toContainText("Claims Investigations");
+  // Suspension ends every session the member holds (rbac.service suspendMember → autoRevokeAllSessions),
+  // so the member is signed out and nothing of the workspace is on the page.
+  await expect(a.page.locator("[data-signed-out-app-state]")).toBeVisible();
+  await expect(a.page.locator("body")).not.toContainText("Claims Investigations");
   await a.context.close();
 
   await page.getByTestId(`member-restore-${id}`).click();
@@ -792,7 +798,7 @@ test("S18 operator suspends the customer, members are refused, operator reactiva
   await a.page.goto(`/evidence/${s.facts.evidenceId}`);
   await settle(a.page);
   await shot(a.page, "s18-member-refused");
-  await expect(a.page.locator("main")).not.toContainText(`hull-damage-${s.runId}`);
+  await expect(a.page.locator("body")).not.toContainText(`hull-damage-${s.runId}`);
 
   await page.getByTestId("customer-resume").click();
   await page.waitForTimeout(700);
