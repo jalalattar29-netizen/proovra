@@ -115709,7 +115709,7 @@
       "method": "GET",
       "path": "/v1/break-glass/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:527",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:530",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -143124,7 +143124,7 @@
       "method": "GET",
       "path": "/v1/security-policy/high-security/readiness",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:460",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:463",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -143687,7 +143687,7 @@
       "method": "GET",
       "path": "/v1/support-access/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:720",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:723",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -158780,7 +158780,7 @@
       "method": "POST",
       "path": "/v1/break-glass/activate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:489",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:492",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/identity/break-glass.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -158868,7 +158868,7 @@
       "method": "POST",
       "path": "/v1/break-glass/emergency/sessions/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:785",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:788",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeWithEmergencyOverlay -> services/api/src/middleware/authorize-emergency.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -158934,7 +158934,7 @@
       "method": "POST",
       "path": "/v1/break-glass/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:510",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:513",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -193358,7 +193358,7 @@
       "method": "POST",
       "path": "/v1/security-policy/high-security/activate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:468",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:471",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requireOrgPolicyAdmin -> services/api/src/routes/enterprise-security.routes.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -193560,7 +193560,7 @@
       "method": "POST",
       "path": "/v1/support-access/enter",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:834",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:837",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -193638,7 +193638,7 @@
       "method": "POST",
       "path": "/v1/support-access/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:693",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:696",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformStaff -> services/api/src/routes/enterprise-security.routes.ts: reaches the platform-administrator lookup (isPlatformAdmin)",
@@ -193702,7 +193702,7 @@
       "method": "POST",
       "path": "/v1/support-access/start",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:569",
+      "registrationEvidence": "services/api/src/routes/enterprise-security.routes.ts:572",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "checkOrgAccess -> services/api/src/services/organization/org-access.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",

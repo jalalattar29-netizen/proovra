@@ -367,7 +367,10 @@ export async function enterpriseSecurityRoutes(app: FastifyInstance) {
         : null,
     };
     {
-      const { organizationId: _o, expectedPolicyVersion: _v, ...patchOnly } = body;
+      // Only the policy fields are classified, not the addressing fields.
+      const patchOnly: Partial<typeof body> = { ...body };
+      delete patchOnly.organizationId;
+      delete patchOnly.expectedPolicyVersion;
       const cls = await classifyPolicyEditUnderMandatorySso({
         organizationId: body.organizationId,
         actorUserId: auth.actorUserId,
